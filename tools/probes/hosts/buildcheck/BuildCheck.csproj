@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       Editor 工程生成器 / 素材导入器 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
+
+       为什么需要它（同 `tools/mapcheck` / `tools/flowcheck` / `tools/uicheck` 的理由）：
+         用户尚未打开 Unity 编辑器（skill 闸门 2）⇒ **禁止** `unity run` / `unity test` /
+         `Unity.exe -batchmode`；而 `client/client.slnx` 里还没有 Unity 生成的工程文件
+         ⇒ `dotnet build client.slnx` **覆盖不到** `Assets/Editor/**`。
+         本工程把「Unity 托管 DLL（含 UnityEditor）+ `Assets/Editor/*.cs`」直接编到 .NET 上，
+         得到秒级的类型/语法校验，并跑一批**真断言**：
+           · 生成器的清单（16 个面板 / 3 个场景 / Build Index 顺序 / 菜单名）
+           · 已落盘的 16 个 `.prefab`：根 RectTransform 是否真的铺满 + m_Script 是否指向对的脚本 GUID
+           · 已落盘的 3 个 `.unity`：必需节点在不在、有没有多余 Canvas/EventSystem
+           · `ProjectSettings/EditorBuildSettings.asset`：三个场景按序 + guid 与 `.unity.meta` 一致
+           · `AssetImporter` 的多帧条带表：与 `frame_probe.py` 的**实测输出逐条比对**，
+             并用 PNG 头（IHDR）读出的真实图幅校验 TexW/TexH、校验每个帧矩形在图幅内
+
+       注意：它只证明「类型/语法没问题 + 落盘资产自洽」，**不替代进 Play 实测**。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>BuildCheck</AssemblyName>
+    <RootNamespace>BuildCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067;CS0618</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 被自检的 Editor 代码：与 Assets/Editor 是同一份文件（不复制） -->
+    <Compile Include="..\..\..\client\Assets\Editor\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unity 托管模块（与 _syntaxcheck\Diablo2.SyntaxCheck.csproj 同一套路径口径）。
+         注意：该目录下的 UnityEditor.*Module.dll 已含编辑器类型（UnityEditor.CoreModule 里有
+         AssetPostprocessor / TextureImporter / MenuItem …）⇒ **不能再引用 Managed\UnityEditor.dll**，
+         否则每个类型都会 CS0433「同时存在于两个程序集」。 -->
+    <Reference Include="C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\*.dll" />
+    <!-- U2D.Sprites（AssetImporter.cs 的 using UnityEditor.U2D.Sprites）由包程序集提供，
+         不在 Managed 下 ⇒ 用 Unity 已编译出来的产物（同 uicheck 引用 UnityEngine.UI 的做法） -->
+    <Reference Include="..\..\..\client\Library\ScriptAssemblies\Unity.2D.Sprite.Editor.dll" />
+    <Reference Include="..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll" />
+  </ItemGroup>
+
+</Project>

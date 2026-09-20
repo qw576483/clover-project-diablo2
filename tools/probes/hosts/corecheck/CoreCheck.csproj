@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       ★ Core 契约自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
+
+       为什么需要它（`docs/agents/agent-13-修复轮.md` §C 的验收项）：
+         §C 只改 `client/Assets/Scripts/Core/**`（`ResPaths.cs` / `GameConst.cs` / `Log.cs`），
+         而既有 7 个宿主各编各的子集、**没有一个**专门断言「Core 的常量指向真实磁盘文件」
+         与「Core 在离线宿主里不抛异常」。`_common.md` §3.5 明确允许
+         「或者自己照抄建一个 `tools/<你的模块>check/`（把 `Assets/Scripts/**` + 引擎 DLL 编到 .NET 并跑断言）」。
+
+       编译范围 = `Def/**` + `Core/**`（+ 引擎门面替身），刻意**不编** Module/UI/App/Table：
+         本宿主盯的是 Core 自身的契约与离线可用性，编得越少越快、越不会被别人的并行改动拖累。
+         引擎门面替身复用 `tools/fullcheck/shim/EngineShim.cs`（与 `tools/uicheck` 复用
+         `tools/flowcheck/shim/EngineShim.cs` 同一套做法），因为 `Core/Log.cs` 只用到 `Game.Logger`。
+
+       覆盖率自证：编译产物 CoreCheck.dll 存在 + 运行输出全部 `[ OK ]`（0 失败）。
+       ⚠️ 它只证明「类型 / 常量 / 离线可用性」，**不替代进 Play 实测**
+          （用户尚未打开编辑器 ⇒ 闸门 2：禁止 `unity run/test/batchmode`）。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>CoreCheck</AssemblyName>
+    <RootNamespace>CoreCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="..\fullcheck\shim\EngineShim.cs" />
+
+    <!-- Diablo2 源码：只编 Core 及其直接依赖（Def） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
+         寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

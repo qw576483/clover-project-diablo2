@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       Flow / 流程面板 / App 自检宿主（**非 Unity 工程、不参与打包**）
+
+       为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`
+       （用户尚未打开编辑器，Unity 未重新生成工程文件 ⇒ `dotnet build client.slnx`
+         **覆盖不到** `Assets/Scripts/**`，那条命令在本机是"零信息"的）。
+       本工程把「Unity 托管模块 DLL + Diablo2 源码（Flow/UI/App + 其依赖）」直接编到 .NET 上，
+       得到**秒级**的类型/语法校验（依据 skill `reference/fast-compile-loop.md`，
+       与 `tools/mapcheck/MapCheck.csproj`（agent-04）同一套做法）。
+
+       覆盖率自证：编译产物 FlowCheck.dll 存在 + 构建日志无 error。
+       注意：它只证明"类型/语法没问题"，**不替代进 Play 实测**（那是主 agent 在用户打开编辑器后做）。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>FlowCheck</AssemblyName>
+    <RootNamespace>FlowCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- CS0436：shim 里的 `UnityEngine.Time` 与引用的 UnityEngine.CoreModule 同名（源码优先），是刻意为之 -->
+    <NoWarn>CS0649;CS0169;CS0414;CS0067;CS0436</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
+         引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
+         依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Flow\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\UI\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\App\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `[RuntimeInitializeOnLoadMethod]`（App/Bootstrap 的 P-3 静态复位）要它：RuntimeInitializeLoadType 的基类
+         `PreserveAttribute` 定义在 ScriptingModule 里 -->
+    <Reference Include="UnityEngine.ScriptingModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.ScriptingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

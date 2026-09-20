@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       Audio / 音效触发点 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
+
+       为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`
+       （用户尚未打开编辑器，Unity 未重新生成工程文件 ⇒ `dotnet build client.slnx`
+         **覆盖不到** `Assets/Scripts/**`，那条命令在本机是"零信息"的），
+       且本阶段**禁止** `unity run/test/batchmode`（闸门 2）。
+       本工程把「Unity 托管 DLL + Diablo2 源码（Core/Def/Contracts/Combat.SfxKeys/Audio）」编到 .NET 上，
+       在无编辑器环境里把 `Module/Audio/**` 真跑一遍：登记表 / 触发点 / 脚步节流 / 缺文件降级 / 音量持久化 / BGM 切歌。
+       做法与 `tools/flowcheck/FlowCheck.csproj`（agent-05）、`tools/mapcheck/MapCheck.csproj`（agent-04）一致。
+
+       覆盖率自证：编译产物 AudioCheck.dll 存在 + 构建日志 0 error 0 warning。
+       注意：它只证明"类型/语法没问题 + 逻辑断言通过"，**不替代进 Play 实测听声**（那是用户在编辑器里能做的）。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>AudioCheck</AssemblyName>
+    <RootNamespace>AudioCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Iso.cs" />
+    <!-- ★ agent-33 引擎下沉 A2：`Core/Iso.cs` 变薄门面 ⇒ 等距几何/排序/方向从引擎源码编进来
+         （本宿主不用寻路，故不链 AStar.cs） -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Combat\SfxKeys.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Audio\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- AudioClip 在 AudioModule（`EngineAudioClipProbe` 用到 `LoadAsset<AudioClip>`） -->
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- JsonUtility（`Core/ClientConfig.cs` 的 Cfg 用到） -->
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

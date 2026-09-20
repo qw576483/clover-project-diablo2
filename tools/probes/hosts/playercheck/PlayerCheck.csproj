@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       Player / Camera / Input 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
+
+       为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`（用户尚未打开编辑器，
+       Unity 未重新生成工程文件）⇒ `dotnet build client.slnx` **覆盖不到** `Assets/Scripts/**`，
+       那条命令在本机是"零信息"的（见 `docs/agents/_common.md` §4 的警告）。
+       本工程把「Unity 托管 DLL + Diablo2 源码（Core/Def/Module/App/Table）」直接编到 .NET 上，
+       得到**秒级**的类型校验 + 可运行断言（依据 skill `reference/fast-compile-loop.md`，
+       与 `tools/mapcheck/MapCheck.csproj`（agent-04）、`tools/flowcheck/FlowCheck.csproj`（agent-05）同一套做法）。
+
+       覆盖率自证：编译产物 PlayerCheck.dll 存在 + 运行输出全部 `[ OK ]`。
+       注意：它只证明"类型/逻辑没问题"，**不替代进 Play 实测**（那是主 agent 在用户打开编辑器后做）。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>PlayerCheck</AssemblyName>
+    <RootNamespace>PlayerCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制）
+         ★ 编入范围 = 本 agent 交付物 + 其依赖 + `Module/Map`（移动要真地图）。
+           **故意不编** `UI/**`、`Module/Flow/AppFlow.cs`、`App/Bootstrap.cs`：
+             · 它们不属本 agent 的任务边界，且 `UI/**` 正被 agent-09 并行改动中；
+             · 「跨文件撞名」这一类风险已由**命名空间决策**消除——本 agent 没有新增任何命名空间
+               （`CameraRig` / `InputReader` 都落在既有的 `Diablo2.Module` 里）。
+               实测教训（本机真报错）：命名空间 `Diablo2.Module.Camera` 会让 `Module/Map/MapView.cs`
+               的裸 `Camera` 解析成命名空间（CS0118）⇒ 已改掉，见 `CameraRig.cs` 头注释。
+               补充：把整棵树编进来时，`UI/UiLog.cs`、`UI/UiBar.cs` 各自报错（都不属本 agent，
+               已写进回报的「未决」提醒主 agent）。 -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
+         寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Player\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Camera\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Input\*.cs" />
+    <!-- App/：只编 AppContext（组合根，模块经它取接口）；**不编 Bootstrap**（MonoBehaviour + 真实引擎启动） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\App\AppContext.cs" />
+    <!-- Flow/：AppContext 有 `IAppFlow` 字段 ⇒ 只编接口文件（**不编 AppFlow**，构造即订阅会重复） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Flow\IAppFlow.cs" />
+    <!-- 打表产物（class_c / experience_c 是本次自检的数值来源） -->
+    <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
+         引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
+         依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `Core/ClientConfig.cs` 用 `JsonUtility`（读 Assets/Configs/config.json），它在 JSONSerializeModule 里 -->
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

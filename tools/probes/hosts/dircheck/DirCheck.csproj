@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ─────────────────────────────────────────────────────────────────────────
+       E-core-19 最小复现宿主（**一次性：跑完即删**，不是工程的一部分）
+
+       目的：把**真实**的 `clover-client-unity-engine/Runtime/Core/{IsoLayout,Dir8,LogThrottle}.cs`
+       编到 .NET 上，逐个断言「格增量 → 8 方向」这张表与 GridToWorld 的几何自洽。
+       做法与 `.ai-tmp/hosts/*` 一致（链接真实源码 + 只补外部符号替身）。
+
+       ⛔ 本宿主不复制、不重写任何被测逻辑（`IsoLayout.cs` 是**同一份文件**）。
+       ───────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>DirCheck</AssemblyName>
+    <RootNamespace>DirCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- CS0436：本宿主在源码里补 `UnityEngine.Time` 替身（真身是原生 ECall），与引用程序集同名 ⇒ 源码优先 -->
+    <NoWarn>CS0436;CS0649;CS0169;CS0414</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="shim\UnityShim.cs" />
+    <!-- 修复前对照（逐字复制旧方向表；⛔ 不影响被测的真实源码） -->
+    <Compile Include="shim\IsoLayoutOld.cs" />
+    <!-- 被测对象：引擎**真实源码** -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

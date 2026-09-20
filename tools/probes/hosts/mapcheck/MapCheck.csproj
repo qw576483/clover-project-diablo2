@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       地图模块自检宿主（**非 Unity 工程、不参与打包**；按 skill §1.8 放在 `.ai-tmp/hosts/`）
+
+       为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`
+       （Unity 编辑器未重新生成工程文件），所以 `dotnet build client.slnx` **覆盖不到**
+       `Assets/Scripts/**`。本工程把「引擎托管 DLL + Diablo2 纯逻辑源码」直接编到 .NET 上，
+       得到秒级编译 + 可运行的自证环路（依据 skill `reference/fast-compile-loop.md`）。
+
+       ⚠️ 宿主从 `tools/` 挪到 `.ai-tmp/hosts/` 后**深了一层** ⇒ 引用的相对路径是 `..\..\..\..\client\`。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>MapCheck</AssemblyName>
+    <RootNamespace>MapCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- Diablo2 纯逻辑源码（与 Assets/Scripts 同一份文件，不复制） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\Enums.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Iso.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
+         寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

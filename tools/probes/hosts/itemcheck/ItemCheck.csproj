@@ -1,0 +1,108 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       Item / Quest / Npc / Save 自检宿主（**非 Unity 工程、不参与打包**）
+
+       为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`
+       （用户尚未打开编辑器 ⇒ Unity 未重新生成工程文件 ⇒ `dotnet build client.slnx`
+        **覆盖不到** `Assets/Scripts/**`）。本工程把「引擎托管 DLL + Diablo2 源码」直接编到 .NET 上，
+       得到**秒级**的类型校验 + **可运行**的断言（做法照 `tools/mapcheck/`(agent-04)、
+       `tools/flowcheck/`(agent-05)，见 skill `reference/fast-compile-loop.md`）。
+
+       覆盖：掉落/品质/词缀、背包格子、拾取（距离+满包）、腰带喝药、装备生效（EquipChanged 载荷）、
+             任务链「邪恶洞穴」全流程 + 只认洞穴、NPC 对话随阶段、商店买卖/修理、存档往返。
+       不覆盖（需要 Unity 原生）：面板像素布局、真人手感、Unity 原生 JsonUtility（本项目存档走自研
+             `SaveJson`，见 `Module/Save/SaveJson.cs` 的文件头原因说明）。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>ItemCheck</AssemblyName>
+    <RootNamespace>ItemCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
+         寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
+         引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
+         依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <!-- ★ agent-38 补（`# direct-fix:`）：agent-37 引擎下沉 A6 把项目存档改成走引擎的
+         `CloverEngine.FileSlotStore`（`Module/Save/SaveModule.cs:64`），但本宿主的链接清单没跟着加
+         ⇒ `CS0246: 未能找到类型或命名空间名"FileSlotStore"`（verify.ps1 的 offline-hosts 因此 FAIL）。
+         口径与 `savecheck/SaveCheck.csproj:49,56` 一致：`FileSlotStore` 的 `.json` 坏档判定走引擎
+         `MiniJson`（`Runtime/Core/Json.cs`）⇒ 这两份必须一起链进来。 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <!--
+      真实的 `App/AppContext.cs`（**要验 `AutoWire` 真的能反射装出四个模块**），
+      它只依赖流程门面 `IAppFlow` ⇒ 只编那一个文件。
+      ⚠️ 故意**不**纳入 `Module/Flow/**`、`UI/**`、`App/Bootstrap.cs`：
+         Flow/UI 由 agent-05 / agent-09 并行编写，随时处于"改到一半"的中间态；
+         纳入进来会把别人的半成品算成本模块的编译失败（本宿主只负责本模块的验证）。
+    -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Flow\IAppFlow.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\App\AppContext.cs" />
+    <!-- 本 agent 的四个模块 -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Quest\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Npc\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Save\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `Core/ClientConfig.cs`（agent-01）用 `JsonUtility.FromJson` 读 config.json ⇒ 需要本模块 DLL。
+         ⚠️ 本宿主**不调用** `Cfg`（它是 Unity 原生调用）；本项目的存档一律走自研 `SaveJson`。 -->
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

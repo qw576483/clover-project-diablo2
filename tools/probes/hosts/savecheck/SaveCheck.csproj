@@ -1,0 +1,99 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       SaveCheck · agent-37（引擎下沉 A6 · 原子槽位存储）自检宿主（**非 Unity 工程**）
+
+       为什么单独一个宿主、而不是塞进 itemcheck：
+         itemcheck 的存档断言（`存档已落盘到 char/CheckHero` / `索引键已写 char/index`）
+         就是**改前的行为基线**；动它的输出，就没法再拿它做
+         「10 个宿主改前/改后逐行 0 差异」的对照了（那是本片的关键判据）。
+
+       判据（逐条对应任务书 §5，全离线可判）：
+         ① 引擎新增 `Runtime/Data/FileSlotStore.cs` 的公开面与语义（原子写 / 损坏留档 / 枚举 / 失败路径）；
+         ② **真实存档载荷**（`Module/Save/SaveJson.cs` + `Def.CharacterSave`）过槽位存储 ⇒ 逐字段 0 差异、
+            `Write(Parse(json)) == json` 逐字节；
+         ③ **跨进程**：两个不同的 .NET 进程读写同一槽目录 ⇒ `List()` 顺序一致、逐槽 SHA 一致；
+         ④ 改前手法的**实测对照**：`Runtime/Core/Setting.cs`（真实引擎类）的原子写 + `.corrupt` 留档，
+            与项目真实存档 `client/setting/settings.json`（**只读**）里的槽位口径。
+
+       已知边界：
+         · 本宿主**不**驱动 Unity 原生（`new GameObject()` 一类的调用一律不碰）；
+         · 对项目真实存档目录只调 `Get`（**从不调 `Save()`**）⇒ 不重写玩家存档（shell 侧另比 SHA256）。
+
+       不吃 `run_all_hosts.ps1` 的 10 个名额：本宿主不在那张清单里（`TOTAL_HOSTS=10` 保持不变），
+       单独跑法见回报。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>SaveCheck</AssemblyName>
+    <RootNamespace>SaveCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- ★ 本片新增的引擎能力（被验证对象） -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+
+    <!-- 引擎既有：改前存档的原子写/损坏留档**就在 Setting 里**（`Setting.cs:349-396`）
+         ⇒ 本宿主链真实实现，把「改前手法」实测出来，而不是靠读源码下结论。
+         `Json.cs` = MiniJson（FileSlotStore 校验 .json 槽 / Setting 读 settings.json 都走它）；
+         `LogThrottle.cs` = 两者共用的限频入口（本片新增代码也用它，⛔ 不另造降频）。 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Setting.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+
+    <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <!-- 存档 JSON 编解码（**本片不许动它的序列化语义** ⇒ 逐字节恒等式就是判据） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Save\SaveJson.cs" />
+    <!-- `Core/*.cs` 里几个转发壳依赖引擎侧那几个文件（与 itemcheck 同一套链接，口径一致） -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- 引擎门面替身里 UI 那一组替身（`UIFactory`：Font/Text/Image/TextAnchor）用得到 -->
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

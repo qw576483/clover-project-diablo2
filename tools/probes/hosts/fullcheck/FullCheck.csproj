@@ -1,0 +1,113 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       ★ 全量编译 + 全链路自检宿主（**非 Unity 工程、不参与打包**）
+
+       为什么需要它（`docs/agents/agent-12-集成接线与全量编译.md` §4.1）：
+         `client/client.slnx` 里没有 `Diablo2.csproj`（用户尚未打开编辑器 ⇒ Unity 未生成工程
+         文件）⇒ `dotnet build client.slnx` **覆盖不到** `Assets/Scripts/**`。
+         已有 4 个宿主（mapcheck/flowcheck/playercheck/combatcheck/itemcheck/uicheck）**各自只编子集**，
+         没有任何一条命令能证明「全部业务代码编得到一起」。
+         本工程 = **唯一一条**把 `client/Assets/Scripts/**` 全部 .cs 编到一起的命令，
+         供主 agent 与后续 agent 验收全工程编译。
+
+       ⛔ 不排除任何业务文件：文件集 = `client/Assets/Scripts/**` 全量
+          （App / Core / Def / Module（含 Contracts.cs 与 13 个子目录）/ Table / UI）。
+          shim 覆盖不全时**补 shim**，不许把文件排除出去（排除就等于没校验）。
+
+       引擎门面替身 = `shim/EngineShim.cs`（做法与 `tools/flowcheck/`、`tools/combatcheck/`
+       一致；内容取自 combatcheck 那份超集，因为它额外含 `WorldHpBar`）。
+       覆盖率自证：编译产物 FullCheck.dll 存在 + 构建日志 0 error 0 warning。
+       ⚠️ 它只证明「类型/语法/链路没问题」，**不替代进 Play 实测**。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>FullCheck</AssemblyName>
+    <RootNamespace>FullCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- ★ Diablo2 业务代码：**全量**（与 Assets/Scripts 同一份文件，不复制、不排除任何文件） -->
+    <Compile Include="..\..\..\client\Assets\Scripts\App\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
+         寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Module\*\*.cs" />
+    <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
+         引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
+         依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <!-- ★ agent-38 补（`# direct-fix:`）：agent-37 引擎下沉 A6 把项目存档改成走引擎的
+         `CloverEngine.FileSlotStore`（`Module/Save/SaveModule.cs:64`），但本宿主的链接清单没跟着加
+         ⇒ `CS0246: 未能找到类型或命名空间名"FileSlotStore"`（verify.ps1 的 offline-hosts 因此 FAIL）。
+         口径与 `savecheck/SaveCheck.csproj:49,56` 一致：`FileSlotStore` 的 `.json` 坏档判定走引擎
+         `MiniJson`（`Runtime/Core/Json.cs`）⇒ 这两份必须一起链进来。 -->
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\client\Assets\Scripts\UI\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `[RuntimeInitializeOnLoadMethod]`（App/Bootstrap 的 P-3 静态复位）要它：基类 PreserveAttribute 在 ScriptingModule -->
+    <Reference Include="UnityEngine.ScriptingModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.ScriptingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `Module/Audio/EngineAudioClipProbe.cs` 用 `Game.Res.LoadAsset<AudioClip>` ⇒ 需要真实 UnityEngine 音频类型
+         （`AudioClip` 属 Unity 原生基元，**不放进 shim**：shim 只替身 CloverEngine 门面） -->
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

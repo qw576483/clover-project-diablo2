@@ -25,3 +25,6 @@ tools/probes/hosts/**/bin/
 .ai-tmp/
 # ★ 原版资源（skill §1.9）：下载/解包素材唯一来源，体积大 + 版权物，不进 git
 原版资源/
+
+# 判据宿主工程文件必须入仓（否则 dotnet run 无工程可跑）
+!tools/probes/hosts/**/*.csproj
