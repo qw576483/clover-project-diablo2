@@ -1,0 +1,62 @@
+name	group	level	picks	nodrop	drops	next_tc	unique	set	rare	magic	is_act1_start
+string	int	int	int	int	string	string	int	int	int	int	int
+c	c	c	c	c	c	c	c	c	c	c	c
+TC 名（官方 Treasure Class，主键）	TC 组（官方 group）	TC 等级（官方 level）	抽取次数（官方 Picks）	不掉落权重（官方 NoDrop）	掉落项与权重，格式 item;prob|item;prob（官方 Item1..Item10 / Prob1..Prob10）	被引用的子 TC（官方 Item 里指向 TC 的项，; 分隔；指向物品的项不在此列）	成色·唯一（官方 Unique）	成色·套装（官方 Set）	成色·稀有（官方 Rare）	成色·魔法（官方 Magic）	是否属于 Act 1 起点 TC（1 = 闭包起点，0 = 被引用进来的子 TC）
+Act 1 Bow A	3	0	1	0	bow3;36		0	0	0	0	1
+Act 1 Bow B	3	5	1	0	bow3;20|bow6;16		0	0	0	0	1
+Act 1 Bow C	3	9	1	0	bow3;10|bow6;16|bow9;10		0	0	0	0	1
+Act 1 Cast A	8	0	1	100	gld;18|Act 1 Equip A;15|Act 1 Junk;18|Act 1 Good;2|Act 1 Magic A;7	Act 1 Equip A;Act 1 Junk;Act 1 Good;Act 1 Magic A	0	0	0	0	1
+Act 1 Cast B	8	5	1	100	gld;18|Act 1 Equip B;15|Act 1 Junk;18|Act 1 Good;2|Act 1 Magic B;7	Act 1 Equip B;Act 1 Junk;Act 1 Good;Act 1 Magic B	0	0	0	0	1
+Act 1 Cast C	8	9	1	100	gld;18|Act 1 Equip C;15|Act 1 Junk;18|Act 1 Good;2|Act 1 Magic C;7	Act 1 Equip C;Act 1 Junk;Act 1 Good;Act 1 Magic C	0	0	0	0	1
+Act 1 Champ A	13	0	-2	0	Act 1 Citem A;1|Act 1 Cpot A;2	Act 1 Citem A;Act 1 Cpot A	0	0	0	0	1
+Act 1 Champ B	13	5	-2	0	Act 1 Citem B;1|Act 1 Cpot B;1	Act 1 Citem B;Act 1 Cpot B	0	0	0	0	1
+Act 1 Champ C	13	9	-2	0	Act 1 Citem C;1|Act 1 Cpot C;1	Act 1 Citem C;Act 1 Cpot C	0	0	0	0	1
+Act 1 Chest A	6	0	4	100	gld;15|Act 1 Junk;15|Act 1 Equip A;10|Act 1 Good;2	Act 1 Junk;Act 1 Equip A;Act 1 Good	0	0	0	0	1
+Act 1 Chest B	6	5	4	100	gld;15|Act 1 Junk;15|Act 1 Equip B;10|Act 1 Good;2	Act 1 Junk;Act 1 Equip B;Act 1 Good	0	0	0	0	1
+Act 1 Chest C	6	9	4	100	gld;15|Act 1 Junk;12|Act 2 Junk;3|Act 1 Equip C;15|Act 1 Good;2	Act 1 Junk;Act 2 Junk;Act 1 Equip C;Act 1 Good	0	0	0	0	1
+Act 1 Citem A	11	0	1	0	"gld,mul=1280";60|Act 1 Equip A;37|Act 1 Good;3	Act 1 Equip A;Act 1 Good	800	800	800	1024	1
+Act 1 Citem B	11	5	1	0	"gld,mul=1280";60|Act 1 Equip B;37|Act 1 Good;3	Act 1 Equip B;Act 1 Good	800	800	800	1024	1
+Act 1 Citem C	11	9	1	0	"gld,mul=1280";60|Act 1 Equip C;37|Act 1 Good;3	Act 1 Equip C;Act 1 Good	800	800	800	1024	1
+Act 1 Cpot A	12	0	2	0	Hpotion 1;1	Hpotion 1	0	0	0	0	1
+Act 1 Cpot B	12	5	2	0	Hpotion 1;1	Hpotion 1	0	0	0	0	1
+Act 1 Cpot C	12	9	2	0	Hpotion 1;1	Hpotion 1	0	0	0	0	1
+Act 1 Equip A	1	0	1	0	weap3;7|armo3;7		0	0	0	0	1
+Act 1 Equip B	1	5	1	0	weap3;3|armo3;3|weap6;7|armo6;7		0	0	0	0	1
+Act 1 Equip C	1	9	1	0	weap3;2|armo3;1|weap6;6|armo6;3|weap9;14|armo9;7|weap12;2|armo12;1		0	0	0	0	1
+Act 1 Good	5	0	1	0	Jewelry A;5|Chipped Gem;5	Jewelry A;Chipped Gem	0	0	0	0	1
+Act 1 H2H A	7	0	1	100	gld;21|Act 1 Equip A;16|Act 1 Junk;21|Act 1 Good;2	Act 1 Equip A;Act 1 Junk;Act 1 Good	0	0	0	0	1
+Act 1 H2H B	7	5	1	100	gld;21|Act 1 Equip B;16|Act 1 Junk;21|Act 1 Good;2	Act 1 Equip B;Act 1 Junk;Act 1 Good	0	0	0	0	1
+Act 1 H2H C	7	9	1	100	gld;21|Act 1 Equip C;16|Act 1 Junk;21|Act 1 Good;2	Act 1 Equip C;Act 1 Junk;Act 1 Good	0	0	0	0	1
+Act 1 Junk	0	0	1	0	Potion 1;8|Misc 0;4|Ammo;4	Potion 1;Misc 0;Ammo	0	0	0	0	1
+Act 1 Magic A	4	0	1	0	tsc;2|isc;4|mp1;6		0	0	0	0	1
+Act 1 Magic B	4	5	1	0	tsc;2|isc;4|mp1;4|mp2;2		0	0	0	0	1
+Act 1 Magic C	4	9	1	0	tsc;2|isc;4|mp1;2|mp2;4		0	0	0	0	1
+Act 1 Melee A	2	0	1	0	mele3;7|armo3;7		0	0	0	0	1
+Act 1 Melee B	2	5	1	0	mele3;3|armo3;3|mele6;7|armo6;7		0	0	0	0	1
+Act 1 Melee C	2	9	1	0	mele3;2|armo3;1|mele6;6|armo6;3|mele9;14|armo9;7|mele12;2|armo12;1		0	0	0	0	1
+Act 1 Miss A	9	0	1	100	gld;18|Act 1 Equip A;13|Act 1 Junk;18|Act 1 Good;2|Act 1 Bow A;6|Ammo;3	Act 1 Equip A;Act 1 Junk;Act 1 Good;Act 1 Bow A;Ammo	0	0	0	0	1
+Act 1 Miss B	9	5	1	100	gld;18|Act 1 Equip B;13|Act 1 Junk;18|Act 1 Good;2|Act 1 Bow B;6|Ammo;3	Act 1 Equip B;Act 1 Junk;Act 1 Good;Act 1 Bow B;Ammo	0	0	0	0	1
+Act 1 Miss C	9	9	1	100	gld;18|Act 1 Equip C;13|Act 1 Junk;18|Act 1 Good;2|Act 1 Bow C;6|Ammo;3	Act 1 Equip C;Act 1 Junk;Act 1 Good;Act 1 Bow C;Ammo	0	0	0	0	1
+Act 1 Super A	18	0	-4	0	Act 1 Uitem A;2|Act 1 Cpot A;2	Act 1 Uitem A;Act 1 Cpot A	800	800	972	1024	1
+Act 1 Super Ax	18	0	-4	0	Act 1 Uitem A;2|Act 1 Cpot A;2	Act 1 Uitem A;Act 1 Cpot A	512	654	972	1024	1
+Act 1 Super B	18	5	-4	0	Act 1 Uitem B;2|Act 1 Cpot B;2	Act 1 Uitem B;Act 1 Cpot B	800	800	972	1024	1
+Act 1 Super Bx	18	5	-4	0	Act 1 Uitem B;2|Act 1 Cpot B;2	Act 1 Uitem B;Act 1 Cpot B	512	654	972	1024	1
+Act 1 Super C	18	9	-4	0	Act 1 Uitem C;2|Act 1 Cpot C;2	Act 1 Uitem C;Act 1 Cpot C	800	800	972	1024	1
+Act 1 Super Cx	18	9	-4	0	Act 1 Uitem C;2|Act 1 Cpot C;2	Act 1 Uitem C;Act 1 Cpot C	512	654	972	1024	1
+Act 1 Uitem A	14	0	1	0	Act 1 Equip A;58|Act 1 Good;4	Act 1 Equip A;Act 1 Good	800	800	800	1024	1
+Act 1 Uitem B	14	5	1	0	Act 1 Equip B;58|Act 1 Good;4	Act 1 Equip B;Act 1 Good	800	800	800	1024	1
+Act 1 Uitem C	14	9	1	0	Act 1 Equip C;58|Act 1 Good;4	Act 1 Equip C;Act 1 Good	800	800	800	1024	1
+Act 1 Unique A	15	0	-3	0	Act 1 Uitem A;1|Act 1 Cpot A;2	Act 1 Uitem A;Act 1 Cpot A	0	0	0	0	1
+Act 1 Unique B	15	5	-3	0	Act 1 Uitem B;1|Act 1 Cpot B;2	Act 1 Uitem B;Act 1 Cpot B	0	0	0	0	1
+Act 1 Unique C	15	9	-3	0	Act 1 Uitem C;1|Act 1 Cpot C;2	Act 1 Uitem C;Act 1 Cpot C	0	0	0	0	1
+Act 1 Wraith A	10	0	1	75	Act 1 Good;4|Act 1 Magic A;25	Act 1 Good;Act 1 Magic A	0	0	0	0	1
+Act 1 Wraith B	10	5	1	75	Act 1 Good;4|Act 1 Magic B;25	Act 1 Good;Act 1 Magic B	0	0	0	0	1
+Act 1 Wraith C	10	9	1	75	Act 1 Good;4|Act 1 Magic C;25	Act 1 Good;Act 1 Magic C	0	0	0	0	1
+Act 2 Junk	0	0	1	0	Act 1 Junk;2|Potion 2;8|Misc 0;4|Ammo;4	Act 1 Junk;Potion 2;Misc 0;Ammo	0	0	0	0	0
+Ammo	0	0	1	0	aqv;1|cqv;1		0	0	0	0	0
+Chipped Gem	0	0	1	0	gcv;3|gcy;3|gcb;3|gcg;3|gcr;3|gcw;3|skc;2		0	0	0	0	0
+Hpotion 1	0	0	1	0	hp1;8|hp2;3|mp1;3|mp2;2|rvs;1		0	0	0	0	0
+Jewelry A	0	0	1	0	rin;8|amu;4|jew;2|cm3;2|cm2;2|cm1;2		0	0	0	0	0
+Misc 0	0	0	1	0	key;3|tsc;3|isc;3|opl;2|gpl;2		0	0	0	0	0
+Potion 1	0	0	1	0	hp1;12|hp2;4|mp1;5|mp2;4|rvs;1|vps;4		0	0	0	0	0
+Potion 2	0	0	1	0	hp1;4|hp2;8|hp3;5|mp2;2|mp3;5|rvs;1|vps;2|yps;3|wms;1		0	0	0	0	0

@@ -1,0 +1,1468 @@
+{
+ "pack": "warp",
+ "sourceDt1": "data/global/tiles/ACT1/BARRACKS/warp.dt1",
+ "kind": "Objects",
+ "note": "出入口传送点（原版城镇出口就靠它的 orientation 10）",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 81,
+ "tiles": [
+  {
+   "idx": 0,
+   "file": "000.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 42,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 1,
+   "file": "001.png",
+   "w": 160,
+   "h": 128,
+   "main": 34,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 69642,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 2,
+   "file": "002.png",
+   "w": 160,
+   "h": 128,
+   "main": 33,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 67594,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 3,
+   "file": "003.png",
+   "w": 160,
+   "h": 128,
+   "main": 32,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 65546,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 4,
+   "file": "004.png",
+   "w": 160,
+   "h": 128,
+   "main": 16,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 32810,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 5,
+   "file": "005.png",
+   "w": 160,
+   "h": 128,
+   "main": 15,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 30762,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 6,
+   "file": "006.png",
+   "w": 160,
+   "h": 128,
+   "main": 14,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 28714,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 7,
+   "file": "007.png",
+   "w": 160,
+   "h": 128,
+   "main": 13,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 26666,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 8,
+   "file": "008.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 24618,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 9,
+   "file": "009.png",
+   "w": 160,
+   "h": 128,
+   "main": 9,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 18474,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 10,
+   "file": "010.png",
+   "w": 160,
+   "h": 128,
+   "main": 6,
+   "sub": 24,
+   "orientation": 10,
+   "compositeIndex": 13066,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 11,
+   "file": "011.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 17,
+   "orientation": 10,
+   "compositeIndex": 554,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 12,
+   "file": "012.png",
+   "w": 160,
+   "h": 128,
+   "main": 1,
+   "sub": 17,
+   "orientation": 10,
+   "compositeIndex": 2602,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 13,
+   "file": "013.png",
+   "w": 160,
+   "h": 128,
+   "main": 8,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 17066,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 14,
+   "file": "014.png",
+   "w": 160,
+   "h": 128,
+   "main": 7,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 15018,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 15,
+   "file": "015.png",
+   "w": 160,
+   "h": 128,
+   "main": 6,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 12970,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 16,
+   "file": "016.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 10922,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 17,
+   "file": "017.png",
+   "w": 160,
+   "h": 128,
+   "main": 4,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 8874,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 18,
+   "file": "018.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 6826,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 19,
+   "file": "019.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 4778,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 20,
+   "file": "020.png",
+   "w": 160,
+   "h": 128,
+   "main": 1,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 2730,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 21,
+   "file": "021.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 682,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 22,
+   "file": "022.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 2,
+   "orientation": 10,
+   "compositeIndex": 4170,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 23,
+   "file": "023.png",
+   "w": 160,
+   "h": 128,
+   "main": 1,
+   "sub": 32,
+   "orientation": 10,
+   "compositeIndex": 3082,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 24,
+   "file": "024.png",
+   "w": 160,
+   "h": 128,
+   "main": 8,
+   "sub": 5,
+   "orientation": 10,
+   "compositeIndex": 16554,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 25,
+   "file": "025.png",
+   "w": 160,
+   "h": 128,
+   "main": 30,
+   "sub": 11,
+   "orientation": 10,
+   "compositeIndex": 61802,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 26,
+   "file": "026.png",
+   "w": 160,
+   "h": 128,
+   "main": 10,
+   "sub": 23,
+   "orientation": 10,
+   "compositeIndex": 21226,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 27,
+   "file": "027.png",
+   "w": 160,
+   "h": 128,
+   "main": 9,
+   "sub": 23,
+   "orientation": 10,
+   "compositeIndex": 19178,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 28,
+   "file": "028.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 45,
+   "orientation": 10,
+   "compositeIndex": 7594,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 29,
+   "file": "029.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 45,
+   "orientation": 10,
+   "compositeIndex": 5546,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 30,
+   "file": "030.png",
+   "w": 160,
+   "h": 128,
+   "main": 1,
+   "sub": 45,
+   "orientation": 10,
+   "compositeIndex": 3498,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 31,
+   "file": "031.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 45,
+   "orientation": 10,
+   "compositeIndex": 1450,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 32,
+   "file": "032.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 32,
+   "orientation": 10,
+   "compositeIndex": 1034,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 33,
+   "file": "033.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 14,
+   "orientation": 10,
+   "compositeIndex": 25034,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 34,
+   "file": "034.png",
+   "w": 160,
+   "h": 128,
+   "main": 8,
+   "sub": 14,
+   "orientation": 10,
+   "compositeIndex": 16842,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 35,
+   "file": "035.png",
+   "w": 160,
+   "h": 128,
+   "main": 7,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 14346,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 36,
+   "file": "036.png",
+   "w": 160,
+   "h": 128,
+   "main": 6,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 12298,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 37,
+   "file": "037.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 13,
+   "orientation": 10,
+   "compositeIndex": 25002,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 38,
+   "file": "038.png",
+   "w": 160,
+   "h": 128,
+   "main": 8,
+   "sub": 8,
+   "orientation": 10,
+   "compositeIndex": 16650,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 39,
+   "file": "039.png",
+   "w": 160,
+   "h": 128,
+   "main": 13,
+   "sub": 13,
+   "orientation": 10,
+   "compositeIndex": 27050,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 40,
+   "file": "040.png",
+   "w": 160,
+   "h": 128,
+   "main": 8,
+   "sub": 16,
+   "orientation": 10,
+   "compositeIndex": 16906,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 41,
+   "file": "041.png",
+   "w": 160,
+   "h": 128,
+   "main": 4,
+   "sub": 35,
+   "orientation": 10,
+   "compositeIndex": 9322,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 42,
+   "file": "042.png",
+   "w": 160,
+   "h": 128,
+   "main": 1,
+   "sub": 22,
+   "orientation": 10,
+   "compositeIndex": 2762,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 43,
+   "file": "043.png",
+   "w": 160,
+   "h": 128,
+   "main": 31,
+   "sub": 4,
+   "orientation": 10,
+   "compositeIndex": 63626,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 44,
+   "file": "044.png",
+   "w": 160,
+   "h": 128,
+   "main": 31,
+   "sub": 3,
+   "orientation": 10,
+   "compositeIndex": 63594,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 45,
+   "file": "045.png",
+   "w": 160,
+   "h": 128,
+   "main": 31,
+   "sub": 2,
+   "orientation": 10,
+   "compositeIndex": 63562,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 46,
+   "file": "046.png",
+   "w": 160,
+   "h": 128,
+   "main": 31,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 63530,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 47,
+   "file": "047.png",
+   "w": 160,
+   "h": 128,
+   "main": 31,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 63498,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 48,
+   "file": "048.png",
+   "w": 160,
+   "h": 128,
+   "main": 30,
+   "sub": 4,
+   "orientation": 10,
+   "compositeIndex": 61578,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 49,
+   "file": "049.png",
+   "w": 160,
+   "h": 128,
+   "main": 30,
+   "sub": 3,
+   "orientation": 10,
+   "compositeIndex": 61546,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 50,
+   "file": "050.png",
+   "w": 160,
+   "h": 128,
+   "main": 30,
+   "sub": 2,
+   "orientation": 10,
+   "compositeIndex": 61514,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 51,
+   "file": "051.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 25,
+   "orientation": 10,
+   "compositeIndex": 4906,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 52,
+   "file": "052.png",
+   "w": 160,
+   "h": 128,
+   "main": 4,
+   "sub": 4,
+   "orientation": 10,
+   "compositeIndex": 8330,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 53,
+   "file": "053.png",
+   "w": 160,
+   "h": 128,
+   "main": 16,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 32778,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 54,
+   "file": "054.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 5,
+   "orientation": 10,
+   "compositeIndex": 6314,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 55,
+   "file": "055.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 5,
+   "orientation": 11,
+   "compositeIndex": 4267,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 56,
+   "file": "056.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 0,
+   "orientation": 8,
+   "compositeIndex": 6152,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 57,
+   "file": "057.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 0,
+   "orientation": 9,
+   "compositeIndex": 6153,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 58,
+   "file": "058.png",
+   "w": 160,
+   "h": 128,
+   "main": 30,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 61482,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 59,
+   "file": "059.png",
+   "w": 160,
+   "h": 128,
+   "main": 30,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 61450,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 60,
+   "file": "060.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 24,
+   "orientation": 10,
+   "compositeIndex": 6922,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 61,
+   "file": "061.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 23,
+   "orientation": 10,
+   "compositeIndex": 6890,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 62,
+   "file": "062.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 22,
+   "orientation": 10,
+   "compositeIndex": 6858,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 63,
+   "file": "063.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 6826,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 64,
+   "file": "064.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 24,
+   "orientation": 10,
+   "compositeIndex": 4874,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 65,
+   "file": "065.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 23,
+   "orientation": 10,
+   "compositeIndex": 4842,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 66,
+   "file": "066.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 22,
+   "orientation": 10,
+   "compositeIndex": 4810,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 67,
+   "file": "067.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 21,
+   "orientation": 10,
+   "compositeIndex": 4778,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 68,
+   "file": "068.png",
+   "w": 160,
+   "h": 128,
+   "main": 13,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 26634,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 69,
+   "file": "069.png",
+   "w": 160,
+   "h": 128,
+   "main": 8,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 16426,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 70,
+   "file": "070.png",
+   "w": 160,
+   "h": 128,
+   "main": 8,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 16394,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 71,
+   "file": "071.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 0,
+   "orientation": 11,
+   "compositeIndex": 10251,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 72,
+   "file": "072.png",
+   "w": 160,
+   "h": 128,
+   "main": 4,
+   "sub": 0,
+   "orientation": 11,
+   "compositeIndex": 8203,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 73,
+   "file": "073.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 0,
+   "orientation": 11,
+   "compositeIndex": 6155,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 74,
+   "file": "074.png",
+   "w": 160,
+   "h": 128,
+   "main": 3,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 6154,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 75,
+   "file": "075.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 0,
+   "orientation": 11,
+   "compositeIndex": 4107,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 76,
+   "file": "076.png",
+   "w": 160,
+   "h": 128,
+   "main": 2,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 4106,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 77,
+   "file": "077.png",
+   "w": 160,
+   "h": 128,
+   "main": 1,
+   "sub": 0,
+   "orientation": 11,
+   "compositeIndex": 2059,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 78,
+   "file": "078.png",
+   "w": 160,
+   "h": 128,
+   "main": 1,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 2058,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 79,
+   "file": "079.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 0,
+   "orientation": 11,
+   "compositeIndex": 11,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  },
+  {
+   "idx": 80,
+   "file": "080.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 10,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  }
+ ]
+}

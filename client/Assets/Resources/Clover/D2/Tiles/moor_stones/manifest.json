@@ -1,0 +1,658 @@
+{
+ "pack": "moor_stones",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/stones.dt1",
+ "kind": "Tiles",
+ "note": "血腥荒野碎石/岩石",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 36,
+ "tiles": [
+  {
+   "idx": 0,
+   "file": "000.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 25,
+   "orientation": 0,
+   "compositeIndex": 11040,
+   "rarity": 1,
+   "walk": true,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 1,
+   "file": "001.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 25,
+   "orientation": 0,
+   "compositeIndex": 11040,
+   "rarity": 1,
+   "walk": true,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 2,
+   "file": "002.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 25,
+   "orientation": 0,
+   "compositeIndex": 11040,
+   "rarity": 1,
+   "walk": true,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 3,
+   "file": "003.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 25,
+   "orientation": 0,
+   "compositeIndex": 11040,
+   "rarity": 1,
+   "walk": true,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 4,
+   "file": "004.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 25,
+   "orientation": 0,
+   "compositeIndex": 11040,
+   "rarity": 1,
+   "walk": true,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 5,
+   "file": "005.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 25,
+   "orientation": 0,
+   "compositeIndex": 11040,
+   "rarity": 1,
+   "walk": true,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 6,
+   "file": "006.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 23,
+   "orientation": 0,
+   "compositeIndex": 25312,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 7,
+   "file": "007.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 22,
+   "orientation": 0,
+   "compositeIndex": 25280,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 8,
+   "file": "008.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 21,
+   "orientation": 0,
+   "compositeIndex": 25248,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 9,
+   "file": "009.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 20,
+   "orientation": 0,
+   "compositeIndex": 25216,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 10,
+   "file": "010.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 19,
+   "orientation": 0,
+   "compositeIndex": 25184,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 11,
+   "file": "011.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 18,
+   "orientation": 0,
+   "compositeIndex": 25152,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 12,
+   "file": "012.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 17,
+   "orientation": 0,
+   "compositeIndex": 25120,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 13,
+   "file": "013.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 2,
+   "orientation": 0,
+   "compositeIndex": 24640,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 14,
+   "file": "014.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 24576,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 15,
+   "file": "015.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 16,
+   "orientation": 0,
+   "compositeIndex": 25088,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 16,
+   "file": "016.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 15,
+   "orientation": 0,
+   "compositeIndex": 25056,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 17,
+   "file": "017.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 14,
+   "orientation": 0,
+   "compositeIndex": 25024,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 18,
+   "file": "018.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 13,
+   "orientation": 0,
+   "compositeIndex": 24992,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 19,
+   "file": "019.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 12,
+   "orientation": 0,
+   "compositeIndex": 24960,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 20,
+   "file": "020.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 11,
+   "orientation": 0,
+   "compositeIndex": 24928,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 21,
+   "file": "021.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 10,
+   "orientation": 0,
+   "compositeIndex": 24896,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 22,
+   "file": "022.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 9,
+   "orientation": 0,
+   "compositeIndex": 24864,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 23,
+   "file": "023.png",
+   "w": 160,
+   "h": 128,
+   "main": 12,
+   "sub": 8,
+   "orientation": 0,
+   "compositeIndex": 24832,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 29,
+   "file": "029.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 30,
+   "file": "030.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 31,
+   "file": "031.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 32,
+   "file": "032.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 33,
+   "file": "033.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 34,
+   "file": "034.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 2,
+   "orientation": 0,
+   "compositeIndex": 49216,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 35,
+   "file": "035.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 1,
+   "orientation": 0,
+   "compositeIndex": 49184,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 36,
+   "file": "036.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 37,
+   "file": "037.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 38,
+   "file": "038.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 39,
+   "file": "039.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  },
+  {
+   "idx": 40,
+   "file": "040.png",
+   "w": 160,
+   "h": 128,
+   "main": 24,
+   "sub": 0,
+   "orientation": 0,
+   "compositeIndex": 49152,
+   "rarity": 2,
+   "walk": false,
+   "bbox": [
+    0,
+    0,
+    159,
+    78
+   ]
+  }
+ ]
+}

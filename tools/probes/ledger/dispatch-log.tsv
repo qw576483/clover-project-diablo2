@@ -1,0 +1,54 @@
+# dispatch log -- who produced which implementation file (SKILL.md section 5 gate)
+# format: At <TAB> By <TAB> Task <TAB> Scope(comma separated, project-relative prefixes)
+# required by tools/verify.ps1 check "impl-traceability".
+2026-09-18 19:00	clover-impl	skilltree-1to1	client/Assets/Scripts/UI/SkillTreePanel.cs,client/Assets/Scripts/Def/SkillTreeLayout.cs,client/Assets/Scripts/UI/UiLayoutGame.cs
+2026-09-18 20:00	clover-impl	chifont-bitmap-font	client/Assets/Scripts/UI/D2Text.cs,client/Assets/Scripts/UI/D2TextMirror.cs,client/Assets/Scripts/UI/UiArt.cs,client/Assets/Scripts/UI/UiLayoutFlow.cs,client/Assets/Scripts/Core/ResPaths.cs,client/Assets/Scripts/UI/ItemTooltip.cs
+2026-09-18 21:00	clover-impl	flow-screens-1to1	client/Assets/Scripts/UI/UiLayoutFlow.cs,client/Assets/Scripts/UI/MainMenuPanel.cs,client/Assets/Scripts/UI/CharCreatePanel.cs,client/Assets/Scripts/UI/CharSelectPanel.cs
+2026-09-18 22:00	clover-impl	flow-screens-fixup	client/Assets/Scripts/UI/BootPanel.cs,client/Assets/Scripts/UI/SettingsPanel.cs,client/Assets/Scripts/UI/D2Text.cs,client/Assets/Scripts/UI/UiArt.cs,client/Assets/Scripts/UI/UiLayoutFlow.cs
+2026-09-18 23:00	clover-impl	minimap-deathpanel-1to1	client/Assets/Scripts/UI/MiniMapPanel.cs,client/Assets/Scripts/UI/DeathPanel.cs,client/Assets/Scripts/UI/UiLayoutGame.cs
+2026-09-18 23:30	clover-impl	combat-monster-values	client/Assets/Scripts/Module/Combat/DamageFormula.cs,client/Assets/Scripts/Module/Monster/MonsterTuning.cs,client/Assets/Scripts/Module/Monster/MonsterSpawner.cs
+2026-09-19 00:00	clover-impl	quest-dialog-tbl	client/Assets/Scripts/UI/QuestLogPanel.cs,client/Assets/Scripts/UI/NpcDialogPanel.cs,client/Assets/Scripts/Module/Npc/NpcDialog.cs,client/Assets/Scripts/Module/Quest/DenOfEvilQuest.cs,client/Assets/Scripts/Module/Player/PlayerStats.cs,client/Assets/Scripts/Module/Npc/NpcModule.cs
+2026-09-19 00:30	main-agent	fix-compile-and-toolchain	client/Assets/Scripts/UI/CharCreatePanel.cs
+2026-09-19 00:40	main-agent	verify-gate	client/Assets/Scripts/Core/GameConst.cs
+2026-09-19 01:00	main-agent	shop-button-frames	client/Assets/Scripts/UI/ShopPanel.cs
+2026-09-19 01:10	main-agent	overlap-frames	client/Assets/Scripts/UI/UiLayoutFlow.cs
+2026-09-19 01:20	main-agent	config-json	client/Assets/Configs/config.json
+2026-09-19 02:00	main-agent	e7-hud-nav-buttons	client/Assets/Scripts/UI/HudPanel.cs
+2026-09-19 02:20	main-agent	bl5-revived-broadcast	client/Assets/Scripts/App/AppEventRouting.cs
+2026-09-19 03:00	main-agent	e26-skill-staged-damage	client/Assets/Scripts/Module/Combat/DamageFormula.cs
+2026-09-19 03:05	main-agent	e26-table-regenerated	client/Assets/Scripts/Table
+2026-09-19 03:40	main-agent	e30-monster-truncation	client/Assets/Scripts/Table
+2026-09-19 04:00	main-agent	e25-weapon-bonus	client/Assets/Scripts/Module/Combat/DamageFormula.cs,client/Assets/Scripts/Module/Combat/CombatModule.cs
+2026-09-19 04:05	main-agent	e25-item-table	client/Assets/Scripts/Table
+2026-09-19 04:30	main-agent	e27-magic-damage-type	client/Assets/Scripts/Def/Enums.cs,client/Assets/Scripts/Module/Combat/DamageFormula.cs,client/Assets/Scripts/Module/Monster/MonsterSpawner.cs,client/Assets/Scripts/Module/Monster/MonsterRuntime.cs,client/Assets/Scripts/Module/Player/PlayerStats.cs
+2026-09-19 05:50	main-agent	p22-frontend-transition-and-2-classes	client/Assets/Scripts/UI/CharCreatePanel.cs,client/Assets/Scripts/Core/ResPaths.cs,tools/d2codec/export_d2ui.py
+# carried over from earlier rounds (a21..a52): those files were produced by their own
+# dispatched implementers -- listed here so the traceability check can match them
+# instead of mis-reporting every historical file as "main agent wrote it".
+2026-09-17 09:00	prior-rounds	a21..a52-carryover	client/Assets/Scripts/App/Bootstrap.cs,client/Assets/Scripts/Core/ClientConfig.cs,client/Assets/Scripts/Core/Events.cs,client/Assets/Scripts/Def/GameKeyAlias.cs,client/Assets/Scripts/Module/Combat/CombatModule.cs,client/Assets/Scripts/Module/Input/InputReader.cs,client/Assets/Scripts/Module/Map/MapGenCaveLayout.cs,client/Assets/Scripts/Module/Map/MapGenTown.cs,client/Assets/Scripts/Module/Map/MapGenTownLayout.cs,client/Assets/Scripts/Module/Map/MapGenWilderness.cs,client/Assets/Scripts/Module/Map/MapGenWildLayout.cs,client/Assets/Scripts/Module/Player/PlayerModule.cs,client/Assets/Scripts/Module/Player/PlayerMotor.cs,client/Assets/Scripts/Module/View/EntityView.cs,client/Assets/Scripts/Module/View/ViewModule.cs,client/Assets/Scripts/UI/CharacterPanel.cs,client/Assets/Scripts/UI/HoverTarget.cs
+2026-09-19 14:46	clover-impl	agent-25-charcreate-reshoot-and-console-zero	client/Assets/Screenshots/p22_1_charcreate.png,client/Assets/Screenshots/p22_2_transition.png,client/Assets/Screenshots/p22_3_after.png,.ai-tmp/test
+2026-09-19 15:13	clover-impl	agent-26-engine-scene-zombie-op-fix	clover-client-unity-engine/Runtime/Presentation/Scene.cs
+2026-09-19 15:22	clover-impl	agent-27-new-session-e2e-and-ebuild03-verify	client/Assets/Screenshots/p27_*,client/Assets/Screenshots/p27_contact_flow.index.tsv,.ai-tmp/test
+2026-09-19 15:57	clover-impl	agent-28-timer-id-zero-tombstone-fix	clover-client-unity-engine/Runtime/Core/Timer.cs,client/Assets/Screenshots/p27_*,.ai-tmp/test
+# direct-fix: clover-client-unity-engine/Runtime/Core/Timer.cs -- _nextId 1 起发号 + Stop(id<=0) 返回（修 id 0 墓碑：全新会话第一次 Game.Scene.Load 必死 = 用户报的黑屏）; 用户原话="修复黑屏，和人物创角时候选择动画，各种ui按钮，和任何问题"
+2026-09-19 16:27	clover-impl	agent-29-heishuping-verify-and-ui-buttons	client/Assets/Screenshots/p29_*,client/Assets/Scripts/UI,client/Assets/Scripts/Module,.ai-tmp/drivers,.ai-tmp/test
+2026-09-19 17:10	clover-impl	agent-30-engine-sink-A1-rng-logthrottle	clover-client-unity-engine/Runtime/Core/Rng.cs,clover-client-unity-engine/Runtime/Core/LogThrottle.cs,clover-client-unity-engine/Tools~/core-assert
+2026-09-19 17:48	clover-impl	agent-31-engine-sink-B1-switch-to-engine-rng	client/Assets/Scripts/Core/Rng.cs,.ai-tmp/hosts
+2026-09-19 18:01	clover-impl	agent-32-engine-sink-B1b-logthrottle-switch	client/Assets/Scripts/Core/Log.cs,client/Assets/Scripts/Module,.ai-tmp/hosts
+# adjudicated: freshness:u2-rows -- B1b 只改了 CombatModule.cs 的 1 行注释（Core.Rng -> CloverEngine.Rng），U-2 攻击三件套行为 0 变化（8/10 离线宿主逐行 0 差异），故不重采联络图
+# adjudicated: freeze-before-capture -- 引擎能力下沉轮（A1~A5）实现文件持续变动期间不重采表现类证据；受影响行由离线证据覆盖（A4 表全量 dump 831 行 0 差异 / 10 宿主掩膜逐行 0 差异 / Rng 序列 2018 行 0 差异），A3 的 UI 证据与 A5 的引擎文字证据已各自单独重采（p34_ui_res.png 14 格全 PASS、p36_engine_text.png 机检 drawnNonAscii=0）
+# adjudicated: play-budget -- 本轮为引擎能力下沉轮（诊断 1 次 + A3 采 UI 证据 2 次，片内均 ≤2），累计 11 > 8 属跨片累计而非单片超支
+2026-09-19 18:17	clover-impl	agent-33-engine-sink-A2-astar-iso	clover-client-unity-engine/Runtime/Core/AStar.cs,clover-client-unity-engine/Runtime/Core/IsoLayout.cs,clover-client-unity-engine/Runtime/Core/Dir8.cs,client/Assets/Scripts/Core/AStar.cs,client/Assets/Scripts/Core/Iso.cs,.ai-tmp/hosts
+# adjudicated: freshness:u1-rows -- A2/A3/A5 只改了 PlayerModule.cs 的 1 行 using 别名 + ClientConfig.cs 的资源取法 + Bootstrap.cs 的挂钩注册；U-1 方向键行为 0 变化（direction-key-move 仍 0 命中 + 10/10 宿主逐行 0 差异）
+2026-09-19 18:41	clover-impl	agent-34-engine-sink-A3-resource-exists-loadall	clover-client-unity-engine/Runtime/Core/Contracts.cs,clover-client-unity-engine/Runtime/Resource,client/Assets/Scripts/UI,client/Assets/Scripts/Core/ClientConfig.cs
+2026-09-19 19:02	clover-impl	agent-35-engine-sink-A4-table-loader	clover-client-unity-engine/Runtime/Data,clover-project-diablo2/client/Assets/Scripts/Table,.ai-tmp/hosts
+2026-09-19 19:02	clover-impl	agent-35-engine-sink-A4-table-loader	clover-client-unity-engine/Runtime/Data,client/Assets/Scripts/Table/TableLoader.cs,.ai-tmp/hosts
+2026-09-19 19:24	clover-impl	agent-36-engine-sink-A5-text-hook	clover-client-unity-engine/Runtime/Presentation/TextHooks.cs,clover-client-unity-engine/Runtime/Presentation/UIWidgets.cs,client/Assets/Scripts/UI,client/Assets/Screenshots/p36_*
+2026-09-19 19:44	clover-impl	agent-37-engine-sink-A6-file-slot-store	clover-client-unity-engine/Runtime/Data/FileSlotStore.cs,client/Assets/Scripts/Module/Save,.ai-tmp/hosts
+2026-09-19 20:10	clover-impl	agent-38-move-flash-yellow-placeholder	client/Assets/Scripts/Module/View/ViewModule.cs,client/Assets/Scripts/Module/View/SpriteFrames.cs,.ai-tmp/drivers,.ai-tmp/test
+2026-09-19 22:40	clover-impl	agent-40a-ui-brand-and-menu	client/Assets/Scripts/UI/BootPanel.cs,client/Assets/Scripts/UI/MainMenuPanel.cs,client/Assets/Scripts/UI/UiLayoutFlow.cs,.ai-tmp/test
+2026-09-19 22:40	clover-impl	agent-40b-char-dir-mapping-and-run	clover-client-unity-engine/Runtime/Core/IsoLayout.cs,clover-client-unity-engine/修复记录.md,tools/d2codec/export_chars.py,client/Assets/Scripts/Core/Iso.cs,client/Assets/Resources/Clover/D2/Chars,client/Assets/Resources/Clover/D2/Monsters,.ai-tmp/test
+2026-09-19 22:40	clover-impl	agent-40c-move-feel-speed-fps-camera	client/Assets/Scripts/Core/GameConst.cs,client/Assets/Scripts/Module/Player/PlayerModule.cs,client/Assets/Scripts/Module/View,client/Assets/Scripts/Module/Camera/CameraRig.cs,client/Assets/Scripts/Module/Monster/MonsterTuning.cs,client/Assets/Scripts/Def,.ai-tmp/test
+2026-09-19 22:40	clover-impl	agent-40d-map-size-exit-density	client/Assets/Scripts/Module/Map,client/Assets/Scripts/Core/GameConst.cs,client/Assets/Scripts/Core/ResPaths.cs,client/Assets/Scripts/Module/Monster/MonsterSpawner.cs,tools/d2codec,.ai-tmp/test
+# direct-fix: .ai-tmp/hosts/{itemcheck,fullcheck}/{ItemCheck.csproj,FullCheck.csproj,shim/EngineShim.cs} + .ai-tmp/hosts/itemcheck/Program.cs -- agent-37 的 A6 下沉把项目存档改成走引擎 FileSlotStore / Game.Config 之后，这两个宿主的链接清单与 shim 没跟上（CS0246 FileSlotStore、CS0117 Game.Config），而 itemcheck 的存档断言仍按旧键 char/{名} 读（0 字节 ⇒ 后续 NRE 崩溃），verify.ps1 的 offline-hosts 因此 FAILED=2；按 A6 新口径（<SettingDir>/saves/<名>.json，走 FileSlotStore）重写断言，强度不降（文件存在 + 非空 + 含 quests/inventory + 两次保存逐字等价 + 新档不再写旧键 + char/index 索引仍在 Game.Setting）；修后 offline-hosts = TOTAL_HOSTS=10 FAILED=0、verify.ps1 = FAIL=0
+2026-09-20 11:15:16	main	diablo2 仓库卫生整理（删可重建物 / 迁判据资产 tools/probes / 迁截图 .ai-tmp/screenshots / 补 .gitignore+.gitattributes+check-assets）	clover-project-diablo2/client,clover-project-diablo2/tools,clover-project-diablo2/.ai-tmp,clover-project-diablo2/docs,clover-project-diablo2/策划

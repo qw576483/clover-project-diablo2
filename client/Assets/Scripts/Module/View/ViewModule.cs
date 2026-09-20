@@ -1,0 +1,1267 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Diablo2 · Module/View/ViewModule.cs
+// `IViewModule` 的**唯一实现**（门面，internal，**无参构造** ⇒ 可被 `AppContext.AutoWire` 反射创建）。
+// 刻意**不是** MonoBehaviour：它的 `Tick(dt)` 由 `AppContext.Tick` 转发（与其它模块一致），
+// 这样模块生命周期只有一个来源，也不会因为场景切换丢掉挂在别处的方式。
+//
+// 职责：创建/更新/销毁精灵视图（玩家 8 方向、怪物、地面物品）、受击闪白、死亡表现、
+//       飘字（引擎 `Game.UI.FloatText`）、**头顶血条（引擎 `CloverEngine.WorldHpBar`）**、逐帧动画推进。
+//
+// 动画：**业务自写逐帧切图**（`SpriteAnimator` / `SpriteFrames` / `ViewAnim`，本项目新增）
+//       —— 引擎 `Game.Anim` 是 Animator 驱动，不覆盖逐帧切图（理由见 `SpriteAnimator.cs` 文件头）。
+//
+// 命中反馈三件套里的两件在本模块：
+//   ① 飘字（`ShowFloatingText`，由 `Module/Combat/DamagePipeline` 在同一次命中里调用）
+//   ③ 头顶血条下降（`UpdateMonster` 把 `state.hp/maxHp` 喂给 `WorldHpBar`，同一调用栈）
+//   ② 音效钩子由 `DamagePipeline` 直接调 `IAudioModule`（可空）。
+//
+// ── ★ agent-16：空引用防护（修「MissingReferenceException 每帧刷屏」）────────────────
+// 缺陷：本模块是**常驻对象**（AutoWire 建一次、跨 Stage 存活），它持有的节点却都属于 Stage 场景
+//   —— Stage 场景卸载（回主菜单 / 换场景）会把它们销毁；一旦「清场没跑到」，
+//   `_player.Root.transform`（原 ViewModule.cs:392）就会**每帧**抛 `MissingReferenceException`，
+//   并且该异常从 `AppContext.Tick` 抛出 ⇒ 它之后的模块（Camera/Audio…）每帧都被中断。
+// 对策（三道）：
+//   ① `Tick` 开头**总闸门** `if (_root == null) return;`（根没了就整体不 tick；顺带丢弃残留引用）；
+//   ② 每个「持有 Unity 引用并使用」的点**使用前判空**（Unity 的 `==` 重载把已销毁对象判为 null，
+//      所以用 `== null` 判断即可，**不用** `ReferenceEquals`）：`TickPlayer` / `UpdateMonster` /
+//      `PlayHit` / `PlayDeath` / `GetView` / `ApplyFlash` / `PruneDeadViews`；
+//   ③ `Clear()`（Flow 离场会调）与 `StageLeft`（本模块自己订阅，幂等）**显式置 null**。
+// 日志：引用失效时**只报一次**（`ViewLog.WarnOnce`，key = `stale.root` / `stale.children` / …），
+//   文案带模块名与「已随场景卸载」，用于区分「正常卸载」与「真丢引用」。
+//
+// 素材：一律经 `Core/ResPaths`；取不到 ⇒ 纯色占位（`SpriteFrames.Placeholder`），
+//       已登记 `client/资源欠缺清单.md` #1 角色精灵 / #2 怪物精灵。
+// ⛔ 不使用 `Game.Pool` 的 `Spawn`：它内部是 `Resources.Load<GameObject>(key)`，
+//   而本项目**没有**实体预制体（视图由帧序列 PNG 运行时拼）⇒ 直接建节点并自行复用/销毁
+//   （`GameObject.Find` / `FindObjectOfType` / 裸 `Instantiate` 一律未使用，符合 §6 约束）。
+//
+// ── ★ agent-20 §A 新增（原版 DCC 素材接入后）────────────────────────────────
+// ① **像素尺度**：原版单位是 **80 像素 = 1 世界单位**（Diablerie `Iso.cs:9`；本项目地形
+//    也是同一尺度 —— `MapView.D2TilePixelsPerUnit = 80f` 且瓦片节点缩 64/80）。
+//    贴图按契约 PPU=64 导入 ⇒ 实体节点乘 `SpriteFrames.ArtScale`(=0.8)，
+//    否则角色比地形大 25%（`SpriteFrames.cs` 文件头有完整推导）。
+// ② **NPC 视图**：原版 5 个 NPC（阿卡拉/卡夏/恰西/基德/瓦瑞夫）此前**没有任何渲染**
+//    （`IViewModule` 上没有 NPC 接口，城镇截图里一个人都没有）。本轮按"约定"补上：
+//    本模块监听 `Events.StageEntered`，从 `IMapModule.NpcPoints`（下标 = `Def.NpcId`）
+//    建 NPC 视图，帧键走 `SpriteFrames.Keys(NpcSpriteCode(id), …)`（原版 `MonStats.Code`：
+//    ps/rc/ci/gh/wa）⇒ **用的是原版 NPC 动画，不是色块**。NPC 只进 `_npcs` 字典，
+//    **不进 `_entities`** ⇒ 不参与战斗/血条/命中（NPC 无敌、不受伤）。
+//
+// ── ★ 片 2b：步频与速度同步（修"人物/怪物飘着走"）────────────────────────────
+//   缺陷：动画帧率是与速度**无关**的常量（`FpsOf(Walk) = 12`），而速度为 6 格/秒 ⇒
+//   **每格只播 2 帧**（严重滑步 = 用户说的"飘着走"）；且玩家只有走路一套动画（跑也用 WL）。
+//   修法（两条，都只动表现层）：
+//     ① **走/跑两套动画**：玩家按契约 `IPlayerModule.IsRunning` 选 `ViewAnim.Run` / `Walk`
+//        （原版 `.cof` 的 RN / WL）⇒ 跑起来播的是原版跑动画；
+//     ② **每格一个动画循环**：移动类动作的有效帧率 = **帧数 × 格/秒**
+//        （`SpriteFrames.FpsForCycle` + `SpeedScaleForCycle`）⇒ 脚底与地面不再打滑。
+//   速度来源：玩家取**契约常量**（跑 `GameConst.PlayerWalkSpeed`、走 × `PlayerWalkSpeedFactor`）；
+//   怪物契约里没有速度值 ⇒ 用**本帧位移 / dt**（`_prevTickWorld` 逐帧做差，见 `TickOne`）。
+//   ⛔ 静态动作（Idle/Attack/Cast/Hit/Death）**一律不缩放**（`SyncMoveScale` 复位成 1）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+using System;
+using System.Collections.Generic;
+using CloverEngine;
+using Diablo2.Core;
+using Diablo2.Def;
+// ★ agent-33 引擎下沉 A2：引擎侧新增了**同名**枚举 `CloverEngine.Dir8`（`Runtime/Core/Dir8.cs`），
+//   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
+//   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
+using Dir8 = Diablo2.Def.Dir8;
+using UnityEngine;
+using AppContext = Diablo2.App.AppContext;
+
+namespace Diablo2.Module.View
+{
+    /// <summary>精灵视图门面实现。</summary>
+    internal sealed class ViewModule : IViewModule
+    {
+        /// <summary>受击闪白时长（秒）——顺带做一点反向位移，像素图上也看得出来（纯 tint 在白图上不可见）。</summary>
+        private const float HitFlashSeconds = 0.12f;
+
+        /// <summary>受击时的反向位移（世界单位，很小）——D2 的受击抖动。</summary>
+        private const float HitKnockback = 0.06f;
+
+        /// <summary>尸体最终不透明度（原版尸体是暗色的）。</summary>
+        private const float CorpseAlpha = 0.55f;
+
+        /// <summary>施法动作保持时长（秒）。</summary>
+        private const float CastActionSeconds = 0.45f;
+
+        /// <summary>
+        /// 挥击动作保持时长（秒）。
+        /// <para>口径 = <c>GameConst.PlayerAttackInterval</c>（原版普通攻击的出手间隔，见其注释
+        /// 「原版攻击间隔 ~0.5s」）—— 即"一次挥击占满两次出手之间的时间"，
+        /// 与怪物 AI 的出手-动作绑定口径一致（`MonsterTuning.AttackIntervalSeconds`）。
+        /// 原版逐武器的攻击速度表（`Weapons.txt::speed` / `AnimData.d2`）本项目未接 ⇒ 用统一间隔。</para>
+        /// <para>⛔ 与 <c>GameConst.PlayerAttackInterval</c> **同源**（不另写一个魔数）。</para>
+        /// </summary>
+        private static readonly float AttackActionSeconds = GameConst.PlayerAttackInterval;
+
+        private readonly Dictionary<int, EntityView> _entities = new Dictionary<int, EntityView>();
+        private readonly Dictionary<int, EntityView> _groundItems = new Dictionary<int, EntityView>();
+
+        /// <summary>
+        /// ★ 片 2b：各实体**上一次 View.Tick 时刻**的世界坐标 —— 用来量"本帧位移 / dt"。
+        /// <para>为什么需要它：契约里**没有"怪物速度"这个值**（`MonsterState` 只有位置/朝向），
+        /// 而步频同步要的是实际速度。`MonsterModule` 每帧先调 `UpdateMonster` 把新世界坐标写进
+        /// `v.LastWorld`（同一次 `AppContext.Tick` 里 Monster 在 View 之前）⇒ 这里逐帧做差就得到
+        /// 实际速度，**不必新增契约字段**。玩家不用这条（它走契约速度，见 `TickPlayer`）。</para>
+        /// </summary>
+        private readonly Dictionary<int, Vector3> _prevTickWorld = new Dictionary<int, Vector3>();
+
+        /// <summary>★ 片 2b：已打过「步频同步」日志的实体（怪物实测速度有微小抖动 ⇒ 逐次变化打日志会刷屏）。</summary>
+        private readonly HashSet<int> _moveScaleLogged = new HashSet<int>();
+
+        /// <summary>城镇 NPC 视图（键 = `(int)Def.NpcId`）。**不计入 `_entities`**（无血条/不参战）。</summary>
+        private readonly Dictionary<int, EntityView> _npcs = new Dictionary<int, EntityView>();
+
+        private Transform _root;
+        private Transform _pendingRoot;
+        private EntityView _player;
+        private bool _cannotRender;
+
+        /// <summary>构造：订阅 `SkillCast`（玩家施法动作）与 `StageLeft`（离场兜底清引用）。</summary>
+        public ViewModule()
+        {
+            if (Game.Event == null)
+            {
+                ViewLog.Warn("ViewModule 构造时 Game.Event 为 null（Game.Launch 未调用？）⇒ 施法动作不会播放、" +
+                             "离场也不会自动清引用（仍靠 Tick 的总闸门兜底）");
+                return;
+            }
+            Game.Event.On<int>(Events.SkillCast, OnSkillCast);
+            // ★ 片 8 B35：玩家普攻的**挥击动作**（原版一次普攻 = 挥击 + 音效 + 受击反馈三件套）。
+            Game.Event.On<int>(Events.PlayerAttacked, OnPlayerAttacked);
+            // ★ agent-16：本模块是**常驻对象**（`AppContext.AutoWire` 建一次、跨 Stage 存活），
+            //   而它持有的节点都属于 Stage 场景（会随场景卸载被销毁）⇒ 除 Flow 的 `Clear()` 之外，
+            //   本模块自己再监听一次离场事件（幂等：`Clear()` 在已经干净时静默返回，不产生重复日志）。
+            Game.Event.On(Events.StageLeft, OnStageLeft);
+            // ★ agent-20 §A：NPC 视图随进图建立（约定：HUD/NPC 这类"进图才存在的东西"都挂 StageEntered）
+            Game.Event.On(Events.StageEntered, OnStageEntered);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // IViewModule 之外：城镇 NPC（本项目新增，见文件头 ②）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>`Events.StageEntered`：城镇里按 `IMapModule.NpcPoints` 建 5 个 NPC 视图。</summary>
+        private void OnStageEntered()
+        {
+            var map = AppContext.I != null ? AppContext.I.Map : null;
+            if (map == null)
+            {
+                ViewLog.WarnOnce("npc.nomap", "StageEntered: IMapModule 未接入 ⇒ 不建 NPC 视图");
+                return;
+            }
+            if (map.Area != AreaId.Town)
+            {
+                // 非城镇区域没有 NPC ⇒ 静默返回（正常路径，不是异常）
+                return;
+            }
+
+            var points = map.NpcPoints;
+            if (points == null || points.Count == 0)
+            {
+                ViewLog.Warn("StageEntered: 城镇的 NpcPoints 为空（MapGenTown 没填？）⇒ 不建 NPC 视图");
+                return;
+            }
+            if (EnsureRoot() == null) return;
+
+            ClearNpcs();
+            for (var i = 0; i < points.Count; i++)
+            {
+                var id = (NpcId)i;
+                var code = SpriteFrames.NpcSpriteCode(id);
+                var world = Iso.GridToWorld(points[i]);
+                var v = CreateEntityNode(NpcEntityId(id), world, NpcPlaceholderColor(id), "Npc_" + code,
+                    Iso.SortOrder(points[i], GameConst.LayerOffsetEntity));
+                if (v == null) continue;
+
+                v.SpriteCode = code;
+                v.Grid = points[i];
+                v.Dir = Dir8.S;
+                v.IsGroundItem = false;
+                PlayAnim(v, ViewAnim.Idle, true);
+                _npcs[i] = v;
+                ViewLog.Info($"NPC 视图已建：{id}（原版代码 {code}）格=({points[i].x},{points[i].y}) " +
+                             $"帧目录={ResPaths.MonsterDir(code)}");
+            }
+
+            // 贴图是异步加载的 ⇒ 到位后要重铺一次：交给 `SpriteFrames` 自己的
+            // `ConsumeRepaintRequest()`（Tick 已经消费它，与玩家/怪物同一条通路）。
+            ViewLog.Info($"NPC 视图：{_npcs.Count} 个（贴图异步到位后 Tick 会自动重铺一次）");
+        }
+
+        /// <summary>NPC 视图的实体 id（**负号区段**，与玩家 1 / 怪物 1000+ / 地面物品 100000+ 都不冲突）。</summary>
+        private static int NpcEntityId(NpcId id)
+        {
+            return -1 - (int)id;
+        }
+
+        /// <summary>NPC 占位色（万一原版动画缺失时的兜底；5 个 NPC 各一色，便于一眼看出是哪一个）。</summary>
+        private static Color NpcPlaceholderColor(NpcId id)
+        {
+            switch (id)
+            {
+                case NpcId.Akara: return new Color(0.70f, 0.55f, 0.85f);
+                case NpcId.Kashya: return new Color(0.85f, 0.45f, 0.45f);
+                case NpcId.Charsi: return new Color(0.85f, 0.70f, 0.35f);
+                case NpcId.Gheed: return new Color(0.55f, 0.70f, 0.85f);
+                case NpcId.Warriv: return new Color(0.60f, 0.80f, 0.60f);
+                default: return Color.gray;
+            }
+        }
+
+        /// <summary>销毁全部 NPC 视图（幂等）。</summary>
+        private void ClearNpcs()
+        {
+            if (_npcs.Count == 0) return;
+            foreach (var kv in _npcs) DestroyView(kv.Value);
+            _npcs.Clear();
+        }
+
+        /// <summary>NPC 每帧：朝向玩家（原版 NPC 会转头看你；帧键随方向换一套）。</summary>
+        private void TickNpcs()
+        {
+            if (_npcs.Count == 0) return;
+
+            var p = AppContext.I != null ? AppContext.I.Player : null;
+            if (p == null) return;
+            var pg = p.Grid;
+
+            foreach (var kv in _npcs)
+            {
+                var v = kv.Value;
+                if (v == null || v.Root == null) continue;
+
+                var want = Iso.DirectionTo(v.Grid, pg);
+                if (want != v.Dir)
+                {
+                    v.Dir = want;
+                    PlayAnim(v, ViewAnim.Idle, true);
+                }
+
+                // ★ 修复（"NPC 一直是纯色块"的第二个根因）：帧刷新**不能只在换朝向时做**。
+                //   建视图时 `CreateEntityNode` 已把 `NeedsFrameRefresh` 置 true，但那条路上
+                //   没有任何人调 `ApplyFrame`；而原来的 `if (want == v.Dir) continue;` 又会在
+                //   朝向稳定后**每帧跳过**整个 NPC ⇒ 该标志永远没人消费、贴图异步到位后的
+                //   `RefreshAllFrames()` 也白设 ⇒ NPC 一辈子停在纯色占位块上
+                //   （实测：探针读到 5 个 NPC 全部 `NeedsFrameRefresh=True` + `D2CharPlaceholder`）。
+                //   改成"每帧无条件消费该标志"：帧号没变时它是 false ⇒ 不会每帧重取贴图。
+                if (v.NeedsFrameRefresh)
+                {
+                    v.NeedsFrameRefresh = false;
+                    ApplyFrame(v);
+                }
+            }
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // IViewModule：玩家
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 让实体节点挂到场景里已有的「实体根」上（`Stage` 场景自带，见 `docs/步骤文档.md` §3.6）。
+        /// **本项目新增的非契约方法**（`IViewModule` 上没有），与 `MapModule.AttachRoot` 同一做法：
+        /// 不调也能跑（那时实体根由本模块自己创建）。
+        /// </summary>
+        public void AttachRoot(Transform root)
+        {
+            if (root == null)
+            {
+                ViewLog.Warn("AttachRoot(null)：忽略（实体根仍由本模块自己创建）");
+                return;
+            }
+            if (_root != null) _root.SetParent(root, false);
+            else _pendingRoot = root;
+            ViewLog.Info($"AttachRoot：实体视图将挂在场景节点「{root.name}」下");
+        }
+
+        /// <inheritdoc />
+        public void CreatePlayer(PlayerClass cls)
+        {
+            if (_cannotRender) return;
+            if (EnsureRoot() == null) return;
+
+            if (_player != null) DestroyView(_player);
+            _player = null;
+
+            var color = SpriteFrames.PlaceholderColorOfPlayer(cls);
+            // 玩家初始排序：格 (0,0) 的基准 + 实体层偏移（第一帧 Tick 就会按真实格刷新）
+            var v = CreateEntityNode(GameConst.PlayerEntityId, Vector3.zero, color, cls.ToString(),
+                GameConst.SortOrderBase + GameConst.LayerOffsetEntity);
+            if (v == null) return;
+
+            v.IsPlayer = true;
+            v.Cls = cls;
+            v.Dir = Dir8.S;
+            PlayAnim(v, ViewAnim.Idle, true);
+
+            _player = v;
+            _entities[GameConst.PlayerEntityId] = v;
+
+            ViewLog.Info($"玩家视图已创建：职业={cls}（占位色 {color}），" +
+                         $"帧目录={ResPaths.CharDir(cls)}，帧键命名 {{动作}}_{{方向}}_{{帧号}}");
+        }
+
+        /// <inheritdoc />
+        public void CreateMonster(MonsterState state)
+        {
+            if (state == null)
+            {
+                ViewLog.WarnThrottled("create.null", "CreateMonster: state 为 null ⇒ 忽略");
+                return;
+            }
+            if (_cannotRender) return;
+            if (EnsureRoot() == null) return;
+
+            if (_entities.TryGetValue(state.id, out var existing) && !existing.IsPlayer)
+            {
+                UpdateMonster(state);      // 幂等：已存在就只刷新
+                return;
+            }
+
+            var code = SpriteFrames.SpriteCodeOf(state.kindId);
+            var color = SpriteFrames.PlaceholderColorOfMonster(state);
+            var v = CreateEntityNode(state.id, new Vector3(state.worldX, state.worldY, state.worldZ), color,
+                state.name, Iso.SortOrder(new Vector2Int(state.gridX, state.gridY), GameConst.LayerOffsetEntity));
+            if (v == null) return;
+
+            v.KindId = state.kindId;
+            v.SpriteCode = code;
+            v.Dir = state.dir;
+
+            // 头顶血条（引擎件；**默认隐藏**，掉血了才显示 —— 原版也是这样）
+            // ⚠️ 血条的 width/height/yOffset 都是**宿主节点局部坐标**，而实体节点已乘 `ArtScale`(0.8)
+            //    ⇒ 三个都除以 ArtScale，保证血条在世界里仍然是 1×0.12、离脚底 2.15
+            //    （与接入真素材前**一模一样**，不产生"顺手把血条也改了"的副作用）。
+            v.Bar = WorldHpBar.Create(v.Root.transform,
+                WorldHpBar.DefaultWidth / SpriteFrames.ArtScale,
+                WorldHpBar.DefaultHeight / SpriteFrames.ArtScale,
+                WorldHpBar.DefaultYOffset / SpriteFrames.ArtScale, "MonsterHpBar");
+            if (v.Bar != null)
+            {
+                v.Bar.SetHp(state.hp, state.maxHp);
+                v.Bar.SetVisible(state.hp < state.maxHp);
+            }
+
+            PlayAnim(v, ViewAnim.Idle, true);
+            _entities[state.id] = v;
+
+            ViewLog.Info($"怪物视图已创建：m#{state.id} {state.name} 种类={state.kindId} sprite={code} " +
+                         $"精英={state.isChampion}{(state.isChampion ? "（" + state.modName + "）" : "")} " +
+                         $"帧目录={ResPaths.MonsterDir(code)} 占位色={color} 血条={(v.Bar != null ? "已挂" : "缺失")}");
+        }
+
+        /// <inheritdoc />
+        public void UpdateMonster(MonsterState state)
+        {
+            if (state == null) return;
+
+            if (!_entities.TryGetValue(state.id, out var v) || v.IsPlayer)
+            {
+                ViewLog.WarnThrottled("update.missing",
+                    $"UpdateMonster(m#{state.id})：视图不存在（应先 CreateMonster）⇒ 本次忽略");
+                return;
+            }
+
+            // ★ agent-16：本方法**不只在 Tick 里被调**（`MonsterModule.ApplyDamage/Die` 同一次命中里直接调），
+            //   所以判空不能只依赖 Tick 的总闸门 —— 场景刚卸载的那一帧可能正好夹在这里。
+            if (v.Root == null)
+            {
+                _entities.Remove(state.id);
+                ViewLog.WarnOnce("stale.update",
+                    $"UpdateMonster(m#{state.id})：视图节点已失效（Root == null，已随场景卸载）⇒ " +
+                    "已丢弃该视图引用，本次不再访问它的 transform（本条只报一次）");
+                return;
+            }
+
+            var world = new Vector3(state.worldX, state.worldY, state.worldZ);
+            var moved = (v.LastWorld - world).sqrMagnitude > 0.0004f;
+
+            v.Root.transform.position = world + KnockbackOffset(v);
+            v.LastWorld = world;
+            v.Grid = new Vector2Int(state.gridX, state.gridY);
+            if (v.Renderer != null) v.Renderer.sortingOrder = Iso.SortOrder(v.Grid, GameConst.LayerOffsetEntity);
+
+            // 朝向是否变化（下面决定"要不要重取整套帧键"，见 dirChanged || …）
+            var dirChanged = state.dir != v.Dir;
+            if (dirChanged)
+            {
+                v.Dir = state.dir;
+                v.NeedsFrameRefresh = true;      // 换方向 = 换整套帧
+            }
+
+            if (!state.alive)
+            {
+                if (!v.Dead) PlayDeath(state.id);
+            }
+            else
+            {
+                var want = state.hitStun ? ViewAnim.Hit
+                    : state.attacking ? ViewAnim.Attack
+                    : moved ? ViewAnim.Walk
+                    : ViewAnim.Idle;
+                // ★ 朝向变了也要重取帧键：原版是 8 方向逐帧动画，"动作没变但换了朝向"= 换整套帧。
+                //   只按 `want != v.Playing` 判会吞掉换方向 ⇒ 怪物"朝西走却放着朝南的动画"。
+                if (dirChanged || want != v.Playing) PlayAnim(v, want, SpriteFrames.LoopOf(want));
+            }
+
+            // ★ 头顶血条：**同一次命中**的调用栈里就会走到这里 ⇒ 血条与扣血同帧下降
+            if (v.Bar != null)
+            {
+                v.Bar.SetHp(state.hp, state.maxHp);
+                v.Bar.SetVisible(state.alive && state.hp < state.maxHp);
+            }
+        }
+
+        /// <inheritdoc />
+        public void RemoveMonster(int monsterId)
+        {
+            if (!_entities.TryGetValue(monsterId, out var v) || v.IsPlayer) return;
+
+            DestroyView(v);
+            _entities.Remove(monsterId);
+            // ★ 片 2b：连同"上帧世界坐标"一起清（怪物 id 跨局会被复用，留着旧坐标会让下一只
+            //   同 id 的怪在首帧算出一个爆表的"位移/dt"）
+            _prevTickWorld.Remove(monsterId);
+            _moveScaleLogged.Remove(monsterId);
+        }
+
+        /// <inheritdoc />
+        public void ClearMonsters()
+        {
+            var ids = new List<int>();
+            foreach (var kv in _entities)
+            {
+                if (!kv.Value.IsPlayer) ids.Add(kv.Key);
+            }
+            for (var i = 0; i < ids.Count; i++) RemoveMonster(ids[i]);
+
+            ViewLog.Info($"ClearMonsters：已清掉 {ids.Count} 个怪物视图（玩家视图保留）");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // IViewModule：地面物品
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void CreateGroundItem(int groundItemId, ItemStack item, Vector2Int grid)
+        {
+            if (_cannotRender) return;
+            if (EnsureRoot() == null) return;
+
+            if (_groundItems.TryGetValue(groundItemId, out var old)) DestroyView(old);
+
+            var quality = item != null ? item.quality : ItemQuality.Normal;
+            var color = SpriteFrames.QualityColor(quality);
+
+            var v = CreateEntityNode(groundItemId, Iso.GridToWorld(grid), color,
+                item != null ? item.name : "item", Iso.SortOrder(grid, GameConst.LayerOffsetEntity));
+            if (v == null) return;
+
+            v.IsGroundItem = true;
+            v.Grid = grid;
+            _groundItems[groundItemId] = v;
+
+            ViewLog.Info($"地面物品视图：#{groundItemId}「{(item != null ? item.name : "?")}」品质={quality}" +
+                         $" 格=({grid.x},{grid.y}) 颜色={color}（原版按品质着色）");
+        }
+
+        /// <inheritdoc />
+        public void RemoveGroundItem(int groundItemId)
+        {
+            if (!_groundItems.TryGetValue(groundItemId, out var v)) return;
+            DestroyView(v);
+            _groundItems.Remove(groundItemId);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // IViewModule：表现
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void PlayHit(int entityId)
+        {
+            if (!_entities.TryGetValue(entityId, out var v))
+            {
+                ViewLog.WarnThrottled("hit.missing", $"PlayHit({entityId})：视图不存在 ⇒ 本次受击表现跳过");
+                return;
+            }
+            if (v.Root == null)
+            {
+                // 节点已随场景卸载（由 `Combat/DamagePipeline` 在命中栈里直接调进来，不经过 Tick 的总闸门）
+                _entities.Remove(entityId);
+                ViewLog.WarnOnce("stale.hit",
+                    $"PlayHit({entityId})：视图节点已失效（Root == null，已随场景卸载）⇒ 丢弃该视图引用（只报一次）");
+                return;
+            }
+
+            v.HitFlashTimer = HitFlashSeconds;
+            v.NeedsFrameRefresh = true;
+            PlayAnim(v, ViewAnim.Hit, false);
+            ApplyFrame(v);                       // 立即出闪白帧（不等下一帧）
+            ApplyFlash(v);
+        }
+
+        /// <inheritdoc />
+        public void PlayDeath(int entityId)
+        {
+            if (!_entities.TryGetValue(entityId, out var v))
+            {
+                ViewLog.WarnThrottled("death.missing", $"PlayDeath({entityId})：视图不存在 ⇒ 本次死亡表现跳过");
+                return;
+            }
+            if (v.Root == null)
+            {
+                _entities.Remove(entityId);
+                ViewLog.WarnOnce("stale.death",
+                    $"PlayDeath({entityId})：视图节点已失效（Root == null，已随场景卸载）⇒ 丢弃该视图引用（只报一次）");
+                return;
+            }
+
+            v.Dead = true;
+            v.CorpseFaded = false;
+            v.Bar?.SetVisible(false);
+            PlayAnim(v, ViewAnim.Death, false);
+            v.Anim.Replay();
+            ApplyFrame(v);
+
+            ViewLog.Info($"播放死亡表现：实体 {entityId}（Death 动画 {v.Anim.FrameCount} 帧，非循环；" +
+                         "播完隐藏血条、保留尸体节点）");
+        }
+
+        /// <inheritdoc />
+        public void ShowFloatingText(float worldX, float worldY, float worldZ, string text, uint argb)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+
+            if (Game.UI == null)
+            {
+                ViewLog.WarnOnce("floattext.noui",
+                    "ShowFloatingText: Game.UI 为 null（CloverInput/UI 未初始化？）⇒ 伤害飘字不可见");
+                return;
+            }
+
+            Game.UI.FloatText(new Vector3(worldX, worldY, worldZ), text, UnpackArgb(argb),
+                GameConst.FloatTextDuration);
+        }
+
+        /// <inheritdoc />
+        public GameObject GetView(int entityId)
+        {
+            // ⚠️ 节点已销毁时 `v.Root` 是「假 null」（Unity 的 `==` 重载），返回它等于把
+            //    一个碰不得的引用交给调用方（`Module/Input/HoverPicker` 会去读它的 `.transform`）
+            //    ⇒ 这里判定后**显式返回真正的 null**。
+            if (_entities.TryGetValue(entityId, out var v) && v.Root != null) return v.Root;
+            if (_groundItems.TryGetValue(entityId, out var g) && g.Root != null) return g.Root;
+
+            ViewLog.WarnThrottled("getview.miss", $"GetView({entityId})：没有该实体的视图（或节点已随场景卸载）⇒ 返回 null");
+            return null;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // IViewModule：Tick / Clear
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void Tick(float dt)
+        {
+            if (_cannotRender) return;
+
+            // ★ 总闸门（agent-16）：实体根不在 ⇒ 整体不 tick。
+            //   根节点随 Stage 场景卸载被销毁时，`_root` 的 Unity 引用判为 null
+            //   （Unity 的 `==` 重载会把「已销毁对象」判成 null）；而本模块是**常驻对象**，
+            //   所以不设这道闸门就会每帧在 `_player.Root.transform` 上抛 `MissingReferenceException`
+            //   （那次刷屏的真实堆栈：ViewModule.cs:392 → Tick → AppContext.Tick → Bootstrap.Update）。
+            if (_root == null)
+            {
+                // 根没了却还留着视图引用 ⇒ 「场景已卸载但清场没跑到」：丢弃并**只报一次**。
+                if (_player != null || _entities.Count > 0 || _groundItems.Count > 0) DropStaleViews();
+                return;
+            }
+
+            if (SpriteFrames.ConsumeRepaintRequest())
+            {
+                RefreshAllFrames();          // 贴图异步到位 ⇒ 只重取一次，绝不每帧重铺
+            }
+
+            TickPlayer(dt);
+            TickEntities(dt);
+            TickNpcs();
+        }
+
+        /// <inheritdoc />
+        public void Clear()
+        {
+            // ★ 每个 Stage 重新开一次「只报一次」的闸门：`ViewLog.OnceDone` 是**静态**的，
+            //   `Core/Log.ResetThrottle()` 只管 `Core/Log` 自己那张表，不管 `ViewLog` 这张
+            //   ⇒ 不在这里清的话，第二局 Play（或第二次进图）里"精灵帧缺失""占位降级"这类
+            //   **只报一次**的日志永不出现，会把真实故障藏起来（诊断价值全丢）。
+            //   清场时机正确：`Clear()` 只在离场/复位时走到。
+            ViewLog.ResetThrottle();
+
+            // 已经干净 ⇒ 静默返回（`StageLeft` 与 Flow 的 `ResetModules()` 会各调一次本方法，正常路径
+            // **不该**变成两条「清场完成」日志；异常路径（清了但没收到事件）也不会漏）。
+            if (_root == null && _player == null && _entities.Count == 0 && _groundItems.Count == 0
+                && _npcs.Count == 0)
+            {
+                _pendingRoot = null;
+                SpriteFrames.Clear();
+                return;
+            }
+
+            // NPC 视图先清（它们不进 `_entities`，见文件头 ②）
+            var npcCount = _npcs.Count;
+            ClearNpcs();
+
+            var monsters = 0;
+            var ids = new List<int>(_entities.Keys);
+            for (var i = 0; i < ids.Count; i++)
+            {
+                var v = _entities[ids[i]];
+                if (!v.IsPlayer) monsters++;
+                DestroyView(v);
+            }
+            _entities.Clear();
+            _player = null;
+
+            var items = new List<int>(_groundItems.Keys);
+            for (var i = 0; i < items.Count; i++) DestroyView(_groundItems[items[i]]);
+            _groundItems.Clear();
+
+            // ★ 片 2b：步频同步用的两个辅助表也清（怪物 id 跨局复用，留着旧世界坐标会算出假速度）
+            _prevTickWorld.Clear();
+            _moveScaleLogged.Clear();
+
+            if (_root != null) DestroyViewRoot();
+            _root = null;             // 显式置 null（`DestroyViewRoot` 已做；这里再钉一次，防将来改动漏掉）
+            _pendingRoot = null;      // 场景根会随场景卸载而销毁，留着它下次会被 SetParent 到已销毁节点
+            SpriteFrames.Clear();
+
+            ViewLog.Info($"Clear：清场完成（怪物 {monsters} 个 + 地面物品 {items.Count} 个 + NPC {npcCount} 个" +
+                         " + 玩家视图 + 实体根节点）");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 内部
+        // ═════════════════════════════════════════════════════════════════════
+
+        private void TickPlayer(float dt)
+        {
+            if (_player == null) return;
+
+            // ★ agent-16：节点被单独销毁（节点没了但根还在）⇒ 丢弃引用，绝不在 `.transform` 上摸空。
+            if (_player.Root == null)
+            {
+                _player = null;
+                _entities.Remove(GameConst.PlayerEntityId);
+                ViewLog.WarnOnce("stale.player",
+                    "玩家视图节点已失效（Root == null，节点已随场景/父节点卸载）⇒ 已丢弃玩家视图引用，" +
+                    "本帧起不再访问它的 transform（本条只报一次，避免每帧刷屏）");
+                return;
+            }
+
+            var p = AppContext.I != null ? AppContext.I.Player : null;
+            if (p == null)
+            {
+                ViewLog.WarnOnce("tick.noplayer",
+                    "Tick: IPlayerModule 未接入（AppContext.Player == null）⇒ 玩家视图停在原地");
+                return;
+            }
+
+            // 位置：`IPlayerModule.World` 契约原文就是"渲染插值后的实际位置" ⇒ 直接吸附，不二次插值
+            var world = p.World;
+            var moved = (_player.LastWorld - world).sqrMagnitude > 0.0004f;
+            _player.Root.transform.position = world + KnockbackOffset(_player);
+            _player.LastWorld = world;
+
+            var grid = p.Grid;
+            if (grid != _player.Grid)
+            {
+                _player.Grid = grid;
+                if (_player.Renderer != null) _player.Renderer.sortingOrder = Iso.SortOrder(grid, GameConst.LayerOffsetEntity);
+            }
+
+            var dirChanged = p.Dir != _player.Dir;
+            if (dirChanged)
+            {
+                _player.Dir = p.Dir;
+                _player.NeedsFrameRefresh = true;
+            }
+
+            if (_player.CastTimer > 0f) _player.CastTimer -= dt;
+            if (_player.AttackTimer > 0f) _player.AttackTimer -= dt;
+
+            // 优先级：死亡 > 施法 > 挥击 > 移动（跑/走两套动画）> 站立（★ 片 8 B35 加了「挥击」这一档）
+            // ★ 片 2b：移动档按 **原版走/跑状态** 选动作（契约 `IPlayerModule.IsRunning`）——
+            //   原版玩家有两套移动动画（`.cof` 的 WL / RN），此前只播 WL ⇒ 跑起来"飘着走"。
+            var moveAnim = p.IsRunning ? ViewAnim.Run : ViewAnim.Walk;
+            var want = p.IsDead ? ViewAnim.Death
+                : _player.CastTimer > 0f ? ViewAnim.Cast
+                : _player.AttackTimer > 0f ? ViewAnim.Attack
+                : p.IsMoving ? moveAnim
+                : ViewAnim.Idle;
+
+            // ★ 朝向变了也要重取帧键（原版 8 方向逐帧动画：换朝向 = 换整套帧）。
+            //   只按 `want != _player.Playing` 判会吞掉换方向 ⇒ 玩家"朝东走却放着朝南的动画"。
+            if (dirChanged || want != _player.Playing) PlayAnim(_player, want, SpriteFrames.LoopOf(want));
+
+            // ★ 片 2b 步频同步：移动类动作的播放速度按**实际速度**算（原版规律 = 每格一个动画循环
+            //   ⇒ 有效帧率 = 帧数 × 格/秒，见 `SpriteFrames.FpsForCycle`）。
+            //   速度取**契约常量**（不是位置做差）：跑 = `PlayerWalkSpeed`、走 = × `PlayerWalkSpeedFactor`。
+            //   静态动作（Idle/Attack/Cast/Hit/Death）在 `SyncMoveScale` 里复位成 1（原版出招节奏与移动速度无关）。
+            var tilesPerSecond = p.IsRunning
+                ? GameConst.PlayerWalkSpeed
+                : GameConst.PlayerWalkSpeed * GameConst.PlayerWalkSpeedFactor;
+            SyncMoveScale(_player, want, tilesPerSecond, true);
+            if (p.IsDead && !_player.Dead)
+            {
+                _player.Dead = true;
+                ViewLog.Info("玩家死亡 ⇒ 玩家视图播 Death 动画");
+            }
+            else if (!p.IsDead && _player.Dead)
+            {
+                _player.Dead = false;
+                _player.CorpseFaded = false;
+                _player.Anim.Replay();
+                if (_player.Renderer != null) _player.Renderer.color = Color.white;
+                ViewLog.Info("玩家复活 ⇒ 玩家视图从 Death 动画复位");
+            }
+        }
+
+        private void TickEntities(float dt)
+        {
+            if (_entities.Count == 0 && _groundItems.Count == 0) return;
+
+            PruneDeadViews();       // ★ 先摘掉「节点已被单独销毁」的记录（不摘的话它们每帧都要判一次空）
+
+            foreach (var kv in _entities) TickOne(kv.Value, dt);
+            foreach (var kv in _groundItems) TickOne(kv.Value, dt);
+        }
+
+        /// <summary>
+        /// 摘掉「视图节点已失效」的记录（`Root == null`；Unity 里已销毁对象判为 null）。
+        /// 必须先收集再删：`foreach` 期间不能改字典。被摘掉的数量 &gt; 0 时**只报一次**。
+        /// </summary>
+        private void PruneDeadViews()
+        {
+            List<int> deadEntities = null;
+            foreach (var kv in _entities)
+            {
+                if (kv.Value != null && kv.Value.Root != null) continue;
+                if (deadEntities == null) deadEntities = new List<int>();
+                deadEntities.Add(kv.Key);
+            }
+
+            List<int> deadItems = null;
+            foreach (var kv in _groundItems)
+            {
+                if (kv.Value != null && kv.Value.Root != null) continue;
+                if (deadItems == null) deadItems = new List<int>();
+                deadItems.Add(kv.Key);
+            }
+
+            if (deadEntities == null && deadItems == null) return;
+
+            var n = 0;
+            if (deadEntities != null)
+            {
+                n += deadEntities.Count;
+                for (var i = 0; i < deadEntities.Count; i++)
+                {
+                    if (deadEntities[i] == GameConst.PlayerEntityId) _player = null;
+                    _entities.Remove(deadEntities[i]);
+                    // ★ 片 2b：步频同步的辅助表跟着摘（否则怪物 id 复用时算出假速度）
+                    _prevTickWorld.Remove(deadEntities[i]);
+                    _moveScaleLogged.Remove(deadEntities[i]);
+                }
+            }
+            if (deadItems != null)
+            {
+                n += deadItems.Count;
+                for (var i = 0; i < deadItems.Count; i++) _groundItems.Remove(deadItems[i]);
+            }
+
+            ViewLog.WarnOnce("stale.children",
+                $"发现 {n} 个视图记录的节点已失效（Root == null，节点随场景/父节点卸载）⇒ 已摘除，" +
+                "本帧起不再访问它们（本条只报一次；正常路径应先由 Flow 清场调 Clear()）");
+        }
+
+        private void TickOne(EntityView v, float dt)
+        {
+            if (v == null || v.Root == null) return;
+
+            // ★ 片 2b 步频同步（怪物）：契约里**没有"怪物速度"这个值** ⇒ 用**本帧位移 / dt** 当实际速度。
+            //   位移来源 = `MonsterModule` 每帧调 `UpdateMonster` 时写进 `v.LastWorld` 的世界坐标
+            //   （同一次 `AppContext.Tick` 里 Monster 排在 View 之前 ⇒ 这里读到的就是本帧的位移）。
+            //   ⛔ 首帧 / 站着不动 ⇒ 位移 0 ⇒ `SyncMoveScale` 收到 0 会**不缩放**（保持 1），
+            //      绝不用 0 当倍率（那会让动画停住，比"帧率不准"更像"飘"）。
+            //   玩家不走这条（它用契约速度，见 `TickPlayer`）⇒ 这里跳过 `IsPlayer`。
+            if (!v.IsPlayer)
+            {
+                Vector3 prev;
+                if (dt > 0f && _prevTickWorld.TryGetValue(v.EntityId, out prev))
+                {
+                    var moved = Vector3.Distance(prev, v.LastWorld);
+                    SyncMoveScale(v, v.Playing, moved / dt, _moveScaleLogged.Add(v.EntityId));
+                }
+                _prevTickWorld[v.EntityId] = v.LastWorld;
+            }
+
+            if (v.HitFlashTimer > 0f)
+            {
+                v.HitFlashTimer -= dt;
+                if (v.HitFlashTimer > 0f) ApplyFlash(v);
+                else
+                {
+                    v.Root.transform.position = v.LastWorld;   // 撤掉受击位移
+                    ApplyTint(v);
+                }
+            }
+
+            if (v.Anim.Tick(dt)) v.NeedsFrameRefresh = true;
+            if (v.NeedsFrameRefresh)
+            {
+                v.NeedsFrameRefresh = false;
+                ApplyFrame(v);
+            }
+
+            // 死亡动画播完 ⇒ 尸体半透明（只做一次）
+            if (v.Dead && v.Anim.Finished && !v.CorpseFaded)
+            {
+                v.CorpseFaded = true;
+                ApplyTint(v);
+            }
+        }
+
+        private void OnSkillCast(int skillId)
+        {
+            if (_player == null || _player.Root == null) return;
+            _player.CastTimer = CastActionSeconds;
+            PlayAnim(_player, ViewAnim.Cast, SpriteFrames.LoopOf(ViewAnim.Cast));
+            ViewLog.Info($"收到 SkillCast({skillId}) ⇒ 玩家视图播施法动作 {CastActionSeconds:0.00}s");
+        }
+
+        /// <summary>
+        /// `Events.PlayerAttacked`（参数 = 被打的怪物 id）：玩家普攻**真的挥出一刀** ⇒
+        /// 播原版 `attack` 动作（逐方向，帧键走 `SpriteFrames.Keys(职业, Attack, 朝向)`）。
+        /// <para>★ 片 8 B35：此前**没有**这条链 —— 玩家普攻只有音效/飘字/受击闪白，
+        /// 玩家自己的挥击动作从没播过（`ViewAnim.Attack` 只被怪物视图用）。</para>
+        /// <para>动作从**第 0 帧重播**（每次出手一个完整挥击，不是"接力循环"）；
+        /// 时长 <see cref="AttackActionSeconds"/> 与出手间隔同源。
+        /// 优先级：死亡 &gt; 施法 &gt; 挥击 &gt; 走 &gt; 站立（见 `TickPlayer`）。</para>
+        /// </summary>
+        private void OnPlayerAttacked(int monsterId)
+        {
+            if (_player == null || _player.Root == null)
+            {
+                ViewLog.WarnThrottled("attack.noPlayerView",
+                    $"收到 PlayerAttacked(m#{monsterId}) 但玩家视图不存在（未进图/已清场）⇒ 本次挥击表现跳过");
+                return;
+            }
+            if (_player.Dead) return;                       // 死亡姿态优先，不切成挥击
+
+            _player.AttackTimer = AttackActionSeconds;
+            PlayAnim(_player, ViewAnim.Attack, SpriteFrames.LoopOf(ViewAnim.Attack));
+
+            // 帧数取该职业**真实 .cof 帧数**（`SpriteFrameCounts.Of`；取不到 ⇒ 兜底默认职业）
+            var p = AppContext.I != null ? AppContext.I.Player : null;
+            var unitKey = (p != null ? p.Class : Diablo2.Def.PlayerClass.Amazon)
+                .ToString().ToLowerInvariant();
+            ViewLog.Info($"收到 PlayerAttacked(m#{monsterId}) ⇒ 玩家视图播挥击动作 " +
+                         $"{AttackActionSeconds:0.00}s（原版 attack，帧数 " +
+                         $"{SpriteFrames.FrameCountOf(unitKey, ViewAnim.Attack)}，@ " +
+                         $"{SpriteFrames.FpsOf(ViewAnim.Attack):0.#}fps）");
+        }
+
+        /// <summary>
+        /// `Events.StageLeft` 兜底：离场时把全部 Unity 引用置 null（`AppFlow.LeaveStage` 也会调 `Clear()`，
+        /// 本方法幂等 —— 已经干净时 `Clear()` 静默返回，不会产生第二条「清场完成」日志）。
+        /// ★ agent-16：本模块常驻，Node 却属场景 ⇒ 这是「显式置 null」的第二个入口。
+        /// </summary>
+        private void OnStageLeft()
+        {
+            var had = _root != null || _player != null || _entities.Count > 0 || _groundItems.Count > 0;
+            Clear();
+            if (had)
+            {
+                ViewLog.Info("随 StageLeft 复位：视图引用已全部置 null（玩家/怪物/地面物品/实体根），" +
+                             "下一帧 Tick 的安全闸门会直接放行到不做事");
+            }
+        }
+
+        /// <summary>
+        /// 实体根已失效（Stage 场景卸载）却仍留着视图引用 ⇒ 全部丢弃并**只报一次**。
+        /// <para>正常路径走不到这里（`AppFlow.LeaveStage` → `Clear()` 会先置空）；走到这里就说明
+        /// 「场景已卸载、而清场没跑到」——留一条**可检索**日志，用来区分「正常卸载」与「真丢引用」。</para>
+        /// <para>⚠️ 这里**不再** `Destroy` 任何节点：它们已经随场景销毁了，对已销毁对象调 `Destroy` 无意义。</para>
+        /// </summary>
+        private void DropStaleViews()
+        {
+            var entities = _entities.Count;
+            var monsters = 0;
+            foreach (var kv in _entities)
+            {
+                if (kv.Value != null && !kv.Value.IsPlayer) monsters++;
+            }
+            var items = _groundItems.Count;
+            var npcs = _npcs.Count;
+
+            _entities.Clear();
+            _groundItems.Clear();
+            _npcs.Clear();
+            _prevTickWorld.Clear();      // ★ 片 2b：步频同步的辅助表一并丢弃
+            _moveScaleLogged.Clear();
+            _player = null;
+            _root = null;
+            _pendingRoot = null;
+
+            ViewLog.WarnOnce("stale.root",
+                $"实体根节点已随场景卸载（或 Stage 场景被重新加载；EntityRoot 引用判为 null），" +
+                $"但本模块仍持有 {entities} 个实体视图（其中怪物 {monsters} 个）+ {items} 个地面物品视图 " +
+                $"+ {npcs} 个 NPC 视图 " +
+                "⇒ 已全部丢弃，本帧起不再访问它们的 transform。" +
+                "此现象 = 「场景已经卸载/重载，而清场没跑到」（本条只报一次，绝不每帧刷屏）；" +
+                "正常路径应先由 Flow 调 Clear()");
+        }
+
+        // ── 节点 / 帧 ────────────────────────────────────────────────────────
+
+        /// <summary>实体根节点（**唯一**创建 GameObject 的入口 ⇒ 也是最集中的失败点）。</summary>
+        private Transform EnsureRoot()
+        {
+            if (_root != null) return _root;
+
+            try
+            {
+                var go = new GameObject("EntityRoot");
+                _root = go.transform;
+                if (_pendingRoot != null) _root.SetParent(_pendingRoot, false);
+                ViewLog.Info("创建实体根节点 EntityRoot（玩家/怪物/地面物品的父节点）" +
+                             (_pendingRoot != null ? $"，挂在场景节点「{_pendingRoot.name}」下" : ""));
+                return _root;
+            }
+            catch (Exception e)
+            {
+                _cannotRender = true;
+                ViewLog.Error($"ViewModule: 无法创建 GameObject（{e.GetType().Name}: {e.Message}）" +
+                              "⇒ 本进程不具备渲染能力，精灵视图全部跳过" +
+                              "（离线自检宿主属正常现象；Unity 里出现请看这条日志）", e);
+                return null;
+            }
+        }
+
+        private EntityView CreateEntityNode(int entityId, Vector3 world, Color color, string name, int sortOrder)
+        {
+            try
+            {
+                var go = new GameObject($"E_{entityId}_{name}");
+                go.transform.SetParent(_root, false);
+                go.transform.position = world;
+
+                // ★ 原版单位 80 px/单位 vs 本项目导入 PPU=64 ⇒ 缩 0.8（推导见 SpriteFrames.cs 文件头）
+                go.transform.localScale = Vector3.one * SpriteFrames.ArtScale;
+
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = SpriteFrames.Placeholder;
+                sr.color = color;
+                sr.sortingOrder = sortOrder;
+
+                var v = new EntityView
+                {
+                    EntityId = entityId,
+                    Root = go,
+                    Renderer = sr,
+                    BaseColor = color,
+                    LastWorld = world,
+                    UsingPlaceholder = true,
+                    NeedsFrameRefresh = true,
+                };
+                v.Anim.SpeedScale = 1f;
+                return v;
+            }
+            catch (Exception e)
+            {
+                _cannotRender = true;
+                ViewLog.Error($"ViewModule: 创建实体视图 {entityId} 失败（{e.GetType().Name}: {e.Message}）⇒ 跳过该实体", e);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 切换动作（**只在动作变化时**调用 ⇒ 不会每帧把帧号打回 0）。
+        /// <para>★ 顺带把**整组帧键**一次性发起异步加载（<see cref="SpriteFrames.Prefetch"/>）：
+        /// 逐帧首次访问的话每一帧都要各等一次异步回调 ⇒ 首圈动画逐帧闪占位色块
+        /// （2026-09-19 用户投诉「移动会闪一个黄色方块」；根因与修法见 `ApplyFrame` 的注释）。</para>
+        /// </summary>
+        private static void PlayAnim(EntityView v, ViewAnim anim, bool loop)
+        {
+            v.Playing = anim;
+            v.NeedsFrameRefresh = true;
+
+            var keys = v.IsGroundItem
+                ? null
+                : v.IsPlayer
+                    ? SpriteFrames.Keys(v.Cls, anim, v.Dir)
+                    : SpriteFrames.Keys(v.SpriteCode, anim, v.Dir);
+
+            v.Anim.Play(anim, keys, SpriteFrames.FpsOf(anim), loop);
+            SpriteFrames.Prefetch(keys);      // ★ 整组帧一次性发起加载（见 SpriteFrames.Prefetch 注释）
+
+            // ★ 片 2b：静态动作**立刻**复位成 1 倍 —— 不许把"走路时的步频倍率"漏到
+            //   Idle/Attack/Cast/Hit/Death 上（`PlayHit`/`PlayDeath` 会在同一次调用栈里紧接着
+            //   `ApplyFrame` 出画，等不到下一次 `TickOne` 复位）。移动类动作的倍率由
+            //   `SyncMoveScale` 每帧按实际速度算。
+            if (!SpriteFrames.IsMoveAnim(anim)) v.Anim.SpeedScale = 1f;
+        }
+
+        /// <summary>
+        /// **步频同步**（★ 片 2b）：把「每个移动动画循环走完一格」换算成 `SpriteAnimator.SpeedScale`。
+        /// <para>口径：有效帧率 = **帧数 × 格/秒**（`SpriteFrames.FpsForCycle`，出处见该函数注释）
+        /// ⇒ `SpeedScale = 该值 ÷ Play 时传的基准帧率`（`SpriteFrames.SpeedScaleForCycle`）。</para>
+        /// <para>⛔ 只对移动类动作（`ViewAnim.Walk` / `ViewAnim.Run`）缩放；其它动作一律**复位成 1**
+        /// —— 原版出招/受击的节奏与移动速度无关（`AnimData` 里每个动作一套独立帧率）。</para>
+        /// <para>`tilesPerSecond &lt;= 0`（速度未知 / 本帧没有位移）⇒ 不缩放（保持 1）。
+        /// ⛔ 不许缩放到 0：那会让动画完全停住，是比"帧率不准"更糟的表现。</para>
+        /// </summary>
+        /// <param name="verbose">是否允许打日志。玩家传 true（速度只有两档、切换时才变）；
+        /// 怪物传"本实体第一条"（实测速度每帧有微小抖动，逐次记录会刷屏）。</param>
+        private static void SyncMoveScale(EntityView v, ViewAnim anim, float tilesPerSecond, bool verbose)
+        {
+            if (v == null || v.Anim == null) return;
+
+            if (!SpriteFrames.IsMoveAnim(anim) || tilesPerSecond <= 0f)
+            {
+                if (!Mathf.Approximately(v.Anim.SpeedScale, 1f)) v.Anim.SpeedScale = 1f;
+                return;
+            }
+
+            var frames = v.Anim.FrameCount;                 // 该动作的**真实**帧数（回退已由 SpriteFrames 处理）
+            var baseFps = SpriteFrames.FpsOf(anim);
+            var scale = SpriteFrames.SpeedScaleForCycle(frames, tilesPerSecond, baseFps);
+
+            // 变化 < 1% 视为抖动：不重设、不刷日志（怪物实测速度会在真值附近小幅摆动）
+            if (Mathf.Abs(v.Anim.SpeedScale - scale) < 0.01f) return;
+            v.Anim.SpeedScale = scale;
+
+            if (!verbose) return;
+            ViewLog.Info($"步频同步：实体 {v.EntityId} 动作={anim} 帧数={frames} " +
+                         $"速度={tilesPerSecond:0.###} 格/秒 ⇒ 有效帧率 {SpriteFrames.FpsForCycle(frames, tilesPerSecond):0.##}fps" +
+                         $"（= 帧数 × 速度；基准 {baseFps:0.#}fps × SpeedScale {scale:0.###}）；" +
+                         "出处 = 原版每格一个动画循环（AnimData.referenceFrameCount + Iso.SubTileCount=5）");
+        }
+
+        /// <summary>
+        /// 把当前帧的贴图取来贴上。
+        /// <para>取不到贴图时**保持当前已显示的真图**（只有"从没拿到过真图"才贴纯色占位）——
+        /// 见方法体里那条 2026-09-19 的缺陷定论注释。</para>
+        /// </summary>
+        private static void ApplyFrame(EntityView v)
+        {
+            if (v == null || v.Renderer == null || v.IsGroundItem) return;
+
+            var key = v.Anim.CurrentKey;
+            var sprite = SpriteFrames.Resolve(key);
+
+            // ★ 修「移动 / 出招时闪一下黄色方块」（2026-09-19 用户投诉）：
+            //   `Resolve` 对**首次访问**的帧键当帧一定返回 null（`Resources.LoadAsync` 是异步的，
+            //   回调最早下一帧才到）；旧实现此时把渲染器换成 `Placeholder`（白图 × 职业占位色，
+            //   亚马逊 = 黄）⇒ 走路 8 帧 / 攻击 13 帧 / 施法 20 帧…每遇到一个新帧就闪一次色块。
+            //   新实现：**手上已经有真图就保持不动**（宁可多停 1 帧旧图，也不闪色块），
+            //   等 `Resolve` 的回调把 `_repaintRequested` 置起来、下一帧重铺时再换成真图。
+            if (sprite == null)
+            {
+                // 从没拿到过真图（刚建视图 / 素材真的缺）⇒ 仍显式显示占位色块：
+                // 它是"素材缺失"的可见信号（登记在 `client/资源欠缺清单.md` #1/#2），不能悄悄隐藏。
+                if (v.UsingPlaceholder)
+                {
+                    v.Renderer.sprite = SpriteFrames.Placeholder;
+                    ApplyTint(v);
+                    CountPlaceholderTick(v.EntityId);
+                }
+                return;
+            }
+
+            v.UsingPlaceholder = false;
+            v.Renderer.sprite = sprite;
+            ApplyTint(v);
+        }
+
+        /// <summary>按"是否占位 + 是否闪白 + 是否尸体"决定颜色。</summary>
+        private static void ApplyTint(EntityView v)
+        {
+            if (v == null || v.Renderer == null) return;
+
+            var c = v.UsingPlaceholder || v.IsGroundItem ? v.BaseColor : Color.white;
+            if (v.Dead && v.CorpseFaded) c.a = CorpseAlpha;
+            v.Renderer.color = c;
+        }
+
+        /// <summary>受击闪白（像素图上 tint 向白靠 + 一点反向位移，肉眼可辨）。</summary>
+        private static void ApplyFlash(EntityView v)
+        {
+            if (v == null || v.Renderer == null || v.Root == null) return;
+
+            var c = v.UsingPlaceholder || v.IsGroundItem ? v.BaseColor : Color.white;
+            v.Renderer.color = Color.Lerp(c, Color.white, 0.85f);
+
+            v.Root.transform.position = v.LastWorld + KnockbackOffset(v);
+        }
+
+        /// <summary>受击反向位移（按朝向的格增量，乘以很小的系数）。</summary>
+        private static Vector3 KnockbackOffset(EntityView v)
+        {
+            if (v.HitFlashTimer <= 0f) return Vector3.zero;
+
+            var d = Iso.DirectionDelta(v.Dir);
+            var pos = new Vector2(-d.x, -d.y) * HitKnockback;
+            return new Vector3((pos.x - pos.y) * Iso.HalfW, -(pos.x + pos.y) * Iso.HalfH, 0f);
+        }
+
+        /// <summary>
+        /// 贴图异步到位后**全量重铺一次**（只由 `SpriteFrames.ConsumeRepaintRequest()` 触发）。
+        /// <para>⚠️ 必须**连 NPC 一起重铺**：NPC 视图不在 `_entities` 里（见文件头 ②），
+        /// 只在 `_npcs` 里 —— 只铺 `_entities` 的话，NPC 的贴图异步到位后没人通知它，
+        /// 它会一直停在纯色占位块上（与原版 NPC 显示色块同源）。</para>
+        /// <para>⚠️ 这里**只置 `NeedsFrameRefresh`，绝不 `Anim.Replay()`**：重铺会在"每有一张帧贴图到位"
+        /// 时被触发（走路一圈 8 帧 = 最多 8 次），Replay 会把**所有实体**的动画打回第 0 帧 ⇒ 动画
+        /// 看起来卡在第 0/1 帧并在换帧时抖动（与"移动会闪"同源，2026-09-19 用户投诉）。
+        /// 保住当前帧号即可：`ApplyFrame` 用的是 `Anim.CurrentKey`（当前帧），照样能换成新到位的真图。</para>
+        /// </summary>
+        private void RefreshAllFrames()
+        {
+            foreach (var kv in _entities)
+            {
+                kv.Value.NeedsFrameRefresh = true;
+            }
+            foreach (var kv in _npcs)
+            {
+                var v = kv.Value;
+                if (v == null) continue;
+                v.NeedsFrameRefresh = true;
+            }
+        }
+
+        private void DestroyView(EntityView v)
+        {
+            if (v == null) return;
+            try
+            {
+                if (v.Root != null) UnityEngine.Object.Destroy(v.Root);
+            }
+            catch (Exception e)
+            {
+                ViewLog.WarnThrottled("destroy.fail", $"销毁视图节点失败（{e.GetType().Name}: {e.Message}）");
+            }
+            v.Root = null;
+            v.Renderer = null;
+            v.Bar = null;
+        }
+
+        private void DestroyViewRoot()
+        {
+            try
+            {
+                UnityEngine.Object.Destroy(_root.gameObject);
+            }
+            catch (Exception e)
+            {
+                ViewLog.WarnThrottled("destroy.root.fail", $"销毁实体根节点失败（{e.GetType().Name}: {e.Message}）");
+            }
+            _root = null;
+        }
+
+        /// <summary>`0xAARRGGBB` → `Color`（接口层不依赖 Unity 类型，故用打包整数传色）。</summary>
+        private static Color UnpackArgb(uint argb)
+        {
+            var a = (byte)((argb >> 24) & 0xFF);
+            var r = (byte)((argb >> 16) & 0xFF);
+            var g = (byte)((argb >> 8) & 0xFF);
+            var b = (byte)(argb & 0xFF);
+            return new Color32(r, g, b, a == 0 ? (byte)255 : a);
+        }
+
+        // ── 自证用（不在契约里）────────────────────────────────────────────────
+
+        /// <summary>自证用：各实体「贴出纯色占位图」的累计次数（键 = 实体 id）。**不在 `IViewModule` 契约里**。</summary>
+        private static readonly Dictionary<int, int> PlaceholderTicks = new Dictionary<int, int>();
+
+        /// <summary>自证用：记一次"贴了纯色占位图"（本轮缺陷的复现断言读它）。</summary>
+        private static void CountPlaceholderTick(int entityId)
+        {
+            PlaceholderTicks.TryGetValue(entityId, out var n);
+            PlaceholderTicks[entityId] = n + 1;
+        }
+
+        /// <summary>自证用：某实体累计贴过多少次纯色占位图。**不在 `IViewModule` 契约里**。</summary>
+        internal static int PlaceholderTicksOf(int entityId)
+        {
+            PlaceholderTicks.TryGetValue(entityId, out var n);
+            return n;
+        }
+
+        /// <summary>
+        /// NPC 视图逐条状态（自证/排障用，**不在契约里**）。
+        /// <para>用途：`client/_dev/p_a21_npc.cs` 用它判定「NPC 是不是还停在纯色占位块上」，
+        /// 同时它也是「本轮 `ViewModule` 改动是否真的编译进当前 Play」的**存在性标记**
+        /// （旧版本的 `ViewModule` 没有这个方法）。</para>
+        /// </summary>
+        internal string DumpNpcDebug()
+        {
+            var p = AppContext.I != null ? AppContext.I.Player : null;
+            var pg = p != null ? p.Grid : Vector2Int.zero;
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"NPC 视图 {_npcs.Count} 个（玩家格=({pg.x},{pg.y})）：");
+            foreach (var kv in _npcs)
+            {
+                var v = kv.Value;
+                if (v == null)
+                {
+                    sb.Append($"\n  id={kv.Key}: 记录为 null");
+                    continue;
+                }
+                var sprite = v.Renderer != null ? v.Renderer.sprite : null;
+                sb.Append($"\n  id={kv.Key} code={v.SpriteCode} 格=({v.Grid.x},{v.Grid.y}) Dir={v.Dir}")
+                  .Append($" 期望Dir={Iso.DirectionTo(v.Grid, pg)}")
+                  .Append($" Playing={v.Playing} 帧键={v.Anim.CurrentKey ?? "null"}")
+                  .Append($" 帧={v.Anim.FrameIndex}/{v.Anim.FrameCount} NeedsFrameRefresh={v.NeedsFrameRefresh}")
+                  .Append($" Renderer={(v.Renderer == null ? "无SR" : (sprite == null ? "null" : sprite.name + $"({sprite.rect.width}x{sprite.rect.height})"))}")
+                  .Append($" 占位={v.UsingPlaceholder}");
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>一行状态摘要。</summary>
+        internal string DumpStats()
+        {
+            var monsters = 0;
+            var dead = 0;
+            foreach (var kv in _entities)
+            {
+                if (kv.Value.IsPlayer) continue;
+                monsters++;
+                if (kv.Value.Dead) dead++;
+            }
+            var npcAlive = 0;
+            foreach (var kv in _npcs)
+            {
+                if (kv.Value != null && kv.Value.Root != null) npcAlive++;
+            }
+            var sample = "";
+            foreach (var kv in _entities)
+            {
+                // ×倍率 = 步频同步后的 `SpriteAnimator.SpeedScale`（★ 片 2b：移动类动作按速度缩放，
+                // 静态动作恒 1；验收/探针读它就能看出"帧率是否跟着速度走"）
+                sample += $" [{kv.Key}:{kv.Value.Playing}#{kv.Value.Anim.FrameIndex}/{kv.Value.Anim.FrameCount}" +
+                          $@"×{kv.Value.Anim.SpeedScale:0.###}" +
+                          $"{(kv.Value.UsingPlaceholder ? "(占位)" : "")}]";
+            }
+            return $"视图统计：怪物视图 {monsters}（其中尸体 {dead}），地面物品 {_groundItems.Count} 个，" +
+                   $"NPC 视图 {npcAlive}/{_npcs.Count}，" +
+                   $"玩家视图={(_player != null ? "有" : "无")}，可渲染={!_cannotRender}；样例{sample}";
+        }
+    }
+}

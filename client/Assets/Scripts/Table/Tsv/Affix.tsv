@@ -1,0 +1,302 @@
+id	name	name_cn	kind	lvl	lvl_req	group	mod	param	min	max	freq	class_only	class	item_types	etypes
+1	Sturdy	防御强化 20~30	pre	4	3	101	ac%	0	20	30	0	0		armo	
+2	Strong	防御强化 31~40	pre	9	6	101	ac%	0	31	40	0	0		armo	
+3	Devious	red-mag 1	pre	7	5	103	red-mag	0	1	1	0	0		shld	
+4	Jagged	伤害强化 10~20	pre	1	1	106	dmg%	0	10	20	0	0		weap	
+5	Deadly	伤害强化 21~30	pre	5	3	106	dmg%	0	21	30	0	0		weap	
+6	Vicious	伤害强化 31~40	pre	8	6	106	dmg%	0	31	40	0	0		weap	
+7	Vulpine	dmg-to-mana 10	pre	9	6	107	dmg-to-mana	0	10	10	0	0		shld;amul	
+8	Bronze	命中 10~20	pre	1	1	111	att	0	10	20	0	0		weap;ring;glov;amul	
+9	Iron	命中 21~40	pre	4	3	111	att	0	21	40	0	0		weap;ring	
+10	Steel	命中 41~60	pre	8	6	111	att	0	41	60	0	0		weap;ring	
+11	Silver	命中 61~80	pre	12	9	111	att	0	61	80	0	0		weap;ring	
+12	Sharp	命中 10~20	pre	5	3	112	att	0	10	20	0	0		weap	
+13	Fine	命中 21~40	pre	9	6	112	att	0	21	40	0	0		weap	
+14	Fortuitous	提升魔法物品几率 10~15	pre	5	3	114	mag%	0	10	15	0	0		ring;amul	
+15	Glimmering	光照范围 1	pre	1	1	116	light	0	1	1	0	0		armo;wand;staf;ring;amul	
+16	Glowing	光照范围 2	pre	6	4	116	light	0	2	2	0	0		armo;wand;staf;ring;amul	
+17	Lizard's	法力 1~5	pre	3	2	118	mana	0	1	5	0	0		armo;ring;amul;rod	boot;glov
+18	Snake's	法力 5~10	pre	6	4	118	mana	0	5	10	0	0		shld;rod;belt;ring;amul	
+19	Azure	冰冷抗性 5~10	pre	5	3	121	res-cold	0	5	10	0	0		armo;rod;miss;ring;amul	
+20	Lapis	冰冷抗性 11~20	pre	12	9	121	res-cold	0	11	20	0	0		armo;ring;amul;rod	
+21	Crimson	火焰抗性 5~10	pre	5	3	122	res-fire	0	5	10	0	0		armo;rod;miss;ring;amul;amul	
+22	Burgundy	火焰抗性 11~20	pre	12	9	122	res-fire	0	11	20	0	0		armo;rod;ring;amul;amul	
+23	Ocher	闪电抗性 5~10	pre	5	3	123	res-ltng	0	5	10	0	0		armo;rod;ring;amul;miss	
+24	Tangerine	闪电抗性 11~20	pre	12	9	123	res-ltng	0	11	20	0	0		armo;ring;amul;rod	
+25	Beryl	毒素抗性 5~10	pre	5	3	124	res-pois	0	5	10	0	0		armo;ring;amul;scep;staf;miss	
+26	Jade	毒素抗性 11~20	pre	12	9	124	res-pois	0	11	20	0	0		armo;ring;amul;scep;staf	
+27	Triumphant	mana-kill 1	pre	3	2	132	mana-kill	0	1	1	0	0		mele;ring	
+28	Stout	防御 3~5	pre	1	1	101	ac	0	3	5	4	0		lcha	
+29	Stout	防御 6~9	pre	7	5	101	ac	0	6	9	4	0		lcha	
+30	Stout	防御 10~12	pre	12	9	101	ac	0	10	12	4	0		lcha	
+31	Stout	防御 2~3	pre	1	1	101	ac	0	2	3	4	0		mcha	
+32	Stout	防御 1	pre	1	1	101	ac	0	1	1	4	0		scha	
+33	Blanched	防御 5~8	pre	1	1	101	ac	0	5	8	4	0		jewl	
+34	Sturdy	防御强化 10~20	pre	1	1	101	ac%	0	10	20	9	0		armo	
+35	Sturdy	防御强化 21~30	pre	4	3	101	ac%	0	21	30	9	0		armo	
+36	Strong	防御强化 31~40	pre	9	6	101	ac%	0	31	40	8	0		armo	
+37	Scarlet	最小伤害 1~4	pre	8	6	103	dmg-min	0	1	4	4	0		jewl	
+38	Carbuncle	最大伤害 1~5	pre	12	9	104	dmg-max	0	1	5	4	0		jewl	
+39	Jagged	伤害强化 10~20	pre	1	1	105	dmg%	0	10	20	9	0		weap;circ	staf;wand;orb
+40	Deadly	伤害强化 21~30	pre	5	3	105	dmg%	0	21	30	9	0		weap;circ	staf;wand;orb
+41	Vicious	伤害强化 31~40	pre	8	6	105	dmg%	0	31	40	8	0		weap	staf;wand;orb
+42	Cinnabar	伤害强化 5~10	pre	1	1	105	dmg%	0	5	10	4	0		jewl	
+43	Vulpine	dmg-to-mana 7~12	pre	9	6	107	dmg-to-mana	0	7	12	3	0		shld;amul;orb;staf	
+44	Dun	dmg-to-mana 7~12	pre	7	5	107	dmg-to-mana	0	7	12	3	0		jewl	
+45	Tireless	regen-stam 25	pre	6	4	108	regen-stam	0	25	25	4	0		boot	
+46	Rugged	stam 12~24	pre	1	1	109	stam	0	12	24	4	0		lcha	
+47	Rugged	stam 25~36	pre	7	5	109	stam	0	25	36	4	0		lcha	
+48	Rugged	stam 8~16	pre	1	0	109	stam	0	8	16	4	0		mcha	
+49	Rugged	stam 17~25	pre	7	5	109	stam	0	17	25	4	0		mcha	
+50	Rugged	stam 4~8	pre	1	0	109	stam	0	4	8	4	0		scha	
+51	Rugged	stam 5~10	pre	1	1	109	stam	0	5	10	4	0		boot;glov;belt;ring;amul;circ	
+52	Rugged	stam 11~20	pre	8	6	109	stam	0	11	20	4	0		boot;belt	
+53	Rugged	stam 11~20	pre	8	6	109	stam	0	11	20	4	0		ring;amul;circ	
+54	Chestnut	stam 10~15	pre	1	1	109	stam	0	10	15	4	0		jewl	
+55	Bronze	命中 6~12	pre	1	1	110	att	0	6	12	4	0		lcha	
+56	Bronze	命中 13~27	pre	7	5	110	att	0	13	27	4	0		lcha	
+57	Bronze	命中 4~8	pre	1	1	110	att	0	4	8	4	0		mcha	
+58	Bronze	命中 6~12	pre	7	5	110	att	0	6	12	4	0		mcha	
+59	Bronze	命中 2~4	pre	1	1	110	att	0	2	4	4	0		scha	
+60	Bronze	命中 10~20	pre	1	1	110	att	0	10	20	8	0		weap;ring;glov;amul;circ	staf;wand;orb
+61	Iron	命中 21~40	pre	4	3	110	att	0	21	40	8	0		weap;ring;circ	staf;wand;orb
+62	Steel	命中 41~60	pre	8	6	110	att	0	41	60	7	0		weap;ring;circ	staf;wand;orb
+63	Silver	命中 61~80	pre	12	9	110	att	0	61	80	7	0		weap;ring;circ	staf;wand;orb
+64	Nickel	命中 10~20	pre	1	1	110	att	0	10	20	4	0		jewl	
+65	Tin	命中 21~40	pre	8	6	110	att	0	21	40	4	0		jewl	
+66	Sharp	命中 10~20	pre	5	3	111	att	0	10	20	9	0		weap	staf;wand;orb
+67	Fine	命中 21~40	pre	12	9	111	att	0	21	40	9	0		weap	staf;wand;orb
+68	Glimmering	光照范围 1	pre	1	1	112	light	0	1	1	1	0		armo;wand;staf;ring;amul;orb	
+69	Glowing	光照范围 2	pre	6	4	112	light	0	2	2	1	0		armo;wand;staf;ring;amul;orb	
+70	Bright	光照范围 1	pre	1	1	112	light	0	1	1	1	0		jewl	
+71	Screaming	恐惧 32	pre	10	7	113	howl	0	32	32	3	0		weap	miss;swor;axe
+72	Screaming	恐惧 16	pre	10	7	113	howl	0	16	16	4	0		miss	
+73	Felicitous	提升魔法物品几率 5~10	pre	5	3	114	mag%	0	5	10	4	0		ring;amul;circ	
+74	Fortuitous	提升魔法物品几率 11~15	pre	12	8	114	mag%	0	11	15	4	0		ring;amul;circ	
+75	Lizard's	法力 3~7	pre	1	1	115	mana	0	3	7	4	0		lcha	
+76	Lizard's	法力 8~13	pre	7	5	115	mana	0	8	13	4	0		lcha	
+77	Lizard's	法力 2~4	pre	1	1	115	mana	0	2	4	4	0		mcha	
+78	Lizard's	法力 5~7	pre	9	6	115	mana	0	5	7	4	0		mcha	
+79	Lizard's	法力 3~5	pre	3	2	115	mana	0	3	5	4	0		armo;ring;amul;rod;orb	boot;glov
+80	Snake's	法力 5~10	pre	6	4	115	mana	0	5	10	4	0		shld;rod;belt;ring;amul;circ	
+81	Zircon	法力 5~10	pre	3	2	115	mana	0	5	10	2	0		jewl	
+82	Shimmering	全抗性 3~6	pre	8	6	116	res-all	0	3	6	1	0		lcha	
+83	Shimmering	全抗性 3~7	pre	6	4	116	res-all	0	3	7	5	0		shld	
+84	Shimmering	全抗性 3~7	pre	8	6	116	res-all	0	3	7	5	0		amul;circ	
+85	Azure	冰冷抗性 7~15	pre	1	1	117	res-cold	0	7	15	2	0		lcha	
+86	Lapis	冰冷抗性 16~20	pre	10	7	117	res-cold	0	16	20	2	0		lcha	
+87	Azure	冰冷抗性 4~7	pre	1	1	117	res-cold	0	4	7	2	0		mcha	
+88	Azure	冰冷抗性 3~5	pre	1	1	117	res-cold	0	3	5	2	0		scha	
+89	Azure	冰冷抗性 5~10	pre	5	3	117	res-cold	0	5	10	2	0		armo;weap;ring;amul;orb;circ	
+90	Lapis	冰冷抗性 11~20	pre	12	9	117	res-cold	0	11	20	4	0		armo;ring;amul;orb;circ	
+91	Lapis Lazuli	冰冷抗性 5~15	pre	2	1	117	res-cold	0	5	15	4	0		jewl	
+92	Crimson	火焰抗性 7~15	pre	1	1	118	res-fire	0	7	15	2	0		lcha	
+93	Russet	火焰抗性 16~20	pre	10	7	118	res-fire	0	16	20	2	0		lcha	
+94	Crimson	火焰抗性 4~7	pre	1	1	118	res-fire	0	4	7	2	0		mcha	
+95	Crimson	火焰抗性 3~5	pre	1	1	118	res-fire	0	3	5	2	0		scha	
+96	Russet	火焰抗性 11~20	pre	12	9	118	res-fire	0	11	20	4	0		armo;ring;amul;orb;circ	
+97	Garnet	火焰抗性 5~15	pre	2	1	117	res-fire	0	5	15	4	0		jewl	
+98	Tangerine	闪电抗性 7~15	pre	1	1	119	res-ltng	0	7	15	2	0		lcha	
+99	Ocher	闪电抗性 16~20	pre	10	7	119	res-ltng	0	16	20	2	0		lcha	
+100	Tangerine	闪电抗性 4~7	pre	1	1	119	res-ltng	0	4	7	2	0		mcha	
+101	Tangerine	闪电抗性 3~5	pre	1	1	119	res-ltng	0	3	5	2	0		scha	
+102	Tangerine	闪电抗性 5~10	pre	5	3	119	res-ltng	0	5	10	4	0		armo;weap;ring;amul;orb;circ	
+103	Ocher	闪电抗性 11~20	pre	12	9	119	res-ltng	0	11	20	4	0		armo;ring;amul;orb;circ	
+104	Camphor	闪电抗性 5~15	pre	2	1	117	res-ltng	0	5	15	4	0		jewl	
+105	Beryl	毒素抗性 7~15	pre	1	1	120	res-pois	0	7	15	2	0		lcha	
+106	Viridian	毒素抗性 16~20	pre	10	7	120	res-pois	0	16	20	2	0		lcha	
+107	Beryl	毒素抗性 4~7	pre	1	1	120	res-pois	0	4	7	2	0		mcha	
+108	Beryl	毒素抗性 3~5	pre	1	1	120	res-pois	0	3	5	2	0		scha	
+109	Beryl	毒素抗性 5~10	pre	5	3	120	res-pois	0	5	10	4	0		armo;weap;ring;amul;orb;circ	
+110	Viridian	毒素抗性 11~20	pre	12	9	120	res-pois	0	11	20	4	0		armo;ring;amul;orb;circ	
+111	Beryl	毒素抗性 5~15	pre	2	1	117	res-pois	0	5	15	4	0		jewl	
+112	Triumphant	mana-kill 1	pre	3	2	121	mana-kill	0	1	1	4	0		weap;ring;circ	
+113	Mechanist's	孔数 1~2	pre	10	7	122	sock	0	1	2	3	0		weap;shld;helm;tors;circ	thro
+114	Assamic	att-demon 25~50	pre	3	1	123	att-demon	0	25	50	2	0		weap;circ	wand;orb
+115	Septic	dmg-pois 31	pre	1	1	140	dmg-pois	50	31	31	3	0		weap;circ	
+116	Envenomed	dmg-pois 41	pre	10	7	140	dmg-pois	75	41	41	2	0		weap	
+117	Compact	stack 20~40	pre	1	1	141	stack	0	20	40	6	0		thro	
+118	Consecrated	att-undead 25~75	pre	1	1	142	att-undead	0	25	75	4	0		weap	wand;orb
+119	Crimson	火焰抗性 5~10	pre	5	3	118	res-fire	0	5	10	4	0		armo;ring;amul;orb;circ;weap	
+120	Jagged	最大伤害 1	pre	7	5	104	dmg-max	0	1	1	4	0		lcha	
+121	Snowflake	cold-len 25	pre	9	6	137	cold-len	0	25	25	2	0		lcha	
+122	Ember	fire-min 1	pre	5	3	138	fire-min	0	1	1	2	0		lcha	
+123	Static	ltng-min 1	pre	7	5	139	ltng-min	0	1	1	2	0		lcha	
+124	Septic	dmg-pois 18	pre	1	1	140	dmg-pois	75	18	18	2	0		lcha	
+125	Envenomed	dmg-pois 39	pre	12	9	140	dmg-pois	100	39	39	1	0		lcha	
+126	Septic	dmg-pois 35	pre	9	6	140	dmg-pois	75	35	35	2	0		mcha	
+127	Tireless	regen-stam 10	pre	1	1	108	regen-stam	0	10	10	4	0		boot	
+128	Lizard's	法力 1~2	pre	1	1	115	mana	0	1	2	4	0		armo;ring;amul;rod;orb	boot;glov
+129	Azure	冰冷抗性 5	pre	1	1	117	res-cold	0	5	5	3	0		armo;ring;amul;orb;circ	
+130	Crimson	火焰抗性 5	pre	1	1	118	res-fire	0	5	5	3	0		armo;ring;amul;orb;circ	
+131	Tangerine	闪电抗性 5	pre	1	1	119	res-ltng	0	5	5	3	0		armo;ring;amul;orb;circ	
+132	Beryl	毒素抗性 5	pre	1	1	120	res-pois	0	5	5	3	0		armo;ring;amul;orb;circ	
+133	of Health	物理伤害减免 1	suf	7	5	1	red-dmg	0	1	1	0	0		tors;helm;shld;ring;amul	
+134		（无属性）	suf	0	0	0		0	0	0	0	0			
+135	of Warding	red-mag 1	suf	7	5	2	red-mag	0	1	1	0	0		tors;helm;shld;ring;amul	
+136	of Puncturing	dmg-ac -10~-20	suf	6	4	4	dmg-ac	0	-10	-20	0	0		mele	wand;staf
+137	of Readiness	攻击速度 10	suf	1	1	6	swing1	0	10	10	0	0		weap;glov	
+138	of Alacrity	swing2 20	suf	8	6	6	swing2	0	20	20	0	0		weap	
+139	of Blocking	格挡率 10	suf	1	1	7	block	0	10	10	0	0		shld	
+140	of Deflecting	格挡率 20	suf	11	8	7	block	0	20	20	0	0		shld	
+141	of the Apprentice	cast1 10	suf	5	3	8	cast1	0	10	10	0	0		rod;ring;amul	
+142	of Frost	cold-min 1	suf	4	3	9	cold-min	0	1	1	0	0		weap	
+143	of Warmth	减半冰冻时间 1	suf	10	7	10	half-freeze	0	1	1	0	0		shld;boot;glov;ring;amul	
+144	of Flame	fire-min 1	suf	4	3	11	fire-min	0	1	1	0	0		weap	
+145	of Shock	ltng-min 1	suf	4	3	12	ltng-min	0	1	1	0	0		weap	
+146	of Craftsmanship	最大伤害 1~2	suf	1	1	13	dmg-max	0	1	2	0	0		weap;ring;amul	
+147	of Quality	最大伤害 2	suf	4	3	13	dmg-max	0	2	2	0	0		weap	
+148	of Maiming	最大伤害 3~4	suf	7	5	13	dmg-max	0	3	4	0	0		weap	
+149	of Slaying	最大伤害 5~7	suf	11	8	13	dmg-max	0	5	7	0	0		weap	
+150	of Worth	最小伤害 1	suf	2	1	14	dmg-min	0	1	1	0	0		weap	rod
+151	of Measure	最小伤害 2	suf	6	4	14	dmg-min	0	2	2	0	0		weap	
+152	of Excellence	最小伤害 3	suf	12	9	14	dmg-min	0	3	3	0	0		weap;ring;amul	
+153	of Blight	毒素下限 8	suf	5	3	15	pois-min	0	8	8	0	0		weap	scep
+154	of Dexterity	敏捷 1	suf	4	3	16	dex	0	1	1	0	0		ring;amul	
+155	of Dexterity	敏捷 1~3	suf	5	3	16	dex	0	1	3	0	0		scep;miss;boot;glov;ring;amul	
+156	of Skill	敏捷 4~6	suf	10	7	16	dex	0	4	6	0	0		scep;miss;boot;glov;ring;amul	
+157	of Balance	快速打击恢复 10	suf	5	3	17	balance1	0	10	10	0	0		armo	glov
+158	of Stability	快速施法 20	suf	9	6	17	balance3	0	20	20	0	0		armo	glov
+159	of Regeneration	生命回复 3	suf	10	7	19	regen	0	3	3	0	0		scep;belt;ring;amul	
+160	of Vileness	noheal 1	suf	9	6	20	noheal	0	1	1	0	0		mele	scep
+161	of Greed	额外金币 40~60	suf	2	1	22	gold%	0	40	60	0	0		ring;amul	
+162	of Chance	提升魔法物品几率 10~19	suf	12	9	23	mag%	0	10	19	0	0		ring;amul	
+163	of Energy	法力 1	suf	4	3	24	mana	0	1	1	0	0		ring;amul	
+164	of Energy	法力 1~5	suf	5	3	24	mana	0	1	5	0	0		rod;ring;amul	
+165	of the Mind	法力 6~10	suf	10	7	24	mana	0	6	10	0	0		rod;ring;amul	
+166	of the Bear	击退 1	suf	8	6	25	knock	0	1	1	0	0		mele	
+167	of Light	光照范围 1	suf	6	4	26	light	0	1	1	0	0		armo;rod;miss;ring;amul	
+168	of the Jackal	hp 1~5	suf	3	2	27	hp	0	1	5	0	0		armo;rod;ring;amul	
+169	of the Fox	hp 5~10	suf	6	4	27	hp	0	5	10	0	0		armo;rod;ring;amul	
+170	of the Leech	lifesteal 4~7	suf	6	4	28	lifesteal	0	4	7	0	0		weap;ring;amul	
+171	of the Bat	manasteal 4~8	suf	6	4	29	manasteal	0	4	8	0	0		weap;ring;amul	
+172	of Remedy	res-pois-len 25	suf	7	5	30	res-pois-len	0	25	25	0	0		armo;ring;amul	
+173	of Strength	力量 1~3	suf	5	3	34	str	0	1	3	0	0		belt;ring;amul	
+174	of Might	力量 4~6	suf	10	7	34	str	0	4	6	0	0		mele;shld;ring;amul	wand;staf
+175	of Pacing	move1 10	suf	2	1	35	move1	0	10	10	0	0		boot	
+176	of Haste	move2 20	suf	12	9	35	move2	0	20	20	0	0		boot	
+177	of Health	物理伤害减免 1	suf	7	5	1	red-dmg	0	1	1	4	0		tors;shld;ring;amul;circ	
+178	of Warding	red-mag 1	suf	7	5	2	red-mag	0	1	1	4	0		tors;shld;ring;amul;orb;circ	
+179	of Readiness	攻击速度 10	suf	5	3	7	swing1	0	10	10	6	0		weap	wand;orb
+180	of Blocking	格挡率 10	suf	1	1	8	block	0	10	10	7	0		shld	
+181	of Deflecting	格挡率 20	suf	11	8	8	block	0	20	20	6	0		shld	
+182	of the Apprentice	cast1 10	suf	5	3	9	cast1	0	10	10	6	0		rod;ring;amul;orb;circ	
+183	of Frost	cold-min 1	suf	4	3	10	cold-min	0	1	1	5	0		weap	wand;orb
+184	of Warmth	减半冰冻时间 1	suf	10	7	11	half-freeze	0	1	1	4	0		shld;boot;glov;ring;amul;circ;orb	
+185	of Flame	fire-min 1	suf	4	3	12	fire-min	0	1	1	5	0		weap	wand;orb
+186	of Shock	ltng-min 1	suf	4	3	13	ltng-min	0	1	1	5	0		weap	wand;orb
+187	of Craftsmanship	最大伤害 1	suf	1	1	14	dmg-max	0	1	1	8	0		weap;ring;amul	wand;staf;orb
+188	of Quality	最大伤害 2	suf	4	3	14	dmg-max	0	2	2	8	0		weap	wand;staf;orb
+189	of Maiming	最大伤害 3~4	suf	7	5	14	dmg-max	0	3	4	7	0		weap	wand;staf;orb
+190	of Slaying	最大伤害 5~7	suf	11	8	14	dmg-max	0	5	7	7	0		weap	wand;staf;orb
+191	of Craftsmanship	最大伤害 1~2	suf	1	1	14	dmg-max	0	1	2	4	0		circ	
+192	of Craftsmanship	最大伤害 2~3	suf	8	6	14	dmg-max	0	2	3	4	0		circ	
+193	of Ire	最大伤害 2~5	suf	4	3	14	dmg-max	0	2	5	4	0		jewl	
+194	of Wrath	最大伤害 6~9	suf	11	8	14	dmg-max	0	6	9	4	0		jewl	
+195	of Worth	最小伤害 1~2	suf	1	1	15	dmg-min	0	1	2	8	0		weap	staf;wand;orb
+196	of Measure	最小伤害 3~4	suf	12	9	15	dmg-min	0	3	4	7	0		weap	staf;wand;orb
+197	of Joyfulness	最小伤害 1~4	suf	5	3	15	dmg-min	0	1	4	4	0		jewl	
+198	of Blight	dmg-pois 24	suf	5	3	16	dmg-pois	75	24	24	5	0		weap;circ	rod;orb
+199	of Envy	dmg-pois 103	suf	1	1	16	dmg-pois	50	103	103	2	0		jewl	
+200	of Dexterity	敏捷 1~2	suf	1	1	17	dex	0	1	2	4	0		amul;miss;circ	
+201	of Skill	敏捷 3~5	suf	11	8	17	dex	0	3	5	3	0		amul;miss;circ	
+202	of Dexterity	敏捷 1~2	suf	6	4	17	dex	0	1	2	4	0		ring;glov	
+203	of Dexterity	敏捷 3~4	suf	1	1	31	dex	0	3	4	4	0		lcha	
+204	of Dexterity	敏捷 2~3	suf	3	2	31	dex	0	2	3	4	0		mcha	
+205	of Dexterity	敏捷 1	suf	7	5	31	dex	0	1	1	4	0		scha	
+206	of Daring	敏捷 1~3	suf	7	5	17	dex	0	1	3	3	0		jewl	
+207	of Balance	快速打击恢复 10	suf	5	3	18	balance1	0	10	10	4	0		armo	glov
+208	of Equilibrium	快速格挡 17	suf	9	6	18	balance2	0	17	17	4	0		tors;belt;shld	
+209	of Balance	快速施法 12	suf	1	1	18	balance3	0	12	12	4	0		lcha	
+210	of Regeneration	生命回复 3~5	suf	10	7	19	regen	0	3	5	4	0		scep;belt;ring;amul;circ	
+211	of Vileness	noheal 1	suf	9	6	20	noheal	0	1	1	3	0		mele	rod;orb
+212	of Greed	额外金币 25~40	suf	1	1	21	gold%	0	25	40	4	0		ring;amul;circ	
+213	of Greed	额外金币 10~20	suf	1	1	21	gold%	0	10	20	4	0		lcha	
+214	of Greed	额外金币 21~30	suf	7	5	21	gold%	0	21	30	4	0		lcha	
+215	of Greed	额外金币 5~10	suf	1	5	21	gold%	0	5	10	4	0		mcha	
+216	of Greed	额外金币 5~10	suf	1	15	21	gold%	0	5	10	4	0		scha	
+217	of Avarice	额外金币 10~30	suf	1	1	21	gold%	0	10	30	4	0		jewl	
+218	of Chance	提升魔法物品几率 5~15	suf	12	9	22	mag%	0	5	15	4	0		boot;glov;ring;amul;circ	
+219	of Energy	精力 1~3	suf	1	1	23	enr	0	1	3	4	0		amul;orb;circ;wand;staf	
+220	of the Mind	精力 4~6	suf	7	3	23	enr	0	4	6	4	0		amul;orb;circ;wand;staf	
+221	of Energy	精力 1~3	suf	7	5	23	enr	0	1	3	4	0		ring	
+222	of Energy	精力 1~3	suf	4	3	23	enr	0	1	3	3	0		helm;scep	
+223	of the Mind	精力 4~6	suf	10	7	23	enr	0	4	6	3	0		helm;scep	
+224	of Knowledge	精力 1~5	suf	9	6	23	enr	0	1	5	3	0		jewl	
+225	of the Bear	击退 1	suf	8	6	24	knock	0	1	1	3	0		mele	
+226	of Light	光照范围 1	suf	6	4	25	light	0	1	1	1	0		armo;rod;ring;amul	
+227	of the Jackal	hp 1~5	suf	1	1	26	hp	0	1	5	3	0		tors;belt;amul;phlm;circ	
+228	of the Fox	hp 6~10	suf	7	5	26	hp	0	6	10	3	0		tors;belt;amul;phlm;circ	
+229	of the Jackal	hp 1~5	suf	4	3	26	hp	0	1	5	3	0		shld;pelt	
+230	of the Fox	hp 6~10	suf	11	8	26	hp	0	6	10	3	0		shld;pelt	
+231	of the Jackal	hp 1~5	suf	8	6	26	hp	0	1	5	3	0		club;hamm;mace;ring;helm	
+232	of Life	hp 5~10	suf	1	1	26	hp	0	5	10	4	0		lcha	
+233	of Life	hp 11~15	suf	9	6	26	hp	0	11	15	4	0		lcha	
+234	of Life	hp 6~10	suf	1	9	26	hp	0	6	10	4	0		mcha	
+235	of Life	hp 11~15	suf	12	9	26	hp	0	11	15	4	0		mcha	
+236	of Life	hp 5~10	suf	1	14	26	hp	0	5	10	4	0		scha	
+237	of Spirit	hp 3~8	suf	1	1	26	hp	0	3	8	4	0		jewl	
+238	of the Leech	lifesteal 4~5	suf	6	4	27	lifesteal	0	4	5	7	0		weap	orb
+239	of the Bat	manasteal 4~5	suf	7	4	28	manasteal	0	4	5	7	0		weap	orb
+240	of Remedy	res-pois-len 25	suf	7	5	29	res-pois-len	0	25	25	3	0		armo;ring;amul;circ	
+241	of Freedom	需求降低 -15	suf	1	1	30	ease	0	-15	-15	3	0		jewl	
+242	of Strength	力量 1~2	suf	1	1	31	str	0	1	2	4	0		amul;belt;club;hamm;circ	
+243	of Might	力量 3~5	suf	10	8	31	str	0	3	5	3	0		amul;belt;club;hamm;circ	
+244	of Strength	力量 1~2	suf	5	3	31	str	0	1	2	4	0		ring;scep;mace;tors	
+245	of Strength	力量 1~2	suf	12	8	31	str	0	1	2	3	0		mele;glov;shld	blun
+246	of Strength	力量 3~4	suf	1	1	31	str	0	3	4	4	0		lcha	
+247	of Strength	力量 2~3	suf	3	2	31	str	0	2	3	4	0		mcha	
+248	of Strength	力量 1	suf	7	5	31	str	0	1	1	4	0		scha	
+249	of Pacing	move1 10	suf	12	8	35	move1	0	10	10	3	0		boot;circ	
+250	of Self-Repair	耐久回复 0	suf	3	1	37	rep-dur	3	0	0	3	0		weap;armo	thro;miss
+251	of Replenishing	rep-quant 0	suf	5	3	39	rep-quant	5	0	0	6	0		thro	
+252	of Firebolts	att-skill 5~3	suf	6	4	44	att-skill	36	5	3	1	0		weap	miss
+253	of Charged Shield	gethit-skill 10~3	suf	6	4	44	gethit-skill	38	10	3	1	0		armo;ring;amul	
+254	of Icebolt	att-skill 5~3	suf	6	4	44	att-skill	39	5	3	1	0		weap	miss
+255	of Telekinesis	（无属性）	suf	0	0	44		0	0	0	0	0			
+256	of Frost Shield	gethit-skill 5~3	suf	12	9	44	gethit-skill	44	5	3	1	0		armo;amul	
+257	of Magic Arrows	charged -30~-10	suf	12	11	44	charged	6	-30	-10	1	0	ama	miss;abow	
+258	of Power Strike	charged -60~-6	suf	12	13	44	charged	14	-60	-6	1	0	ama	spea;aspe	
+259	of Fire Bolts	charged -30~-10	suf	7	7	44	charged	36	-30	-10	1	0	sor	staf;orb	
+260	of Charged Bolts	charged -30~-10	suf	7	7	44	charged	38	-30	-10	1	0	sor	staf;orb	
+261	of Ice Bolts	charged -30~-10	suf	7	7	44	charged	39	-30	-10	1	0	sor	staf;orb	
+262	of Telekinesis	charged -30~-8	suf	12	12	44	charged	43	-30	-8	1	0	sor	staf;orb	
+263	of Frost Novas	charged -30~-8	suf	12	12	44	charged	44	-30	-8	1	0	sor	staf;orb	
+264	of Ice Blasts	charged -30~-8	suf	12	12	44	charged	45	-30	-8	1	0	sor	staf;orb	
+265	of Teeth	charged -60~-10	suf	7	7	44	charged	67	-60	-10	1	0	nec	wand;knif;head	
+266	of Dim Vision	charged -60~-8	suf	12	12	44	charged	71	-60	-8	1	0	nec	wand;knif;head	
+267	of Weaken	charged -60~-8	suf	12	12	44	charged	72	-60	-8	1	0	nec	wand;knif;head	
+268	of Poison Dagger	charged -60~-8	suf	12	12	44	charged	73	-60	-8	1	0	nec	knif;head	
+269	of Sacrifice	charged -30~-10	suf	7	7	44	charged	96	-30	-10	1	0	pal	scep;ashd	
+270	of Holy Bolts	charged -30~-8	suf	12	12	44	charged	101	-30	-8	1	0	pal	scep;ashd	
+271	of Bashing	charged -60~-10	suf	7	7	44	charged	126	-60	-10	1	0	bar	phlm	
+272	of Firestorms	charged -30~-10	suf	7	7	44	charged	225	-30	-10	1	0	dru	club	
+273	of Damage Amplification	hit-skill 5~1	suf	3	0	44	hit-skill	66	5	1	1	0		weap	orb
+274	of Craftsmanship	最大伤害 1	suf	1	1	14	dmg-max	0	1	1	4	0		lcha	
+275	of Blight	dmg-pois 21	suf	1	1	16	dmg-pois	75	21	21	2	0		lcha	
+276	of Venom	dmg-pois 39	suf	6	4	16	dmg-pois	100	39	39	1	0		lcha	
+277	of Blight	dmg-pois 21	suf	5	3	16	dmg-pois	75	21	21	2	0		mcha	
+278	of Blight	dmg-pois 21	suf	9	6	16	dmg-pois	75	21	21	2	0		scha	
+279	of Frost	cold-min 1	suf	5	3	10	cold-min	0	1	1	2	0		lcha	
+280	of the Icicle	cold-min 2	suf	8	6	10	cold-min	0	2	2	1	0		lcha	
+281	of Frost	cold-min 1	suf	9	6	10	cold-min	0	1	1	2	0		mcha	
+282	of Flame	fire-min 1	suf	3	2	12	fire-min	0	1	1	2	0		lcha	
+283	of Fire	fire-min 1~2	suf	8	6	12	fire-min	0	1	2	1	0		lcha	
+284	of Flame	fire-min 1	suf	7	5	12	fire-min	0	1	1	2	0		mcha	
+285	of Flame	fire-min 1	suf	11	8	12	fire-min	0	1	1	2	0		scha	
+286	of Shock	ltng-min 1	suf	4	3	13	ltng-min	0	1	1	2	0		lcha	
+287	of Lightning	ltng-min 1	suf	7	5	13	ltng-min	0	1	1	1	0		lcha	
+288	of Shock	ltng-min 1	suf	7	5	13	ltng-min	0	1	1	2	0		mcha	
+289	of Shock	ltng-min 1	suf	12	9	13	ltng-min	0	1	1	2	0		scha	
+290	of Dexterity	敏捷 1	suf	1	1	17	dex	0	1	1	4	0		boot;glov	
+291	of Dexterity	敏捷 1	suf	1	1	17	dex	0	1	1	4	0		ring	
+292	of Strength	力量 1	suf	1	1	31	str	0	1	1	4	0		glov	
+293	of Strength	力量 1	suf	1	1	31	str	0	1	1	4	0		ring	
+294	of Thorns	荆棘反弹 1	suf	1	1	6	thorns	0	1	1	4	0		tors;belt;shld	
+295	of Frost	dmg-cold 1	suf	1	1	10	dmg-cold	25	1	1	4	0		weap	staf;wand;orb
+296	of Flame	dmg-fire 1~2	suf	1	1	12	dmg-fire	0	1	2	4	0		weap	staf;wand;orb
+297	of Blight	dmg-pois 8	suf	1	1	16	dmg-pois	50	8	8	4	0		weap	scep;staf;orb
+298	of Shock	dmg-ltng 1~3	suf	1	1	13	dmg-ltng	0	1	3	4	0		weap	staf;wand;orb
+299	of Regeneration	生命回复 2	suf	1	1	19	regen	0	2	2	3	0		amul;circ	
+300	of Energy	精力 1	suf	1	1	23	enr	0	1	1	4	0		amul;orb;circ;wand;staf;helm;ring	
+301	of Light	光照范围 1	suf	1	1	25	light	0	1	1	4	0		ring;amul	

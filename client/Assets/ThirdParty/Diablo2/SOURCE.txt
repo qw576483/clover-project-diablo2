@@ -1,0 +1,55 @@
+================================================================================
+ThirdParty/Diablo2 —— 暗黑破坏神 II 原版素材「原样副本」（留档，便于将来按名替换）
+================================================================================
+
+来源（唯一来源；本项目非商用，记一行来源即可）
+--------------------------------------------------------------------------------
+  仓库：https://github.com/mofr/Diablerie      （Diablo 2 社区复刻工程，Unity）
+        其 README 明示：All images and sounds used are from Diablo 2
+  本地取源：c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\
+  版权：归 Blizzard North / Blizzard Entertainment
+  调研记录：<项目根>/策划/素材调研.md
+
+  素材类别与来源级别：**级 ①「A（参考游戏）自己的素材」**
+  ⛔ 本目录**不含任何通用兜底素材**（KayKit / Quaternius / Kenney / 内置几何体一律未引入）。
+
+逐目录来源声明（本目录 = 源仓库 Assets/ 下的对应子树，**文件名原样、不含 .meta**）
+--------------------------------------------------------------------------------
+  Images/ControlPanel/            <- Assets/Images/ControlPanel/        49 png
+     控制面板底图、血球 healthbar.png、蓝球 manabar.png、经验条 ExperienceBar(.Overlay).png、
+     菜单按钮 menubutton__0__0..3.png、小面板按钮 minipanelbtn__00__00..15.png、
+     灰按钮 mp_greybtn__00__00..17.png、跑/走按钮 runbutton_*.png、小面板 minipanel.png、overlap.png
+  Images/Cursors/                 <- Assets/Images/Cursors/             Cursor.png
+  Images/Inventory/               <- Assets/Images/Inventory/           6 png（装备栏底图）
+  Images/Menu/                    <- Assets/Images/Menu/                6 png（主菜单/职业选择/载入/多人屏 + 按钮）
+  Images/Panels/                  <- Assets/Images/Panels/              4 png（背包/属性面板/买卖按钮/金币按钮）
+  Images/Skills/                  <- Assets/Images/Skills/              SkilliconAttack.png
+  Resources/Fonts/                <- Assets/Resources/Fonts/            14 文件
+     font16/24/30/42.png            原版位图字体图集（DC6 打包产物）
+     font16/24/30/42.mat            源工程为图集建的材质（引用各图集 png 与源工程的 Sprite.shader）
+     font16/24/30/42.fontsettings   源工程的 Unity Font 资产（文本 YAML，含 256 条 m_CharacterRects）
+                                    ★「逐字形 uv 矩形」的权威来源，本项目据它反算切分格子
+     Diablo.ttf / Diablo_light.TTF  源工程附带字体；**来源/字形覆盖未核实，不作为运行时素材**，
+                                    仅为"原样留档"一并拷贝（本项目 UI 中文文案另需方案，见资源欠缺清单）
+  StreamingAssets/data/local/font/ <- Assets/StreamingAssets/data/local/font/  8 文件
+     font16/24/30/42.DC6            原版位图字体的**原始 DC6 二进制**
+     font16/24/30/42.txt            逐字形步进表：512 项 = 256 × [垂直步进, 水平步进]
+                                    （水平步进 = 排版 advance，与 .fontsettings 的 advance 已交叉验证一致）
+
+运行时素材（同源，见 client/Assets/Resources/Clover/D2/**）
+--------------------------------------------------------------------------------
+  Resources/Clover/D2/UI/{Cursor,Panel,Menu,EquipSlot,SkillIcon}/**   71 个文件中的 67 个
+  Resources/Clover/D2/Fonts/font16|24|30|42.png                       71 个文件中的 4 个
+  逐目录对应关系与每张图实测尺寸：见 <项目根>/client/_dev/assetreport.txt
+
+一致性保证
+--------------------------------------------------------------------------------
+  运行时素材 71 + 本副本 89 = 160 个文件，**逐个 SHA256 与源文件完全一致**（差异 0）。
+  （自检脚本 _assets_tmp/d2src/_tools/verify_assets.ps1）
+
+将来要替换素材
+--------------------------------------------------------------------------------
+  1) 运行时路径不变，按**同名文件**替换即可（素材引用收敛在 Core/ResPaths.cs，换文件不动逻辑）；
+  2) 若新增**目录**：必须同步改 Assets/Editor/AssetImporter.cs（否则新素材按 Unity 默认导入 = 糊，且不报错）；
+  3) 缺的素材（角色/怪物/地形/物品/音效/BGM）全部登记在 <项目根>/client/资源欠缺清单.md。
+================================================================================

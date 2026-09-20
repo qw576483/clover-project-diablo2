@@ -1,0 +1,232 @@
+﻿=== ItemCheck：物品 / 任务 / NPC / 存档 离线自检 ===
+
+[ OK ] 配表已加载（TableLoader，与 Bootstrap 同链路）   (dir=C:\Work\Server\full-dev\clover-project-diablo2\client\Assets\Scripts\Table\Tsv)
+[ OK ] item_c 行数 > 100   (item_c=137)
+[ OK ] affix_c 行数 = 301（源表 302 行含表头）   (affix_c=301)
+[ OK ] treasureclass_c 行数 = 58   (treasureclass_c=58)
+
+── 1) AppContext.AutoWire 装配四个门面 ──
+   [WARN ] [App] 模块 Combat 尚无实现（程序集里找不到实现该接口的类型）⇒ 相关功能降级
+   [WARN ] [App] 模块 Camera 尚无实现（程序集里找不到实现该接口的类型）⇒ 相关功能降级
+   [WARN ] [App] 模块 View 尚无实现（程序集里找不到实现该接口的类型）⇒ 相关功能降级
+   [WARN ] [App] 模块 Audio 尚无实现（程序集里找不到实现该接口的类型）⇒ 相关功能降级
+[ OK ] ItemModule 已自动装配   (Diablo2.Module.Item.ItemModule)
+[ OK ] QuestModule 已自动装配   (Diablo2.Module.Quest.QuestModule)
+[ OK ] NpcModule 已自动装配   (Diablo2.Module.Npc.NpcModule)
+[ OK ] SaveModule 已自动装配   (Diablo2.Module.Save.SaveModule)
+[ OK ] 装备实现类型都是 internal sealed（可反射创建）   (模块装配：Flow=NULL Map=ok Player=ok Combat=NULL Monster=ok Skill=ok Item=ok Quest=ok Npc=ok Camera=NULL View=NULL Audio=NULL Save=ok)
+
+── 2) 物品生成 / 品质 / 词缀（对 3 个样例打印完整属性行） ──
+[ OK ] 魔法武器生成成功   (毒素抗性 5~10 斧 之 att-skill 5~3)
+[ OK ] 魔法物品词缀数 1~2   (affixes=2)
+[ OK ] 词缀等级 ≤ 物品等级(12)   (affixLvl=[5,6] itemLevel=12)
+   样例① 魔法武器: 毒素抗性 5~10 斧 之 att-skill 5~3
+      id=2 type=Weapon quality=Magic size=2×3 lvlReq=0 strReq=32 dmg=4-11 def=0-0 price=403 dur=34/34
+      词缀[0] affixId=109 kind=Prefix mod=res-pois min=5 max=10 value=9 name=毒素抗性 5~10
+      词缀[1] affixId=252 kind=Suffix mod=att-skill min=3 max=5 value=5 name=att-skill 5~3
+[ OK ] 稀有防具词缀数 2~4   (affixes=3)
+[ OK ] 稀有防具词缀等级 ≤ 物品等级(12)   (affixLvl=[1,12,7] itemLevel=12)
+   样例② 稀有防具: 毒素抗性 5 火焰抗性 11~20 皮甲 之 hp 6~10
+      id=47 type=Armor quality=Rare size=2×3 lvlReq=0 strReq=15 dmg=0-0 def=14-17 price=481 dur=36/36
+      词缀[0] affixId=132 kind=Prefix mod=res-pois min=5 max=5 value=5 name=毒素抗性 5
+      词缀[1] affixId=96 kind=Prefix mod=res-fire min=11 max=20 value=13 name=火焰抗性 11~20
+      词缀[2] affixId=228 kind=Suffix mod=hp min=6 max=10 value=7 name=hp 6~10
+[ OK ] 暗金物品词缀数 = 2   (affixes=2)
+   样例③ 暗金法杖: dmg-pois 31 扭曲法杖 之 manasteal 4~5
+      id=29 type=Weapon quality=Unique size=1×4 lvlReq=0 strReq=0 dmg=0-0 def=0-0 price=766 dur=43/43
+      词缀[0] affixId=115 kind=Prefix mod=dmg-pois min=31 max=31 value=31 name=dmg-pois 31
+      词缀[1] affixId=239 kind=Suffix mod=manasteal min=4 max=5 value=4 name=manasteal 4~5
+[ OK ] 普通药水无词缀（非装备不挂词缀）   (affixes=0)
+
+── 3) 掉落 1000 次（monster_c 的 TC 列 → treasureclass_c 递归） ──
+   [WARN ] [Item] LootRoller：TC "bow3" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 bow 池兜底
+   [WARN ] [Item] LootRoller：TC "bow6" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 bow 池兜底
+   [WARN ] [Item] LootRoller：TC "armo9" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 armo 池兜底
+   [WARN ] [Item] LootRoller：TC "armo6" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 armo 池兜底
+   [WARN ] [Item] LootRoller：TC "armo3" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 armo 池兜底
+   [WARN ] [Item] LootRoller：TC "bow9" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 bow 池兜底
+   [WARN ] [Item] LootRoller：TC "weap6" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 weap 池兜底
+   [WARN ] [Item] LootRoller：TC "weap3" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 weap 池兜底
+   [WARN ] [Item] LootRoller：TC "weap12" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 12 从 weap 池兜底
+   [WARN ] [Item] LootRoller：TC "weap9" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 weap 池兜底
+   [WARN ] [Item] item_c 里找不到 code="cm1" 的物品（掉落表引用了未导入的行）
+   [WARN ] [Item] LootRoller：token "cm1" 既不是 TC 名也不是 item_c.code ⇒ 跳过（配表导入范围问题）
+   [WARN ] [Item] item_c 里找不到 code="jew" 的物品（掉落表引用了未导入的行）
+   [WARN ] [Item] LootRoller：token "jew" 既不是 TC 名也不是 item_c.code ⇒ 跳过（配表导入范围问题）
+[ OK ] 掉落产出 > 0 件物品   (items=1143)
+[ OK ] 掉落格全部可走   (unwalkable=0)
+[ OK ] 掉落含金币堆   (goldPiles=179 gold=4020)
+[ OK ] 品质分布覆盖 ≥3 档   (普通 1035 (90.6%)、魔法 93 (8.1%)、稀有 9 (0.8%)、套装 3 (0.3%)、暗金 3 (0.3%))
+[ OK ] 出现魔法及以上品质   (magic=93 rare=9 set=3 unique=3)
+[ OK ] （配表缺口走兜底且留了限频日志）   (tier 兜底日志 10 条)
+   品质分布：普通 1035 (90.6%)、魔法 93 (8.1%)、稀有 9 (0.8%)、套装 3 (0.3%)、暗金 3 (0.3%)
+   金币：179 堆 / 共 4020 枚；无掉落格比例 0/1000
+[ OK ] 品质判定五档全部可达（itemLevel=12 × 4000）   (普通 2722 (68.1%)、魔法 684 (17.1%)、稀有 318 (8.0%)、套装 144 (3.6%)、暗金 132 (3.3%))
+   品质判定直方图：普通 2722 (68.1%)、魔法 684 (17.1%)、稀有 318 (8.0%)、套装 144 (3.6%)、暗金 132 (3.3%)
+
+── 4) 背包格子（10×4，尺寸取 item_c.grid_w/grid_h） ──
+[ OK ] 2×3 物品放得下   (anchor=0)
+[ OK ] 占用格数 = 6   (occupied=6)
+[ OK ] 锚点 = 线性下标 0（(0,0)）   (anchor=0 isAnchor=True)
+[ OK ] 锚点格带物品、其余 5 格 item=null   (slot1.occupied=True slot10.anchorIndex=0)
+[ OK ] 剩余空格 = 1   (free=1)
+   [WARN ] [Item] 背包放不下「大斧」(2×3)：空格 1 但无连续块
+[ OK ] 2×3 塞进 1 格空隙 ⇒ 失败   (TryPlace 返回 false)
+[ OK ] 先塞满背包（40 个 1×1）   (added=40 isFull=True)
+   [WARN ] [Item] 背包放不下「回城卷轴」(1×1)：空格 0 但无连续块
+   [WARN ] [Item] AddToInventory：「回城卷轴」(1×1) 放不下（空格 0）⇒ 失败（物品不入包）
+[ OK ] 满包再入包 ⇒ 返回 false（不假装成功）   (AddToInventory=False)
+[ OK ] 满包时有可读日志（放不下/背包）   (见 [WARN] [Item] ...放不下...)
+[ OK ] 背包满事件已发（InventoryFull）   (由 Pickup 路径发（见下一步）)
+
+── 5) 拾取（距离校验 / 背包满 ⇒ 物品留在原地） ──
+   [WARN ] [Item] Pickup：距离过远（玩家格 (10,10) ↔ 物品格 (11,11) 距离 1.41 > 1.40）⇒ 不拾取，物品留在原地
+[ OK ] 超距拾取 ⇒ false   (distance≈1.414 > PickupRange=1.4)
+[ OK ] 超距时物品**仍在原地**   (ground=1)
+[ OK ] 超距有可读日志（距离过远/留在原地）   (见 [WARN] [Item])
+[ OK ] 范围内拾取 ⇒ true 且入包   (pickup=True anchors=1)
+[ OK ] 拾取后地面物品被移除   (ground=1)
+[ OK ] 背包已满（为满包拾取做准备）   (added=39)
+   [WARN ] [Item] 背包放不下「鉴定卷轴」(1×1)：空格 0 但无连续块
+   [WARN ] [Item] AddToInventory：「鉴定卷轴」(1×1) 放不下（空格 0）⇒ 失败（物品不入包）
+   [WARN ] [Item] Pickup：「鉴定卷轴」背包放不下 ⇒ 返回 false，物品**留在原地**（地面 #100002）
+[ OK ] 满包拾取 ⇒ false   (Pickup=False)
+[ OK ] 满包拾取失败 ⇒ 物品留在原地   (ground=2)
+[ OK ] 满包有可读日志（背包放不下）   (见 [WARN] [Item])
+[ OK ] 未点击（只站在物品上）⇒ 不自动拾取   (ground=1 anchors=0)
+[ OK ] 点了物品但还没走到 ⇒ 不拾取   (ground=1)
+[ OK ] 走到位 ⇒ 自动拾取入包（走的是同一条 Pickup 距离校验）   (ground=0 anchors=1)
+
+── 6) 装备生效（EquipChanged 载荷驱动派生值重算） ──
+[ OK ] 背包放入普通武器   (斧)
+[ OK ] 装备该武器   (anchor=0)
+[ OK ] 装备后武器槽有物品   (equip=1)
+   装普通斧：伤害 1-2 → 5-13；防御 5 → 5；命中 140 → 140
+[ OK ] 伤害（含武器基础）上升   (1-2 → 5-13)
+[ OK ] 装备防具   (anchor=0)
+   装皮甲：防御 5 → 20
+[ OK ] 防御上升   (5 → 20)
+[ OK ] 找到带 att 词缀的武器（确定性搜索）   (seed=2)
+   装「命中 21~40 斧」：命中 140 → 164（词缀 att 合计 +24）
+[ OK ] 带 att 词缀的武器使命中上升   (140 → 164)
+
+── 7) 腰带药水（数字键 1~4 的模块侧） ──
+[ OK ] 药水生成成功   (轻型治疗药水)
+[ OK ] 放入腰带格 0   (belt0=3)
+   喝药：生命 20 → 95；腰带格 0 计数 3 → 2
+[ OK ] 喝药成功   (UseBeltSlot=True)
+[ OK ] 生命上升   (20 → 95)
+[ OK ] 腰带计数 -1   (3 → 2)
+   [WARN ] [Item] Belt.TryAdd：「斧」不是药水（只允许 item_c.source=misc 且 item_c.type = hpot/mpot/spot/rpot）⇒ 拒绝
+[ OK ] 非药水不能放腰带   (武器入腰带应被拒（见 [WARN] [Item] 不是药水）)
+
+── 8) 主线任务「邪恶洞穴」完整状态机 ──
+[ OK ] 初始状态 = NotStarted   (NotStarted)
+[ OK ] 未接取时不可交付   (CanTurnInDen=False)
+[ OK ] 接取后状态 = InProgress   (InProgress)
+   接取后：required=0（城里还没进洞 ⇒ 0）；DenRemaining=0
+[ OK ] 城里接取时 required=0（未进洞不记数）   (required=0)
+[ OK ] required=0 时不可交付   (CanTurnInDen=False)
+   [WARN ] [Quest] AcceptDen：任务「邪恶洞穴」已处于 InProgress ⇒ 忽略重复接取
+[ OK ] 重复接取被忽略（状态不变）   (见 [WARN] [Quest] 重复接取)
+[ OK ] 野外的击杀不计入（DenRemaining 不变）   (DenRemaining 0→0)
+[ OK ] 野外的击杀不计入（progress 不变）   (progress 0→0)
+[ OK ] 野外击杀也不会把状态推进到可交付   (state=InProgress)
+[ OK ] 野外击杀有可读日志（不是洞穴）   (见 [INFO] [Quest] NotifyMonsterKilled)
+[ OK ] 进洞后记录 required = 5   (required=5)
+   进洞：required=5 DenRemaining=5 progress=0 state=InProgress
+   击杀 1/5：DenRemaining=4 progress=1/5 state=InProgress
+   击杀 2/5：DenRemaining=3 progress=2/5 state=InProgress
+   击杀 3/5：DenRemaining=2 progress=3/5 state=InProgress
+   击杀 4/5：DenRemaining=1 progress=4/5 state=InProgress
+   击杀 5/5：DenRemaining=0 progress=5/5 state=ReadyToTurnIn
+[ OK ] 清光后 DenRemaining = 0   (DenRemaining=0)
+[ OK ] 清光后状态 = ReadyToTurnIn   (ReadyToTurnIn)
+[ OK ] 清光后可交付 CanTurnInDen = true   (CanTurnInDen=True)
+[ OK ] progress = required = 5   (5/5)
+   交付：state=Done 技能点 0 → 1 rewardClaimed=True
+[ OK ] 交付后状态 = Done   (Done)
+[ OK ] 交付奖励：技能点 +1   (0 → 1)
+[ OK ] 交付后不可再交   (CanTurnInDen=False)
+   [WARN ] [Quest] [Quest] 交付被拒：「邪恶洞穴」未达成条件 —— 任务状态是 Done（不是进行中）
+[ OK ] 重复交付不发第二次奖励   (技能点=1)
+[ OK ] 重复交付发 QuestTurnInDenied   (见 [WARN] [Quest] 交付被拒)
+
+── 9) NPC 对话随任务阶段变化（阿卡拉 4 段） ──
+[ OK ] 5 个 NPC 定义齐全   (count=5)
+[ OK ] 站位来自 IMapModule.NpcPoints   (阿卡拉=(10,10) 瓦瑞夫=(18,10))
+[ OK ] 角色分工正确（阿卡拉任务发布者 / 恰西铁匠+修理）   (akara.questGiver / charsi.blacksmith+repair)
+   阶段 NotStarted：（阿卡拉望向荒野）你好，勇士。血腥荒野深处有个被称为『邪恶洞穴』的地方，里面盘踞着恶魔与亡灵。它们迟早会威胁到营地——去把洞里的怪物**一只不剩**地清除，我会有重谢。
+   阶段 InProgress：洞穴里的怪物还没清干净。记住：洞内的每一只都得除掉，一个都不能留。
+   阶段 ReadyToTurnIn：我已经听说了——邪恶洞穴被清理得干干净净。你为营地做了件了不起的事。把手伸过来，我赐予你力量（技能点 +1）。
+   阶段 Done：愿光明与你同在，勇士。罗格营地欠你一份人情。
+[ OK ] 4 个阶段文本互不相同   (distinct=4/4)
+[ OK ] 对话选项下标 0 恒为关闭   (options[0]=离开)
+      （可交付阶段：CanTurnInDen=True 对话.canTurnInQuest=True）
+[ OK ] 可交付阶段 canTurnInQuest = true   (见上)
+[ OK ] 非任务 NPC（瓦瑞夫）也能对话   (warriv.hasShop=False)
+[ OK ] 点了 NPC 但人还在远处 ⇒ 尚未弹对话   (DialogOpen=0)
+[ OK ] 走到 NPC 旁 ⇒ 自动弹对话（DialogOpen，npcId=0）   (DialogOpen=1 npcId=0)
+[ OK ] 已在对话中 ⇒ 不重复弹（幂等，不刷面板）   (DialogOpen=1)
+[ OK ] NpcInteractRequest(瓦瑞夫) ⇒ 弹对话（契约入口可用）   (DialogOpen=2 npcId=4)
+
+── 10) 商店（恰西：买卖 + 修理） ──
+[ OK ] 恰西商店已上架   (stock=8)
+[ OK ] 商店带玩家金币与可卖清单   (canRepair=True)
+   买入「火焰抗性 5~10 尖刺棒 之 ltng-min 1」：金币 100000 → 99775；背包锚点 0 → 1
+[ OK ] 买入成功   (Buy=True)
+[ OK ] 金币减少 = 售价   (100000 → 99775（售价 225）)
+[ OK ] 背包 +1   (0 → 1)
+   [WARN ] [Npc] Buy：金币不足（需 60，有 0）⇒ 失败，金币不变
+[ OK ] 钱不够 ⇒ 买入失败且金币不变   (gold=0)
+[ OK ] 钱不够有可读日志   (见 [WARN] [Npc])
+   卖出「火焰抗性 5~10 尖刺棒 之 ltng-min 1」：金币 99775 → 99831
+[ OK ] 卖出成功   (Sell=True)
+[ OK ] 金币增加   (99775 → 99831)
+[ OK ] 生成带磨损的装备   (dur=23/36)
+   修理：预估 87，实收 87；金币 10000 → 9913；耐久 36/36
+[ OK ] 修理费 > 0   (cost=87)
+[ OK ] 修理扣金币   (10000 → 9913)
+[ OK ] 修理后耐久回满   (36/36)
+
+── 11) 存档（多角色 / 往返一致 / 删除 / 版本降级） ──
+[ OK ] SaveModule.Ready = true（Game.Setting 已接入）   (Ready=True)
+[ OK ] Save() 成功（无参，走 Player/Item/Quest/Skill）   (ok)
+[ OK ] 存档已落盘到 char/CheckHero   (bytes=4677)
+[ OK ] 存档含任务与背包字段   (见 JSON)
+[ OK ] 存档键前缀 = char/   (char/CheckHero)
+[ OK ] 索引键已写 char/index   (peek=["CheckHero"])
+[ OK ] Load() 返回存档   (CheckHero)
+[ OK ] 读档带回金币/背包/任务   (gold=1234 anchors=1 quest=1)
+[ OK ] 读档带回技能（从 ISkillModule 反查）   (skills=2 button1=2)
+[ OK ] Save → Load → Save 两次 JSON 等价（忽略时间戳）   (len 4677 vs 4677)
+[ OK ] Write(Parse(json)) == json（逐字节恒等）   (byte-identical)
+[ OK ] 存档里没有 null 元素（inventory 40 格写全）   (inventory=40 belt=4 equip=0)
+[ OK ] Exists("CheckHero") = true   (Exists=True)
+[ OK ] HasAny = true   (HasAny=True)
+[ OK ] List() 含 CheckHero   (CheckHero)
+[ OK ] ListAll() 有 1 个角色   (count=1)
+[ OK ] 删除角色成功   (Delete ok)
+[ OK ] 删除后 ListAll 少一个   (count=0)
+[ OK ] 删除后 HasAny = false   (HasAny=False)
+   [WARN ] [Save] Delete：没有角色「CheckHero」的存档 ⇒ 无事可做
+[ OK ] 重复删除返回 false   (第二次 Delete=false)
+[ OK ] CharRoster.Create → Save(CharacterSave) 返回 true   (Save(data)=true)
+[ OK ] CharRoster.Persisted → HasAny   (HasAny=True)
+[ OK ] CharRoster.Exists(name)   (Exists=True)
+[ OK ] CharRoster.ListAll() 返回非 null 且含该角色   (count=1 name=RosterCheck)
+[ OK ] CharRoster.Load(name) 返回存档   (Load != null)
+[ OK ] CharRoster.Delete(name) 返回 true   (Delete=true)
+[ OK ] AppFlow 用的 Save()/LastError 形态存在   (LastError="")
+   [WARN ] [Save] 读档：「OldHero」的存档版本 99 ≠ 当前 1 ⇒ 降级处理（缺字段取默认值、按当前版本继续读），请勿在此基础上回写覆盖原档
+[ OK ] 版本不符仍能读（降级，不崩）   (lv=7 gold=55 version=1)
+[ OK ] 版本不符有 Warn 日志   (见 [WARN] [Save])
+[ OK ] 读不存在的角色 ⇒ null（不抛异常）   (null)
+   [ERROR] [Save] 读档失败（解析 `char/Broken`）：[SaveJson] JSON 解析失败：FormatException: 位置 2 处期望对象键（字符串）
+[ OK ] 损坏 JSON ⇒ null + LastError   (见 [ERROR] [Save])
+
+分层自检（见回报，本宿主不重复执行 shell）：② 跨模块 using ③ UI using Module ④ 直连网络 ⑤ 裸事件名
+
+=== 自检全部通过 ===
+
+未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。
