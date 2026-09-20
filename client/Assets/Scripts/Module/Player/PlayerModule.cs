@@ -28,6 +28,16 @@
 //   ★ 片 2b：`_running` 同时经契约 `IPlayerModule.IsRunning` 暴露给表现层
 //     （`Module/View/ViewModule` 据此选 `ViewAnim.Run` / `ViewAnim.Walk`）。
 //
+// ── ★ R1-B：「点不可走处 ⇒ 走向最近合法点」（用户报「为什么不是从桥上走？」）──────
+//   原版 D2 点不可走处会走向**最近合法点**；本模块此前是**直接拒绝**（只 Warn 一行、角色不动）
+//   ⇒ 桥的栏杆与桥面相邻 1 格（`MapGenTownLayout.Rows` 第 25..28 行 `d`/`s` 交替），
+//   "看着点的是桥、逻辑格其实是栏杆/水"的点击就表现为「点了没反应 / 不走桥」。
+//   现在：**图上有地形、只是阻挡** ⇒ 半径 `MoveFallbackRadius`（= 2 格，口径见该常量）内挑最近可走格
+//         并走过去；图外（越界）与 `TileKind.Void`（没地形、也不画 ⇒ 视觉=关卡外那片黑）⇒ 仍直接拒绝；
+//         半径内无可走格 / 走不到 ⇒ 仍按不可达拒绝。
+//   ⛔ 不放宽可走性、不改地形：`IMapModule.Walkable` 与 `GridMap` 一个字未动。
+//   生效口径由一条只报一次的 `R1-B` Info 日志给出（tag 便于 Play 期按数值取证，不必截图）。
+
 // ── 契约歧义（**已回报主 agent，未擅自改契约**）─────────────────────────────
 //   `IPlayerModule.ApplyDamage` 注释写「走抗性/防御结算」，但 `ICombatModule` 又明确
 //   「命中/伤害/**抗性**结算只经本门面，禁止各自算一遍」⇒ 取后者：本方法把入参当作
@@ -36,6 +46,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
+using System.Collections.Generic;      // ★ R1-B：MoveTo 的最近可走格回退要用 List<Vector2Int>
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
@@ -69,6 +80,30 @@ namespace Diablo2.Module.Player
         /// <summary>无效格（用于「还没发过」的标记，避免和 (0,0) 混淆）。</summary>
         private static readonly Vector2Int NoGrid = new Vector2Int(int.MinValue, int.MinValue);
 
+        /// <summary>R1-B 证据日志的 tag（`Core/Log.cs` 的 KnownTags 白名单内）。</summary>
+        private const string EvidenceTag = "R1-B";
+
+        /// <summary>
+        /// ★ R1-B：点击落点**图内但不可走**时的「最近可走格」回退半径（Chebyshev，格）。
+        /// <para>
+        /// 用户原始投诉：「为什么不是从桥上走？」—— 原版 D2 点不可走处会**走向最近合法点**，
+        /// 而本项目此前是**直接拒绝**（`MoveTo` 只 Warn 一行，角色原地不动），于是"看着点的是桥、
+        /// 其实点到栏杆/水"的点击就表现为「点了没反应 / 不走桥」。
+        /// </para>
+        /// <para>取值口径（为什么恰好是 2，逐条都有依据）：</para>
+        /// <para>① **必须覆盖"相邻 1 格"的视觉↔逻辑错配**：本项目桥的**栏杆与桥面相邻 1 格**
+        /// （`MapGenTownLayout.Rows` 第 25..28 行的桥 = 桥面行 `d` 与栏杆行 `s` **交替**，
+        /// 见 `mapcheck` 的「桥面 20 格全可走 / 栏杆 20 格全阻挡」）；河带 `x∈[47,54]`
+        /// 的两岸 `x=46/55` 也是**紧邻 1 格**的可走草地 ⇒ 1~2 格足够把这类点击救回来。</para>
+        /// <para>② **上限 2 格 = 不许退化成"点哪都能走"**：水带宽 8 列，点**河中央**（离岸 ≥3 格）
+        /// 仍按不可达拒绝；更远的落点本来就该由玩家直接点可走处。</para>
+        /// <para>③ **图外不参与回退**：`!map.InBounds(target)` ⇒ 直接拒绝（= 点关卡外不动），
+        /// 回退只对「图上真的有地形、只是阻挡」的格生效；<see cref="TileKind.Void"/>（原版四块都没铺、
+        /// `MapView` 也**不画**的格，实测只有城镇西北角 3×10 一块 ⇒ 视觉上就是关卡外那片黑）
+        /// **与越界同处置**：直接拒绝。</para>
+        /// </summary>
+        public const int MoveFallbackRadius = 2;
+
         private readonly PlayerStats _stats = new PlayerStats();
         private readonly PlayerMotor _motor = new PlayerMotor();
         private readonly InputReader _input = new InputReader();
@@ -90,6 +125,7 @@ namespace Diablo2.Module.Player
         private int _lastAttackTargetId = int.MinValue;   // 上一次打日志的攻击目标（防按住时刷屏）
         private Vector2Int _lastExitGrid = NoGrid;
         private bool _unreachableLogged;
+        private bool _moveFallbackLogged;         // R1-B：最近可走格回退的生效口径只报一次
         private bool _mapWarned;
         private bool _ctxWarned;
         private bool _noMapGeneratedWarned;
@@ -404,6 +440,7 @@ namespace Diablo2.Module.Player
             _motor.Reset();
             _input.Reset();
             _unreachableLogged = false;
+            _moveFallbackLogged = false;      // R1-B：回主菜单再进图要重新报一次生效口径
             _notCreatedWarned = false;
             _deadMoveWarned = false;
             _selfHealLogged = false;
@@ -456,20 +493,56 @@ namespace Diablo2.Module.Player
                 return;
             }
 
-            // 目标格不可走：先判，给出比 A* 更可定位的日志（A* 也会拦，但只有一行泛泛的 Warn）
+            // 目标格不可走：★ R1-B 起改成「最近可走格回退」（原版 D2 点不可走处走向最近合法点），
+            //   而**不是**直接拒绝 —— 直接拒绝正是用户报的「为什么不是从桥上走？」
+            //   （桥的栏杆与桥面相邻 1 格，点在栏杆/水面上的视觉误点以前会让角色原地不动）。
+            //   图外（越界）仍直接拒绝：点关卡外本来就不该产生移动。
+            var path = (List<Vector2Int>)null;
             if (!map.Walkable(target))
             {
-                UnreachableCount++;
-                if (!_unreachableLogged)
+                // 「图上真的有地形」才回退：越界与 `TileKind.Void`（原版没铺、也不画的格，
+                // 视觉上就是关卡外那片黑）一律直接拒绝（口径见 MoveFallbackRadius ③）。
+                var hasTerrain = map.InBounds(target) && map.TileAt(target) != TileKind.Void;
+                if (hasTerrain
+                    && TryNearestWalkablePath(map, from, target, out var landing, out path))
                 {
-                    _unreachableLogged = true;      // 同一段「不可达」只报一次（按住左键会每帧请求）
-                    PlayerLog.Warn($"[Move] unreachable to=({target.x},{target.y}) 地形={map.TileAt(target)}（不可走）" +
-                                   $" 当前格=({from.x},{from.y}) ⇒ 不移动（同类再点不重复刷屏）");
+                    if (!_moveFallbackLogged)
+                    {
+                        _moveFallbackLogged = true;     // 生效口径只报一次（按住左键会每帧请求）
+                        Log.Info(EvidenceTag,
+                            $"[R1-B] 点到不可走格 ⇒ 最近可走格回退（生效）：点击 ({target.x},{target.y})" +
+                            $" 地形={map.TileAt(target)} ⇒ 落到 ({landing.x},{landing.y})" +
+                            $" 地形={map.TileAt(landing)}，路径 {path.Count} 格。" +
+                            $"生效口径：仅「图内但不可走」回退，半径 ≤ {MoveFallbackRadius} 格" +
+                            "（Chebyshev；按 ①离点击点最近 → ②离角色最近 → ③(dx,dy) 升序 确定性取格）；" +
+                            "图外一律拒绝、半径内无可走格 / 走不到 ⇒ 仍按不可达拒绝");
+                    }
+                    if (landing == from)
+                    {
+                        // 边界：最近可走格就是脚下 ⇒ 原地不动（别把 1 点路径塞给 PlayerMotor，
+                        // 那会打一条"路径不足 2 个点"的 Warn，看起来像出错）。
+                        _motor.Stop();
+                        PlayerLog.Move($"点击 ({target.x},{target.y}) 不可走，最近可走格 = 当前格 ({from.x},{from.y})" +
+                                       " ⇒ 原地不动（清空路径）");
+                        return;
+                    }
+                    target = landing;                   // 后面统一走「已定路径 → 交给 PlayerMotor」
                 }
-                return;
+                else
+                {
+                    UnreachableCount++;
+                    if (!_unreachableLogged)
+                    {
+                        _unreachableLogged = true;      // 同一段「不可达」只报一次（按住左键会每帧请求）
+                        PlayerLog.Warn($"[Move] unreachable to=({target.x},{target.y}) 地形={map.TileAt(target)}（不可走）" +
+                                       $" 当前格=({from.x},{from.y}) ⇒ 不移动（同类再点不重复刷屏）；" +
+                                       $"已试最近可走格回退（半径 ≤ {MoveFallbackRadius} 格）仍不可达");
+                    }
+                    return;
+                }
             }
 
-            var path = map.FindPath(from, target);
+            if (path == null) path = map.FindPath(from, target);
             if (path == null || path.Count == 0)
             {
                 UnreachableCount++;
@@ -487,6 +560,62 @@ namespace Diablo2.Module.Player
             PlayerLog.Move($"steps={path.Count} path={AStar.Describe(path)} " +
                            $"from=({from.x},{from.y}) to=({target.x},{target.y}) " +
                            $"speed={_motor.Speed}格/秒({(_running ? "跑" : "走")})");
+        }
+
+        /// <summary>
+        /// ★ R1-B：在 <paramref name="target"/> 的 Chebyshev 半径 <see cref="MoveFallbackRadius"/> 内，
+        /// 找**最近的可走格**并算出从 <paramref name="from"/> 走到它的路径（原版 D2「点不可走处 →
+        /// 走向最近合法点」的口径）。
+        /// <para>挑格口径（**确定性**，同一输入永远同一结果，可离线复跑）：按
+        /// ① 离点击点最近（格距平方）→ ② 离角色最近（格距平方）→ ③ 遍历顺序 (dx 升序 → dy 升序)
+        /// 取唯一一个候选格；再对它求路径，**求不到就返回 false**（调用方按不可达拒绝，绝不硬塞）。
+        /// </para>
+        /// <para>⛔ 只**挑格 + 求路径**：不改地形、不写键、不放宽可走性；⛔ 半径外一律不找。</para>
+        /// </summary>
+        /// <param name="map">当前地图（调用方已确认 <c>IsGenerated</c>）。</param>
+        /// <param name="from">角色当前格。</param>
+        /// <param name="target">点击落点（**图内但不可走**；图外由调用方直接拒绝）。</param>
+        /// <param name="landing">挑中的可走格。</param>
+        /// <param name="path">从 <paramref name="from"/> 到 <paramref name="landing"/> 的路径（非空）。</param>
+        private static bool TryNearestWalkablePath(IMapModule map, Vector2Int from, Vector2Int target,
+            out Vector2Int landing, out List<Vector2Int> path)
+        {
+            landing = NoGrid;
+            path = null;
+
+            var best = NoGrid;
+            var bestToClick = int.MaxValue;     // ① 未开方格距（平局判定用整数，避免浮点误差）
+            var bestToPlayer = int.MaxValue;    // ②
+            for (var dx = -MoveFallbackRadius; dx <= MoveFallbackRadius; dx++)
+            {
+                for (var dy = -MoveFallbackRadius; dy <= MoveFallbackRadius; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;              // 落点自己不可走，跳过
+                    var g = new Vector2Int(target.x + dx, target.y + dy);
+                    if (!map.Walkable(g)) continue;                 // 图外/阻挡一并排除
+
+                    var dClick = dx * dx + dy * dy;
+                    if (dClick > bestToClick) continue;             // ① 更远 ⇒ 丢
+
+                    var fx = g.x - from.x;
+                    var fy = g.y - from.y;
+                    var dPlayer = fx * fx + fy * fy;
+                    if (dClick == bestToClick && dPlayer >= bestToPlayer) continue;   // ② 平局更远 ⇒ 丢
+
+                    best = g;
+                    bestToClick = dClick;
+                    bestToPlayer = dPlayer;
+                }
+            }
+
+            if (best == NoGrid) return false;                       // 半径内没有可走格
+
+            var p = map.FindPath(from, best);
+            if (p == null || p.Count == 0) return false;            // 挑中了却走不到 ⇒ 仍拒绝
+
+            landing = best;
+            path = p;
+            return true;
         }
 
         /// <inheritdoc />

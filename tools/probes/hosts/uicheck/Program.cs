@@ -90,6 +90,12 @@ namespace Uicheck
             Path.Combine(ProjectRoot, "client", "Assets", "Resources");
 
         /// <summary>
+        /// 原版素材/串表树（skill §1.9：下载 / 解包素材的唯一落点）。**`.gitignore` 里明确「不进 git」**
+        /// （体积大 + 版权物）⇒ 干净检出 / 未下载素材的机器上它必然不存在。见 <see cref="CheckOriginalRes"/>。
+        /// </summary>
+        internal static readonly string OriginalResDir = Path.Combine(ProjectRoot, "原版资源");
+
+        /// <summary>
         /// 从宿主自己的可执行目录向上找“含 client/Assets 的那一层” = 仓库根。
         /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；若按调用方 cwd 定位，
         /// 从仓库根运行时会被拼成 &lt;仓库根&gt;/clover-project-diablo2/client/...（一个文件都找不到）。
@@ -110,6 +116,8 @@ namespace Uicheck
 
         internal static CaptureLogger _logger;
         internal static int _fail;
+        /// <summary>因「原版资源/ 不在本机」而**跳过**的断言数（环境依赖，不计失败）。</summary>
+        internal static int _skip;
 
         public static int Main()
         {
@@ -136,14 +144,22 @@ namespace Uicheck
             CheckSpritePathsExist();
             CheckMenuArtBrightness();
             CheckFlowMenuLayout();      // ★ agent-15 §A：流程面板 1:1（原版 800×600 → 1920×1080 逐元素 ×1.8 居中）
+            CheckCharCreateR1C();       // ★ R1-C：创角屏过渡逐帧矩形（不变形）+ 名字输入由面板驱动
+            CheckNameDefaultReplace();  // ★ R1-F：默认名「Hero」是整体单元（首次键入整体替换 ⇒ 不再粘连）
             LoadingCheck.Run();         // ★ agent-a3：进图读条画面（原版 10 帧动画）+ 区域名弹出（LevelEntryTitle）
             P5Check.Run();              // ★ 片 5：死亡屏（EndGame）拼装+布局 / 小地图（原版 mapicon、标题已删）
+            CheckR1EDialogUi();         // ★ R1-E：对话/商店 UI 逻辑（S1~S7，引擎互斥 + 几何 + 字模宽度）
 
             Console.WriteLine();
             Console.WriteLine("未覆盖（需要 Unity 原生，留给主 agent 进 Play 后验）："
                 + "① 面板实例化与构件层级；② 贴图像素对齐与观感（含球/条填充真的在动）；"
                 + "③ `Time.timeScale=0` 下 `AfterUnscaled` 的实际触发；④ 拖放手感。");
             Console.WriteLine();
+            if (_skip > 0)
+            {
+                Console.WriteLine($"（另有 {_skip} 项**环境依赖**断言被跳过：原版资源/ 不在本机 —— "
+                    + "它不是仓库内容（`.gitignore` 明确排除），恢复办法见 tools/probes/README.md）");
+            }
             Console.WriteLine(_fail == 0 ? "=== 自检全部通过 ===" : $"=== 自检失败 {_fail} 项 ===");
             return _fail == 0 ? 0 : 1;
         }
@@ -210,7 +226,13 @@ namespace Uicheck
                 },
                 new PanelSpec
                 {
-                    Type = typeof(NpcDialogPanel), Layer = "Popup",
+                    // ★ R1-E 的 S1（2026-09-20）改层：`Popup` → **`Normal`**。
+                    //   为什么必须改：`Popup` 是引擎的**互斥层**（`UIManager.Open` 打开任何 Popup 面板
+                    //   时会把同层其它面板全部 `Close` = `Object.Destroy`）⇒ 点商店的「交易」会把对话条
+                    //   销毁，模块侧 `_currentNpcId` 残留（本文件 ⑬ 有逐条锚定）。原版行为是**共存**
+                    //   （商店打开、对话条仍在）⇒ 只能让对话条降到 `Normal`、商店留在 `Popup`
+                    //   （遮罩挂在 Popup 层 ⇒ 遮罩之上的商店才点得动）。依据见 `UI/NpcDialogPanel.cs` 文件头 S1。
+                    Type = typeof(NpcDialogPanel), Layer = "Normal",
                     // ★ 本片改口径：面板**不再直接发** `QuestAcceptRequest` / `QuestTurnInRequest` /
                     //   `ShopOpenRequest` —— 面板只发**选项下标**（`DialogOptionChosen`），
                     //   由 `NpcModule.ChooseOption` 反解成接取/交付/开商店（**一条路径**，
@@ -898,10 +920,12 @@ namespace Uicheck
         {
             Console.WriteLine("── ⑧-2 任务日志 / NPC 对话文案 ↔ 原版串表（TBL）逐条对账 ──");
 
-            var tblPath = Path.Combine(ProjectRoot, "原版资源", "d2text", "chi_string.txt");
+            var tblPath = Path.Combine(OriginalResDir, "d2text", "chi_string.txt");
             if (!File.Exists(tblPath))
             {
-                Check("原版串表 chi_string.txt 在磁盘上", false, tblPath);
+                CheckOriginalRes("原版串表 chi_string.txt 在磁盘上", tblPath);
+                Console.WriteLine("      ⇒ 本节 ①正向（逐条按串 id 取原文比对）/ ②反向（面板里每个含中日韩字符的"
+                    + "字面量都必须能在串表里找到）一并跳过 —— 判据源不在位时这两条**无法判定**（不是通过）。");
                 return;
             }
 
@@ -1763,6 +1787,460 @@ namespace Uicheck
             Console.WriteLine();
         }
 
+        // ═════════════════════════════════════════════════════════════════════
+        // ⑰ ★ R1-C：创角屏两条修复的离线断言
+        //   用户 2026-09-20 原话：「创建人物时候，点击人物动画变形，很诡异」+
+        //                     「输入框输入…数字的时候会有奇怪的粘连」
+        //
+        // 为什么这两条**能离线判**（而不是"只能进 Play 看"）：
+        //   ① 过渡几何 = `UiLayoutFlow.ClassMenu.Transition` 里的**纯数据**（生成器写入，出处 = 导出 PNG）
+        //      ⇒ 逐帧与磁盘 PNG 的 IHDR 宽高核对，并断言「矩形宽高比 == 该帧原生宽高比」——
+        //      **这就是"变形"的定义**（矩形比例 ≠ 素材比例 ⇒ 被拉伸）；
+        //   ② 名字输入 = `CharCreatePanel.DisplayName` / `EditName` / `IsNameCharAllowed` 三个**纯函数**
+        //      ⇒ 直接喂击键序列断言"文本顺序 / 插入点位置"，覆盖字母/数字/退格/方向键/上限；
+        //   ③ "uGUI 那两条抛点不可达" = **源码事实**（可 grep）：本工程 `UiArt.Input` 关掉射线命中与
+        //      键盘导航（永远成不了 EventSystem 选中项）、面板里 0 处 `caretPosition`；并读 uGUI 源码
+        //      把「哪两行读 `Input.compositionString`」**逐行点名**出来（不是凭记忆说"会抛"）。
+        // 仍需进 Play 的（`表现类`，留给下一批采联络图）：逐帧矩形在屏幕上的观感、点击半身像的动画手感、
+        //   `|` 光标标记的实际显示。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void CheckCharCreateR1C()
+        {
+            Console.WriteLine("── ⑰ ★ R1-C：创角屏「过渡逐帧矩形」+「名字输入由面板驱动」──");
+            CheckTransitionFrameRects();
+            CheckNameInputDriven();
+            Console.WriteLine();
+        }
+
+        /// <summary>过渡**逐帧矩形**：尺寸 == 磁盘 PNG、比例 == 原生比例、两端与三态一致、全在画布内。</summary>
+        private static void CheckTransitionFrameRects()
+        {
+            var frontDir = Path.Combine(ResourceRoot, "Clover", "D2", "UI", "FrontEnd");
+            // 槽位 → 目录名 + 期望帧数（帧数出处 = 导出器输出，见 CharCreatePanel 旧注释里的
+            //   `export_d2ui.py --only frontend` 统计；这里作为**独立第二判据**再核一遍磁盘）
+            var live = new[]
+            {
+                (slot: 0, cls: "amazon", fw: 54, bw: 30),
+                (slot: 2, cls: "barbarian", fw: 64, bw: 19),
+            };
+            var codes = UiLayoutFlow.ClassMenu.Transition.Codes;
+
+            var frames = 0;
+            var countBad = new List<string>();
+            var sizeBad = new List<string>();
+            var ratioBad = new List<string>();
+            var outBad = new List<string>();
+
+            foreach (var c in live)
+            {
+                foreach (var code in codes)
+                {
+                    var want = code == ResPaths.Portrait.TransitionFront ? c.fw : c.bw;
+                    var n = UiLayoutFlow.ClassMenu.Transition.FrameCount(c.slot, code);
+                    var onDisk = Directory.Exists(Path.Combine(frontDir, c.cls))
+                        ? Directory.GetFiles(Path.Combine(frontDir, c.cls), code + "_*.png").Length : 0;
+                    if (n != want || onDisk != want)
+                        countBad.Add($"{c.cls}/{code}: 表={n} 磁盘={onDisk} 期望={want}");
+
+                    for (var f = 0; f < n; f++)
+                    {
+                        var ps = UiLayoutFlow.ClassMenu.Transition.Of(c.slot, code, f);
+                        var png = PngSizeOf(Path.Combine(frontDir, c.cls, code + "_" + f + ".png"));
+                        frames++;
+                        if (ps == null) { sizeBad.Add($"{c.cls}/{code}#{f} Transition.Of 返回 null"); continue; }
+
+                        // ① 表的尺寸 == 磁盘 PNG 实测（逐个像素级相等，这是"表不漂移"的判据）
+                        if (!Near2(ps.OrigSize, png, 0.001f))
+                            sizeBad.Add($"{c.cls}/{code}#{f} 表 {ps.OrigSize.x:0}×{ps.OrigSize.y:0} ≠ PNG {png.x:0}×{png.y:0}");
+
+                        // ② 画布尺寸 == 原版尺寸 × 1.8，且**矩形宽高比 == 该帧原生宽高比**（= 不变形，
+                        //    这正是用户报的那条：215×228 的帧被塞进 118×198 的框）
+                        if (!Near2(ps.Size, png * UiLayoutFlow.Scale, 0.01f))
+                            ratioBad.Add($"{c.cls}/{code}#{f} 画布 {ps.Size.x:0.##}×{ps.Size.y:0.##} ≠ 原生×1.8 " +
+                                         $"{png.x * UiLayoutFlow.Scale:0.##}×{png.y * UiLayoutFlow.Scale:0.##}");
+                        var native = png.x / png.y;
+                        var rect = ps.Size.x / ps.Size.y;
+                        if (Math.Abs(native - rect) > 1e-4f)
+                            ratioBad.Add($"{c.cls}/{code}#{f} 原生比 {native:0.0000} ≠ 矩形比 {rect:0.0000}");
+
+                        // ③ 每一帧都必须落在 1920×1080 参考画布内（含放大后的边）
+                        if (Math.Abs(ps.Pos.x) + ps.Size.x * 0.5f > UiLayoutFlow.RefHalf.x + 0.01f
+                            || Math.Abs(ps.Pos.y) + ps.Size.y * 0.5f > UiLayoutFlow.RefHalf.y + 0.01f)
+                            outBad.Add($"{c.cls}/{code}#{f} 出画布（{ps.Pos.x:0.#},{ps.Pos.y:0.#}）{ps.Size.x:0.#}×{ps.Size.y:0.#}");
+                    }
+                }
+            }
+
+            Check($"过渡序列帧数：表 == 磁盘 PNG == 导出器统计（{live.Length} 职业 × {codes.Length} 段）",
+                countBad.Count == 0, countBad.Count == 0
+                    ? $"amazon 54+30 / barbarian 64+19 = {54 + 30 + 64 + 19}"
+                    : string.Join("；", countBad.ToArray()));
+
+            Check($"过渡逐帧尺寸 == 磁盘 PNG 实测（共 {frames} 帧，0 例外）",
+                sizeBad.Count == 0 && frames > 0, sizeBad.Count == 0
+                    ? $"{frames} 帧全部相等" : string.Join("；", sizeBad.ToArray()));
+
+            Check($"过渡逐帧：**矩形宽高比 == 该帧原生宽高比**（共 {frames} 帧，0 例外 —— 这就是\"变形\"的判据）",
+                ratioBad.Count == 0, ratioBad.Count == 0
+                    ? $"{frames} 帧比例全等（画布尺寸也 = 原生 ×{UiLayoutFlow.Scale}）"
+                    : string.Join("；", ratioBad.ToArray()));
+
+            Check($"过渡逐帧矩形全部落在 1920×1080 参考画布内（共 {frames} 帧）",
+                outBad.Count == 0, outBad.Count == 0 ? "0 帧出画布" : string.Join("；", outBad.ToArray()));
+
+            // ── 两端与三态矩形的衔接（"两头无缝"的判据）──
+            //   fw：首帧 == `NU1`（背面待机）、末帧 == `NU3`（正面待机），**逐像素一致**（两端锚点就是它们）；
+            //   bw：首帧 ≈ `NU3`、末帧 ≈ `NU1`，**≤4 原版px**（`bw_0` = 121×233 vs NU3 121×234、
+            //       `bw_29` = 115×198 vs NU1 118×198 —— 原版这两段的端点帧与该态待机帧本身差 1~3px，
+            //       见 `UiLayoutFlow.ClassMenu.Transition` 的类注释；位置差 ≤ 尺寸差的一半）。
+            var seamBad = new List<string>();
+            foreach (var c in live)
+            {
+                var idle = UiLayoutFlow.ClassMenu.Spot.Of(c.slot, ResPaths.Portrait.Idle);
+                var front = UiLayoutFlow.ClassMenu.Spot.Of(c.slot, ResPaths.Portrait.Front);
+                var fw0 = UiLayoutFlow.ClassMenu.Transition.Of(c.slot, ResPaths.Portrait.TransitionFront, 0);
+                var fwN = UiLayoutFlow.ClassMenu.Transition.Of(c.slot, ResPaths.Portrait.TransitionFront, c.fw - 1);
+                var bw0 = UiLayoutFlow.ClassMenu.Transition.Of(c.slot, ResPaths.Portrait.TransitionBack, 0);
+                var bwN = UiLayoutFlow.ClassMenu.Transition.Of(c.slot, ResPaths.Portrait.TransitionBack, c.bw - 1);
+
+                if (!Near2(fw0.OrigSize, idle.OrigSize, 0.001f) || !Near2(fw0.OrigPos, idle.OrigPos, 0.001f))
+                    seamBad.Add($"{c.cls} fw 首帧 ≠ NU1 矩形");
+                if (!Near2(fwN.OrigSize, front.OrigSize, 0.001f) || !Near2(fwN.OrigPos, front.OrigPos, 0.001f))
+                    seamBad.Add($"{c.cls} fw 末帧 ≠ NU3 矩形");
+                if (!Near2(bw0.OrigSize, front.OrigSize, 4f) || !Near2(bw0.OrigPos, front.OrigPos, 4f))
+                    seamBad.Add($"{c.cls} bw 首帧与 NU3 差 >4 原版px");
+                if (!Near2(bwN.OrigSize, idle.OrigSize, 4f) || !Near2(bwN.OrigPos, idle.OrigPos, 4f))
+                    seamBad.Add($"{c.cls} bw 末帧与 NU1 差 >4 原版px");
+            }
+            Check("过渡两端与三态矩形衔接：fw 两端**逐像素一致**（首 NU1 / 末 NU3）；bw 两端 ≤4 原版px",
+                seamBad.Count == 0, seamBad.Count == 0
+                    ? "amazon/barbarian 两段都接得上（播完不会跳）" : string.Join("；", seamBad.ToArray()));
+
+            // ── 未导出素材的槽位：必须**明确没有**过渡（面板据此退回"不播过渡、直接落终态"）──
+            var others = new List<string>();
+            foreach (var slot in new[] { 1, 3, 4 })
+                foreach (var code in codes)
+                    if (UiLayoutFlow.ClassMenu.Transition.FrameCount(slot, code) != 0
+                        || UiLayoutFlow.ClassMenu.Transition.Has(slot))
+                        others.Add($"{UiLayoutFlow.ClassMenu.Spot.NameOf(slot)}/{code}");
+            Check("未导出素材的三个槽（Necromancer/Paladin/Sorceress）过渡帧数 = 0（不静默播错序列）",
+                others.Count == 0, others.Count == 0 ? "0 命中" : string.Join("；", others.ToArray()));
+
+            // ── 面板侧源码：逐帧矩形确实被用上了（且不许再出现"固定画框"/第二张帧数表）──
+            var createSrc = File.ReadAllText(Path.Combine(UiDir, "CharCreatePanel.cs"));
+            var showFrame = Body(createSrc, "private void ShowTransitionFrame(");
+            Check("过渡逐帧同时同步 sizeDelta + anchoredPosition，几何取自 UiLayoutFlow.ClassMenu.Transition.Of(",
+                showFrame.Contains("UiLayoutFlow.ClassMenu.Transition.Of(")
+                && showFrame.Contains("sizeDelta = ps.Size")
+                && showFrame.Contains("anchoredPosition = ps.Pos"),
+                "见 CharCreatePanel.ShowTransitionFrame");
+            Check("面板里**只有一处**过渡几何出处（旧的 `TransitionFrames` 帧数表已删，避免两张表漂移）",
+                !createSrc.Contains("TransitionFrames")
+                && Body(createSrc, "private void BeginTransition(").Contains("UiLayoutFlow.ClassMenu.Transition.FrameCount("),
+                "见 CharCreatePanel.BeginTransition");
+            Check("过渡帧不设 preserveAspect（矩形已按该帧原生比例给 ⇒ 再等比内缩只会缩小画面）",
+                !showFrame.Contains("preserveAspect")
+                && Body(File.ReadAllText(Path.Combine(UiDir, "UiArt.cs")), "public static Image Art(")
+                    .Contains("SetSprite(img, spritePath);"),
+                "见 CharCreatePanel.ShowTransitionFrame / UiArt.Art");
+        }
+
+        /// <summary>名字输入：显示串（含插入点光标）是纯函数 + 击键序列 round-trip + 两条抛点不可达。</summary>
+        private static void CheckNameInputDriven()
+        {
+            // ── ① 显示串 = 缓冲 + 插入点光标标记（纯函数，逐例）──
+            var mark = CharCreatePanel.CaretMark;
+            Check("名字显示串 = 缓冲在**插入点**插一个光标标记（纯函数，逐例）",
+                CharCreatePanel.DisplayName("Hero", 4) == "Hero" + mark
+                && CharCreatePanel.DisplayName("Hero", 2) == "He" + mark + "ro"
+                && CharCreatePanel.DisplayName("Hero", 0) == mark + "Hero"
+                && CharCreatePanel.DisplayName("a", 99) == "a" + mark          // 越界钳到末尾
+                && CharCreatePanel.DisplayName("a", -5) == mark + "a"           // 越界钳到串首
+                && CharCreatePanel.DisplayName("", 0) == string.Empty          // 空 ⇒ 留空（占位提示按原口径显示）
+                && CharCreatePanel.DisplayName(null, 3) == string.Empty,
+                $"CaretMark=\"{mark}\"；Hero@2 → \"{CharCreatePanel.DisplayName("Hero", 2)}\"");
+
+            // ── ② 击键序列 round-trip（字母 / 数字 / 退格 / Delete / 方向键 / 中间插入 / 上限）──
+            var text = string.Empty;
+            var caret = 0;
+            var bad = new List<string>();
+            void Key(string op, string arg = null)
+            {
+                text = CharCreatePanel.EditName(text, caret, op, arg, 15, out var nc);
+                caret = nc;
+            }
+            void Expect(string what, string wantText, int wantCaret)
+            {
+                if (text != wantText || caret != wantCaret)
+                    bad.Add($"{what}: 得「{text}」@{caret} 期望「{wantText}」@{wantCaret}");
+            }
+
+            Key("ins", "H"); Key("ins", "e"); Key("ins", "3");
+            Expect("键入 H/e/3（含数字）", "He3", 3);
+            Key("left");
+            Expect("← 光标左移", "He3", 2);
+            Key("ins", "X");
+            Expect("在中间插入 X", "HeX3", 3);
+            Key("back");
+            Expect("退格删插入点左边", "He3", 2);
+            Key("del");
+            Expect("Delete 删插入点右边", "He", 2);
+            Key("home"); Key("ins", "A");
+            Expect("Home 后插入到串首", "AHe", 1);
+            Key("end"); Key("ins", "9");
+            Expect("End 后追加数字", "AHe9", 4);
+            Check("击键序列 round-trip：字符顺序 + 插入点位置逐击一致（含被放行的数字）",
+                bad.Count == 0, bad.Count == 0 ? $"最终「{text}」@{caret}" : string.Join("；", bad.ToArray()));
+
+            Check("数字被放行（用户就是在输入数字时踩到粘连）",
+                CharCreatePanel.IsNameCharAllowed('0') && CharCreatePanel.IsNameCharAllowed('9')
+                && CharCreatePanel.IsNameCharAllowed('a') && !CharCreatePanel.IsNameCharAllowed('/')
+                && !CharCreatePanel.IsNameCharAllowed('\n'),
+                "见 CharCreatePanel.IsNameCharAllowed（存档槽位键 = 角色名 ⇒ 挡文件系统非法字符）");
+
+            var l15 = string.Empty;
+            var c15 = 0;
+            for (var i = 0; i < 15; i++) l15 = CharCreatePanel.EditName(l15, c15, "ins", "x", 15, out c15);
+            var l16 = CharCreatePanel.EditName(l15, c15, "ins", "x", 15, out c15);
+            Check("长度上限 15：满 15 字后第 16 个字符不进入、插入点不动",
+                l15.Length == 15 && l16 == l15 && c15 == 15, $"{l15.Length} → {l16.Length} @{c15}");
+
+            // ── ③ 源码层：两条抛点不可达（去注释后再判，避免说明性注释误报）──
+            var createSrc = File.ReadAllText(Path.Combine(UiDir, "CharCreatePanel.cs"));
+            var code = StripCommentLines(createSrc);
+            Check("面板源码（去注释）里 0 处输入框光标 setter —— 该 setter 在本工程配置下**必抛**（已彻底移除）",
+                !code.Contains(".caretPosition"),
+                "旧写法 `_nameInput." + "caretPosition = _nameCaret;` 已删；光标改由显示串承载");
+
+            Check("OnClose 置 `_nameEditing = false`（面板关了不再吃全局键入）",
+                Body(createSrc, "public override void OnClose()").Contains("_nameEditing = false;"),
+                "见 CharCreatePanel.OnClose");
+
+            Check("OnConfirm 读**缓冲**（真值）而不是输入框（输入框里现在是含光标标记的显示串）",
+                Body(createSrc, "private void OnConfirm()").Contains("_nameBuffer.Trim()")
+                && !Body(createSrc, "private void OnConfirm()").Contains("_nameInput.text"),
+                "见 CharCreatePanel.OnConfirm");
+
+            // ── ③b 反复开关屏：OnOpen 必须**重新装配**缓冲/插入点/可编辑标志并立刻刷显示（不许沿用上次的）──
+            var open = Body(createSrc, "public override void OnOpen(");
+            Check("重新打开面板：OnOpen 重建缓冲（`_nameBuffer = args…`）+ 插入点 = 长度 + `_nameEditing = true` + 立刻刷显示",
+                open.Contains("_nameBuffer = args") && open.Contains("_nameCaret = _nameBuffer.Length;")
+                && open.Contains("_nameEditing = true;") && open.Contains("PushName(false);"),
+                "见 CharCreatePanel.OnOpen（配合 OnClose 置 false ⇒ 关屏不吃键、开屏即同步）");
+
+            var push = Body(createSrc, "private void PushName(");
+            var iInput = push.IndexOf("_nameInput.text = display", StringComparison.Ordinal);
+            var iShow = push.IndexOf("textComponent.text = display", StringComparison.Ordinal);
+            Check("PushName：① 同步输入框（m_Text = 显示串，占位判据 + 重绘回调都写回同一串）" +
+                  "→ ② 最后兜写 `textComponent.text`（①抛了也不影响可见文本）",
+                iInput >= 0 && iShow > iInput,
+                $"iInput={iInput} < iShow={iShow}");
+
+            // ── ④ 输入框退出交互：uGUI 的抛点只在"它是 EventSystem 选中项"时才可达 ──
+            var uiArtSrc = File.ReadAllText(Path.Combine(UiDir, "UiArt.cs"));
+            var inputBody = Body(uiArtSrc, "public static InputField Input(");
+            Check("输入框退出交互：底图不吃射线 + 子 Text/占位不吃射线 + 无 targetGraphic + 关键盘导航" +
+                  "（⇒ 永远成不了 EventSystem 选中项 ⇒ 抛点不可达）",
+                inputBody.Contains("InputBg, false")
+                && inputBody.Contains("text.raycastTarget = false;")
+                && inputBody.Contains("ph.raycastTarget = false;")
+                && inputBody.Contains("input.targetGraphic = null;")
+                && inputBody.Contains("Navigation.Mode.None"),
+                "见 UiArt.Input");
+
+            var setSprite = Body(uiArtSrc, "public static void SetSprite(");
+            var iGuard = setSprite.IndexOf("state.Request != request", StringComparison.Ordinal);
+            var iApply = setSprite.IndexOf("img.sprite = sp;", StringComparison.Ordinal);
+            Check("UiArt.SetSprite 有**请求守卫**：同一 Image 只有最新一次请求的回调会落地（过期回调丢弃）",
+                setSprite.Contains("var request = ++state.Request;") && iGuard >= 0 && iApply >= 0 && iGuard < iApply,
+                $"见 UiArt.SetSprite（iGuard={iGuard} < iApply={iApply}）");
+
+            // ── ⑤ 抛点**逐行点名**（读 uGUI 源码，不靠记忆）：`activeInputHandler: 1` + 两处 compositionString 读 ──
+            var projSettings = Path.Combine(ProjectRoot, "client", "ProjectSettings", "ProjectSettings.asset");
+            Check("本工程 `ProjectSettings.asset` = `activeInputHandler: 1`（只用新 Input System —— 抛点的前提）",
+                File.Exists(projSettings) && File.ReadAllText(projSettings).Contains("activeInputHandler: 1"),
+                "client/ProjectSettings/ProjectSettings.asset");
+
+            var uguiDir = Path.Combine(ProjectRoot, "client", "Library", "PackageCache");
+            var uguiHit = Directory.Exists(uguiDir)
+                ? Directory.GetDirectories(uguiDir, "com.unity.ugui@*") : Array.Empty<string>();
+            if (uguiHit.Length == 0)
+            {
+                Console.WriteLine("[SKIP] uGUI 源码不在本机（Library/PackageCache 未生成）⇒ 跳过" +
+                                  "「抛点逐行点名」这一条（本工程未打开编辑器时才会这样）");
+            }
+            else
+            {
+                var ifPath = Path.Combine(uguiHit[0], "Runtime", "UGUI", "UI", "Core", "InputField.cs");
+                var ifLines = File.Exists(ifPath) ? File.ReadAllLines(ifPath) : Array.Empty<string>();
+                var lineComposition = LineOf(ifLines, "input != null ? input.compositionString : Input.compositionString");
+                var lineCaret = LineOf(ifLines, "public int caretPosition");
+                var lineAnchor = LineOf(ifLines, "if (compositionString.Length != 0)");
+                var lineUpdate = LineOf(ifLines, "gameObject == EventSystem.current.currentSelectedGameObject");
+                Check("抛点 ①：`caretPosition` setter → `selectionAnchorPosition` setter → 读 `compositionString`" +
+                      "（⇒ `UnityEngine.Input.compositionString` ⇒ InvalidOperationException）",
+                    lineComposition > 0 && lineCaret > 0 && lineAnchor > 0,
+                    $"{Path.GetFileName(uguiHit[0])}/…/InputField.cs:{lineCaret} setter → :{lineAnchor} 读 compositionString" +
+                    $"，该属性 = :{lineComposition}");
+                Check("抛点 ②：`text` setter → `SetText` → `UpdateLabel` 读同一处，但**只在该框是选中项时**" +
+                      "（`gameObject == currentSelectedGameObject`）",
+                    lineUpdate > 0, $"InputField.cs:{lineUpdate}（有短路 ⇒ 只要它不是选中项就不抛）");
+            }
+
+            // ── ⑥ 「只报一次」的 R1-C 日志必须真在代码里（下一批进 Play 按 tag 检索数值证据）──
+            Check("R1-C 三条生效口径日志在位（过渡逐帧矩形 / 名字输入 / SetSprite 请求守卫）且 tag 已在 `Core/Log.cs` 白名单",
+                CountOf(createSrc, "\"R1-C\"") >= 2 && CountOf(uiArtSrc, "\"R1-C\"") >= 1
+                && File.ReadAllText(Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "Core", "Log.cs"))
+                    .Contains("\"R1-C\","),
+                $"CharCreatePanel {CountOf(createSrc, "\"R1-C\"")} 处 / UiArt {CountOf(uiArtSrc, "\"R1-C\"")} 处"
+                + "（不登记 tag 会多一条「tag 不在白名单」的 Warn）");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ⑱ ★ R1-F：默认名「Hero」是**整体单元**（用户报的"输入框粘连"残留的那一半）
+        //
+        // 为什么单独一节（而不是并进 ⑰）：⑰ 修的是"字符丢 / 光标不动"（uGUI 那两条抛点），
+        //   本节修的是**默认名与用户输入共用一个字符串**这个语义缺陷 —— 判据 = `EditNameDefault`
+        //   这个纯函数的击键序列（离线可逐击断言），与"抛点不可达 / 显示串由面板驱动"是两件事。
+        //
+        // 修复前的实测出处（逐行可点，Play 原始日志）：
+        //   `.ai-tmp/screenshots/r1_evidence_r1.txt:325` `CC-OPEN … nameBuffer="Hero" nameCaret=4`
+        //   `.ai-tmp/screenshots/r1_evidence_r1.txt:752`
+        //     `NAME where=after-typing typed="Ama65x" buffer="HeroAma65x" digitsInBuffer=1 visible_input="HeroAma65x|" caret=10`
+        //   → 截图 `.ai-tmp/screenshots/a08_name_digits.png` 上写着 `NAME: HeroAma65x|`。
+        // =====================================================================
+        private static void CheckNameDefaultReplace()
+        {
+            Console.WriteLine("── ⑱ ★ R1-F：创角名字输入「默认名 Hero 不再粘连」（首次键入**整体替换**）──");
+
+            const string Def = "Hero";        // = client/Assets/Configs/config.json 的 game.default_player_name
+            var mark = CharCreatePanel.CaretMark;
+
+            // ── ① 默认态：开屏可见文本 == `Hero|`（既有口径，本片未改动）──
+            Check("① 默认态：缓冲 == 默认名「Hero」、插入点 == 4、可见文本 == 「Hero" + mark + "」",
+                CharCreatePanel.DisplayName(Def, Def.Length) == Def + mark,
+                $"DisplayName(\"{Def}\",4)=\"{CharCreatePanel.DisplayName(Def, Def.Length)}\"");
+
+            // ── ② 首次键入 'A' ⇒ 整个缓冲被替换（不含 Hero）──
+            int caret;
+            bool pending;
+            var one = CharCreatePanel.EditNameDefault(Def, Def.Length, true, "ins", "A", 15, out caret, out pending);
+            Check("② 首次键入 'A' ⇒ 缓冲 == 「A」（默认名**整体**被替换）、插入点 1、pending 落 false",
+                one == "A" && caret == 1 && !pending, $"buffer=\"{one}\" caret={caret} pending={(pending ? 1 : 0)}");
+            Check("②b 首次键入后的可见文本 == 「A" + mark + "」（**不含** Hero）",
+                CharCreatePanel.DisplayName(one, caret) == "A" + mark
+                && CharCreatePanel.DisplayName(one, caret).IndexOf(Def, StringComparison.Ordinal) < 0,
+                $"visible=\"{CharCreatePanel.DisplayName(one, caret)}\"");
+
+            // ── ③ 连续键入「Ama65x」（含数字）⇒ 完整键入串；**任何一击都不出现 Hero** ──
+            const string Typed = "Ama65x";
+            var buf = Def;
+            var cur = Def.Length;
+            var pend = true;
+            var bad = new List<string>();
+            for (var i = 0; i < Typed.Length; i++)
+            {
+                buf = CharCreatePanel.EditNameDefault(buf, cur, pend, "ins", Typed[i].ToString(), 15,
+                    out cur, out pend);
+                var want = Typed.Substring(0, i + 1);
+                if (buf != want || cur != want.Length)
+                    bad.Add($"第{i + 1}击：得「{buf}」@{cur} 期望「{want}」@{want.Length}");
+                if (buf.IndexOf(Def, StringComparison.Ordinal) >= 0)
+                    bad.Add($"第{i + 1}击：缓冲里出现了默认名 ⇒「{buf}」");
+            }
+            Check($"③ 连续键入「{Typed}」逐击到位（结果「{buf}」@{cur}），且**从未**出现「{Def}{Typed}」",
+                bad.Count == 0 && buf == Typed,
+                bad.Count == 0 ? $"buffer=\"{buf}\" caret={cur} 默认名出现次数=0" : string.Join("；", bad.ToArray()));
+            Check("③b 最终缓冲里 0 个「" + Def + "」—— ⛔ 断言明确排除修复前的「" + Def + Typed + "」",
+                buf.IndexOf(Def, StringComparison.Ordinal) < 0 && buf != Def + Typed,
+                $"buffer=\"{buf}\"；修复前的值 = " + Def + Typed);
+
+            // ── ④ 退格 / Delete / 方向键**不触发**首次替换，且不把默认名删成残缺 ──
+            int c4;
+            bool p4;
+            var back = CharCreatePanel.EditNameDefault(Def, Def.Length, true, "back", null, 15, out c4, out p4);
+            Check("④a 未首次键入时退格：默认名保持完整（「Hero」@4）—— ⛔ 不是「Her」，pending 仍 true",
+                back == Def && c4 == Def.Length && p4 && back != "Her",
+                $"buffer=\"{back}\" caret={c4} pending={(p4 ? 1 : 0)}（规则 = 预填默认名当\"空字段\"，退格不生效）");
+
+            var del = CharCreatePanel.EditNameDefault(Def, Def.Length, true, "del", null, 15, out c4, out p4);
+            Check("④b 未首次键入时 Delete：同样不动文本（插入点在末尾，右侧本无字符）",
+                del == Def && c4 == Def.Length && p4, $"buffer=\"{del}\" caret={c4} pending={(p4 ? 1 : 0)}");
+
+            var left = CharCreatePanel.EditNameDefault(Def, Def.Length, true, "left", null, 15, out c4, out p4);
+            Check("④c 未首次键入时 ←：只移动插入点（Hero @3），文本不变、pending 仍 true",
+                left == Def && c4 == Def.Length - 1 && p4, $"buffer=\"{left}\" caret={c4} pending={(p4 ? 1 : 0)}");
+
+            var mid = CharCreatePanel.EditNameDefault(Def, 2, true, "ins", "A", 15, out c4, out p4);
+            Check("④d 插入点被移到中间(2)后首次键入 ⇒ 仍是**整体替换**（「A」@1）—— ⛔ 不是「HeAro」",
+                mid == "A" && c4 == 1 && !p4, $"buffer=\"{mid}\" caret={c4}");
+
+            var after = CharCreatePanel.EditNameDefault("A", 1, false, "back", null, 15, out c4, out p4);
+            Check("④e 首次键入之后（pending=false）：删除键恢复常规语义（「A」→「」@0）",
+                after == string.Empty && c4 == 0 && !p4, $"buffer=\"{after}\" caret={c4}");
+
+            var end = CharCreatePanel.EditNameDefault(Def, Def.Length, true, "end", null, 15, out c4, out p4);
+            Check("④f Home/End/←→ 都**不清** pending（否则「先按一下方向键再打字」会退化成追加粘连）",
+                end == Def && p4 && left == Def, $"end ⇒ buffer=\"{end}\" pending={(p4 ? 1 : 0)}");
+
+            // ── ⑤ 源码层：0 处输入框光标 setter（该 setter 在本工程配置下必抛）+ 面板确实走了新纯函数 ──
+            var createSrc = File.ReadAllText(Path.Combine(UiDir, "CharCreatePanel.cs"));
+            var code = StripCommentLines(createSrc);
+            Check("⑤ 面板源码（去注释）里 0 处输入框光标 setter —— ⛔ 本片不许恢复该写法",
+                !code.Contains(".caretPosition"),
+                "光标仍由显示串（DisplayName）承载；见 UiArt.Input 的抛点说明");
+
+            Check("⑤b 面板实际走 `EditNameDefault`（⛔ 不许绕开它直连 EditName ⇒ 语义会退回粘连）" +
+                  "，且 OnOpen 设置了 `_nameDefaultPending`",
+                Body(createSrc, "private void ApplyNameEdit(").Contains("EditNameDefault(")
+                && Body(createSrc, "public override void OnOpen(").Contains("_nameDefaultPending"),
+                "见 CharCreatePanel.ApplyNameEdit / OnOpen");
+
+            // ── ⑥ 「Hero」的出处链：值来自配置，不是面板写死、也不是本片新加 ──
+            var cfg = File.ReadAllText(Path.Combine(ProjectRoot, "client", "Assets", "Configs", "config.json"));
+            Check("⑥ 「Hero」来自 `config.json` 的 `game.default_player_name`（面板不写死默认名）",
+                cfg.Contains("\"default_player_name\"") && cfg.Contains("\"Hero\""),
+                "client/Assets/Configs/config.json → Core/ClientConfig.cs:DefaultPlayerName → AppFlow.BuildCharCreateArgs → Args.defaultName");
+
+            Console.WriteLine();
+        }
+
+        /// <summary>某行首次出现 <paramref name="needle"/> 的行号（1 起；找不到 = 0）。</summary>
+        private static int LineOf(string[] lines, string needle)
+        {
+            for (var i = 0; i < lines.Length; i++)
+                if (lines[i].Contains(needle)) return i + 1;
+            return 0;
+        }
+
+        /// <summary>
+        /// 丢掉**整行注释**后的源码（`//` / `*` / `/*` 开头）——本宿主的既有做法（见方向键移动那条检查）：
+        /// 说明性注释会**引用**被删掉的写法，扫进去就是假阳性，而会误报的检查比没有检查更糟。
+        /// </summary>
+        private static string StripCommentLines(string text)
+        {
+            var sb = new StringBuilder();
+            foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+            {
+                var t = line.TrimStart();
+                if (t.StartsWith("//", StringComparison.Ordinal) || t.StartsWith("*", StringComparison.Ordinal)
+                    || t.StartsWith("/*", StringComparison.Ordinal)) continue;
+                sb.Append(line).Append('\n');
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>读 PNG 的宽高（只解析签名 + IHDR；同 `P5Check.PngSize` 的判据，跨文件各留一份避免互改）。</summary>
+        private static Vector2 PngSizeOf(string path)
+        {
+            if (!File.Exists(path)) return new Vector2(-1f, -1f);
+            var b = File.ReadAllBytes(path);
+            if (b.Length < 24) return new Vector2(-1f, -1f);
+            var w = (b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19];
+            var h = (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23];
+            return new Vector2(w, h);
+        }
+
         /// <summary>
         /// 创角热点是不是"原版 7 个里本项目有的那 5 个"（原版矩形中心 ×1.8）。
         /// <para>原版值出处 = `ClassSelectMenu.prefab` 每个热点的
@@ -1856,10 +2334,445 @@ namespace Uicheck
             return "(无)";
         }
 
+        // ═════════════════════════════════════════════════════════════════════
+        // ⑬ ★ R1-E（「人物对话时 UI 逻辑乱七八糟」）的 7 条修复：能离线判的那部分
+        //
+        // 为什么这些可以离线判：
+        //   · S1 / S3 / S4 / S5 / S7 的判据是**源码语义 + 引擎语义**（谁的层是什么、谁补发哪个事件、
+        //     谁订阅了谁、空参数走哪一支）⇒ 读源码文本 + 读**引擎 `UI.cs`** 文本逐条锚定；
+        //   · S6 / S5 还有**几何**判据（选项行 vs 雕槽、标题/提示行 vs 页签带与格区）⇒ 纯矩形运算；
+        //   · 「文案放不放得下」⇒ 用**磁盘上的原版字模表**（`font16_chi_map.txt` + `font_chi_s2t.txt`）
+        //     按 `UI/D2Text` 的口径（advance 求和 × 字号/格高）**实测**，不是"看着差不多"。
+        // 判不了的（**留给下一批进 Play**，已在回报里列明）：真点击穿透 / 真层级观感 / 实机日志。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void CheckR1EDialogUi()
+        {
+            Console.WriteLine("── ⑬ R1-E：对话 / 商店 UI 逻辑（S1~S7）──");
+
+            var dlgSrc = File.ReadAllText(Path.Combine(UiDir, "NpcDialogPanel.cs"), Encoding.UTF8);
+            var shopSrc = File.ReadAllText(Path.Combine(UiDir, "ShopPanel.cs"), Encoding.UTF8);
+            var hudSrc = File.ReadAllText(Path.Combine(UiDir, "HudPanel.cs"), Encoding.UTF8);
+            var dialogSrc = File.ReadAllText(Path.Combine(
+                ProjectRoot, "client", "Assets", "Scripts", "Module", "Npc", "NpcDialog.cs"), Encoding.UTF8);
+            var npcSrc = File.ReadAllText(Path.Combine(
+                ProjectRoot, "client", "Assets", "Scripts", "Module", "Npc", "NpcModule.cs"), Encoding.UTF8);
+            var inputSrc = File.ReadAllText(Path.Combine(
+                ProjectRoot, "client", "Assets", "Scripts", "Module", "Input", "InputReader.cs"), Encoding.UTF8);
+
+            // ── S1：Popup 互斥 ⇒ 只有"对话条让位"这一解（引擎语义逐行锚定）────────────
+            var engineUi = Path.Combine(ProjectRoot, "..", "clover-client-unity-engine",
+                "Runtime", "Presentation", "UI.cs");
+            if (!File.Exists(engineUi))
+            {
+                _skip++;
+                Console.WriteLine($"[SKIP] S1 的引擎语义锚点（{engineUi} 不在本机 ⇒ 跳过）");
+            }
+            else
+            {
+                var ui = File.ReadAllText(engineUi, Encoding.UTF8);
+                var mutex = MethodBody(ui, "private void CloseMutexPanels()");
+                var open = MethodBody(ui, "public void Open<T>(object param = null)");
+                Check("S1：引擎 `CloseMutexPanels` 只关 `Layer == UILayer.Popup` 的面板（互斥语义）",
+                    mutex.Contains("kv.Value.Layer == UILayer.Popup"),
+                    "见 clover-client-unity-engine/Runtime/Presentation/UI.cs");
+                Check("S1：引擎 `Open<T>` 只在 `panel.Layer == UILayer.Popup` 时调互斥 + 显示遮罩",
+                    open.Contains("panel.Layer == UILayer.Popup")
+                    && open.Contains("CloseMutexPanels()") && open.Contains("ShowMask()"),
+                    "见 UI.cs Open<T>");
+                var closeMethod = MethodBody(ui, "public void Close(string panelName)");
+                Check("S1：引擎 `Close(string)` **不发**任何事件、直接销毁面板根（所以模块状态只能由面板补发）",
+                    closeMethod.Contains("Object.Destroy(root)") && !closeMethod.Contains("Emit("),
+                    "见 UI.cs Close(string)");
+            }
+            Check("S1：对话条层 = Normal、商店层 = Popup（＝共存时唯一可行组合）",
+                dlgSrc.Contains("override UILayer Layer => UILayer.Normal")
+                && shopSrc.Contains("override UILayer Layer => UILayer.Popup"),
+                "对话 Normal（遮罩之下，被压暗不可点=模态）/ 商店 Popup（遮罩之上，点得动）");
+
+            // ── S2：点 UI 不产生地面意图（两个入口都过纯判定；判定源不是裸 UnityEngine.Input）──
+            //   ⚠️ 判据必须锚在**代码**上：本文件的头注释里**引用**了被禁的写法
+            //      （"直连 `UnityEngine.Input` / `Keyboard.current` 会静默失效"）⇒ 不剥注释就是假阳性。
+            var inputCode = NoComments(inputSrc);
+            Check("S2：两个取点入口都过 UI 命中判定（单击 + 按住）",
+                CountOf(inputCode, "UiEatsIntent(_down,") == 1 && CountOf(inputCode, "UiEatsIntent(_held,") == 1,
+                $"UiEatsIntent 出现 {CountOf(inputCode, "UiEatsIntent(")} 处（含定义 1 处）");
+            Check("S2：UI 命中判定是纯函数 `UiEatsIntent(pressed, pointerOverUi)` ⇒ 宿主可逐行断言两种情形",
+                inputCode.Contains("public static bool UiEatsIntent(bool pressed, bool pointerOverUi) => pressed && pointerOverUi"),
+                "见 InputReader.UiEatsIntent");
+            Check("S2：判定源 = UnityEngine.EventSystems（反射）+ 可注入替身，⛔ 代码里没有裸 UnityEngine.Input / Keyboard.current",
+                inputCode.Contains("PointerOverUi = UiPointerProbe.PointerOverUi")
+                && inputCode.Contains("EventSystem")
+                && !inputCode.Contains("UnityEngine.Input.")
+                && !inputCode.Contains("Keyboard.current") && !inputCode.Contains("Mouse.current"),
+                "见 InputReader.PointerOverUi / UiPointerProbe（反射解析 `UnityEngine.EventSystems.EventSystem`）");
+
+            // ── S3：面板关闭即让模块侧状态归零（补发 DialogClose；先退订再发，无回环）──────
+            var onClose = MethodBody(dlgSrc, "public override void OnClose()");
+            Check("S3：对话面板 `OnClose` 补发 `Events.DialogClose`（引擎 Close 不补发 ⇒ 只能由这里补）",
+                onClose.Contains("Game.Event?.Emit(Events.DialogClose)"),
+                "见 NpcDialogPanel.OnClose");
+            Check("S3：先 `Unsubscribe()` 再 Emit（顺序 ⇒ 不会收到自己发的那条，无回环）",
+                onClose.IndexOf("Unsubscribe();", StringComparison.Ordinal) >= 0
+                && onClose.IndexOf("Unsubscribe();", StringComparison.Ordinal)
+                   < onClose.IndexOf("Emit(Events.DialogClose)", StringComparison.Ordinal),
+                "见 NpcDialogPanel.OnClose 的语句顺序");
+            Check("S3：模块侧 `_currentNpcId` 由 `DialogClose` 清（面板/模块两条通道都幂等）",
+                npcSrc.Contains("private void OnDialogClose()") && npcSrc.Contains("_currentNpcId = (int)NpcId.None;"),
+                "见 NpcModule.OnDialogClose");
+            Check("S3：`QuestChanged` 的唯一开面板门槛 = `_currentNpcId != None`（= 面板确实开着）",
+                MethodBody(npcSrc, "private void OnQuestChanged(QuestStateDto quest)")
+                    .Contains("if (_currentNpcId == (int)NpcId.None) return;"),
+                "见 NpcModule.OnQuestChanged");
+            var resolveBody = MethodBody(npcSrc, "private int ResolveNpcId(int fromArgs)");
+            Check("S3：交易请求不再用阿卡拉兜底（npcId 缺失 ⇒ 返回 None + Warn ⇒ 交易失败可定位）",
+                resolveBody.Contains("return (int)NpcId.None;")
+                && !resolveBody.Contains("return (int)NpcId.Akara;"),
+                "见 NpcModule.ResolveNpcId");
+
+            // ── S4：一次 DialogOpen 只 Rebuild 一次（唯一权威路径）────────────────────
+            Check("S4：打开路径唯一 = `HudPanel.OnDialogOpen` → `Game.UI.Open<NpcDialogPanel>(args)`",
+                hudSrc.Contains("Game.UI.Open<NpcDialogPanel>(args)")
+                && hudSrc.Contains("Game.Event.On<NpcDialogArgs>(Events.DialogOpen, OnDialogOpen)"),
+                "见 HudPanel.OnDialogOpen");
+            Check("S4：对话面板**不再**订阅 `Events.DialogOpen`（重复订阅已删除）",
+                !dlgSrc.Contains("Game.Event.On<NpcDialogArgs>(Events.DialogOpen")
+                && !dlgSrc.Contains("private void OnDialogOpen("),
+                "见 NpcDialogPanel.Subscribe");
+            Check("S4：面板仍保留 `Events.DialogClose` 订阅（模块要求关面板时的唯一回程）",
+                dlgSrc.Contains("Game.Event.On(Events.DialogClose, OnDialogCloseEvent)"),
+                "见 NpcDialogPanel.Subscribe");
+
+            // ── S6：菜单项挪出雕花方槽（几何）────────────────────────────────────────
+            var k = UiLayoutGame.K;
+            var slotSize = new Vector2(NpcDialogPanel.SlotCellSize * k, NpcDialogPanel.SlotCellSize * k);
+            var slotL = RectAt(NpcDialogPanel.Cx((NpcDialogPanel.SlotCellLeftX0 + NpcDialogPanel.SlotCellLeftX1) * 0.5f),
+                NpcDialogPanel.Cy((NpcDialogPanel.SlotCellY0 + NpcDialogPanel.SlotCellY1) * 0.5f), slotSize);
+            var slotR = RectAt(NpcDialogPanel.Cx((NpcDialogPanel.SlotCellRightX0 + NpcDialogPanel.SlotCellRightX1) * 0.5f),
+                NpcDialogPanel.Cy((NpcDialogPanel.SlotCellY0 + NpcDialogPanel.SlotCellY1) * 0.5f), slotSize);
+            var optBad = "";
+            var opts = new Rect[NpcDialogPanel.MaxOptions];
+            for (var i = 0; i < opts.Length; i++)
+                opts[i] = RectAt(NpcDialogPanel.OptionX, NpcDialogPanel.OptionY(i), NpcDialogPanel.OptionSize);
+            for (var i = 0; i < opts.Length; i++)
+            {
+                if (opts[i].Overlaps(slotL) || opts[i].Overlaps(slotR)) optBad += i + ":压雕槽 ";
+                if (i > 0 && opts[i - 1].Overlaps(opts[i])) optBad += i + ":相互重叠 ";
+            }
+            Check("S6：菜单项（最多 3 个）与两个 34×34 雕花方槽**二维不相交**、彼此不重叠",
+                optBad.Length == 0,
+                optBad.Length == 0
+                    ? $"选项列 x={opts[0].xMin:0.#}..{opts[0].xMax:0.#} / 雕槽左 {slotL.xMin:0.#}..{slotL.xMax:0.#} 右 {slotR.xMin:0.#}..{slotR.xMax:0.#}"
+                    : optBad);
+
+            var vx0 = NpcDialogPanel.Cx(2f);
+            var vx1 = NpcDialogPanel.Cx(207f);
+            var vyTop = NpcDialogPanel.Cy(2f);
+            var vyBottom = NpcDialogPanel.Cy(155f);
+            var outBad = "";
+            for (var i = 0; i < opts.Length; i++)
+            {
+                if (opts[i].xMin < vx0 - 0.01f || opts[i].xMax > vx1 + 0.01f
+                    || opts[i].yMax > vyTop + 0.01f || opts[i].yMin < vyBottom - 0.01f)
+                    outBad += i + ":出石框 ";
+            }
+            Check("S6：菜单项仍全部落在石框**可见区**（原版 x 2..207 / y 2..155）内、不越底沿",
+                outBad.Length == 0,
+                outBad.Length == 0
+                    ? "可见区 x[" + vx0.ToString("0.#") + "," + vx1.ToString("0.#") + "] y["
+                      + vyBottom.ToString("0.#") + "," + vyTop.ToString("0.#") + "] 行心原版y="
+                      + NpcDialogPanel.OptionOrigY(0).ToString("0.0") + " / "
+                      + NpcDialogPanel.OptionOrigY(1).ToString("0.0") + " / "
+                      + NpcDialogPanel.OptionOrigY(2).ToString("0.0")
+                    : outBad);
+            Check("S6：选项行宽 = 66 原版px（两雕槽之间净宽 72 内缩 3）、列心 = 原版 x 103",
+                Math.Abs(NpcDialogPanel.OptionW - 66f) < 0.01f
+                && Math.Abs(NpcDialogPanel.OptionX - NpcDialogPanel.Cx(103f)) < 0.01f,
+                "W=" + NpcDialogPanel.OptionW + " OptionX=" + NpcDialogPanel.OptionX.ToString("0.#"));
+
+            // ── S7：漏参数不复用旧状态 ─────────────────────────────────────────────
+            //   ⚠️ 同样必须剥注释：本文件头的 S7 说明里**引用**了改前那行写法。
+            var dlgCode = NoComments(dlgSrc);
+            Check("S7：`OnOpen` 的 null 参数分支置空态（`_dialog = null`）、且**没有**复用旧值那行",
+                dlgCode.Contains("_dialog = null;") && !dlgCode.Contains("if (dialog != null) _dialog = dialog;"),
+                "见 NpcDialogPanel.OnOpen");
+
+            // ── S5：商店标题/提示行建出 + 落位 + 文案口径 ──────────────────────────────
+            Check("S5：`_title` / `_hint` 真被创建（`BuildTitleLines()` 由 `Build()` 调用）",
+                shopSrc.Contains("BuildTitleLines();")
+                && CountOf(shopSrc, "D2Label.Create(transform, \"ShopTitle\"") == 1
+                && CountOf(shopSrc, "D2Label.Create(transform, \"ShopHint\"") == 1,
+                "见 ShopPanel.BuildTitleLines");
+            var applyTitle = MethodBody(shopSrc, "private void ApplyTitle()");
+            Check("S5：`ApplyTitle()` 同时写标题行与提示行（⛔ 不再是恒空转）",
+                applyTitle.Contains("_title.SetText(name)") && applyTitle.Contains("_hint.SetText(page)"),
+                "见 ShopPanel.ApplyTitle");
+            var st = RectAt(UiLayoutGame.ShopTitlePos.x, UiLayoutGame.ShopTitlePos.y, UiLayoutGame.ShopInfoLineSize);
+            var sh = RectAt(UiLayoutGame.ShopHintPos.x, UiLayoutGame.ShopHintPos.y, UiLayoutGame.ShopInfoLineSize);
+            Check("S5：标题行 / 提示行落在「页签带底沿 ~ 格区顶沿」的空带里、两行不重叠、不越面板",
+                !st.Overlaps(sh)
+                && st.yMax <= UiLayoutGame.ShopTabBottomY + 0.01f
+                && sh.yMin >= UiLayoutGame.ShopGridTopY - 0.01f
+                && sh.yMin >= -ShopPanel.PanelSize.y * 0.5f
+                && st.yMax <= ShopPanel.PanelSize.y * 0.5f
+                && st.xMin >= -ShopPanel.PanelSize.x * 0.5f && st.xMax <= ShopPanel.PanelSize.x * 0.5f,
+                "标题 " + st.yMin.ToString("0.#") + ".." + st.yMax.ToString("0.#")
+                + " / 提示 " + sh.yMin.ToString("0.#") + ".." + sh.yMax.ToString("0.#")
+                + " / 空带 " + UiLayoutGame.ShopGridTopY.ToString("0.#") + ".."
+                + UiLayoutGame.ShopTabBottomY.ToString("0.#"));
+
+            // ── S5/S6 的文案必须**放得下**（用磁盘上的原版字模表实测，不靠眼估）────────────
+            var cm = LoadChiMetrics();
+            Check("S5/S6：原版 font16 中文字模表已在磁盘上解析（13800 码位 + 简繁映射）",
+                cm.Advance.Count >= 13800 && cm.S2T.Count >= 3000,
+                "advance=" + cm.Advance.Count + " s2t=" + cm.S2T.Count + " cell=" + cm.Cell);
+
+            var optionTexts = new[] { "離開", "重要消息", "交易", "交易/修理" };
+            var wideBad = "";
+            foreach (var t in optionTexts)
+            {
+                string miss;
+                var w = ChiWidth(cm, t, 20, out miss);
+                if (w < 0f) { wideBad += "「" + t + "」缺字(" + miss + ") "; continue; }
+                if (w > NpcDialogPanel.OptionSize.x + 0.01f)
+                    wideBad += "「" + t + "」" + w.ToString("0.#") + ">" + NpcDialogPanel.OptionSize.x.ToString("0.#") + " ";
+            }
+            var widest = ChiWidth(cm, "交易/修理", 20, out _);
+            Check("S6：对话菜单项文案在字模下都放得下（最宽的一条 ≤ 选项行宽，不换行/不溢出）",
+                wideBad.Length == 0,
+                wideBad.Length == 0
+                    ? "「交易/修理」" + widest.ToString("0.#") + " ≤ 行宽 " + NpcDialogPanel.OptionSize.x.ToString("0.#") + " 画布px"
+                    : wideBad);
+
+            var shopTexts = new[] { "阿卡拉", "卡夏", "恰西", "基得", "瓦瑞夫", "买入", "卖出" };
+            var shopBad = "";
+            foreach (var t in shopTexts)
+            {
+                // `_title` / `_hint` 与 `_gold` 同一套口径：D2Label 不传 fontSize ⇒ 缩放 1（原生档）
+                string miss;
+                var w = ChiWidth(cm, t, cm.Cell, out miss);
+                if (w < 0f) { shopBad += "「" + t + "」缺字(" + miss + ") "; continue; }
+                if (w > UiLayoutGame.ShopInfoLineSize.x + 0.01f)
+                    shopBad += "「" + t + "」" + w.ToString("0.#") + ">" + UiLayoutGame.ShopInfoLineSize.x.ToString("0.#") + " ";
+            }
+            Check("S5：商店标题/提示文案在字模下都放得下、且**无缺字**（缺字按原版行为不画）",
+                shopBad.Length == 0,
+                shopBad.Length == 0
+                    ? "最长「阿卡拉」" + ChiWidth(cm, "阿卡拉", cm.Cell, out _).ToString("0.#")
+                      + " ≤ 行宽 " + UiLayoutGame.ShopInfoLineSize.x.ToString("0.#") + " 画布px"
+                    : shopBad);
+
+            // ── 7 条修复各有「只报一次」的 R1-E 日志（实机对账用）────────────────────
+            var all = dlgSrc + shopSrc + inputSrc + npcSrc;
+            var noLog = "";
+            for (var s = 1; s <= 7; s++)
+                if (!all.Contains("[R1-E] S" + s + " ")) noLog += "S" + s + " ";
+            Check("R1-E：7 条修复点各有「只报一次」的 `[R1-E] S<n>` Info 日志（写清生效口径）",
+                noLog.Length == 0, noLog.Length == 0 ? "S1~S7 全在" : "缺：" + noLog);
+
+            // ── 回归：不许把"本来已经对的三条"改回去（上一轮已修好）──────────────────
+            //   判据 = `NpcDialog.cs` 的**字符串字面量**（⛔ 不扫注释：文档注释里满是 markdown 的 `**`）
+            // 先剥注释再取字面量：`NpcDialog.cs` 的文档注释里**引用了**"接受任务 / 交付任务 / 结束对话"
+            // 这三个自造词（作为禁令说明），直接扫原文会把注释里的引号当字面量 ⇒ 假阳性。
+            var dlgLits = Literals(NoComments(dialogSrc));
+            var badLit = "";
+            foreach (var lit in dlgLits)
+            {
+                if (lit.Contains("接受任务") || lit.Contains("交付任务") || lit.Contains("结束对话")
+                    || lit.Contains("**")) badLit += "「" + lit + "」 ";
+            }
+            var optionConsts =
+                dialogSrc.Contains("OptionClose = \"離開\"")
+                && dialogSrc.Contains("OptionQuestNews = \"重要消息\"")
+                && dialogSrc.Contains("OptionShopBlacksmith = \"交易/修理\"")
+                && dialogSrc.Contains("OptionShopGoods = \"交易\"");
+            Check("回归：原版串口径仍在（`NpcDialog.cs` 的字面量里没有自造按钮字样、没有字面 `**`；4 条选项串在位）",
+                badLit.Length == 0 && optionConsts && dlgSrc.Contains("Events.DialogOptionChosen"),
+                (badLit.Length == 0 ? $"字面量 {dlgLits.Count} 条全部干净" : badLit)
+                + (optionConsts ? "；4 条选项串（離開/重要消息/交易·修理/交易）在位" : "；**选项串被改过**"));
+
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// 取某个声明（方法 / 属性）之后**配对花括号**包起来的那一段（含声明行）。
+        /// 为什么不用"截到下一个空行"或"截到下一个 8 空格缩进的 `}`"（那是本文件既有的 `Body`）：
+        /// 前者的方法体里本来就有空行（注释块之间）⇒ 会截短 ⇒ 假 FAIL。本方法按**花括号配对**切，
+        /// 对"方法体内还有 lambda / 嵌套块"的写法也稳。
+        /// </summary>
+        private static string MethodBody(string src, string marker)
+        {
+            var i = src.IndexOf(marker, StringComparison.Ordinal);
+            if (i < 0) return string.Empty;
+            var open = src.IndexOf('{', i);
+            if (open < 0) return string.Empty;
+
+            var depth = 0;
+            for (var j = open; j < src.Length; j++)
+            {
+                if (src[j] == '{') depth++;
+                else if (src[j] == '}')
+                {
+                    depth--;
+                    if (depth == 0) return src.Substring(i, j - i + 1);
+                }
+            }
+            return src.Substring(i);
+        }
+
+        /// <summary>
+        /// 去掉注释（`//…` 与 `/*…*/`，字符串里的不算）后的源码。
+        /// 为什么必须有它：这些源码的**文档注释里会引用被禁的写法**（"⛔ 一律走 `Game.Input`，
+        /// 直连 `UnityEngine.Input` 会静默失效"、"改前是 `if (dialog != null) _dialog = dialog;`"）
+        /// ⇒ 拿整份文本做 `!Contains(...)` 就是**假阳性**，会误报成"没修"。
+        /// </summary>
+        private static string NoComments(string src)
+        {
+            var sb = new StringBuilder(src.Length);
+            for (var i = 0; i < src.Length; i++)
+            {
+                if (src[i] == '/' && i + 1 < src.Length && src[i + 1] == '/')
+                {
+                    while (i < src.Length && src[i] != '\n') i++;
+                    sb.Append('\n');
+                    continue;
+                }
+                if (src[i] == '/' && i + 1 < src.Length && src[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < src.Length && !(src[i] == '*' && src[i + 1] == '/')) i++;
+                    i++;
+                    continue;
+                }
+                if (src[i] == '"')
+                {
+                    sb.Append(src[i]);
+                    i++;
+                    while (i < src.Length && src[i] != '"')
+                    {
+                        if (src[i] == '\\' && i + 1 < src.Length) { sb.Append(src[i]); i++; }
+                        if (i < src.Length) { sb.Append(src[i]); i++; }
+                    }
+                    if (i < src.Length) sb.Append(src[i]);
+                    continue;
+                }
+                sb.Append(src[i]);
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>源码里的字符串字面量（含转义序列原样保留；用于"这句画面文案是不是自造的"判定）。</summary>
+        private static List<string> Literals(string src)
+        {
+            var res = new List<string>();
+            foreach (Match m in Regex.Matches(src, "\"([^\"\\\\]|\\\\.)*\""))
+                res.Add(m.Value.Trim('"'));
+            return res;
+        }
+
+        /// <summary>以**中心**与尺寸建矩形（本项目所有面板常量都是中心语义）。</summary>
+        private static Rect RectAt(float cx, float cy, Vector2 size)
+            => new Rect(cx - size.x * 0.5f, cy - size.y * 0.5f, size.x, size.y);
+
+        /// <summary>原版中文字模度量（font16）：码位 → 步进（px）+ 简繁映射 + 格高。</summary>
+        private sealed class ChiMetrics
+        {
+            public readonly Dictionary<int, int> Advance = new Dictionary<int, int>();
+            public readonly Dictionary<int, int> S2T = new Dictionary<int, int>();
+            public int Cell = 13;
+        }
+
+        /// <summary>
+        /// 解析磁盘上的原版中文字模表（`Resources/Clover/D2/Fonts/font16_chi_map.txt` +
+        /// `font_chi_s2t.txt`）—— 口径与 `UI/D2Text` 运行期一致（advance = 表里的 `width`）。
+        /// </summary>
+        private static ChiMetrics LoadChiMetrics()
+        {
+            var m = new ChiMetrics();
+            var fontDir = Path.Combine(ResourceRoot, "Clover", "D2", "Fonts");
+
+            var map = Path.Combine(fontDir, "font16_chi_map.txt");
+            if (File.Exists(map))
+            {
+                foreach (var line in File.ReadAllLines(map, Encoding.UTF8))
+                {
+                    if (line.Length == 0 || line[0] == '#') continue;
+                    if (line.StartsWith("CELL", StringComparison.Ordinal))
+                    {
+                        var cp = line.Split(' ');
+                        if (cp.Length >= 2 && int.TryParse(cp[1], out var cell)) m.Cell = cell;
+                        continue;
+                    }
+                    if (line.StartsWith("COLS", StringComparison.Ordinal)
+                        || line.StartsWith("COUNT", StringComparison.Ordinal)) continue;
+
+                    var f = line.Split(' ');
+                    if (f.Length < 5) continue;
+                    if (int.TryParse(f[0], out var code) && int.TryParse(f[2], out var adv))
+                        m.Advance[code] = adv;
+                }
+            }
+
+            var s2t = Path.Combine(fontDir, "font_chi_s2t.txt");
+            if (File.Exists(s2t))
+            {
+                foreach (var line in File.ReadAllLines(s2t, Encoding.UTF8))
+                {
+                    if (line.Length == 0 || line[0] == '#') continue;
+                    var f = line.Split(' ', '\t');
+                    if (f.Length < 2) continue;
+                    if (int.TryParse(f[0], out var from) && int.TryParse(f[1], out var to))
+                        m.S2T[from] = to;
+                }
+            }
+            return m;
+        }
+
+        /// <summary>
+        /// 某串在 chi 字模下的**画布宽度**：Σ advance × (字号/格高)（= `UI/D2Text.ScaleFor` 的口径）；
+        /// 字模表与简繁映射都补不到的字 ⇒ 返回 -1 并点名（原版行为是"不画"，这里当失败）。
+        /// </summary>
+        private static float ChiWidth(ChiMetrics m, string text, int canvasFontSize, out string missing)
+        {
+            missing = "";
+            var native = 0;
+            for (var i = 0; i < text.Length; i++)
+            {
+                var c = (int)text[i];
+                if (m.Advance.TryGetValue(c, out var a)) { native += a; continue; }
+                if (m.S2T.TryGetValue(c, out var t) && m.Advance.TryGetValue(t, out var a2)) { native += a2; continue; }
+                missing += text[i];
+            }
+            if (missing.Length > 0) return -1f;
+            return native * (canvasFontSize / (float)m.Cell);
+        }
+
         internal static void Check(string what, bool ok, string detail)
         {
             if (!ok) _fail++;
             Console.WriteLine($"{(ok ? "[ OK ]" : "[FAIL]")} {what}   ({detail})");
+        }
+
+        /// <summary>
+        /// 「原版依据在磁盘上」这一类断言（原版串表 / 原版 DC6 等）。
+        /// 为什么要有这条分支：`原版资源/` **按约定不进 git**（`.gitignore` 末段："下载/解包素材唯一来源，
+        /// 体积大 + 版权物，不进 git"）⇒ 干净检出、或没下载过素材的机器上它必然不存在，**那不是缺陷**。
+        /// 口径（2026-09-20 定）：
+        ///   · 原版资源树**在位** ⇒ 照旧逐条 `Check(File.Exists(...))`（⛔ 在位就必须过，没有放宽）；
+        ///   · 原版资源树**不在位** ⇒ 打 `[SKIP]` + 期望路径，**不计失败**（否则这台机器永远到不了 FAILED=0，
+        ///     而"红"表达的是「素材没下载」这件与代码无关的事）。
+        /// 实测依据：本机 `原版资源/` 不存在（`Test-Path` 假、`git ls-files 原版资源` 空、全工作区搜
+        /// `chi_string.txt` / `loadingscreen.dc6` 各 0 命中）⇒ 旧口径下 uicheck 恒 2 项红。
+        /// </summary>
+        internal static void CheckOriginalRes(string what, string path)
+        {
+            if (!Directory.Exists(OriginalResDir))
+            {
+                _skip++;
+                Console.WriteLine($"[SKIP] {what}   (原版资源/ 不在本机 ⇒ 跳过；期望路径 {path}；"
+                    + "恢复 = 按 tools/probes/README.md 的素材落位说明下载到 <仓库根>/原版资源/)");
+                return;
+            }
+            Check(what, File.Exists(path), File.Exists(path) ? Path.GetFileName(path) : ("缺 " + path));
         }
     }
 }

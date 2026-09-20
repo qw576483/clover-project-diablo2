@@ -7,6 +7,12 @@
 //   stock(List<ShopEntry>)/playerItems(List<InventorySlot>)/repairAllCost）。
 // ★ 请求（不变）：`Events.ShopBuyRequest` / `ShopSellRequest` / `ShopRepairRequest` / `ShopClose`。
 // ⛔ 零 `using Diablo2.Module`（分层自检 ③）。
+//
+// ★ R1-E 的 S5（本片）：`_title` / `_hint` 原先**声明了却从不创建** ⇒ `ApplyTitle()` 恒空转、
+//   商店上看不到"这是谁家的、现在哪一页"。现在两行由 `BuildTitleLines()` 建出并接线
+//   （落位 = 页签带与 10×10 格区之间的底图空白带，依据与核算见 `UI/UiLayoutGame.cs` §商店 的 S5 注释）。
+//   ⚠️ 本面板的**层仍是 `Popup`**，这是 R1-E 的 S1 要的（对话条降到 Normal 让位给商店遮罩，
+//      商店必须在遮罩**之上**才点得动；依据见 `UI/NpcDialogPanel.cs` 文件头的 S1）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -56,6 +62,9 @@ namespace Diablo2.UI
         private bool _subscribed;
         private ShopOpenArgs _shop;
 
+        /// <summary>`[R1-E] S5` 的「只报一次」：标题/提示行接线口径（含实际文案，供实机对账）。</summary>
+        private static bool _loggedS5;
+
         private D2Label _title;
         private D2Label _gold;
         private D2Label _hint;
@@ -99,8 +108,37 @@ namespace Diablo2.UI
             UiArt.SetSprite(bg, ResPaths.PanelBuySellBack);
 
             BuildTabs();
+            BuildTitleLines();
             BuildGrid();
             BuildBottomBar();
+        }
+
+        /// <summary>
+        /// ★ R1-E 的 **S5**：把原先**声明了却从不创建**的 `_title` / `_hint` 真建出来
+        /// （改前 `ApplyTitle()` 恒空转 ⇒ 商店上看不到"这是谁家的、现在哪一页"）。
+        /// <para>
+        /// 落位 = 页签带与 10×10 格区之间那段**底图空白带**（原版 y ≈ 29..62）；
+        /// 为什么只有这里能放、以及两行不相交的核算，见 `UI/UiLayoutGame.cs` §商店 的 S5 注释
+        /// 与 `uicheck` 的 ④-2 断言。字模/字号口径与 `_gold` 完全一致（`D2Text.D2Font.Font16`，
+        /// 不传 fontSize ⇒ 原生档，与同面板的 `_gold` / 格内数量同一套，⛔ 不在这里另立字号）。
+        /// </para>
+        /// </summary>
+        private void BuildTitleLines()
+        {
+            _title = D2Label.Create(transform, "ShopTitle", string.Empty, D2Text.D2Font.Font16,
+                TextAnchor.MiddleCenter, UiArt.TitleColor,
+                UiLayoutGame.ShopInfoLineSize, UiLayoutGame.ShopTitlePos);
+
+            _hint = D2Label.Create(transform, "ShopHint", string.Empty, D2Text.D2Font.Font16,
+                TextAnchor.MiddleCenter, UiArt.TextColor,
+                UiLayoutGame.ShopInfoLineSize, UiLayoutGame.ShopHintPos);
+
+            if (_title == null || _hint == null)
+            {
+                // 非预期分支：标签没建出来（面板结构问题）⇒ 点名，别静默
+                UiLog.Warn($"商店标题/提示行没建出来（title={(_title != null)} hint={(_hint != null)}）"
+                    + " ⇒ 标题与页提示不可见（见 ShopPanel.BuildTitleLines）");
+            }
         }
 
         /// <summary>顶部原版页签（`buyselltabs` 8 帧 = 4 页签 × 常态/按下）。</summary>
@@ -266,11 +304,30 @@ namespace Diablo2.UI
             }
         }
 
+        /// <summary>
+        /// 刷新商店的**标题行（NPC 名）+ 提示行（当前页）**（R1-E 的 S5）。
+        /// <para>文案口径：NPC 名 = 模块给的 `ShopOpenArgs.npcName`（= 原版串表的 NPC 名，**不是自写**，
+        /// 串 id 见 `Module/Npc/NpcModule.Names`）；页名 = 「买入」/「卖出」两个既有的本项目面板用词
+        /// （与同面板底部方钮的「修理 / 关闭」同一类：原版这两个词的**串表出处不在本批材料里**
+        /// —— 原版 `buyselltabs` 8 帧实测是**纯大理石、没有烘字**，页名在原版也是运行时文字 ⇒
+        /// 本项目沿用既有简体用词，登记在回报的末节）。</para>
+        /// <para>⛔ 不改 `_sellMode` 的判定、不新增页签、不改 `OnTab` 行为（S5 只补"从不创建"的那两行）。</para>
+        /// </summary>
         private void ApplyTitle()
         {
             var name = _shop != null ? _shop.npcName : "?";
             var page = _sellMode ? "卖出" : "买入";
-            if (_hint != null) _hint.SetText($"{name} · {page}");
+            if (_title != null) _title.SetText(name);
+            if (_hint != null) _hint.SetText(page);
+
+            if (!_loggedS5)
+            {
+                _loggedS5 = true;
+                UiLog.Info("[R1-E] S5 生效：商店标题/提示行已建出并接线 —— 标题行 = 「" + name
+                    + "」（模块给的 NPC 名）、提示行 = 「" + page + "」（当前页）；"
+                    + "落位 " + UiLayoutGame.ShopTitlePos.y.ToString("0.#") + " / "
+                    + UiLayoutGame.ShopHintPos.y.ToString("0.#") + " 画布 y（页签带与格区之间的空带）");
+            }
         }
 
         /// <summary>

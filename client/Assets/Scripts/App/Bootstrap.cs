@@ -48,6 +48,7 @@ namespace Diablo2.App
             AppSnapshots.ResetStaticForNewPlaySession();
             AppDoorGuard.ResetStaticForNewPlaySession();
             AppFlow.ResetStaticForNewPlaySession();
+            FramePacing.ResetStaticsForNewPlaySession();   // ★ R1-D：帧节奏那条"只报一次"也要按局复位
             Log.ResetThrottle();          // 上一局的"只报一次"记录不许压住本局该报的日志
 
             Game.Logger?.Info("App",
@@ -131,6 +132,12 @@ namespace Diablo2.App
 
             // ⑤ 把上次存的设置应用到引擎（音量 / 全屏 ⇒ 「重进后仍在」）
             ApplyStoredSettings();
+
+            // ⑤b ★ R1-D：**帧节奏钉死**（「人物移动抖动」候选①的修复点；口径/论据见 `Core/FramePacing.cs`）。
+            //     ⚠️ 顺序**必须**在 `ApplyStoredSettings` **之后**：它内部的
+            //     `QualitySettings.SetQualityLevel` 会按档位把 `vSyncCount` 重置成 0/1
+            //     ⇒ 早于它设会被覆盖（帧率上限随画质档位漂移 = 旧口径）。
+            FramePacing.Pin("启动");
 
             // ⑥ 模块装配（先 AutoWire 自动接入已实现模块，再显式建流程）
             var ctx = AppContext.Create();

@@ -47,6 +47,8 @@ internal static class MapCheckProgram
         // ── 片 3（「野外地图太小 / 怪物太少」）新增 ─────────────────────────────
         Run(Step13_WildernessFixedSize);
         Run(Step14_BorderSealGaps);
+        // ── ★ R1-B（用户报「为什么有奇怪的蓝条图片占位」）新增 ────────────────────
+        Run(Step15_FlatWaterWallNotOverlaid);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -919,6 +921,120 @@ internal static class MapCheckProgram
         Console.WriteLine();
     }
 
+    // ── 15. ★ R1-B：河面 wall 层「平色水墙瓦片」不叠（用户报「奇怪的蓝条图片占位」）──────
+    //   根因（离线判据 `tools/probes/measure/r1b_water_tiles.py`，扫 `MapGenTownLayout` 引用到的
+    //   **295 个**瓦片键 → 逐张 PNG 采样像素）：**唯一色数 = 1（平色）的只有一个** ——
+    //   `Objects/moor_river/028`（160×128，不透明 6400 px = 恰好一格，全图同色 RGBA(0,32,68) 深蓝），
+    //   铺在河带 x=47 / x=54 两列共 **49 格**。原版靠 `ACT1/Pal.PL2` **调色板循环**把它变成水波，
+    //   本引擎**没有运行期循环** ⇒ 静态渲染 = 硬边平色色块（视觉上等价占位图）。
+    //   本步把「规则 + 实测格数 + 素材侧代理证据 + 只影响渲染」四条都钉住。
+    private static void Step15_FlatWaterWallNotOverlaid()
+    {
+        Section("15. ★ R1-B：河面 wall 层平色瓦片**不叠**（白名单键 / 命中 49 格 / 不碰可走性）");
+
+        // ① 白名单本身：只有 1 个键，且就是取证出来的那一个
+        Check(MapView.FlatWallTileWhitelist.Length == 1
+              && MapView.FlatWallTileWhitelist[0] == "moor_river/028",
+            $"白名单 = [{string.Join(",", MapView.FlatWallTileWhitelist)}]（必须恰 1 个：moor_river/028）");
+
+        // ② 城镇图上命中规则的格数 / 位置（与 Python 视线判据的 49 格对账）
+        var town = NewMap();
+        town.Generate(AreaId.Town, 20250916);
+        var hit = 0;
+        var wrongColumn = 0;
+        var wrongObject = 0;
+        var blockedKept = 0;
+        var cols = new List<int>();
+        for (var y = 0; y < town.Height; y++)
+        {
+            for (var x = 0; x < town.Width; x++)
+            {
+                town.TryGetTileKeys(x, y, out var g, out var o);
+                if (!MapView.IsPaletteCycledFlatWallOverlay(g, o)) continue;
+                hit++;
+                if (x != 47 && x != 54) wrongColumn++;
+                if (o != "moor_river/028") wrongObject++;
+                if (!cols.Contains(x)) cols.Add(x);
+                // 只影响渲染：这 49 格**依然是水 = 阻挡**（TileKind 与可走性一个字没动）
+                if (town.TileAt(new Vector2Int(x, y)) == TileKind.Rock
+                    && !town.Walkable(new Vector2Int(x, y))) blockedKept++;
+            }
+        }
+        cols.Sort();
+        Console.WriteLine($"  命中「平色水墙瓦片不叠」的格 = {hit} 格，列 x = {FmtInts(cols)}");
+        Check(hit == 49, $"城镇图命中 **49 格**（河带 x=47 有 13 格 + x=54 有 36 格；实测 {hit}）");
+        Check(wrongColumn == 0 && wrongObject == 0,
+            $"命中格全在河带 x=47/54（越界列 = {wrongColumn}）且 object 键全是 moor_river/028（异常 = {wrongObject}）");
+        Check(blockedKept == hit,
+            $"这 {hit} 格**仍然是水 = 阻挡**（TileKind == Rock 且不可走 = {blockedKept}/{hit} ⇒ 只改渲染、不改逻辑）");
+
+        // ③ 反例：规则不许泛化（空地面 / 异包 / 白名单外的平色 / 空物件）
+        Check(!MapView.IsPaletteCycledFlatWallOverlay("", "moor_river/028")
+              && !MapView.IsPaletteCycledFlatWallOverlay("moor_bridge/001", "moor_river/028")
+              && !MapView.IsPaletteCycledFlatWallOverlay("moor_river/025", "moor_river/001")
+              && !MapView.IsPaletteCycledFlatWallOverlay("moor_river/025", ""),
+            "反例全部为 false：空地面 / 异包（moor_bridge 地面 + moor_river 物件）/ 白名单外的物件键 / 空物件键");
+
+        // ④ 素材侧代理证据（像素权威在 `tools/probes/measure/r1b_water_tiles.py` 的逐像素采样）：
+        //    `Objects/moor_river/manifest.json` 只有 1 个瓦片（idx 28、orientation 1 ⇒ 不是地砖层）；
+        //    同 dt1 的 `Tiles/moor_river/` 有 44 张地砖；且**平色瓦片的 PNG 大小 ≪ 带纹理的地砖**
+        //    （单色 160×128 压到 < 1 KB，带纹理的 4~11 KB）。
+        var manWall = ResourceFile("D2/Objects/moor_river/manifest.json");
+        var manFloor = ResourceFile("D2/Tiles/moor_river/manifest.json");
+        var pngWall = ResourceFile("D2/Objects/moor_river/028.png");
+        var pngFloor = ResourceFile("D2/Tiles/moor_river/025.png");
+        if (manWall == null || manFloor == null || pngWall == null || pngFloor == null)
+        {
+            Check(false, "取不到 moor_river 的 manifest / PNG（素材没落盘？路径：" +
+                         $"{(manWall ?? "manifest(Objects) 缺")} / {(manFloor ?? "manifest(Tiles) 缺")}）");
+        }
+        else
+        {
+            var wallText = System.IO.File.ReadAllText(manWall);
+            var floorText = System.IO.File.ReadAllText(manFloor);
+            Check(wallText.Contains("\"tileCount\": 1") && wallText.Contains("\"idx\": 28")
+                  && wallText.Contains("\"orientation\": 1"),
+                "`Objects/moor_river/manifest.json`：tileCount=1 / idx=28 / orientation=1（该 dt1 只有这一个物件瓦片）");
+            Check(floorText.Contains("\"tileCount\": 44"),
+                "`Tiles/moor_river/manifest.json`：同 dt1 的**地砖** 44 张（河面由它们呈现）");
+            var sw = new System.IO.FileInfo(pngWall).Length;
+            var sf = new System.IO.FileInfo(pngFloor).Length;
+            Console.WriteLine($"  PNG 字节数：平色物件瓦片 028.png = {sw} B，带纹理地砖 025.png = {sf} B");
+            Check(sw * 4 < sf,
+                $"平色物件瓦片 028.png（{sw} B）**远小于**带纹理地砖 025.png（{sf} B）" +
+                "（单色 160×128 的压缩率证据；逐像素权威见 tools/probes/measure/r1b_water_tiles.py）");
+        }
+        Console.WriteLine();
+    }
+
+    /// <summary>把 int 列表拼成 `47,54`（自检输出用）。</summary>
+    private static string FmtInts(List<int> xs)
+    {
+        var parts = new List<string>();
+        for (var i = 0; i < xs.Count; i++) parts.Add(xs[i].ToString());
+        return string.Join(",", parts);
+    }
+
+    /// <summary>
+    /// `Assets/Resources/Clover/<rel>` 的实际文件路径（从可执行目录向上找含 `client/Assets` 的仓库根）。
+    /// 找不到 ⇒ null（调用方 Check(false) 报出来，不静默）。
+    /// </summary>
+    private static string ResourceFile(string rel)
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+            {
+                var p = System.IO.Path.Combine(dir.FullName, "client", "Assets", "Resources", "Clover",
+                    rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                return System.IO.File.Exists(p) ? p : null;
+            }
+            dir = dir.Parent;
+        }
+        return null;
+    }
+
     /// <summary>该块在"盖章后的可见最外沿"那一条是否整条不可走（见 <see cref="Step14_BorderSealGaps"/>）。</summary>
     private static bool OuterEdgeSolid(MapGenWildLayout.Piece p, int side, bool flipX, bool flipY)
     {
@@ -1095,9 +1211,12 @@ internal static class MapCheckProgram
     /// <summary>读一张制表符分隔的配表源文件（跳过「类型 / 后缀 / 中文说明」三行表头）。</summary>
     private static TsvTable ReadTsv(string projRel)
     {
-        // .ai-tmp/hosts/<host>/bin/<cfg>/net10.0 → 上 6 层 = 工程根
-        var root = System.IO.Path.GetFullPath(System.IO.Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".."));
+        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot）。
+        //   旧写法是「AppContext.BaseDirectory 上数 6 层」——那是宿主还在 `.ai-tmp/hosts/<名>/bin/<cfg>/<tfm>/`
+        //   时的层数；宿主迁到 `tools/probes/hosts/<名>/bin/<cfg>/<tfm>/` 后**少了一层**，
+        //   6 层落点变成 `<仓库根>\tools` ⇒ `策划/数值文档/*.txt` 读不到，Step13 那两条断言恒红
+        //   （实测 2026-09-20：`读不到 策划/数值文档/{level_c,monster_c}.txt`）。
+        var root = ResolveProjectRoot();
         var p = System.IO.Path.Combine(root, projRel.Replace('/', System.IO.Path.DirectorySeparatorChar));
         if (!System.IO.File.Exists(p)) { Console.WriteLine($"  [WARN] 配表源文件不存在：{p}"); return null; }
         var lines = System.IO.File.ReadAllLines(p, System.Text.Encoding.UTF8);
@@ -1176,6 +1295,24 @@ internal static class MapCheckProgram
     }
 
     // ── 小工具 ───────────────────────────────────────────────────────────────
+    /// <summary>
+    /// 从宿主自己的可执行目录向上找「含 client/Assets 的那一层」= 仓库根。
+    /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；按层数写死会在迁移后失效
+    /// （与 corecheck / fullcheck / savecheck / uicheck 同一套写法）。
+    /// </summary>
+    private static string ResolveProjectRoot()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+                return dir.FullName;
+            dir = dir.Parent;
+        }
+        Console.WriteLine("[warn] 未从可执行目录向上找到含 client/Assets 的仓库根，回退相对路径 clover-project-diablo2");
+        return @"clover-project-diablo2";
+    }
+
     private static MapModule NewMap()
     {
         // MapModule 是 internal ⇒ 只有同程序集（Diablo2）能 new；本宿主以 InternalsVisibleTo 不适用，

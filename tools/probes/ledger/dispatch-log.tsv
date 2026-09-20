@@ -35,11 +35,11 @@
 2026-09-19 17:10	clover-impl	agent-30-engine-sink-A1-rng-logthrottle	clover-client-unity-engine/Runtime/Core/Rng.cs,clover-client-unity-engine/Runtime/Core/LogThrottle.cs,clover-client-unity-engine/Tools~/core-assert
 2026-09-19 17:48	clover-impl	agent-31-engine-sink-B1-switch-to-engine-rng	client/Assets/Scripts/Core/Rng.cs,.ai-tmp/hosts
 2026-09-19 18:01	clover-impl	agent-32-engine-sink-B1b-logthrottle-switch	client/Assets/Scripts/Core/Log.cs,client/Assets/Scripts/Module,.ai-tmp/hosts
-# adjudicated: freshness:u2-rows -- B1b 只改了 CombatModule.cs 的 1 行注释（Core.Rng -> CloverEngine.Rng），U-2 攻击三件套行为 0 变化（8/10 离线宿主逐行 0 差异），故不重采联络图
-# adjudicated: freeze-before-capture -- 引擎能力下沉轮（A1~A5）实现文件持续变动期间不重采表现类证据；受影响行由离线证据覆盖（A4 表全量 dump 831 行 0 差异 / 10 宿主掩膜逐行 0 差异 / Rng 序列 2018 行 0 差异），A3 的 UI 证据与 A5 的引擎文字证据已各自单独重采（p34_ui_res.png 14 格全 PASS、p36_engine_text.png 机检 drawnNonAscii=0）
-# adjudicated: play-budget -- 本轮为引擎能力下沉轮（诊断 1 次 + A3 采 UI 证据 2 次，片内均 ≤2），累计 11 > 8 属跨片累计而非单片超支
+# (adjudication withdrawn 2026-09-20) freshness:u2-rows 已改成「证据名从 策划/验收表.md 该行正文解析」（见 tools/verify.ps1 第 08 项）⇒ 旧的写死 p8_contact_combat.png 口径与该条 B1b 轮理由双双作废；留此行仅作留痕，不再生效（撤下静默通道 = 加严）
+# adjudicated: freeze-before-capture -- R1-F 在证据锚点（R1 批次 t0 = 09-20 19:08:46，= 最新联络图索引 r1_contact.index.tsv 引用到的瓦片里最旧的那张）之后于 09-20 19:23:13 改了 UI/CharCreatePanel.cs；按 SKILL 1.13 批次规则只作废它影响的那一行（创角屏名字输入），而该行已由 R1-F 自采的实机证据 a17_name_fixed.png（09-20 19:30:21 > 19:23:13）覆盖，其余 46 行未受影响 ⇒ 不重采。⛔ 不是「全批次免检」（t0 之后只有这一个文件动过，见 verify.ps1 的 $after 列表）
+# (withdrawn 2026-09-20 -- play-budget threshold retired by SKILL 2.6: the ledger only judges whether each row has a reason, never how many rows there are; reasons are now judged per-row by verify.ps1 item 22) play-budget -- 本轮为引擎能力下沉轮（诊断 1 次 + A3 采 UI 证据 2 次，片内均 ≤2），累计 11 > 8 属跨片累计而非单片超支
 2026-09-19 18:17	clover-impl	agent-33-engine-sink-A2-astar-iso	clover-client-unity-engine/Runtime/Core/AStar.cs,clover-client-unity-engine/Runtime/Core/IsoLayout.cs,clover-client-unity-engine/Runtime/Core/Dir8.cs,client/Assets/Scripts/Core/AStar.cs,client/Assets/Scripts/Core/Iso.cs,.ai-tmp/hosts
-# adjudicated: freshness:u1-rows -- A2/A3/A5 只改了 PlayerModule.cs 的 1 行 using 别名 + ClientConfig.cs 的资源取法 + Bootstrap.cs 的挂钩注册；U-1 方向键行为 0 变化（direction-key-move 仍 0 命中 + 10/10 宿主逐行 0 差异）
+# (adjudication withdrawn 2026-09-20) freshness:u1-rows 同上：证据名改从验收表 U-1 行正文解析（现行 = .ai-tmp/screenshots/r1_evidence_r1.txt），旧的 p8_keys.txt / p8_click.txt 写死口径与 A2/A3/A5 轮理由作废；留痕不生效（加严）
 2026-09-19 18:41	clover-impl	agent-34-engine-sink-A3-resource-exists-loadall	clover-client-unity-engine/Runtime/Core/Contracts.cs,clover-client-unity-engine/Runtime/Resource,client/Assets/Scripts/UI,client/Assets/Scripts/Core/ClientConfig.cs
 2026-09-19 19:02	clover-impl	agent-35-engine-sink-A4-table-loader	clover-client-unity-engine/Runtime/Data,clover-project-diablo2/client/Assets/Scripts/Table,.ai-tmp/hosts
 2026-09-19 19:02	clover-impl	agent-35-engine-sink-A4-table-loader	clover-client-unity-engine/Runtime/Data,client/Assets/Scripts/Table/TableLoader.cs,.ai-tmp/hosts
@@ -52,3 +52,20 @@
 2026-09-19 22:40	clover-impl	agent-40d-map-size-exit-density	client/Assets/Scripts/Module/Map,client/Assets/Scripts/Core/GameConst.cs,client/Assets/Scripts/Core/ResPaths.cs,client/Assets/Scripts/Module/Monster/MonsterSpawner.cs,tools/d2codec,.ai-tmp/test
 # direct-fix: .ai-tmp/hosts/{itemcheck,fullcheck}/{ItemCheck.csproj,FullCheck.csproj,shim/EngineShim.cs} + .ai-tmp/hosts/itemcheck/Program.cs -- agent-37 的 A6 下沉把项目存档改成走引擎 FileSlotStore / Game.Config 之后，这两个宿主的链接清单与 shim 没跟上（CS0246 FileSlotStore、CS0117 Game.Config），而 itemcheck 的存档断言仍按旧键 char/{名} 读（0 字节 ⇒ 后续 NRE 崩溃），verify.ps1 的 offline-hosts 因此 FAILED=2；按 A6 新口径（<SettingDir>/saves/<名>.json，走 FileSlotStore）重写断言，强度不降（文件存在 + 非空 + 含 quests/inventory + 两次保存逐字等价 + 新档不再写旧键 + char/index 索引仍在 Game.Setting）；修后 offline-hosts = TOTAL_HOSTS=10 FAILED=0、verify.ps1 = FAIL=0
 2026-09-20 11:15:16	main	diablo2 仓库卫生整理（删可重建物 / 迁判据资产 tools/probes / 迁截图 .ai-tmp/screenshots / 补 .gitignore+.gitattributes+check-assets）	clover-project-diablo2/client,clover-project-diablo2/tools,clover-project-diablo2/.ai-tmp,clover-project-diablo2/docs,clover-project-diablo2/策划
+# direct-fix: 2026-09-20 main-agent tools/probes/hosts/Directory.Build.props -- raw angle bracket inside an XML attribute (MSB4024) broke all 13 offline hosts
+# direct-fix: 2026-09-20 main-agent tools/probes/hosts/*/*.csproj -- UnityEngine.UI HintPath one level too shallow (8 files) => CS0246 in 8 hosts
+# (withdrawn 2026-09-20 -- play-budget threshold retired by SKILL 2.6: the ledger only judges whether each row has a reason, never how many rows there are; reasons are now judged per-row by verify.ps1 item 22) play-budget -- historical 18 rows are the pre-split multi-pass backlog; this round captures ONE batch
+2026-09-20	clover-impl	r1-a-gate-hosts	tools/probes/hosts
+2026-09-20	clover-impl	r1-b-map-water	client/Assets/Scripts/Module/Map,client/Assets/Scripts/Module/Player/PlayerModule.cs,client/Assets/Scripts/Core/Log.cs
+2026-09-20	clover-impl	r1-c-charcreate	client/Assets/Scripts/UI/CharCreatePanel.cs,client/Assets/Scripts/UI/UiLayoutFlow.cs,client/Assets/Scripts/UI/UiArt.cs
+2026-09-20	clover-impl	r1-d-move-jitter	client/Assets/Scripts/Core/FramePacing.cs,client/Assets/Scripts/App/Bootstrap.cs,client/Assets/Scripts/UI/SettingsPanel.cs,client/Assets/Scripts/Module/Player/PlayerMotor.cs,client/Assets/Scripts/Module/View/SpriteAnimator.cs,client/Assets/Scripts/Module/Map/MapView.cs
+2026-09-20	clover-impl	r1-e-dialog-shop	client/Assets/Scripts/UI/NpcDialogPanel.cs,client/Assets/Scripts/UI/ShopPanel.cs,client/Assets/Scripts/Module/Npc,client/Assets/Scripts/UI/UiLayoutGame.cs,client/Assets/Scripts/Module/Input/InputReader.cs
+2026-09-20	clover-impl	r1-f-batch-evidence	tools/probes/drivers,.ai-tmp/screenshots
+# adjudicated: path-reachability:reference-pictures -- 原版资源/ 被 .gitignore 明确排除（体积+版权），仓库内结构性不可满足；材料到位后本项自动恢复
+# (withdrawn 2026-09-20 -- play-budget threshold retired by SKILL 2.6: the ledger only judges whether each row has a reason, never how many rows there are; reasons are now judged per-row by verify.ps1 item 22) play-budget -- 本轮 4 次进 Play 均为修驱动/串流程的诊断轮（理由逐行在 play-log.tsv），非"逐项截图"
+2026-09-20	clover-impl	r1-f-name-fix	client/Assets/Scripts/UI/CharCreatePanel.cs,tools/probes/hosts/uicheck/Program.cs,tools/probes/drivers/r1f_drive.cs,tools/probes/drivers/r1f_run.ps1,tools/probes/measure/r1_sheet.py
+
+# 2026-09-20 闸门对齐轮（执行者；只动 tools/verify.ps1 + tools/probes/** + .ai-tmp/test/*.tsv，未碰 client/** 与 策划/**）：
+#   ① path-reachability:reference-pictures 接入裁定通道（Adjudicated ⇒ HUMAN-ONLY + 打印理由；无裁定行 ⇒ 照旧 FAIL；材料到位 ⇒ 自动恢复真检查）
+#   ② freshness:u1-rows / freshness:u2-rows 的"证据文件名"改为从 策划/验收表.md 该行正文解析（不再写死 p8_*）；判定强度不降：该行引用的文件缺失 / 过旧 / 无结论行仍判 FAIL
+#   ③ freeze-before-capture 的裁定理由换成 R1-F 的真实红因（见上）；④ 宿主槽位档沙盒改到 .ai-tmp/test/host-setting/<宿主>（仓库根 setting/ 残留清除，见 tools/probes/README.md）

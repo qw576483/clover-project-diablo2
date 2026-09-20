@@ -56,7 +56,7 @@
 | `MainMenuPanel` | `UI/MainMenuPanel.cs` | Normal | 单人/多人/设置/退出 |
 | `SettingsPanel` | `UI/SettingsPanel.cs` | Popup | 音量 / 全屏 / 分辨率 |
 | `CharSelectPanel` | `UI/CharSelectPanel.cs` | Normal | 角色列表、进入、删除 |
-| `CharCreatePanel` | `UI/CharCreatePanel.cs` | Normal | 5 职业 + 名字 + 属性点 |
+| `CharCreatePanel` | `UI/CharCreatePanel.cs` | Normal | 2 职业半身像（原版 5 槽几何保留、3 槽停用）+ 名字。**名字语义（R1-F）**：开屏预填默认名 `Hero`，且**默认名是一个「整体单元」** —— 首次键入任一有效字符时**整个缓冲被该字符替换**（`_nameDefaultPending` + 纯函数 `EditNameDefault`；空字段上退格/Delete 无效果）⇒ 不会再出现 `HeroAma65x`。⛔ 不许绕开 `EditNameDefault` 直连 `EditName`（`tools/probes/hosts/uicheck` 第 ⑱ 节有反向断言） |
 | `LoadingPanel` | `UI/LoadingPanel.cs` | System | 真读条 |
 | `HudPanel` | `UI/HudPanel.cs` | Normal | 双球 / 经验条 / 技能栏 / 快捷键 |
 | `MiniMapPanel` | `UI/MiniMapPanel.cs` | Normal | Tab 自动地图 |
@@ -64,7 +64,7 @@
 | `CharacterPanel` | `UI/CharacterPanel.cs` | Popup | 四维属性与派生属性 |
 | `SkillTreePanel` | `UI/SkillTreePanel.cs` | Popup | 技能树 |
 | `QuestLogPanel` | `UI/QuestLogPanel.cs` | Popup | 任务日志 |
-| `NpcDialogPanel` | `UI/NpcDialogPanel.cs` | Popup | NPC 对话 |
+| `NpcDialogPanel` | `UI/NpcDialogPanel.cs` | **Normal**（**R1-E 的 S1 改层**：原为 `Popup` —— 与商店同层 ⇒ 引擎 `CloseMutexPanels()` 会把它 `Destroy`，且不发关闭事件；商店仍留 `Popup`） | NPC 对话（与商店并存；选项列常量见「核心常量与路径」） |
 | `ShopPanel` | `UI/ShopPanel.cs` | Popup | 买卖与修理 |
 | `PausePanel` | `UI/PausePanel.cs` | Top | 继续/选项/保存退出/回主菜单 |
 | `DeathPanel` | `UI/DeathPanel.cs` | Top | 死亡与复活 |
@@ -83,6 +83,10 @@
 | `AStar`（**已下沉引擎**，A2 起） | `clover-client-unity-engine/Runtime/Core/AStar.cs`（`CloverEngine.AStar`） | 格子 A* |
 | `Rng`（**已下沉引擎**，B1 起） | `clover-client-unity-engine/Runtime/Core/Rng.cs`（`CloverEngine.Rng`） | 注入式随机（seed 可复现） |
 | `Save`（**落盘已下沉引擎**，A6 起） | `Module/Save/SaveModule.cs` → 引擎 `clover-client-unity-engine/Runtime/Data/FileSlotStore.cs`（`CloverEngine.FileSlotStore`） | 角色档 = **一角色一文件** `<SettingDir>/saves/<角色名>.json`（原子写 + 损坏留档 + 枚举）；`char/index` 只留**创建先后**（选角屏顺序）、`char/{名}` 只留**旧档懒迁移** |
+| `FramePacing`（**R1-D 新增**） | `Core/FramePacing.cs` | **帧节奏的唯一口径**：`TargetFrameRate = 60` + `VSyncCount = 0`（与画质档位**无关**）。`Pin(reason)` 幂等重钉（随 `Bootstrap` 启动 + **每次改画质档位之后**；`QualitySettings.SetQualityLevel` 会按档位重置 `vSyncCount`）；`ResetStaticsForNewPlaySession()` 复位"只报一次"；非预期分支各只报一次 Warn。⛔ 本类**只**写帧节奏，画质内容（阴影 / 分辨率缩放 / LOD / 贴图限制）一律不碰。`Describe(...)` 的单行文本被 `playercheck` §15 断言用词 |
+| ↳ **R1-E 新增** `NpcDialogPanel` 选项列常量 | `UI/NpcDialogPanel.cs` | `Layer => UILayer.Normal`；`OptionW = 66f`（**原版px** = 两雕花方槽之间净宽 72 **内缩 3**）、`OptionSize`（= `OptionW × K`, 高 25.5）、`OptionX = Cx((SlotCellLeftX1 67 + SlotCellRightX0 139) / 2)`（两雕槽中点 = **原版 x 103**；底图横向中线 105 ⇒ 差 3.6 画布px）、`OptionStep = 28.5f`（**行距**）、`OptionOrigY(i)`（行心换算回原版 y，对账/断言用）。判据 `uicheck` 第 ⑬ 节 S6；登记 **E37**（取代原 E17 的"选项与正文同列 / 行宽 334.8"） |
+| ↳ **R1-E 新增** `UiLayoutGame` 商店标题/提示两行 | `UI/UiLayoutGame.cs` | `ShopTabBottomY = ShopTabY - ShopTabSize.y * 0.5f`、`ShopGridTopY = ShopGridOrigin.y`、`ShopInfoLineSize = (288 × K, ShopInfoLineH)`、`ShopTitlePos` / `ShopHintPos`（y = **页签带底沿 ↔ 格区顶沿**空带中点 **±15**，x 居中）。实机落位 `titleScreen=960,861` / `hintScreen=960,831`；登记 **E34**（原版页名是运行时文字、本机无串表出处） |
+| ↳ **R1-E 新增** `InputReader` 的 UI 命中判定 | `Module/Input/InputReader.cs` | `PointerOverUi`（属性，`Func<bool>`；默认源 = `UiPointerProbe.PointerOverUi` —— 走反射取引擎/Unity 的 UI 命中判定，取不到 ⇒ 按"不在 UI 上"降级并 Warn 一次）、纯函数 `UiEatsIntent(bool pressed, bool pointerOverUi) => pressed && pointerOverUi`。**用途**：指针压在 UI 上时该次按下**不算**地面移动意图（= R1-E 的 S2；实机 `moveCmdDelta=0 gridChanged=0`） |
 
 ## 配表登记
 

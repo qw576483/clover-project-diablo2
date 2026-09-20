@@ -16,8 +16,18 @@
 //   ⇒ 本类补上：`UpdateHover` 每帧把 `HoverGrid` 交给 `HoverPicker` 解析，
 //   目标变化时发 `HoverTargetChanged`（载荷 `Def.HoverTarget`）+ `CursorChanged`（载荷 `Def.CursorKind`）。
 //   解析细节（怪物/地面物品/NPC、分层与契约缺口）见 `Module/Input/HoverPicker.cs` 头注释。
+//
+// ── 点 UI 的鼠标左键不再被读成"点地面"（R1-E 的 S2）──────────────────────────────
+//   症状（`策划/自审对比/实机-A.md:37` 记的实机现象）：点商店格/面板按钮时，同一次左键
+//   既被 uGUI 吃掉、又被这里当成"点地面"⇒ 角色乱走；落点若在 NPC 的 `TalkRange` 内
+//   还会触发 `NpcModule.TryAutoInteract` **自动开对话顶掉商店面板**。
+//   修法：`TryGetGroundClick` / `TryGetGroundHoldTarget` 两个取点入口在反投影**之前**
+//   先过 `UiEatsIntent(按下/按住, 指针是否在 UI 上)`（纯函数，离线宿主逐行断言）。
+//   ⛔ 判定源**不读裸 `UnityEngine.Input`**：走 `UnityEngine.EventSystems` 的指针命中
+//      （见本文件下方 `UiPointerProbe` 的说明：为什么走反射、为什么不能直接 using 那个类型）。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
@@ -60,7 +70,25 @@ namespace Diablo2.Module
         private bool _noCamLogged;
         private bool _noInputLogged;
 
+        /// <summary>`[R1-E] S2` 只报一次：指针在 UI 上时的取点拦截口径（见 <see cref="IsPointerOverUi"/>）。</summary>
+        private bool _uiBlockedLogged;
+
         private readonly HoverPicker _picker = new HoverPicker();
+
+        /// <summary>
+        /// 「此刻指针是否压在 UI 上」的判定源（**本项目新增的非契约注入点**，做法与
+        /// <see cref="HoverPicker.GroundItemAt"/> 完全同一套：默认实现 + 宿主可整体替换）。
+        /// <para>默认值 = <see cref="UiPointerProbe.PointerOverUi"/>（引擎/Unity 的
+        /// `UnityEngine.EventSystems.EventSystem` 指针命中）；离线自检宿主注入替身来断言两种情形。</para>
+        /// <para>⛔ 本字段**不参与 <see cref="Reset"/>**：它可能是宿主/集成方注入的替身（同 `GroundItemAt` 的口径）。</para>
+        /// </summary>
+        public Func<bool> PointerOverUi { get; set; }
+
+        /// <summary>装上默认的 UI 命中判定源（见 <see cref="PointerOverUi"/>）。</summary>
+        public InputReader()
+        {
+            PointerOverUi = UiPointerProbe.PointerOverUi;
+        }
         private HoverTarget _hover = new HoverTarget { hasTarget = false, cursor = CursorKind.Default, id = -1 };
         private bool _hoverLogged;
         private int _lastMonsterHoverId = -1;
@@ -131,24 +159,43 @@ namespace Diablo2.Module
         /// <summary>
         /// 本帧左键按下 → 该点的**地面格**（点击移动入口）。
         /// 相机不可用 / 输入不可用 → 返回 false 并（首次）留下可定位日志，不做任何"猜一个格"的兜底。
+        /// <para>★ 指针压在 UI 上（点面板/面板按钮）⇒ 本次按下**不算**地面意图（见 <see cref="UiEatsIntent"/>）。</para>
         /// </summary>
         public bool TryGetGroundClick(out Vector2Int grid)
         {
             grid = HoverGrid;
             if (!_down) return false;
+            if (UiEatsIntent(_down, IsPointerOverUi())) return false;
             return TryProjectMouse(out grid);
         }
 
         /// <summary>
         /// 按住左键时的当前目标格（配合 <see cref="ShouldRetarget"/> 实现「按住持续走」）。
         /// 未按住 → false。
+        /// <para>★ 同 <see cref="TryGetGroundClick"/>：指针在 UI 上时按住也不产生地面目标
+        /// （否则"按下 UI"的那一帧 `_held` 同时为真 ⇒ 会从这一支漏出一条移动/攻击）。</para>
         /// </summary>
         public bool TryGetGroundHoldTarget(out Vector2Int grid)
         {
             grid = HoverGrid;
             if (!_held) return false;
+            if (UiEatsIntent(_held, IsPointerOverUi())) return false;
             return TryProjectMouse(out grid);
         }
+
+        /// <summary>
+        /// 「这次按下/按住是否该被 **UI 命中**吃掉」——**纯判定**（离线宿主逐行断言，不碰真实 EventSystem）：
+        /// 只有"确实按下/按住" **且** "指针在 UI 上"才算被吃掉。
+        /// <para>两种情形的判据（`tools/probes/hosts/playercheck` §12.7 逐行核对）：</para>
+        /// <list type="bullet">
+        /// <item><c>(true, true)</c> = 「UI 面板开着的区域」⇒ true ⇒ 不产生落点、不发 `MoveCommand`、
+        /// 不触发 `NpcModule` 的自动对话（面板按钮照常被 uGUI 收到）。</item>
+        /// <item><c>(true, false)</c> = 「面板外的地面」⇒ false ⇒ 照旧反投影成格（原版点击移动不受影响）。</item>
+        /// </list>
+        /// </summary>
+        /// <param name="pressed">本帧左键是否按下（<see cref="PrimaryDown"/>）或按住（<see cref="PrimaryHeld"/>）。</param>
+        /// <param name="pointerOverUi">指针是否压在 UI 上（<see cref="PointerOverUi"/> 的当前值）。</param>
+        public static bool UiEatsIntent(bool pressed, bool pointerOverUi) => pressed && pointerOverUi;
 
         /// <summary>
         /// 目标格是否需要重算路径（**纯函数**，宿主可离线断言）。
@@ -295,10 +342,48 @@ namespace Diablo2.Module
             _hover = new HoverTarget { hasTarget = false, cursor = CursorKind.Default, id = -1 };
             _hoverLogged = false;
             _lastMonsterHoverId = -1;
+            _uiBlockedLogged = false;
             // ⚠️ 不动 `_picker.GroundItemAt`：那可能是宿主/集成方注入的替身，复位不该把它清掉。
+            //    同理**不动** `PointerOverUi`（同一类注入点，见其属性注释）。
         }
 
         // ── 内部 ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// 指针是否压在 UI 上（取 <see cref="PointerOverUi"/> 的当前值；判定源抛异常 ⇒ 按"不在 UI 上"降级）。
+        /// <para>★ `[R1-E] S2` 的**只报一次**留痕就在本方法里：第一次真命中时打一条 Info，
+        /// 把"生效口径"写清楚（点了面板就不会再产生移动指令）；不是高频回调，故用就地一次性标志。</para>
+        /// </summary>
+        private bool IsPointerOverUi()
+        {
+            var probe = PointerOverUi;
+            if (probe == null) return false;               // 未接线（离线宿主未注入替身）⇒ 判不出 ⇒ 不拦
+
+            bool over;
+            try
+            {
+                over = probe();
+            }
+            catch (Exception e)
+            {
+                if (!_uiBlockedLogged)
+                {
+                    _uiBlockedLogged = true;
+                    Log.Warn(Tag, $"UI 命中判定抛异常（{e.GetType().Name}: {e.Message}）⇒ 本局按"
+                        + "「指针不在 UI 上」处理（点击照旧走地面；只报一次）");
+                }
+                return false;
+            }
+
+            if (over && !_uiBlockedLogged)
+            {
+                _uiBlockedLogged = true;
+                Log.Info(Tag, "[R1-E] S2 生效：指针压在 UI 上 ⇒ 左键不再当作「点地面 / 按住走」的"
+                    + "地面意图（不发 MoveCommand、不触发 Npc 自动对话）；指针离开 UI 后照旧。"
+                    + "判定源 = UnityEngine.EventSystems 的指针命中（非裸 UnityEngine.Input）");
+            }
+            return over;
+        }
 
         /// <summary>鼠标屏幕坐标 → 地面格（相机不可用时返回 false + 首次日志）。</summary>
         private bool TryProjectMouse(out Vector2Int grid)
@@ -399,6 +484,89 @@ namespace Diablo2.Module
                 return;
             }
             Game.Event.Emit(eventName, arg);
+        }
+    }
+
+    /// <summary>
+    /// 「指针是否压在 UI 上」的**默认判定源**（`InputReader.PointerOverUi` 的默认值）——
+    /// 走 Unity/uGUI 的 `UnityEngine.EventSystems.EventSystem.IsPointerOverGameObject()`。
+    ///
+    /// <para>★ 为什么用反射，而不是直接 `using UnityEngine.EventSystems;`：</para>
+    /// <para>`EventSystem` 定义在 **uGUI 包程序集 `UnityEngine.UI`** 里（不是 UnityEngine 内置模块），
+    /// 而本目录（`Module/Input/*.cs`）被离线自检宿主 `tools/probes/hosts/playercheck` **编入**，
+    /// 那个宿主只引用 `UnityEngine.CoreModule` / `JSONSerializeModule` —— 一旦这里出现
+    /// `EventSystem` 这个**类型名**，那个宿主立刻 CS0246 编译失败（而项目规定不许改它的 `.csproj`）。
+    /// 反射把这条依赖变成**运行期可选**：解析不到（离线宿主）⇒ 恒 <c>false</c>（按"指针不在 UI 上"
+    /// 降级，与改动前逐字一致），Play 下解析得到 ⇒ 真判定。</para>
+    ///
+    /// <para>★ 为什么不用裸 `UnityEngine.Input`：本项目 `Active Input Handling` 可能是"只新输入"，
+    /// 裸 `Input.*` 会抛异常静默失效（`docs/步骤文档.md` §3.4 已记为坑）；`EventSystem` 由引擎在
+    /// `CloverInput.Init()` 时保证存在（`Runtime/Presentation/Input.cs:941 EnsureEventSystem`），
+    /// 且它自己就是两套输入后端都认的**指针命中**权威（uGUI 的 `PointerInputModule` 口径）。</para>
+    ///
+    /// <para>★ 代价与边界：`EventSystem.current` / `IsPointerOverGameObject()` 每帧最多解析一次
+    /// （`PropertyInfo` / `MethodInfo` 缓存一次，之后只有一次属性读 + 一次方法调用），且**只在
+    /// 左键按下/按住的帧**才会被调用（不是逐帧高频路径）。</para>
+    /// </summary>
+    internal static class UiPointerProbe
+    {
+        /// <summary>uGUI 的 EventSystem 类型（程序集限定名；uGUI 包恒为 `UnityEngine.UI`）。</summary>
+        private const string EventSystemTypeName = "UnityEngine.EventSystems.EventSystem, UnityEngine.UI";
+
+        private static bool _resolved;
+        private static System.Reflection.PropertyInfo _currentProp;   // EventSystem.current（静态属性）
+        private static System.Reflection.MethodInfo _isOver;          // IsPointerOverGameObject()（无参重载）
+        private static bool _failedLogged;
+
+        /// <summary>指针是否压在 UI 上；判不出（无 uGUI / 无 EventSystem / 解析失败）⇒ false。</summary>
+        public static bool PointerOverUi()
+        {
+            Resolve();
+            if (_currentProp == null || _isOver == null) return false;
+
+            try
+            {
+                var es = _currentProp.GetValue(null);
+                if (es == null) return false;               // 场景里还没有 EventSystem（引擎 Init 之前）
+                return _isOver.Invoke(es, null) is bool over && over;
+            }
+            catch (Exception e)
+            {
+                if (!_failedLogged)
+                {
+                    _failedLogged = true;
+                    Log.Warn("Input", $"调用 EventSystem.IsPointerOverGameObject() 抛异常"
+                        + $"（{e.GetType().Name}: {e.Message}）⇒ 本局按「指针不在 UI 上」处理（只报一次）");
+                }
+                return false;
+            }
+        }
+
+        /// <summary>解析一次 EventSystem 的反射入口（失败即永久记为"无 uGUI"，不再重试）。</summary>
+        private static void Resolve()
+        {
+            if (_resolved) return;
+            _resolved = true;
+
+            var type = Type.GetType(EventSystemTypeName, false);
+            if (type == null)
+            {
+                // 非预期但**可解释**：离线宿主没引用 uGUI / 该工程不含 uGUI 包。
+                // 不打日志（离线宿主每次跑都会看到"正常降级"当告警，反而掩盖真问题）；
+                // Play 下若真走到这里，`Input.Infrastructure.EnsureEventSystem` 那条 Info 已经证明
+                // "EventSystem 存在"，与本条矛盾 ⇒ 由那一条定位。
+                return;
+            }
+
+            _currentProp = type.GetProperty("current",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            _isOver = type.GetMethod("IsPointerOverGameObject", Type.EmptyTypes);
+
+            if (_currentProp == null || _isOver == null)
+            {
+                Log.Warn("Input", $"UI 命中判定：`{type.FullName}` 上找不到 `current` / "
+                    + "`IsPointerOverGameObject()`（uGUI 版本差异？）⇒ 本局按「指针不在 UI 上」处理");
+            }
         }
     }
 }

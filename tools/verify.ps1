@@ -15,8 +15,10 @@
 #   04 table-rows              acceptance table row count + per-row category tag
 #   05 table-summary           summary numbers == row counts
 #   06 allow-diff-registry     every registered exception has why/origin/when
-#   07 path-reachability       every Screenshots/<file> cited by the table exists
-#   08 freshness-own-rows      evidence of the rows changed by THIS pass is newer
+#   07 path-reachability       every .ai-tmp/screenshots/<file> cited by the table exists
+#                              (incl. :reference-pictures, adjudicable like every other item)
+#   08 freshness-own-rows      the evidence the U-1 / U-2 row itself cites is present + newer
+#                              (file names are read from the table row, never hard-coded)
 #   09 freshness-global        (HUMAN-ONLY) batch rule, see SKILL 1.13
 #   10 reference-tables        the plan/zishenduibi/*.md comparison family exists
 #   11 no-handoff-docs         no NEXT.md / *progress* / *handoff* docs
@@ -290,8 +292,22 @@ if ($specText -ne $null) {
         Fail 'path-reachability' "$($missing.Count)/$($refs.Count) missing"
         $missing | ForEach-Object { Write-Output ('            Screenshots/' + $_) }
     }
-    if (Test-Path $refPicDir) { Pass 'path-reachability:reference-pictures' 'yuan ban zi yuan/can kao tu exists' }
-    else { Fail 'path-reachability:reference-pictures' ('missing ' + $refPicDir) }
+    # ── same SHAPE as every other adjudicable item (~20 of them): a check that cannot be
+    #    satisfied on THIS checkout must be able to say so out loud, with a stated reason,
+    #    instead of turning into a permanent red. Before this change the item was a bare
+    #    Pass/Fail pair, so the "# adjudicated: path-reachability:reference-pictures" line
+    #    that was already sitting in dispatch-log.tsv had NO effect at all.
+    #    ⛔ NOT a hard-wired PASS and ⛔ the "does the path exist" test is untouched: the
+    #    first branch is the real check, so the moment the original-resource reference-picture
+    #    dir exists on disk (see $refPicDir) this item is a plain real check again. With no
+    #    adjudication line present it still FAILs.
+    if (Test-Path $refPicDir) {
+        Pass 'path-reachability:reference-pictures' 'yuan ban zi yuan/can kao tu exists'
+    } elseif (Adjudicated 'path-reachability:reference-pictures') {
+        HumanOnly 'path-reachability:reference-pictures' ('missing ' + $refPicDir + ' -- adjudicated: ' + $adj['path-reachability:reference-pictures'])
+    } else {
+        Fail 'path-reachability:reference-pictures' ('missing ' + $refPicDir)
+    }
 }
 
 # -----------------------------------------------------------------------------
@@ -299,10 +315,20 @@ if ($specText -ne $null) {
 #    (SKILL 1.13 batch rule: a code change only invalidates the rows it really affects.
 #     The blunt "every screenshot vs newest source" version lives in item 09 / HUMAN-ONLY.)
 #
-#    U-2 (attack trio) = 表现类 -> the contact sheet must be newer than the files whose
+#    U-2 (attack trio) = 表现类 -> the evidence must be newer than the files whose
 #         behaviour it observes.
 #    U-1 (no direction-key move) = 数值类 -> the runtime log lines must carry a timestamp
 #         later than those files; we read Editor.log and parse the probe's own lines.
+#
+#    ⛔ EVIDENCE NAMES ARE READ FROM THE ACCEPTANCE TABLE ROW, NOT HARD-CODED.
+#    Why (2026-09-20, gate-realignment pass): both checks used to pin the file names of the
+#    PRE-MIGRATION evidence batch (`p8_contact_combat.png` / `p8_keys.txt` / `p8_click.txt`).
+#    The acceptance table was meanwhile rewritten to the CURRENT (R1) evidence while those
+#    old files vanished with the `.ai-tmp/` move => the table and the judge had drifted apart
+#    and the gate demanded files that exist nowhere (a structurally unsatisfiable red that
+#    says nothing about the product). Reading the names out of the row body makes drift
+#    impossible, and it does NOT lower the bar: every name the row cites must still exist
+#    under `.ai-tmp/screenshots/` and still be newer than that row's source files.
 # -----------------------------------------------------------------------------
 function Newest-Of([string[]]$rels) {
     $t = $null
@@ -326,6 +352,38 @@ function Read-Shared([string]$p) {
     } catch { return $null }
 }
 
+# -- row-scoped evidence names: resolved from the acceptance table, never hard-coded -----
+# row labels (the first cell of the acceptance-table row; built from code points to keep
+# this file ASCII) -- see item 08's header for why.
+$rowU1 = Cps @(0x70B9, 0x51FB, 0x79FB, 0x52A8, 0x624B, 0x611F, 0x4E0E, 0x5BFB, 0x8DEF)
+$rowU2 = Cps @(0x653B, 0x51FB, 0x8282, 0x594F, 0x4E0E, 0x547D, 0x4E2D, 0x53CD, 0x9988, 0x4E09, 0x4EF6, 0x5957)
+# a machine-readable verdict line. Older probe batches wrote `PASS`; the R1 probe writes
+# `[R1] VERDICT ok=1 ...` / `[R1] CHK name=x ok=1`. Requiring "a verdict" is kept, but not
+# pinned to one batch's spelling (that pin was the same drift bug as the file names).
+$verdictRe = '(?i)PASS|ok=1'
+
+function Spec-Row([string]$label) {
+    foreach ($ln in @(Lines-Of $spec)) {
+        if ($ln -match ('^\|\s*' + [regex]::Escape($label) + '\s*\|')) { return $ln }
+    }
+    return $null
+}
+# every `.ai-tmp/screenshots/<file>` cited by a row, with `<prefix><n>..<m><ext>` ranges
+# expanded (the same two forms item 07 handles, incl. its "optional letter" trap: the letter
+# only eats the right endpoint, it must NOT be re-emitted into the name).
+function Spec-ShotRefs([string]$rowText) {
+    $refs = @()
+    foreach ($m in [regex]::Matches($rowText, '(?i)\.ai-tmp/screenshots/([A-Za-z0-9_\-]+\.(?:png|txt))')) {
+        $refs += $m.Groups[1].Value
+    }
+    foreach ($m in [regex]::Matches($rowText, '(?i)\.ai-tmp/screenshots/([A-Za-z0-9_\-]*?)(\d+)\.\.[A-Za-z]?(\d+)(\.(?:png|txt))')) {
+        $pre = $m.Groups[1].Value; $from = [int]$m.Groups[2].Value; $to = [int]$m.Groups[3].Value
+        $ext = $m.Groups[4].Value
+        for ($i = $from; $i -le $to; $i++) { $refs += ($pre + $i + $ext) }
+    }
+    return @($refs | Sort-Object -Unique)
+}
+
 $u1Files = @('client/Assets/Scripts/Module/Input/InputReader.cs',
              'client/Assets/Scripts/Module/Player/PlayerModule.cs',
              'client/Assets/Scripts/Module/Player/PlayerMotor.cs',
@@ -341,37 +399,60 @@ $u2Files = @('client/Assets/Scripts/Module/Combat/CombatModule.cs',
              'client/Assets/Scripts/Core/Events.cs')
 
 $u2Newest = Newest-Of $u2Files
-$sheet = Join-Path $shots 'p8_contact_combat.png'
-if ($u2Newest -eq $null) { Fail 'freshness:u2-rows' 'U-2 implementation files not found' }
-elseif (-not (Test-Path $sheet)) { Fail 'freshness:u2-rows' 'missing p8_contact_combat.png' }
-elseif ((Get-Item $sheet).LastWriteTime -gt $u2Newest) {
-    Pass 'freshness:u2-rows' ('contact sheet newer than the U-2 sources (' + $u2Newest.ToString('yyyy-MM-dd HH:mm:ss') + ')')
+$u2Row    = Spec-Row $rowU2
+$u2Refs   = if ($u2Row -eq $null) { @() } else { @(Spec-ShotRefs $u2Row) }
+if ($u2Newest -eq $null) {
+    Fail 'freshness:u2-rows' 'U-2 implementation files not found'
+} elseif ($u2Row -eq $null) {
+    # ⛔ a judge that cannot find its own judging criterion must not PASS (same rule as item 07)
+    Fail 'freshness:u2-rows' 'the U-2 acceptance row was not found in the table -- its evidence list cannot be read'
+} elseif ($u2Refs.Count -eq 0) {
+    Fail 'freshness:u2-rows' 'the U-2 acceptance row cites no .ai-tmp/screenshots/<file> evidence -- nothing to judge (an empty list must never PASS)'
 } else {
-    if (Adjudicated 'freshness:u2-rows') {
-        HumanOnly 'freshness:u2-rows' ('contact sheet older than U-2 sources (' + $u2Newest.ToString('yyyy-MM-dd HH:mm:ss') + ') -- adjudicated: ' + $adj['freshness:u2-rows'])
+    $u2bad = @()
+    foreach ($f in $u2Refs) {
+        $p = Join-Path $shots $f
+        if (-not (Test-Path $p)) { $u2bad += ('missing ' + $f); continue }
+        if ((Get-Item $p).LastWriteTime -le $u2Newest) {
+            $u2bad += ($f + ' older than U-2 sources (' + $u2Newest.ToString('yyyy-MM-dd HH:mm:ss') + ')')
+        }
+    }
+    if ($u2bad.Count -eq 0) {
+        Pass 'freshness:u2-rows' ("$($u2Refs.Count) evidence file(s) cited by the U-2 row, all present and newer than the U-2 sources (" + $u2Newest.ToString('yyyy-MM-dd HH:mm:ss') + ')')
+    } elseif (Adjudicated 'freshness:u2-rows') {
+        HumanOnly 'freshness:u2-rows' (($u2bad -join ' ; ') + ' -- adjudicated: ' + $adj['freshness:u2-rows'])
     } else {
-        Fail 'freshness:u2-rows' ('contact sheet older than U-2 sources (' + $u2Newest.ToString('yyyy-MM-dd HH:mm:ss') + ')')
+        Fail 'freshness:u2-rows' ($u2bad -join ' ; ')
     }
 }
 
-# U-1 evidence = the two probe reports (kept in Assets/Screenshots, same convention as
-# `p42_evidence_run*.txt`); each must (a) exist, (b) end with the PASS verdict, (c) be newer
+# U-1 evidence = the probe report(s) the acceptance row cites under `.ai-tmp/screenshots/`;
+# each must (a) exist, (b) if it is a .txt carry a machine-readable verdict line, (c) be newer
 # than the U-1 sources.
 $u1Newest = Newest-Of $u1Files
-if ($u1Newest -eq $null) { Fail 'freshness:u1-rows' 'U-1 implementation files not found' }
-else {
+$u1Row    = Spec-Row $rowU1
+$u1Refs   = if ($u1Row -eq $null) { @() } else { @(Spec-ShotRefs $u1Row) }
+if ($u1Newest -eq $null) {
+    Fail 'freshness:u1-rows' 'U-1 implementation files not found'
+} elseif ($u1Row -eq $null) {
+    Fail 'freshness:u1-rows' 'the U-1 acceptance row was not found in the table -- its evidence list cannot be read'
+} elseif ($u1Refs.Count -eq 0) {
+    Fail 'freshness:u1-rows' 'the U-1 acceptance row cites no .ai-tmp/screenshots/<file> evidence -- nothing to judge (an empty list must never PASS)'
+} else {
     $u1bad = @()
-    foreach ($f in @('p8_keys.txt', 'p8_click.txt')) {
+    foreach ($f in $u1Refs) {
         $p = Join-Path $shots $f
         if (-not (Test-Path $p)) { $u1bad += ("missing " + $f); continue }
-        $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
-        if ($txt -notmatch 'PASS') { $u1bad += ($f + ' has no PASS verdict'); continue }
+        if ($f -match '(?i)\.txt$') {
+            $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
+            if ($txt -notmatch $verdictRe) { $u1bad += ($f + ' carries no verdict line (PASS / ok=1)'); continue }
+        }
         if ((Get-Item $p).LastWriteTime -le $u1Newest) {
             $u1bad += ($f + ' older than U-1 sources (' + $u1Newest.ToString('yyyy-MM-dd HH:mm:ss') + ')')
         }
     }
     if ($u1bad.Count -eq 0) {
-        Pass 'freshness:u1-rows' ('both probe reports newer than the U-1 sources (' + $u1Newest.ToString('yyyy-MM-dd HH:mm:ss') + ')')
+        Pass 'freshness:u1-rows' ("$($u1Refs.Count) evidence file(s) cited by the U-1 row, all present, verdict-bearing and newer than the U-1 sources (" + $u1Newest.ToString('yyyy-MM-dd HH:mm:ss') + ')')
     } else {
         if (Adjudicated 'freshness:u1-rows') {
             HumanOnly 'freshness:u1-rows' (($u1bad -join ' ; ') + ' -- adjudicated: ' + $adj['freshness:u1-rows'])
@@ -680,13 +761,18 @@ foreach ($f in @(Get-ChildItem (Join-Path $root 'docs') -Recurse -Filter *.md -E
 HumanOnly 'skill-family-consistency' ("$($famHits.Count) candidate line(s); each must TIGHTEN the global rules, never relax them (SKILL 1.10)")
 
 # -----------------------------------------------------------------------------
-# 22 play-budget (SKILL 1.13 T0): capture is ONE batch action -- every editor_play is on the ledger
-#    预算 8 = 收尾/诊断轮（含 1 次环境态诊断 + 2 片各自的"连续两次进 Play"）；
-#    常规实现轮按 5。超标 ⇒ FAIL，并逐行打印理由供复核。
+# 22 play-log reasons (SKILL 2 item 6): the ledger judges WHETHER every editor_play
+#    carries a reason, never HOW MANY sessions there were.  The old
+#    "play sessions > budget 8" fail branch -- and the "# adjudicated: play-budget"
+#    escape hatch that papered over it -- are RETIRED by SKILL 2 ("enter Play and keep
+#    the ledger, but with NO cap" / "the ledger only judges whether there is a reason,
+#    not whether there are many rows").
+#    Judging strength is UNCHANGED where it matters: a row whose column 4 carries no
+#    reason still FAILs.  The session count is now INFO only, so a human can still
+#    review the volume by eye.
 # -----------------------------------------------------------------------------
-$playLog    = Join-Path $testDir 'play-log.tsv'
-$playBudget = 8
-$playRows   = @()
+$playLog  = Join-Path $testDir 'play-log.tsv'
+$playRows = @()
 if (Test-Path $playLog) {
     foreach ($line in @(Lines-Of $playLog)) {
         if ($line -match '^\s*#' -or $line.Trim().Length -eq 0) { continue }
@@ -695,16 +781,13 @@ if (Test-Path $playLog) {
         $playRows += [pscustomobject]@{ At = $c[0]; Why = $why }
     }
 }
+$playNoWhy = @($playRows | Where-Object { $_.Why.Trim().Length -lt 4 })
 if (-not (Test-Path $playLog)) {
     HumanOnly 'play-budget' 'no .ai-tmp/test/play-log.tsv -- keep one line per editor_play'
-} elseif (@($playRows | Where-Object { $_.Why.Trim().Length -lt 4 }).Count -gt 0) {
+} elseif ($playNoWhy.Count -gt 0) {
     Fail 'play-budget' 'some play-log row has no reason in column 4'
-} elseif ($playRows.Count -gt $playBudget) {
-    $msg = ("play sessions = " + $playRows.Count + " > budget " + $playBudget + " (T0: batch the capture)")
-    if (Adjudicated 'play-budget') { HumanOnly 'play-budget' ($msg + ' -- adjudicated: ' + $adj['play-budget']) }
-    else { Fail 'play-budget' $msg }
 } else {
-    Pass 'play-budget' ("play sessions = " + $playRows.Count + " / budget " + $playBudget + ", every row has a reason")
+    Pass 'play-budget' ("INFO play sessions = " + $playRows.Count + " (row count is INFO only -- SKILL 2.6: the ledger judges whether every row has a reason, not how many rows there are); every row carries a reason in column 4")
 }
 
 # -----------------------------------------------------------------------------

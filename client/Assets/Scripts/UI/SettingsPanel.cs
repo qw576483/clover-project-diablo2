@@ -162,6 +162,13 @@ namespace Diablo2.UI
             {
                 Log.Warn("Ui", $"[设置] 应用画质档位 {level} 失败：{e.Message}（设置值已保存，下次启动生效）");
             }
+
+            // ★ R1-D：「人物移动抖动」候选①——`QualitySettings.SetQualityLevel` 会**按档位把
+            //   `vSyncCount` 重置**（Very Low/Low = 0 不封顶、Medium/High = 1 垂直同步）⇒ 帧率上限会
+            //   随画质档位漂移（dt 抖动被相机平滑放大成"移动发抖"）。这里把帧节奏按**唯一口径**重钉一次；
+            //   口径定义在 `Core/FramePacing.cs`（⛔ 本面板只调它，不自己写 targetFrameRate/vSync 字面量，
+            //   也不碰阴影/分辨率缩放/LOD 等画质内容）。
+            FramePacing.Pin($"选项面板应用画质档位 {level}");
         }
 
         private void Refresh()

@@ -124,6 +124,13 @@ namespace Diablo2.UI
         {
             /// <summary>贴图到位后要套的色调（默认 = 原版亮度）。</summary>
             public Color Tint = ArtFullBright;
+
+            /// <summary>
+            /// ★ R1-C：本 Image 上已发起的贴图请求序号（每次 <see cref="SetSprite"/> 自增）。
+            /// 回调里比对"我这次是不是最新的" ⇒ 过期回调丢弃（异步乱序时不会盖掉新图）。
+            /// 存在 <see cref="ConditionalWeakTable{TKey,TValue}"/> 里 ⇒ Image 销毁后条目随 GC 消失，不泄漏。
+            /// </summary>
+            public int Request;
         }
 
         private static readonly ConditionalWeakTable<Image, ArtState> ArtStates
@@ -243,6 +250,17 @@ namespace Diablo2.UI
         /// ★ 加载**成功** ⇒ `color = 原版亮度`（或调用方经 <see cref="SetArtTint"/> 记下的色调）；
         ///   加载**失败** ⇒ 保留调用方设的占位底色并打 Warn（纯色占位可见，不静默变黑/变透明）。
         /// </para>
+        /// <para>
+        /// ★★ **R1-C：请求守卫（同一 Image 只有"最新一次请求"的回调会落地）**。
+        /// 根因：`Game.Res.LoadAsset` 是**异步**的（只有命中引擎缓存才同步回调）⇒ 对同一个 Image
+        /// 连续发起 A、B 两次请求时，**A 的回调可能晚于 B 到达**，于是画面停在 A（旧图）。
+        /// 本工程已有两处因此吃过亏：① 三态半身像（靠"进屏预热"绕开）；② 转身过渡逐帧（用户 2026-09-20
+        /// 报的"点击人物动画变形/诡异"里就有这一味 —— 每一帧都在换图，回调乱序时画面会来回跳）。
+        /// ⇒ 在这里给每次请求发一个**自增序号**，回调里只认"我这次是不是最新的"，
+        ///   过期的直接丢弃（连 Warn 都不打：那是设计内行为，不是异常）。
+        /// </para>
+        /// <para>⚠️ 语义变化：**同一个 Image 上"后发起的请求"胜出**。所有调用点都是"贴当前该显示的那张图"，
+        /// 与旧行为在"回调恰好按序到达"时逐字相同；只在乱序时把"错态"修成"最新态"。</para>
         /// </summary>
         /// <param name="onLoadedTint">可选的显式色调；不传 = 用记下的色调（默认原版亮度白）。</param>
         public static void SetSprite(Image img, string spritePath, Color? onLoadedTint = null)
@@ -258,9 +276,20 @@ namespace Diablo2.UI
             var state = StateOf(img);
             if (onLoadedTint.HasValue) state.Tint = onLoadedTint.Value;
 
+            // ★ R1-C 请求守卫：本次请求的序号（回调里比对；过期回调丢弃）
+            var request = ++state.Request;
+            if (!_r1cGuardLogged)
+            {
+                _r1cGuardLogged = true;
+                Log.Info("R1-C", "UiArt.SetSprite 已加**请求守卫**：同一 Image 上只有最新一次请求的回调会落地" +
+                    "（`LoadAsset` 异步 ⇒ 连续换图时旧回调可能晚到并盖掉新图；逐帧动画/快速悬停会踩到）" +
+                    "；过期回调丢弃、不告警（设计内行为）");
+            }
+
             Game.Res.LoadAsset<Sprite>(spritePath, sp =>
             {
                 if (img == null) return;            // 面板可能已关闭销毁
+                if (state.Request != request) return;   // ★ R1-C：本次请求已被更新的请求取代 ⇒ 丢弃（不覆盖新图）
                 if (sp == null)
                 {
                     // 非预期分支：素材缺失/路径写错 ⇒ 保留纯色占位 + 点名路径（不静默）
@@ -274,6 +303,9 @@ namespace Diablo2.UI
                 Log.Info(Tag, $"[原版贴图] {spritePath} → {img.name}，色调={state.Tint}（白=原版亮度）");
             });
         }
+
+        /// <summary>R1-C 的"只报一次"标志（见 <see cref="SetSprite"/> 的请求守卫）。</summary>
+        private static bool _r1cGuardLogged;
 
         /// <summary>
         /// 造一个**原版底图**按钮：`UIFactory.CreateButton` + 项目配色/字号 +
@@ -640,12 +672,36 @@ namespace Diablo2.UI
         public static InputField Input(Transform parent, string name, Vector2 size, Vector2 pos,
             string placeholder, string initial, int charLimit)
         {
-            var bg = Panel(parent, name, size, pos, InputBg, true);
+            // ★★ R1-C：**这个框在本工程里是"显示层"，不是交互控件** —— 因此：
+            //   ① `raycastTarget = false`（鼠标点不到它 ⇒ uGUI `InputField.OnPointerDown` 收不到事件，
+            //      不会 `SetSelectedGameObject`）；
+            //   ② `targetGraphic = null` + `navigation = None`（键盘/手柄导航也不会选中它）。
+            //   为什么必须这么干（实测根因，逐行给得出出处）：本工程 `ProjectSettings.asset:722`
+            //   是 `activeInputHandler: 1`（只用新 Input System），而 uGUI `InputField`：
+            //     · `caretPosition` setter（`PackageCache/com.unity.ugui@…/Runtime/UGUI/UI/Core/InputField.cs:1068-1072`）
+            //       → `selectionAnchorPosition`/`selectionFocusPosition` setter（`:1082-1113`）
+            //       → 读 `compositionString.Length`（`:1087` / `:1110`）→ `:343-346`
+            //       `input != null ? input.compositionString : Input.compositionString`
+            //       （本工程无人设 `inputOverride` ⇒ `input` 是 uGUI 自造的那个 `BaseInput` ⇒ 落到
+            //        `UnityEngine.Input.compositionString`）⇒ **抛 InvalidOperationException**（该 setter
+            //        无任何条件保护 ⇒ 一旦调用必抛）；
+            //     · `text` setter → `SetText`（`:486`）→ `UpdateLabel`（`:533`）→ `:2690` 读同一处
+            //         —— 这一句**有短路**：`EventSystem.current.currentSelectedGameObject == gameObject`
+            //         为假时不会读 ⇒ **它只在"输入框是当前选中项"时才抛**。
+            //   ⇒ 只要让它**永远成不了选中项**（上面 ①②），这两条抛点就都不可达；
+            //     字符与光标由面板自己驱动（见 `CharCreatePanel.DisplayName` / `PushName`）。
+            var bg = Panel(parent, name, size, pos, InputBg, false);
 
             // ⚠️ 片 3 的**唯一例外**（已在 `策划/验收表.md` 的「允许的差异」登记）：
-            //   InputField 的 `textComponent` 必须是**真实、启用**的 uGUI `Text`（光标/选区/换行
-            //   全按它的 TextGenerator 算），没法换成字模方块 ⇒ 这里保留 `UIFactory.DefaultFont()`。
-            //   它渲染的是**玩家键入的角色名（ASCII 字母）**，不是中文 ⇒ 「中文 0 处走默认字体」仍成立。
+            //   InputField 的 `textComponent` 必须是**真实、启用**的 uGUI `Text`
+            //   （uGUI 要求它有 font，否则 InputField 直接不工作；`InputField.cs:3309` 的
+            //    `m_TextComponent.font == null` 会让它拒绝激活），没法换成字模方块
+            //   ⇒ 这里保留 `UIFactory.DefaultFont()`。
+            //   它渲染的是**玩家键入的角色名（ASCII 字母 + 下面的 `|` 光标标记）**，不是中文
+            //   ⇒ 「中文 0 处走默认字体」仍成立。
+            //   ★ R1-C：**光标不再由它画**（它的 caret 要 `caretPosition`，本配置下必抛）；
+            //     本节点现在由面板直接驱动（`CharCreatePanel.PushName` 写 `textComponent.text`），
+            //     所以"可见文本/光标"这条判据不依赖 uGUI 的 TextGenerator 光标逻辑。
             var textRt = UIFactory.CreateNode("Text", bg.transform);
             var text = textRt.gameObject.AddComponent<Text>();
             text.font = UIFactory.DefaultFont();
@@ -653,6 +709,10 @@ namespace Diablo2.UI
             text.alignment = TextAnchor.MiddleLeft;
             text.color = TextColor;
             text.supportRichText = false;
+            // ★ R1-C：**子 Text 也不吃射线** —— uGUI 的点击是"命中 Graphic 后沿父链冒泡派发"，
+            //   子 Text 若是 raycastTarget，点在字上仍会冒泡到 InputField（父上的 IPointerDownHandler）
+            //   ⇒ 光把底图关掉不够（这正是"看起来改对了、其实还能点进焦点"的那类漏改）。
+            text.raycastTarget = false;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Truncate;
             textRt.offsetMin = new Vector2(10f, 2f);
@@ -669,11 +729,15 @@ namespace Diablo2.UI
             ph.text = placeholder ?? string.Empty;
             ph.supportRichText = false;
             ph.horizontalOverflow = HorizontalWrapMode.Overflow;
+            ph.raycastTarget = false;                   // ★ R1-C：同 text（占位符也是子 Graphic，不吃射线）
             phRt.offsetMin = new Vector2(10f, 2f);
             phRt.offsetMax = new Vector2(-10f, -2f);
 
             var input = bg.gameObject.AddComponent<InputField>();
-            input.targetGraphic = bg;
+            // ★ R1-C：**不设 `targetGraphic`**（= 不做任何状态着色，也不让它参与 Selectable 的选中/导航）
+            //   —— 见本方法开头的根因说明；输入框只作"文本显示载体 + 占位提示判据"。
+            input.targetGraphic = null;
+            input.navigation = new Navigation { mode = Navigation.Mode.None };
             input.textComponent = text;
             input.placeholder = ph;
             D2TextMirror.Attach(ph, D2Text.FontFor(ph.fontSize), input);

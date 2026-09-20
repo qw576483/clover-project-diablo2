@@ -427,8 +427,57 @@ namespace ItemCheck
     {
         public static bool Verbose;
 
-        private const string ClientDataPath =
-            @"client\Assets";
+        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
+        //   原先写死 `@"client\Assets"`（cwd 相对）⇒ `tools/probes/hosts/run_all_hosts.ps1`
+        //   用 `Push-Location <宿主目录>` 驱动时被解析成 `<宿主目录>\client\Assets`（不存在）
+        //   ⇒ 配表 0 行 ⇒ 物品造不出来、断言红，并在 Program.cs:734 抛 NullReferenceException
+        //   （进程以 exit=-1073741819 结束；实测 2026-09-20 复现）。
+        private static readonly string ClientDataPath = ResolveProjectRoot() + @"\client\Assets";
+
+        /// <summary>
+        /// 从宿主自己的可执行目录向上找「含 client/Assets 的那一层」= 仓库根。
+        /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/（与 corecheck / fullcheck / savecheck / uicheck 同一套写法）。
+        /// </summary>
+        private static string ResolveProjectRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            Console.WriteLine("[warn] 未从可执行目录向上找到含 client/Assets 的仓库根，回退相对路径 clover-project-diablo2");
+            return @"clover-project-diablo2";
+        }
+
+        /// <summary>
+        /// 宿主槽位档的**沙盒目录** = `&lt;仓库根&gt;/.ai-tmp/test/host-setting/&lt;宿主名&gt;`（每次跑前清空）。
+        /// <para>为什么必须显式给 `Game.Config.SettingDir`（2026-09-20 闸门/卫生对齐轮）：
+        /// `Module/Save/SaveModule.cs:96-98` 在 `Game.Config` 为空时回落**相对目录** `"setting"`
+        /// ⇒ 槽位档落在 `&lt;调用方 cwd&gt;/setting/saves/`。于是：① 从仓库根跑
+        /// `dotnet run --project tools/probes/hosts/itemcheck` 就在**仓库根**留一份
+        /// `setting/saves/*.json`（实测 2026-09-20：仓库根 `setting/` 未入仓、违 skill §1.8
+        /// 「一次性产物只许 `.ai-tmp/test/`」）；② `run_all_hosts.ps1`（`Push-Location`）则写进
+        /// **宿主目录**下那份**已入仓**的 `setting/saves/` ⇒ **验证器每次跑都改脏它验证的检出**；
+        /// ③ 上一次跑剩下的槽位文件会让"旧键懒迁移"这条断言**假通过**（先读到存在的槽位档就不再迁移）。
+        /// 指向 `.ai-tmp/` 沙盒并每次清空 ⇒ 不依赖 cwd、不留仓库残留、断言真正从零开始。
+        /// 业务断言一字未改。</para>
+        /// </summary>
+        private static string HostSandboxSettingDir(string host)
+        {
+            var p = System.IO.Path.Combine(ResolveProjectRoot(), ".ai-tmp", "test", "host-setting", host);
+            try
+            {
+                if (System.IO.Directory.Exists(p)) System.IO.Directory.Delete(p, true);
+                System.IO.Directory.CreateDirectory(p);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[warn] 沙盒目录不可用（{p}）：{ex.GetType().Name}: {ex.Message}");
+            }
+            return p;
+        }
 
         private static RecLogger _log;
         private static MemSetting _setting;
@@ -453,6 +502,9 @@ namespace ItemCheck
             Game.Event = new ConsoleEventBus();
             Game.Setting = _setting;
             Game.IsRunning = true;
+            // ★ 槽位档沙盒（2026-09-20 闸门/卫生对齐轮）：显式给 SaveModule 一个绝对 `SettingDir`
+            //   ⇒ 不再跟随 cwd 在仓库根 / 宿主目录留 `setting/saves/` 残留（详见 HostSandboxSettingDir）。
+            Game.Config = new GameConfig { SettingDir = HostSandboxSettingDir("itemcheck") };
 
             // ① 配表（与 Bootstrap 同一条链路：TableLoader → Tables.Default）
             var err = Table.TableLoader.LoadAll(null, ClientDataPath);

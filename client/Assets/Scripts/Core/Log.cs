@@ -56,6 +56,15 @@ namespace Diablo2.Core
             "App", "Flow", "Map", "Player", "Monster", "Combat", "Skill", "Item", "Quest",
             "Npc", "Input", "Camera", "View", "Audio", "Save", "Ui", "Table", "Cfg",
             "AStar", "Iso", "Rng", "D2",
+            // ★ R1-B：本轮修复的**证据 tag**（河面平色水墙瓦片不叠 / 点击不可走格的最近可走格回退）。
+            //   为什么单开一个 tag 而不是用 Map/Player：这两条修复的 Play 期数值证据要求「一条只报一次
+            //   的 Info，内容写清生效口径」并按 tag 检索；混进 Map/Player 会与模块常规日志无法区分。
+            //   ⛔ 不加这一行不会报错，但首条 R1-B 日志会附带一条「tag 不在白名单」的 Warn（本文件 :201）。
+            "R1-B",
+            // ★ R1-C：本轮修复的**证据 tag**（创角屏「点击人物动画变形」+「名字输入粘连」）。
+            //   同一理由（按 tag 检索"只报一次"的生效口径行）；三条日志分别在
+            //   `UI/CharCreatePanel.OnOpen`（过渡逐帧矩形 / 名字输入由面板驱动）与 `UI/UiArt.SetSprite`（请求守卫）。
+            "R1-C",
         };
 
         /// <summary>全局静默开关（只给压测/自动化用；正常流程不要打开）。</summary>

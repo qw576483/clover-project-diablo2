@@ -7,7 +7,9 @@
 //   ① 离线宿主编译/运行：0 错 0 警告（编译期）+ 断言全过（运行期）
 //   ② 点击移动：Town 出生点 → 远端可走格，逐帧 Tick(0.02f) 直到到达（贴起点/终点/路径长度/帧数）
 //   ③ 绕障：目标与出生点无视线 ⇒ 路径非直连，且**每一格**都可走、玩家全程 Walkable==true
-//   ④ 不可达：非可走格 / 越界格 ⇒ 不移动 + 有日志 + 计数
+//   ④ ★ R1-B 新口径：**图上有地形但阻挡** ⇒ 最近可走格回退（≤2 格，原版 D2「点不可走处走向最近
+//      合法点」）；图外（越界）/ 图内 `TileKind.Void` / 半径内无可走格 ⇒ 仍拒绝（不移动 + 日志 + 计数）
+//   ④b ★ R1-B 桥/水专项：点桥栏杆 ⇒ 走到桥面；点水面 ⇒ 走到岸上；点河中央 ⇒ 仍拒绝
 //   ⑤ 受阻：桩地图给出「穿过不可走格」的路径 ⇒ 停在原地（不穿墙）+ Warn + BlockedStops++
 //   ⑥ 踩出入口：Town 的出城口 ⇒ 发 Events.ExitEntered(BloodMoor)，且同一格只发一次
 //   ⑦ 升级公式：AddExp 到 experience_c 阈值 ⇒ 等级 +1、生命上限按配表增长、日志 `[Player] level 1→2`
@@ -162,10 +164,45 @@ namespace PlayerCheck
         public void Reset() { }
     }
 
+    /// <summary>
+    /// ★ R1-D：`IAppFlow` 的**最小桩** —— 让 <c>CameraRig.RefreshFocus</c> 走「跟主角世界坐标」那条路
+    /// （真机由 `AppFlow` 提供同一个判据，见 `CameraRig.FlowReady`）。
+    /// <para>为什么需要它：`AppContext.Flow == null` 时相机**不接管机位**（宿主/菜单语义）
+    /// ⇒ §15 c 就测不到「Player → Camera 同帧跟随」这条真链路。</para>
+    /// </summary>
+    internal sealed class StubFlow : Diablo2.Module.Flow.IAppFlow
+    {
+        public string CurrentState => "Stage";
+        public void Enter() { }
+        public void GoStage(AreaId area) { }
+        public void BackToMain() { }
+        public void QuitGame() { }
+    }
+
     public static class Program
     {
-        private const string ClientAssets =
-            @"client\Assets";
+        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
+        //   原先写死 `@"client\Assets"`（cwd 相对）⇒ `tools/probes/hosts/run_all_hosts.ps1`
+        //   用 `Push-Location <宿主目录>` 驱动时被解析成 `<宿主目录>\client\Assets`（不存在）
+        //   ⇒ 配表 0 行、断言 10 项红、exit 1（实测 2026-09-20 复现）。
+        private static readonly string ClientAssets = ResolveProjectRoot() + @"\client\Assets";
+
+        /// <summary>
+        /// 从宿主自己的可执行目录向上找「含 client/Assets 的那一层」= 仓库根。
+        /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/（与 corecheck / fullcheck / savecheck / uicheck 同一套写法）。
+        /// </summary>
+        private static string ResolveProjectRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            Console.WriteLine("[warn] 未从可执行目录向上找到含 client/Assets 的仓库根，回退相对路径 clover-project-diablo2");
+            return @"clover-project-diablo2";
+        }
 
         private const float Dt = 0.02f;          // 50 FPS（验收要求逐帧 Tick(0.02f)）
         private const int FrameCap = 6000;       // 单次移动的帧数上限（300 秒游戏时间，足够）
@@ -200,7 +237,8 @@ namespace PlayerCheck
             RunStep("1. 五职业 1 级派生属性", () => Step1_FiveClasses(ctx, map));
             RunStep("2. 点击移动", () => Step2_ClickMove(ctx, map, player, bus));
             RunStep("3. 绕障", () => Step3_Detour(ctx, map, player, bus));
-            RunStep("4. 不可达", () => Step4_Unreachable(ctx, map, player, bus));
+            RunStep("4. 不可达 / 最近可走格回退（R1-B）", () => Step4_Unreachable(ctx, map, player, bus));
+            RunStep("4b. 桥/水专项（R1-B）", () => Step4b_BridgeWaterFallback(ctx, map, player, bus));
             RunStep("5. 受阻（桩地图）", () => Step5_Blocked(ctx, player, bus));
             RunStep("6. 出入口", () => Step6_ExitPortal(ctx, map, player, bus));
             RunStep("7. 升级", () => Step7_LevelUp(ctx, player));
@@ -212,6 +250,8 @@ namespace PlayerCheck
             RunStep("13. 交互：悬停 / 点怪攻击 / Shift 站立攻击 / 走跑切换",
                 () => Step13_Interaction(ctx, map, player, input, bus));
             RunStep("14. 复位", () => Step13_Reset(ctx, player));
+            RunStep("15. ★ 移动抖动（R1-D）：逐帧位移上界 / 变 dt 终点一致 / 相机低通 / 帧节奏 / 重铺合并",
+                () => Step15_Jitter(ctx, map, player, rig, input));
 
             Console.WriteLine();
             Console.WriteLine($"================ 结束：{_ok} 项通过，{_fail} 项失败 ================");
@@ -409,37 +449,299 @@ namespace PlayerCheck
         // ═════════════════════════════════════════════════════════════════════
         private static void Step4_Unreachable(AppContext ctx, object mapObj, PlayerModule player, RecordingEventBus bus)
         {
-            Section("4. 不可达：点到障碍格 / 图外格 ⇒ 不移动 + 有日志");
+            Section("4. ★ R1-B：点不可走格 ⇒ 最近可走格回退（≤2 格）；半径内无可走格 / 图外 ⇒ 仍拒绝");
             var map = (Diablo2.Module.Map.MapModule)mapObj;
             map.Generate(AreaId.Town, 20250916);
             player.CreateNew(PlayerClass.Barbarian, "Blocked");
             player.TeleportTo(map.SpawnPoint);
 
             var start = player.Grid;
-            var wall = FindFirst(map, TileKind.Wall) ?? FindFirst(map, TileKind.Rock) ?? FindFirst(map, TileKind.Fence);
-            if (!wall.HasValue)
+            Check("回退半径 = 2 格（口径与出处见 PlayerModule.MoveFallbackRadius 注释）",
+                PlayerModule.MoveFallbackRadius == 2, $"= {PlayerModule.MoveFallbackRadius}");
+
+            // ── ① 点阻挡格（栅栏/石墙/帐篷/水…）⇒ 回退到半径内最近可走格并**真的走过去** ──────
+            //   旧口径（本轮已废除）是「点障碍 ⇒ 原地不动」；原版 D2 是「走向最近合法点」。
+            var blocked = FindBlockedWithLanding(map, start, PlayerModule.MoveFallbackRadius, out var expect);
+            if (!blocked.HasValue)
             {
-                Check("地图里存在不可走格", false, "找不到 Wall/Rock/Fence");
-                return;
+                Check("地图里存在「半径内有可走格且走得到」的阻挡格", false, "找不到这样的格（换 seed 试）");
+            }
+            else
+            {
+                var beforeCount = player.UnreachableCount;
+                var beforeLogs = CaptureLogger.Count("[Move] unreachable");
+                Console.WriteLine($"    用例：点击阻挡格 {blocked.Value}（地形={map.TileAt(blocked.Value)}），" +
+                                  $"半径复算的落点 = {expect}");
+                player.MoveTo(blocked.Value);
+                Console.WriteLine("    " + CaptureLogger.Last("[R1-B]"));
+                for (var f = 0; f < FrameCap && player.IsMoving; f++) player.Tick(Dt);
+
+                Check("点阻挡格**不再原地不动**：角色走到了邻近可走格",
+                    player.Grid != start && map.Walkable(player.Grid),
+                    $"起点 {start} → 现在 {player.Grid}（点击 {blocked.Value}）");
+                Check("落点 == 口径复算的「离点击点最近 → 离角色最近 → (dx,dy) 升序」那格",
+                    player.Grid == expect, $"实测 {player.Grid} vs 复算 {expect}");
+                Check("落点在回退半径内", Iso.GridDistance(player.Grid, blocked.Value) <= PlayerModule.MoveFallbackRadius,
+                    $"Chebyshev 距离 = {Iso.GridDistance(player.Grid, blocked.Value)} ≤ {PlayerModule.MoveFallbackRadius}");
+                Check("回退成功**不计入** UnreachableCount", player.UnreachableCount == beforeCount,
+                    $"{beforeCount} → {player.UnreachableCount}");
+                Check("留下了 R1-B 生效口径日志（只报一次）",
+                    CaptureLogger.Has("[R1-B]") && CaptureLogger.Count("[R1-B]") == 1,
+                    CaptureLogger.Last("[R1-B]"));
+                Check("回退成功时**没有**打 [Move] unreachable", CaptureLogger.Count("[Move] unreachable") == beforeLogs,
+                    $"{beforeLogs} → {CaptureLogger.Count("[Move] unreachable")}");
             }
 
-            var beforeCount = player.UnreachableCount;
-            var beforeLogs = CaptureLogger.Count("[Move] unreachable");
-            player.MoveTo(wall.Value);
+            // ── ② 图外（越界）⇒ **仍然直接拒绝**（点关卡外不动；回退只对「图上有地形只是阻挡」生效）──
+            var here = player.Grid;
+            var cntOut = player.UnreachableCount;
+            var logsOut = CaptureLogger.Count("[Move] unreachable");
+            player.MoveTo(new Vector2Int(-5, -5));
             for (var f = 0; f < 50; f++) player.Tick(Dt);
-
-            Check("没有移动（仍在起点）", player.Grid == start, $"起点 {start}，现在 {player.Grid}");
-            Check("不可达计数 +1", player.UnreachableCount == beforeCount + 1,
-                $"{beforeCount} → {player.UnreachableCount}");
-            Check("留下了可定位日志（含地形与起终点）", CaptureLogger.Count("[Move] unreachable") == beforeLogs + 1,
-                CaptureLogger.Last("[Move] unreachable"));
-
-            // 图外（Void）
-            var outside = new Vector2Int(-5, -5);
-            player.MoveTo(outside);
-            Check("图外目标同样被判不可达", player.Grid == start && player.UnreachableCount == beforeCount + 2,
-                $"UnreachableCount={player.UnreachableCount}，格={player.Grid}");
+            Check("图外目标仍被拒：不动 + UnreachableCount+1 + 留日志",
+                player.Grid == here && player.UnreachableCount == cntOut + 1
+                && CaptureLogger.Count("[Move] unreachable") == logsOut + 1,
+                $"格={player.Grid}（应停在 {here}）UnreachableCount={cntOut}→{player.UnreachableCount}");
             Console.WriteLine("    " + CaptureLogger.Last("[Move] unreachable"));
+
+            // ── ③ 图内 `TileKind.Void`（原版没铺、`MapView` 也不画的西北角 ⇒ 视觉上就是关卡外那片黑）
+            //      ⇒ **与越界同处置：直接拒绝**（不许"点黑就走到旁边草地"）─────────────────────
+            var voidCell = FindInBoundsVoid(map);
+            if (!voidCell.HasValue)
+            {
+                Check("地图里存在图内 Void 格（城镇西北角 3×10）", false, "找不到 Void 格");
+            }
+            else
+            {
+                var cntVoid = player.UnreachableCount;
+                player.MoveTo(voidCell.Value);
+                for (var f = 0; f < 50; f++) player.Tick(Dt);
+                Check("点图内 Void（视觉=关卡外黑）仍被拒：不动 + UnreachableCount+1",
+                    player.Grid == here && player.UnreachableCount == cntVoid + 1,
+                    $"格={player.Grid}（应停在 {here}）Void 格={voidCell.Value} UnreachableCount={cntVoid}→{player.UnreachableCount}");
+            }
+        }
+
+        /// <summary>图内（`InBounds` 为真）的 `TileKind.Void` 格 —— 原版没铺瓦片、渲染层也不画的格。</summary>
+        private static Vector2Int? FindInBoundsVoid(Diablo2.Module.Map.MapModule map)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                for (var y = 0; y < map.Height; y++)
+                {
+                    var g = new Vector2Int(x, y);
+                    if (map.InBounds(g) && map.TileAt(g) == TileKind.Void) return g;
+                }
+            }
+            return null;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 4b. ★ R1-B 桥 / 水专项（用户报「为什么不是从桥上走？」）
+        //     判据全部取自**逐格原版瓦片键**（`MapModule.TryGetTileKeys`），不是靠坐标猜：
+        //       ① 点**桥栏杆**格（floor+wall 都来自 `bridge.dt1`）⇒ 落到**桥面**格
+        //          （floor 来自 `bridge.dt1` 且 wall 为空）
+        //       ② 点**水面**格（floor 来自 `river.dt1`）⇒ 落到**岸上**（floor 不是 `river.dt1`）
+        //       ③ 点**河中央**（半径 2 内一格可走都没有）⇒ **仍拒绝**（证明没有放宽成"点哪都能走"）
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step4b_BridgeWaterFallback(AppContext ctx, object mapObj, PlayerModule player,
+            RecordingEventBus bus)
+        {
+            Section("4b. ★ R1-B 桥/水专项：点栏杆 ⇒ 走到桥面；点水面 ⇒ 走到岸上；点河中央 ⇒ 仍拒绝");
+            var map = (Diablo2.Module.Map.MapModule)mapObj;
+            map.Generate(AreaId.Town, 20250916);
+            player.CreateNew(PlayerClass.Amazon, "Bridge");
+            player.TeleportTo(map.SpawnPoint);
+
+            // ── ① 桥栏杆 ⇒ 桥面 ────────────────────────────────────────────────────
+            var rail = FindBridgeRail(map);
+            if (!rail.HasValue)
+            {
+                Check("地图里存在桥栏杆格（floor+wall 都来自 bridge.dt1）", false, "找不到桥栏杆格");
+            }
+            else
+            {
+                map.TryGetTileKeys(rail.Value.x, rail.Value.y, out var rg, out var ro);
+                Console.WriteLine($"    用例①：桥栏杆格 {rail.Value} floor={rg} wall={ro} 地形={map.TileAt(rail.Value)}");
+                player.MoveTo(rail.Value);
+                for (var f = 0; f < FrameCap && player.IsMoving; f++) player.Tick(Dt);
+
+                map.TryGetTileKeys(player.Grid.x, player.Grid.y, out var lg, out var lo);
+                Check("点桥栏杆 ⇒ 落到了**桥面**（floor 来自 bridge.dt1 且 wall 为空）",
+                    player.Grid != rail.Value && map.Walkable(player.Grid)
+                    && lg.StartsWith("moor_bridge/") && string.IsNullOrEmpty(lo),
+                    $"落点 {player.Grid} floor={lg} wall={(string.IsNullOrEmpty(lo) ? "(空=桥面)" : lo)}");
+                Check("落点是栏杆的**相邻格**（桥面与栏杆相邻 1 格 —— 这就是「点桥不走桥」的根因）",
+                    Iso.GridDistance(player.Grid, rail.Value) == 1,
+                    $"Chebyshev 距离 = {Iso.GridDistance(player.Grid, rail.Value)}");
+            }
+
+            // ── ② 水面 ⇒ 岸上 ──────────────────────────────────────────────────────
+            var water = FindRiverWaterWithWalkableNeighbor(map, PlayerModule.MoveFallbackRadius);
+            if (!water.HasValue)
+            {
+                Check("地图里存在「半径内有可走岸」的水面格", false, "找不到这样的水面格");
+            }
+            else
+            {
+                map.TryGetTileKeys(water.Value.x, water.Value.y, out var wg, out var wo);
+                Console.WriteLine($"    用例②：水面格 {water.Value} floor={wg} wall={(string.IsNullOrEmpty(wo) ? "(空)" : wo)}" +
+                                  $" 地形={map.TileAt(water.Value)}");
+                player.MoveTo(water.Value);
+                for (var f = 0; f < FrameCap && player.IsMoving; f++) player.Tick(Dt);
+
+                map.TryGetTileKeys(player.Grid.x, player.Grid.y, out var lg2, out _);
+                Check("点水面 ⇒ 落到了**岸上**（可走 + floor 不再是 river.dt1）",
+                    player.Grid != water.Value && map.Walkable(player.Grid) && !lg2.StartsWith("moor_river/"),
+                    $"落点 {player.Grid} floor={lg2} 地形={map.TileAt(player.Grid)}");
+                Check("落点在水面格的回退半径内",
+                    Iso.GridDistance(player.Grid, water.Value) <= PlayerModule.MoveFallbackRadius,
+                    $"Chebyshev 距离 = {Iso.GridDistance(player.Grid, water.Value)}");
+            }
+
+            // ── ③ 河中央（半径 2 内无可走格）⇒ 仍拒绝 ───────────────────────────────
+            var midRiver = FindRiverWaterWithoutWalkableNeighbor(map, PlayerModule.MoveFallbackRadius);
+            if (!midRiver.HasValue)
+            {
+                Check("地图里存在「半径内一格可走都没有」的水面格", false, "找不到（河太窄？）");
+            }
+            else
+            {
+                var here = player.Grid;
+                var cnt = player.UnreachableCount;
+                map.TryGetTileKeys(midRiver.Value.x, midRiver.Value.y, out var mg, out _);
+                Console.WriteLine($"    用例③：河中央 {midRiver.Value} floor={mg} 地形={map.TileAt(midRiver.Value)}");
+                player.MoveTo(midRiver.Value);
+                for (var f = 0; f < 50; f++) player.Tick(Dt);
+                Check($"点河中央（回退半径 {PlayerModule.MoveFallbackRadius} 内无路可上）⇒ **仍拒绝**：不动 + UnreachableCount+1",
+                    player.Grid == here && player.UnreachableCount == cnt + 1,
+                    $"格={player.Grid}（应停在 {here}）UnreachableCount={cnt}→{player.UnreachableCount}");
+                Console.WriteLine("    " + CaptureLogger.Last("[Move] unreachable"));
+            }
+        }
+
+        /// <summary>
+        /// 找一个「**不可走（且图上有地形，即不是 Void）** 且 在 <paramref name="radius"/> 内存在可走格、
+        /// 且那格从 <paramref name="from"/> 走得到」的格；并按**口径复算**（离点击点最近 → 离角色最近 →
+        /// dx/dy 升序，与 `PlayerModule.MoveFallbackRadius` 的文档一致）给出期望落点 —— 把回退规则钉死。
+        /// </summary>
+        private static Vector2Int? FindBlockedWithLanding(Diablo2.Module.Map.MapModule map, Vector2Int from,
+            int radius, out Vector2Int expect)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                for (var y = 0; y < map.Height; y++)
+                {
+                    var t = new Vector2Int(x, y);
+                    if (map.Walkable(t)) continue;
+                    // Void（原版没铺、也不画 ⇒ 视觉=关卡外）不参与回退 ⇒ 本用例也不该拿它当"阻挡格"
+                    if (!map.InBounds(t) || map.TileAt(t) == TileKind.Void) continue;
+                    var e = ExpectedLanding(map, from, t, radius);
+                    if (e.x == int.MinValue) continue;
+                    if (map.FindPath(from, e) == null) continue;
+                    expect = e;
+                    return t;
+                }
+            }
+            expect = new Vector2Int(int.MinValue, int.MinValue);
+            return null;
+        }
+
+        /// <summary>按文档口径独立复算「最近可走格」（宿主侧复算，用来对账；返回 int.MinValue 格 = 半径内没有可走格）。</summary>
+        private static Vector2Int ExpectedLanding(Diablo2.Module.Map.MapModule map, Vector2Int from,
+            Vector2Int target, int radius)
+        {
+            var best = new Vector2Int(int.MinValue, int.MinValue);
+            var bc = int.MaxValue;
+            var bp = int.MaxValue;
+            for (var dx = -radius; dx <= radius; dx++)
+            {
+                for (var dy = -radius; dy <= radius; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    var g = new Vector2Int(target.x + dx, target.y + dy);
+                    if (!map.Walkable(g)) continue;
+                    var dc = dx * dx + dy * dy;
+                    if (dc > bc) continue;
+                    var fx = g.x - from.x;
+                    var fy = g.y - from.y;
+                    var dp = fx * fx + fy * fy;
+                    if (dc == bc && dp >= bp) continue;
+                    best = g;
+                    bc = dc;
+                    bp = dp;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// 桥栏杆格：floor 与 wall **都**来自 `bridge.dt1`（= 桥的栏杆行；桥面行的 wall 是空的），
+        /// 且**所有距离 1 的可走邻格都是桥面**（floor 也是 `bridge.dt1` 且 wall 空）。
+        /// <para>为什么要加后半句：桥的**两端**（x=46/55）栏杆的邻格里有营地地面/岸上草地，
+        /// 那种用例会让"点到栏杆应该走到桥面"这条断言变成在考"离角色更近"这条 tie-break；
+        /// 取桥中段的栏杆，落点就必然落在桥面上（判据才指向"点桥不走桥"这个真问题）。</para>
+        /// </summary>
+        private static Vector2Int? FindBridgeRail(Diablo2.Module.Map.MapModule map)
+        {
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    if (!map.TryGetTileKeys(x, y, out var g, out var o)) continue;
+                    if (!g.StartsWith("moor_bridge/") || !o.StartsWith("moor_bridge/")) continue;
+
+                    var walkableNeighbors = 0;
+                    var allDeck = true;
+                    for (var i = 0; i < 4 && allDeck; i++)
+                    {
+                        var nx = x + (i == 0 ? 1 : i == 1 ? -1 : 0);
+                        var ny = y + (i == 2 ? 1 : i == 3 ? -1 : 0);
+                        if (!map.Walkable(new Vector2Int(nx, ny))) continue;
+                        walkableNeighbors++;
+                        map.TryGetTileKeys(nx, ny, out var ng, out var no);
+                        if (!ng.StartsWith("moor_bridge/") || !string.IsNullOrEmpty(no)) allDeck = false;
+                    }
+                    if (walkableNeighbors > 0 && allDeck) return new Vector2Int(x, y);
+                }
+            }
+            return null;
+        }
+
+        /// <summary>水面格（floor 来自 `river.dt1`）且半径内有可走格。</summary>
+        private static Vector2Int? FindRiverWaterWithWalkableNeighbor(Diablo2.Module.Map.MapModule map, int radius)
+        {
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    if (!map.TryGetTileKeys(x, y, out var g, out _)) continue;
+                    if (!g.StartsWith("moor_river/")) continue;
+                    var t = new Vector2Int(x, y);
+                    var e = ExpectedLanding(map, t, t, radius);
+                    if (e.x == int.MinValue) continue;
+                    return t;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>水面格（floor 来自 `river.dt1`）但半径内**一格可走都没有**（= 河中央）。</summary>
+        private static Vector2Int? FindRiverWaterWithoutWalkableNeighbor(Diablo2.Module.Map.MapModule map, int radius)
+        {
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    if (!map.TryGetTileKeys(x, y, out var g, out _)) continue;
+                    if (!g.StartsWith("moor_river/")) continue;
+                    var t = new Vector2Int(x, y);
+                    var e = ExpectedLanding(map, t, t, radius);
+                    if (e.x != int.MinValue) continue;
+                    return t;
+                }
+            }
+            return null;
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -983,6 +1285,41 @@ namespace PlayerCheck
                 CaptureLogger.Count("TryGetGroundClick：找不到主相机") == noCamLogs + 1,
                 $"次数 {CaptureLogger.Count("TryGetGroundClick：找不到主相机")}");
 
+            // 12.2b ★ R1-E 的 S2：**点 UI 的那次左键不许被读成"点地面"**
+            //   两种情形都要覆盖：①「UI 面板开着的区域」（拦掉）②「面板外的地面」（照旧）。
+            //   判据 = 纯函数真值表（4 行）+ 给 `PointerOverUi` 注入替身走一遍**真实入口**
+            //   （离线宿主没有真 EventSystem，所以走注入；见 `InputReader.PointerOverUi` 的注释）。
+            Check("UiEatsIntent 真值表：按下+指针在 UI ⇒ 吃掉；按下+指针不在 UI ⇒ 不吃（面板外照样点地面）",
+                InputReader.UiEatsIntent(true, true)
+                && !InputReader.UiEatsIntent(true, false)
+                && !InputReader.UiEatsIntent(false, true)
+                && !InputReader.UiEatsIntent(false, false),
+                "true/true→true；true/false→false；false/*→false");
+
+            input.BeginFrame();
+            input.MouseDown();
+            reader.Poll();
+            reader.OverrideHoverGrid(new Vector2Int(3, 3));      // 给一个"表面在 UI 之下的地面格"
+            reader.PointerOverUi = () => true;                   // 替身：指针压在 UI 上
+
+            var hitLogs = CaptureLogger.Count("[R1-E] S2");
+            Check("指针在 UI 上 ⇒ 单击**不产生**落点（连反投影都不走 ⇒ 下游不会 Emit MoveCommand）",
+                !reader.TryGetGroundClick(out _), "TryGetGroundClick=false（UI 命中拦截）");
+            Check("指针在 UI 上 ⇒ 按住也不产生落点（否则同帧的 _held 会从那一支漏出一条移动/攻击）",
+                !reader.TryGetGroundHoldTarget(out _), "TryGetGroundHoldTarget=false");
+            Check("拦截时留下一条可定位的 `[R1-E] S2` 日志（且只报一次）",
+                CaptureLogger.Count("[R1-E] S2") == hitLogs + 1, CaptureLogger.Last("[R1-E] S2"));
+
+            reader.PointerOverUi = () => false;                  // 替身：指针在面板外的地面
+            Check("指针不在 UI 上 ⇒ 拦截不生效（本宿主无相机 ⇒ 仍被相机那条挡下，与改动前逐字一致）",
+                !reader.TryGetGroundClick(out _) && CaptureLogger.Has("TryGetGroundClick：找不到主相机"),
+                "面板外可点地面：这条路未被 UI 判定影响");
+            Check("第二帧不再重复播 S2 日志（『只报一次』语义）",
+                CaptureLogger.Count("[R1-E] S2") == hitLogs + 1, $"次数 {CaptureLogger.Count("[R1-E] S2")}");
+
+            // 复位：只清替身，**不调 Reset()** —— 避免扰动后面几段对"只报一次"计数与相机日志的断言
+            reader.PointerOverUi = null;
+
             input.BeginFrame();          // 松开
             input.MouseUp();
             reader.Poll();
@@ -1263,6 +1600,370 @@ namespace PlayerCheck
                 $"{player.DumpStats()}");
             Check("复位后装备加成没有残留", player.Stats.BonusStr == 0 && player.GetResist(DamageType.Fire) == 0,
                 $"BonusStr={player.Stats.BonusStr} 火抗={player.GetResist(DamageType.Fire)}");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 15. ★ 移动抖动（R1-D · 用户投诉「人物移动抖动」）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 把「移动抖动」的候选逐条拆开（全部离线、秒级，不依赖 Unity 原生）：
+        /// <list type="bullet">
+        /// <item>**a**：逐帧位移上界（每帧位移 ≤ speed×dt、相邻位移不反向）—— 判「吸格心不扣预算」的**周期跳变**；</item>
+        /// <item>**b**：变 dt 序列（0.033/0.016/0.050 交替）走**同一条**路径 ⇒ 终点必须逐格一致 —— 隔离「帧率敏感」；</item>
+        /// <item>**c**：相机低通（每帧位移单调收敛 / 二阶差分有界 / dt 抖动传导比 ≤ 1.3）—— 判相机是否**放大** dt 抖动；</item>
+        /// <item>**e**：帧节奏口径（`Core/FramePacing`）与「地图整图重铺」的合并口径 + 单帧节点数上限。</item>
+        /// </list>
+        /// 被测实现：`Module/Player/PlayerMotor.Tick`（积分口径）/ `Module/Camera/CameraRig.Tick`（平滑跟随）。
+        /// </summary>
+        private static void Step15_Jitter(AppContext ctx, object mapObj, PlayerModule player, CameraRig rig,
+            ScriptedInput input)
+        {
+            Section("15. ★ 移动抖动（R1-D）：逐帧位移上界 / 变 dt 终点一致 / 相机低通 / 帧节奏 / 重铺合并");
+            var map = (Diablo2.Module.Map.MapModule)mapObj;
+            map.Generate(AreaId.Town, 20250916);
+
+            // 中立输入（前面步骤打开过 `input.Available`）：清本帧边沿 ⇒ 没有按键/按住状态干扰位移
+            input.BeginFrame();
+            input.Available = true;
+
+            const float dt = 1f / 60f;                       // 真机帧长（R1-D 把帧率钉死在 60）
+            player.CreateNew(PlayerClass.Amazon, "Jitter");
+            player.SetRunning(true);
+            Check("跑（速度 = GameConst.PlayerWalkSpeed）",
+                player.Running && Math.Abs(player.MoveSpeed - GameConst.PlayerWalkSpeed) < 1e-4f,
+                $"Running={player.Running} MoveSpeed={player.MoveSpeed}");
+
+            player.TeleportTo(map.SpawnPoint);
+            var target = FindFarWalkable(map, map.SpawnPoint, 12, requireNoLineOfSight: false);
+            Check("找到够远的目标格（≥12 格）", target != map.SpawnPoint,
+                $"目标 {target}（出生点 {map.SpawnPoint}）");
+            if (target == map.SpawnPoint) return;
+
+            // ── a) 逐帧位移上界（cell 空间；反投影走 `Iso.WorldToGridContinuous`，不另写几何）──
+            var limit = player.MoveSpeed * dt;
+            var steps = new List<float>();
+            var prevCell = CellOf(player.World);
+            var prevDelta = Vector2.zero;
+            var over = 0;
+            var badDots = 0;
+            var maxStep = 0f;
+            player.MoveTo(target);
+            var frames = 0;
+            for (; frames < FrameCap && player.IsMoving; frames++)
+            {
+                player.Tick(dt);
+                var cur = CellOf(player.World);
+                var d = cur - prevCell;
+                var mag = d.magnitude;
+                steps.Add(mag);
+                if (mag > limit + 1e-4f) over++;
+                if (mag > maxStep) maxStep = mag;
+                if (prevDelta != Vector2.zero && d != Vector2.zero && Vector2.Dot(prevDelta, d) < -1e-6f) badDots++;
+                prevDelta = d;
+                prevCell = cur;
+            }
+            var sum = 0f;
+            for (var i = 0; i < steps.Count; i++) sum += steps[i];
+            var avg = steps.Count > 0 ? sum / steps.Count : 0f;
+
+            Check("a1 每帧位移 ≤ speed×dt（旧口径「吸格心不扣预算」实测会超到 ~2×）", over == 0,
+                $"帧数 {frames} / 路径 {player.Motor.LastSteps} 格；帧位移 最大 {maxStep:0.#####} 平均 {avg:0.#####} / 上限 {limit:0.#####} 格（超出上限的帧 = {over}）");
+            Check("a2 相邻两帧位移方向不反向（点积 ≥ 0）", badDots == 0, $"反向对数 = {badDots}");
+            Check("a3 位移断言跑的是真路径（已到达目标格）", player.Grid == target, $"终点 {player.Grid}");
+
+            // ── b) 变 dt 序列走同一条路径 ⇒ 终点必须逐格一致（隔离「帧率敏感」）──
+            var endFixed = WalkSamePath(player, map, target, null, 0.02f);
+            var endJitter = WalkSamePath(player, map, target, new[] { 0.033f, 0.016f, 0.050f }, 0f);
+            var cellTarget = new Vector2(target.x + 0.5f, target.y + 0.5f);
+            Check("b1 变 dt 与固定 dt 走同一条路径 ⇒ 终点逐格一致（位置与帧率无关）",
+                (endFixed - endJitter).magnitude < 1e-5f,
+                $"固定 dt 终点 {endFixed} vs 变 dt 终点 {endJitter}（差 {(endFixed - endJitter).magnitude:0.#######} 格）");
+            Check("b2 终点 = 目标格心（落格精确、不漂）", (endFixed - cellTarget).magnitude < 1e-4f,
+                $"{endFixed} vs 格心 {cellTarget}");
+
+            // ── c) 相机低通：焦点匀速运动下每帧位移单调收敛、二阶差分有界；dt 抖动不被放大 ──
+            //      `Flow` 必须非 null 才走「跟主角世界坐标」那条路（真机由 AppFlow 提供，见 CameraRig.FlowReady）
+            var flowBefore = ctx.Flow;
+            ctx.Flow = new StubFlow();
+            try
+            {
+                var camFixed = new List<float>();
+                var playFixed = new List<float>();
+                float gapMax, limitFixed, gapLast;
+                TraceCamera(player, rig, map, map.SpawnPoint, target, null, 0.02f, camFixed, playFixed,
+                    out gapMax, out limitFixed, out gapLast);
+
+                var camMax = 0f;
+                for (var i = 0; i < camFixed.Count; i++) if (camFixed[i] > camMax) camMax = camFixed[i];
+                var jumpMax = 0f;
+                for (var i = 1; i < camFixed.Count; i++)
+                {
+                    var j = Math.Abs(camFixed[i] - camFixed[i - 1]);
+                    if (j > jumpMax) jumpMax = j;
+                }
+                var diffMax = 0f;
+                for (var i = 0; i < camFixed.Count && i < playFixed.Count; i++)
+                {
+                    var dd = Math.Abs(camFixed[i] - playFixed[i]);
+                    if (dd > diffMax) diffMax = dd;
+                }
+
+                Check("c1 相机每帧位移 ≤ 焦点标称单帧位移 ×1.1（低通：不放大、不超调）",
+                    camMax <= limitFixed * 1.1f + 1e-4f,
+                    $"单帧位移 相机最大 {camMax:0.#####} vs 焦点标称上限 {limitFixed:0.#####} 格（{camFixed.Count} 帧）");
+                // ⚠️ 「单调收敛」只对**匀速直线**成立：锯齿路径换向时相机的滞后矢量要先转向
+                //    （单帧位移小幅回落是**正确的低通行为**，不是抖动）⇒ 必须用一条**真·单方向直线**
+                //    （同一行/列的连续可走格）单独判，而不是"有视线的目标"（A* 仍会先斜后直）。
+                Vector2Int lineFrom, lineTo;
+                var hasLine = FindLongestAxisRun(map, out lineFrom, out lineTo);
+                var camLine = new List<float>();
+                var playLine = new List<float>();
+                if (hasLine)
+                {
+                    TraceCamera(player, rig, map, lineFrom, lineTo, null, 0.02f, camLine, playLine,
+                        out gapMax, out limitFixed, out gapLast);
+                }
+                var monotone = hasLine;
+                var breakAt = -1;
+                var breakDelta = 0f;
+                for (var i = 1; i < camLine.Count; i++)
+                {
+                    if (camLine[i] >= camLine[i - 1] - 1e-5f) continue;
+                    if (breakAt < 0) { breakAt = i; breakDelta = camLine[i] - camLine[i - 1]; }
+                    monotone = false;
+                }
+                var lineJump = 0f;
+                for (var i = 1; i < camLine.Count; i++)
+                {
+                    var j = Math.Abs(camLine[i] - camLine[i - 1]);
+                    if (j > lineJump) lineJump = j;
+                }
+                // ⚠️ 判定范围**只取匀速段**（焦点单帧位移 == 标称上限的那些帧）：
+                //    到达帧焦点会停下（位移 < 标称），相机随之减速 —— 那是正确的末端行为，不是"来回"。
+                var steady = 0;
+                var steadyOk = true;
+                var prevSteady = -1f;
+                for (var i = 0; i < camLine.Count; i++)
+                {
+                    if (i >= playLine.Count || playLine[i] < limitFixed - 1e-4f) continue;
+                    if (prevSteady >= 0f && camLine[i] < prevSteady - 1e-5f) steadyOk = false;
+                    steady++;
+                    prevSteady = camLine[i];
+                }
+                var probe = steadyOk
+                    ? $"匀速段 {steady} 帧全程单调不减"
+                    : $"匀速段第 {steady} 帧起有回落（首个回落在全序列第 {breakAt} 帧：{breakDelta:0.#####}）";
+                Check("c2 匀速**单方向直线**段：相机每帧位移单调不减（收敛过程无来回）",
+                    hasLine && steadyOk && steady > 5,
+                    $"直线段 {lineFrom}→{lineTo}（{camLine.Count} 帧）；末帧位移 {(camLine.Count > 0 ? camLine[camLine.Count - 1] : 0f):0.#####} ⇒ 渐近标称 {limitFixed:0.#####} 格；{probe}");
+                Check("c3 二阶差分有界（平滑、无跳变；锯齿与直线段都算）",
+                    jumpMax <= limitFixed * 0.25f + 1e-4f && lineJump <= limitFixed * 0.25f + 1e-4f,
+                    $"锯齿段最大 |Δstep| = {jumpMax:0.#####}；直线段 = {lineJump:0.#####}（上限 {limitFixed * 0.25f:0.#####}）");
+                Check("c4 相机与焦点同帧位移之差 ≤ 一个标称帧步（不甩开、不提前）",
+                    diffMax <= limitFixed + 1e-4f,
+                    $"最大差 {diffMax:0.#####} 格 = 标称帧步的 {diffMax / MathF.Max(1e-6f, limitFixed) * 100f:0.0}%");
+                Check($"c5 稳态滞后 ≤ speed×τ×1.5（τ=FollowSmoothTime {CameraRig.FollowSmoothTime}s ⇒ 理论 {player.MoveSpeed * CameraRig.FollowSmoothTime:0.###} 格）",
+                    gapLast <= player.MoveSpeed * CameraRig.FollowSmoothTime * 1.5f + 1e-3f,
+                    $"末帧滞后 {gapLast:0.####} 格（全程最大 {gapMax:0.####}）");
+
+                // dt 抖动传导比：输入 dt 的变异系数 vs 相机每帧位移的变异系数（稳态段取样）
+                var camJit = new List<float>();
+                var playJit = new List<float>();
+                TraceCamera(player, rig, map, map.SpawnPoint, target, new[] { 0.033f, 0.016f, 0.050f }, 0f,
+                    camJit, playJit, out gapMax, out limitFixed, out gapLast);
+                var skip = 30;                                    // 跳过启动暂态
+                var cvPlay = Cv(playJit, skip, 5);
+                var cvCam = Cv(camJit, skip, 5);
+                var amp = cvPlay > 1e-4f ? cvCam / cvPlay : 1f;
+                Check("c6 dt 抖动传导比 ≤ 1.3（相机不放大帧长抖动；1.0 = 原样通过）",
+                    amp <= 1.3f && cvPlay > 0.05f,
+                    $"输入 dt 抖动 CV={cvPlay:0.###} → 相机单帧位移 CV={cvCam:0.###}，传导比 {amp:0.###}（稳态取样，剔除首 {skip} 帧与末 5 帧）");
+            }
+            finally
+            {
+                ctx.Flow = flowBefore;                            // 还原（后面的步骤/宿主语义不受影响）
+                player.Stop();
+            }
+
+            // ── e) 帧节奏口径（Core/FramePacing）+ 地图整图重铺的合并口径与单帧节点上限 ──
+            Check("e1 帧节奏口径 = targetFrameRate 60 + vSync 0（恒定，与画质档位无关）",
+                FramePacing.TargetFrameRate == 60 && FramePacing.VSyncCount == 0,
+                $"targetFrameRate={FramePacing.TargetFrameRate} vSyncCount={FramePacing.VSyncCount}" +
+                "（旧口径：QualitySettings.asset 逐档 vSync 0/1 ⇒ 选 LOW/MED 时无帧率上限）");
+
+            FramePacing.ResetStaticsForNewPlaySession();
+            var logsBefore = CaptureLogger.Count("[R1-D]");
+            FramePacing.Pin("自检宿主（第一次）");
+            var logsFirst = CaptureLogger.Count("[R1-D]");
+            FramePacing.Pin("自检宿主（第二次）");
+            var logsSecond = CaptureLogger.Count("[R1-D]");
+            Check("e2 Pin 在无 Unity 运行时时不抛异常、留痕、且只报一次",
+                logsFirst > logsBefore && logsSecond == logsFirst,
+                $"第 1 次 +{logsFirst - logsBefore} 条 / 第 2 次 +{logsSecond - logsFirst} 条（离线原生 API 不可用 ⇒ 走 Warn 那条分支）");
+            var line = FramePacing.Describe("自检宿主", 0, 1);
+            Check("e3 生效口径文本写清了三件事（targetFrameRate / vSyncCount / 动画复位口径 / 移动积分口径）",
+                line.IndexOf("targetFrameRate=60", StringComparison.Ordinal) >= 0
+                && line.IndexOf("vSyncCount=0", StringComparison.Ordinal) >= 0
+                && line.IndexOf("动画复位口径", StringComparison.Ordinal) >= 0
+                && line.IndexOf("移动积分口径", StringComparison.Ordinal) >= 0
+                && CaptureLogger.Has("[R1-D]"),
+                line);
+
+            // 整图重铺的合并口径（纯函数）—— 旧口径 = 每来一张贴图就整图重铺一次
+            // 用全名 `Diablo2.Module.Map.MapView`：本宿主的 using 里没有 `Diablo2.Module.Map`
+            // （与 `MapModule` 同一处置，避免为一个纯函数断言多引一个命名空间）。
+            Check("e4 无待办 ⇒ 不重铺",
+                !Diablo2.Module.Map.MapView.ShouldRepaintNow(10f, -1f, 0f, float.NegativeInfinity), "firstRequestAt < 0");
+            Check("e5 贴图还在陆续到位（距最近一次 < 静默期）⇒ 先攒着",
+                !Diablo2.Module.Map.MapView.ShouldRepaintNow(10f, 9.9f, 9.9f, float.NegativeInfinity),
+                $"now-last={10f - 9.9f:0.##} < 静默期 {Diablo2.Module.Map.MapView.RepaintQuietTime:0.##}s");
+            Check("e6 静默期满且距上次重铺 ≥ 最小间隔 ⇒ 重铺",
+                Diablo2.Module.Map.MapView.ShouldRepaintNow(10f, 9.5f, 9.5f, float.NegativeInfinity),
+                $"now-first={0.5f:0.##} 静默={0.5f:0.##} 距上次=∞");
+            Check("e7 距上次重铺 < 最小间隔 ⇒ 不重铺（节流）",
+                !Diablo2.Module.Map.MapView.ShouldRepaintNow(10f, 9.5f, 9.5f, 9.8f),
+                $"now-lastRepaint={0.2f:0.##} < 最小间隔 {Diablo2.Module.Map.MapView.RepaintMinInterval:0.##}s");
+            Check("e8 超时兜底：距首次请求 ≥ 最长等待 ⇒ 无条件重铺（贴图一定会换上）",
+                Diablo2.Module.Map.MapView.ShouldRepaintNow(10f, 8.5f, 9.99f, 9.95f),
+                $"now-first={1.5f:0.##} ≥ 最长等待 {Diablo2.Module.Map.MapView.RepaintMaxDelay:0.##}s");
+
+            // 单帧节点数上限（离线可算；真机实测见下一批"进 Play"）
+            const int perCellMax = 3;                                  // ground + object + overlay(迷雾)
+            var chunkCells = Diablo2.Module.Map.MapView.ChunkSize * Diablo2.Module.Map.MapView.ChunkSize;
+            var townCells = GameConst.TownWidth * GameConst.TownHeight;
+            Check($"e9 单块节点上限 = {Diablo2.Module.Map.MapView.ChunkSize}×{Diablo2.Module.Map.MapView.ChunkSize} 格 × ≤{perCellMax} 层 = {chunkCells * perCellMax} 个 GameObject",
+                chunkCells * perCellMax == 768,
+                $"ChunkSize={Diablo2.Module.Map.MapView.ChunkSize} ⇒ {chunkCells} 格 × {perCellMax} 层 = {chunkCells * perCellMax}");
+            Check("e10 Town 56×40 = 2240 格 ≤ 一次铺满阈值 4096 ⇒ **不分块**：一次 ShowArea 就在单帧建满全图",
+                townCells <= Diablo2.Module.Map.MapView.BuildAllTileThreshold,
+                $"Town 格数 {townCells} ≤ 阈值 {Diablo2.Module.Map.MapView.BuildAllTileThreshold} ⇒ 单帧最多 ≈ {townCells}~{townCells * perCellMax} 个节点" +
+                "（旧口径：每来一张贴图 = 再来一次整图重建 ⇒ 贴图流式到位期间每秒十几次 ⇒ 移动顿挫）");
+            Check("e11 野外 80×80 = 6400 格 > 4096 ⇒ 分块；单帧节点上限 = 可见缺块数 × 768",
+                GameConst.WildernessMaxSize * GameConst.WildernessMaxSize > Diablo2.Module.Map.MapView.BuildAllTileThreshold,
+                $"野外最大 {GameConst.WildernessMaxSize}×{GameConst.WildernessMaxSize} = {GameConst.WildernessMaxSize * GameConst.WildernessMaxSize} 格 > {Diablo2.Module.Map.MapView.BuildAllTileThreshold}" +
+                $" ⇒ 每块 {chunkCells * perCellMax} 个节点（不在本片改动范围，只登记）");
+        }
+
+        /// <summary>世界坐标 → **连续格坐标**（z 分量清零：世界是 z=0 的 XY 平面，相机 z=-10）。</summary>
+        private static Vector2 CellOf(Vector3 world) => Iso.WorldToGridContinuous(new Vector3(world.x, world.y, 0f));
+
+        /// <summary>
+        /// 地图上**最长的一条「单方向直线」可走段**（同一行或同一列的连续可走格），
+        /// 用于「匀速**直线**运动 ⇒ 相机每帧位移单调收敛」这条断言（锯齿路径上该性质**不成立**，
+        /// 换向时相机的滞后矢量要先转向 ⇒ 单帧位移会有正确的小幅回落）。
+        /// </summary>
+        /// <returns>找到（长度 ≥ 6 格）返回 true 并给出起终点；否则 false。</returns>
+        private static bool FindLongestAxisRun(Diablo2.Module.Map.MapModule map,
+            out Vector2Int start, out Vector2Int end)
+        {
+            start = Vector2Int.zero;
+            end = Vector2Int.zero;
+            var bestLen = 0;
+            var dirs = new[] { new Vector2Int(1, 0), new Vector2Int(0, 1) };   // 只扫两个方向（反向段会被另一个起点扫到）
+            for (var x = 0; x < map.Width; x++)
+            {
+                for (var y = 0; y < map.Height; y++)
+                {
+                    var a = new Vector2Int(x, y);
+                    if (!map.Walkable(a)) continue;
+                    for (var d = 0; d < dirs.Length; d++)
+                    {
+                        var prev = new Vector2Int(a.x - dirs[d].x, a.y - dirs[d].y);
+                        if (map.Walkable(prev)) continue;      // 不是段的起点（上一格也可走 ⇒ 会更早被扫到）
+                        var n = 0;
+                        var g = a;
+                        while (map.Walkable(g) && map.TileAt(g) != TileKind.Exit)
+                        {
+                            n++;
+                            g = new Vector2Int(g.x + dirs[d].x, g.y + dirs[d].y);
+                        }
+                        if (n > bestLen)
+                        {
+                            bestLen = n;
+                            start = a;
+                            end = new Vector2Int(a.x + dirs[d].x * (n - 1), a.y + dirs[d].y * (n - 1));
+                        }
+                    }
+                }
+            }
+            return bestLen >= 6;
+        }
+
+        /// <summary>变异系数（标准差 / 均值；剔除首 <paramref name="skip"/> 帧与末 <paramref name="tail"/> 帧）。</summary>
+        private static float Cv(List<float> xs, int skip, int tail)
+        {
+            var lo = skip;
+            var hi = xs.Count - tail;
+            if (hi - lo < 2) return 0f;
+            var mean = 0f;
+            for (var i = lo; i < hi; i++) mean += xs[i];
+            mean /= hi - lo;
+            if (mean <= 1e-6f) return 0f;
+            var varSum = 0f;
+            for (var i = lo; i < hi; i++) { var d = xs[i] - mean; varSum += d * d; }
+            return (float)Math.Sqrt(varSum / (hi - lo)) / mean;
+        }
+
+        /// <summary>
+        /// 从头（出生点）走同一条路径到 <paramref name="target"/>，返回**终点连续格坐标**。
+        /// `dtSeq != null` ⇒ 逐帧在序列里循环取 dt（隔离"帧率敏感"）；否则用固定 <paramref name="fixedDt"/>。
+        /// </summary>
+        private static Vector2 WalkSamePath(PlayerModule player, Diablo2.Module.Map.MapModule map,
+            Vector2Int target, float[] dtSeq, float fixedDt)
+        {
+            player.Stop();
+            player.TeleportTo(map.SpawnPoint);
+            player.MoveTo(target);
+            for (var f = 0; f < 20000 && player.IsMoving; f++)
+            {
+                var dtNow = dtSeq != null ? dtSeq[f % dtSeq.Length] : fixedDt;
+                player.Tick(dtNow);
+            }
+            return CellOf(player.World);
+        }
+
+        /// <summary>
+        /// 让相机**跟随真主角**走同一条路径（`ctx.Flow` 由调用方置为非 null ⇒ `RefreshFocus` 走"跟主角"那条），
+        /// 逐帧记录「相机单帧位移 / 焦点单帧位移」（均为 cell 空间），并给出最大滞后与单帧位移上限。
+        /// </summary>
+        private static void TraceCamera(PlayerModule player, CameraRig rig, Diablo2.Module.Map.MapModule map,
+            Vector2Int start, Vector2Int target, float[] dtSeq, float fixedDt, List<float> camSteps,
+            List<float> playSteps, out float gapMax, out float limit, out float gapLast)
+        {
+            player.Stop();
+            player.TeleportTo(start);
+            rig.Reset();
+            rig.EnableZoom = false;
+            rig.EnableEdgeScroll = false;
+            rig.SetTargetGrid(start);
+            rig.SnapToTarget();
+            rig.Tick(fixedDt > 0f ? fixedDt : 0.02f);      // 吸收一帧，让机位先到位
+
+            player.MoveTo(target);
+            var prevCam = CellOf(rig.Position);
+            var prevPlay = CellOf(player.World);
+            gapMax = 0f;
+            gapLast = 0f;
+            limit = 0f;
+
+            for (var f = 0; f < 20000 && player.IsMoving; f++)
+            {
+                var dtNow = dtSeq != null ? dtSeq[f % dtSeq.Length] : fixedDt;
+                player.Tick(dtNow);
+                rig.Tick(dtNow);
+                var c = CellOf(rig.Position);
+                var p = CellOf(player.World);
+                camSteps.Add((c - prevCam).magnitude);
+                playSteps.Add((p - prevPlay).magnitude);
+                var gap = (p - c).magnitude;
+                if (gap > gapMax) gapMax = gap;
+                gapLast = gap;
+                var l = player.MoveSpeed * dtNow;
+                if (l > limit) limit = l;
+                prevCam = c;
+                prevPlay = p;
+            }
         }
 
         // ═════════════════════════════════════════════════════════════════════

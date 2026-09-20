@@ -138,9 +138,156 @@ namespace MoveCheck
             Check("静帧动作不缩放：把 SpeedScale 设回 1（ViewModule.SyncMoveScale 的静态分支）后有效帧率 = 基准帧率",
                 NonMoveAnimKeepsBaseFps(), "Idle 动作 SpeedScale 恒 1");
 
+            Section7_AnimReset();
+
             Console.WriteLine();
             Console.WriteLine($"================ MoveCheck 结束：通过 {_ok} 项，失败 {_fail} 项 ================");
             return _fail == 0 ? 0 : 1;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 7. ★ 移动抖动（R1-D · 候选②「动画被反复打回第 0 帧」的离线判定）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 候选② = "8 向 A* 锯齿路径频繁换向 ⇒ 走路动画反复从第 0 帧重开（腿打颤）"。
+        /// 本段用**真源码**逐条判定（不复制任何被测逻辑）：
+        /// <list type="bullet">
+        /// <item>d1：<see cref="SpriteAnimator.Play"/> 的早退判据 ⇒ **同动作 + 同帧键重复调用不重置进度**；</item>
+        /// <item>d2：换帧键（换朝向）**必须**从第 0 帧起（原版 8 方向各一套 `.cof`）；</item>
+        /// <item>d3：真 <c>PlayerModule</c>（真 A* 路径）逐帧按 <c>ViewModule.cs:710</c> 的判据
+        /// （`dirChanged || want != Playing`）驱动真 <see cref="SpriteAnimator"/>，统计
+        /// 「调用次数 / 复位次数 / 同组调用次数」。</item>
+        /// </list>
+        /// </summary>
+        private static void Section7_AnimReset()
+        {
+            Section("7. ★ 动画复位口径（R1-D / 候选②）：同组同状态不重置进度、换组必须从第 0 帧起");
+
+            var keysS = SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Run, Dir8.S);
+            var fpsRun = SpriteFrames.FpsOf(ViewAnim.Run);
+
+            var a = new SpriteAnimator();
+            a.Play(ViewAnim.Run, keysS, fpsRun, true);
+            for (var i = 0; i < 6; i++) a.Tick(Dt);
+            var advanced = a.FrameIndex;
+            a.Play(ViewAnim.Run, keysS, fpsRun, true);            // 同组重复调用（调用侧每帧都判、命中就调）
+            Check("d1 同动作 + 同帧键重复 Play ⇒ 帧号**不**回第 0 帧（进度保留）",
+                advanced > 0 && a.FrameIndex == advanced,
+                $"推进到 frame={advanced}/{a.FrameCount}，重复 Play 后 frame={a.FrameIndex}（早退判据生效）");
+
+            var keysE = SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Run, Dir8.E);
+            a.Play(ViewAnim.Run, keysE, fpsRun, true);            // 换朝向 = 帧键整组换掉
+            Check("d2 同动作但换帧键（换朝向）⇒ **必须**从第 0 帧起（原版 8 方向各一套 .cof）",
+                a.FrameIndex == 0 && a.Anim == ViewAnim.Run && a.FrameCount == keysE.Length,
+                $"frame={a.FrameIndex}/{a.FrameCount} fps={fpsRun:0.#} loop={a.Loop}");
+
+            // ── d3：真 PlayerModule（真 A* 路径）+ 真 SpriteAnimator 逐帧驱动 ──
+            var err = Table.TableLoader.LoadAll(null, ResolveProjectRoot() + @"\client\Assets");
+            Check("配表已加载（class_c 是 PlayerModule.CreateNew 的来源）", err == null,
+                err ?? ("dir=" + Table.TableLoader.LastDir));
+
+            var map = new Diablo2.Module.Map.MapModule();
+            map.Generate(AreaId.Town, 20260920);
+            var player = new Diablo2.Module.Player.PlayerModule();
+            player.BindMap(map);
+            player.CreateNew(PlayerClass.Amazon, "AnimReset");
+            player.SetRunning(true);
+            player.TeleportTo(map.SpawnPoint);
+            var target = FarWalkable(map, map.SpawnPoint, 14);
+            player.MoveTo(target);
+
+            var anim = new SpriteAnimator();
+            var playing = ViewAnim.Idle;
+            var dir = Dir8.S;
+            string[] curKeys = null;
+            var frames = 0;
+            var calls = 0;            // PlayAnim 调用次数（`ViewModule.cs:710` 判据成立的次数）
+            var resets = 0;           // 其中**真的**复位到第 0 帧的次数
+            var sameGroupCalls = 0;   // 「同动作 + 同帧键」的调用（候选② 说的缺陷 ⇒ 必须 0）
+            var dirChanges = 0;
+            var actionChanges = 0;
+
+            for (var f = 0; f < 4000 && player.IsMoving; f++)
+            {
+                player.Tick(Dt);
+                frames++;
+
+                var want = player.IsMoving ? (player.Running ? ViewAnim.Run : ViewAnim.Walk) : ViewAnim.Idle;
+                var dirChanged = player.Dir != dir;
+                if (dirChanged) { dirChanges++; dir = player.Dir; }
+                var actionChanged = want != playing;
+                if (actionChanged) { actionChanges++; playing = want; }
+
+                if (!dirChanged && !actionChanged) { anim.Tick(Dt); continue; }   // 调用侧不 Play，只推进
+
+                calls++;
+                var next = SpriteFrames.Keys(player.Class, want, dir);
+                // 「Play 会不会复位」= 早退判据取反（同动作 + 同帧键 + 有帧 + 未播完 ⇒ 原样返回、不复位）
+                var willReset = !(want == anim.Anim && SameKeys(curKeys, next) && next.Length > 0 && !anim.Finished);
+                if (willReset) resets++; else sameGroupCalls++;
+
+                anim.Play(want, next, SpriteFrames.FpsOf(want), SpriteFrames.LoopOf(want));
+                curKeys = next;
+                anim.Tick(Dt);
+            }
+
+            Check("d3a 走完一条真 A* 路径，且是锯齿路径（朝向变化 ≥ 2 次 ⇒ 用例有效）",
+                dirChanges >= 2 && player.Grid == target,
+                $"路径 {player.Motor.LastSteps} 格 / {frames} 帧 / 朝向变化 {dirChanges} 次 / 终点 {player.Grid}（目标 {target}）");
+            Check("d3b PlayAnim 调用次数 **远小于** 帧数（否证「每帧被打回第 0 帧」）",
+                calls > 0 && calls < frames / 4,
+                $"调用 {calls} 次 / {frames} 帧 = {100.0 * calls / Math.Max(1, frames):0.##}% 的帧才换动画");
+            Check("d3c **不存在**「同动作 + 同帧键」的调用（⇒ 候选②「同组同状态被重置」不成立）",
+                sameGroupCalls == 0, $"同组调用 {sameGroupCalls} 次（若 > 0 = 真缺陷）");
+            Check("d3d 每次调用都伴随真实状态变化（动作或朝向变）⇒ 复位都是必要的",
+                resets == calls && dirChanges + actionChanges >= calls,
+                $"调用 {calls} = 真复位 {resets}；朝向变化 {dirChanges} + 动作变化 {actionChanges}");
+        }
+
+        /// <summary>两组帧键是否**逐元素相等**（与 `SpriteAnimator.SameKeys` 同口径；键是值比较）。</summary>
+        private static bool SameKeys(string[] a, string[] b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (var i = 0; i < a.Length; i++)
+                if (!string.Equals(a[i], b[i], StringComparison.Ordinal)) return false;
+            return true;
+        }
+
+        /// <summary>找离 <paramref name="from"/> 最远且**非出入口**的可走格（锯齿路径用例的目标）。</summary>
+        private static UnityEngine.Vector2Int FarWalkable(Diablo2.Module.Map.MapModule map,
+            UnityEngine.Vector2Int from, int minDist)
+        {
+            var best = from;
+            var bestD = -1;
+            for (var x = 0; x < map.Width; x++)
+            {
+                for (var y = 0; y < map.Height; y++)
+                {
+                    var g = new UnityEngine.Vector2Int(x, y);
+                    if (!map.Walkable(g) || map.TileAt(g) == TileKind.Exit) continue;
+                    if (g == from) continue;
+                    var d = Iso.GridDistance(from, g);
+                    if (d < minDist || d <= bestD) continue;
+                    best = g;
+                    bestD = d;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>从宿主可执行目录向上找「含 client/Assets 的那一层」= 仓库根（与其它宿主同一套写法）。</summary>
+        private static string ResolveProjectRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            return System.IO.Directory.GetCurrentDirectory();
         }
 
         /// <summary>官方 `Velocity` → 格/秒（与 `MonsterModule` 的换算同一份常量）。</summary>

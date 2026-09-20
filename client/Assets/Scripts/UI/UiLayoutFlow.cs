@@ -625,6 +625,207 @@ namespace Diablo2.UI
                     }
                 }
             }
+
+            // ═════════════════════════════════════════════════════════════════════
+            // ★ R1-C · 转身过渡（原版 `{CLS}FW` / `{CLS}BW`）的**逐帧矩形**
+            // ═════════════════════════════════════════════════════════════════════
+            // 用户 2026-09-20 原话：「创建人物时候，点击人物动画变形，很诡异」。
+            //
+            // **根因（实测，不是推断）**：原版过渡是**逐帧不同矩形**的动画，本工程旧实现把这些帧
+            //   **全塞进"帧 0 那张画框"**（`CharCreatePanel.ShowTransitionFrame` 当时只换 sprite、
+            //   不动矩形）。而导出 PNG 的 IHDR 实测（可复跑，见生成器）：
+            //     Amazon  FW：`fw_0` = **118×198** → `fw_21` = **215×228** → `fw_53` = **121×234**
+            //     Barbarian FW：`fw_0` = **86×183** → `fw_20` = **147×204** → `fw_63` = **95×201**
+            //   ⇒ 215×228 的帧被压进 118×198 的画框 = **横向压掉 45%**、纵向再拉 13%
+            //   —— 画面上就是"人物被拍扁 + 忽胖忽瘦"的"变形/诡异"。
+            //   ⇒ 本表给出**逐帧尺寸**，面板每帧同步 `sizeDelta` / `anchoredPosition`
+            //     （`ShowPortrait` 对三态本来就是这么做的；过渡帧此前漏了这一步）。
+            //
+            // **尺寸的出处**（唯一）：工程内实际落位的 `Resources/Clover/D2/UI/FrontEnd/{cls}/{code}_{i}.png`
+            //   的 IHDR 宽高 —— 这批 PNG 由 `tools/d2codec/export_d2ui.py --only frontend` 逐帧 1:1 解自
+            //   原版 DC6（与 `dc6.py png` 的产出逐字节同名同内容）。
+            //   生成 = `python tools/probes/gen_portrait_frame_table.py`（幂等，只改下面两个标记之间）。
+            //   复核 = `uicheck`「每一过渡帧的原生宽高比 == 该帧矩形宽高比」逐帧回读 PNG 比对（0 例外才算过）。
+            //
+            // **位置的出处**（本工程唯一能拿到的口径，缺口如实登记）：
+            //   原版每一帧的 `DC6 offset` 决定该帧贴在锚点上的哪一处，但**原版 DC6 不在本机**
+            //   （`原版资源/` 未下载 ⇒ `dc6.py info` 跑不了），拿不到逐帧 offset。
+            //   ⇒ 用**两端真实几何 + 中间线性过渡**：
+            //     · 起点锚点 = 起始状态的矩形**底边中点**（fw: `NU1` 背面待机；bw: `NU3` 正面待机）；
+            //     · 终点锚点 = 结束状态的矩形**底边中点**（fw: `NU3`；bw: `NU1`）——
+            //       这两个矩形是**原版 prefab 热点 + 该态 DC6 offset 推出来的真值**（见 `PortraitState` 注释）；
+            //     · 帧 `f` 的锚点 = 两端锚点在 `t = f/(帧数-1)` 上的线性插值，帧高按该帧原生尺寸给。
+            //   为什么按**底边中点**而不是矩形中心：帧是**紧贴内容的包围盒**（实测 `bbox == 整幅`），
+            //     过渡中角色挥臂会让包围盒忽宽忽窄 ⇒ 按中心对齐会让**身体左右乱窜**；
+            //     按底边（脚 / 地面接触点）对齐则肢体伸展不动身体，只有身高/体型在变（与原版观感一致）。
+            //   为什么两端要插值而不是用固定锚点：`NU1` 与 `NU3` 的真实底边相差 27 原版px（Amazon），
+            //     固定锚点会让过渡**播完的瞬间跳一下**（用户能看见的另一种"诡异"）；
+            //     插值后 **fw 首帧 = `NU1` 矩形、fw 末帧 = `NU3` 矩形**（逐像素一致，可断言）⇒ 两头无缝。
+            //   ⚠️ **允许的差异（登记，等原版 DC6 到位后消除）**：中途帧的绝对位置是**插值**，
+            //     不是原版逐帧 offset；消除条件 = `原版资源/` 到位后跑 `dc6.py info` 取到逐帧 offset。
+            public static class Transition
+            {
+                /// <summary>本项目**有过渡素材**的槽位（0 = Amazon / 2 = Barbarian；与 `Spot` 同序）。</summary>
+                /// <remarks>其余三个槽（Necromancer / Paladin / Sorceress）的素材按用户 2026-09-19 决策已删，
+                /// 这三个槽**没有**过渡序列 ⇒ <see cref="Of"/> 返回 null（面板据此退回"不播过渡、直接落终态"）。</remarks>
+                public static readonly int[] SlotIds = { 0, 2 };
+
+                /// <summary>两段过渡的码（`fw` = 转到正面 / `bw` = 转回背面），与 <see cref="ResPaths.Portrait"/> 同源。</summary>
+                public static readonly string[] Codes =
+                {
+                    ResPaths.Portrait.TransitionFront,
+                    ResPaths.Portrait.TransitionBack,
+                };
+
+                // 标记区（由 tools/probes/gen_portrait_frame_table.py 重写；⛔ 别手改下面的数字）
+                // >>> R1-C portrait transition frame table (generated) >>>
+                // ⚠️ **本节由 `tools/probes/gen_portrait_frame_table.py` 生成，不许手改**：
+                //   数值 = 工程内导出 PNG（`D2/UI/FrontEnd/{cls}/{code}_{i}.png`）的 IHDR 实测宽高。
+                //   复算 = `python tools/probes/gen_portrait_frame_table.py`；
+                //   复核 = `uicheck`「每一过渡帧的原生宽高比 == 该帧矩形宽高比」那条断言（逐帧回读 PNG）。
+                //   帧序 = 导出器的 DC6 帧号（0 起）。每行 6 帧（= 6×2 个数）。
+
+                /// <summary>`amazon/fw` 54 帧的（宽,高）原版像素（每帧两个数）。</summary>
+                private static readonly int[] AmazonFw =
+                {
+                    118,198, 117,198, 115,198, 112,199, 107,199, 103,200,
+                    98,199, 93,199, 94,199, 104,202, 118,204, 132,206,
+                    154,208, 169,211, 175,212, 178,214, 180,215, 184,216,
+                    191,216, 203,220, 214,225, 215,228, 204,230, 177,231,
+                    138,231, 130,230, 130,228, 130,227, 128,225, 128,224,
+                    130,230, 135,245, 143,255, 158,255, 176,242, 181,227,
+                    172,225, 171,225, 212,225, 207,226, 199,227, 188,228,
+                    168,230, 143,234, 122,238, 126,240, 127,239, 128,236,
+                    127,235, 125,236, 122,235, 122,234, 122,234, 121,234,
+                };
+
+                /// <summary>`amazon/bw` 30 帧的（宽,高）原版像素（每帧两个数）。</summary>
+                private static readonly int[] AmazonBw =
+                {
+                    121,233, 120,232, 118,229, 113,226, 107,224, 101,224,
+                    94,223, 88,221, 83,219, 78,217, 78,213, 79,207,
+                    80,207, 80,205, 82,204, 85,203, 88,202, 92,202,
+                    95,200, 99,201, 103,200, 106,199, 109,199, 112,198,
+                    114,197, 116,197, 116,197, 115,196, 115,197, 115,198,
+                };
+
+                /// <summary>`barbarian/fw` 64 帧的（宽,高）原版像素（每帧两个数）。</summary>
+                private static readonly int[] BarbarianFw =
+                {
+                    86,183, 87,183, 88,183, 90,183, 92,184, 95,185,
+                    100,185, 106,188, 114,190, 120,189, 124,189, 126,189,
+                    125,190, 124,193, 121,194, 119,195, 119,196, 118,198,
+                    120,198, 137,201, 147,204, 139,215, 138,220, 140,216,
+                    141,214, 140,214, 140,213, 140,213, 140,213, 141,213,
+                    140,213, 139,213, 140,212, 141,212, 144,212, 141,211,
+                    137,210, 138,210, 149,210, 130,211, 135,210, 128,209,
+                    122,208, 122,208, 122,207, 123,207, 123,207, 122,207,
+                    121,207, 120,207, 118,207, 116,207, 110,206, 106,203,
+                    111,199, 113,197, 112,197, 92,197, 91,197, 91,199,
+                    92,199, 93,201, 93,201, 95,201,
+                };
+
+                /// <summary>`barbarian/bw` 19 帧的（宽,高）原版像素（每帧两个数）。</summary>
+                private static readonly int[] BarbarianBw =
+                {
+                    95,201, 93,200, 93,198, 92,197, 93,195, 95,195,
+                    92,192, 102,188, 110,186, 111,185, 108,182, 99,178,
+                    90,178, 88,179, 90,179, 89,180, 85,181, 84,182,
+                    85,183,
+                };
+                // <<< R1-C portrait transition frame table <<<
+
+                /// <summary>该槽位有没有过渡素材（= 尺寸表非空）。</summary>
+                public static bool Has(int slot) { return SizesOf(slot, ResPaths.Portrait.TransitionFront) != null; }
+
+                /// <summary>该槽位该段过渡的帧数（= 导出 PNG 的张数）；没有该序列 ⇒ 0。</summary>
+                public static int FrameCount(int slot, string code)
+                {
+                    var sizes = SizesOf(slot, code);
+                    return sizes == null ? 0 : sizes.Length / 2;
+                }
+
+                /// <summary>
+                /// 取「槽位 <paramref name="slot"/> 的 <paramref name="code"/> 序列第 <paramref name="frame"/> 帧」的
+                /// 矩形（原版 px + 画布值；尺寸 = 该帧原生尺寸，位置 = 底边中点落在两端锚点的线性插值上）。
+                /// <para>槽位/序列没有登记 ⇒ **WarnOnce + 返回 null**（调用方退回"只换图不改矩形"，⛔ 不静默拿错格子）。</para>
+                /// <para>帧号越界 ⇒ 钳到 `[0, 帧数-1]` 并 WarnOnce（多播一帧不该让画面跳到别的序列）。</para>
+                /// </summary>
+                public static PortraitState Of(int slot, string code, int frame)
+                {
+                    var sizes = SizesOf(slot, code);
+                    if (sizes == null) return null;
+
+                    var count = sizes.Length / 2;
+                    var f = Mathf.Clamp(frame, 0, count - 1);
+                    if (f != frame)
+                    {
+                        UiLog.WarnOnce("flow.transition.bad_frame." + slot + "." + code,
+                            $"UiLayoutFlow.ClassMenu.Transition.Of 帧号越界 {frame}（{Spot.NameOf(slot)}/{code} 共 {count} 帧）" +
+                            $"⇒ 钳到 {f}（只报一次）");
+                    }
+
+                    var w = (float)sizes[f * 2];
+                    var h = (float)sizes[f * 2 + 1];
+
+                    // t = 0 ⇒ 起始态矩形；t = 1 ⇒ 结束态矩形（两端逐像素一致，见类注释）
+                    var t = count > 1 ? (float)f / (count - 1) : 0f;
+                    var start = BottomCenterOf(StateAt(slot, code, true));
+                    var end = BottomCenterOf(StateAt(slot, code, false));
+                    var anchor = Vector2.Lerp(start, end, t);
+                    var origPos = new Vector2(anchor.x, anchor.y + h * 0.5f);
+
+                    return new PortraitState(
+                        SourceOf(slot, code, f),
+                        $"{Spot.NameOf(slot)}·转身过渡 {code} 帧 {f}/{count}",
+                        origPos, new Vector2(w, h));
+                }
+
+                /// <summary>矩形**底边中点**（原版 px）= 该序列用来对齐的"脚 / 地面接触点"。</summary>
+                private static Vector2 BottomCenterOf(PortraitState ps)
+                    => ps == null ? Vector2.zero : new Vector2(ps.OrigPos.x, ps.OrigPos.y - ps.OrigSize.y * 0.5f);
+
+                /// <summary>
+                /// 该过渡的**起始 / 结束状态**矩形（原版三态之一）：
+                /// `fw`(转到正面) = `NU1` 背面待机 → `NU3` 正面待机；`bw`(转回背面) = `NU3` → `NU1`。
+                /// 口径出处：参考物 `ClassSelector.cs:53-76 / 207-233`（见 <see cref="ResPaths.Portrait.TransitionFront"/>）。
+                /// </summary>
+                private static PortraitState StateAt(int slot, string code, bool start)
+                {
+                    var toFront = code == ResPaths.Portrait.TransitionFront;
+                    var idle = toFront == start;                     // true ⇒ 这一端是 `NU1`（背面待机）
+                    return Spot.Of(slot, idle ? ResPaths.Portrait.Idle : ResPaths.Portrait.Front);
+                }
+
+                /// <summary>槽位 + 序列 → 尺寸表（没有登记 ⇒ null + WarnOnce 点名）。</summary>
+                private static int[] SizesOf(int slot, string code)
+                {
+                    var forward = code == ResPaths.Portrait.TransitionFront;
+                    var backward = code == ResPaths.Portrait.TransitionBack;
+
+                    if (slot == 0)                                        // Amazon（`Spot.NameOf(0)`）
+                    {
+                        if (forward) return AmazonFw;
+                        if (backward) return AmazonBw;
+                    }
+                    else if (slot == 2)                                   // Barbarian（`Spot.NameOf(2)`）
+                    {
+                        if (forward) return BarbarianFw;
+                        if (backward) return BarbarianBw;
+                    }
+
+                    UiLog.WarnOnce("flow.transition.none." + slot + "." + code,
+                        $"UiLayoutFlow.ClassMenu.Transition 没有「槽位 {slot}（{Spot.NameOf(slot)}）/ 过渡 {code}」的尺寸表" +
+                        "（本项目只做 Amazon + Barbarian 两职业的过渡素材；其余职业按用户决策已删）" +
+                        "⇒ 本次不播过渡、直接落终态（只报一次）");
+                    return null;
+                }
+
+                /// <summary>依据（原版 DC6 相对路径 + 帧号），进对照表/日志用。</summary>
+                private static string SourceOf(int slot, string code, int frame)
+                    => string.Format("FrontEnd/{0}/{1}_{2}.png（原版 {0} 的 {1} 序列第 {2} 帧，逐帧落位见 export_d2ui.py）",
+                        slot == 0 ? "amazon" : "barbarian", code, frame);
+            }
         }
 
         // ═════════════════════════════════════════════════════════════════════

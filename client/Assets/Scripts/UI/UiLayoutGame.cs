@@ -369,6 +369,32 @@ namespace Diablo2.UI
         public static readonly float[] ShopTabX = { -120f * K, -40f * K, 40f * K, 120f * K };
         public const float ShopTabY = (216f - 14f) * K;
         public static readonly Vector2 ShopTabSize = Size(79f, 31f);   // —— 原版 `buysell_back.png`（320×432 → ×1.8 = 576×777.6）
+
+        // ── ★ R1-E 的 S5：商店「标题行 / 提示行」落位 ───────────────────────────
+        // 为什么在这个空带：底图 `buysell_back.png` 从上到下是 页签带（原版 y 0..28）→ **空白大理石**
+        // → 10×10 格区（顶沿原版 y 62）→ 底部名牌/雕槽。两带之间那段（原版 y ≈ 29..62 = 58.5 画布px）
+        // 底图上**没有任何图元**（逐行扫过：无金线、无雕槽）⇒ 这是底图里唯一能放文字的空带。
+        // 两行各 25 画布px（共 50）+ 行距 5 = 55 ≤ 58.5，两行都落在空带内、与页签带 / 格区都不相交
+        // （`uicheck` 的 ④-2 断言逐条核对）。文案口径见 `UI/ShopPanel.ApplyTitle`。
+        /// <summary>页签带的**底沿**（画布 y）= 页签行心 − 半高。</summary>
+        public static readonly float ShopTabBottomY = ShopTabY - ShopTabSize.y * 0.5f;
+
+        /// <summary>10×10 格区的**顶沿**（画布 y）= <see cref="ShopGridOrigin"/> 的 y。</summary>
+        public static readonly float ShopGridTopY = ShopGridOrigin.y;
+
+        /// <summary>标题行 / 提示行的行高（画布px）= 25。</summary>
+        public const float ShopInfoLineH = 25f;
+
+        /// <summary>标题行 / 提示行的宽度（画布px）= 原版 288 ×1.8 = 518.4（面板宽 576，左右各余 28.8）。</summary>
+        public static readonly Vector2 ShopInfoLineSize = new Vector2(288f * K, ShopInfoLineH);
+
+        /// <summary>商店**标题行**（NPC 名）中心（画布）= 页签带与格区之间空带的上行。</summary>
+        public static readonly Vector2 ShopTitlePos =
+            new Vector2(0f, (ShopTabBottomY + ShopGridTopY) * 0.5f + 15f);
+
+        /// <summary>商店**提示行**（买入 / 卖出）中心（画布）= 同一空带的下行。</summary>
+        public static readonly Vector2 ShopHintPos =
+            new Vector2(0f, (ShopTabBottomY + ShopGridTopY) * 0.5f - 15f);
         //
         // 原版节点实测：
         //   Panel(320×432, pivot(0.0,0.5), pos(0,0)) ⇒ 面板矩形占原版 x 0..320（**贴屏幕中线右侧**）

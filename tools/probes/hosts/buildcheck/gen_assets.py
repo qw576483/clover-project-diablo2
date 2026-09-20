@@ -18,7 +18,7 @@ agent-10 · 离线落盘场景 / 预制体 / meta / BuildSettings（**用户尚�
     这样脚本引用（预制体的 `m_Script`）在离线阶段就能写死并稳定。
 
 用法：
-  python tools/buildcheck/gen_assets.py
+  python tools/probes/hosts/buildcheck/gen_assets.py
 """
 
 import hashlib
@@ -28,7 +28,25 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+
+
+def _find_root(start):
+    """从 start 逐级向上找「含 client/Assets 的那一层」= 仓库根。
+
+    与 frame_probe.py / 宿主侧 C# 的 `ResolveProjectRoot()` 同一套口径：按固定层数
+    （`HERE/../..`）写死的根在本脚本随宿主搬家后就指错了（会落到 `tools/probes`）。
+    """
+    d = start
+    while True:
+        if os.path.isdir(os.path.join(d, "client", "Assets")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+
+
+ROOT = _find_root(HERE) or os.path.abspath(os.path.join(HERE, "..", ".."))
 CLIENT = os.path.join(ROOT, "client")
 ASSETS = os.path.join(CLIENT, "Assets")
 

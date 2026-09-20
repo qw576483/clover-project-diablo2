@@ -28,7 +28,7 @@
   <!-- 路径不对时给一句人话，而不是让 MSBuild 报一堆 "could not be resolved" -->
   <Target Name="CloverCheckUnityEditorRoot" BeforeTargets="ResolveAssemblyReferences"
           Condition="!Exists('$(UnityManagedDir)\UnityEngine\UnityEngine.CoreModule.dll')">
-    <Error Text="找不到 Unity 托管 DLL：$(UnityManagedDir)\UnityEngine\UnityEngine.CoreModule.dll。请设环境变量 UNITY_EDITOR_ROOT 指向你的 Unity 编辑器目录（例 <盘符>:\Unity\Hub\Editor\<版本>\Editor），或加 -p:UnityEditorVersion=&lt;版本&gt;。" />
+    <Error Text="找不到 Unity 托管 DLL：$(UnityManagedDir)\UnityEngine\UnityEngine.CoreModule.dll。请设环境变量 UNITY_EDITOR_ROOT 指向你的 Unity 编辑器目录（例 [盘符]:\Unity\Hub\Editor\[版本]\Editor），或加 -p:UnityEditorVersion=[版本]。" />
   </Target>
 
 </Project>

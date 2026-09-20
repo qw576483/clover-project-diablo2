@@ -388,10 +388,13 @@ internal static class Program
         }
 
         // ② 与 frame_probe.py 的实测输出逐条比对（代码 == 实测，不许有转录误差）
-        // ★ 2026 修正：宿主已从 `tools/` 迁到 `.ai-tmp/hosts/`（skill §1.8），
-        //   探针产物 `frame_probe_out.txt` 就写在**本宿主目录**（`frame_probe.py` 写在 HERE）
-        //   ⇒ 旧路径 `tools/buildcheck/...` 已不存在（这是"宿主迁移后路径没跟着改"的同一类缺陷）。
-        var probePath = P(".ai-tmp", "hosts", "buildcheck", "frame_probe_out.txt");
+        // ★ 2026 修正（第二次）：宿主最终落点是 `tools/probes/hosts/buildcheck/`（判据资产入仓，skill §1.8），
+        //   探针 `frame_probe.py` 把产物写在 **HERE = 它自己所在目录** = 本宿主源码目录
+        //   ⇒ 两侧口径必须都指这里。上一版写的 `.ai-tmp/hosts/buildcheck/frame_probe_out.txt`
+        //   是宿主「中间站」的位置，该目录已随迁移整体删除 ⇒ 断言恒红（实测：`[FAIL] frame_probe_out.txt（实测输出）存在`）。
+        //   产物 = 判据资产（删了就不能重判「代码表 == 实测帧矩形」这件事），随宿主一起入仓；
+        //   重生成：`python tools/probes/hosts/buildcheck/frame_probe.py`（步骤见 tools/probes/README.md）。
+        var probePath = Path.Combine(_root, "tools", "probes", "hosts", "buildcheck", "frame_probe_out.txt");
         Check(File.Exists(probePath), "frame_probe_out.txt（实测输出）存在");
         if (!File.Exists(probePath)) { Console.WriteLine(); return; }
 

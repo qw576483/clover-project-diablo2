@@ -244,8 +244,28 @@ namespace FlowCheck
 
     public static class Program
     {
-        private const string ClientDataPath =
-            @"client\Assets";
+        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
+        //   原先写死 `@"client\Assets"`（cwd 相对）⇒ `tools/probes/hosts/run_all_hosts.ps1`
+        //   用 `Push-Location <宿主目录>` 驱动时被解析成 `<宿主目录>\client\Assets`（不存在）
+        //   ⇒ 配表 0 行 ⇒ 断言红、exit 1（实测 2026-09-20 复现）。
+        private static readonly string ClientDataPath = ResolveProjectRoot() + @"\client\Assets";
+
+        /// <summary>
+        /// 从宿主自己的可执行目录向上找「含 client/Assets 的那一层」= 仓库根。
+        /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/（与 corecheck / fullcheck / savecheck / uicheck 同一套写法）。
+        /// </summary>
+        private static string ResolveProjectRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            Console.WriteLine("[warn] 未从可执行目录向上找到含 client/Assets 的仓库根，回退相对路径 clover-project-diablo2");
+            return @"clover-project-diablo2";
+        }
 
         private static readonly List<string> StationLog = new List<string>();
 

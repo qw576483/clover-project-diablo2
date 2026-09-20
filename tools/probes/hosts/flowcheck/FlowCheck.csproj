@@ -46,6 +46,10 @@
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
+    <!-- ★ 新增 client 源码必须同步链进本清单：`App/Bootstrap.cs` / `UI/SettingsPanel.cs` 现在会调
+         `FramePacing.Pin(...)`（R1-D 帧节奏口径）⇒ 不链它就 CS0103（本目录的编译清单是**白名单**，
+         不是 glob，client 侧新增一个 Core 文件就会打断本宿主，实测 2026-09-20）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\FramePacing.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
          引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
@@ -86,7 +90,7 @@
       <Private>true</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <HintPath>..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

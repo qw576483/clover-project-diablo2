@@ -45,7 +45,15 @@ namespace Diablo2.Module.Npc
         private int _builtSeed = int.MinValue;
         private int _builtArea = -1;
 
-        /// <summary>当前正在对话的 NPC（`Events.DialogOptionChosen` 只带下标，必须记住是谁）。</summary>
+        /// <summary>
+        /// 当前正在对话的 NPC（`Events.DialogOptionChosen` 只带下标，必须记住是谁）。
+        /// <para>★ R1-E 的 **S3** 建立了这条**不变式**：`_currentNpcId != None` 的区间
+        /// **恰好等于** `NpcDialogPanel` 实例的存活区间 —— 面板关闭/被引擎销毁时必须归零，
+        /// 归零通道有两条且都幂等：① 本模块自己的 `ChooseOption(0)`；② 面板 `OnClose` 补发的
+        /// `Events.DialogClose`（`UI/NpcDialogPanel.cs` 文件头 S3）。引擎 `UIManager.Close`
+        /// **不补发**任何事件（`Runtime/Presentation/UI.cs:199-229`）⇒ 少了第 ② 条就会出现
+        /// "面板没了但 `_currentNpcId` 还在" ⇒ 之后任何 `Events.QuestChanged` **凭空再弹一次对话**。</para>
+        /// </summary>
         private int _currentNpcId = (int)NpcId.None;
 
         /// <summary>「点了这个 NPC，走到就说话」的意图（-1 = 无）。见 <see cref="OnMoveCommand"/>。</summary>
@@ -752,10 +760,13 @@ namespace Diablo2.Module.Npc
         /// 任务阶段变化 ⇒ **正在对话的那个 NPC 立刻改用新阶段的话术与选项**
         /// （原版：在阿卡拉处接下/交付任务后，台词与选项当场就变，不需要关掉重开）。
         /// 只在"确实有对话进行中"时才重发 `Events.DialogOpen`；没有对话时什么都不做。
+        /// <para>★ R1-E 的 **S3**：这里的门槛（<see cref="_currentNpcId"/>）**就是**"面板确实开着"
+        /// 的等价物 —— 见该字段的不变式注释。⛔ 不许在这里追加别的开面板条件、也不许在
+        /// `_currentNpcId == None` 时"补弹一次对话"（那正是 S3 描述的"凭空弹面板"）。</para>
         /// </summary>
         private void OnQuestChanged(QuestStateDto quest)
         {
-            if (_currentNpcId == (int)NpcId.None) return;
+            if (_currentNpcId == (int)NpcId.None) return;   // = 面板没开着 ⇒ 什么都不做（S3 不变式）
 
             var def = Get(_currentNpcId);
             if (def == null)
@@ -814,13 +825,22 @@ namespace Diablo2.Module.Npc
             Log.Info("Npc", "商店已关闭");
         }
 
-        /// <summary>事件里的 npcId 缺省时用"当前正在对话的 NPC"（面板可能不带该字段）。</summary>
+        /// <summary>
+        /// 事件里的 npcId 缺省时用"当前正在对话的 NPC"。
+        /// <para>★ R1-E 的 **S3**：两者都缺时**不再用"阿卡拉"兜底** —— 那会把一笔本该失败的交易
+        /// 悄悄打到另一个 NPC 上（"陈旧 NPC 兜底"，与"面板被销毁后 `_currentNpcId` 残留"同源）。
+        /// 现在返回 <see cref="NpcId.None"/> ⇒ 下游 `Buy/Sell/Repair` 走它们的"NPC 不存在"分支
+        /// 打可定位 Warn 并失败（不静默、不错账）。</para>
+        /// <para>注：本项目的交易请求**都带** npcId（`ShopPanel.OnBuy/OnSell/OnRepairAll` 都填
+        /// `_shop.npcId`）⇒ 这一支只在事件被第三方伪造时才会走到。</para>
+        /// </summary>
         private int ResolveNpcId(int fromArgs)
         {
             if (fromArgs != (int)NpcId.None) return fromArgs;
             if (_currentNpcId != (int)NpcId.None) return _currentNpcId;
-            Log.Warn("Npc", "交易请求没带 npcId，且当前没有进行中的对话 ⇒ 用 0（阿卡拉）兜底");
-            return (int)NpcId.Akara;
+            Log.Warn("Npc", "交易请求没带 npcId，且当前没有进行中的对话 ⇒ 拒绝并返回 None"
+                + "（不再用 0/阿卡拉兜底：那会把交易悄悄打到别的 NPC 上）");
+            return (int)NpcId.None;
         }
     }
 }

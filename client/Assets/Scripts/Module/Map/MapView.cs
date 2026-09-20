@@ -29,6 +29,14 @@
 // 素材：**全部来自原版 `.dt1` 解出的 PNG**（`tools/d2codec/export_tiles.py`，
 // 调色板 = `data/global/palette/ACT1/Pal.PL2`），路径由 `GroundKeyOf`/`ObjectKeyOf` 给出；
 // **取不到才回退纯色菱形占位**（异步加载成功后会自己重铺一次）。
+//
+// ★ R1-B（用户报「为什么有奇怪的蓝条图片占位」）：**平色水墙瓦片不叠**。
+//   原版水域里有一层瓦片是**平色**的（唯一色数 = 1），原版靠 `ACT1/Pal.PL2` 的**调色板循环**
+//   把它变成水波动画；本引擎**没有运行期调色板循环** ⇒ 它静态渲染出来就是一块硬边平色色块，
+//   视觉上等价占位图（用户看到的那条深蓝长条 = `Objects/moor_river/028`，实测 RGBA(0,32,68)、
+//   铺在河带 x=47/54 两列共 49 格）。处置 = 当同一格 floor 层已经是**同 dt1 的水瓦片**时，
+//   不再把这块平色 wall 瓦片叠上去（河面由 floor 水瓦片呈现）。**只影响渲染**，逐格键/可走性不动。
+//   白名单、取证与生效口径见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay`。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -51,6 +59,29 @@ namespace Diablo2.Module.Map
         /// <summary>可见区域的检查间隔（秒）——避免每帧算相机视口。</summary>
         private const float ChunkRefreshInterval = 0.25f;
 
+        // ── ★ R1-D：贴图异步到位后的「整图重铺」合并口径（「人物移动抖动」的第三个根因）──────────
+        // 旧口径 = 每来一张贴图就 `_repaintRequested = true` ⇒ 下一帧**整图重铺**
+        //   （`RebuildLayers()` = 销毁全部块 + 全图重建）：Town 56×40 = 2240 格 ⇒ 单帧
+        //   **2000+ 个 GameObject**（ground 每非 Void 格 1 个 + 物件层 + 迷雾层；洞穴最坏 ≈ 9000）。
+        //   而贴图是**流式**异步到位的：进图头几秒 / 野外（>4096 格 ⇒ 分块模式，走到哪加载到哪）
+        //   会**每秒触发十几次**这种整图重铺 ⇒ 每 0.1s 一次千级节点销毁+重建 ⇒ 移动/走路时**顿挫**。
+        // 新口径 = **合并**（不改画面内容，只改发生频率；见 `ShouldRepaintNow`）：
+        //   ① 最后一次到位后静默 `RepaintQuietTime` 才重铺（贴图还在陆续来 ⇒ 先攒着）；
+        //   ② 两次重铺之间至少隔 `RepaintMinInterval`；
+        //   ③ 从第一次请求算起最多等 `RepaintMaxDelay`（**超时无条件重铺** ⇒ 贴图一定会换上）。
+        // 画面不变：重铺的**内容**（建哪些节点 / 什么 sprite / 什么 sortingOrder）一字未改。
+        // 离线断言：`tools/probes/hosts/playercheck` §15 e。
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>★ R1-D：两次整图重铺之间的最小间隔（秒）。</summary>
+        public const float RepaintMinInterval = 0.5f;
+
+        /// <summary>★ R1-D：最后一次贴图到位后静默这么久才重铺（避免把重铺无限期推后）。</summary>
+        public const float RepaintQuietTime = 0.25f;
+
+        /// <summary>★ R1-D：从第一次请求算起的**最长等待**（超时无条件重铺）。</summary>
+        public const float RepaintMaxDelay = 1.0f;
+
         /// <summary>迷雾不透明度。</summary>
         private const float FogAlpha = 0.80f;
 
@@ -62,6 +93,10 @@ namespace Diablo2.Module.Map
         private bool _showing;
         private bool _chunked;
         private bool _repaintRequested;
+        private float _repaintFirstAt = -1f;                          // ★ R1-D：本轮首次请求时刻（<0 = 无待办）
+        private float _repaintLastAt;                                 // ★ R1-D：最近一次请求时刻
+        private float _lastRepaintAt = float.NegativeInfinity;        // ★ R1-D：上一次重铺时刻
+        private bool _repaintCoalesceLogged;                          // ★ R1-D：口径日志只报一次
         private float _nextChunkRefresh;
         private bool _hasChunkRange;
         private Vector2Int _chunkMin;
@@ -79,6 +114,15 @@ namespace Diablo2.Module.Map
         private bool[,] _explored;
         private int _exploredCount;
         private SpriteRenderer[,] _fogTiles;
+
+        /// <summary>R1-B 日志 tag（`Core/Log.cs` 的 KnownTags 白名单内的独立 tag）。</summary>
+        private const string FlatOverlayTag = "R1-B";
+
+        /// <summary>本次铺装里，因「平色水墙瓦片不叠」被跳过的格数（`ReportFlatWallOverlaySkips` 用）。</summary>
+        private int _flatWallOverlaySkipped;
+
+        /// <summary>R1-B 的生效口径是否已经报过（整个进程只报一次，避免每次重铺都刷屏）。</summary>
+        private bool _flatWallOverlayLogged;
 
         private readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
         private readonly HashSet<string> _pendingLoads = new HashSet<string>();
@@ -204,6 +248,8 @@ namespace Diablo2.Module.Map
             _chunked = false;
             _hasChunkRange = false;
             _repaintRequested = false;
+            _repaintFirstAt = -1f;                       // ★ R1-D：清掉待重铺时刻（否则旧时刻会立刻触发）
+            _lastRepaintAt = float.NegativeInfinity;     // （`_repaintCoalesceLogged` 不复位：口径日志一局只报一次）
             _explored = null;
             _fogTiles = null;
             _exploredCount = 0;
@@ -238,11 +284,51 @@ namespace Diablo2.Module.Map
             }
         }
 
+        /// <summary>
+        /// ★ R1-D **纯函数**：现在该不该整图重铺（离线可断言：`tools/probes/hosts/playercheck` §15 e）。
+        /// <para>语义 = 「合并口径」三条（见 <see cref="RepaintMinInterval"/> 上方注释）：
+        /// ① 有超时兜底 ⇒ 贴图一定会换上；② ③ 是节流 ⇒ 不在贴图潮流里反复整图重铺。</para>
+        /// </summary>
+        /// <param name="now">当前时刻（`Time.unscaledTime`）。</param>
+        /// <param name="firstRequestAt">本轮第一次贴图到位的时刻；**负数 = 没有待办**。</param>
+        /// <param name="lastRequestAt">最近一次贴图到位的时刻。</param>
+        /// <param name="lastRepaintAt">上一次重铺的时刻（从未 = 负无穷）。</param>
+        public static bool ShouldRepaintNow(float now, float firstRequestAt, float lastRequestAt, float lastRepaintAt)
+        {
+            if (firstRequestAt < 0f) return false;                          // 没有待办的贴图
+            if (now - firstRequestAt >= RepaintMaxDelay) return true;       // ① 超时兜底（必换）
+            if (now - lastRequestAt < RepaintQuietTime) return false;       // ② 还在陆续到位 ⇒ 先攒着
+            if (now - lastRepaintAt < RepaintMinInterval) return false;     // ③ 两次重铺至少隔这么久
+            return true;
+        }
+
+        /// <summary>
+        /// ★ R1-D：登记「贴图到位 ⇒ 需要重铺」（由异步回调调用）。只置标志 + 记时刻，
+        /// **不直接重铺** —— 何时真的重铺由 <see cref="ShouldRepaintNow"/> 决定。
+        /// </summary>
+        private void RequestRepaint()
+        {
+            var now = Time.unscaledTime;
+            if (!_repaintRequested) _repaintFirstAt = now;      // 本轮的第一次
+            _repaintRequested = true;
+            _repaintLastAt = now;
+
+            if (_repaintCoalesceLogged) return;
+            _repaintCoalesceLogged = true;
+            MapLog.Info(
+                "[R1-D] 地图重铺合并口径：贴图到位**不再逐张整图重铺**。" +
+                $"旧口径 = 每来一张贴图 `RebuildLayers()` 一次（Town 56×40 ⇒ 单帧销毁+重建 ≈ 2000+ 个 GameObject，" +
+                "洞穴最坏 ≈ 9000；贴图流式到位时每秒可能十几次 ⇒ 移动/进图时顿挫）。" +
+                $"新口径 = 静默 {RepaintQuietTime:0.##}s + 两次重铺间隔 ≥ {RepaintMinInterval:0.##}s + 最长等待 {RepaintMaxDelay:0.##}s（超时必换）。" +
+                "画面不变：重铺的**内容**一字未改，只改发生频率。断言：tools/probes/hosts/playercheck §15 e");
+        }
+
         /// <summary>重建全部三层（`ShowArea` / 迷雾开关 / 贴图异步到位时调用）。</summary>
         private void RebuildLayers()
         {
             EnsureLayerRoots();
             DestroyAllChunks();
+            _flatWallOverlaySkipped = 0;      // 本次铺装的计数（R1-B）
 
             _fogTiles = _fogOn ? new SpriteRenderer[_map.Width, _map.Height] : null;
             _chunked = _map.Width * _map.Height > BuildAllTileThreshold;
@@ -261,6 +347,26 @@ namespace Diablo2.Module.Map
                     for (var cy = 0; cy < chunksY; cy++) BuildChunk(new Vector2Int(cx, cy));
                 }
             }
+
+            ReportFlatWallOverlaySkips();     // R1-B：只报一次的数值证据（下一批进 Play 直接抄这一行）
+        }
+
+        /// <summary>
+        /// ★ R1-B：把「平色水墙瓦片不叠」的**生效口径 + 实测格数**报一次（tag `R1-B`），
+        /// 供下一批进 Play 当**数值证据**（不必截图即可判定这条渲染规则生效）。
+        /// 只报一次（整个进程），且只在真的跳过过格子的地图上报（野外/洞穴不会产生这条）。
+        /// </summary>
+        private void ReportFlatWallOverlaySkips()
+        {
+            if (_flatWallOverlaySkipped <= 0 || _flatWallOverlayLogged) return;
+            _flatWallOverlayLogged = true;
+            Log.Info(FlatOverlayTag,
+                $"河面 wall 层平色瓦片**不叠**（生效）：本次铺装跳过 {_flatWallOverlaySkipped} 格；" +
+                $"白名单键 = {string.Join(",", PaletteCycledFlatWallTiles)}；" +
+                "生效条件 = 该 wall 瓦片在白名单内 且 floor 层是同 dt1 的非空水瓦片" +
+                "（原版靠 `ACT1/Pal.PL2` 调色板循环把这块平色瓦片变成水波，本引擎无运行期调色板循环 ⇒ " +
+                "静态渲染 = 硬边平色色块，视觉上等价占位）⇒ 河面改由同 dt1 的 floor 水瓦片呈现。" +
+                "仅渲染层：TileKind / 可走性 / 逐格键一个字未动");
         }
 
         /// <summary>按可见区域补块 / 回收远处块（只在大图模式下走）。</summary>
@@ -391,7 +497,14 @@ namespace Diablo2.Module.Map
             //   比"没有物件"难看得多，而且掩盖了"原版这里本来就没东西"这个事实。
             // **其它区域（野外）**：按 `TileKind` 分类取默认瓦片；取不到才用纯色占位（便于发现问题）。
             var ds1HasObject = fromDs1 && !string.IsNullOrEmpty(ds1Object);
-            if ((fromDs1 ? ds1HasObject : IsObjectKind(kind)) && !IsHiddenSolidInterior(g, kind))
+            // ★ R1-B：**平色水墙瓦片不叠**（该格 floor 层已经是同一 dt1 的水瓦片 ⇒ 河面由它呈现）。
+            //   口径与出处见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay` 的注释；
+            //   ⛔ 只影响本帧画不画这一张物件，**不动** `GridMap` 的键 / `TileKind` / 可走性。
+            var skipFlatWallOverlay = ds1HasObject && IsPaletteCycledFlatWallOverlay(ds1Ground, ds1Object);
+            if (skipFlatWallOverlay) _flatWallOverlaySkipped++;
+
+            var drawObject = fromDs1 ? (ds1HasObject && !skipFlatWallOverlay) : IsObjectKind(kind);
+            if (drawObject && !IsHiddenSolidInterior(g, kind))
             {
                 var objectKey = ds1HasObject ? ds1Object
                               : (fromDs1 ? null : ObjectKeyOf(kind, _area, g));
@@ -456,7 +569,7 @@ namespace Diablo2.Module.Map
                         return;
                     }
                     _spriteCache[path] = sprite;
-                    _repaintRequested = true;      // 贴图异步到位 → 下一帧重铺（只重铺一次）
+                    RequestRepaint();              // ★ R1-D：贴图异步到位 → 登记重铺（是否合并见 ShouldRepaintNow）
                 });
             }
             return null;
@@ -614,6 +727,81 @@ namespace Diablo2.Module.Map
         {
             "cave_door/000", "cave_door/001",
         };
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ R1-B：「靠 PL2 调色板循环成动画的**平色** wall 层瓦片」白名单 + 不叠判定
+        //   （用户原始投诉：「为什么有奇怪的蓝条图片占位」—— 罗格营地东侧河上的深蓝硬边长条）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// ★ R1-B：**平色**且**靠 `PL2` 调色板循环成动画**的 wall 层瓦片白名单。
+        /// <para>
+        /// 取证（离线判据 `.ai-tmp/test/r1b_probe.py`，扫的是 `MapGenTownLayout` 真正引用到的
+        /// **295 个**瓦片键 → 逐张 PNG 采样）：其中**唯一色数 = 1（平色）的只有一个** ——
+        /// `Objects/moor_river/028`（160×128，不透明像素 6400 px = 恰好一格的 160×79 菱形，
+        /// 全图同色 **RGBA(0,32,68) 深蓝**）。它在原版 `river.dt1` 里是**水面**瓦片，原版靠
+        /// `ACT1/Pal.PL2` 的调色板循环把它变成水波动画；本项目**没有运行期调色板循环**
+        /// （全库 grep `PaletteCycle|调色板循环` = 0 命中；`MapView` 的真实瓦片一律 `sr.color = Color.white`）
+        /// ⇒ 静态渲染出来就是**一块硬边平色色块**，视觉上等价占位图（用户看到的就是它）。
+        /// </para>
+        /// <para>出处链：`Objects/moor_river/manifest.json`（tileCount=1 / idx 28 / main 5 / sub 0 /
+        /// orientation 1 / walk true）× `tools/d2codec/export_tiles.py:66`
+        /// （`data/global/tiles/ACT1/OUTDOORS/river.dt1` → pack `moor_river`）×
+        /// `Tiles/moor_river/manifest.json`（同一张 dt1 的 44 张 **floor** 水瓦片自带纹理，
+        /// 唯一色 11~97，不透明像素同为 6400 px ⇒ 它们本来就铺满整格）。</para>
+        /// <para>⛔ 这是**具体键的白名单**，不是「凡平色/透明就丢」的泛化规则：上述扫描证明本项目
+        /// 被引用到的平色瓦片只有这一个；将来出现第二个必须**重新取证并登记**，不许把判定放宽。</para>
+        /// </summary>
+        private static readonly string[] PaletteCycledFlatWallTiles =
+        {
+            "moor_river/028",
+        };
+
+        /// <summary>
+        /// 白名单的**只读视图**（离线自检宿主 `tools/probes/hosts/mapcheck` 的 `Step15` 用它钉住
+        /// "恰 1 个键且就是取证出来的那一个"）。⛔ 业务代码不要用它做判定 —— 判定走
+        /// <see cref="IsPaletteCycledFlatWallOverlay"/>。
+        /// </summary>
+        internal static string[] FlatWallTileWhitelist { get { return PaletteCycledFlatWallTiles; } }
+
+        /// <summary>
+        /// ★ R1-B：该格的 wall 层瓦片是否应该**不叠**（河面改由**同 dt1 的 floor 水瓦片**呈现）。
+        /// <para>生效口径（三条**同时**成立）：</para>
+        /// <para>① <paramref name="objectKey"/> 在 <see cref="PaletteCycledFlatWallTiles"/> 白名单里
+        /// （= 平色 + 靠 PL2 循环）；</para>
+        /// <para>② <paramref name="groundKey"/> **非空**（这格地板层已经有东西 —— 不叠不会让它变成空洞）；</para>
+        /// <para>③ 两者**同一个 pack**（同一张 `.dt1`）⇒ 是"同一片水的两层"，不是"水面上压了别的东西"。</para>
+        /// <para>实测效果：罗格营地河带 `x∈[47,54]` 里 `x=47` / `x=54` 两列的 **49 格**不再出现
+        /// 那条硬边深蓝长条（`RebuildLayers` 会把这 49 格作为 `R1-B` 日志报一次）。</para>
+        /// <para>⛔ 只影响**渲染**：`GridMap` 的逐格键、`TileKind`、可走性一个字都不动（桥/水的
+        /// 可走性仍由 `MapGenTown` 的 kind 决定，`mapcheck` 的桥/水断言不受影响）。</para>
+        /// </summary>
+        internal static bool IsPaletteCycledFlatWallOverlay(string groundKey, string objectKey)
+        {
+            if (string.IsNullOrEmpty(groundKey) || string.IsNullOrEmpty(objectKey)) return false;
+            if (!IsPaletteCycledFlatWallTile(objectKey)) return false;
+            return SameDt1Pack(groundKey, objectKey);
+        }
+
+        /// <summary>该物件键是否就是白名单里那块平色水墙瓦片（逐字比较）。</summary>
+        internal static bool IsPaletteCycledFlatWallTile(string objectKey)
+        {
+            if (string.IsNullOrEmpty(objectKey)) return false;
+            for (var i = 0; i < PaletteCycledFlatWallTiles.Length; i++)
+            {
+                if (PaletteCycledFlatWallTiles[i] == objectKey) return true;
+            }
+            return false;
+        }
+
+        /// <summary>两个瓦片键是否来自**同一个 pack 目录**（键形如 `pack/idx`）。</summary>
+        private static bool SameDt1Pack(string a, string b)
+        {
+            var sa = a.LastIndexOf('/');
+            var sb = b.LastIndexOf('/');
+            if (sa <= 0 || sb <= 0 || sa != sb) return false;
+            return string.CompareOrdinal(a, 0, b, 0, sa) == 0;
+        }
 
         /// <summary>地面贴图键（`kind` + 区域 ⇒ 具体瓦片；**取不到路径返回 null = 纯色占位**）。</summary>
         private static string GroundKeyOf(TileKind kind, AreaId area, Vector2Int g)
@@ -889,8 +1077,16 @@ namespace Diablo2.Module.Map
 
             if (_repaintRequested)
             {
-                _repaintRequested = false;
-                RebuildLayers();     // 贴图异步到位：只重铺一次
+                // ★ R1-D：贴图流式到位期间**合并**重铺（旧口径 = 每来一张贴图就整图重建一次），
+                //   是否到点由纯函数决定（超时兜底保证贴图一定会换上）。见 `ShouldRepaintNow`。
+                var now = Time.unscaledTime;
+                if (ShouldRepaintNow(now, _repaintFirstAt, _repaintLastAt, _lastRepaintAt))
+                {
+                    _repaintRequested = false;
+                    _repaintFirstAt = -1f;
+                    _lastRepaintAt = now;
+                    RebuildLayers();
+                }
                 return;
             }
 

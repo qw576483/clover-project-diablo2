@@ -414,6 +414,33 @@ namespace FullCheck
             return @"clover-project-diablo2";
         }
 
+        /// <summary>
+        /// 宿主槽位档的**沙盒目录** = `&lt;仓库根&gt;/.ai-tmp/test/host-setting/&lt;宿主名&gt;`（每次跑前清空）。
+        /// <para>为什么必须显式给 `Game.Config.SettingDir`（2026-09-20 闸门/卫生对齐轮）：
+        /// `Module/Save/SaveModule.cs:96-98` 在 `Game.Config` 为空时回落**相对目录** `"setting"`
+        /// ⇒ 槽位档落在 `&lt;调用方 cwd&gt;/setting/saves/`。于是：① 从仓库根跑
+        /// `dotnet run --project tools/probes/hosts/fullcheck` 就在**仓库根**留一份
+        /// `setting/saves/FullCheckHero.json`（实测 2026-09-20：仓库根 `setting/` 未入仓、
+        /// 违 skill §1.8「一次性产物只许 `.ai-tmp/test/`」）；② `run_all_hosts.ps1`
+        /// （`Push-Location`）则写进**宿主目录**下那份**已入仓**的 `setting/saves/` ⇒
+        /// **验证器每次跑都改脏它验证的检出**。指向 `.ai-tmp/` 沙盒并每次清空 ⇒
+        /// 不依赖 cwd、不留仓库残留、断言真正从零开始。业务断言一字未改。</para>
+        /// </summary>
+        private static string HostSandboxSettingDir(string host)
+        {
+            var p = System.IO.Path.Combine(ResolveProjectRoot(), ".ai-tmp", "test", "host-setting", host);
+            try
+            {
+                if (System.IO.Directory.Exists(p)) System.IO.Directory.Delete(p, true);
+                System.IO.Directory.CreateDirectory(p);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[warn] 沙盒目录不可用（{p}）：{ex.GetType().Name}: {ex.Message}");
+            }
+            return p;
+        }
+
         public static int Main()
         {
             Console.WriteLine("╔══════════════════════════════════════════════════════════════════╗");
@@ -472,6 +499,9 @@ namespace FullCheck
             _res = new FakeRes();
             Game.Res = _res;
             Game.IsRunning = true;
+            // ★ 槽位档沙盒（2026-09-20 闸门/卫生对齐轮）：显式给 SaveModule 一个绝对 `SettingDir`
+            //   ⇒ 不再跟随 cwd 在仓库根 / 宿主目录留 `setting/saves/` 残留（详见 HostSandboxSettingDir）。
+            Game.Config = new GameConfig { SettingDir = HostSandboxSettingDir("fullcheck") };
 
             Check("引擎门面替身已就位（Logger/Event/Fsm/UI/Scene/Setting/Input/Sound/Entity/Pool/Timer/Res）",
                 true, "单机最小集：**不调** CloverNet.Init（本项目形态=单机）");

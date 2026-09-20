@@ -220,8 +220,9 @@ namespace Uicheck
 
             // ── 原版依据可复核：DC6 帧数 ───────────────────────────────────────
             var dc6 = Project("原版资源/d2dc6/data/global/ui/Loading/loadingscreen.dc6");
-            Check("原版依据存在：`原版资源/d2dc6/data/global/ui/Loading/loadingscreen.dc6`（10 帧来源）",
-                File.Exists(dc6), File.Exists(dc6) ? Path.GetFileName(dc6) : "（本机 原版资源/ 不在则跳过）");
+            // 原版资源树不进 git ⇒ 不在位时打 [SKIP]（不计失败）；在位则照旧断言存在。
+            Program.CheckOriginalRes(
+                "原版依据存在：`原版资源/d2dc6/data/global/ui/Loading/loadingscreen.dc6`（10 帧来源）", dc6);
 
             Console.WriteLine();
         }

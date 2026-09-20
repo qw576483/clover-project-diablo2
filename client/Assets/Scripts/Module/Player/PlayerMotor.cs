@@ -50,6 +50,7 @@ namespace Diablo2.Module.Player
         private int _lastSteps;               // 上一次路径长度（自证输出用）
         private bool _blockedLogged;          // 「受阻」只报一次（防刷屏；用标志位不用 Log.WarnThrottled）
         private bool _warnedNoMap;            // 「地图不可用」只报一次
+        private bool _budgetLogged;           // ★ R1-D 移动积分口径只报一次（见 LogBudgetOnce）
 
         /// <summary>当前格（`World` 反投影的格）。</summary>
         public Vector2Int Grid => _grid;
@@ -191,18 +192,31 @@ namespace Diablo2.Module.Player
                 var delta = target - _pos;
                 var dist = delta.magnitude;
 
-                if (dist > GameConst.ArriveEpsilon && budget > 0f)
+                // ── ★ R1-D：移动积分口径（用户投诉「人物移动抖动」的真根因之一）──────────────
+                // 旧口径（**已修掉**）：`dist <= ArriveEpsilon(0.08)` 时先不推进，随后 `_pos = target`
+                //   **吸到格心却不扣预算** ⇒ 吸过去的那段（(0, 0.08] 格）是**白送**的位移，于是"落格"
+                //   那一帧的位移 = 白送量 + 预算(speed×dt)，最多达 **2× speed×dt**
+                //   （实测跑 speed=3、dt=1/60：0.05 → 0.10 格；走 speed=1.4：0.028 → 0.056 格）。
+                //   而 dt=1/60 时预算 0.05 < eps 0.08 ⇒ **每过一个路点必然走这条分支**，
+                //   即"每走一格，必有一帧位移翻倍"⇒ 观感 = 每格顿一下 / 人物发抖（与帧率无关）。
+                // 新口径：**能走到格心就走到并同步扣预算**（位移恒 ≤ speed×dt）；
+                //   落点仍用**赋值**（不是累加）⇒ 浮点误差不累积、终点逐帧可复现（断言 §15 b）。
+                //   `GameConst.ArriveEpsilon` 不再参与积分（它仍是 `Arrive()` 的位置校验阈值）。
+                // 离线断言：`tools/probes/hosts/playercheck` §15 a（每帧位移 ≤ speed×dt、相邻位移不反向）。
+                if (dist <= budget)
                 {
-                    var step = Mathf.Min(budget, dist);
-                    _pos += delta * (step / dist);
-                    budget -= step;
+                    _pos = target;
+                    budget -= dist;
+                    _pathIndex++;
+                    if (!_budgetLogged) LogBudgetOnce();
+                    continue;                      // 本帧还有预算就继续走下一个路点
                 }
 
-                if (Vector2.Distance(_pos, target) <= GameConst.ArriveEpsilon)
+                // 预算不够走到格心 ⇒ 按剩余预算推进（位移恒 ≤ speed×dt），本帧结束
+                if (budget > 0f)
                 {
-                    _pos = target;                 // 吸到格中心，避免浮点误差累积
-                    _pathIndex++;
-                    continue;                      // 本帧还有预算就继续走下一个路点
+                    _pos += delta * (budget / dist);
+                    budget = 0f;
                 }
 
                 break;                             // 预算用尽，下一帧继续
@@ -259,6 +273,22 @@ namespace Diablo2.Module.Player
             BlockedStops = 0;
             _blockedLogged = false;
             _warnedNoMap = false;
+            _budgetLogged = false;
+        }
+
+        /// <summary>
+        /// ★ R1-D（只报一次）：**移动积分口径**——给下一批进 Play 当数值证据用。
+        /// 写清"生效口径"：每帧位移 ≤ speed×dt；落格心用赋值（不累加）但**同步扣预算**。
+        /// </summary>
+        private void LogBudgetOnce()
+        {
+            _budgetLogged = true;
+            PlayerLog.Info(
+                "[R1-D] 移动积分口径：每帧位移 ≤ speed×dt（跑 3.0 / 走 1.4 格/秒 × dt；" +
+                $"dt=1/60 ⇒ 跑 {GameConst.PlayerWalkSpeed / 60f:0.####} 格 / 走 {GameConst.PlayerWalkSpeed * GameConst.PlayerWalkSpeedFactor / 60f:0.####} 格）；" +
+                "走到格心用赋值（不累加 ⇒ 浮点不累积、终点可复现）且**同步扣预算** ⇒ 已消除旧口径" +
+                $"「吸格心(≤ArriveEpsilon {GameConst.ArriveEpsilon})不扣预算」造成的单帧位移翻倍（最多 2× speed×dt，每格一次 = 移动发抖）。" +
+                "断言：tools/probes/hosts/playercheck §15 a；变 dt 终点一致性见 §15 b");
         }
 
         // ═════════════════════════════════════════════════════════════════════

@@ -12,17 +12,39 @@ agent-10 · 多帧条带「帧矩形实测」探针（只读图，不改任何�
   ④ **自证**：逐帧断言「窗口含本帧内容」且「窗口不含任何邻帧内容」；失败即 exit 1
   ⑤ 输出可直接抄进 AssetImporter.cs 的 C# 字面量
 
-用法：python tools/buildcheck/frame_probe.py
-输出：控制台 + tools/buildcheck/frame_probe_out.txt（证据留档）
+用法：python tools/probes/hosts/buildcheck/frame_probe.py
+输出：控制台 + `<本脚本所在目录>/frame_probe_out.txt`（证据留档 = 判据资产，随宿主一起入仓；
+      buildcheck 的 E 组断言就是拿它跟 `AssetImporter.cs` 的 MultiFrameStrips 表逐条对账）
 """
 
 import io
 import os
+import sys
 
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+
+
+def _find_root(start):
+    """从 start 逐级向上找「含 client/Assets 的那一层」= 仓库根。
+
+    为什么不用 `HERE/../..`：本脚本随宿主搬过两次（`tools/buildcheck/` → `.ai-tmp/hosts/buildcheck/`
+    → `tools/probes/hosts/buildcheck/`），按固定层数写死的根会在每次搬家后**静默指错**
+    （`UI` 目录不存在 ⇒ 直接 FileNotFoundError）。按特征向上找与宿主侧 C# 的
+    `ResolveProjectRoot()` 同一套口径，此后怎么搬都自洽。
+    """
+    d = start
+    while True:
+        if os.path.isdir(os.path.join(d, "client", "Assets")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+
+
+ROOT = _find_root(HERE) or os.path.abspath(os.path.join(HERE, "..", ".."))
 UI = os.path.join(ROOT, "client", "Assets", "Resources", "Clover", "D2", "UI")
 
 # (相对 UI/ 的路径, 期望帧数, 帧界判定方式)
@@ -158,7 +180,7 @@ def analyse(rel, expect_n, mode, emit):
 
 def main():
     out("=" * 100)
-    out("D2 多帧条带 · 帧矩形实测报告（agent-10 / tools/buildcheck/frame_probe.py）")
+    out("D2 多帧条带 · 帧矩形实测报告（agent-10 / tools/probes/hosts/buildcheck/frame_probe.py）")
     out("读取对象：client/Assets/Resources/Clover/D2/UI/**（真实 PNG 像素，PIL 直读）")
     out("口径：x 自左向右；报告内打印的 y 是**自顶向下**行号，写进 Unity Rect 的 y 是**自底向上**的。")
     out("=" * 100)
@@ -199,7 +221,15 @@ def main():
     txt = "\n".join(_buf)
     with io.open(os.path.join(HERE, "frame_probe_out.txt"), "w", encoding="utf-8") as f:
         f.write(txt + "\n")
-    print(txt)
+    try:
+        print(txt)
+    except UnicodeEncodeError:
+        # 本机控制台代码页是 GBK，编不出 `⚠️` 这类字符 ⇒ 旧写法会在这里抛 UnicodeEncodeError，
+        # 把一整趟「产物已写好、结论也正常」的跑判成 exit 1（实测 2026-09-20）。
+        # 证据留档文件（UTF-8）已经写完，这里只把控制台输出降级成「可打印字符替换版」，
+        # ⛔ 不让一次纯输出问题污染退出码。
+        enc = sys.stdout.encoding or "ascii"
+        print(txt.encode(enc, "replace").decode(enc, "replace"))
     return 1 if _problems else 0
 
 
