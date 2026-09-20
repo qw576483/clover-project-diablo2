@@ -5,7 +5,7 @@
 - 有 `use_skill` → `use_skill("clover-engine")`、`use_skill("unity-cli")`；没有就按序读文件（命中即用，不必读完）：
   - **项目级（首选）**：`<项目根>/tools/ai-skill/SKILL.md` → 再按需读 `conventions.md` / `registry.md` / `constraints.md`
   - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`（**规则层 §0~§7 不可被项目级覆盖**）、`~/.codebuddy/skills/unity-cli/SKILL.md`
-  - 兜底：`<仓库根>/clover-tools/ai-skill/SKILL.md`
+  - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
   - 都找不到 → **回报调用方要路径**，⛔ 不许凭记忆写代码
 - **必读章节**：`clover-engine` 的 §1.13（四拍批次 / 编译必须先成功 / 采样器先自检）、§1.11（收尾自检）、§2（证据按类别）、§1.8（临时文件只放 `.ai-tmp/test/`、用完即删）、§1.12（验不了就 BLOCKED）；`unity-cli` 的「`--project-path` / 连接与 Safe Mode」。
 - **项目内必读**：`docs/agents/_common.md`、`client/Assets/Scripts/UI/CharCreatePanel.cs`（本轮观察对象）、`.ai-tmp/test/p23_run.ps1` + `p23_boot.cs` + `p23_go.cs`（驱动模板，**用后由你统一删除**）。

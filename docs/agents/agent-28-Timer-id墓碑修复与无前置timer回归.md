@@ -5,7 +5,7 @@
 - 有 `use_skill` → `use_skill("clover-engine")`、`use_skill("unity-cli")`；没有就按序读文件（命中即用）：
   - 项目级（首选）：`<项目根>/tools/ai-skill/SKILL.md` → 按需 `constraints.md` / `conventions.md` / `registry.md`
   - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`（**规则层 §0~§7 不可被项目级覆盖**）、`~/.codebuddy/skills/unity-cli/SKILL.md`
-  - 兜底：`<仓库根>/clover-tools/ai-skill/SKILL.md`
+  - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
 - **必读**：`clover-engine` 的 `patterns/engine-fix.md`（**最小复现 → 最小修复（不动公开签名）→ 修复前失败/修复后通过 → 记 E 编号**）、§1.13（四拍 / 编译必须先成功 / 采样器先自检）、§2（证据按类别）、`reference/visual-loop.md` 第八节（联络图）。
 - **项目内必读**：`docs/agents/_common.md`；上一棒的任务书 `docs/agents/agent-27-新会话端到端联调与E-build-03实机验证.md`（本片是它的续，**它的探针已删**，你要重建）。
 

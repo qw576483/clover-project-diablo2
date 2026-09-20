@@ -5,7 +5,7 @@
 - 有 `use_skill` → `use_skill("clover-engine")`、`use_skill("unity-cli")`；没有就按序读文件（命中即用）：
   - 项目级（首选）：`<项目根>/tools/ai-skill/SKILL.md` → 按需 `constraints.md`（看 `E-build-01/02` 那条表的写法）
   - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`（**规则层 §0~§7 不可被项目级覆盖**、§1.10 层级）、`~/.codebuddy/skills/unity-cli/SKILL.md`
-  - 兜底：`<仓库根>/clover-tools/ai-skill/SKILL.md`
+  - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
 - **必读**：`clover-engine` 的 `patterns/engine-fix.md`（改引擎 SOP：定位 → **最小修复** → 回归用例 → 记 E 编号）、§1.13（四拍）、§1.11（收尾自检）、§7（日志硬约束）。
 
 ## 1. 目标（一句话）
@@ -21,7 +21,7 @@
 **绝不做的**：
 - ⛔ 不许改 `ISceneManager` / `Game` 门面 / 任何契约签名
 - ⛔ 不许改第二个引擎文件；⛔ 不许改 `<项目根>/client/Assets/Scripts/**`（项目业务代码）
-- ⛔ 不许改任何 skill（项目级 `tools/ai-skill/**`、仓库源 `clover-tools/ai-skill/**`、宿主安装副本全算）—— E 编号登记由**主 agent** 写
+- ⛔ 不许改任何 skill（项目级 `tools/ai-skill/**`、仓库源 `clover-ai-skill/**`、宿主安装副本全算）—— E 编号登记由**主 agent** 写
 - ⛔ 不许读工作区里其它 `clover-project-*`；不许再派子 agent
 - ⛔ 不许写 `docs/交接-*.md` / 进度类文档
 

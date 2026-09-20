@@ -5,7 +5,7 @@
 - 有 `use_skill` → `use_skill("clover-engine")`、`use_skill("unity-cli")`；没有就按序读文件（命中即用）：
   - 项目级（首选）：`<项目根>/tools/ai-skill/SKILL.md` → 按需 `constraints.md`
   - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`（**规则层不可被项目级覆盖**）、`~/.codebuddy/skills/unity-cli/SKILL.md`
-  - 兜底：`<仓库根>/clover-tools/ai-skill/SKILL.md`
+  - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
 - **必读**：`clover-engine` 的 `patterns/engine-fix.md`（改引擎 SOP：**最小复现 → 最小改动（⛔ 不动公开签名）→ 前失败后通过 → E 编号由主 agent 登记**）、§2/§3/§4（成本闸门 / 四拍 / 证据契约）。
 
 ## 1. 目标（一句话）

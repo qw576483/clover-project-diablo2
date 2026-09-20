@@ -5,7 +5,7 @@
 - 有 `use_skill` → `use_skill("clover-engine")`、`use_skill("unity-cli")`；没有就按序读文件（命中即用）：
   - 项目级（首选）：`<项目根>/tools/ai-skill/SKILL.md` → 按需 `conventions.md` / `registry.md` / `constraints.md`
   - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`（**规则层 §0~§7 不可被项目级覆盖**）、`~/.codebuddy/skills/unity-cli/SKILL.md`
-  - 兜底：`<仓库根>/clover-tools/ai-skill/SKILL.md`
+  - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
 - **必读**：`clover-engine` 的 §1.13（四拍 / **编译必须先成功** / 采样器先自检三条 / 读日志 `FileShare.ReadWrite`）、§2（`数值类` vs `表现类` 的证据口径）、`reference/visual-loop.md` **第八节·联络图**、§1.8（临时文件）、`reference/pipeline-and-unity-cli.md`（跑 Play / 截图 / 输入注入的坑）。
 - **项目内必读**：`docs/agents/_common.md`；`client/_dev/p_runbg.cs`（`runInBackground` 配方，**已被验收表白名单，不许删改**）；`client/_dev/p_key3.cs`（已白名单的输入注入配方）。
 

@@ -11,7 +11,7 @@
      项目约定只在「全局没写」或「全局明说可自选」处优先，**冲突时照全局做**（全局 `SKILL.md` §1.10）
    - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`、`~/.claude/skills/ai-skill/SKILL.md`、`~/.cursor/skills/ai-skill/SKILL.md`
    - **unity-cli** 同上（客户端 agent 必需：编译 / 场景 / 日志 / 截图都靠它）
-   - 仓库源副本（最后兜底）：`<仓库根>/clover-tools/ai-skill/SKILL.md`
+   - 仓库源副本（最后兜底）：`<仓库根>/clover-ai-skill/SKILL.md`
 4. 然后按 skill 的「混合模式找依据」查代码（**用户 > 引擎 > 联网/自创**；**不许编 API**）。
 
 ## 1. 必读（本项目契约，**改契约 = 违规**）

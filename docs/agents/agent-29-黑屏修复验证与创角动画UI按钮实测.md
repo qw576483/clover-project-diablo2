@@ -5,7 +5,7 @@
 - 有 `use_skill` → `use_skill("clover-engine")`、`use_skill("unity-cli")`；没有就按序读文件（命中即用）：
   - 项目级（首选）：`<项目根>/tools/ai-skill/SKILL.md` → 按需 `conventions.md` / `registry.md` / `constraints.md`
   - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`（**规则层 §0~§7 不可被项目级覆盖**）、`~/.codebuddy/skills/unity-cli/SKILL.md`
-  - 兜底：`<仓库根>/clover-tools/ai-skill/SKILL.md`
+  - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
 - **必读**：全局 skill §2（**成本闸门**）、§3（四拍）、§4（证据契约）；`reference/change-loop.md`；`reference/verify-template.md` 第 16~18 项；`reference/visual-loop.md` 第八节（联络图）；`docs/agents/_common.md`。
 
 ## 1. 目标（一句话）
