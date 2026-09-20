@@ -5,7 +5,7 @@
 > 本目录由「仓库卫生整理」这一轮从 `.ai-tmp/` 迁出（2026-09-20），原处不留副本。
 >
 > ⚠️ 这些文件是**当轮取证的原样记录**，内部写死了当时的位置（`.ai-tmp\drivers\...`）
-> 与绝对路径（`C:\Work\Server\full-dev\clover-project-diablo2`）。**迁移时一个字未改**，
+> 与绝对路径（`clover-project-diablo2`）。**迁移时一个字未改**，
 > 所以下面的「怎么跑」列写的是**真实命令 + 需要先改的那一处变量**。
 >
 > 共同依赖：Unity 6000.6.0f1（`C:\Program Files\Unity\Hub\Editor\6000.6.0f1`）、

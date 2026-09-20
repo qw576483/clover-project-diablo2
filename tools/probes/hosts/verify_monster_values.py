@@ -23,7 +23,7 @@ try:
 except Exception:
     pass
 
-ROOT = r"c:\Work\Server\full-dev\clover-project-diablo2"
+ROOT = r"clover-project-diablo2"
 OFF = os.path.join(ROOT, "原版资源", "参考工程_Diablerie", "d2lod1.10txt", "data", "global", "excel")
 
 

@@ -2,7 +2,7 @@
 
 ## 0. 技能（开工必做）
 
-先读 `<项目根>/docs/agents/_common.md` 并照它执行。项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+先读 `<项目根>/docs/agents/_common.md` 并照它执行。项目根 = `clover-project-diablo2`。
 另必读：skill **`patterns/client/app-flow.md`**（本 agent 的主要范式）、`patterns/client/ui.md`、
 `docs/步骤文档.md` §3.3（UI 签名）/§3.6（场景与面板）、`tools/ai-skill/constraints.md` #2 #7。
 

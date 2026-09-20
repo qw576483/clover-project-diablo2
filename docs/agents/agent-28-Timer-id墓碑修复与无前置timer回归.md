@@ -43,7 +43,7 @@ DIAG_TIMER nextId=6 entries=0[]        ← 会话 6 个 timer 全不在，其中
 ## 3. 任务边界
 
 **只做**：
-- 改**一个文件**：`c:\Work\Server\full-dev\clover-client-unity-engine\Runtime\Core\Timer.cs`
+- 改**一个文件**：`clover-client-unity-engine\Runtime\Core\Timer.cs`
 - 在 `<项目根>/.ai-tmp/test/` 写一次性探针 / 驱动脚本做回归与采证（**回报前删掉**）
 - 覆盖重采：`client/Assets/Screenshots/p27_contact_flow.png`、`p27_contact_flow.index.tsv`、`p27_<状态>.png`（10 张）
 
@@ -74,7 +74,7 @@ DIAG_TIMER nextId=6 entries=0[]        ← 会话 6 个 timer 全不在，其中
 
 **A. 修复本身**
 - [ ] `Timer.cs` 是唯一被改动的文件；`git -C c:\Work\Server\full-dev --no-pager diff --numstat -- clover-client-unity-engine/Runtime/Core/Timer.cs` 净增删 ≤ 15 行
-- [ ] `unity command recompile --project-path c:\Work\Server\full-dev\clover-project-diablo2\client` → `recompile_status = completed / failed=false / errors=[]`
+- [ ] `unity command recompile --project-path client` → `recompile_status = completed / failed=false / errors=[]`
 - [ ] 回报给出「修复前 → 修复后」的行为对照：会话第一个 timer（id=1，不再被 0 墓碑误删）/ `Stop(0)` 变成 no-op / `StopNamed`·`StopScope`·`StopAll` 行为不变 / 正常 timer 的停止语义不变
 
 **B. 无前置 timer 的回归（**本片的重点：这条路径才是正式包路径**）**
@@ -94,6 +94,6 @@ DIAG_TIMER nextId=6 entries=0[]        ← 会话 6 个 timer 全不在，其中
 
 - 批次流水线（§1.13）：① 只读取证 → ② 一次改完（Timer.cs 2 处 + 注释）→ ③ 一次编译 + 预演 → ④ 一轮链条跑完、集中采一次联络图。⛔ 不许"改一处编译一次 / 改一处跑一次 Play"。
 - 采样器先自检（§1.13 第 5 条）：`.ps1` 语法 0 错、**纯 ASCII**；完成判据 = **驱动自己写的 marker**（跑前删除）；读日志 `FileShare.ReadWrite`；探针日志统一 `[P28]` 前缀。
-- 每条 `unity` 命令带 `--project-path c:\Work\Server\full-dev\clover-project-diablo2\client`；驱动前设 `runInBackground = true` / `vSyncCount = 0`（在探针里设，**不要跑 `p_runbg.cs`**）。
+- 每条 `unity` 命令带 `--project-path client`；驱动前设 `runInBackground = true` / `vSyncCount = 0`（在探针里设，**不要跑 `p_runbg.cs`**）。
 - 发现**其它**文件也有缺陷 ⇒ 写进回报，⛔ 不许顺手改。
 - 回报格式：`产出物 / 自检（原始输出）/ 未决`。

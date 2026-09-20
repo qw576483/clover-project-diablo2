@@ -73,7 +73,7 @@ namespace SaveCheck
 
     public static class Program
     {
-        private const string ProjectRoot = @"C:\Work\Server\full-dev\clover-project-diablo2";
+        private const string ProjectRoot = @"clover-project-diablo2";
         private const string ClientRoot = ProjectRoot + @"\client";
         private const string BadJson = "{{{ this is not json";
         private const string PayloadA = "{\"k\":1}";

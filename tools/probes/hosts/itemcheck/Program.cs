@@ -428,7 +428,7 @@ namespace ItemCheck
         public static bool Verbose;
 
         private const string ClientDataPath =
-            @"C:\Work\Server\full-dev\clover-project-diablo2\client\Assets";
+            @"client\Assets";
 
         private static RecLogger _log;
         private static MemSetting _setting;

@@ -33,7 +33,7 @@
 
 | 事实 | 出处 |
 |---|---|
-| 编辑器活着 | `unity status --format json` ⇒ port 7800 / `project=C:\Work\Server\full-dev\clover-project-diablo2\client` / `state=ready` |
+| 编辑器活着 | `unity status --format json` ⇒ port 7800 / `project=client` / `state=ready` |
 | 当前 console 计数 | `unity command console_status --format json` ⇒ `counts.error=1 / warn=11 / log=291`，`groundTruth.consoleErrors=1`（**这是本轮要清零的对象**） |
 | 已知 Error 之一 | `client/Logs/Editor.log` 13:43:56 三条 `[Error] [Resource] 加载失败：D2/UI/FrontEnd/-1/nu{1,2,3}_0` —— 停用槽去加载 `-1` 路径；片 22 已修（`SlotIndex` / `BindSlots` 加 `NoClass` 守卫、`BuildSpots` 传空路径、`PreloadPortraits` 跳过） |
 | 已知 Error 之二 | 同文件 13:46:39 `[Error] [Logger] 日志写线程异常终止：ThreadAbortException` —— 编辑器停 Play 时的日志线程中断，**非游戏错误** |

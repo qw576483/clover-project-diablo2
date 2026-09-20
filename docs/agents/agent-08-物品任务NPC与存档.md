@@ -3,7 +3,7 @@
 ## 0. 技能（开工必做）
 
 先读并照做：`<项目根>/docs/agents/_common.md`（**尤其 §3.5**）。
-项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+项目根 = `clover-project-diablo2`。
 另必读：`策划/策划案/暗黑破坏神2参考规格.md` **§3.6/§3.7/§3.8**（物品、NPC、主线任务的保真要求）、
 `docs/步骤文档.md` §2/§3、`tools/ai-skill/conventions.md`、`constraints.md`。
 

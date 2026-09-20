@@ -2,8 +2,8 @@
 # 诊断用：原版实机截图 → 整条底部面板（含上半部）分 3 段 2x。
 from PIL import Image
 
-p = r"c:\Work\Server\full-dev\clover-project-diablo2\原版资源\参考图\原版实机_暗黑2_HUD与物品tooltip.png"
-out = r"c:\Work\Server\full-dev\clover-project-diablo2\.ai-tmp\test"
+p = r"原版资源\参考图\原版实机_暗黑2_HUD与物品tooltip.png"
+out = r".ai-tmp\test"
 im = Image.open(p).convert("RGBA")
 W, H = im.size
 

@@ -373,7 +373,7 @@ namespace FullCheck
 
     public static class Program
     {
-        private const string ProjectRoot = @"C:\Work\Server\full-dev\clover-project-diablo2";
+        private const string ProjectRoot = @"clover-project-diablo2";
         private const string ClientAssets = ProjectRoot + @"\client\Assets";
         private const string LogPath = ProjectRoot + @"\tools\fullcheck\_last_run.log";
         private const string HeroName = "FullCheckHero";

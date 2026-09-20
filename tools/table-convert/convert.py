@@ -77,7 +77,7 @@ except Exception as exc:                      # 老版本解释器没有 reconfi
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-# ★ BL-6（片 6 登记）：原路径 `c:\Work\Server\full-dev\_assets_tmp\d2src\d2lod1.10txt\...`
+# ★ BL-6（片 6 登记）：原路径 `_assets_tmp\d2src\d2lod1.10txt\...`
 #   随工作区清理**已不存在**（那一整棵 `_assets_tmp` 都没了）⇒ 打表脚本曾经**跑不起来**。
 #   现存唯一副本 = 参考工程自带的 1.10 官方 txt（92 张，**含** `SkillCalc.txt` / `MonLvl.txt` /
 #   `MonStats2.txt`，比 `原版资源/d2raw/data/global/excel` 那 55 张（经典版）更全）。

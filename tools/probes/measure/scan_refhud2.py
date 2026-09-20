@@ -2,7 +2,7 @@
 # 诊断用：在原版实机截图上定位「血球 / 蓝球 / 药水(腰带) 格」，算它们相对两球的横向比例。
 from PIL import Image
 
-p = r"c:\Work\Server\full-dev\clover-project-diablo2\原版资源\参考图\原版实机_暗黑2_HUD与物品tooltip.png"
+p = r"原版资源\参考图\原版实机_暗黑2_HUD与物品tooltip.png"
 im = Image.open(p).convert("RGB")
 W, H = im.size
 px = im.load()

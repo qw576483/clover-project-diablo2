@@ -45,7 +45,7 @@ A1 已把通用能力下沉到引擎：`clover-client-unity-engine/Runtime/Core/
 
 ## 5. 验收标准（逐条自查）
 
-- [ ] **编译绿**：`unity command recompile --project-path c:\Work\Server\full-dev\clover-project-diablo2\client` ⇒ `recompile_status` = `completed / failed=false / errors=[]`
+- [ ] **编译绿**：`unity command recompile --project-path client` ⇒ `recompile_status` = `completed / failed=false / errors=[]`
 - [ ] 全项目 grep 确认**再无** `Diablo2.Core.Rng` 的自写定义（`Core/Rng.cs` 不存在），且**没有任何 `Rng` 相关的编译错**（贴 `recompile_status` 原文）
 - [ ] **序列未变（本片最关键的判据）**：`.ai-tmp/hosts/run_all_hosts.ps1` = `TOTAL_HOSTS=10 FAILED=0`；并**单独**贴出 `mapcheck`（及其它涉及随机/掉落的宿主）里"同 seed ⇒ 同结果"那几行原始断言输出 —— 它们必须仍然 PASS（= 引擎版 `Rng` 与项目版产生**完全相同的序列**）
 - [ ] `git -C c:\Work\Server\full-dev --no-pager diff --stat -- clover-client-unity-engine` 与 A1 结束时**逐字一致**（证明本片**没碰引擎**）

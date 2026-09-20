@@ -49,7 +49,7 @@
 ### 驱动编辑器（**照抄，别自己发明**）
 
 ```powershell
-cd c:\Work\Server\full-dev\clover-project-diablo2\client
+cd client
 unity command editor_stop ; Start-Sleep 6 ; unity command clear_console
 unity command editor_play ; Start-Sleep 15
 unity command eval_file --file "_dev\p_runbg.cs"      # ★ 必须：失焦不 tick（constraints.md #11）

@@ -26,7 +26,7 @@ using ILogger = CloverEngine.ILogger;
 
 internal static class CoreCheckProgram
 {
-    private const string ProjectRoot = @"C:\Work\Server\full-dev\clover-project-diablo2";
+    private const string ProjectRoot = @"clover-project-diablo2";
     private const string ClientAssets = ProjectRoot + @"\client\Assets";
     private const string ResourcesRoot = ClientAssets + @"\Resources\Clover\";
     private const string ImporterPath = ClientAssets + @"\Editor\AssetImporter.cs";
@@ -283,7 +283,7 @@ internal static class CoreCheckProgram
             && GameConst.SettingKeySfxMute != GameConst.SettingKeySfxVolume, "四键互异");
 
         // 引擎出处必须是钉死的 1920×1080（否则面板会整体错位）
-        var engineUi = @"C:\Work\Server\full-dev\clover-client-unity-engine\Runtime\Presentation\UI.cs";
+        var engineUi = @"clover-client-unity-engine\Runtime\Presentation\UI.cs";
         Check("UiReferenceWidth/Height = 1920/1080（引擎 `Runtime/Presentation/UI.cs:52-56` 写死的值）",
             GameConst.UiReferenceWidth == 1920 && GameConst.UiReferenceHeight == 1080,
             $"{GameConst.UiReferenceWidth}x{GameConst.UiReferenceHeight}");

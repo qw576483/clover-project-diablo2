@@ -3,7 +3,7 @@
 ## 0. 技能（开工必做）
 
 先读 `<项目根>/docs/agents/_common.md` 并**照它执行**（拿 skill → 读契约 → 红线 → 日志 → 分层自检 → 回报格式）。
-项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+项目根 = `clover-project-diablo2`。
 
 ## 1. 目标
 
@@ -18,7 +18,7 @@
 
 ## 3. 前置依赖（已就绪）
 
-- 引擎包：`c:\Work\Server\full-dev\clover-client-unity-engine`
+- 引擎包：`clover-client-unity-engine`
 - Unity 工程：`<项目根>/client`（6000.6.0f1，`com.unity.template.universal-2d`）
 - 契约：`<项目根>/docs/步骤文档.md` **§3（引擎 API，含出处行号）**、§3.5（常量与 ResPaths）、§3.6（场景与面板）
 - 命名与目录：`<项目根>/tools/ai-skill/conventions.md`
@@ -110,7 +110,7 @@ DTO（`[System.Serializable]`、字段名小写驼峰、`List<T>` 不用数组�
 ### 4.6 `client/Packages/manifest.json`
 
 在 `dependencies` 里加入（**保留模板已有项**）：
-`"com.clover.unity-engine": "file:c:/Work/Server/full-dev/clover-client-unity-engine"`、
+`"com.clover.unity-engine": "file:clover-client-unity-engine"`、
 `"com.unity.pipeline": "0.7.0-exp.1"`、
 `"com.unity.test-framework": "1.4.5"`、`"com.unity.ugui": "2.0.0"`、
 以及引擎必需的内置模块：`com.unity.modules.animation / assetbundle / audio / director / imageconversion / imgui / jsonserialize / physics / physics2d / screencapture / ui / uielements / unitywebrequest / unitywebrequestassetbundle / unitywebrequesttexture / unitywebrequestwww / video / xr`（全部 `1.0.0`），

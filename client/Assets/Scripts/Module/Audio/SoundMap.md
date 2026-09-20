@@ -91,8 +91,8 @@ BGM 三首也都切到过（`town` / `bloodmoor` / `denofevil`）。
 
 ```powershell
 # ① 列出数据包内容（可解加密 mpq）
-cd C:\Work\Server\full-dev\_assets_src
-python storm.py list   C:\Work\Server\full-dev\_assets_src\d2mpq\d2sfx.mpq
+cd _assets_src
+python storm.py list   _assets_src\d2mpq\d2sfx.mpq
 # ② 全部 4699 条 Sounds.txt 条目在该包内的存在性索引（→ _sfx_index.txt）
 python _index_sfx.py
 # ③ 只导 SfxRegistry 登记过的键（文件名 = 键名 + .wav，落进 Resources/Clover/Sound/**）

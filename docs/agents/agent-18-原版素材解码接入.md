@@ -10,10 +10,10 @@
 
 | 东西 | 路径 | 说明 |
 | --- | --- | --- |
-| **解包工具（已验证可用）** | `c:\Work\Server\full-dev\_assets_src\storm.py` | StormLib 的 Python ctypes 封装。`python storm.py list <mpq> [ext]` / `python storm.py extract <mpq> <outdir> <ext...>`。**能解加密 mpq**（mpyq 不行） |
-| **原版数据包** | `c:\Work\Server\full-dev\_assets_src\d2mpq\*.mpq` | `d2data.mpq`(278MB) / `d2char.mpq`(251MB) / `d2sfx.mpq`(47MB) / `d2music.mpq`(329MB) / `patch_d2.mpq` / `d2speech.mpq` / `d2video.mpq` |
-| **已导出的原料** | `c:\Work\Server\full-dev\_assets_src\d2raw\` | `*.dt1` 206 个（地形瓦片）/ `*.TBL` 35 个（**本地化文本，含中文**）/ `*.PL2` 15 个（调色板）。共 113MB |
-| **格式参考实现（C#，有依据可查）** | `c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Scripts\**` | 社区复刻工程里有 **DC6 / DCC / DT1 / DS1 / COF / PL2 / TBL 的 C# 读取器**。**格式细节去读它**，不要凭记忆。 |
+| **解包工具（已验证可用）** | `_assets_src\storm.py` | StormLib 的 Python ctypes 封装。`python storm.py list <mpq> [ext]` / `python storm.py extract <mpq> <outdir> <ext...>`。**能解加密 mpq**（mpyq 不行） |
+| **原版数据包** | `_assets_src\d2mpq\*.mpq` | `d2data.mpq`(278MB) / `d2char.mpq`(251MB) / `d2sfx.mpq`(47MB) / `d2music.mpq`(329MB) / `patch_d2.mpq` / `d2speech.mpq` / `d2video.mpq` |
+| **已导出的原料** | `_assets_src\d2raw\` | `*.dt1` 206 个（地形瓦片）/ `*.TBL` 35 个（**本地化文本，含中文**）/ `*.PL2` 15 个（调色板）。共 113MB |
+| **格式参考实现（C#，有依据可查）** | `_assets_tmp\d2src\Diablerie\Assets\Scripts\**` | 社区复刻工程里有 **DC6 / DCC / DT1 / DS1 / COF / PL2 / TBL 的 C# 读取器**。**格式细节去读它**，不要凭记忆。 |
 
 > ⛔ **许可**：本项目**非商用**，用原版 rip 素材是允许的，**只记一行来源**即可，**不要**为授权停下来问用户。
 > **来源行**：`原版素材取自 Diablo II (Blizzard North, 2000) 的 d2data.mpq / d2char.mpq / d2sfx.mpq，非商用。`

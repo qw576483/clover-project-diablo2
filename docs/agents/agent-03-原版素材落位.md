@@ -2,7 +2,7 @@
 
 ## 0. 技能（开工必做）
 
-先读 `<项目根>/docs/agents/_common.md` 并照它执行。项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+先读 `<项目根>/docs/agents/_common.md` 并照它执行。项目根 = `clover-project-diablo2`。
 另必读：`<项目根>/策划/素材调研.md`、skill `reference/asset-sources.md`、`patterns/client/resource.md`。
 
 ## 1. 目标
@@ -22,14 +22,14 @@
 来源仓库（D2 原版素材，社区复刻工程 `mofr/Diablerie`）：
 
 ```
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Images\ControlPanel\     (49 张：控制面板/血球/蓝球/经验条/菜单按钮/小面板按钮)
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Images\Cursors\         Cursor.png
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Images\Inventory\       6 张装备栏底图 inv_armor/inv_belt/inv_boots/inv_helm_glove/inv_ring_amulet/inv_weapons
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Images\Menu\            6 张：main_screen / class_select_screen / load_screen / multi_player_screen / button_medium / button_wide
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Images\Panels\          inventory.png / charstat.png / buysellbtn.DC6.0.png / goldcoinbtn.dc6.0.png
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Images\Skills\          SkilliconAttack.png
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\Resources\Fonts\        font16.png / font24.png / font30.png / font42.png
-c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\StreamingAssets\data\local\font\  font16.DC6 / font24.DC6 / font30.DC6 / font42.DC6
+_assets_tmp\d2src\Diablerie\Assets\Images\ControlPanel\     (49 张：控制面板/血球/蓝球/经验条/菜单按钮/小面板按钮)
+_assets_tmp\d2src\Diablerie\Assets\Images\Cursors\         Cursor.png
+_assets_tmp\d2src\Diablerie\Assets\Images\Inventory\       6 张装备栏底图 inv_armor/inv_belt/inv_boots/inv_helm_glove/inv_ring_amulet/inv_weapons
+_assets_tmp\d2src\Diablerie\Assets\Images\Menu\            6 张：main_screen / class_select_screen / load_screen / multi_player_screen / button_medium / button_wide
+_assets_tmp\d2src\Diablerie\Assets\Images\Panels\          inventory.png / charstat.png / buysellbtn.DC6.0.png / goldcoinbtn.dc6.0.png
+_assets_tmp\d2src\Diablerie\Assets\Images\Skills\          SkilliconAttack.png
+_assets_tmp\d2src\Diablerie\Assets\Resources\Fonts\        font16.png / font24.png / font30.png / font42.png
+_assets_tmp\d2src\Diablerie\Assets\StreamingAssets\data\local\font\  font16.DC6 / font24.DC6 / font30.DC6 / font42.DC6
 ```
 
 ## 4. 产出物

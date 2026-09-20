@@ -83,7 +83,7 @@ namespace Uicheck
         // ★ agent-a3：下面几项由 `private` 放宽到 `internal`，只为了新加的
         //   `LoadingCheck.cs`（进图读条画面 + 区域名弹出）能复用同一套路径与 Check()/失败计数。
         //   行为零变化。
-        internal const string ProjectRoot = @"C:\Work\Server\full-dev\clover-project-diablo2";
+        internal const string ProjectRoot = @"clover-project-diablo2";
         internal static readonly string UiDir =
             Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "UI");
         internal static readonly string ResourceRoot =

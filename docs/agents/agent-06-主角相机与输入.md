@@ -3,7 +3,7 @@
 ## 0. 技能（开工必做）
 
 先读并照做：`<项目根>/docs/agents/_common.md`（**尤其 §3.5 第一批已落盘的事实**）。
-项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+项目根 = `clover-project-diablo2`。
 另必读：`docs/步骤文档.md` §3.3/§3.5、`tools/ai-skill/conventions.md`（**等距坐标**）、`constraints.md` #4 #5 #6。
 
 ## 1. 目标

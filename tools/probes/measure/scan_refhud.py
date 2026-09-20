@@ -2,7 +2,7 @@
 # 诊断用：量「原版实机」截图的底部控制面板 —— 从左到右到底有哪些格、各多少格。
 from PIL import Image
 
-p = r"c:\Work\Server\full-dev\clover-project-diablo2\原版资源\参考图\原版实机_暗黑2_HUD与物品tooltip.png"
+p = r"原版资源\参考图\原版实机_暗黑2_HUD与物品tooltip.png"
 im = Image.open(p).convert("RGBA")
 w, h = im.size
 print("size", w, h)

@@ -20,7 +20,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 工程 | `C:\Work\Server\full-dev\clover-project-diablo2\client`（Unity 6000.6.0f1，Play 模式） |
+| 工程 | `client`（Unity 6000.6.0f1，Play 模式） |
 | 进 Play | `unity command editor_stop` → `clear_console` → `editor_play`；随后 `eval_file client/_dev/p_runbg.cs`（失焦也 tick） |
 | 驱动 | **单动作执行器** `client/_dev/b25_act.cs`（每次 `eval_file` 只做一件事、做完就退出）+ 外壳 `client/_dev/b25_plan.ps1`（按状态判据重试、满足才截图） |
 | 动作入口 | 全部走**游戏自己的事件/门面 API**：走路 `Events.MoveCommand`（点击地面同一条通道）、区域切换 = 踩出入口（`PlayerModule.CheckExit` → `Events.ExitEntered`）、**点面板按钮 = 该按钮真实 `Button.onClick`**、清怪 `IMonsterModule.ApplyDamage`（死亡仍走 `Module/Monster.Die` → `Events.MonsterKilled`） |

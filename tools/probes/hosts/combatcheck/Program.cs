@@ -29,7 +29,7 @@ namespace CombatCheck
 {
     internal static class Program
     {
-        private const string ClientAssets = @"C:\Work\Server\full-dev\clover-project-diablo2\client\Assets";
+        private const string ClientAssets = @"client\Assets";
         private const float Dt = 0.05f;
 
         private static int _fail;

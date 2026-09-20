@@ -3,7 +3,7 @@
 ## 0. 技能（开工必做）
 
 先读并照做：`<项目根>/docs/agents/_common.md`（**尤其 §3.5**）。
-项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+项目根 = `clover-project-diablo2`。
 另必读：skill `reference/unity-cli.md` §7（场景创建与脚本挂载由 AI 自己做，不许丢给用户）、
 `patterns/client/ui.md`（面板预制体 = `Resources/UI/{类名}`）、`patterns/client/app-flow.md` §4（场景划分）；
 `<项目根>/client/_dev/assetreport.txt`（素材实测尺寸，切分参数要看它）。

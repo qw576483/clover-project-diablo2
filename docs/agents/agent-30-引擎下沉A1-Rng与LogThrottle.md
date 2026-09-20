@@ -86,7 +86,7 @@ namespace CloverEngine
 
 ## 5. 验收标准（逐条自查）
 
-- [ ] 引擎编译通过：`unity command recompile --project-path c:\Work\Server\full-dev\clover-project-diablo2\client` ⇒ `recompile_status` = `completed / failed=false / errors=[]`
+- [ ] 引擎编译通过：`unity command recompile --project-path client` ⇒ `recompile_status` = `completed / failed=false / errors=[]`
 - [ ] **纯新增**（可机检）：`git -C c:\Work\Server\full-dev --no-pager diff --stat -- clover-client-unity-engine` 里**只有新增文件**（`Runtime/Core/Rng.cs`、`Runtime/Core/LogThrottle.cs` 及 `Tools~/core-assert/**`），⛔ **没有**任何既有文件的修改行
 - [ ] **离线断言**（`Tools~/core-assert`，照它的 `README.md` 方式跑）至少覆盖：
       · `Rng`：同 seed ⇒ 同序列（连取 100 个整数逐一相等）；不同 seed ⇒ 不同；`Chance(0)`/`Chance(1)` 边界；`Shuffle` 同 seed 同排列；`PickWeighted` 权重全 0 ⇒ -1；`Next(0)` ⇒ 0；`Derive` 确定性

@@ -3,7 +3,7 @@
 import os
 import struct
 
-root = r"c:\Work\Server\full-dev\clover-project-diablo2\client\Assets\Resources\Clover\D2\UI\FrontEnd"
+root = r"client\Assets\Resources\Clover\D2\UI\FrontEnd"
 
 
 def png_size(p):

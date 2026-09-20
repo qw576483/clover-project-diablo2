@@ -165,7 +165,7 @@ namespace PlayerCheck
     public static class Program
     {
         private const string ClientAssets =
-            @"C:\Work\Server\full-dev\clover-project-diablo2\client\Assets";
+            @"client\Assets";
 
         private const float Dt = 0.02f;          // 50 FPS（验收要求逐帧 Tick(0.02f)）
         private const int FrameCap = 6000;       // 单次移动的帧数上限（300 秒游戏时间，足够）

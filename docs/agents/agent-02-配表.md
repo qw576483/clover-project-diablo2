@@ -2,7 +2,7 @@
 
 ## 0. 技能（开工必做）
 
-先读 `<项目根>/docs/agents/_common.md` 并照它执行。项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+先读 `<项目根>/docs/agents/_common.md` 并照它执行。项目根 = `clover-project-diablo2`。
 另必读：skill `patterns/table.md`（打表三步闭环与硬规则）、`<项目根>/docs/步骤文档.md` **§2 配表清单**。
 
 ## 1. 目标
@@ -19,12 +19,12 @@
 ## 3. 前置依赖（已就绪）
 
 **官方原始数据表**（暗黑2 1.10f，从 mpq 解出，社区存档）：
-`c:\Work\Server\full-dev\_assets_tmp\d2src\d2lod1.10txt\data\global\excel\*.txt`
+`_assets_tmp\d2src\d2lod1.10txt\data\global\excel\*.txt`
 （**92 个文件**；关键：`charstats.txt` `experience.txt` `MonStats.txt` `MonStats2.txt` `MonAi.txt` `AiParms.txt`
 `Levels.txt` `MonLvl.txt` `skills.txt` `SkillDesc.txt` `SkillCalc.txt` `Weapons.txt` `Armor.txt` `Misc.txt`
 `Inventory.txt` `MagicPrefix.txt` `MagicSuffix.txt` `MonUMod.txt` `TreasureClassEx.txt` `Missiles.txt`）
 
-**打表工具**：`c:\Work\Server\full-dev\clover-tools\table\core`（`go run ./cmd/table -config <cfg> -batch`；
+**打表工具**：`clover-tools\table\core`（`go run ./cmd/table -config <cfg> -batch`；
 `-pack` 反向出 xlsx）。**先读 `clover-tools/table/README.md` 与 `cmd/table/main.go` 确认参数与产物路径规则**。
 
 ## 4. 产出物

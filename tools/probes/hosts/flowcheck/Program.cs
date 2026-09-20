@@ -245,7 +245,7 @@ namespace FlowCheck
     public static class Program
     {
         private const string ClientDataPath =
-            @"C:\Work\Server\full-dev\clover-project-diablo2\client\Assets";
+            @"client\Assets";
 
         private static readonly List<string> StationLog = new List<string>();
 

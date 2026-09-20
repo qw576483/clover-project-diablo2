@@ -2,7 +2,7 @@
 # 诊断用：量 ControlPanel.png 底图上"暗格"的实际 x 区间（判定原版到底有几格、在哪）。
 from PIL import Image
 
-p = r"c:\Work\Server\full-dev\clover-project-diablo2\client\Assets\Resources\Clover\D2\UI\Panel\ControlPanel.png"
+p = r"client\Assets\Resources\Clover\D2\UI\Panel\ControlPanel.png"
 im = Image.open(p).convert("RGBA")
 w, h = im.size
 print("size", w, h)

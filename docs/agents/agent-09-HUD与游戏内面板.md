@@ -3,7 +3,7 @@
 ## 0. 技能（开工必做）
 
 先读并照做：`<项目根>/docs/agents/_common.md`（**尤其 §3.5**）。
-项目根 = `c:\Work\Server\full-dev\clover-project-diablo2`。
+项目根 = `clover-project-diablo2`。
 另必读：skill **`patterns/client/ui.md`**、`patterns/client/app-flow.md` §3 模板 4/6；
 `docs/步骤文档.md` §3.3（UI 签名）/§3.6（面板清单）；`tools/ai-skill/constraints.md` #3 #7；
 `策划/策划案/暗黑破坏神2参考规格.md` §3「HUD / 背包 / 装备栏 / 属性 / 技能树 / 任务」的**原版布局要求**。

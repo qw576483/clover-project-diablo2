@@ -15,7 +15,7 @@
 ## 2. 任务边界
 
 **只做**：
-- 改**一个文件**：`c:\Work\Server\full-dev\clover-client-unity-engine\Runtime\Presentation\Scene.cs`（`SceneModule.Load`，:22-79）
+- 改**一个文件**：`clover-client-unity-engine\Runtime\Presentation\Scene.cs`（`SceneModule.Load`，:22-79）
 - 改完自己跑 `unity command recompile --project-path <项目根>/client` 验证编译通过
 
 **绝不做的**：
@@ -50,13 +50,13 @@
 
 ## 5. 产出物
 
-- `c:\Work\Server\full-dev\clover-client-unity-engine\Runtime\Presentation\Scene.cs`（唯一被改的文件）
+- `clover-client-unity-engine\Runtime\Presentation\Scene.cs`（唯一被改的文件）
 - 回报（消息）：改动前后逐行对照 + 编译证据 + 未决
 
 ## 6. 验收标准（逐条自查）
 
 - [ ] `Scene.cs` 是**唯一**被改动的文件（用 `Get-ChildItem … | Where-Object LastWriteTime -gt <开工时间>` 自查并列出来）
-- [ ] `unity command recompile --project-path c:\Work\Server\full-dev\clover-project-diablo2\client` = `completed`/`up_to_date`，且 `unity command console_status` 里 `compilationFailed=false`、无新增 C# 错误
+- [ ] `unity command recompile --project-path client` = `completed`/`up_to_date`，且 `unity command console_status` 里 `compilationFailed=false`、无新增 C# 错误
 - [ ] `git -C c:\Work\Server\full-dev --no-pager diff -- clover-client-unity-engine/Runtime/Presentation/Scene.cs` 的 diff **净增删 ≤ 25 行**（超了就是改大了，回到最小修）
 - [ ] 回报里给出「改动前 → 改动后」的行为对照表：正常路径 / 被顶掉的旧 op / 同场景重载 / 场景名不存在，四条各写一句
 - [ ] 非预期分支有 Warn 日志（贴日志格式的实际字符串）

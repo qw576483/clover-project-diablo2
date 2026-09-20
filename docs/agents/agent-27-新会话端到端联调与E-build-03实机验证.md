@@ -37,7 +37,7 @@ Boot 屏 → 主菜单 → SINGLE PLAYER → 创角（点 Amazon，`fw` 54 帧�
 
 | 事实 | 出处 |
 |---|---|
-| 编辑器活着 | `unity status --format json` ⇒ port 7800 / `project=…\clover-project-diablo2\client` / `state=ready` |
+| 编辑器活着 | `unity status --format json` ⇒ port 7800 / `project=…\client` / `state=ready` |
 | **当前是编辑模式**（主 agent 刚 `editor_stop`） | 编辑模式 `SceneManager.sceneCount = 1`（主 agent 用 `eval` 只读探活得到）⇒ **上一个会话的僵尸场景已随 Play 容器释放** |
 | E-build-03 已落盘并编译通过 | `Runtime/Presentation/Scene.cs`：停旧轮询前先 `pending.allowSceneActivation = true` + Warn；新增 `_progressOp` / `_progressScene` 自判归属。`recompile_status = completed / failed=false / errors=[]` |
 | 上一棒的"场景加载瘫痪" | 发生在**同一个被反复驱动的 Play 会话**里：`Loading scene: Menu` 永不完成、连续 10 次采样 `progress = 0.000 / isDone=False`、`sceneCount=4`（Boot + 3 僵尸 Menu）。那一棒为了取证用了反射把 `SceneModule._currentScene` 置成 `Menu` 绕行 —— **本片一律不许再用任何绕行**：场景必须真的加载完成 |
@@ -71,7 +71,7 @@ Boot 屏 → 主菜单 → SINGLE PLAYER → 创角（点 Amazon，`fw` 54 帧�
 
 - **批次流水线（§1.13）**：探针一次写完 → 编译一次（确认成功）→ 跑一轮完整链 → **集中采一次联络图**；⛔ 不许"改一处跑一次 Play"。
 - **采样器先自检（§1.13 第 5 条）**：`.ps1` 语法 0 错；**纯 ASCII**（要写中文就带 BOM，建议不写）；完成判据 = **被测程序自己写的标记 + 新增次数**；读日志必须 `FileShare.ReadWrite`（游戏独占持有日志）。
-- **每条 `unity` 命令带 `--project-path c:\Work\Server\full-dev\clover-project-diablo2\client`**；进 Play 前先 `Application.runInBackground = true; QualitySettings.vSyncCount = 0;`（`p_runbg.cs` 配方），否则失焦节流会让场景加载看起来"卡死"（`constraints.md` #11 —— **这一条与 E-build-03 的现象极易混淆，必须先排除**）。
+- **每条 `unity` 命令带 `--project-path client`**；进 Play 前先 `Application.runInBackground = true; QualitySettings.vSyncCount = 0;`（`p_runbg.cs` 配方），否则失焦节流会让场景加载看起来"卡死"（`constraints.md` #11 —— **这一条与 E-build-03 的现象极易混淆，必须先排除**）。
 - 探针日志统一 `[P27]` 前缀；业务日志走 `Game.Logger.*`，⛔ 禁止裸 `Debug.Log` 打业务日志。
 - 若**新的 Play 会话仍然瘫痪**（`progress` 恒 0、场景永不就绪）：**不要改任何代码**，立刻如实回报 —— 给出「采样点 + `LoadSceneAsync.progress` 序列 + `sceneCount` + 是否已排除 `runInBackground` 节流」四项证据，并说明结论是"需要用户重启编辑器"还是"引擎修复未生效"。
 - 回报格式：`产出物（含联络图格号表）/ 自检（原始输出）/ 未决`。

@@ -38,7 +38,7 @@
 |---|---|
 | **Timer id 0 墓碑已修** | `Runtime/Core/Timer.cs`：`private long _nextId = 1;`（0 = 无效哨兵）+ `Stop(long id)` 首行 `if (id <= 0) return;`。留痕 = `.ai-tmp/test/dispatch-log.tsv` 的 `# direct-fix:` 行（用户原话："修复黑屏…"） |
 | **编译通过** | `unity command recompile_status` ⇒ `{"status":"completed","failed":false,"errors":[],"compilationFailed":false}` |
-| 编辑器活着（**用户已重启过**） | `unity status --format json` ⇒ port **7802** / `project=…\clover-project-diablo2\client` / `state=ready` |
+| 编辑器活着（**用户已重启过**） | `unity status --format json` ⇒ port **7802** / `project=…\client` / `state=ready` |
 | E-build-03 在位 | `Scene.cs`：停旧轮询前先放行旧 op（`_progressOp` 字段在 `:17`） |
 | 上一轮证据（**不要当本片证据**） | `p27_contact_flow.png`（15:53）是在**跑过 `p_runbg` 的会话**里采的 —— 它掩盖了 id 0 缺陷；本片必须在**不跑 `p_runbg`** 的会话里重验 |
 | 缺陷机理（务必理解） | `Timer` 旧实现 id 从 0 起发；`SceneModule.Load` 无条件 `Stop(_progressTimerId)` 而该字段初值 = 0 ⇒ 墓碑命中"下一个拿到 id 0 的 timer"= 场景进度轮询 ⇒ 它在首次 Tick 被移除 ⇒ `progress` 停在 **0.9**、`allowSceneActivation` 永不置 true ⇒ 场景永不激活（黑屏）。`p_runbg.cs` 的 1s 心跳 timer 会**吃掉 id 0**，所以跑它=看不见这个缺陷 |
@@ -69,7 +69,7 @@
 
 - **批次流水线**（§3 四拍）：① 只读取证 + 改动清单 → ② 批量改（⛔ 不编译不截图）→ ③ 一次编译 + 离线预演 → ④ **集中出证据一次**。⛔ 不许"改一处进一次 Play"。
 - **采样器先自检**：`.ps1` 语法 0 错 + **纯 ASCII**；完成判据 = 驱动自己写的 marker（跑前删）；读日志必须 `FileShare.ReadWrite`；探针日志统一 `[P29]` 前缀。
-- 每条 `unity` 命令都带 `--project-path c:\Work\Server\full-dev\clover-project-diablo2\client`（**闸门 2b**）。
+- 每条 `unity` 命令都带 `--project-path client`（**闸门 2b**）。
 - 一切非预期分支打 `Game.Logger.Info/Warn/Error(tag,msg)`，⛔ 禁止裸 `Debug.Log` 打业务日志。
 - 发现**引擎**缺陷 ⇒ 只写回报（⛔ 不许自己改引擎）。
 - 回报格式：`产出物 / 判据表（格号-状态-期望-实测）/ 修掉的缺陷 / 未决`。

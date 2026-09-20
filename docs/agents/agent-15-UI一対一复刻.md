@@ -13,7 +13,7 @@
 原版暗黑2 的界面基准分辨率是 **800×600**。社区复刻工程 `mofr/Diablerie` 里有**原版面板的 Unity prefab**，
 里面是**原版元素的精确 RectTransform**（位置/尺寸/层级）——这是本轮唯一依据。
 
-⛔ **只许读**（`c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\` 下的这些文件）：
+⛔ **只许读**（`_assets_tmp\d2src\Diablerie\Assets\` 下的这些文件）：
 
 | 用途 | 依据文件 |
 | --- | --- |

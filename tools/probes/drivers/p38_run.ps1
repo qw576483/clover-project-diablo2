@@ -20,8 +20,8 @@ param(
 
 $ErrorActionPreference = 'Continue'
 
-$proj     = 'C:\Work\Server\full-dev\clover-project-diablo2\client'
-$root     = 'C:\Work\Server\full-dev\clover-project-diablo2'
+$proj     = 'client'
+$root     = 'clover-project-diablo2'
 $cs       = $root + '\.ai-tmp\drivers\p38_drive.cs'
 $outDir   = $root + '\.ai-tmp\drivers\out'
 $shotDir  = $proj + '\Assets\Screenshots'
