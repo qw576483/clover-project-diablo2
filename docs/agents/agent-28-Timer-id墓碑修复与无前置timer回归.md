@@ -73,7 +73,7 @@ DIAG_TIMER nextId=6 entries=0[]        ← 会话 6 个 timer 全不在，其中
 ## 6. 验收标准（逐条自查）
 
 **A. 修复本身**
-- [ ] `Timer.cs` 是唯一被改动的文件；`git -C c:\Work\Server\full-dev --no-pager diff --numstat -- clover-client-unity-engine/Runtime/Core/Timer.cs` 净增删 ≤ 15 行
+- [ ] `Timer.cs` 是唯一被改动的文件；`git -C c:\Work\Server\f-v2 --no-pager diff --numstat -- clover-client-unity-engine/Runtime/Core/Timer.cs` 净增删 ≤ 15 行
 - [ ] `unity command recompile --project-path client` → `recompile_status = completed / failed=false / errors=[]`
 - [ ] 回报给出「修复前 → 修复后」的行为对照：会话第一个 timer（id=1，不再被 0 墓碑误删）/ `Stop(0)` 变成 no-op / `StopNamed`·`StopScope`·`StopAll` 行为不变 / 正常 timer 的停止语义不变
 

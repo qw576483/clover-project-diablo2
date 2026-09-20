@@ -57,7 +57,7 @@
 
 - [ ] `Scene.cs` 是**唯一**被改动的文件（用 `Get-ChildItem … | Where-Object LastWriteTime -gt <开工时间>` 自查并列出来）
 - [ ] `unity command recompile --project-path client` = `completed`/`up_to_date`，且 `unity command console_status` 里 `compilationFailed=false`、无新增 C# 错误
-- [ ] `git -C c:\Work\Server\full-dev --no-pager diff -- clover-client-unity-engine/Runtime/Presentation/Scene.cs` 的 diff **净增删 ≤ 25 行**（超了就是改大了，回到最小修）
+- [ ] `git -C c:\Work\Server\f-v2 --no-pager diff -- clover-client-unity-engine/Runtime/Presentation/Scene.cs` 的 diff **净增删 ≤ 25 行**（超了就是改大了，回到最小修）
 - [ ] 回报里给出「改动前 → 改动后」的行为对照表：正常路径 / 被顶掉的旧 op / 同场景重载 / 场景名不存在，四条各写一句
 - [ ] 非预期分支有 Warn 日志（贴日志格式的实际字符串）
 - [ ] ⛔ 不许把"实机闭环验证"写进本片：当前编辑器进程的场景加载已瘫痪，修复的**实机回归由下一棒（重启后）做** —— 本片只到"编译通过 + 代码事实自洽"

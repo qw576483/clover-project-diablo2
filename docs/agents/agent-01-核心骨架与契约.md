@@ -110,7 +110,7 @@ DTO（`[System.Serializable]`、字段名小写驼峰、`List<T>` 不用数组�
 ### 4.6 `client/Packages/manifest.json`
 
 在 `dependencies` 里加入（**保留模板已有项**）：
-`"com.clover.unity-engine": "file:clover-client-unity-engine"`、
+`"com.clover.unity-engine": "https://github.com/qw576483/clover-client-unity-engine.git"`（分发用 git URL；本地联调见 scaffold/new-project.md §2.3，基准是 client/Packages/）、
 `"com.unity.pipeline": "0.7.0-exp.1"`、
 `"com.unity.test-framework": "1.4.5"`、`"com.unity.ugui": "2.0.0"`、
 以及引擎必需的内置模块：`com.unity.modules.animation / assetbundle / audio / director / imageconversion / imgui / jsonserialize / physics / physics2d / screencapture / ui / uielements / unitywebrequest / unitywebrequestassetbundle / unitywebrequesttexture / unitywebrequestwww / video / xr`（全部 `1.0.0`），

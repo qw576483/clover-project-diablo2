@@ -48,7 +48,7 @@ A1 已把通用能力下沉到引擎：`clover-client-unity-engine/Runtime/Core/
 - [ ] **编译绿**：`unity command recompile --project-path client` ⇒ `recompile_status` = `completed / failed=false / errors=[]`
 - [ ] 全项目 grep 确认**再无** `Diablo2.Core.Rng` 的自写定义（`Core/Rng.cs` 不存在），且**没有任何 `Rng` 相关的编译错**（贴 `recompile_status` 原文）
 - [ ] **序列未变（本片最关键的判据）**：`.ai-tmp/hosts/run_all_hosts.ps1` = `TOTAL_HOSTS=10 FAILED=0`；并**单独**贴出 `mapcheck`（及其它涉及随机/掉落的宿主）里"同 seed ⇒ 同结果"那几行原始断言输出 —— 它们必须仍然 PASS（= 引擎版 `Rng` 与项目版产生**完全相同的序列**）
-- [ ] `git -C c:\Work\Server\full-dev --no-pager diff --stat -- clover-client-unity-engine` 与 A1 结束时**逐字一致**（证明本片**没碰引擎**）
+- [ ] `git -C c:\Work\Server\f-v2 --no-pager diff --stat -- clover-client-unity-engine` 与 A1 结束时**逐字一致**（证明本片**没碰引擎**）
 - [ ] 项目侧 diff 只包含：删除 `Core/Rng.cs`(+meta) + 必要的宿主链接/using 调整（逐条列在回报里，并说明每处为什么必要）
 - [ ] `.ai-tmp/test/` 清空到只剩 `dispatch-log.tsv` / `play-log.tsv`；⛔ **本片不需要进 Play**（全部判据离线可判 ⇒ 按 §2 第 5 条记账：0 次）
 - [ ] 跑一次只读的 `tools/verify.ps1`，把 summary 行贴进回报（注意：`freeze-before-capture` / `evidence-economy` 若报红，如实贴出并说明是否与本片有关）

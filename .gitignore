@@ -30,3 +30,9 @@ tools/probes/hosts/fullcheck/_last_run.log
 
 # 判据宿主工程文件必须入仓（否则 dotnet run 无工程可跑）
 !tools/probes/hosts/**/*.csproj
+
+# ★ 本机引擎联调覆盖（只在本机存在，不进仓库）：
+#   client/Packages/ 下的 embedded 包指向工作区里的 clover-client-unity-engine，
+#   优先级高于 manifest.json 里的 git 依赖 ⇒ 本机改引擎源码即时生效、且不用联网克隆。
+#   删掉这个链接 = 回到「按 manifest 从 GitHub 拉取引擎」，外人 clone 后的行为不受影响。
+client/Packages/com.clover.unity-engine/

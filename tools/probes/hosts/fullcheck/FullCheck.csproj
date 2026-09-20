@@ -74,28 +74,28 @@
 
   <ItemGroup>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <!-- `[RuntimeInitializeOnLoadMethod]`（App/Bootstrap 的 P-3 静态复位）要它：基类 PreserveAttribute 在 ScriptingModule -->
     <Reference Include="UnityEngine.ScriptingModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.ScriptingModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.ScriptingModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="UnityEngine.UIModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="UnityEngine.JSONSerializeModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
@@ -105,7 +105,7 @@
     <!-- `Module/Audio/EngineAudioClipProbe.cs` 用 `Game.Res.LoadAsset<AudioClip>` ⇒ 需要真实 UnityEngine 音频类型
          （`AudioClip` 属 Unity 原生基元，**不放进 shim**：shim 只替身 CloverEngine 门面） -->
     <Reference Include="UnityEngine.AudioModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

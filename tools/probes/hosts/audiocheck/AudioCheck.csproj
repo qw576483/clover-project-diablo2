@@ -58,17 +58,17 @@
 
   <ItemGroup>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <!-- AudioClip 在 AudioModule（`EngineAudioClipProbe` 用到 `LoadAsset<AudioClip>`） -->
     <Reference Include="UnityEngine.AudioModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <!-- JsonUtility（`Core/ClientConfig.cs` 的 Cfg 用到） -->
     <Reference Include="UnityEngine.JSONSerializeModule">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

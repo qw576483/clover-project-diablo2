@@ -46,7 +46,7 @@
          注意：该目录下的 UnityEditor.*Module.dll 已含编辑器类型（UnityEditor.CoreModule 里有
          AssetPostprocessor / TextureImporter / MenuItem …）⇒ **不能再引用 Managed\UnityEditor.dll**，
          否则每个类型都会 CS0433「同时存在于两个程序集」。 -->
-    <Reference Include="C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\*.dll" />
+    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\*.dll" />
     <!-- U2D.Sprites（AssetImporter.cs 的 using UnityEditor.U2D.Sprites）由包程序集提供，
          不在 Managed 下 ⇒ 用 Unity 已编译出来的产物（同 uicheck 引用 UnityEngine.UI 的做法） -->
     <Reference Include="..\..\..\..\client\Library\ScriptAssemblies\Unity.2D.Sprite.Editor.dll" />
