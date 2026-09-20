@@ -53,31 +53,31 @@
     <Compile Include="shim\HostFakes.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
          寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
     <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
          引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
          依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Combat\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Monster\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Skill\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\View\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Combat\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Monster\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Skill\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\*.cs" />
     <!-- App / Flow / UI：AppContext 装配与 Flow 的降级路径要能编过（agent-05 已交付） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Flow\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\UI\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\App\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

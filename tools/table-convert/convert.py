@@ -6,14 +6,18 @@
 一、输入 / 输出
 ═══════════════════════════════════════════════════════════════════════════════
 输入（官方原始表，**tab 分隔、首行字段名、cp1252 编码**；脚本先探测编码再用它解码）：
-    c:\\Work\\Server\\full-dev\\_assets_tmp\\d2src\\d2lod1.10txt\\data\\global\\excel\\*.txt
+    <官方 1.10f txt 目录>\\data\\global\\excel\\*.txt
+    —— 目录**不写死**，优先取命令行参数 `--src <dir>`，其次取环境变量 `D2SRC_DIR`；
+       两者都没给时用项目内默认副本 `<项目根>/原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel`
+       （⚠️ 旧版本这里写死过 `_assets_tmp\\d2src\\d2lod1.10txt\\...`，那个目录已随工作区清理删除 —— 见文件头 ★ BL-6）
 输出（4 行表头，tab 分隔，UTF-8 无 BOM）：
     <项目根>\\策划\\数值文档\\{class,experience,monster,level,skill,item,affix,monumod,treasureclass,missile}_c.txt
 
 用法：
-    python convert.py              # 抽取全部 10 张表
-    python convert.py --report     # 只打印统计（各表行数 / 过滤命中数）不写文件
-    python convert.py --names      # 打印"需要中文名但映射表里没有"的官方标识（用于补 cn_names.py）
+    python convert.py                                      # 抽取全部 10 张表（用默认输入目录）
+    python convert.py --src D:\\d2txt\\data\\global\\excel      # 指定输入目录（等价于设 D2SRC_DIR）
+    python convert.py --report                             # 只打印统计（各表行数 / 过滤命中数）不写文件
+    python convert.py --names                              # 打印"需要中文名但映射表里没有"的官方标识（用于补 cn_names.py）
 
 **所有数值都取自官方 txt，没有任何手抄/凭印象的数值**；中文显示名由 `cn_names.py` 提供
 （官方 1.10f txt 里只有英文名 —— 见该文件头部的"待复核"说明）。
@@ -84,6 +88,10 @@ PROJECT_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 #   用相对 PROJECT_ROOT 的路径写，避免再写死盘符。
 SRC_DIR = os.path.join(PROJECT_ROOT, "原版资源", "参考工程_Diablerie",
                        "d2lod1.10txt", "data", "global", "excel")
+# 上面这份是本项目内的**默认**输入目录（相对 PROJECT_ROOT，故换机器/换盘符都不会失效）；
+# 真正生效的值在 main() 里按 `--src` > `D2SRC_DIR` > 本默认值 的优先级解析后覆盖 SRC_DIR。
+DEFAULT_SRC_DIR = SRC_DIR
+ENV_SRC_VAR = "D2SRC_DIR"
 OUT_DIR = os.path.join(PROJECT_ROOT, "策划", "数值文档")
 
 try:
@@ -1093,12 +1101,28 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true", help="只打印统计，不写文件")
     ap.add_argument("--names", action="store_true", help="打印缺中文映射的官方标识")
+    ap.add_argument("--src", default="", metavar="DIR",
+                    help="官方 1.10f txt 所在目录（其下应有 data/global/excel/*.txt）；"
+                         "默认取环境变量 " + ENV_SRC_VAR + "，再默认 <项目根>/原版资源/参考工程_Diablerie/…")
     ap.add_argument("--seed", type=int, default=20240101, help="预留（本脚本不使用随机数）")
     args = ap.parse_args()
     random.seed(args.seed)
 
+    # 输入目录：命令行 > 环境变量 > 项目内默认副本（表读取函数读的是模块级 SRC_DIR，故这里覆盖它）
+    global SRC_DIR
+    SRC_DIR = os.path.abspath(os.path.expanduser(
+        args.src or os.environ.get(ENV_SRC_VAR) or DEFAULT_SRC_DIR))
+    if args.src:                                   # 显式给了就报一行，便于对照复跑
+        print(f"[info] 输入目录来自 --src：{SRC_DIR}")
+    elif os.environ.get(ENV_SRC_VAR):
+        print(f"[info] 输入目录来自 ${ENV_SRC_VAR}：{SRC_DIR}")
+    else:
+        print(f"[info] 输入目录取项目内默认副本：{SRC_DIR}")
+
     if not os.path.isdir(SRC_DIR):
         print(f"[fatal] 官方数据表目录不存在：{SRC_DIR}")
+        print(f"        用 --src <dir> 或环境变量 {ENV_SRC_VAR} 指定官方 1.10f txt 所在目录"
+              f"（其下应有 data/global/excel/*.txt）。")
         return 2
     if not os.path.isdir(OUT_DIR):
         os.makedirs(OUT_DIR)

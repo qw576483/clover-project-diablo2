@@ -46,30 +46,30 @@
     <Compile Include="shim\EngineShim.cs" />
 
     <!-- ★ 本片新增的引擎能力（被验证对象） -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
 
     <!-- 引擎既有：改前存档的原子写/损坏留档**就在 Setting 里**（`Setting.cs:349-396`）
          ⇒ 本宿主链真实实现，把「改前手法」实测出来，而不是靠读源码下结论。
          `Json.cs` = MiniJson（FileSlotStore 校验 .json 槽 / Setting 读 settings.json 都走它）；
          `LogThrottle.cs` = 两者共用的限频入口（本片新增代码也用它，⛔ 不另造降频）。 -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Setting.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Setting.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <!-- 存档 JSON 编解码（**本片不许动它的序列化语义** ⇒ 逐字节恒等式就是判据） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Save\SaveJson.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Save\SaveJson.cs" />
     <!-- `Core/*.cs` 里几个转发壳依赖引擎侧那几个文件（与 itemcheck 同一套链接，口径一致） -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

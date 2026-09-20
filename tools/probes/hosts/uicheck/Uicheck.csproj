@@ -46,25 +46,25 @@
     <Compile Include="..\flowcheck\shim\EngineShim.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制；文件集与 flowcheck 一致） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Events.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Log.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
          引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
          依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Flow\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\UI\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\App\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

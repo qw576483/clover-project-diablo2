@@ -36,22 +36,22 @@
     <Compile Include="..\fullcheck\shim\EngineShim.cs" />
 
     <!-- Diablo2 业务代码：全量（与 Assets/Scripts 同一份文件，不复制、不排除） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\App\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\*\*.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\UI\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\*\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

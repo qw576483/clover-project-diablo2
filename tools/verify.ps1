@@ -26,7 +26,7 @@
 #   15 impl-by-executor        every changed impl file matches a dispatch record
 #   16 compile                 unity command recompile + status poll
 #   17 console-errors          unity command console_status: errors == 0
-#   18 offline-hosts           dotnet run of every .ai-tmp/hosts/*check
+#   18 offline-hosts           dotnet run of every tools/probes/hosts/*check
 #   19 d2codec-verifiers       python tools/d2codec/verify_*.py
 #   20 original-asset-md5      project PNG == independent DC6 decode (sha256)
 #   21 skill-family-consistency (HUMAN-ONLY) project skill vs global rules

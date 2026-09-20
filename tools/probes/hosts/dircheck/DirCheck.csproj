@@ -31,9 +31,9 @@
     <!-- 修复前对照（逐字复制旧方向表；⛔ 不影响被测的真实源码） -->
     <Compile Include="shim\IsoLayoutOld.cs" />
     <!-- 被测对象：引擎**真实源码** -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -373,9 +373,12 @@ namespace FullCheck
 
     public static class Program
     {
-        private const string ProjectRoot = @"clover-project-diablo2";
-        private const string ClientAssets = ProjectRoot + @"\client\Assets";
-        private const string LogPath = ProjectRoot + @"\tools\fullcheck\_last_run.log";
+        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
+        private static readonly string ProjectRoot = ResolveProjectRoot();
+        private static readonly string ClientAssets = ProjectRoot + @"\client\Assets";
+        // 宿主已随「仓库卫生整理」迁到 tools/probes/hosts/fullcheck/；写日志前必须先有这个目录，
+        // 否则 DumpTo 必抛（它只 WriteAllText、不建目录）⇒ 每次跑都印「写日志文件失败」。
+        private static readonly string LogPath = ProjectRoot + @"\tools\probes\hosts\fullcheck\_last_run.log";
         private const string HeroName = "FullCheckHero";
 
         private static TeeLogger _log;
@@ -391,6 +394,25 @@ namespace FullCheck
 
         private static int _fail;
         private static bool _unityNativeBlocked;
+
+        /// <summary>
+        /// 从宿主自己的可执行目录向上找“含 client/Assets 的那一层” = 仓库根。
+        /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；若按调用方 cwd 定位，
+        /// 从仓库根运行时会被拼成 &lt;仓库根&gt;/clover-project-diablo2/client/...（一个文件都找不到）。
+        /// 找不到就回退成原来的相对写法，保持“从仓库上一级目录运行”的老用法不变。
+        /// </summary>
+        private static string ResolveProjectRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            Console.WriteLine("[warn] 未从可执行目录向上找到含 client/Assets 的仓库根，回退相对路径 clover-project-diablo2");
+            return @"clover-project-diablo2";
+        }
 
         public static int Main()
         {

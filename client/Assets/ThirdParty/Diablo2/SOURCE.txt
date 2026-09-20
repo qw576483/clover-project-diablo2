@@ -6,7 +6,7 @@ ThirdParty/Diablo2 —— 暗黑破坏神 II 原版素材「原样副本」（�
 --------------------------------------------------------------------------------
   仓库：https://github.com/mofr/Diablerie      （Diablo 2 社区复刻工程，Unity）
         其 README 明示：All images and sounds used are from Diablo 2
-  本地取源：c:\Work\Server\full-dev\_assets_tmp\d2src\Diablerie\Assets\
+  本地取源：<工作区>/_assets_tmp/d2src/Diablerie/Assets/      （构建期临时目录，不入库；取源以 7 行的仓库 URL 为准）
   版权：归 Blizzard North / Blizzard Entertainment
   调研记录：<项目根>/策划/素材调研.md
 
@@ -45,7 +45,7 @@ ThirdParty/Diablo2 —— 暗黑破坏神 II 原版素材「原样副本」（�
 一致性保证
 --------------------------------------------------------------------------------
   运行时素材 71 + 本副本 89 = 160 个文件，**逐个 SHA256 与源文件完全一致**（差异 0）。
-  （自检脚本 _assets_tmp/d2src/_tools/verify_assets.ps1）
+  （自检脚本 <工作区>/_assets_tmp/d2src/_tools/verify_assets.ps1）
 
 将来要替换素材
 --------------------------------------------------------------------------------

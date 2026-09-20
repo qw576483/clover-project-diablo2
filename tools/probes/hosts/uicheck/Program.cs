@@ -83,11 +83,30 @@ namespace Uicheck
         // ★ agent-a3：下面几项由 `private` 放宽到 `internal`，只为了新加的
         //   `LoadingCheck.cs`（进图读条画面 + 区域名弹出）能复用同一套路径与 Check()/失败计数。
         //   行为零变化。
-        internal const string ProjectRoot = @"clover-project-diablo2";
+        internal static readonly string ProjectRoot = ResolveProjectRoot();
         internal static readonly string UiDir =
             Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "UI");
         internal static readonly string ResourceRoot =
             Path.Combine(ProjectRoot, "client", "Assets", "Resources");
+
+        /// <summary>
+        /// 从宿主自己的可执行目录向上找“含 client/Assets 的那一层” = 仓库根。
+        /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；若按调用方 cwd 定位，
+        /// 从仓库根运行时会被拼成 &lt;仓库根&gt;/clover-project-diablo2/client/...（一个文件都找不到）。
+        /// 找不到就回退成原来的相对写法，保持“从仓库上一级目录运行”的老用法不变。
+        /// </summary>
+        private static string ResolveProjectRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "client", "Assets")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            Console.WriteLine("[warn] 未从可执行目录向上找到含 client/Assets 的仓库根，回退相对路径 clover-project-diablo2");
+            return @"clover-project-diablo2";
+        }
 
         internal static CaptureLogger _logger;
         internal static int _fail;

@@ -21,6 +21,8 @@ __pycache__/
 # 判据资产（tools/probes/hosts）跑 dotnet run 会在原地生成构建产物
 tools/probes/hosts/**/obj/
 tools/probes/hosts/**/bin/
+# fullcheck 跑一次会在宿主目录留一份本地日志（FullCheck 的 LogPath），同样不进仓
+tools/probes/hosts/fullcheck/_last_run.log
 # ★ AI 临时目录（skill §1.8）：一次性测试文件写这里，用完删
 .ai-tmp/
 # ★ 原版资源（skill §1.9）：下载/解包素材唯一来源，体积大 + 版权物，不进 git

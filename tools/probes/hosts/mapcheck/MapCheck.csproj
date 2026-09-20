@@ -33,21 +33,21 @@
     <Compile Include="shim\EngineShim.cs" />
 
     <!-- Diablo2 纯逻辑源码（与 Assets/Scripts 同一份文件，不复制） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Def\Enums.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Iso.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\Enums.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Iso.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
          寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Log.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Events.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

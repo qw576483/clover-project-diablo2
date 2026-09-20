@@ -4,9 +4,10 @@
 > **判据资产**（探针 / 驱动 / 量法脚本 / 参考裁图 / 台账）**不算一次性** ⇒ 落 `tools/probes/` 并**入仓**。
 > 本目录由「仓库卫生整理」这一轮从 `.ai-tmp/` 迁出（2026-09-20），原处不留副本。
 >
-> ⚠️ 这些文件是**当轮取证的原样记录**，内部写死了当时的位置（`.ai-tmp\drivers\...`）
-> 与绝对路径（`clover-project-diablo2`）。**迁移时一个字未改**，
-> 所以下面的「怎么跑」列写的是**真实命令 + 需要先改的那一处变量**。
+> ⚠️ 这些文件是**当轮取证的原样记录**，内部写死了当时的位置（`.ai-tmp\drivers\...`）。
+> **2026-09-20 只改了一处**：5 个 `*_run.ps1` 的 `$root` 从写死的 `'clover-project-diablo2'`
+> 改成按脚本位置推导的仓库根（`Split-Path`×3，逐层向上）—— 其余一个字未改，
+> 所以下面「怎么跑」列里 `$cs` / `$outDir` 仍写着**需要先改的那两处变量**。
 >
 > 共同依赖：Unity 6000.6.0f1（`C:\Program Files\Unity\Hub\Editor\6000.6.0f1`）、
 > `unity` CLI（Pipeline 包）、Python 3.12 + `Pillow`、编辑器里已打开 `client/` 工程。
@@ -36,10 +37,18 @@
 
 ### 与迁移强相关的两条事实
 
-1. **`run_all_hosts.ps1` 没有跟着搬。** 它仍在 `.ai-tmp/hosts/run_all_hosts.ps1`（宿主名写死，按 `$PSScriptRoot\<宿主名>` 逐个 `dotnet run`）。
-   宿主源码搬到 `tools/probes/hosts/` 之后，那 13 个宿主目录**还在**（只剩 `out.txt` / `setting\` / `_evidence\` 之类），
-   于是脚本进到空目录 `dotnet run` ⇒ **实测末行 `TOTAL_HOSTS=11 FAILED=11`**，`tools/verify.ps1` 第 18 项 `offline-hosts` 因此报 **FAIL**。
-   ⇒ 要批量跑请用上表的 `dotnet run --project` 逐行跑，或把该脚本的宿主根也指到 `tools/probes/hosts/`（本轮**未改**，见回报）。
+1. **`run_all_hosts.ps1` 就在 `tools/probes/hosts/run_all_hosts.ps1`**（旧文本写它还在 `.ai-tmp/hosts/` —— 那个目录现已不存在）。
+   它按 `$PSScriptRoot\<宿主名>` 逐个 `dotnet run` ⇒ **位置是对的，11 个宿主源码目录都找得到**。
+   2026-09-20 复测末行 = **`TOTAL_HOSTS=11 FAILED=9`**（PASS = `dircheck` / `audiocheck`），
+   失败**不是**因为脚本找错目录，而是两类原因：
+   - ⓐ 8 个宿主（corecheck / fullcheck / savecheck / uicheck / combatcheck / flowcheck / itemcheck / buildcheck）
+     需要 `client/Library/ScriptAssemblies/UnityEngine.UI.dll`（buildcheck 还要 `Unity.2D.Sprite.Editor.dll`）；
+     `client/Library/` 不入仓 ⇒ **用户打开一次编辑器**重建它之后再跑即可
+     （2026-09-20 已把 13 个 csproj 的相对深度修正 —— 迁移后少了一级；现在编不过只剩这一条外部原因）。
+   - ⓑ `mapcheck` / `playercheck` 的 `ClientAssets = @"client\Assets"` 是按 **cwd** 相对写的：
+     用 `Push-Location <宿主目录>` 驱动时解析成 `<宿主目录>\client\Assets` ⇒ 退出码 1；
+     从仓库根跑同一份宿主则通过（实测 playercheck：`156 项通过，0 项失败`，exit=0）。
+   ⇒ `tools/verify.ps1` 第 18 项 `offline-hosts` 在 ⓐⓑ 消除前仍会报 **FAIL**。
 2. **`net10.0\*.cs` 不在本目录**：那 19 个是 MSBuild 生成的
    `obj\Debug|Release\net10.0\.NETCoreApp,Version=v10.0.AssemblyAttributes.cs`（每个宿主 1 份、uicheck 2 份），
    属 `obj/` 构建产物，已随 P6 一起删除（不进仓）。

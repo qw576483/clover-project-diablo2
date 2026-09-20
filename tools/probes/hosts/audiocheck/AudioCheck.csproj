@@ -37,23 +37,23 @@
     <Compile Include="shim\EngineShim.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Events.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Log.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\Iso.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Iso.cs" />
     <!-- ★ agent-33 引擎下沉 A2：`Core/Iso.cs` 变薄门面 ⇒ 等距几何/排序/方向从引擎源码编进来
          （本宿主不用寻路，故不链 AStar.cs） -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Combat\SfxKeys.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Audio\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Combat\SfxKeys.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Audio\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

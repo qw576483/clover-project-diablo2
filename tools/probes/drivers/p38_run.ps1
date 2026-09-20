@@ -21,7 +21,8 @@ param(
 $ErrorActionPreference = 'Continue'
 
 $proj     = 'client'
-$root     = 'clover-project-diablo2'
+# repo root: this script lives in <repo>\tools\probes\drivers ==> three levels up from here
+$root     = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
 $cs       = $root + '\.ai-tmp\drivers\p38_drive.cs'
 $outDir   = $root + '\.ai-tmp\drivers\out'
 $shotDir  = $proj + '\Assets\Screenshots'

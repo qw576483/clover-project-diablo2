@@ -45,31 +45,31 @@
                的裸 `Camera` 解析成命名空间（CS0118）⇒ 已改掉，见 `CameraRig.cs` 头注释。
                补充：把整棵树编进来时，`UI/UiLog.cs`、`UI/UiBar.cs` 各自报错（都不属本 agent，
                已写进回报的「未决」提醒主 agent）。 -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Def\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Core\*.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
          寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Player\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Camera\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Input\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Player\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Camera\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Input\*.cs" />
     <!-- App/：只编 AppContext（组合根，模块经它取接口）；**不编 Bootstrap**（MonoBehaviour + 真实引擎启动） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\App\AppContext.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\AppContext.cs" />
     <!-- Flow/：AppContext 有 `IAppFlow` 字段 ⇒ 只编接口文件（**不编 AppFlow**，构造即订阅会重复） -->
-    <Compile Include="..\..\..\client\Assets\Scripts\Module\Flow\IAppFlow.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\IAppFlow.cs" />
     <!-- 打表产物（class_c / experience_c 是本次自检的数值来源） -->
     <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
          引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
          依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
-    <Compile Include="..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\*.cs" />
-    <Compile Include="..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

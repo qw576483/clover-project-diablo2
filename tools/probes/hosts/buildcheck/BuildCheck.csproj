@@ -38,7 +38,7 @@
     <!-- 自检宿主自身 -->
     <Compile Include="Program.cs" />
     <!-- 被自检的 Editor 代码：与 Assets/Editor 是同一份文件（不复制） -->
-    <Compile Include="..\..\..\client\Assets\Editor\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Editor\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,8 +49,8 @@
     <Reference Include="C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\Managed\UnityEngine\*.dll" />
     <!-- U2D.Sprites（AssetImporter.cs 的 using UnityEditor.U2D.Sprites）由包程序集提供，
          不在 Managed 下 ⇒ 用 Unity 已编译出来的产物（同 uicheck 引用 UnityEngine.UI 的做法） -->
-    <Reference Include="..\..\..\client\Library\ScriptAssemblies\Unity.2D.Sprite.Editor.dll" />
-    <Reference Include="..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll" />
+    <Reference Include="..\..\..\..\client\Library\ScriptAssemblies\Unity.2D.Sprite.Editor.dll" />
+    <Reference Include="..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll" />
   </ItemGroup>
 
 </Project>
