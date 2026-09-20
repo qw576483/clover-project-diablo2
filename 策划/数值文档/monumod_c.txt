@@ -1,0 +1,22 @@
+id	name	code	kind	version	champion_chance	hp_mul	dmg_mul	tohit_add	elem_min_add	elem_max_add	ac_mul	res_phys	res_magic	res_fire	res_light	res_cold	res_poison	cpick	upick	constants	desc
+int	string	string	int	int	int	float32	float32	int	int	int	float32	int	int	int	int	int	int	int	int	string	string
+c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c
+词缀 id（1-…，本项目编号）	词缀名（中文）	官方 MonUMod.uniquemod	类型：0 = 冠军怪 / 1 = 精英怪（唯一怪）	官方 version（0 = 经典，100 = 资料片专属）	冠军怪出现几率%（官方 MonUMod.txt 常数 'champion chance'，全局）	生命倍率（1 + 官方常数 hp% / 100）	伤害倍率（1 + 官方常数 dmg% / 100）	命中加成%（官方常数 +tohit%）	元素伤害下限加成%（官方常数 +elem min dmg%）	元素伤害上限加成%（官方常数 +elem max dmg%）	护甲倍率（⚠️ 官方 MonUMod.txt 未定义该常数，占位 1.0）	物理抗性加成%（⚠️ 官方未定义，占位 0）	魔法抗性加成%（⚠️ 官方未定义，占位 0）	火焰抗性加成%（⚠️ 官方未定义，占位 0）	闪电抗性加成%（⚠️ 官方未定义，占位 0）	冰冷抗性加成%（⚠️ 官方未定义，占位 0）	毒素抗性加成%（⚠️ 官方未定义，占位 0）	冠军怪抽取权重（官方 cpick）	精英怪抽取权重（官方 upick）	官方 constants 原文（审计用）	官方 *constant desc 原文（审计用）
+1	强壮	strong	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	150	champion +hp% (N)
+2	迅捷	fast	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	100	champion +hp% (H)
+3	诅咒	curse	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	300	unique +hp%
+4	魔法抵抗	resist	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	200	unique +hp% (N)
+5	火焰强化	fire	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	100	unique +hp% (H)
+6	冠军	champion	0	0	20	3	2	75	33	50	1	0	0	0	0	0	0	1	0	0	minion +elem min dmg%
+7	闪电强化	lightning	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	33	minion +elem min dmg% (N)
+8	冰冷强化	cold	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	33	minion +elem min dmg% (H)
+9	法力燃烧	manahit	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	50	champion +elem max dmg%
+10	传送	teleport	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	50	champion +elem max dmg% (N)
+11	幽灵一击	spectralhit	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	50	champion +elem max dmg% (H)
+12	石肤	stoneskin	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	66	unique +elem min dmg%
+13	多重射击	multishot	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	66	unique +elem min dmg% (N)
+14	圣光加持	aura	1	0	20	4	2.5	100	66	100	1	0	0	0	0	0	0	0	6	66	unique +elem min dmg% (H)
+15	幽魂	ghostly	0	100	20	3	2	75	33	50	1	0	0	0	0	0	0	1	0		
+16	狂热	fanatic	0	100	20	3	2	75	33	50	1	0	0	0	0	0	0	1	0		
+17	附身	possessed	0	100	20	3	2	75	33	50	1	0	0	0	0	0	0	1	0		
+18	狂暴	berserk	0	100	20	3	2	75	33	50	1	0	0	0	0	0	0	1	0		

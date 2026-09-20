@@ -1,0 +1,93 @@
+{
+ "unit": "Monsters/wr",
+ "kind": "monster",
+ "token": "wr",
+ "sourceMpq": "d2data.mpq",
+ "sourcePath": "data/global/monsters/wr/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 194,
+  "h": 266,
+  "originX": 97,
+  "originY": 133,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -97,
+   "right": 96,
+   "up": -133,
+   "down": 29
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 12,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 14,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "attack": {
+   "mode": "A1",
+   "frames": 18,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "cast": {
+   "mode": "SC",
+   "frames": 16,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "hit": {
+   "mode": "GH",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "death": {
+   "mode": "DT",
+   "frames": 19,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  }
+ },
+ "pngCount": 696
+}

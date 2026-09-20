@@ -1,0 +1,141 @@
+{
+ "unit": "Monsters/zm",
+ "kind": "monster",
+ "token": "zm",
+ "sourceMpq": "d2data.mpq",
+ "sourcePath": "data/global/monsters/zm/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 134,
+  "h": 142,
+  "originX": 67,
+  "originY": 71,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -67,
+   "right": 66,
+   "up": -71,
+   "down": 43
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "TR",
+    "S1"
+   ],
+   "skipped": [
+    "layer#5(S3,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件不存在）",
+    "layer#7(S2,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件存在）"
+   ]
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 12,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "TR",
+    "S1"
+   ],
+   "skipped": [
+    "layer#5(S3,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件不存在）",
+    "layer#7(S2,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件存在）"
+   ]
+  },
+  "attack": {
+   "mode": "A1",
+   "frames": 16,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "TR",
+    "S1"
+   ],
+   "skipped": [
+    "layer#5(S3,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件不存在）",
+    "layer#7(S2,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件存在）"
+   ]
+  },
+  "hit": {
+   "mode": "GH",
+   "frames": 5,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "TR",
+    "S1"
+   ],
+   "skipped": [
+    "layer#5(S3,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件不存在）",
+    "layer#7(S2,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件存在）"
+   ]
+  },
+  "death": {
+   "mode": "DT",
+   "frames": 19,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "TR",
+    "S1"
+   ],
+   "skipped": [
+    "layer#5(S3,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件不存在）",
+    "layer#7(S2,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件存在）"
+   ]
+  },
+  "run": {
+   "mode": "RN",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "TR",
+    "S1"
+   ],
+   "skipped": [
+    "layer#5(S3,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件不存在）",
+    "layer#7(S2,wc=hth)：不画（不在本项目可画清单（RH/LH/SH 需要具体武器/盾代码；S2..S8 触发条件不明）；文件存在）"
+   ]
+  }
+ },
+ "pngCount": 544
+}

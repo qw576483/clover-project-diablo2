@@ -1,0 +1,82 @@
+{
+ "pack": "cave_door",
+ "sourceDt1": "data/global/tiles/ACT1/CAVES/cavedr.dt1",
+ "kind": "Objects",
+ "note": "洞穴岩柱/门框",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 4,
+ "tiles": [
+  {
+   "idx": 0,
+   "file": "000.png",
+   "w": 128,
+   "h": 160,
+   "main": 39,
+   "sub": 1,
+   "orientation": 2,
+   "compositeIndex": 79906,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    6,
+    54,
+    123,
+    141
+   ]
+  },
+  {
+   "idx": 1,
+   "file": "001.png",
+   "w": 160,
+   "h": 128,
+   "main": 39,
+   "sub": 0,
+   "orientation": 2,
+   "compositeIndex": 79874,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    20,
+    35,
+    159,
+    124
+   ]
+  },
+  {
+   "idx": 2,
+   "file": "002.png",
+   "w": 160,
+   "h": 160,
+   "main": 39,
+   "sub": 1,
+   "orientation": 1,
+   "compositeIndex": 79905,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    61,
+    63,
+    135,
+    131
+   ]
+  },
+  {
+   "idx": 3,
+   "file": "003.png",
+   "w": 160,
+   "h": 128,
+   "main": 39,
+   "sub": 0,
+   "orientation": 1,
+   "compositeIndex": 79873,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    36,
+    149,
+    117
+   ]
+  }
+ ]
+}

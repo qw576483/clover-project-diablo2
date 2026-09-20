@@ -1,0 +1,27 @@
+# Unity 派生 / 缓存（可重建，禁止入仓）
+client/Library/
+client/Temp/
+client/obj/
+client/Logs/
+client/Build/
+client/Builds/
+client/UserSettings/
+client/setting/
+# IDE / Rider 生成物
+*.csproj
+*.sln
+*.slnx
+.vsconfig
+.vs/
+.idea/
+*.DotSettings.user
+# Python
+__pycache__/
+*.pyc
+# 判据资产（tools/probes/hosts）跑 dotnet run 会在原地生成构建产物
+tools/probes/hosts/**/obj/
+tools/probes/hosts/**/bin/
+# ★ AI 临时目录（skill §1.8）：一次性测试文件写这里，用完删
+.ai-tmp/
+# ★ 原版资源（skill §1.9）：下载/解包素材唯一来源，体积大 + 版权物，不进 git
+原版资源/

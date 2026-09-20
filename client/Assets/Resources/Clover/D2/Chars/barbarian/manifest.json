@@ -1,0 +1,150 @@
+{
+ "unit": "Chars/barbarian",
+ "kind": "player",
+ "token": "ba",
+ "sourceMpq": "d2char.mpq",
+ "sourcePath": "data/global/chars/ba/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 130,
+  "h": 178,
+  "originX": 65,
+  "originY": 89,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -65,
+   "right": 61,
+   "up": -89,
+   "down": 31
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "TR",
+    "LA",
+    "RA",
+    "HD"
+   ],
+   "skipped": [
+    "layer#4(S1,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#5(S2,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#6(SH,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件不存在）"
+   ]
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "TR",
+    "LG",
+    "LA",
+    "RA",
+    "HD"
+   ],
+   "skipped": [
+    "layer#4(S1,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#5(S2,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#7(SH,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件不存在）"
+   ]
+  },
+  "attack": {
+   "mode": "A1",
+   "frames": 12,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "TR",
+    "RA",
+    "LA",
+    "HD"
+   ],
+   "skipped": [
+    "layer#5(S1,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#6(S2,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#7(SH,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件不存在）"
+   ]
+  },
+  "cast": {
+   "mode": "SC",
+   "frames": 14,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "RA",
+    "TR",
+    "LA",
+    "HD"
+   ],
+   "skipped": [
+    "layer#4(S1,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#5(S2,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#7(SH,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件不存在）"
+   ]
+  },
+  "hit": {
+   "mode": "GH",
+   "frames": 5,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "TR",
+    "RA",
+    "LA",
+    "HD"
+   ],
+   "skipped": [
+    "layer#4(S1,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#5(S2,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#6(SH,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件不存在）"
+   ]
+  },
+  "death": {
+   "mode": "DT",
+   "frames": 27,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "run": {
+   "mode": "RN",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "TR",
+    "RA",
+    "LA",
+    "HD"
+   ],
+   "skipped": [
+    "layer#4(S1,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#5(S2,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件存在）",
+    "layer#6(SH,wc=hth)：不画（玩家徒手/无装备 ⇒ 不画武器/盾（原版行为）；文件不存在）"
+   ]
+  }
+ },
+ "pngCount": 656
+}

@@ -1,0 +1,12 @@
+id	name	code	name_str	base_id	level	base_level	min_grp	max_grp	rarity	hp	hp_min	hp_max	ac	ar	dmg_min	dmg_max	exp	ai	speed	run	res_phys	res_magic	res_fire	res_light	res_cold	res_poison	sprite	corpse_usable	revive	undead	demon	flying	treasure_class
+int	string	string	string	string	int	int	int	int	int	int	int	int	int	int	int	int	int	string	float32	int	int	int	int	int	int	int	string	int	int	int	int	int	string
+c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c	c
+怪物 id（1-8，本项目编号）	怪物名（中文）	官方 MonStats.Id	官方 NameStr（英文名）	官方 BaseId（同类基础怪）	换算所用等级（= 区域等级；三处区域均为 1）	官方 MonStats.Level（怪物等级基线，仅参考）	刷怪最小成群数（官方 MinGrp）	刷怪最大成群数（官方 MaxGrp）	出现权重（官方 Rarity）	生命（已按 MonLvl 倍率换算；= (hp_min+hp_max)/2）	生命下限（官方 minHP × MonLvl.HP/100）	生命上限（官方 maxHP × MonLvl.HP/100）	防御（官方 AC × MonLvl.AC/100）	命中（官方 A1TH × MonLvl.TH/100）	近战伤害下限（官方 A1MinD × MonLvl.DM/100）	近战伤害上限（官方 A1MaxD × MonLvl.DM/100）	击杀经验（官方 Exp × MonLvl.XP/100）	AI 类型（官方 MonStats.AI）	移动速度（官方 Velocity）	奔跑速度（官方 Run）	物理抗性（官方 ResDm）	魔法抗性（官方 ResMa）	火焰抗性（官方 ResFi）	闪电抗性（官方 ResLi）	冰冷抗性（官方 ResCo）	毒素抗性（官方 ResPo）	动画代码（官方 MonStats.Code，DCC 文件名前缀）	尸体可被选中/利用（官方 MonStats2.corpseSel）	可被复活（官方 MonStats2.revive）	亡灵（官方 lUndead|hUndead）	恶魔（官方 demon）	飞行（官方 flying）	掉落表（官方 TreasureClass1，指向 treasureclass_c）
+1	堕落者	fallen1	Fallen	fallen1	1	1	2	3	2	2	1	4	5	8	1	2	18	Fallen	5	5	0	0	0	0	0	0	FA	1	1	0	1	0	Act 1 H2H A
+2	堕落萨满	fallenshaman1	FallenShaman	fallenshaman1	1	2	1	1	2	5	4	7	5	8	0	2	24	FallenShaman	4	4	0	0	25	0	0	0	FS	1	1	0	1	0	Act 1 Cast A
+3	尖刺鼠	quillrat1	QuillRat	quillrat1	1	1	1	2	2	3	1	5	5	8	1	2	21	QuillRat	3	3	0	0	0	0	0	0	SI	1	1	0	0	0	Quill 1
+4	僵尸	zombie1	Zombie	zombie1	1	1	1	2	2	9	7	12	5	8	1	3	33	Zombie	1	3	0	0	0	0	0	50	ZM	1	1	1	0	0	Act 1 H2H A
+5	堕落罗格	corruptrogue1	DarkHunter	corruptrogue1	1	2	2	3	2	5	4	7	5	8	0	2	23	CorruptRogue	5	5	0	0	0	0	0	0	CR	1	1	0	1	0	Act 1 H2H A
+6	血鹰	foulcrow2	BloodHawk	foulcrow1	1	6	3	4	2	1	1	2	0	7	0	1	11	BloodHawk	4	4	0	0	0	0	0	0	BK	1	1	0	0	1	Act 1 Cast B
+7	巨兽	brute1	GargantuanBeast	brute2	1	2	1	1	1	12	9	15	5	8	1	2	36	Brute	3	3	0	0	0	0	0	0	YE	1	1	0	0	0	Act 1 H2H A
+8	幽灵	wraith1	Ghost	wraith1	1	7	1	2	1	8	5	11	5	7	1	2	27	Wraith	5	5	20	0	0	0	0	50	WR	1	1	1	0	1	Act 1 Wraith B

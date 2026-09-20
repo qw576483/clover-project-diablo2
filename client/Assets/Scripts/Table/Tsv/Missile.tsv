@@ -1,0 +1,43 @@
+id	name	code	official_id	speed	max_vel	accel	radius	range	dmg_min	dmg_max	elem_min	elem_max	dmg_type	light	cel_file	collide_type	next_hit	next_delay	sub_missile	used_by
+1	箭矢	arrow	0	24	24	0	1	40	0	0	0	0		0	Arrow	3	0	0		基础箭矢（普攻）
+2	火焰之径	blaze	67	0	0	0	1	90	0	0	0	0		5	groundFireBig	3	0	0		技能 Blaze.srvmissilea
+3	血	blood1	18	3	3	0	1	128	0	0	0	0		0	BloodSmall01	0	0	0		技能 Sacrifice.cltmissilea
+4	白骨施法	bonecast	218	0	0	0	0	20	0	0	0	0		0	BoneCast	0	0	0		技能 Teeth.cltmissilec
+5	骨墙生成器	bonewallmaker	207	12	12	0	1	7	0	0	0	0		3	null	8	0	0		技能 Bone Wall.srvmissilea
+6	充能弹	chargedbolt	56	12	12	0	1	98	0	0	0	0		3	ChargedBolt	3	0	0		技能 Charged Bolt.srvmissilea
+7	寒冰箭	coldarrow	40	24	24	0	1	20	0	0	0	0	cold	5	IceArrow	3	0	0		技能 Cold Arrow.srvmissile
+8	尸爆	corpseexplosion	115	0	0	0	1	13	0	0	0	0		5	CorpseExplodeGuts	0	0	0	bigblood1	技能 Raise Skeleton.cltmissilea
+9	诅咒·伤害加深	curseamplifydamage	181	0	0	0	1	20	0	0	0	0		0	CurseArea	0	0	0		技能 Amplify Damage.cltmissilea
+10	诅咒施放	cursecast	147	3	5	0	1	20	0	0	0	0		1	CurseCast	0	0	0		技能 Amplify Damage.cltmissilec
+11	诅咒·微暗灵视	cursedimvision	182	0	0	0	1	20	0	0	0	0		0	CurseArea	0	0	0		技能 Dim Vision.cltmissilea
+12	诅咒·铁娘子	curseironmaiden	184	0	0	0	1	20	0	0	0	0		0	CurseArea	0	0	0		技能 Iron Maiden.cltmissilea
+13	诅咒·恐惧	curseterror	185	0	0	0	1	20	0	0	0	0		0	CurseArea	0	0	0		技能 Terror.cltmissilea
+14	诅咒·削弱	curseweaken	183	0	0	0	1	20	0	0	0	0		0	CurseArea	0	0	0		技能 Weaken.cltmissilea
+15	爆裂箭	explodingarrow	41	24	24	0	1	40	0	0	0	0	fire	5	FireArrow	3	0	0		技能 Exploding Arrow.srvmissile
+16	爆裂箭爆炸	explodingarrowexp	42	0	0	0	1	16	0	0	0	0		15	ExpArrowExplode	0	0	0		技能 Corpse Explosion.cltmissileb
+17	火焰箭	firearrow	12	24	24	0	1	40	0	0	0	0	fire	5	FireArrow	3	0	0		技能 Fire Arrow.srvmissile
+18	火球	fireball	62	20	20	0	1	50	0	0	0	0	fire	7	Fireball	3	0	0		技能 Fire Ball.srvmissile
+19	火弹	firebolt	58	20	20	0	1	50	0	0	0	0		7	Firebolt	3	0	0		技能 Fire Bolt.srvmissile
+20	中号火焰	firemedium	105	0	0	0	1	90	0	0	2	2	fire	3	groundFireMedium	3	0	0		技能 Blaze.cltmissilec
+21	小号火焰	firesmall	104	0	0	0	1	90	0	0	1	1	fire	2	groundFireSmall	3	0	0		技能 Blaze.cltmissileb
+22	火墙	firewall	69	0	0	0	1	90	0	0	0	0		5	groundFireBig	3	0	0		技能 Blaze.cltmissilea
+23	霜之新星	frostnova	119	24	24	-1000	1	14	0	0	0	0		0	FrostNova	3	1	4		技能 Frost Nova.srvmissilea
+24	圣光弹	holybolt	55	20	20	0	1	50	0	0	0	0		7	HolyBoltMissile	3	0	0		技能 Holy Bolt.srvmissile
+25	咆哮	howl	148	12	12	-1000	1	12	0	0	0	0		0	BAYellShockWave01	3	0	0		技能 Howl.srvmissilea
+26	冰爆	iceblast	91	12	12	0	1	50	0	0	0	0		7	IceBlast	3	0	0		技能 Ice Blast.srvmissile
+27	冰弹	icebolt	59	12	12	0	1	50	0	0	0	0		7	Icebolt	3	0	0		技能 Ice Bolt.srvmissile
+28	炼狱火焰 1	infernoflame1	60	12	12	0	1	30	0	0	0	0		5	Flamethrower	3	0	0		技能 Inferno.srvmissilea
+29	炼狱火焰 2	infernoflame2	61	12	12	0	1	30	0	0	0	0		5	Flamethrower2	3	0	0		技能 Inferno.cltmissileb
+30	跳跃击退	leapknockback	346	0	0	0	2	2	0	0	0	0		0	null	3	0	0		技能 Leap.srvmissilea
+31	闪电	lightningbolt	98	30	30	0	2	25	0	0	0	0		4	null	3	0	0		技能 Lightning.srvmissile
+32	闪电标枪	lightningjavelin	205	30	30	0	2	25	0	0	0	0	ltng	6	LightningJavelin	3	0	0		技能 Lightning Bolt.srvmissile
+33	魔法箭	magicarrow	27	24	24	0	1	40	0	0	0	0	mag	3	SafeArrow	3	0	0		技能 Magic Arrow.srvmissile
+34	多重箭	multipleshotarrow	213	24	24	0	1	50	0	0	0	0		0	Arrow	3	1	4		技能 Multiple Shot.srvmissilea
+35	多重弩箭	multipleshotbolt	214	24	24	0	1	50	0	0	0	0		0	XBowBolt	3	1	4		技能 Multiple Shot.srvmissileb
+36	新星	nova	90	24	24	-1000	1	13	0	0	0	0		0	ElectricNova	3	1	4		技能 Nova.srvmissilea
+37	毒标枪	poisonjav	38	24	24	0	1	25	0	0	0	0		0	Javelin	3	0	0	poisonjavcloud	技能 Poison Javelin.srvmissile
+38	红光	redlightmissile	151	0	0	0	0	10	0	0	0	0		5	null	0	0	0		技能 Corpse Explosion.cltmissilec
+39	吼叫	shout	149	30	30	-500	1	15	0	0	0	0		0	BAYellShockWave01	3	0	0		技能 Shout.srvmissilea
+40	闪光	sparkle	212	4	4	0	1	30	0	0	2	6	pois	0	Gleam	3	0	0		技能 Shiver Armor.cltmissilea
+41	尖刺	spike1	7	10	10	0	1	40	1	2	0	0		0	SpikeFiendMissle	3	0	0		怪物 quillrat1.MissA2
+42	牙	teeth	114	16	16	0	1	50	0	0	0	0		3	teethMissile	3	1	4		技能 Teeth.srvmissilea

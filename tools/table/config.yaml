@@ -1,0 +1,31 @@
+# clover-project-diablo2 打表配置（由 agent-02 维护）
+#
+# 所有相对路径均相对于**本文件所在目录**（clover-tools/table/core 之外，见下方用法）。
+#
+# ⚠️ 与 `docs/agents/agent-02-配表.md` §4.3 的差异说明（已回报主 agent）：
+#    文档给的 `planning_dir: "../策划/数值文档"` 与 `client_dir: "../../client/..."` 深度不自洽
+#    （同一个 config.yaml 目录不可能既上一级是项目根、又上两级才是项目根）。
+#    本文件按「config.yaml 位于 `<项目根>/tools/table/`」统一取 `../../`，
+#    解析结果与 `docs/步骤文档.md` §2 / agent-02 §4.4 的绝对位置完全一致：
+#      planning_dir → <项目根>/策划/数值文档
+#      client_dir   → <项目根>/client/Assets/Scripts/Table
+#    （只改了相对前缀写法，没有改任何契约字段名或产物落点。）
+
+# 策划表目录：扫描其中的 *.xls / *.xlsx，每个工作表(sheet)即一张表。
+# 源表 txt 与 -pack 生成的 xlsx 都平铺在这一层（单层扫描，不递归）。
+planning_dir: "../../策划/数值文档"
+
+# 客户端代码格式：固定 cs（C#）。
+client_format: "cs"
+
+# 本项目是**单机** ⇒ 不产出 Go 服务端代码，server_dir 指向丢弃目录（占位，不参与交付）。
+server_dir: "../../_table_discard/server"
+
+# 客户端（cs）输出根目录：代码直接写入此目录（Base/ 子目录），tsv 写入 Tsv/ 子目录。
+client_dir: "../../client/Assets/Scripts/Table"
+
+# 第 3 行 cs 标记列为空时的默认侧。本项目单机 ⇒ 全部 `c`（源表第 3 行也已显式写 c）。
+default_side: "c"
+
+# 对照表输出：记录每个产物文件(tsv/代码)来自哪个 xls 的哪个 sheet。
+mapping_file: "../../_table_discard/mapping.tsv"

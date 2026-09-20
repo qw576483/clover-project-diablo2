@@ -1,0 +1,298 @@
+{
+ "pack": "cave",
+ "sourceDt1": "data/global/tiles/ACT1/CAVES/cave.dt1",
+ "kind": "Objects",
+ "note": "邪恶洞穴地面 / 岩壁",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 16,
+ "tiles": [
+  {
+   "idx": 91,
+   "file": "091.png",
+   "w": 160,
+   "h": 160,
+   "main": 0,
+   "sub": 5,
+   "orientation": 12,
+   "compositeIndex": 172,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    58,
+    52,
+    141,
+    138
+   ]
+  },
+  {
+   "idx": 92,
+   "file": "092.png",
+   "w": 128,
+   "h": 128,
+   "main": 0,
+   "sub": 4,
+   "orientation": 12,
+   "compositeIndex": 140,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    30,
+    41,
+    107,
+    93
+   ]
+  },
+  {
+   "idx": 93,
+   "file": "093.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 3,
+   "orientation": 12,
+   "compositeIndex": 108,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    35,
+    34,
+    142,
+    99
+   ]
+  },
+  {
+   "idx": 94,
+   "file": "094.png",
+   "w": 128,
+   "h": 160,
+   "main": 0,
+   "sub": 2,
+   "orientation": 12,
+   "compositeIndex": 76,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    19,
+    56,
+    116,
+    131
+   ]
+  },
+  {
+   "idx": 95,
+   "file": "095.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 1,
+   "orientation": 12,
+   "compositeIndex": 44,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    22,
+    38,
+    146,
+    106
+   ]
+  },
+  {
+   "idx": 96,
+   "file": "096.png",
+   "w": 160,
+   "h": 160,
+   "main": 0,
+   "sub": 0,
+   "orientation": 12,
+   "compositeIndex": 12,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    36,
+    34,
+    137,
+    134
+   ]
+  },
+  {
+   "idx": 97,
+   "file": "097.png",
+   "w": 160,
+   "h": 160,
+   "main": 0,
+   "sub": 1,
+   "orientation": 1,
+   "compositeIndex": 33,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    61,
+    63,
+    135,
+    131
+   ]
+  },
+  {
+   "idx": 98,
+   "file": "098.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 0,
+   "orientation": 1,
+   "compositeIndex": 1,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    36,
+    149,
+    117
+   ]
+  },
+  {
+   "idx": 99,
+   "file": "099.png",
+   "w": 128,
+   "h": 160,
+   "main": 0,
+   "sub": 1,
+   "orientation": 2,
+   "compositeIndex": 34,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    6,
+    54,
+    123,
+    141
+   ]
+  },
+  {
+   "idx": 100,
+   "file": "100.png",
+   "w": 160,
+   "h": 128,
+   "main": 0,
+   "sub": 0,
+   "orientation": 2,
+   "compositeIndex": 2,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    20,
+    35,
+    159,
+    124
+   ]
+  },
+  {
+   "idx": 174,
+   "file": "174.png",
+   "w": 128,
+   "h": 128,
+   "main": 0,
+   "sub": 12,
+   "orientation": 12,
+   "compositeIndex": 396,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    36,
+    61,
+    113,
+    108
+   ]
+  },
+  {
+   "idx": 175,
+   "file": "175.png",
+   "w": 160,
+   "h": 160,
+   "main": 0,
+   "sub": 11,
+   "orientation": 12,
+   "compositeIndex": 364,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    88,
+    59,
+    140,
+    124
+   ]
+  },
+  {
+   "idx": 176,
+   "file": "176.png",
+   "w": 128,
+   "h": 160,
+   "main": 0,
+   "sub": 10,
+   "orientation": 12,
+   "compositeIndex": 332,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    83,
+    49,
+    124,
+    126
+   ]
+  },
+  {
+   "idx": 177,
+   "file": "177.png",
+   "w": 128,
+   "h": 160,
+   "main": 0,
+   "sub": 9,
+   "orientation": 12,
+   "compositeIndex": 300,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    88,
+    60,
+    110,
+    114
+   ]
+  },
+  {
+   "idx": 178,
+   "file": "178.png",
+   "w": 96,
+   "h": 160,
+   "main": 0,
+   "sub": 8,
+   "orientation": 12,
+   "compositeIndex": 268,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    21,
+    54,
+    71,
+    140
+   ]
+  },
+  {
+   "idx": 179,
+   "file": "179.png",
+   "w": 64,
+   "h": 160,
+   "main": 0,
+   "sub": 7,
+   "orientation": 12,
+   "compositeIndex": 236,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    31,
+    63,
+    63,
+    120
+   ]
+  }
+ ]
+}

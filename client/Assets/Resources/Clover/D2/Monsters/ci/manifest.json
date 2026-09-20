@@ -1,0 +1,57 @@
+{
+ "unit": "Monsters/ci",
+ "kind": "npc",
+ "token": "ci",
+ "sourceMpq": "d2data.mpq",
+ "sourcePath": "data/global/monsters/ci/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 32,
+  "h": 132,
+  "originX": 16,
+  "originY": 66,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -16,
+   "right": 16,
+   "up": -66,
+   "down": 6
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 13,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  }
+ },
+ "pngCount": 168
+}

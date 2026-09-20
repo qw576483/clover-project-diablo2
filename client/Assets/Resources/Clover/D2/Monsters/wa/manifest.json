@@ -1,0 +1,57 @@
+{
+ "unit": "Monsters/wa",
+ "kind": "npc",
+ "token": "wa",
+ "sourceMpq": "d2data.mpq",
+ "sourcePath": "data/global/monsters/wa/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 40,
+  "h": 132,
+  "originX": 20,
+  "originY": 66,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -20,
+   "right": 20,
+   "up": -66,
+   "down": 6
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 16,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 12,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  }
+ },
+ "pngCount": 224
+}

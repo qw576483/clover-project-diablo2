@@ -1,0 +1,57 @@
+{
+ "unit": "Monsters/rc",
+ "kind": "npc",
+ "token": "rc",
+ "sourceMpq": "d2data.mpq",
+ "sourcePath": "data/global/monsters/rc/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 36,
+  "h": 140,
+  "originX": 18,
+  "originY": 70,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -18,
+   "right": 18,
+   "up": -70,
+   "down": 6
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 12,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  }
+ },
+ "pngCount": 160
+}

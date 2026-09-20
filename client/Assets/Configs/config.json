@@ -1,0 +1,8 @@
+{
+  "game": {
+    "default_player_name": "Hero",
+    "bgm_volume": 0.7,
+    "sfx_volume": 0.8,
+    "fullscreen": false
+  }
+}
