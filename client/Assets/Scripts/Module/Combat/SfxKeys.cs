@@ -61,6 +61,114 @@ namespace Diablo2.Module.Combat
         /// <summary>升级（`Events.LevelUp` 时）。</summary>
         public const string LevelUp = "level_up";
 
+        // ═════════════════════════════════════════════════════════════════════
+        // 逐类怪物音效键（★ 片 monster-audio）
+        //
+        // 为什么要有这 30 个键：上面那 3 个通用键（`MonsterAttack`/`MonsterDie`/`MonsterRevive`）
+        //   的素材源**全是堕落者 `fallen`** ⇒ 打僵尸、打血鹰听到的都是沉沦魔的叫声/死声，
+        //   而**怪物自己的受击音（`MonSounds.HitSound`）一个键都没有** —— 这正是用户说的
+        //   「怪物没音效、打击没声音」。原版是**逐类一套音**。
+        //
+        // 键名规则 = `monster_{hit|atk|die|step}_{原版 MonStats.Code 小写}`（8 类）：
+        //   fa=Fallen / fs=FallenShaman / si=QuillRat(尖刺鼠) / zm=Zombie /
+        //   ye=Brute(野兽) / cr=CorruptRogue / bk=BloodHawk(血鹰) / wr=Wraith。
+        //   ⚠ 代码 → 类别的**唯一出处** = `MonStats.txt` 的 `Code` 列 × `MonSound` 列
+        //     （`原版资源/d2lod1.10txt-1.10f/data/global/excel/MonStats.txt`），
+        //     ⛔ 不是凭名字猜的 —— 例：`bk` 是 **foulcrow（血鹰）**，`ye` 才是 brute。
+        //   音效条目名出处 = `MonSounds.txt`；目标文件出处 = `Sounds.txt` 的 `FileName` 列
+        //     （受击音的真名是 `gethit1.wav`，⛔ **不是** `hit1.wav`）。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>沉沦魔受击（`fallen_hit_1`）。</summary>
+        public const string MonsterHitFa = "monster_hit_fa";
+
+        /// <summary>沉沦魔攻击（`fallen_attack_1`）。</summary>
+        public const string MonsterAtkFa = "monster_atk_fa";
+
+        /// <summary>沉沦魔死亡（`fallen_death_1`）。</summary>
+        public const string MonsterDieFa = "monster_die_fa";
+
+        /// <summary>沉沦魔脚步（`light_walk_dirt_1`）。</summary>
+        public const string MonsterStepFa = "monster_step_fa";
+
+        /// <summary>沉沦魔萨满受击（`fallenshaman_hit_1`）。</summary>
+        public const string MonsterHitFs = "monster_hit_fs";
+
+        /// <summary>沉沦魔萨满攻击（`fallenshaman_attack_1`）。</summary>
+        public const string MonsterAtkFs = "monster_atk_fs";
+
+        /// <summary>沉沦魔萨满死亡（`fallenshaman_death_1`）。</summary>
+        public const string MonsterDieFs = "monster_die_fs";
+
+        /// <summary>沉沦魔萨满脚步（`light_walk_dirt_1`）。</summary>
+        public const string MonsterStepFs = "monster_step_fs";
+
+        /// <summary>尖刺鼠受击（`spikefiend_hit_1`）。</summary>
+        public const string MonsterHitSi = "monster_hit_si";
+
+        /// <summary>尖刺鼠攻击（`spikefiend_attack_1`；原版 `MonSounds` 无脚步）。</summary>
+        public const string MonsterAtkSi = "monster_atk_si";
+
+        /// <summary>尖刺鼠死亡（`spikefiend_death_1`）。</summary>
+        public const string MonsterDieSi = "monster_die_si";
+
+        /// <summary>僵尸受击（`zombie_hit_1`）。</summary>
+        public const string MonsterHitZm = "monster_hit_zm";
+
+        /// <summary>僵尸攻击（`zombie_attack_1`）。</summary>
+        public const string MonsterAtkZm = "monster_atk_zm";
+
+        /// <summary>僵尸死亡（`zombie_death_1`）。</summary>
+        public const string MonsterDieZm = "monster_die_zm";
+
+        /// <summary>僵尸脚步（`light_walk_dirt_1`）。</summary>
+        public const string MonsterStepZm = "monster_step_zm";
+
+        /// <summary>野兽受击（`yeti_hit_1`；`MonStats.Code=YE` 的 Brute 系）。</summary>
+        public const string MonsterHitYe = "monster_hit_ye";
+
+        /// <summary>野兽攻击（`yeti_attack_1`）。</summary>
+        public const string MonsterAtkYe = "monster_atk_ye";
+
+        /// <summary>野兽死亡（`yeti_death_1`）。</summary>
+        public const string MonsterDieYe = "monster_die_ye";
+
+        /// <summary>野兽脚步（`heavy_walk_dirt_1`）。</summary>
+        public const string MonsterStepYe = "monster_step_ye";
+
+        /// <summary>腐化罗格受击（`corrupt_hit_1`）。</summary>
+        public const string MonsterHitCr = "monster_hit_cr";
+
+        /// <summary>腐化罗格攻击（`corrupt_attack_1`）。</summary>
+        public const string MonsterAtkCr = "monster_atk_cr";
+
+        /// <summary>腐化罗格死亡（`corrupt_death_1`，文件是 `die1.wav`）。</summary>
+        public const string MonsterDieCr = "monster_die_cr";
+
+        /// <summary>腐化罗格脚步（`medium_walk_dirt_1`）。</summary>
+        public const string MonsterStepCr = "monster_step_cr";
+
+        /// <summary>血鹰受击（`hawk_hit_1`；`MonStats.Code=BK` 的 FoulCrow 系）。</summary>
+        public const string MonsterHitBk = "monster_hit_bk";
+
+        /// <summary>血鹰攻击（`hawk_attack_1`）。</summary>
+        public const string MonsterAtkBk = "monster_atk_bk";
+
+        /// <summary>血鹰死亡（`hawk_death_1`）。</summary>
+        public const string MonsterDieBk = "monster_die_bk";
+
+        /// <summary>血鹰振翅（`hawk_wing_1` = `MonSounds.FootstepLayer`，飞行怪没有脚步）。</summary>
+        public const string MonsterStepBk = "monster_step_bk";
+
+        /// <summary>幽灵受击（`wraith_hit_1`；原版 `MonSounds` 无脚步）。</summary>
+        public const string MonsterHitWr = "monster_hit_wr";
+
+        /// <summary>幽灵攻击（`wraith_attack_1`）。</summary>
+        public const string MonsterAtkWr = "monster_atk_wr";
+
+        /// <summary>幽灵死亡（`wraith_death_1`）。</summary>
+        public const string MonsterDieWr = "monster_die_wr";
+
         /// <summary>按伤害类型取施法音效键（未登记的类型回落到 <see cref="Cast"/>）。</summary>
         public static string CastOf(Diablo2.Def.DamageType type)
         {

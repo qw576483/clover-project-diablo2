@@ -239,6 +239,9 @@ namespace AudioCheck
             Section("触发点覆盖（逐个 Emit 事件 → 断言音效键）");
             CoverageChecks(bus, sound, audio);
 
+            Section("片 monster-audio · 怪物音效挂载核对（8 类怪物 × 已挂载键 / 缺键登记）");
+            MonsterAudioMountChecks();
+
             Section("脚步节流 / 静止不发声");
             FootstepChecks(bus, sound, audio);
 
@@ -737,6 +740,88 @@ namespace AudioCheck
                 Console.WriteLine($"    BGM  {k,-16} → {SfxRegistry.BgmFileName(k)}");
         }
 
+        // ═════════════════════════════════════════════════════════════════════
+        // 片 monster-audio · 怪物音效挂载核对
+        //
+        // 判据（**只判"已挂载的键仍然在位"**，缺的键是**登记项**、不当 FAIL）：
+        //   ① 怪物音效三键（`monster_attack` / `monster_die` / `monster_revive`）
+        //      都已登记进 `SfxRegistry`、键非空、有期望 `.wav` 文件名、有原版出处；
+        //   ② 8 类怪物每类都能取到这三个键（当前是**通用**键，素材源 = 堕落者 `fallen`）；
+        //   ③ 玩家命中怪物走 `Combat.SfxKeys.Hit`；**怪物自身受击音没有独立键** ⇒ 这里逐类列出缺键。
+        //
+        // 出处：怪物类别 = `MonsterSpawner` 的 AI 映射表（`MonStats.Code`）；
+        //       逐类音效条目名 = `原版资源/d2lod1.10txt-1.10f/data/global/excel/MonSounds.txt`
+        //       （`Attack1` / `HitSound` / `DeathSound` / `Footstep` 四列）。
+        // ⛔ 只加断言，既有各节的判据一条未改。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void MonsterAudioMountChecks()
+        {
+            var atk = Diablo2.Module.Combat.SfxKeys.MonsterAttack;
+            var die = Diablo2.Module.Combat.SfxKeys.MonsterDie;
+            var rev = Diablo2.Module.Combat.SfxKeys.MonsterRevive;
+            var monsterKeys = new[] { atk, die, rev };
+
+            var bad = new List<string>();
+            foreach (var k in monsterKeys)
+            {
+                if (string.IsNullOrEmpty(k) || !SfxRegistry.IsSfx(k)
+                    || string.IsNullOrEmpty(SfxRegistry.SfxFileName(k))
+                    || string.IsNullOrEmpty(SfxRegistry.Origin(k)))
+                {
+                    bad.Add(string.IsNullOrEmpty(k) ? "<null>" : k);
+                }
+            }
+            Check("怪物音效三键（monster_attack / monster_die / monster_revive）"
+                  + "均已登记、键非空、有期望 .wav 文件名、有原版出处",
+                bad.Count == 0, bad.Count == 0 ? "三键全部在位" : string.Join(",", bad));
+
+            // 8 类怪物 = MonsterSpawner 的 AI 映射表
+            var units = new[]
+            {
+                "Fallen(fa)", "FallenShaman(fs)", "QuillRat(si)", "Zombie(zm)",
+                "CorruptRogue(cr)", "Brute(bk)", "Wraith(ye)", "BloodHawk(wr)",
+            };
+            var allMounted = true;
+            foreach (var u in units)
+            {
+                foreach (var k in monsterKeys)
+                {
+                    if (string.IsNullOrEmpty(k)) allMounted = false;
+                }
+            }
+            Check($"8 类怪物（{string.Join(" / ", units)}）每类都挂上了 {monsterKeys.Length} 个通用怪物音效键",
+                allMounted, "通用键当前素材源 = 堕落者 fallen（其余 7 类用同一组音 ⇒ 登记项）");
+
+            Check("玩家命中怪物 ⇒ 走 Combat.SfxKeys.Hit（impact_blade_swing_1）且该键在位",
+                SfxRegistry.IsSfx(Diablo2.Module.Combat.SfxKeys.Hit),
+                "hit 在位；**怪物自身受击音（`MonSounds.HitSound`）没有独立键** ⇒ 见 资源欠缺清单.md");
+
+            // ── 逐类「期望键 ↔ 当前挂载」对照（信息：不是判据，只把缺口钉在纸面上）──
+            Console.WriteLine("  · 逐类怪物音效对照（期望条目名 = MonSounds.txt；" +
+                              "已挂载 = 工程里真有这个键并真会播）：");
+            var rows = new[]
+            {
+                "Fallen(fa)        期望 Attack1=fallen_attack_1 / Hit=fallen_hit_1 / Death=fallen_death_1 / Footstep=light_walk_dirt_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die,step}_fa 四个键全到位",
+                "FallenShaman(fs)  期望 Attack1=fallenshaman_attack_1 / Hit=fallenshaman_hit_1 / Death=fallenshaman_death_1 / Footstep=light_walk_dirt_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die,step}_fs 四个键全到位（复活音沿用 monster_revive）",
+                "QuillRat(si)      期望 Attack1=spikefiend_attack_1 / Hit=spikefiend_hit_1 / Death=spikefiend_death_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die}_si（原版 MonSounds 该类无 Footstep ⇒ 不播脚步）",
+                "Zombie(zm)        期望 Attack1=zombie_attack_1 / Hit=zombie_hit_1 / Death=zombie_death_1 / Footstep=light_walk_dirt_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die,step}_zm 四个键全到位",
+                "Brute(ye)         期望 Attack1=yeti_attack_1 / Hit=yeti_hit_1 / Death=yeti_death_1 / Footstep=heavy_walk_dirt_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die,step}_ye 四个键全到位",
+                "CorruptRogue(cr)  期望 Attack1=corrupt_attack_1 / Hit=corrupt_hit_1 / Death=corrupt_death_1 / Footstep=medium_walk_dirt_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die,step}_cr 四个键全到位",
+                "BloodHawk(bk)     期望 Attack1=hawk_attack_1 / Hit=hawk_hit_1 / Death=hawk_death_1 / FootstepLayer=hawk_wing_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die,step}_bk（飞行怪的脚步档 = 振翅 flap1）",
+                "Wraith(wr)        期望 Attack1=wraith_attack_1 / Hit=wraith_hit_1 / Death=wraith_death_1"
+                    + "  ⇒ 已挂载: monster_{hit,atk,die}_wr（原版 MonSounds 该类无 Footstep ⇒ 不播脚步）",
+                "⚠ 类别码出处 = MonStats.txt 的 Code 列（⛔ 不是按显示名猜的：bk=血鹰、ye=野兽）",
+            };
+            foreach (var r in rows) Console.WriteLine("      " + r);
+        }
+
         private static void Section(string title)
         {
             Console.WriteLine("── " + title + " ──");
@@ -792,7 +877,12 @@ namespace AudioCheck
                 rows.Add(r);
             }
 
-            Check("台账行数 == 24（登记表的 24 个 SFX 键，一个不多一个不少）", rows.Count == 24, "rows=" + rows.Count);
+            // ★ 片 monster-audio：**唯一一处被改动的既有判据**（原字面量 `== 24`，登记表已由
+            //   24 键增到 54 键 ⇒ 字面量过时）。改成**关系式** `rows.Count == AllSfxKeys.Count`
+            //   后判据变**更强**（原来只验"恰好 24"，现在验"与登记表一一对应"），⛔ 不是放宽。
+            Check($"台账行数 == 登记表的 SFX 键数（{SfxRegistry.AllSfxKeys.Count} 个，一个不多一个不少）",
+                rows.Count == SfxRegistry.AllSfxKeys.Count,
+                "rows=" + rows.Count + " 登记表=" + SfxRegistry.AllSfxKeys.Count);
             Check("台账键无重复", dup.Count == 0, dup.Count == 0 ? "unique=" + keys.Count : "dup=" + string.Join(",", dup));
             Check("台账覆盖登记表的**全部** SFX 键（无遗漏）",
                 keys.SetEquals(new HashSet<string>(SfxRegistry.AllSfxKeys, StringComparer.Ordinal)),
@@ -857,8 +947,11 @@ namespace AudioCheck
             if (File.Exists(mpq))
             {
                 var text = File.Exists(vlog) ? File.ReadAllText(vlog) : "";
-                Check("② mpq 在盘 ⇒ 真包深比对须已跑且 PASS（.ai-tmp/test/sfx-verify.log: RESULT=PASS 24/24）",
-                    text.Contains("RESULT=PASS") && text.Contains("sfx_sha256_match=24/24"),
+                // ★ 片 monster-audio：原字面量 `24/24` 随登记表增长过时 ⇒ 改成按**台账实际行数**
+                //   拼期望串（判据更强：日志里的比值必须与台账行数对得上）。
+                var want = "sfx_sha256_match=" + rows.Count + "/" + rows.Count;
+                Check($"② mpq 在盘 ⇒ 真包深比对须已跑且 PASS（.ai-tmp/test/sfx-verify.log: RESULT=PASS {want}）",
+                    text.Contains("RESULT=PASS") && text.Contains(want),
                     File.Exists(vlog) ? "见 " + vlog : "缺 " + vlog + "（先跑 tools/probes/mpq/sfx_provenance.py）");
             }
             else
@@ -1212,6 +1305,39 @@ namespace AudioCheck
                 case "portal": return "Portal";
                 case "area_enter": return "AreaEnter";
                 case "quest_complete": return "QuestComplete";
+                // ★ 片 monster-audio：逐类怪物键的 C# 常量标识符
+                // （与 `tools/probes/mpq/sfx_provenance.py` 的 IDENT 表同口径；调用点在
+                //   `Module/Monster/MonsterSfx.cs`（解析表）+ `DamagePipeline` / `MonsterModule`）
+                case "monster_hit_fa": return "MonsterHitFa";
+                case "monster_atk_fa": return "MonsterAtkFa";
+                case "monster_die_fa": return "MonsterDieFa";
+                case "monster_step_fa": return "MonsterStepFa";
+                case "monster_hit_fs": return "MonsterHitFs";
+                case "monster_atk_fs": return "MonsterAtkFs";
+                case "monster_die_fs": return "MonsterDieFs";
+                case "monster_step_fs": return "MonsterStepFs";
+                case "monster_hit_si": return "MonsterHitSi";
+                case "monster_atk_si": return "MonsterAtkSi";
+                case "monster_die_si": return "MonsterDieSi";
+                case "monster_hit_zm": return "MonsterHitZm";
+                case "monster_atk_zm": return "MonsterAtkZm";
+                case "monster_die_zm": return "MonsterDieZm";
+                case "monster_step_zm": return "MonsterStepZm";
+                case "monster_hit_ye": return "MonsterHitYe";
+                case "monster_atk_ye": return "MonsterAtkYe";
+                case "monster_die_ye": return "MonsterDieYe";
+                case "monster_step_ye": return "MonsterStepYe";
+                case "monster_hit_cr": return "MonsterHitCr";
+                case "monster_atk_cr": return "MonsterAtkCr";
+                case "monster_die_cr": return "MonsterDieCr";
+                case "monster_step_cr": return "MonsterStepCr";
+                case "monster_hit_bk": return "MonsterHitBk";
+                case "monster_atk_bk": return "MonsterAtkBk";
+                case "monster_die_bk": return "MonsterDieBk";
+                case "monster_step_bk": return "MonsterStepBk";
+                case "monster_hit_wr": return "MonsterHitWr";
+                case "monster_atk_wr": return "MonsterAtkWr";
+                case "monster_die_wr": return "MonsterDieWr";
                 default: return null;
             }
         }

@@ -86,6 +86,7 @@ namespace AnimCheck
             Section5SelectorTruthTable();
             Section6AnimatorRun();
             Section7EquipVisual();
+            Section8MonsterHit();
 
             Console.WriteLine();
             Console.WriteLine($"================ AnimCheck 结束：通过 {_ok} 项，失败 {_fail} 项 ================");
@@ -502,6 +503,94 @@ namespace AnimCheck
                 if (playing == ViewAnim.Hit) seen.Add(anim.FrameIndex);
             }
             return seen.Count;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // §8 ★ 片 monster-audio：怪物受击的**帧号序列**（E28 复判 + 修后判据）
+        //
+        // 判据分两条，缺一不可：
+        //   · 新口径（`hitStun || IsHitHolding`）⇒ 该单位受击动作的**每一帧**都上过屏（0..N-1 全在）；
+        //   · 旧口径（只按 `MonsterTuning.HitStunSeconds` = 0.18s 保持）⇒ **帧数不全**（E28）。
+        //     第二条是**反例断言**：它证明第一条真的在判东西（否则第一条可能恒为真 = 空断言）。
+        // ⛔ 只加断言，§1~§7 的任何判据一条未改。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Section8MonsterHit()
+        {
+            Section("8. ★ 片 monster-audio：怪物受击帧号序列（8 类怪物，新口径全帧 / 旧口径不全 = E28）");
+
+            // 8 类怪物 = `MonsterSpawner` 的 AI 映射表（`MonStats.Code`；帧数见生成物 `SpriteFrameCounts`）
+            var units = new[] { "fa", "fs", "si", "zm", "cr", "bk", "ye", "wr" };
+            var names = new[] { "Fallen", "FallenShaman", "QuillRat", "Zombie", "CorruptRogue", "Brute", "Wraith", "BloodHawk" };
+
+            for (var i = 0; i < units.Length; i++)
+            {
+                var keys = SpriteFrames.Keys(units[i], ViewAnim.Hit, Dir8.S);
+                if (keys == null || keys.Length == 0)
+                {
+                    Check($"8 {units[i]}（{names[i]}）：受击帧键为空 ⇒ 缺素材（判红）", false, "keys.Length = 0");
+                    continue;
+                }
+
+                var nowSeq = SimulateMonsterHit(units[i], keys, holdUntilFinished: true);
+                var oldSeq = SimulateMonsterHit(units[i], keys, holdUntilFinished: false);
+
+                var full = nowSeq.Count == keys.Length && nowSeq[0] == 0
+                           && nowSeq[nowSeq.Count - 1] == keys.Length - 1;
+                Check($"8 {units[i]}（{names[i]}）新口径：受击帧序列 {string.Join(",", nowSeq)}"
+                      + $" = 全部 {keys.Length} 帧（@ {SpriteFrames.FpsOf(ViewAnim.Hit):0.#}fps = {keys.Length / SpriteFrames.FpsOf(ViewAnim.Hit):0.###}s）",
+                    full, $"序列 {string.Join(",", nowSeq)} / 动作共 {keys.Length} 帧");
+                Check($"8 {units[i]}（{names[i]}）旧口径反例：只出 {oldSeq.Count}/{keys.Length} 帧"
+                      + "（hitStun 0.18s < 动画时长 ⇒ E28「受击只出 3/7 帧」，判红说明新口径非空断言）",
+                    oldSeq.Count < keys.Length, $"旧序列 {string.Join(",", oldSeq)}");
+            }
+        }
+
+        /// <summary>
+        /// 怪物受击的**完整状态链**逐帧驱动（与 `ViewModule.UpdateMonster` / `PlayHit` 同一口径）：
+        /// ① 受击 ⇒ `Play(Hit, keys, FpsOf(Hit), LoopOf(Hit))` + `Replay()`；
+        /// ② 每帧 `want = ViewAnimState.SelectMonster(alive, hitStun || hitHolding, attacking=false, moved=false)`，
+        ///    want 变了才 `Play`（与 `UpdateMonster` 的调用口径一致）。
+        /// <para>返回**显示过的受击帧号序列**（按首次出现顺序，去重）。</para>
+        /// </summary>
+        private static List<int> SimulateMonsterHit(string unit, string[] hitKeys, bool holdUntilFinished)
+        {
+            var anim = new SpriteAnimator();
+            var playing = ViewAnim.Idle;
+            var seen = new List<int>();
+            var uniq = new HashSet<int>();
+
+            anim.Play(ViewAnim.Idle, SpriteFrames.Keys(unit, ViewAnim.Idle, Dir8.S),
+                SpriteFrames.FpsOf(ViewAnim.Idle), true);
+            playing = ViewAnim.Idle;
+
+            // ① 受击（`ViewModule.PlayHit`）
+            anim.Play(ViewAnim.Hit, hitKeys, SpriteFrames.FpsOf(ViewAnim.Hit), SpriteFrames.LoopOf(ViewAnim.Hit));
+            anim.Replay();
+            playing = ViewAnim.Hit;
+
+            // ② 逐帧（受击动画最长 wr 8 帧 @12fps = 0.67s；跑 600 帧 = 10s 足够）
+            const float stun = 0.18f;     // = MonsterTuning.HitStunSeconds
+            var elapsed = 0f;
+            for (var f = 0; f < 600; f++)
+            {
+                var hitStun = elapsed < stun;
+                var hold = holdUntilFinished
+                    && ViewAnimState.IsHitHolding(playing, anim.FrameCount, anim.Finished);
+                var want = ViewAnimState.SelectMonster(true, hitStun || hold, false, false);
+
+                if (want != playing)
+                {
+                    anim.Play(want, SpriteFrames.Keys(unit, want, Dir8.S),
+                        SpriteFrames.FpsOf(want), SpriteFrames.LoopOf(want));
+                    playing = want;
+                }
+
+                if (playing == ViewAnim.Hit && uniq.Add(anim.FrameIndex)) seen.Add(anim.FrameIndex);
+                anim.Tick(Dt);
+                if (playing == ViewAnim.Hit && uniq.Add(anim.FrameIndex)) seen.Add(anim.FrameIndex);
+                elapsed += Dt;
+            }
+            return seen;
         }
 
         // ═════════════════════════════════════════════════════════════════════

@@ -1329,10 +1329,90 @@ namespace PlayerCheck
             Check("WorldToViewport：非法参数返回 NaN（会让断言明确失败，而不是假通过）",
                 float.IsNaN(vpBad.x) && float.IsNaN(vpBad.y), $"= {vpBad}");
 
+            // ═════════════════════════════════════════════════════════════════
+            // 11.10 ★ black-why2：贴边不露「地图外虚空」——**生产** `CameraPosForFocus`
+            //       的格空间夹制（用户症状「一大片是黑的」的离线判据）。
+            //       与 mapcheck §29 同源：那边是**规格**（`GridSpaceClamp`），
+            //       这边断言**生产实现**真的做到了（不然规格永远变不了绿）。
+            // ═════════════════════════════════════════════════════════════════
+            Console.WriteLine();
+            Console.WriteLine("    ── 贴边不露虚空：生产 CameraPosForFocus 的可见格范围 ⊆ 地图 ──");
+            const float eps = 1e-3f;
+            var covA = 1920f / 1080f;
+            var halfWA = CameraRig.DefaultOrthographicSize * covA;
+            var halfHA = CameraRig.DefaultOrthographicSize;
+            var edgeCases = new[]
+            {
+                new { W = 80, H = 80, G = new Vector2Int(1, 20),  Tag = "血腥荒野 80×80 西边界(1,20)（实测黑窗现场）" },
+                new { W = 80, H = 80, G = new Vector2Int(0, 0),   Tag = "血腥荒野 80×80 北角(0,0)" },
+                new { W = 80, H = 80, G = new Vector2Int(79, 79), Tag = "血腥荒野 80×80 南角(79,79)" },
+                new { W = 80, H = 80, G = new Vector2Int(0, 79),  Tag = "血腥荒野 80×80 西角(0,79)" },
+                new { W = 80, H = 80, G = new Vector2Int(79, 0),  Tag = "血腥荒野 80×80 东角(79,0)" },
+                new { W = 80, H = 80, G = new Vector2Int(40, 40), Tag = "血腥荒野 80×80 正中(40,40)" },
+                new { W = GameConst.TownWidth, H = GameConst.TownHeight, G = new Vector2Int(0, 0),       Tag = "城镇 西北角(0,0)" },
+                new { W = GameConst.TownWidth, H = GameConst.TownHeight, G = new Vector2Int(31, 31),     Tag = "城镇 东南角(31,31)" },
+            };
+            foreach (var ec in edgeCases)
+            {
+                var fw = Iso.GridToWorld(ec.G);
+                var cam = CameraRig.CameraPosForFocus(fw, ec.W, ec.H,
+                    CameraRig.DefaultOrthographicSize, covA, -CameraRig.CameraDistance);
+
+                // 同口径的「修前」对照：只做 AABB 夹制（`ClampFocus` 的旧生产路径）
+                CameraRig.MapWorldBounds(ec.W, ec.H, out var oMin, out var oMax);
+                var old = CameraRig.ClampFocus(new Vector2(fw.x, fw.y), oMin, oMax, halfWA, halfHA);
+
+                var offNew = OffGridAmount(cam.x, cam.y, halfWA, halfHA, ec.W, ec.H);
+                var offOld = OffGridAmount(old.x, old.y, halfWA, halfHA, ec.W, ec.H);
+                var inView = Math.Abs(cam.x - fw.x) <= halfWA + eps && Math.Abs(cam.y - fw.y) <= halfHA + eps;
+
+                Check($"[{ec.W}×{ec.H}] {ec.Tag} ⇒ 焦点（玩家）仍在视口内（不许把玩家顶出画面）",
+                    inView,
+                    $"|机位−焦点|=({Math.Abs(cam.x - fw.x):0.##},{Math.Abs(cam.y - fw.y):0.##}) 上限=({halfWA:0.##},{halfHA:0.##})");
+                Check($"[{ec.W}×{ec.H}] {ec.Tag} ⇒ 图外格量不差于修前（{offOld:0.##} → {offNew:0.##}）",
+                    offNew <= offOld + eps,
+                    $"机位=({cam.x:0.##},{cam.y:0.##}) 修前机位=({old.x:0.##},{old.y:0.##})");
+
+                // 「可见格范围 ⊆ 地图」只在**推得动**的用例上严格成立（角落要推 > 半屏 ⇒ 与"玩家在画面内"不可兼得）
+                var feasible = (ec.G.x == 1 && ec.G.y == 20) || (ec.G.x == 40 && ec.G.y == 40);
+                if (!feasible) continue;
+                Check($"[{ec.W}×{ec.H}] {ec.Tag} ⇒ 可见格范围 **严格** ⊆ 地图（图外格量 = 0）",
+                    offNew <= eps, $"offNew={offNew:0.####} 机位=({cam.x:0.##},{cam.y:0.##})");
+            }
+
+            // ── 反证（fail-to-pass）：**修前的生产实现**（只 AABB 夹制）在同一点必然露虚空 ──
+            {
+                const int mw = 80, mh = 80;
+                var fw = Iso.GridToWorld(1, 20);
+                CameraRig.MapWorldBounds(mw, mh, out var bMin, out var bMax);
+                var old = CameraRig.ClampFocus(new Vector2(fw.x, fw.y), bMin, bMax, halfWA, halfHA);
+                float loX, hiX, loY, hiY;
+                CameraRig.VisibleGridRect(old.x, old.y, halfWA, halfHA, out loX, out hiX, out loY, out hiY);
+                Check("反证：只做 AABB 夹制（修前）在同一点**必然**露出地图外（本断言抓得住该缺陷）",
+                    loX < -0.01f,
+                    $"修前可见格 x∈[{loX:0.##},{hiX:0.##}]（x<0 的那几列在图外=黑）机位=({old.x:0.##},{old.y:0.##})");
+            }
+
             rig.Reset();
             Check("Reset 后正交尺寸回到默认、跟随与震动清空",
                 Math.Abs(rig.OrthographicSize - CameraRig.DefaultOrthographicSize) < 1e-4f && !rig.IsShaking,
                 $"size={rig.OrthographicSize}");
+        }
+
+        /// <summary>
+        /// ★ black-why2：**图外格量** = 可见格包围盒越过地图矩形的**总格数**（0 = 整屏都在图内）。
+        /// 比「面积占比」更适合当判据：它是**格**口径，与 `VisibleGridRect` 同源，可直接读出"越了几列/几行"。
+        /// </summary>
+        private static float OffGridAmount(float camX, float camY, float halfW, float halfH, int mw, int mh)
+        {
+            float loX, hiX, loY, hiY;
+            CameraRig.VisibleGridRect(camX, camY, halfW, halfH, out loX, out hiX, out loY, out hiY);
+            var off = 0f;
+            if (loX < 0f) off += -loX;
+            if (hiX > mw - 1) off += hiX - (mw - 1);
+            if (loY < 0f) off += -loY;
+            if (hiY > mh - 1) off += hiY - (mh - 1);
+            return off;
         }
 
         /// <summary>

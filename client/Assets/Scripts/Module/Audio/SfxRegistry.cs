@@ -56,6 +56,40 @@ namespace Diablo2.Module.Audio
         /// <summary>萨满复活同伴。触发：`Module/Monster/MonsterModule.cs`。</summary>
         public const string MonsterRevive = Combat.SfxKeys.MonsterRevive;
 
+        // ── 逐类怪物音效键（★ 片 monster-audio；值一律取自 `Combat.SfxKeys`，不写第二份字面量）──
+        // 触发点：`DamagePipeline.ApplyToMonster`（受击 / 死亡）、`MonsterModule`（出手 / 脚步）。
+        // 键名规则与 8 类代码的**唯一出处**见 `Combat.SfxKeys` 的那段注释（`MonStats.Code` 列）。
+        public const string MonsterHitFa = Combat.SfxKeys.MonsterHitFa;
+        public const string MonsterAtkFa = Combat.SfxKeys.MonsterAtkFa;
+        public const string MonsterDieFa = Combat.SfxKeys.MonsterDieFa;
+        public const string MonsterStepFa = Combat.SfxKeys.MonsterStepFa;
+        public const string MonsterHitFs = Combat.SfxKeys.MonsterHitFs;
+        public const string MonsterAtkFs = Combat.SfxKeys.MonsterAtkFs;
+        public const string MonsterDieFs = Combat.SfxKeys.MonsterDieFs;
+        public const string MonsterStepFs = Combat.SfxKeys.MonsterStepFs;
+        public const string MonsterHitSi = Combat.SfxKeys.MonsterHitSi;
+        public const string MonsterAtkSi = Combat.SfxKeys.MonsterAtkSi;
+        public const string MonsterDieSi = Combat.SfxKeys.MonsterDieSi;
+        public const string MonsterHitZm = Combat.SfxKeys.MonsterHitZm;
+        public const string MonsterAtkZm = Combat.SfxKeys.MonsterAtkZm;
+        public const string MonsterDieZm = Combat.SfxKeys.MonsterDieZm;
+        public const string MonsterStepZm = Combat.SfxKeys.MonsterStepZm;
+        public const string MonsterHitYe = Combat.SfxKeys.MonsterHitYe;
+        public const string MonsterAtkYe = Combat.SfxKeys.MonsterAtkYe;
+        public const string MonsterDieYe = Combat.SfxKeys.MonsterDieYe;
+        public const string MonsterStepYe = Combat.SfxKeys.MonsterStepYe;
+        public const string MonsterHitCr = Combat.SfxKeys.MonsterHitCr;
+        public const string MonsterAtkCr = Combat.SfxKeys.MonsterAtkCr;
+        public const string MonsterDieCr = Combat.SfxKeys.MonsterDieCr;
+        public const string MonsterStepCr = Combat.SfxKeys.MonsterStepCr;
+        public const string MonsterHitBk = Combat.SfxKeys.MonsterHitBk;
+        public const string MonsterAtkBk = Combat.SfxKeys.MonsterAtkBk;
+        public const string MonsterDieBk = Combat.SfxKeys.MonsterDieBk;
+        public const string MonsterStepBk = Combat.SfxKeys.MonsterStepBk;
+        public const string MonsterHitWr = Combat.SfxKeys.MonsterHitWr;
+        public const string MonsterAtkWr = Combat.SfxKeys.MonsterAtkWr;
+        public const string MonsterDieWr = Combat.SfxKeys.MonsterDieWr;
+
         /// <summary>技能施放（通用回落）。触发：`Module/Skill/SkillModule.cs`。</summary>
         public const string Cast = Combat.SfxKeys.Cast;
 
@@ -140,6 +174,38 @@ namespace Diablo2.Module.Audio
             { MonsterDie, "monster_die" + SfxExtension },
             { MonsterAttack, "monster_attack" + SfxExtension },
             { MonsterRevive, "monster_revive" + SfxExtension },
+
+            // ── 逐类怪物（★ 片 monster-audio：8 类 × 受击/攻击/死亡/脚步）──
+            { MonsterHitFa, "monster_hit_fa" + SfxExtension },
+            { MonsterAtkFa, "monster_atk_fa" + SfxExtension },
+            { MonsterDieFa, "monster_die_fa" + SfxExtension },
+            { MonsterStepFa, "monster_step_fa" + SfxExtension },
+            { MonsterHitFs, "monster_hit_fs" + SfxExtension },
+            { MonsterAtkFs, "monster_atk_fs" + SfxExtension },
+            { MonsterDieFs, "monster_die_fs" + SfxExtension },
+            { MonsterStepFs, "monster_step_fs" + SfxExtension },
+            { MonsterHitSi, "monster_hit_si" + SfxExtension },
+            { MonsterAtkSi, "monster_atk_si" + SfxExtension },
+            { MonsterDieSi, "monster_die_si" + SfxExtension },
+            { MonsterHitZm, "monster_hit_zm" + SfxExtension },
+            { MonsterAtkZm, "monster_atk_zm" + SfxExtension },
+            { MonsterDieZm, "monster_die_zm" + SfxExtension },
+            { MonsterStepZm, "monster_step_zm" + SfxExtension },
+            { MonsterHitYe, "monster_hit_ye" + SfxExtension },
+            { MonsterAtkYe, "monster_atk_ye" + SfxExtension },
+            { MonsterDieYe, "monster_die_ye" + SfxExtension },
+            { MonsterStepYe, "monster_step_ye" + SfxExtension },
+            { MonsterHitCr, "monster_hit_cr" + SfxExtension },
+            { MonsterAtkCr, "monster_atk_cr" + SfxExtension },
+            { MonsterDieCr, "monster_die_cr" + SfxExtension },
+            { MonsterStepCr, "monster_step_cr" + SfxExtension },
+            { MonsterHitBk, "monster_hit_bk" + SfxExtension },
+            { MonsterAtkBk, "monster_atk_bk" + SfxExtension },
+            { MonsterDieBk, "monster_die_bk" + SfxExtension },
+            { MonsterStepBk, "monster_step_bk" + SfxExtension },
+            { MonsterHitWr, "monster_hit_wr" + SfxExtension },
+            { MonsterAtkWr, "monster_atk_wr" + SfxExtension },
+            { MonsterDieWr, "monster_die_wr" + SfxExtension },
             { Cast, "cast" + SfxExtension },
             { CastFire, "cast_fire" + SfxExtension },
             { CastCold, "cast_cold" + SfxExtension },
@@ -199,6 +265,41 @@ namespace Diablo2.Module.Audio
             { MonsterDie, "fallen_death_1 │ " + SfxMpq + "monster\\fallen\\death1.wav" },
             { MonsterAttack, "fallen_attack_1 │ " + SfxMpq + "monster\\fallen\\roar1.wav" },
             { MonsterRevive, "fallenshaman_resurrect │ " + SfxMpq + "monster\\fallenshaman\\resurrect.wav" },
+
+            // ── 逐类怪物（★ 片 monster-audio）──
+            // 条目名出处 = `MonSounds.txt` 的 Attack1 / HitSound / DeathSound / Footstep / FootstepLayer 列；
+            // 文件名出处 = `Sounds.txt` 的 FileName 列；两者都是 1.10f LOD 版，已逐条实测命中。
+            // ⚠ 受击音在包里叫 `gethit1.wav`（⛔ 不是 `hit1.wav`）。
+            { MonsterHitFa, "fallen_hit_1 │ " + SfxMpq + "monster\\fallen\\gethit1.wav" },
+            { MonsterAtkFa, "fallen_attack_1 │ " + SfxMpq + "monster\\fallen\\roar1.wav" },
+            { MonsterDieFa, "fallen_death_1 │ " + SfxMpq + "monster\\fallen\\death1.wav" },
+            { MonsterStepFa, "light_walk_dirt_1 │ " + SfxMpq + "ambient\\footstep\\LightDirt1.wav" },
+            { MonsterHitFs, "fallenshaman_hit_1 │ " + SfxMpq + "monster\\fallenshaman\\gethit1.wav" },
+            { MonsterAtkFs, "fallenshaman_attack_1 │ " + SfxMpq + "monster\\fallenshaman\\roar1.wav" },
+            { MonsterDieFs, "fallenshaman_death_1 │ " + SfxMpq + "monster\\fallenshaman\\death1.wav" },
+            { MonsterStepFs, "light_walk_dirt_1 │ " + SfxMpq + "ambient\\footstep\\LightDirt1.wav" },
+            { MonsterHitSi, "spikefiend_hit_1 │ " + SfxMpq + "monster\\spikefiend\\gethit1.wav" },
+            { MonsterAtkSi, "spikefiend_attack_1 │ " + SfxMpq + "monster\\spikefiend\\attack1.wav" },
+            { MonsterDieSi, "spikefiend_death_1 │ " + SfxMpq + "monster\\spikefiend\\death1.wav" },
+            { MonsterHitZm, "zombie_hit_1 │ " + SfxMpq + "monster\\zombie\\gethit1.wav" },
+            { MonsterAtkZm, "zombie_attack_1 │ " + SfxMpq + "monster\\zombie\\attack1.wav" },
+            { MonsterDieZm, "zombie_death_1 │ " + SfxMpq + "monster\\zombie\\death1.wav" },
+            { MonsterStepZm, "light_walk_dirt_1 │ " + SfxMpq + "ambient\\footstep\\LightDirt1.wav" },
+            { MonsterHitYe, "yeti_hit_1 │ " + SfxMpq + "monster\\yeti\\gethit1.wav" },
+            { MonsterAtkYe, "yeti_attack_1 │ " + SfxMpq + "monster\\yeti\\attack1.wav" },
+            { MonsterDieYe, "yeti_death_1 │ " + SfxMpq + "monster\\yeti\\death1.wav" },
+            { MonsterStepYe, "heavy_walk_dirt_1 │ " + SfxMpq + "ambient\\footstep\\HeavyDirt1.wav" },
+            { MonsterHitCr, "corrupt_hit_1 │ " + SfxMpq + "monster\\corrupt\\gethit1.wav" },
+            { MonsterAtkCr, "corrupt_attack_1 │ " + SfxMpq + "monster\\corrupt\\attack1.wav" },
+            { MonsterDieCr, "corrupt_death_1 │ " + SfxMpq + "monster\\corrupt\\die1.wav" },
+            { MonsterStepCr, "medium_walk_dirt_1 │ " + SfxMpq + "ambient\\footstep\\MedDirt1.wav" },
+            { MonsterHitBk, "hawk_hit_1 │ " + SfxMpq + "monster\\hawk\\gethit1.wav" },
+            { MonsterAtkBk, "hawk_attack_1 │ " + SfxMpq + "monster\\hawk\\attack1.wav" },
+            { MonsterDieBk, "hawk_death_1 │ " + SfxMpq + "monster\\hawk\\death1.wav" },
+            { MonsterStepBk, "hawk_wing_1 │ " + SfxMpq + "monster\\hawk\\flap1.wav" },
+            { MonsterHitWr, "wraith_hit_1 │ " + SfxMpq + "monster\\wraith\\gethit1.wav" },
+            { MonsterAtkWr, "wraith_attack_1 │ " + SfxMpq + "monster\\wraith\\attack1.wav" },
+            { MonsterDieWr, "wraith_death_1 │ " + SfxMpq + "monster\\wraith\\death1.wav" },
             { Cast, "amazon_magicarrow_1 │ " + SfxMpq + "skill\\amazon\\magicarrow1.wav" },
             { CastFire, "monster_cast_fire │ " + SfxMpq + "skill\\sorceress\\firecast.wav" },
             { CastCold, "monster_cast_cold │ " + SfxMpq + "skill\\sorceress\\coldcast.wav" },

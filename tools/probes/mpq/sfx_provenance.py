@@ -68,6 +68,39 @@ KEYS = [
     ("portal",         r"skill\misc\portalcast.wav"),
     ("area_enter",     r"object\stairs.wav"),
     ("quest_complete", r"object\cairnsuccess.wav"),
+    # ── ★ 片 monster-audio：逐类怪物音效（8 类 × 受击/攻击/死亡/脚步）──────────
+    # 条目名出处 = `MonSounds.txt`（Attack1 / HitSound / DeathSound / Footstep / FootstepLayer）；
+    # 文件名出处 = `Sounds.txt` 的 FileName 列；类别码 = `MonStats.txt` 的 Code 列。
+    ("monster_hit_fa", r"monster\fallen\gethit1.wav"),
+    ("monster_atk_fa", r"monster\fallen\roar1.wav"),
+    ("monster_die_fa", r"monster\fallen\death1.wav"),
+    ("monster_step_fa", r"ambient\footstep\LightDirt1.wav"),
+    ("monster_hit_fs", r"monster\fallenshaman\gethit1.wav"),
+    ("monster_atk_fs", r"monster\fallenshaman\roar1.wav"),
+    ("monster_die_fs", r"monster\fallenshaman\death1.wav"),
+    ("monster_step_fs", r"ambient\footstep\LightDirt1.wav"),
+    ("monster_hit_si", r"monster\spikefiend\gethit1.wav"),
+    ("monster_atk_si", r"monster\spikefiend\attack1.wav"),
+    ("monster_die_si", r"monster\spikefiend\death1.wav"),
+    ("monster_hit_zm", r"monster\zombie\gethit1.wav"),
+    ("monster_atk_zm", r"monster\zombie\attack1.wav"),
+    ("monster_die_zm", r"monster\zombie\death1.wav"),
+    ("monster_step_zm", r"ambient\footstep\LightDirt1.wav"),
+    ("monster_hit_ye", r"monster\yeti\gethit1.wav"),
+    ("monster_atk_ye", r"monster\yeti\attack1.wav"),
+    ("monster_die_ye", r"monster\yeti\death1.wav"),
+    ("monster_step_ye", r"ambient\footstep\HeavyDirt1.wav"),
+    ("monster_hit_cr", r"monster\corrupt\gethit1.wav"),
+    ("monster_atk_cr", r"monster\corrupt\attack1.wav"),
+    ("monster_die_cr", r"monster\corrupt\die1.wav"),
+    ("monster_step_cr", r"ambient\footstep\MedDirt1.wav"),
+    ("monster_hit_bk", r"monster\hawk\gethit1.wav"),
+    ("monster_atk_bk", r"monster\hawk\attack1.wav"),
+    ("monster_die_bk", r"monster\hawk\death1.wav"),
+    ("monster_step_bk", r"monster\hawk\flap1.wav"),
+    ("monster_hit_wr", r"monster\wraith\gethit1.wav"),
+    ("monster_atk_wr", r"monster\wraith\attack1.wav"),
+    ("monster_die_wr", r"monster\wraith\death1.wav"),
 ]
 
 # key -> C# 常量标识符（用于在源码里找真实调用点）
@@ -80,6 +113,23 @@ IDENT = {
     "gold_pickup": "GoldPickup", "item_use": "ItemUse", "ui_click": "UiClick",
     "dialog_open": "DialogOpen", "shop_open": "ShopOpen", "portal": "Portal",
     "area_enter": "AreaEnter", "quest_complete": "QuestComplete",
+    # ★ 片 monster-audio：逐类怪物键的 C# 常量标识符（调用点在 `Module/Monster/MonsterSfx.cs`）
+    "monster_hit_fa": "MonsterHitFa", "monster_atk_fa": "MonsterAtkFa",
+    "monster_die_fa": "MonsterDieFa", "monster_step_fa": "MonsterStepFa",
+    "monster_hit_fs": "MonsterHitFs", "monster_atk_fs": "MonsterAtkFs",
+    "monster_die_fs": "MonsterDieFs", "monster_step_fs": "MonsterStepFs",
+    "monster_hit_si": "MonsterHitSi", "monster_atk_si": "MonsterAtkSi",
+    "monster_die_si": "MonsterDieSi",
+    "monster_hit_zm": "MonsterHitZm", "monster_atk_zm": "MonsterAtkZm",
+    "monster_die_zm": "MonsterDieZm", "monster_step_zm": "MonsterStepZm",
+    "monster_hit_ye": "MonsterHitYe", "monster_atk_ye": "MonsterAtkYe",
+    "monster_die_ye": "MonsterDieYe", "monster_step_ye": "MonsterStepYe",
+    "monster_hit_cr": "MonsterHitCr", "monster_atk_cr": "MonsterAtkCr",
+    "monster_die_cr": "MonsterDieCr", "monster_step_cr": "MonsterStepCr",
+    "monster_hit_bk": "MonsterHitBk", "monster_atk_bk": "MonsterAtkBk",
+    "monster_die_bk": "MonsterDieBk", "monster_step_bk": "MonsterStepBk",
+    "monster_hit_wr": "MonsterHitWr", "monster_atk_wr": "MonsterAtkWr",
+    "monster_die_wr": "MonsterDieWr",
 }
 
 # 人类可读的游戏事件（列进 sfx-map.tsv；措辞取自 `client/资源欠缺清单.md:45` 点名的那批）
@@ -96,6 +146,24 @@ EVENT = {
     "ui_click": "UI 点击（面板/对话选项/买/卖）", "dialog_open": "NPC 对话开始",
     "shop_open": "商店打开", "portal": "传送 / 踩出入口",
     "area_enter": "进入场景（Stage）", "quest_complete": "任务完成",
+    # ★ 片 monster-audio：逐类怪物（fa 沉沦魔 / fs 沉沦魔萨满 / si 尖刺鼠 / zm 僵尸 /
+    #   ye 野兽 / cr 腐化罗格 / bk 血鹰 / wr 幽灵）
+    "monster_hit_fa": "沉沦魔受击", "monster_atk_fa": "沉沦魔挥击起手",
+    "monster_die_fa": "沉沦魔死亡", "monster_step_fa": "沉沦魔脚步",
+    "monster_hit_fs": "沉沦魔萨满受击", "monster_atk_fs": "沉沦魔萨满挥击起手",
+    "monster_die_fs": "沉沦魔萨满死亡", "monster_step_fs": "沉沦魔萨满脚步",
+    "monster_hit_si": "尖刺鼠受击", "monster_atk_si": "尖刺鼠攻击",
+    "monster_die_si": "尖刺鼠死亡",
+    "monster_hit_zm": "僵尸受击", "monster_atk_zm": "僵尸攻击",
+    "monster_die_zm": "僵尸死亡", "monster_step_zm": "僵尸脚步",
+    "monster_hit_ye": "野兽受击", "monster_atk_ye": "野兽攻击",
+    "monster_die_ye": "野兽死亡", "monster_step_ye": "野兽脚步（重步）",
+    "monster_hit_cr": "腐化罗格受击", "monster_atk_cr": "腐化罗格攻击",
+    "monster_die_cr": "腐化罗格死亡", "monster_step_cr": "腐化罗格脚步（中步）",
+    "monster_hit_bk": "血鹰受击", "monster_atk_bk": "血鹰攻击",
+    "monster_die_bk": "血鹰死亡", "monster_step_bk": "血鹰振翅",
+    "monster_hit_wr": "幽灵受击", "monster_atk_wr": "幽灵攻击",
+    "monster_die_wr": "幽灵死亡",
 }
 
 # 名字带注释的键：原版没有一一对应条目，取语义最近的原版音（理由见 SoundMap.md §3）

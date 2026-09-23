@@ -256,11 +256,29 @@ namespace Diablo2.Module.Monster
                 }
 
                 var posBefore = m.Pos;
+                var gridBefore = new Vector2Int(m.State.gridX, m.State.gridY);
                 MonsterAi.Step(this, m, dt);
 
                 if (posBefore != m.Pos) m.ViewDirty = true;   // Vector2 的 != 是近似比较，够用
 
                 m.Sync();
+
+                // ★ 片 monster-audio：怪物**脚步**触发点（原版 `MonSounds.Footstep` /
+                //   `FootstepLayer`，`FsPrb=100` ⇒ 只要这一类有移动音就必播）。
+                //   口径 = **跨格**触发一次（与玩家脚步 `Events.PlayerGridChanged` 同源）；
+                //   ⚠ 原版 `FsCnt=2`（一个走路循环两步 = 半格一步）**未建模** ⇒ 已登记为简化项，
+                //   ⛔ 不许凭空写一个"半格"判据。原版没有移动音的类（尖刺鼠 / 幽灵）⇒ 一次都不响。
+                if (m.State.gridX != gridBefore.x || m.State.gridY != gridBefore.y)
+                {
+                    var stepKey = MonsterSfx.StepOf(m.State);
+                    if (stepKey != null)
+                    {
+                        var audio = AppContext.I != null ? AppContext.I.Audio : null;
+                        if (audio != null)
+                            audio.SfxAt(stepKey, m.State.worldX, m.State.worldY, m.State.worldZ);
+                    }
+                }
+
                 if (m.ViewDirty)
                 {
                     m.ViewDirty = false;
@@ -487,7 +505,14 @@ namespace Diablo2.Module.Monster
             }
 
             var audio = ctx.Audio;
-            if (audio != null) audio.SfxAt(Combat.SfxKeys.MonsterAttack, m.State.worldX, m.State.worldY, m.State.worldZ);
+            if (audio != null)
+            {
+                // ★ 片 monster-audio：出手音**逐类一套**（原版 `MonSounds.Attack1`）。
+                //   未登记的类别回落到通用键 `MonsterAttack`（素材源 = 堕落者），
+                //   并由 `MonsterSfx` 打一次 Warn 留痕（⛔ 不用别的怪的叫声顶替）。
+                audio.SfxAt(MonsterSfx.AttackOf(m.State) ?? Combat.SfxKeys.MonsterAttack,
+                    m.State.worldX, m.State.worldY, m.State.worldZ);
+            }
 
             combat.RequestMonsterAttack(m.State.id);
         }

@@ -119,11 +119,25 @@ namespace Diablo2.Module.Combat
             if (view != null && !killed) view.PlayHit(target.id);
 
             // ② 音效钩子（IAudioModule 可空）
+            // ★ 片 monster-audio：原版一次命中是**两层音** —— 武器撞击（`hit`）
+            //   + **怪物自己的受击音**（`MonSounds.HitSound`，逐类一套；原版 `HitDelay` 列是它的延迟）。
+            //   此前只有 `hit` 一层 ⇒ 用户听到的「打击没声音 / 怪物没音效」。
+            //   击杀那一下只播死亡音（⛔ 不叠受击音：死亡表现归 `PlayDeath`，同前片 R1 的口径）。
             var audio = ctx.Audio;
             if (audio != null)
             {
-                audio.SfxAt(killed ? SfxKeys.MonsterDie : SfxKeys.Hit,
-                    target.worldX, target.worldY, target.worldZ);
+                if (killed)
+                {
+                    audio.SfxAt(Monster.MonsterSfx.DieOf(target) ?? SfxKeys.MonsterDie,
+                        target.worldX, target.worldY, target.worldZ);
+                }
+                else
+                {
+                    audio.SfxAt(SfxKeys.Hit, target.worldX, target.worldY, target.worldZ);
+                    var ownHit = Monster.MonsterSfx.HitOf(target);
+                    if (ownHit != null)
+                        audio.SfxAt(ownHit, target.worldX, target.worldY, target.worldZ);
+                }
             }
 
             if (amount > 0 || killed)

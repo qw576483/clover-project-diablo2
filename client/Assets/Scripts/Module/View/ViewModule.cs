@@ -454,7 +454,17 @@ namespace Diablo2.Module.View
                 //   见 `tools/probes/hosts/animcheck`）—— 顺序 = Death > Hit > Attack > (Walk|Idle)。
                 //   ⛔ 原版怪物只有 `NU`/`WL`/`A1`/`GH`/`DT` 五个模式；`RN`/`SC` 的触发条件缺出处 ⇒
                 //      这里不给它们造句（`zm`/`cr` 有 RN、`wr` 有 SC，登记见回报）。
-                var want = ViewAnimState.SelectMonster(state.alive, state.hitStun, state.attacking, moved);
+                // ★ 片 monster-audio（E28）：`state.hitStun` 只有 0.18s（`MonsterTuning.HitStunSeconds`），
+                //   而怪物受击动作最长 9 帧 @12fps = 0.75s（堕落者 `fa` = 7 帧 = 0.583s）
+                //   ⇒ 硬直一结束 `UpdateMonster` 就把 `Hit` 顶成 Idle/Walk，**只渲染出前 3/7 帧**。
+                //   修法与玩家侧同源（`ViewAnimState.IsHitHolding`）：受击动作**播完**才回落，
+                //   ⛔ 不新增任何时长常量（保持时长 = 该单位受击动作的真实帧数 ÷ 基准帧率）。
+                //   `state.hitStun ||` 保留：AI 的硬直语义（不动/不出手）仍是它，且帧数=1 的单位
+                //   （`IsHitHolding` 恒假）仍靠它撑住受击档。
+                var hitAnimPlaying = ViewAnimState.IsHitHolding(
+                    v.Playing, v.Anim.FrameCount, v.Anim.Finished);
+                var want = ViewAnimState.SelectMonster(state.alive, state.hitStun || hitAnimPlaying,
+                    state.attacking, moved);
                 // ★ 朝向变了也要重取帧键：原版是 8 方向逐帧动画，"动作没变但换了朝向"= 换整套帧。
                 //   只按 `want != v.Playing` 判会吞掉换方向 ⇒ 怪物"朝西走却放着朝南的动画"。
                 if (dirChanged || want != v.Playing) PlayAnim(v, want, SpriteFrames.LoopOf(want));
@@ -905,6 +915,16 @@ namespace Diablo2.Module.View
             {
                 v.NeedsFrameRefresh = false;
                 ApplyFrame(v);
+            }
+
+            // ★ 片 monster-audio（E28 配套）：怪物受击动作播完 ⇒ **主动**回落 Idle。
+            //   为什么还要这一处：`MonsterModule.Tick` 只在「位移 / 硬直结束」时置 `ViewDirty`，
+            //   站着挨打完的怪（玩家已跑开、怪不再移动）可能**不再**收到 `UpdateMonster`
+            //   ⇒ 只改 `UpdateMonster` 那一处会让它停在受击末帧。移动中的怪下一帧就会被
+            //   `UpdateMonster` 顶成 Walk（Monster 排在 View 之前），所以这里回落 Idle 不会打架。
+            if (!v.IsPlayer && !v.Dead && v.Playing == ViewAnim.Hit && v.Anim.Finished)
+            {
+                PlayAnim(v, ViewAnim.Idle, SpriteFrames.LoopOf(ViewAnim.Idle));
             }
 
             // 死亡动画播完 ⇒ 尸体半透明（只做一次）
