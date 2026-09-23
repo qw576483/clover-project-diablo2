@@ -168,6 +168,7 @@ namespace SaveCheck
             Run(Step10_NonJsonExtension);
             Run(Step11_FailurePaths);
             Run(Step12_LoadFailureClassification);
+            Run(Step13_SavedAreaIdMatchesLiveArea);
 
             Console.WriteLine();
             Console.WriteLine("──────────────────────────────────────────────────────────────────");
@@ -790,6 +791,115 @@ namespace SaveCheck
                 r7MissingDisc && r7BadDisc && r7SuccessDisc,
                 $"①档不存在={r7MissingDisc} ②损坏={r7BadDisc} ③成功={r7SuccessDisc}"
                 + "（修前：两情况同返 null 且无任何判别位 / 无事件 ⇒ 见 `.ai-tmp/test/audit-C-logic-num.md` §2 R7）");
+            Console.WriteLine();
+        }
+
+        // ── 13. ★ 片 save-areaid：`SaveModule.Save()`（无参 / Live 收集）必须落盘"当时所在区域" ──
+
+        /// <summary>
+        /// ★ 片 save-areaid（缺陷出处：前片 `rebuild-entries` 实测 + 本片 49/49 存档全量反证）。
+        /// <para>缺陷：`AppFlow.SaveCurrentCharacter`（`AppFlow.cs:1602`）调的是**无参** `ISaveModule.Save()`，
+        /// 而它在 `SaveModule.cs:167` **新造**一个 `CharacterSave` 逐字段收集 —— `areaId` **全仓没有写者**
+        /// （`PlayerModule.WriteTo:473` 明文「areaId … 这里不碰」，`SaveModule.cs:179-180` 只落了 `mapSeed`）
+        /// ⇒ 落盘 `"areaId":0` ⇒ 读档 `GoStage(ToArea(save.areaId))` **一律回营地**。
+        /// 注意 `AppFlow._selected.areaId` 是对的（`EnterArea:1463`）—— 它**不是**落盘对象，这就是
+        /// "谁把 areaId 改回 0"查不出来的原因。</para>
+        /// <para>⛔ 断言放**入口本身**（真 `SaveModule.Save()` + 桩模块），⛔ 不复制 SaveModule.cs、
+        /// ⛔ 不新造"算 areaId"的第二条路径（否则测的是测试自己的算术）。</para>
+        /// </summary>
+        private static void Step13_SavedAreaIdMatchesLiveArea()
+        {
+            Section("13. ★ 片 save-areaid：无参 `SaveModule.Save()` 必须把**当时所在区域**写进存档（且往返一致）");
+
+            var dir = Path.Combine(_work, "s13-area");
+            FreshDir(dir);
+            var savesDir = Path.Combine(dir, "saves");
+
+            // Live 状态：玩家在**血腥荒野**（area=1）的野外格 (9,60)，本局 seed = 20260924
+            const int LiveArea = (int)AreaId.BloodMoor;      // 桩枚举值 = 1（见 Def/Enums.cs 的 AreaId）
+            const int LiveX = 9;
+            const int LiveY = 60;
+            const int LiveSeed = 20260924;
+
+            // 独立上下文（⛔ 不串 Step12 那个 `ctx`：那里没有 Map/Player）
+            Diablo2.App.AppContext.ResetStaticForNewPlaySession();
+            Game.Event = new ConsoleEventBus();
+            Game.Launch(new GameConfig { SettingDir = dir });
+            Game.Logger = _log;
+            Game.Setting = new Setting(dir);
+
+            var map = new StubMap { Area = (AreaId)LiveArea, Seed = LiveSeed };
+            var player = new StubPlayer { Name = "AreaHero" };
+            player.TeleportTo(new UnityEngine.Vector2Int(LiveX, LiveY));   // ⛔ 本文件不 using UnityEngine（避免与引擎门面撞名）
+            var ctx = Diablo2.App.AppContext.Create();
+            ctx.Map = map;
+            ctx.Player = player;
+            var save = new SaveModule();
+            ctx.Save = save;
+
+            Check("前提：Live 状态就位（地图已生成 + 玩家在 area=1 的野外格 + 槽位目录 = SettingDir/saves）",
+                save.Ready && map.IsGenerated && (int)map.Area == LiveArea &&
+                player.Grid.x == LiveX && player.Grid.y == LiveY,
+                $"Ready={save.Ready} map.Area={(int)map.Area} seed={map.Seed} player=({player.Grid.x},{player.Grid.y})");
+
+            // ── 被验证入口 = `AppFlow.SaveCurrentCharacter` 真正调的那个（无参）────────────
+            var savedOk = save.Save();
+            Check("被验证入口就位：`SaveModule.Save()`（无参）返回 true（Live 收集 + 落盘都成功）",
+                savedOk, "LastError=\"" + save.LastError + "\"");
+
+            var slotPath = Path.Combine(savesDir, player.Name + ".json");
+            var text = File.Exists(slotPath) ? File.ReadAllText(slotPath) : null;
+            Console.WriteLine("      落盘槽位 = " + slotPath + "（存在=" + File.Exists(slotPath) +
+                "，大小=" + (text == null ? 0 : text.Length) + "B）");
+
+            string perr;
+            var back = SaveJson.TryParse(text, out perr);
+            Console.WriteLine("      落盘 JSON 的 areaId/gridX/gridY/mapSeed = " +
+                (back == null ? ("(解析失败:" + perr + ")") :
+                 (back.areaId + " / " + back.gridX + " / " + back.gridY + " / " + back.mapSeed)));
+
+            // ── 断言 1：写侧忠实记录"当时所在区域" ────────────────────────────────
+            Check("★ 断言1（写侧）：`area≠0` 时保存 ⇒ 落盘 JSON 的 `areaId` == **当时所在区域**（" +
+                  LiveArea + " = " + (AreaId)LiveArea + "）",
+                back != null && back.areaId == LiveArea,
+                back == null ? ("解析失败：" + perr) : ("实测 areaId=" + back.areaId + "，期望 " + LiveArea));
+
+            Check("★ 断言1b（同批同源）：位置与 seed 也来自**同一份 Live 状态**（防「只修了 areaId、其余仍错」）",
+                back != null && back.gridX == LiveX && back.gridY == LiveY && back.mapSeed == LiveSeed,
+                back == null ? "(null)" : ($"grid=({back.gridX},{back.gridY}) 期望=({LiveX},{LiveY})；" +
+                    $"mapSeed={back.mapSeed} 期望={LiveSeed}（seed 同源 = `SaveModule.cs:180` 的 `map.Seed`）"));
+
+            // ── 断言 2：存档 → 反序列化 → 再序列化 幂等（防「只修了单向」）─────────
+            var json2 = back == null ? null : SaveJson.Write(back);
+            Check("★ 断言2（幂等·逐字节）：`Write(Parse(落盘原文)) == 落盘原文`",
+                back != null && json2 == text,
+                back == null ? "(解析失败)" :
+                    ("原文=" + text.Length + "B / 再序列化=" + (json2 == null ? 0 : json2.Length) + "B" +
+                     (json2 == text ? "" : "（不一致）")));
+
+            CharacterSave back2 = null;
+            if (json2 != null) { string e2; back2 = SaveJson.TryParse(json2, out e2); }
+            Check("★ 断言2b（幂等·字段）：`areaId` / `gridX` / `gridY` 二次往返**一项不变**" +
+                  "（`visited` 这一维**无法在此断言** —— `CharacterSave` 里根本没有该字段，属同族缺口，见报告表格）",
+                back2 != null && back2.areaId == LiveArea && back2.gridX == LiveX && back2.gridY == LiveY,
+                back2 == null ? "(null)" :
+                    ($"二次 areaId={back2.areaId} grid=({back2.gridX},{back2.gridY})"));
+
+            // ── 断言 3：读侧 —— 读回来的 area 就是存档时的 area ────────────────────
+            CharacterSave loaded;
+            var loadOk = save.TryLoad(player.Name, out loaded);
+            Check("★ 断言3（读侧）：`TryLoad` 回来的 `areaId` == 存档时的区域" +
+                  "（⇒ `AppFlow` 的 `GoStage(ToArea(save.areaId))` 会进**同一张图**，见 `AppFlow.cs:1241`）",
+                loadOk && loaded != null && loaded.areaId == LiveArea && (AreaId)loaded.areaId == (AreaId)LiveArea,
+                loaded == null ? ("TryLoad=" + loadOk + " LastError=\"" + save.LastError + "\"") :
+                    ("读回 areaId=" + loaded.areaId + "（(AreaId)" + loaded.areaId + " = " + (AreaId)loaded.areaId + "），" +
+                     "位置=(" + loaded.gridX + "," + loaded.gridY + ")；期望 " + LiveArea));
+
+            // ── 运行时证据行（数值类判据的锚点：日志里能直接看到"收集到的区域"）────────
+            var anchor = "区域=" + LiveArea + " 位置=(" + LiveX + "," + LiveY + ")";
+            Check("运行时证据行：`[Save] 收集完成 … " + anchor + "` 已打出（本片数值类判据的锚点行）",
+                _log.Count(anchor) >= 1, "命中 " + _log.Count(anchor) + " 行");
+
             Console.WriteLine();
         }
 

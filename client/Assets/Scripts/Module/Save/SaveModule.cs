@@ -177,12 +177,33 @@ namespace Diablo2.Module.Save
             WriteSkills(data);                                   // 技能（`ISkillModule` 没有 WriteTo ⇒ 反查）
 
             var map = Map;
-            if (map != null && map.IsGenerated) data.mapSeed = map.Seed;   // 本局地图 seed（读档要复现同一张图）
+            if (map != null && map.IsGenerated)
+            {
+                data.mapSeed = map.Seed;        // 本局地图 seed（读档要复现同一张图）
+                // ★ save-areaid 修复（2026-09-24）：**所在区域也由地图负责**，与 mapSeed 同源同分支。
+                //   缺陷（前片 `rebuild-entries` 实测 + 本片 49/49 存档全量反证）：本方法在 :167 **新造**
+                //   一个 `CharacterSave`，从 Live 模块逐字段收集；而 `areaId` **全仓没有写者** ——
+                //   `PlayerModule.WriteTo`（:471-473 注释明文「mapSeed / areaId … 这里不碰」）、
+                //   `ItemModule.WriteTo` / `QuestModule.WriteTo` / `WriteSkills` 都不写它
+                //   ⇒ 落盘 `"areaId":0`（= 默认值），读档 `GoStage(ToArea(save.areaId))` 于是**一律回营地**。
+                //   注意：`AppFlow._selected.areaId`（`EnterArea`/`GoStage` 会写）**不是**落盘对象 ——
+                //   `AppFlow.SaveCurrentCharacter` 调的是**无参** `Save()`，它只认这里的 Live 收集。
+                //   判据同源：`AppFlow.EnterArea` 的"过门闸门"用的就是 `IMapModule.Area`（玩家脚下那张图）。
+                data.areaId = (int)map.Area;
+            }
+            else
+            {
+                // 非预期分支（进图前/地图不可用）：⛔ 不静默 —— 留痕说明 areaId 取了默认值（= 营地），
+                // 免得下次又变成"读档回营地"这类无声错。
+                Log.Warn("Save", $"[Save] IMapModule 未接入或地图未生成（map={(map == null ? "null" : "IsGenerated=false")}）"
+                    + $" ⇒ 本次存档的 `areaId` 只能取默认值 {data.areaId}（= {AreaId.Town}），读档会落回营地");
+            }
 
             data.playedSeconds = _sessionBasePlayed + ElapsedSinceBase();
 
             Log.Info("Save", $"[Save] 收集完成：{data.name} 职业={data.cls} 等级={data.level} 金币={data.gold} "
-                + $"背包锚点={CountAnchors(data)} 装备={data.equip.Count} 技能={data.skillIds.Count} seed={data.mapSeed}");
+                + $"背包锚点={CountAnchors(data)} 装备={data.equip.Count} 技能={data.skillIds.Count} "
+                + $"区域={data.areaId} 位置=({data.gridX},{data.gridY}) seed={data.mapSeed}");
             return Save(data);
         }
 
