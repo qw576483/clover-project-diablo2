@@ -142,6 +142,7 @@ namespace CombatCheck
             Run(Step17_WeaponDamageSkills);              // ★ 片 N：审计 R1/R2（武器伤害类技能）
             Run(Step18_AttackShape);                     // ★ C3：攻击判定形状（扇形/矩形/线段，不是圆）
             Run(Step19_SameCellMeleeHit);                // ★ melee-samecell：同格攻击必须结算（真实链路）
+            Run(Step20_MeleeLineBlocked);                // ★ lineclear-fix：线段被地形阻断时怪不许出手（隔墙挥空）
             Run(Step12_UnwiredDegradation);
             Run(Step13_AutoWireContract);   // 放最后：它会新建一个 AppContext（真实游戏走的就是 AutoWire）
 
@@ -521,12 +522,21 @@ namespace CombatCheck
             //   （见上一条注释的出处），`MonsterAi.Ranged` 在格距 < `MonsterTuning.RangedKeepDistance`(4.0)
             //   时先后撤、**后撤期间不射击** ⇒ 窗口必须覆盖"从 0 格撤到 4.0 格"这一段：
             //   4.0 格 ÷ 该怪的格每秒速度（出处见 `TilesPerSecondOf`） + 出手余量。
+            //
+            // ★ 片 melee-ai-why ②（主 agent 裁决的登记项①）：`attacks` 改成**窗口内差值**口径。
+            //   `Trace` 是**全局累计**且全程从不 `Clear()` ⇒ 累计量会把"本窗口内实际出手 **0** 次"
+            //   报成"有出手"（= "跳过却记 OK" 的同类隐患）。与 `AiCowardFlees` 那条（:555-560）同款。
+            //   ⚠️ 实测（退化校验 B，`.ai-tmp/test/maw_degB_range_oldcount.txt`）：本场景这只尖刺鼠
+            //   在窗口**前**的累计量恰为 **0** ⇒ 两种口径当前**同值**（⛔ 不存在"本来红、被修绿"）。
+            //   但本片已把 `AiMelee` 的窗口从 6s 拉长到 ~19s/候选，上游任一改动让怪在窗口前出手，
+            //   累计口径就会立刻误判 ⇒ 本条是**隐患消除**；⛔ 判据行与阈值一字未改，⛔ 不是放宽。
+            var atkBefore = Trace.AttacksBy(m.id);
             TickSim(EventWindowSeconds(MonsterTuning.RangedKeepDistance / TilesPerSecondOf(m)));
 
             var after = DistanceToPlayer(m.Grid());
-            var attacks = Trace.AttacksBy(m.id);
+            var attacks = Trace.AttacksBy(m.id) - atkBefore;
             Console.WriteLine($"  Range（m#{m.id} {m.name}）：距离 {before:0.00} → {after:0.00} 格，" +
-                              $"该怪出手 {attacks} 次（玩家原地不动）");
+                              $"该怪出手 {attacks} 次（**窗口内差值**；玩家原地不动）");
             Check("Range：不会贴脸（保持距离 > 3.4 格）", after > MonsterKeepDistance() - 0.6f, $"{after:0.00}");
             Check("Range：在射程内出手射击", attacks > 0, $"出手 {attacks} 次");
         }
@@ -2752,6 +2762,178 @@ namespace CombatCheck
             Check("同格攻击造成了伤害（40 次内至少命中一次）", hit,
                 $"m#{target.id} hp={target.hp} alive={target.alive}");
             Console.WriteLine();
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 20. ★ lineclear-fix：**线段被地形阻断 ⇒ 怪不许出手**（"隔墙反复挥空"的回归）
+        // ═════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// 缺陷（前片 `melee-ai-why` §7 登记③，用户可见）：结算层 `RequestMonsterAttack` 判"线段被不可走
+        /// 地形阻断"时**只打日志就 return**，而发起方 `MonsterAi.TryAttack` 在发起前已经把
+        /// **出手动画 / 出手音效 / 出手计时器**都写好了 ⇒ 怪每 `AttackIntervalSeconds` 挥一次空，
+        /// 且永不知道自己被拒（死循环）。
+        /// <para>
+        /// 本用例把这条钉在**真实链路**上（不是纯函数）：
+        /// ① 在真图上找一组「格距 ≤ `GameConst.MeleeRange`（够得着）但 `LineClear` 判不通（看不见）」的
+        ///    （怪格, 玩家格）；
+        /// ② 逐 tick 采样"该 tick 决策时线段是否被挡"，只把**被挡 tick** 里发生的
+        ///    **出手（音效 = `MonsterModule.RequestMonsterAttack` 的第一句）** 与
+        ///    **结算层拒绝（`monatk.blocked` 日志）** 记进计数；
+        /// ③ 断言两者都 == 0（修前：每 1.10s 一次 ⇒ 必然 > 0）。
+        /// </para>
+        /// <para>
+        /// ⛔ 为什么不数 `Trace.AttacksBy`：被拒的出手**不会**产生 `DamageDealt` 事件（结算层在
+        /// `LineClear` 就 return 了）⇒ 用伤害事件数**看不见**本缺陷（这正是它藏了这么久的原因）。
+        /// 可观测的"挥手"只有两处：出手音效（在结算之前播）与结算层拒绝日志。
+        /// </para>
+        /// <para>
+        /// ⛔ 判据/阈值一字未放宽：本用例只**新增**断言，不改任何既有用例。
+        /// </para>
+        /// </summary>
+        private static void Step20_MeleeLineBlocked()
+        {
+            Section("20. ★ lineclear-fix：线段被地形阻断时近战怪**不许出手**（隔墙挥空）");
+
+            var n8 = new[]
+            {
+                new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1),
+                new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1),
+            };
+
+            PrepareMap(AreaId.BloodMoor, 20250924);
+            _ctx.Monster.SpawnArea(AreaId.BloodMoor);
+
+            MonsterState target = null;
+            var spot = Vector2Int.zero;
+
+            // 找「够得着（格距 ≤ MeleeRange）但看不见（LineClear 不通）」的一组（怪, 玩家格）。
+            // 野外找不到就换地牢（角落更多）；两处都找不到 ⇒ 用例失败并如实报（⛔ 不许静默跳过）。
+            var areas = new[] { AreaId.BloodMoor, AreaId.DenOfEvil };
+            for (var ai = 0; ai < areas.Length && target == null; ai++)
+            {
+                if (ai > 0)
+                {
+                    PrepareMap(areas[ai], 20250924);
+                    _ctx.Monster.SpawnArea(areas[ai]);
+                }
+
+                foreach (var cand in _ctx.Monster.All)
+                {
+                    if (cand == null || !cand.alive || cand.ai != MonsterAI.Melee) continue;
+                    var a = cand.Grid();
+                    for (var i = 0; i < n8.Length; i++)
+                    {
+                        var b = new Vector2Int(a.x + n8[i].x, a.y + n8[i].y);
+                        if (!_ctx.Map.InBounds(b) || !_ctx.Map.Walkable(b)) continue;
+                        if (Iso.GridDistanceEuclidean(a, b) > GameConst.MeleeRange) continue;   // 必须"够得着"
+                        if (CombatModule.AttackLineClear(a, b)) continue;                       // 必须"看不见"
+                        target = cand;
+                        spot = b;
+                        break;
+                    }
+                    if (target != null) break;
+                }
+            }
+
+            Check("找到「近战怪 + 够得着但线段被地形阻断的玩家格」这一组用例", target != null,
+                target != null
+                    ? $"m#{target.id} {target.name}（{target.ai}）格 {target.Grid()} ← 玩家格 {spot}"
+                      + $"（格距 {Iso.GridDistanceEuclidean(target.Grid(), spot):0.00} ≤ {GameConst.MeleeRange:0.00}，"
+                      + $"LineClear={CombatModule.AttackLineClear(target.Grid(), spot)}）"
+                    : "BloodMoor / DenOfEvil 两个区域都没找到这种角（⛔ 不是跳过，是本用例无法构造）");
+            if (target == null) return;
+
+            _player.SetGrid(spot, Iso.DirectionTo(spot, target.Grid()));
+
+            // 出手的**可观测标记** = 出手音效（`MonsterModule.RequestMonsterAttack` 在把球交给结算层
+            // **之前**就播了它；被拒的出手也会播 ⇒ 它才是"挥了几次手"的计数器）。
+            var attackKey = MonsterSfx.AttackOf(target) ?? SfxKeys.MonsterAttack;
+            const string rejectNeedle = "线段被不可走地形阻断";      // `CombatModule.RequestMonsterAttack` 的拒绝文案
+            const string aggroNeedle = "aggro m#";                   // `MonsterAi.UpdateEngagement` 进入仇恨
+
+            // 窗口 = 4 × 出手间隔（= 4.40s ⇒ 修前至少有 4 次出手机会）
+            var steps = (int)(MonsterTuning.AttackIntervalSeconds * 4f / Dt);
+            var blockedSteps = 0;
+            var swingsWhileBlocked = 0;
+            var rejectsWhileBlocked = 0;
+            var swingsTotal = 0;
+            var prevSfx = SfxCount(attackKey);
+            var prevRej = _log.Count(rejectNeedle);
+
+            for (var s = 0; s < steps; s++)
+            {
+                // 决策帧的"线段是否被挡"：AI 在本 tick 开头用**当时的格**判定 ⇒ 先采样再 Tick
+                var blocked = !CombatModule.AttackLineClear(target.Grid(), _player.Grid);
+                _ctx.Monster.Tick(Dt);
+                _ctx.Combat.Tick(Dt);
+
+                var sfxNow = SfxCount(attackKey);
+                var rejNow = _log.Count(rejectNeedle);
+                var dSwing = sfxNow - prevSfx;
+                var dRej = rejNow - prevRej;
+                prevSfx = sfxNow;
+                prevRej = rejNow;
+                swingsTotal += dSwing;
+                if (!blocked) continue;
+                blockedSteps++;
+                swingsWhileBlocked += dSwing;
+                rejectsWhileBlocked += dRej;
+            }
+
+            Console.WriteLine($"  m#{target.id} {target.name}：窗口 {steps * Dt:0.00}s（4 × 出手间隔 "
+                + $"{MonsterTuning.AttackIntervalSeconds:0.00}s），其中**线段被挡**的决策帧 {blockedSteps}/{steps}；"
+                + $"被挡帧内出手 {swingsWhileBlocked} 次、结算层拒绝 {rejectsWhileBlocked} 次"
+                + $"（音效键 {attackKey}；全窗口出手 {swingsTotal} 次）");
+
+            Check("用例真的成立：窗口里有 **线段被阻断** 的决策帧（否则本用例是空转）",
+                blockedSteps > 0, $"{blockedSteps}/{steps} 帧（阈值 = > 0）");
+            Check("★ 线段被阻断时 **出手 0 次**（怪物不再隔墙挥空）",
+                swingsWhileBlocked == 0, $"出手 {swingsWhileBlocked} 次（被挡帧 {blockedSteps}；修前每 "
+                + $"{MonsterTuning.AttackIntervalSeconds:0.00}s 一次 ⇒ 必然 > 0）");
+            Check("★ 结算层 **一次都没有** 因线段阻断拒绝（发起方已在出手前自检）",
+                rejectsWhileBlocked == 0, $"被拒 {rejectsWhileBlocked} 次（日志含「{rejectNeedle}」；"
+                + "`WarnThrottled` 只印第 1/10/100… 次 ⇒ 这个数是**节流后的下限**，0 才是「一次都没有」）");
+            Check("用例真的进入了仇恨（不是「怪没发现玩家」导致的空转）",
+                _log.Has(aggroNeedle + target.id), $"日志含 \"{aggroNeedle}{target.id}\"");
+
+            // ── 通畅对照（防"把正常攻击也一起掐掉"）──────────────────────────────
+            var a2 = target.Grid();
+            var open = Vector2Int.zero;
+            var foundOpen = false;
+            for (var i = 0; i < n8.Length && !foundOpen; i++)
+            {
+                var b = new Vector2Int(a2.x + n8[i].x, a2.y + n8[i].y);
+                if (!_ctx.Map.InBounds(b) || !_ctx.Map.Walkable(b)) continue;
+                if (Iso.GridDistanceEuclidean(a2, b) > GameConst.MeleeRange) continue;
+                if (!CombatModule.AttackLineClear(a2, b)) continue;
+                open = b;
+                foundOpen = true;
+            }
+            Check("对照用例：找到「够得着 **且** 线段通畅」的玩家格", foundOpen,
+                foundOpen ? $"怪格 {a2} ← 玩家格 {open}" : $"怪格 {a2} 的 8 邻里没有够得着且通畅的可走格");
+            if (!foundOpen) return;
+
+            _player.SetGrid(open, Iso.DirectionTo(open, a2));
+            var sfx0 = SfxCount(attackKey);
+            TickSim(MonsterTuning.AttackIntervalSeconds * 2f);
+            var swingsOpen = SfxCount(attackKey) - sfx0;
+            Console.WriteLine($"  对照（同距离、无墙）：玩家格 {open}，怪在窗口 "
+                + $"{MonsterTuning.AttackIntervalSeconds * 2f:0.00}s 内出手 {swingsOpen} 次");
+            Check("★ 对照：线段通畅时同一只怪**会**正常出手（防把正常攻击一起掐掉）",
+                swingsOpen > 0, $"出手 {swingsOpen} 次（阈值 = > 0）");
+            Console.WriteLine();
+        }
+
+        /// <summary>数一数 `RecordingAudio` 里某个音效键被播了几次（= 本片"挥了几次手"的计数器）。</summary>
+        private static int SfxCount(string key)
+        {
+            var needle = "sfxAt:" + key;
+            var n = 0;
+            for (var i = 0; i < _audio.Calls.Count; i++)
+            {
+                if (string.Equals(_audio.Calls[i], needle, StringComparison.Ordinal)) n++;
+            }
+            return n;
         }
 
         private static void Section(string title)
