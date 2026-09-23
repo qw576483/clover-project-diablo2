@@ -147,6 +147,7 @@ namespace Uicheck
             CheckFlowMenuLayout();      // ★ agent-15 §A：流程面板 1:1（原版 800×600 → 1920×1080 逐元素 ×1.8 居中）
             CheckCharCreateR1C();       // ★ R1-C：创角屏过渡逐帧矩形（不变形）+ 名字输入由面板驱动
             CheckNameDefaultReplace();  // ★ R1-F：默认名「Hero」是整体单元（首次键入整体替换 ⇒ 不再粘连）
+            CheckHoverRoundTrip();      // ★ hover-probe 片：悬停事件 D2.Input.HoverChanged 往返（消费侧）
             LoadingCheck.Run();         // ★ agent-a3：进图读条画面（原版 10 帧动画）+ 区域名弹出（LevelEntryTitle）
             P5Check.Run();              // ★ 片 5：死亡屏（EndGame）拼装+布局 / 小地图（原版 mapicon、标题已删）
                                         //   ★ w6：automap 素材「在不在」（AUTOMAP 图块表 + AutoMap.txt 不在本机；
@@ -1415,6 +1416,61 @@ namespace Uicheck
         //        `.png.meta`（Multiple 的子 sprite 名 = `ResPaths.Frame` 的产物）逐条核对。
         //    仍然不能离线验证的：贴图像素在屏幕上的实际观感 ⇒ 由主 agent 进 Play 截图（本文件末尾已声明）。
         // ═════════════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════════════
+        // 悬停事件 `D2.Input.HoverChanged` **往返**（★ hover-probe 片，消费侧）
+        //
+        //   为什么补它：状态矩阵 L3801/L3802 判「有订阅者（被消费）」，旧证据只引
+        //   `Core/Events.cs`（事件的**声明处本身**）⇒ 只证得出"事件名存在"，证不出"真有人收到"
+        //   （而且它正是被 freshness 比对的文件 ⇒ 恒红，见 report-hoverprobe.md）。
+        //   本宿主编的是 `UI/**` ⇒ 断言**消费侧**：① 常量 == 矩阵实体 id；② 真实订阅回调
+        //   真收到派发；③ 摘掉订阅方 ⇒ 收不到（退化校验，证明断言不是摆设）；
+        //   ④ 真实消费点 `UI/EntityTooltip.OnHoverChanged(Diablo2.Def.HoverTarget)` 存在
+        //      —— 反射查**编译产物**（不是 grep 文本）⇒ 改签名 / 删订阅必红。
+        //
+        //   ⚠️ 载荷类型必须写全限定名 `Diablo2.Def.HoverTarget`：本宿主 `using Diablo2.UI;`，
+        //      而 `UI/HoverTarget.cs` 里另有一个同名 MonoBehaviour ⇒ 裸写 `HoverTarget` 是 CS0104。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void CheckHoverRoundTrip()
+        {
+            Console.WriteLine("── 悬停事件 D2.Input.HoverChanged 往返（消费侧）──");
+
+            Check("事件名常量 == 状态矩阵实体 id `D2.Input.HoverChanged`",
+                Events.HoverTargetChanged == "D2.Input.HoverChanged", Events.HoverTargetChanged);
+
+            var received = 0;
+            Diablo2.Def.HoverTarget got = null;
+            Action<Diablo2.Def.HoverTarget> onHover = h => { received++; got = h; };
+
+            Game.Event.On<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, onHover);
+            var payload = new Diablo2.Def.HoverTarget
+            {
+                hasTarget = true, cursor = CursorKind.Attack, id = 4242,
+                name = "悬停自检", gridX = 7, gridY = 9,
+            };
+            Game.Event.Emit(Events.HoverTargetChanged, payload);
+
+            Check("★ 往返：真实订阅回调收到 `D2.Input.HoverChanged`（1 次 + 载荷同一实例）",
+                received == 1 && ReferenceEquals(got, payload),
+                got == null ? "回调收到 null"
+                            : $"回调 {received} 次 id={got.id} cursor={got.cursor} 同一实例={ReferenceEquals(got, payload)}");
+
+            // 退化校验：摘掉订阅方 ⇒ 同一条派发不再进回调（否则上面那条是恒绿的摆设）
+            Game.Event.Off<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, onHover);
+            var afterOff = received;
+            Game.Event.Emit(Events.HoverTargetChanged, payload);
+            Check("★ 退化：摘掉订阅方（Off）⇒ 同一条派发不再进回调（断言不是摆设）",
+                received == afterOff, $"回调 {afterOff} → {received}");
+
+            var mi = typeof(EntityTooltip).GetMethod("OnHoverChanged",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var ps = mi != null ? mi.GetParameters() : new ParameterInfo[0];
+            Check("★ 消费点存在：`UI/EntityTooltip.OnHoverChanged(Diablo2.Def.HoverTarget)`",
+                mi != null && ps.Length == 1 && ps[0].ParameterType == typeof(Diablo2.Def.HoverTarget),
+                mi == null ? "找不到 OnHoverChanged 方法"
+                           : $"{mi.Name}({(ps.Length == 1 ? ps[0].ParameterType.FullName : "参数个数=" + ps.Length)})");
+            Console.WriteLine();
+        }
+
         private static void CheckMenuArtBrightness()
         {
             Console.WriteLine("── ⑫ §C：原版屏亮度（Image.color 乘数）+ 原版按钮帧底图 ──");

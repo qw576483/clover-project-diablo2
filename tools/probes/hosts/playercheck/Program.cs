@@ -1747,6 +1747,53 @@ namespace PlayerCheck
             Check("留下了悬停命中日志（验收 #14 取证）", CaptureLogger.Has("[Hover] 首个悬停命中"),
                 CaptureLogger.Last("[Hover]"));
 
+            // ── A3. ★ hover-probe 片：`D2.Input.HoverChanged` **往返**（发送方 → 真实订阅回调）──
+            //   为什么补它：状态矩阵 L3801/L3802 的判定是「有订阅者（被消费）」，旧证据只引
+            //   `Events.cs` / `Contracts.cs`（事件的**声明处本身**）⇒ 只证得出"事件名 + 载荷类存在"，
+            //   证不出"真有人收到"。这里订阅一个真实回调，走真实入口 `InputReader.UpdateHover`
+            //   派发，断言回调**真的被调用**且载荷逐字段正确；再做**两条退化校验**
+            //   （摘掉发送方 / 摘掉订阅方 ⇒ 收不到），证明本断言不是摆设。
+            //   总线 = 宿主的 `RecordingEventBus`，`On/Off/Emit` 是**真派发**（不是只记账）。
+            {
+                var received = 0;
+                Diablo2.Def.HoverTarget got = null;
+                Action<Diablo2.Def.HoverTarget> onHover = h => { received++; got = h; };
+
+                reader.OverrideHoverGrid(emptyGrid);
+                reader.UpdateHover(true);                    // 归零到"空地"态 ⇒ 下一步目标一定变化
+
+                Game.Event.On<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, onHover);
+                var rtBus0 = bus.CountOf(Events.HoverTargetChanged);
+                reader.OverrideHoverGrid(monGrid);
+                var tRt = reader.UpdateHover(true);
+
+                Check("★ 往返：`D2.Input.HoverChanged` 真实订阅回调被调用 1 次（总线 +1）",
+                    received == 1 && bus.CountOf(Events.HoverTargetChanged) == rtBus0 + 1,
+                    $"回调 {received} 次 / 总线 +{bus.CountOf(Events.HoverTargetChanged) - rtBus0}（{Events.HoverTargetChanged}）");
+                Check("★ 往返：回调收到的载荷 == 派发的载荷（cursor=Attack / id=怪物 / 格=悬停格 / 同一实例）",
+                    got != null && got.hasTarget && got.cursor == CursorKind.Attack
+                    && got.id == monsterId && got.gridX == monGrid.x && got.gridY == monGrid.y
+                    && ReferenceEquals(got, tRt),
+                    got == null ? "回调收到 null"
+                                : $"hasTarget={got.hasTarget} cursor={got.cursor} id={got.id} " +
+                                  $"格=({got.gridX},{got.gridY}) 同一实例={ReferenceEquals(got, tRt)}");
+
+                // 退化①：摘掉**发送方**（`canInteract=false` ⇒ `UpdateHover` 冻结、不派发）
+                var rtRecv0 = received;
+                reader.OverrideHoverGrid(npcGrid);
+                reader.UpdateHover(false);
+                Check("★ 退化①：发送方冻结（canInteract=false）⇒ 回调收不到（断言不是摆设）",
+                    received == rtRecv0, $"回调 {rtRecv0} → {received}");
+
+                // 退化②：摘掉**订阅方**（`Off`）⇒ 同一条派发不再进回调
+                Game.Event.Off<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, onHover);
+                var rtRecvOff = received;
+                reader.OverrideHoverGrid(itemGrid);
+                reader.UpdateHover(true);
+                Check("★ 退化②：Off 之后同一条派发不再进回调（订阅/退订闭环）",
+                    received == rtRecvOff, $"回调 {rtRecvOff} → {received}");
+            }
+
             // ── F. 左键点怪 ⇒ AttackRequest 恰好 1 次 ──
             player.Stop();
             reader.OverrideHoverGrid(monGrid);

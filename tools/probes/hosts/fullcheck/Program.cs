@@ -647,6 +647,76 @@ namespace FullCheck
                 mapAttach != null && viewAttach != null,
                 $"{ctx.Map.GetType().Name}.AttachRoot={(mapAttach != null)} / {ctx.View.GetType().Name}.AttachRoot={(viewAttach != null)}" +
                 "；真实 Transform 由 `StageRoots` / `Bootstrap` 序列化字段提供（见回报「待 agent-10」）");
+
+            // ── 3b. ★ hover-probe 片：`D2.Input.HoverChanged` **往返**（发送方 + 消费方都在线）──
+            //   为什么补它：状态矩阵 L3801/L3802 判「有订阅者（被消费）」，旧证据只引
+            //   `Core/Events.cs` / `Module/Contracts.cs`（事件的**声明处本身**）⇒ 只证得出
+            //   "事件名 + 载荷类存在"，证不出"真有人收到"（而且它就是 freshness 比对的文件 ⇒ 恒红）。
+            //   本宿主是**唯一同时编进 `Module/Input/InputReader`（发送方）与 `UI/EntityTooltip`
+            //   （消费方）**的宿主 ⇒ 两端都要断言，并做退化校验（摘掉订阅方 ⇒ 收不到）。
+            //   ⚠️ 载荷类型写全限定名 `Diablo2.Def.HoverTarget`：`using Diablo2.UI;` 下另有一个
+            //      同名 MonoBehaviour（`UI/HoverTarget.cs`）⇒ 裸写 `HoverTarget` 是 CS0104。
+            Check("事件名常量 == 状态矩阵实体 id `D2.Input.HoverChanged`",
+                Events.HoverTargetChanged == "D2.Input.HoverChanged", Events.HoverTargetChanged);
+
+            var hoverReceived = 0;
+            Diablo2.Def.HoverTarget hoverGot = null;
+            Action<Diablo2.Def.HoverTarget> onHover = h => { hoverReceived++; hoverGot = h; };
+
+            Game.Event.On<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, onHover);
+            var hoverPayload = new Diablo2.Def.HoverTarget
+            {
+                hasTarget = true, cursor = CursorKind.Attack, id = 4242,
+                name = "悬停自检", gridX = 7, gridY = 9,
+            };
+            Game.Event.Emit(Events.HoverTargetChanged, hoverPayload);
+
+            Check("★ 往返：真实订阅回调收到 `D2.Input.HoverChanged`（1 次 + 载荷同一实例）",
+                hoverReceived == 1 && ReferenceEquals(hoverGot, hoverPayload),
+                hoverGot == null ? "回调收到 null"
+                                 : $"回调 {hoverReceived} 次 id={hoverGot.id} cursor={hoverGot.cursor}" +
+                                   $" 同一实例={ReferenceEquals(hoverGot, hoverPayload)}");
+
+            Game.Event.Off<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, onHover);
+            var hoverAfterOff = hoverReceived;
+            Game.Event.Emit(Events.HoverTargetChanged, hoverPayload);
+            Check("★ 退化：摘掉订阅方（Off）⇒ 同一条派发不再进回调（断言不是摆设）",
+                hoverReceived == hoverAfterOff, $"回调 {hoverAfterOff} → {hoverReceived}");
+
+            // 发送方入口（真派发的那一支）：`InputReader.UpdateHover(bool)` 必须存在且在
+            // `PlayerModule.Tick` 里被调 —— 前者反射查编译产物，后者查源码行（口径见回报）。
+            var upd = typeof(InputReader).GetMethod("UpdateHover",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic);
+            Check("★ 发送方入口存在：`Module/Input/InputReader.UpdateHover(bool)`",
+                upd != null && upd.GetParameters().Length == 1
+                && upd.GetParameters()[0].ParameterType == typeof(bool),
+                upd == null ? "找不到 UpdateHover"
+                            : $"{upd.Name}({upd.GetParameters()[0].ParameterType.Name})");
+
+            var et = typeof(EntityTooltip).GetMethod("OnHoverChanged",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic);
+            var etPs = et != null ? et.GetParameters() : new System.Reflection.ParameterInfo[0];
+            Check("★ 消费点存在：`UI/EntityTooltip.OnHoverChanged(Diablo2.Def.HoverTarget)`",
+                et != null && etPs.Length == 1 && etPs[0].ParameterType == typeof(Diablo2.Def.HoverTarget),
+                et == null ? "找不到 OnHoverChanged"
+                           : $"{et.Name}({(etPs.Length == 1 ? etPs[0].ParameterType.FullName : "参数个数=" + etPs.Length)})");
+
+            // 宿主没有 `using System.IO`（保持既有 using 不动）⇒ 一律写全名。
+            var irSrc = ClientAssets + @"\Scripts\Module\Input\InputReader.cs";
+            var emitLine = System.IO.File.Exists(irSrc)
+                ? Array.FindIndex(System.IO.File.ReadAllLines(irSrc), l => l.Contains("Emit(Events.HoverTargetChanged"))
+                : -1;
+            Check("★ 发送方真的 Emit：`InputReader.cs` 里存在 `Emit(Events.HoverTargetChanged, …)`",
+                emitLine >= 0, emitLine >= 0 ? $"{irSrc}:{emitLine + 1}" : ("读不到 " + irSrc));
+
+            var pmSrc = ClientAssets + @"\Scripts\Module\Player\PlayerModule.cs";
+            var callLine = System.IO.File.Exists(pmSrc)
+                ? Array.FindIndex(System.IO.File.ReadAllLines(pmSrc), l => l.Contains("_input.UpdateHover("))
+                : -1;
+            Check("★ 发送方每帧被驱动：`PlayerModule.cs` 里存在 `_input.UpdateHover(` 调用",
+                callLine >= 0, callLine >= 0 ? $"{pmSrc}:{callLine + 1}" : ("读不到 " + pmSrc));
             Console.WriteLine();
         }
 
