@@ -778,7 +778,12 @@ namespace Diablo2.Module.Player
                 if (InputReader.ShouldRetarget(_motor.Grid, _holdTarget, held))
                 {
                     _holdTarget = held;
-                    PlayerLog.Move($"按住左键改目标 held=({held.x},{held.y})（变化超过 1 格才重算路径）");
+                    // ⚠️ 2026-09-23 主 agent 修文案（**措辞过时，行为早已不同**）：旧文案写「变化超过 1 格才重算路径」，
+            //   那是 `InputReader.ShouldRetarget` 旧口径（差 1 格 / 点到脚下就忽略 ⇒ 用户报的「鼠标在人附近
+            //   移动时候没效果，必须要远」）的遗留措辞。现口径见 `InputReader.cs:297`：**第一次按下必下发；
+            //   目标格没变才节流；只要目标格变了就跟着光标重算（脚下格 / 相邻格同样算）**。
+            //   ⇒ 文案与代码不一致会误导下一棒（以为"近处忽略"是设计），故同步为实际行为。
+            PlayerLog.Move($"按住左键改目标 held=({held.x},{held.y})（目标格变了就重算，含脚下格 / 相邻格）");
                     Emit(Events.MoveCommand, held);
                 }
                 return;
