@@ -53,6 +53,9 @@
     <!-- 引擎门面替身：**复用 flowcheck 那一份**（同一份文件，两个宿主共用，改一处即同步） -->
     <Compile Include="GroundItemLabelCheck.cs" />
     <Compile Include="V6Check.cs" />
+    <!-- ★ 片 automap-panel：automap 绘制载体有效性（尺寸 / 墨量 / alpha / 接线）—— 独立文件，
+         避免与 Program.cs / V6Check.cs 的并发改动冲突 -->
+    <Compile Include="AutomapCarrierCheck.cs" />
     <Compile Include="..\flowcheck\shim\EngineShim.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制；文件集与 flowcheck 一致） -->

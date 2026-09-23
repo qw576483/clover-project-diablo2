@@ -160,6 +160,9 @@ namespace Uicheck
             GroundItemLabelCheck.Run(); // ★ 片 impl-K-ui：R8 底图射线全量表（含表完整性）+ R5 地面物品名牌纯函数/接线
             U4Check.Run();              // ★ 片 U4：automap 不压暗 / 悬停世界→格换算近距精确 / tooltip 折行 / 拖拽落点 PlanDrop
             V6Check.Run();              // ★ 片 V6：6 条实机缺陷的离线判据（对话框几何包含/字模降级/悬停字号/商店关闭/automap/拖拽高亮）
+            AutomapCarrierCheck.Run();  // ★ 片 automap-panel：automap 绘制**载体**有效性（尺寸 / 墨量 ink / alpha / 接线）
+                                        //   把「面板开着却什么都没画」变成可离线判的数：真实导出帧逐帧各铺一格已探索
+                                        //   ⇒ 必须每格写出 ≥1 图元且 opaque>0；任何空帧 / 全透明索引 / 尺寸为 0 立刻红
             FontScaleCheck.Run();       // ★ 片 font-scale：全仓 `D2Label.Create` 零处漏字号 + 字号唯一出处（FontPx*）
 
             Console.WriteLine();

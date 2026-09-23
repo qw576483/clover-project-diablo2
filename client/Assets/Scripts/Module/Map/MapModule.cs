@@ -486,8 +486,17 @@ namespace Diablo2.Module.Map
                 width = _grid.Width,
                 height = _grid.Height,
                 seed = _grid.Seed,
-                playerX = _grid.SpawnPoint.x,
-                playerY = _grid.SpawnPoint.y,
+                // ★ automap-panel（2026-09-24）：这两个字段的**契约**是「玩家所在格」（`Module/Contracts.cs`
+                //   的 `MinimapArgs.playerX/Y` 注释），**不是**出生点。实测（片 automap-panel，L3）：
+                //   填 `SpawnPoint` 时，玩家走到 (22,26) 按 Tab 打开 automap ⇒ 面板读数
+                //   `livePlayerGrid=(22,26) mapPlayer==livePlayer=0`，且叠加层位移 `anchored=(57.60,115.20)`
+                //   与"玩家站在出生点旁"那一局**逐字节相同** ⇒ 自动地图**完全以出生点为中心**：
+                //   按半径揭示的是出生点周围那圈（玩家身边是空的）、画面中心也不在玩家身上
+                //   —— 用户看到的就是"地图没画出来 / 画得不对"。
+                //   修法（源头）：填**玩家当前格**；玩家还没换过格（`ShowArea`/`Clear` 后的第一格前，
+                //   含 `_view == null` 的离线宿主）才回落到出生点，行为与改动前一致。
+                playerX = _hasLastPlayerGrid ? _lastPlayerGrid.x : _grid.SpawnPoint.x,
+                playerY = _hasLastPlayerGrid ? _lastPlayerGrid.y : _grid.SpawnPoint.y,
             };
 
             for (var y = 0; y < _grid.Height; y++)

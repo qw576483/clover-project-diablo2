@@ -498,14 +498,90 @@ namespace Diablo2.Module.Map
                 return false;
             }
             if (_map == null || !_map.InBounds(g)) return false;
-            if (_explored[g.x, g.y]) return false;
 
-            _explored[g.x, g.y] = true;
-            _exploredCount++;
+            var first = !_explored[g.x, g.y];
+            MarkOne(g.x, g.y);                       // 脚下这一格（幂等）
 
-            var fog = _fogTiles != null ? _fogTiles[g.x, g.y] : null;
-            if (fog != null) fog.enabled = false;
-            return true;
+            // ★ automap-panel2（2026-09-24）—— 把 automap 的揭示口径搬到**数据源头**：
+            //   首次走到一格时按**已登记口径**一次揭开"玩家可能看到的一片"，而不是只揭开脚下那一格。
+            //   **出处（逐条）**：
+            //     · 半径 6 = `UI/MiniMapPanel.RevealRadius`（同一条口径，那里写了推导）：
+            //       可见半高 = `CameraRig.DefaultOrthographicSize` = 3.75 世界单位（原版 600px/80ppu/2）、
+            //       1 格 = 1 世界单位高；等距投影下同屏条件 = |dx−dy| ≤ 3.75·aspect(=6.67) **且**
+            //       |dx+dy| ≤ 3.75/0.5(=7.5)，而 |dx|+|dy| = max(|dx+dy|, |dx−dy|)
+            //       ⇒ 取紧的下界 floor(6.67) = **6** ⇒ 语义 = "凡是能被玩家看到的格，走过就都记下来"。
+            //     · 形状 = **只走可通行格**（`GridMap.Walkable`，唯一判定 `Def.TileKindInfo.IsWalkable`）
+            //       ⇒ 不穿墙；再把已揭示地面格的**相邻阻挡格**一并揭示（原版"地板先、墙后"的轮廓；
+            //       `TileKind.Void` 不揭示）。
+            //     · ⛔ 与**原版按房间揭示**仍不同（本机没有 DRLG 房间层）⇒ 差异仍登记 **E23 ④**；
+            //       本段只是把**已经登记并验收**的口径从"面板开图那一次"移到数据源头
+            //       ⇒ `_explored`（**存档权威持有者**）与画面口径天然一致，不再有"画面 ⊃ 存档"的口径差。
+            //   ⚠️ 返回值语义**一个字未改**（true = **脚下这一格**首次被探索）：`MapModule` 靠它决定是否
+            //      发 `Events.MapExplored`（载荷仍 `{g}`）。被本段顺带揭开的格**不**单独发事件，
+            //      而由开图/进图时的**全量快照**（`App/AppSnapshots.EmitExploredSnapshot` 读
+            //      `IMapModule.ExploredCells`）下发 ⇒ 面板与存档拿到的是**同一份集合**。
+            //   ⚠️ 幂等：重复走过同一格只补"还没揭到的"格，不再做一次 BFS 以外的事（开销 = 一次 ≤13×13 邻域）。
+            if (first)
+            {
+                const int R = 6;                     // = UI/MiniMapPanel.RevealRadius（同一口径，见上）
+                var w = _map.Width;
+                var d4x = new[] { 1, -1, 0, 0 };
+                var d4y = new[] { 0, 0, 1, -1 };
+                var d8x = new[] { 1, -1, 0, 0, 1, 1, -1, -1 };
+                var d8y = new[] { 0, 0, 1, -1, 1, -1, 1, -1 };
+                var dist = new int[w * _map.Height];
+                for (var i = 0; i < dist.Length; i++) dist[i] = -1;
+                var q = new Queue<int>();
+                var start = g.y * w + g.x;
+                dist[start] = 0;
+                q.Enqueue(start);
+                while (q.Count > 0)
+                {
+                    var i = q.Dequeue();
+                    var cx = i % w;
+                    var cy = i / w;
+                    MarkOne(cx, cy);
+                    if (dist[i] >= R) continue;
+                    for (var k = 0; k < 4; k++)
+                    {
+                        var nx = cx + d4x[k];
+                        var ny = cy + d4y[k];
+                        if (!_map.InBounds(nx, ny)) continue;
+                        var j = ny * w + nx;
+                        if (dist[j] >= 0) continue;
+                        if (!_map.Walkable(new Vector2Int(nx, ny))) continue;   // 墙不进 BFS（只由轮廓那步揭示它本身）
+                        dist[j] = dist[i] + 1;
+                        q.Enqueue(j);
+                    }
+                }
+                for (var i = 0; i < dist.Length; i++)
+                {
+                    if (dist[i] < 0) continue;                                   // 只从"走到过"的格往外看轮廓
+                    var cx = i % w;
+                    var cy = i / w;
+                    for (var k = 0; k < 8; k++)
+                    {
+                        var nx = cx + d8x[k];
+                        var ny = cy + d8y[k];
+                        if (!_map.InBounds(nx, ny) || _explored[nx, ny]) continue;
+                        var kind = _map.Get(nx, ny);
+                        if (kind == TileKind.Void || TileKindInfo.IsWalkable(kind)) continue;
+                        MarkOne(nx, ny);
+                    }
+                }
+            }
+
+            // 揭开一格（幂等）：已探索位 + 迷雾节点（`_fogTiles` 为 null = 本局未开迷雾）
+            void MarkOne(int x, int y)
+            {
+                if (_explored[x, y]) return;
+                _explored[x, y] = true;
+                _exploredCount++;
+                var f = _fogTiles != null ? _fogTiles[x, y] : null;
+                if (f != null) f.enabled = false;
+            }
+
+            return first;
         }
 
         /// <summary>该格是否已探索。</summary>

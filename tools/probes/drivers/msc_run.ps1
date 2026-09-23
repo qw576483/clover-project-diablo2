@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # msc_run.ps1 -- melee-samecell: ONE Play session proving "same-cell melee now lands".
 #
 # Adapted from av2_run.ps1 (proven minutes earlier, same chain, same probe) -- the boot chain

@@ -87,6 +87,8 @@ namespace Uicheck
             CheckAutomapDraw();
             CheckDropHighlight();
             Console.WriteLine();
+
+            DialogOptionsCheck.Run();      // ★ dialog-options 片：选项按钮"看得见字" + tooltip"该藏就藏"
         }
 
         // ── ① 对话框：名字/正文矩形必须落在石框矩形内（二维包含）────────────────
@@ -452,6 +454,112 @@ namespace Uicheck
                 $"ApplyExplored={(apply != null ? apply.ReturnType.Name : "(缺失)")}；"
                 + $"ExploredInjected={(flag != null ? flag.PropertyType.Name : "(缺失)")}"
                 + "（`Events.MapExplored` 的注释点名这个收方）");
+
+            // ★ 片 automap-panel2（2026-09-24）：把「面板开着、数据非空却一笔不画」变成**可离线判的数**
+            //   （前片只能靠截图目视 ⇒ 那次判定不成立：实机读数 DrawnCells=86 CellsWithCel=86
+            //    OpaquePixels=1887 texOpaqueTexels=1772/313344，画了、只是稀）。两条：
+            //     ⑤-新1 **不静默丢像素**：写出图元数 == 已探索格数 × cel 稀疏像素数（判「过程」：
+            //           越界裁剪 / 漏帧都会让这条变红；既有 ⑤ 只判「不丢**格**」，这条判「不丢**像素**」）；
+            //     ⑤-新2 **可见度比值**：不透明 texel 数 > 0（= 「真的画出了东西」）+ 比值 ≤ 数据上限
+            //           （「画了数据里没有的图元」/重复绘制会变红）。
+            //   ⚠️ **覆盖率下限（阈值）缺出处**：原版「一屏该被 automap 覆盖多少」在本机没有载体
+            //      （`策划/基线图/原版_automap_实机截图_20260923.png` 是别的场景、别的探索量，不可当阈值）
+            //      ⇒ 本条**只判 >0 与 ≤数据上限，不设下限**；要设下限必须先有出处。
+            CheckNoSilentPixelLoss();
+        }
+
+        /// <summary>
+        /// ★ 片 automap-panel2：**不静默丢像素** + **可见度比值**（纯函数层，与实例 `Redraw` 同一条
+        /// `RenderExplored` ⇒ 判据与产品同源，不是第二份画法）。
+        /// <para>为什么需要：`MiniMapPanel` 的「面板开着、数据非空」到「屏上有图」之间隔着
+        /// 裁剪 / 帧缺像素 / 载体不可见三层，既有断言只覆盖「格数」这一层。</para>
+        /// </summary>
+        private static void CheckNoSilentPixelLoss()
+        {
+            const int w = 8;
+            const int h = 8;
+
+            // 取**像素最多**的 cel（用满数据集 ⇒ 避免「这一帧本来就稀」把断言变成空转）
+            var cel = -1;
+            var npix = 0;
+            foreach (var kv in AutoMapCel.CelPixels)
+            {
+                if (kv.Value == null || kv.Value.Length == 0) continue;
+                var n = kv.Value.Length / 3;         // 稀疏编码：每 3 字节 = 一个像素 (x, y, 调色板索引)
+                if (n > npix) { npix = n; cel = kv.Key; }
+            }
+            if (cel < 0 || npix <= 0)
+            {
+                Check("⑤-新1 不静默丢像素（需要 `AutoMapCel.CelPixels` 非空）", false,
+                    "`AutoMapCel.CelPixels` 为空 ⇒ 无法判像素级画法（生成器请重跑）");
+                return;
+            }
+
+            var map = new Diablo2.Def.MinimapArgs { width = w, height = h, seed = 5150 };
+            for (var i = 0; i < w * h; i++)
+            {
+                map.tiles.Add(Diablo2.Def.MinimapArgs.TileWalkable);
+                map.cels.Add((short)cel);
+                map.celsOver.Add((short)-1);         // 只判地面层 ⇒ 排除第二层叠加对图元数的干扰
+            }
+
+            var stepX = AutoMapCel.W / 2;
+            var stepY = AutoMapCel.W / 4;
+            var texW = (w + h - 2) * stepX + AutoMapCel.W;
+            var texH = (w + h - 2) * stepY + AutoMapCel.H;
+            var palette = MiniMapPanel.CreatePalette();
+
+            var all = new bool[w * h];
+            for (var i = 0; i < all.Length; i++) all[i] = true;
+
+            var buf = new Color32[texW * texH];
+            int wc, op;
+            var drawn = MiniMapPanel.RenderExplored(buf, texW, texH, map, all, palette, out wc, out op);
+
+            // 纹理按 (w+h-2) 步进给足 ⇒ 一格的像素都不该被裁掉 ⇒ 写出数 == Σ cel 稀疏像素数
+            var expect = w * h * npix;
+            Check("⑤-新1 不静默丢像素：写出图元数 == 已探索格数(" + w + "×" + h + ") × cel 稀疏像素数",
+                drawn == w * h && op == expect,
+                $"drawn={drawn} opaque={op} 期望={w}*{h}*{npix}={expect}"
+                + $"（cel={cel}，tex={texW}x{texH}；越界裁剪会让这条变红）");
+
+            var opaque = 0;
+            for (var i = 0; i < buf.Length; i++) if (buf[i].a > 0) opaque++;
+            var ratio = (double)opaque / (texW * texH);
+            var upper = (double)expect / (texW * texH);
+            Check("⑤-新2 可见度比值：不透明 texel > 0 且 ≤ 数据上限（下限缺出处 ⇒ 不设下限）",
+                opaque > 0 && opaque <= expect,
+                $"不透明 texel={opaque}/{texW * texH}（比值 {ratio:0.00000}，数据上限 {upper:0.00000}）；"
+                + "⚠️ 覆盖率**下限**无出处（原版一屏覆盖多少本机无载体）⇒ 本条不设下限");
+
+            // 退化用例：把纹理缩到装不下 ⇒ 同一条「不丢像素」判据必须变红（「能红」本身也要被判）
+            var smallW = AutoMapCel.W;
+            var smallBuf = new Color32[smallW * texH];
+            int wc2, op2;
+            var drawn2 = MiniMapPanel.RenderExplored(smallBuf, smallW, texH, map, all, palette, out wc2, out op2);
+            Check("⑤-新1-退化 纹理装不下 ⇒ 不丢像素判据必须变红（op < 期望）",
+                op2 < expect,
+                $"缩纹理 tex={smallW}x{texH}：opaque={op2} < 期望 {expect}（drawn={drawn2}）"
+                + " ⇒ 该判据确实在判「过程」（有裁剪就会红）");
+
+            // ★ **与「覆盖率」分开的一条**：automap 有**两个独立根因**，⛔ 不许合成一个数：
+            //   ① 覆盖率（画了多少格 / 多少墨）= 上面 ⑤-新1/⑤-新2 与 `DrawnCells/OpaquePixels`；
+            //   ② **中心**（叠加层以谁为中心平移）= 本条。两条互不代偿：覆盖率上去 ≠ 居中对了。
+            //   口径出处 = `Module/Contracts.cs` 的 `MinimapArgs.playerX/playerY` 注释「玩家所在格」
+            //   ⇒ 渲染层的平移**只许**读 `_map.playerX/_map.playerY`；面板里**不许出现**出生点字段
+            //   （片 automap-panel 实测：`MapModule.BuildMinimap` 曾把这两个字段填成 `SpawnPoint`，
+            //    表现 = 走到别处开图，`anchoredPosition` 与"站在出生点旁"逐字节相同）。
+            var src = Ui("MiniMapPanel.cs");      // ⚠️ 不脱注释：该文件**连注释**里也零 `spawn`（实测）
+            var hasPx = src.Contains("_map.playerX");
+            var hasPy = src.Contains("_map.playerY");
+            var spawnHits = 0;
+            for (var i = src.IndexOf("spawn", StringComparison.OrdinalIgnoreCase); i >= 0;
+                 i = src.IndexOf("spawn", i + 1, StringComparison.OrdinalIgnoreCase)) spawnHits++;
+            Check("⑤-新3 居中契约（与覆盖率**分开**判）：平移只读玩家格 `_map.playerX/Y`，面板内零「出生点」字段",
+                hasPx && hasPy && spawnHits == 0,
+                $"`_map.playerX` 命中={hasPx}、`_map.playerY` 命中={hasPy}；源码里 spawn 命中={spawnHits}"
+                + "（居中口径 = 契约 `MinimapArgs.playerX/Y` = 玩家所在格；"
+                + "出生点口径在 Map 侧 `MapModule.BuildMinimap`，⛔ 本条不判覆盖率，也不被覆盖率代偿）");
         }
 
         /// <summary>不透明像素的包围盒（纹理坐标：minTx / maxTx / minRow / maxRow）。</summary>
@@ -915,6 +1023,374 @@ namespace Uicheck
                 }
             }
             return new string(a);
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    //  dialog-options（2026-09-24）：① 对话选项按钮「看得见字」 ② 物品 tooltip「该藏就藏」
+    //
+    //  为什么这两条必须单独判：它们**都不会报错** ——
+    //    · 选项文案为空 ⇒ 画面上就是"一个没字的按钮"，与"label 没建出来 / 被底图盖住"长得一模一样
+    //      （主 agent 的读图报告正是把这种形状当成"选项按钮无文字"）；
+    //    · 按钮底图是花斑 ⇒ 只是"看起来脏"，不报错，却把底下的字糊掉；
+    //    · tooltip 该藏没藏 ⇒ 只是屏上多留一块框。
+    //
+    //  Ⓐ 选项按钮（判据 = 产品里的**纯函数** `NpcDialogPanel.IsReadable`，本文件做退化对）
+    //  Ⓐ-3 源码：`Rebuild` 的选项循环里**每个** i 都写 label，且空文案必点名（不静默）
+    //  Ⓐ-4 底图：`UiArt.ButtonSpritesFor` 引用的**单帧**按钮底图必须过「花斑」判据
+    //      （实测：干净帧 ≤ 0.085；坏帧 `btn_med_sel.png` = 0.424 ⇒ 阈值 0.25）
+    //      + 中等按钮的悬停帧已改从条带取（`LoadMediumHighlightFromStrip`）
+    //  Ⓐ-5（退化）把已知坏帧 `btn_med_sel.png` 喂进同一判据 ⇒ **必须红**
+    //  Ⓑ-1 tooltip 三条件（面板开着 / 指针在面板内 / 格内有物品）缺一 ⇒ 不可见
+    //  Ⓑ-2 源码：`InventoryPanel.UpdateHover` 里每一处 `_tooltip.Show(` 都在
+    //      `ItemTooltip.ShouldBeVisible(` 保护之下，且 `OnClose` 会 `Destroy`
+    //  Ⓑ-3（退化）对**合成源码**（一处没有保护的 `Show`）跑同一扫描器 ⇒ **必须红**
+    // ═════════════════════════════════════════════════════════════════════════
+    internal static class DialogOptionsCheck
+    {
+        private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
+
+        /// <summary>按钮底图「花斑」阈值（孤立高饱和像素 / 高饱和像素总数）。口径见回报：干净 ≤0.085 / 坏 0.424。</summary>
+        private const double SpeckleThreshold = 0.25;
+
+        private static string UiDir => Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts", "UI");
+
+        private static string ReadUi(string file)
+        {
+            var p = Path.Combine(UiDir, file);
+            return File.Exists(p) ? File.ReadAllText(p) : string.Empty;
+        }
+
+        /// <summary>资源路径（`D2/UI/Menu/btn_med_sel`）→ 磁盘上那张 PNG。</summary>
+        private static string PngOf(string resPath)
+            => Path.Combine(Program.ResourceRoot, ResPaths.Root, resPath.Replace('/', Path.DirectorySeparatorChar) + ".png");
+
+        public static void Run()
+        {
+            Console.WriteLine("── Ⓐ/Ⓑ dialog-options：选项按钮看得见字 + tooltip 该藏就藏 ──");
+            CheckOptionLabelReadable();
+            CheckOptionLabelDegraded();
+            CheckOptionLabelSource();
+            CheckButtonArtNoSpeckle();
+            CheckButtonArtDegraded();
+            CheckTooltipVisibility();
+            CheckTooltipShowGuards();
+            CheckTooltipGuardDegraded();
+            Console.WriteLine();
+        }
+
+        // ── Ⓐ-1 给定选项串 ⇒ 按钮 label 可读（真实串 + 生产常量）──────────────────
+        private static void CheckOptionLabelReadable()
+        {
+            var fontPx = (int)UiLayoutGame.FontPx16;
+            var color = UiArt.ButtonText;
+            var labels = new[] { "離開", "重要消息", "交易", "交易/修理" };   // = 原版 `NPCMenu*` 实测串
+            var all = true;
+            var det = new List<string>();
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var ok = NpcDialogPanel.IsReadable(labels[i], fontPx, color);
+                if (!ok) all = false;
+                det.Add($"「{labels[i]}」={ok}");
+            }
+            Check($"Ⓐ-1 给定选项串 ⇒ 按钮 label 可读（非空 + 字号 {fontPx} > 0 + 字色 alpha {color.a} > 0）",
+                all, string.Join(" / ", det.ToArray()));
+        }
+
+        // ── Ⓐ-2（退化）坏样本必须判红 ───────────────────────────────────────────
+        private static void CheckOptionLabelDegraded()
+        {
+            var fontPx = (int)UiLayoutGame.FontPx16;
+            var color = UiArt.ButtonText;
+            var bad = new[]
+            {
+                NpcDialogPanel.IsReadable(string.Empty, fontPx, color) ? "空串被判绿" : null,
+                NpcDialogPanel.IsReadable("   ", fontPx, color) ? "纯空白被判绿" : null,
+                NpcDialogPanel.IsReadable(null, fontPx, color) ? "null 被判绿" : null,
+                NpcDialogPanel.IsReadable("交易", 0, color) ? "字号 0 被判绿" : null,
+                NpcDialogPanel.IsReadable("交易", fontPx, new Color(1f, 1f, 1f, 0f)) ? "全透明字色被判绿" : null,
+            };
+            var bads = new List<string>();
+            for (var i = 0; i < bad.Length; i++) if (bad[i] != null) bads.Add(bad[i]);
+            Check("Ⓐ-2（退化）把文字置空 / 字号置 0 / 字色置全透明 ⇒ 同一判据**必须变红**",
+                bads.Count == 0,
+                bads.Count == 0 ? "5 个坏样本全部判红" : string.Join("；", bads.ToArray()));
+        }
+
+        // ── Ⓐ-3 源码：选项循环里每个 i 都写 label，空文案必点名 ──────────────────
+        private static void CheckOptionLabelSource()
+        {
+            var src = Mask(ReadUi("NpcDialogPanel.cs"));
+            var writes = Regex.IsMatch(src,
+                @"for \(var i = 0; i < options\.Count; i\+\+\)[\s\S]{0,2500}?_optionLabels\[i\]\.text = label;");
+            var named = src.Contains("dialog.option.text.empty.") && src.Contains("IsReadable(label");
+            Check("Ⓐ-3 `Rebuild` 的选项循环里**每个** i 都写 `_optionLabels[i].text = label`，且空文案点名 Warn（不静默）",
+                writes && named,
+                $"写入循环={writes} / 空文案点名={named}");
+        }
+
+        // ── Ⓐ-4 单帧按钮底图不许是花斑 ─────────────────────────────────────────
+        private static void CheckButtonArtNoSpeckle()
+        {
+            string wn, wp, wh, mn, mp, mh;
+            UiArt.ButtonSpritesFor(UiArt.MenuButtonSize, out wn, out wp, out wh);              // 宽（272×35）
+            UiArt.ButtonSpritesFor(UiArt.MenuButtonMediumSize, out mn, out mp, out mh);        // 中（128×35）
+
+            var paths = new[] { wn, wp, mn, mp };
+            var bad = new List<string>();
+            var det = new List<string>();
+            for (var i = 0; i < paths.Length; i++)
+            {
+                var r = Speckle(paths[i], out var hot, out var iso);
+                det.Add($"{paths[i]}={r:0.###}({iso}/{hot})");
+                if (r < 0 || r > SpeckleThreshold) bad.Add(paths[i]);
+            }
+            Check("Ⓐ-4 按钮底图（宽/中 · 常态与按下，单帧 PNG）无花斑 —— 孤立高饱和像素占比 ≤ "
+                + SpeckleThreshold.ToString("0.##"),
+                bad.Count == 0, string.Join(" ｜ ", det.ToArray()));
+
+            // 中等按钮的**悬停**帧：不许再用那张坏单帧图（改从条带第 1 帧取）
+            var uiart = Mask(ReadUi("UiArt.cs"));
+            var overrideOk = Regex.IsMatch(uiart,
+                @"if \(origSize\.x < WideButtonMinWidth\) LoadMediumHighlightFromStrip\(state\);");
+            var fromStrip = Regex.IsMatch(uiart, @"st\.Sprites\[2\] = set\.Frames\[1\];");
+            Check("Ⓐ-4b 中等按钮的悬停帧改从条带取（`LoadMediumHighlightFromStrip` ⇒ `set.Frames[1]`），"
+                + "不再直接用坏图 " + mn.Replace(mn, mh),
+                overrideOk && fromStrip,
+                $"覆盖调用={overrideOk} / 取条带第 1 帧={fromStrip}");
+        }
+
+        // ── Ⓐ-5（退化）已知坏帧喂进同一判据必须红 ───────────────────────────────
+        private static void CheckButtonArtDegraded()
+        {
+            string mn, mp, mh;
+            UiArt.ButtonSpritesFor(UiArt.MenuButtonMediumSize, out mn, out mp, out mh);
+            var r = Speckle(mh, out var hot, out var iso);
+            Check("Ⓐ-5（退化）把已知坏帧 `btn_med_sel.png` 喂进同一判据 ⇒ **必须变红**（判据确实在判花斑）",
+                r > SpeckleThreshold,
+                $"{mh} = {r:0.###}（孤立 {iso} / 高饱和 {hot}；阈值 {SpeckleThreshold:0.##}）");
+        }
+
+        // ── Ⓑ-1 tooltip 三条件 ─────────────────────────────────────────────────
+        private static void CheckTooltipVisibility()
+        {
+            var show = ItemTooltip.ShouldBeVisible(true, true, true);
+            var noItem = ItemTooltip.ShouldBeVisible(true, true, false);
+            var outside = ItemTooltip.ShouldBeVisible(true, false, true);
+            var closed = ItemTooltip.ShouldBeVisible(false, true, true);
+            Check("Ⓑ-1 tooltip 三条件全成立才可见（面板开着 + 指针在面板内 + 格内有物品）；缺一必须不可见",
+                show && !noItem && !outside && !closed,
+                $"全成立={show} / 无物品={noItem} / 指针出面板={outside} / 面板已关={closed}");
+        }
+
+        // ── Ⓑ-2 源码：Show 必在判据保护之下 + 关面板销毁 ────────────────────────
+        private static void CheckTooltipShowGuards()
+        {
+            var src = Mask(ReadUi("InventoryPanel.cs"));
+            var r = CountShowSites(src);
+            var destroy = Regex.IsMatch(src, @"_tooltip\?\.Destroy\(\);");
+            Check("Ⓑ-2 `InventoryPanel.UpdateHover` 的每一处 `_tooltip.Show(` 都在 "
+                + "`ItemTooltip.ShouldBeVisible(` 保护之下，且 `OnClose` 会 `Destroy`",
+                r[0] > 0 && r[0] == r[1] && destroy,
+                $"Show 调用点={r[0]} / 判据调用点={r[1]} / OnClose Destroy={destroy}");
+        }
+
+        // ── Ⓑ-3（退化）合成源码（一处没有保护的 Show）必须红 ─────────────────────
+        private static void CheckTooltipGuardDegraded()
+        {
+            var bad = "if (item != null) _tooltip.Show(item);\n";
+            var r = CountShowSites(bad);
+            Check("Ⓑ-3（退化）对没有判据保护的 `_tooltip.Show(` 合成样本 ⇒ 同一扫描器**必须变红**",
+                r[0] > 0 && r[0] != r[1],
+                $"合成样本 Show={r[0]} / 判据={r[1]}（不等 ⇒ 判红）");
+        }
+
+        /// <summary>纯扫描器：`_tooltip.Show(` 调用点数 / `ItemTooltip.ShouldBeVisible(` 判据数。</summary>
+        private static int[] CountShowSites(string src)
+            => new[]
+            {
+                Regex.Matches(src, @"_tooltip\.Show\(").Count,
+                Regex.Matches(src, @"ItemTooltip\.ShouldBeVisible\(").Count,
+            };
+
+        /// <summary>去掉注释（本类自己的源码断言不该被注释里的示例写法骗到；逐行丢 `//` 与 `/* */`）。</summary>
+        private static string Mask(string src)
+        {
+            if (string.IsNullOrEmpty(src)) return string.Empty;
+            var lines = src.Split('\n');
+            var sb = new System.Text.StringBuilder(src.Length);
+            var inBlock = false;
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var j = 0;
+                var keep = new System.Text.StringBuilder();
+                while (j < line.Length)
+                {
+                    if (inBlock)
+                    {
+                        if (j + 1 < line.Length && line[j] == '*' && line[j + 1] == '/') { inBlock = false; j += 2; }
+                        else j++;
+                        continue;
+                    }
+                    if (j + 1 < line.Length && line[j] == '/' && line[j + 1] == '/') break;       // 行尾注释
+                    if (j + 1 < line.Length && line[j] == '/' && line[j + 1] == '*') { inBlock = true; j += 2; continue; }
+                    if (line[j] == '"')
+                    {
+                        keep.Append(line[j]);
+                        j++;
+                        while (j < line.Length)
+                        {
+                            keep.Append(line[j]);
+                            if (line[j] == '\\' && j + 1 < line.Length) { keep.Append(line[j + 1]); j += 2; continue; }
+                            if (line[j] == '"') { j++; break; }
+                            j++;
+                        }
+                        continue;
+                    }
+                    keep.Append(line[j]);
+                    j++;
+                }
+                sb.Append(keep).Append('\n');
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>花斑比 = 孤立高饱和像素 / 高饱和像素；解不出图 ⇒ -1（调用方如实判红）。</summary>
+        private static double Speckle(string resPath, out int hot, out int iso)
+        {
+            hot = 0;
+            iso = 0;
+            int w, h;
+            byte[] px;
+            if (!TryDecodeRgba(PngOf(resPath), out w, out h, out px)) return -1;
+
+            var ch = new int[w * h];
+            for (var i = 0; i < w * h; i++)
+            {
+                var r = px[i * 4];
+                var g = px[i * 4 + 1];
+                var b = px[i * 4 + 2];
+                var a = px[i * 4 + 3];
+                var mx = Math.Max(r, Math.Max(g, b));
+                var mn = Math.Min(r, Math.Min(g, b));
+                ch[i] = a > 0 ? mx - mn : 0;            // 透明像素不计（原版索引 0 = 透明）
+            }
+
+            for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                var i = y * w + x;
+                if (ch[i] <= 60) continue;
+                hot++;
+                var sum = 0;
+                var cnt = 0;
+                if (x > 0) { sum += ch[i - 1]; cnt++; }
+                if (x < w - 1) { sum += ch[i + 1]; cnt++; }
+                if (y > 0) { sum += ch[i - w]; cnt++; }
+                if (y < h - 1) { sum += ch[i + w]; cnt++; }
+                if (cnt > 0 && sum / (double)cnt < 30) iso++;    // 四邻几乎无色 ⇒ 这一颗是孤立点
+            }
+
+            return hot == 0 ? 0 : iso / (double)hot;
+        }
+
+        /// <summary>解 PNG 的 RGBA8（只处理 8bit / 非隔行 / 色彩类型 2·6）。与 `ShopGridCheck` 那份同源。</summary>
+        private static bool TryDecodeRgba(string file, out int w, out int h, out byte[] rgba)
+        {
+            w = 0;
+            h = 0;
+            rgba = null;
+            if (!File.Exists(file)) return false;
+            var b = File.ReadAllBytes(file);
+            if (b.Length < 8 || b[0] != 0x89 || b[1] != 0x50) return false;
+
+            var idat = new MemoryStream();
+            var pos = 8;
+            int bitDepth = 0, colorType = 0;
+            while (pos + 8 <= b.Length)
+            {
+                var len = (b[pos] << 24) | (b[pos + 1] << 16) | (b[pos + 2] << 8) | b[pos + 3];
+                if (len < 0 || pos + 12 + len > b.Length) break;
+                var tag = System.Text.Encoding.ASCII.GetString(b, pos + 4, 4);
+                var d = pos + 8;
+                if (tag == "IHDR")
+                {
+                    w = (b[d] << 24) | (b[d + 1] << 16) | (b[d + 2] << 8) | b[d + 3];
+                    h = (b[d + 4] << 24) | (b[d + 5] << 16) | (b[d + 6] << 8) | b[d + 7];
+                    bitDepth = b[d + 8];
+                    colorType = b[d + 9];
+                    if (b[d + 12] != 0) return false;
+                }
+                else if (tag == "IDAT") idat.Write(b, d, len);
+                else if (tag == "IEND") break;
+                pos = d + len + 4;
+            }
+
+            if (bitDepth != 8 || (colorType != 6 && colorType != 2)) return false;
+
+            byte[] raw;
+            try
+            {
+                using (var ms = new MemoryStream(idat.ToArray()))
+                using (var z = new System.IO.Compression.ZLibStream(ms,
+                    System.IO.Compression.CompressionMode.Decompress))
+                using (var outMs = new MemoryStream())
+                {
+                    z.CopyTo(outMs);
+                    raw = outMs.ToArray();
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            var bpp = colorType == 6 ? 4 : 3;
+            var stride = w * bpp;
+            if (raw.Length < (stride + 1) * h) return false;
+            rgba = new byte[w * h * 4];
+            var prev = new byte[stride];
+            var cur = new byte[stride];
+            var o = 0;
+            for (var y = 0; y < h; y++)
+            {
+                var filter = raw[o++];
+                Array.Copy(raw, o, cur, 0, stride);
+                o += stride;
+                for (var x = 0; x < stride; x++)
+                {
+                    int a = x >= bpp ? cur[x - bpp] : 0;
+                    int bb = prev[x];
+                    int c = x >= bpp ? prev[x - bpp] : 0;
+                    switch (filter)
+                    {
+                        case 1: cur[x] = (byte)(cur[x] + a); break;
+                        case 2: cur[x] = (byte)(cur[x] + bb); break;
+                        case 3: cur[x] = (byte)(cur[x] + ((a + bb) >> 1)); break;
+                        case 4:
+                            {
+                                var pp = a + bb - c;
+                                var pa = Math.Abs(pp - a);
+                                var pb = Math.Abs(pp - bb);
+                                var pc = Math.Abs(pp - c);
+                                cur[x] = (byte)(cur[x] + (pa <= pb && pa <= pc ? a : (pb <= pc ? bb : c)));
+                                break;
+                            }
+                    }
+                }
+                for (var x = 0; x < w; x++)
+                {
+                    rgba[(y * w + x) * 4] = cur[x * bpp];
+                    rgba[(y * w + x) * 4 + 1] = cur[x * bpp + 1];
+                    rgba[(y * w + x) * 4 + 2] = cur[x * bpp + 2];
+                    rgba[(y * w + x) * 4 + 3] = bpp == 4 ? cur[x * bpp + 3] : (byte)255;
+                }
+                var t = prev;
+                prev = cur;
+                cur = t;
+            }
+            return true;
         }
     }
 }

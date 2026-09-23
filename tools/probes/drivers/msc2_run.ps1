@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # msc2_run.ps1 -- melee-samecell, run 2: the DETERMINISTIC same-cell left click.
 #
 # Same chain as msc_run.ps1 (REUSED s2_drive.cs boot chain), but the probe is msc_probe.cs
