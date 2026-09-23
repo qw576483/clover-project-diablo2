@@ -285,7 +285,7 @@ if (Test-Path $raw) {
 }
 # the monitor writes its own two captures straight into screenshots/ (groundicon_mon_1.png /
 # groundicon_mon_2.png) -- nothing to copy here; just report whether they landed.
-foreach ($m in @('groundicon_mon_1.png', 'groundicon_mon_2.png', 'groundicon_mon_3.png', 'groundicon_zoom.png', 'groundicon_gold.png')) {
+foreach ($m in @('groundicon_mon_1.png', 'groundicon_mon_2.png', 'groundicon_mon_3.png', 'groundicon_zoom.png', 'groundicon_gold.png', 'groundicon_zoom_gold.png')) {
     $p = Join-Path $shots $m
     if (Test-Path $p) { Say ('MON-SHOT ' + $m + ' bytes=' + (Get-Item $p).Length) }
     else { Say ('MON-SHOT-MISSING ' + $m) }

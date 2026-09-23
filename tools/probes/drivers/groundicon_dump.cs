@@ -73,6 +73,7 @@ namespace GIC
         private bool _goldDropped;
         private float _goldDropAt = -1f;
         private bool _goldShotDone;
+        private bool _goldZoomDone;
 
         private static Diablo2.Module.IPlayerModule PlayerModule()
         {
@@ -159,7 +160,7 @@ namespace GIC
             if (_lateDone && !_zoomDone)
             {
                 _zoomDone = true;
-                StartCoroutine(ZoomShot(Shot("groundicon_zoom.png")));
+                StartCoroutine(ZoomShot(Shot("groundicon_zoom.png"), false));
             }
 
             // moment 5: gold ON THE GROUND. Gold is NOT an item_c row (`Module/Item/LootRoller.cs:327`
@@ -172,6 +173,14 @@ namespace GIC
                 _goldShotDone = true;
                 _seenMoments++;
                 StartCoroutine(CaptureThen(Shot("groundicon_gold.png"), delegate { DumpAll("moment5-gold"); }));
+            }
+
+            // moment 6: same deterministic zoom camera, aimed at the GOLD pile (the shape that used
+            // to be a white block; a 28x28 grey-tan pile is hard to judge at 1:1 in a full screenshot).
+            if (_goldShotDone && !_goldZoomDone)
+            {
+                _goldZoomDone = true;
+                StartCoroutine(ZoomShot(Shot("groundicon_zoom_gold.png"), true));
             }
         }
 
@@ -210,8 +219,11 @@ namespace GIC
             }
         }
 
-        /// <summary>Temporary orthographic zoom camera over the first ground item (see moment 4).</summary>
-        private System.Collections.IEnumerator ZoomShot(string path)
+        /// <summary>
+        /// Temporary orthographic zoom camera over one ground item (moment 4 = the first item,
+        /// moment 6 = the gold pile). `goldOnly` picks the node whose ItemStack has isGold.
+        /// </summary>
+        private System.Collections.IEnumerator ZoomShot(string path, bool goldOnly)
         {
             yield return new WaitForEndOfFrame();
 
@@ -223,8 +235,17 @@ namespace GIC
                 Say("ZOOM-SKIP no ground item / no view");
                 yield break;
             }
-            var target = view.GetView(list[0].Key);
-            if (target == null) { Say("ZOOM-SKIP no node"); yield break; }
+
+            GameObject target = null;
+            for (var i = 0; i < list.Count; i++)
+            {
+                var item = list[i].Value;
+                var isGold = item != null && item.isGold;
+                if (goldOnly && !isGold) continue;
+                target = view.GetView(list[i].Key);
+                break;
+            }
+            if (target == null) { Say("ZOOM-SKIP no node (goldOnly=" + goldOnly + ")"); yield break; }
 
             GameObject camGo = null;
             RenderTexture rt = null;
