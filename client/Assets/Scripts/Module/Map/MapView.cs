@@ -1014,6 +1014,9 @@ namespace Diablo2.Module.Map
             _bufOverlayChunks.Clear();
 
             _job = null;
+            _nextChunkRefresh = 0f;      // ★ chunk-hole：切换完**下一帧**就对照当前相机范围对账一次
+                                         //   （新集 = 登记时算的范围；期间相机若动了 ⇒ 立刻补齐/回收，
+                                         //   不等下一个 0.25 s 周期，黑窗更短）
             _rebuildFramesLast = job.Frames;
             if (job.Frames > _rebuildFramesPeak) _rebuildFramesPeak = job.Frames;
 
@@ -1137,9 +1140,10 @@ namespace Diablo2.Module.Map
             var buildY1 = max.y;
 
             if (_hasChunkRange && buildX0 == _chunkMin.x && buildY0 == _chunkMin.y
-                && buildX1 == _chunkMax.x && buildY1 == _chunkMax.y)
+                && buildX1 == _chunkMax.x && buildY1 == _chunkMax.y
+                && ChunkRangeCovered(_groundChunks.Keys, _pendingChunks, buildX0, buildY0, buildX1, buildY1))
             {
-                return;   // 可见块集合没变：什么都不做（绝不每帧重建）
+                return;   // 可见块集合没变**且已完整**：什么都不做（绝不每帧重建）
             }
 
             _chunkMin = new Vector2Int(buildX0, buildY0);
@@ -1159,6 +1163,41 @@ namespace Diablo2.Module.Map
             }
 
             ReleaseFarChunks(buildX0 - 1, buildY0 - 1, buildX1 + 1, buildY1 + 1);
+        }
+
+        /// <summary>
+        /// ★ chunk-hole 修复（2026-09-23，血沼泽大片黑）**纯函数**（离线可断言）：
+        /// `[x0,x1]×[y0,y1]` 里的**每一块**都已建好、或已在待建队列里吗？
+        /// <para>为什么"登记范围没变就早退"不够：`StartRebuild` 会**清空待建队列**（见 :593 的
+        /// `_pendingChunks.Clear()`）并把登记范围改成"**那一刻**相机算出来的范围"，而可见集要等
+        /// 缓冲集建满、`SwapToBuilt` 切换之后才换成新范围的那份 —— 期间相机一动（进图落位 / 走路 /
+        /// 传送），登记范围与实际建块集就**脱钩**；旧口径只比范围 ⇒ 早退 ⇒ 洞里那几块**永远没人补**
+        /// （实测：野外 `MISSING=4 [(0,3)(0,4)(1,3)(1,4)]`、`PendingChunks=0`、黑区边界 =
+        /// 16×16 块网格的等距投影直线，6/6 采样复现）。加上"集合完整性"这一条后，任何脱钩都会在
+        /// 下一次刷新（≤ <see cref="ChunkRefreshInterval"/>）被重新登记、由
+        /// <see cref="PumpChunkBuild"/> 补齐 ⇒ 自愈，而不是靠"运气好范围变了"。</para>
+        /// </summary>
+        internal static bool ChunkRangeCovered(IEnumerable<Vector2Int> built, IEnumerable<Vector2Int> pending,
+            int x0, int y0, int x1, int y1)
+        {
+            for (var cx = x0; cx <= x1; cx++)
+            {
+                for (var cy = y0; cy <= y1; cy++)
+                {
+                    var c = new Vector2Int(cx, cy);
+                    if (SetHas(built, c) || SetHas(pending, c)) continue;
+                    return false;                       // 范围里有一块既没建也没排队 ⇒ 有洞
+                }
+            }
+            return true;
+        }
+
+        /// <summary>`Queue&lt;T&gt;` 不实现 `ICollection&lt;T&gt;` ⇒ 用 `IEnumerable` + 手写 Contains（集合都很小）。</summary>
+        private static bool SetHas(IEnumerable<Vector2Int> set, Vector2Int c)
+        {
+            if (set == null) return false;
+            foreach (var v in set) { if (v == c) return true; }
+            return false;
         }
 
         /// <summary>相机视口四角 → 格范围 → 块范围（含 1 块外扩，避免边缘留白）。</summary>
@@ -2145,7 +2184,20 @@ namespace Diablo2.Module.Map
                 //   必须每帧继续泵（下面几步就是它）。新开的任务在同一帧就吃到第一份预算。
             }
 
-            // ★ T0FIX-H：分帧重铺进行中 ⇒ 本帧只泵它（增量路径等它做完，避免两套铺装互相打架）
+            // ★ chunk-hole 修复（2026-09-23）：**登记**（只入队、不建块）不再被重铺/回收挡住。
+            //   旧口径把 `RefreshVisibleChunks` 放在两个 early-return 之后 ⇒ 整图重铺进行中的那几秒
+            //   （实测 1~4 s：重铺每帧 ≈ 0.3 s）相机走进新区域时**没人登记新块**，`PendingChunks=0`
+            //   而 `MISSING=4`，切完之后若登记范围恰好没再变 ⇒ 洞**永久**留着（血沼泽大片黑）。
+            //   登记本身零节点、幂等（已建/已在队的块会跳过），建块仍由下面的
+            //   `PumpChunkBuild` 在重铺/回收结束之后按帧预算做 —— 两套铺装**依然不会**互相打架。
+            _builtThisFrame = 0;
+            if (_chunked && Time.unscaledTime >= _nextChunkRefresh)
+            {
+                _nextChunkRefresh = Time.unscaledTime + ChunkRefreshInterval;
+                RefreshVisibleChunks();          // ★ T0FIX-A：只**登记**新进入范围的块（本帧不建）
+            }
+
+            // ★ T0FIX-H：分帧重铺进行中 ⇒ 本帧只泵它（增量建块等它做完，避免两套铺装互相打架）
             if (_job != null)
             {
                 PumpRebuild();
@@ -2157,14 +2209,6 @@ namespace Diablo2.Module.Map
             {
                 PumpRetire(MaxTileNodesPerFrame);
                 return;
-            }
-
-            _builtThisFrame = 0;
-
-            if (_chunked && Time.unscaledTime >= _nextChunkRefresh)
-            {
-                _nextChunkRefresh = Time.unscaledTime + ChunkRefreshInterval;
-                RefreshVisibleChunks();          // ★ T0FIX-A：只**登记**新进入范围的块（本帧不建）
             }
 
             // ★ T0FIX-A：每帧至多建 `MaxChunksPerFrame` 块 —— 单帧尖峰就此摊平。

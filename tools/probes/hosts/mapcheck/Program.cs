@@ -71,6 +71,9 @@ internal static class MapCheckProgram
         Run(Step25_WaypointAnchor);
         // ── ★ 片 S2（2026-09-23：主 agent 追加「Tab 自动地图的记忆式已探索」）只加断言 ──────
         Run(Step26_ExploredCellsContract);
+        // ── ★ 片 chunk-hole2（2026-09-23：血沼泽「大片黑底」）只加断言，⛔ 不动既有步骤 ────
+        Run(Step27_PlannedChunksEqualVisibleRange);
+        Run(Step28_ChunkHoleSelfHeal);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -3752,6 +3755,159 @@ internal static class MapCheckProgram
             d = d.Parent;
         }
         return null;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 27. ★ 片 chunk-hole2（2026-09-23：血沼泽「大片黑底」）
+    //
+    //     判据 = 「期望可见块范围 == 实际建块集（差集为空）」对 **分块**（80×80）与
+    //            **不分块**（56×40）两种区域尺寸**都成立**。
+    //
+    //     为什么这一步**离线**就能判（不必进 Play）：
+    //       · 「实际建块集」不是运行时字典，而是 `StartRebuild` 交给 `RebuildJob` 的**块清单**；
+    //         它由 **public static 纯函数** `MapView.PlannedChunks`（MapView.cs:684-700）算出
+    //         ⇒ 宿主把**同一份生产代码**编译进来，可以逐案调用；
+    //       · 「期望可见块范围」= `StartRebuild:599-604` 登记的 `_chunkMin/_chunkMax`；
+    //         `StartRebuild:607` 传给 `PlannedChunks` 的正是
+    //         `(buildX0, buildY0, _chunkMax.x, _chunkMax.y)`，其中 `buildX0 = Mathf.Max(0, min.x)`
+    //         ⇒ **登记范围与建块清单同源**，二者差集必须恒为空。
+    //
+    //     ⛔ 只加断言：不改任何既有步骤的判据，不改 MapView。
+    // ═════════════════════════════════════════════════════════════════════
+    private static void Step27_PlannedChunksEqualVisibleRange()
+    {
+        Section("27. ★ chunk-hole2：期望可见块范围 == 实际建块清单（80×80 分块 / 56×40 不分块，差集必须为空）");
+
+        var chunkSize = MapView.ChunkSize;                 // public const 16（MapView.cs:57）
+        var threshold = MapView.BuildAllTileThreshold;     // public const 4096（MapView.cs:54）
+
+        // ── ① 分块区：血腥荒野 80×80 = 6400 > 4096 ⇒ chunked=true，块网格 5×5 ──────────
+        {
+            const int w = 80, h = 80;
+            var chunksX = (w + chunkSize - 1) / chunkSize;
+            var chunksY = (h + chunkSize - 1) / chunkSize;
+            var chunked = w * h > threshold;
+            Check(chunked && chunksX == 5 && chunksY == 5,
+                $"血腥荒野 {w}×{h} = {w * h} > {threshold} ⇒ chunked={chunked}（走分块路径），块网格 {chunksX}×{chunksY}");
+
+            var combos = 0; var bad = 0; var worst = "";
+            for (var x0 = 0; x0 < chunksX; x0++)
+                for (var y0 = 0; y0 < chunksY; y0++)
+                    for (var x1 = x0; x1 < chunksX; x1++)
+                        for (var y1 = y0; y1 < chunksY; y1++)
+                        {
+                            combos++;
+                            var into = new List<Vector2Int>();
+                            MapView.PlannedChunks(chunked, x0, y0, x1, y1, chunksX, chunksY, into);
+
+                            var missing = new List<Vector2Int>();
+                            for (var cx = x0; cx <= x1; cx++)
+                                for (var cy = y0; cy <= y1; cy++)
+                                    if (!Has(into, new Vector2Int(cx, cy))) missing.Add(new Vector2Int(cx, cy));
+
+                            var extra = 0;
+                            for (var i = 0; i < into.Count; i++)
+                            {
+                                var c = into[i];
+                                if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) extra++;
+                            }
+                            var expect = (x1 - x0 + 1) * (y1 - y0 + 1);
+                            if (missing.Count != 0 || extra != 0 || into.Count != expect)
+                            {
+                                bad++;
+                                if (worst.Length == 0)
+                                    worst = $"范围 ({x0},{y0})..({x1},{y1})：缺 {Fmt(missing)}、越界 {extra}、清单 {into.Count}≠{expect}";
+                            }
+                        }
+            Console.WriteLine($"    穷举 {combos} 种可见块范围（5×5 网格上所有矩形）：差集非空的 = {bad}");
+            if (worst.Length > 0) Console.WriteLine("    首例：" + worst);
+            Check(bad == 0,
+                $"分块区（80×80）：任意可见块范围的建块清单 == 该矩形本身（穷举 {combos} 种，双向差集恒为空）");
+        }
+
+        // ── ② 不分块区：罗格营地 56×40 = 2240 ≤ 4096 ⇒ chunked=false ⇒ 一次铺**全图** ────
+        {
+            const int w = 56, h = 40;
+            var chunksX = (w + chunkSize - 1) / chunkSize;
+            var chunksY = (h + chunkSize - 1) / chunkSize;
+            var chunked = w * h > threshold;
+            Check(!chunked && chunksX == 4 && chunksY == 3,
+                $"罗格营地 {w}×{h} = {w * h} ≤ {threshold} ⇒ chunked={chunked}（不走分块路径），块网格 {chunksX}×{chunksY} = {chunksX * chunksY} 块");
+
+            var full = new List<Vector2Int>();
+            MapView.PlannedChunks(chunked, 0, 0, chunksX - 1, chunksY - 1, chunksX, chunksY, full);
+            Check(full.Count == chunksX * chunksY,
+                $"不分块区：`PlannedChunks` 恒给**全图** {chunksX * chunksY} 块（实测 {full.Count}）⇒ 与传入的可见范围无关");
+
+            var combos = 0; var bad = 0; var worst = "";
+            for (var x0 = 0; x0 < chunksX; x0++)
+                for (var y0 = 0; y0 < chunksY; y0++)
+                    for (var x1 = x0; x1 < chunksX; x1++)
+                        for (var y1 = y0; y1 < chunksY; y1++)
+                        {
+                            combos++;
+                            var into = new List<Vector2Int>();
+                            MapView.PlannedChunks(chunked, x0, y0, x1, y1, chunksX, chunksY, into);
+                            var missing = new List<Vector2Int>();
+                            for (var cx = x0; cx <= x1; cx++)
+                                for (var cy = y0; cy <= y1; cy++)
+                                    if (!Has(into, new Vector2Int(cx, cy))) missing.Add(new Vector2Int(cx, cy));
+                            if (missing.Count != 0)
+                            {
+                                bad++;
+                                if (worst.Length == 0) worst = $"范围 ({x0},{y0})..({x1},{y1})：缺 {Fmt(missing)}";
+                            }
+                        }
+            Console.WriteLine($"    穷举 {combos} 种可见块范围（4×3 网格上所有矩形）：差集非空的 = {bad}");
+            if (worst.Length > 0) Console.WriteLine("    首例：" + worst);
+            Check(bad == 0,
+                $"不分块区（56×40）：任意可见块范围 ⊆ 全图建块集（穷举 {combos} 种，差集恒为空）⇒ 小图不可能留洞");
+        }
+    }
+
+    /// <summary>
+    /// 28. ★ chunk-hole（2026-09-23，血沼泽大片黑）：登记范围与实际建块集**脱钩**时必须能自愈。
+    /// <para>实测现场（`tools/probes/drivers/s2_drive.cs` 的 CHUNK-ENTER 读数 + `.ai-tmp/test/chh_deep_chh2.txt`）：
+    /// `chunkMin/chunkMax=(0,0)-(2,3)`（12 块）而建块集是**另一个**矩形（(0,3)(1,3) 未建）、
+    /// `PendingChunks=0` ⇒ 旧口径 `RefreshVisibleChunks` 只比范围就早退 ⇒ 洞永远没人补。
+    /// 修复 = 早退前加「集合完整性」判定（`MapView.ChunkRangeCovered`）+ 登记路径不再被重铺 early-return 挡住。</para>
+    /// </summary>
+    private static void Step28_ChunkHoleSelfHeal()
+    {
+        Section("28. ★ chunk-hole：登记范围 == 建块集 的**完整性**判定（脱钩 ⇒ 必须重登记，不许只比范围早退）");
+
+        // ── ① 复现实测脱钩现场：登记 (0,0)-(2,3)，建块集 = x∈[0,3]×y∈[0,2]（同为 12 块）────
+        var built = new List<Vector2Int>();
+        for (var x = 0; x <= 3; x++) for (var y = 0; y <= 2; y++) built.Add(new Vector2Int(x, y));
+        Check(built.Count == 12 && !Has(built, new Vector2Int(0, 3)) && !Has(built, new Vector2Int(1, 3)),
+            "脱钩现场构造：登记范围 (0,0)-(2,3) 与建块集（x0..3×y0..2，12 块）是**两个不同矩形**，(0,3)(1,3)(2,3) 未建");
+        Check(!MapView.ChunkRangeCovered(built, new List<Vector2Int>(), 0, 0, 2, 3),
+            "新判定：范围没变也要看**集合完整性** ⇒ 该现场判为有洞（旧口径这里早退 ⇒ MISSING 永远留着 = 血沼泽黑底）");
+
+        var pending = new List<Vector2Int> { new Vector2Int(0, 3), new Vector2Int(1, 3), new Vector2Int(2, 3) };
+        Check(MapView.ChunkRangeCovered(built, pending, 0, 0, 2, 3),
+            "重登记之后（缺的 3 块进待建队列）⇒ 判为完整 ⇒ 差集为空（自愈闭环的第二次判定）");
+
+        // ── ② 健全集：建块集 == 可见范围矩形 ⇒ 恒判完整（穷举 5×5 网格上所有矩形）────────────
+        var combos = 0; var bad = 0;
+        for (var x0 = 0; x0 < 5; x0++)
+            for (var y0 = 0; y0 < 5; y0++)
+                for (var x1 = x0; x1 < 5; x1++)
+                    for (var y1 = y0; y1 < 5; y1++)
+                    {
+                        combos++;
+                        var set = new List<Vector2Int>();
+                        MapView.PlannedChunks(true, x0, y0, x1, y1, 5, 5, set);
+                        if (!MapView.ChunkRangeCovered(set, new List<Vector2Int>(), x0, y0, x1, y1)) bad++;
+                    }
+        Check(combos == 225 && bad == 0,
+            $"健康集（80×80 分块）：穷举 {combos} 种可见范围矩形，建块集 == 范围 ⇒ 全部判完整（不误报）");
+
+        // ── ③ 不分块区（罗格营地 56×40）：chunked=false ⇒ 一次铺全图，必须覆盖任何可见范围 ──
+        var full = new List<Vector2Int>();
+        MapView.PlannedChunks(false, 0, 0, 3, 2, 4, 3, full);
+        Check(full.Count == 12 && MapView.ChunkRangeCovered(full, new List<Vector2Int>(), 0, 0, 3, 2),
+            "不分块区（营地 56×40 = 2240 ≤ 4096，chunked=false）：全图建块集（4×3 块）覆盖任意可见范围 ⇒ 判完整");
     }
 
     private static void Check(bool ok, string what)
