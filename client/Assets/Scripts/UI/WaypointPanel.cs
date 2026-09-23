@@ -206,10 +206,19 @@ namespace Diablo2.UI
             var screen = UiLayoutFlow.FitRoot(transform, UiLayoutFlow.FitMenu);
 
             // ③ 底板两层：框内深色底（`UiArt.PanelBg`）+ 原版拼装窗框（后建 ⇒ 压在底色上，层序同 Pause/Confirm）
+            //   ★ ui-fix3 修（实机白矩形缺陷）：`UiArt.Art` 的兜底底色是**白色**（缺图时"可见的白块"），
+            //   而贴图走 `Game.Res.LoadAsset` **异步**回调 ⇒ 面板打开后的头几帧 BoxFrame 画成一整块
+            //   **纯白矩形**（实机证据：s2 巡游"开面板即截图"每次都是白块，`.ai-tmp/screenshots/pv_wp_1_panel*.png`、
+            //   `uifix3_wp_tour_panel.png`；节点转储 `.ai-tmp/test/uifix3_wp_dump.txt` 证明 sprite/贴图本身
+            //   都对 —— 432×348、边框不透明、内部 alpha=0，延迟一拍再截的 `uifix3_wp_panel.png` 就是
+            //   正确的石框）。修法：**加载在途的占位底色改用 `UiArt.PanelBg`**（与下面的 Box 同色，
+            //   视觉上"框还没到"时就是深色底板，而不是刺眼的白块）；贴图到位后 `UiArt.SetSprite`
+            //   会把 color 覆写回原版亮度（白），缺图分支保留深色占位并 Warn —— 两条既有分支都不变。
             var boxSize = UiLayoutFlow.Px(Layout.BoxSizeOrig);
             var boxPos = UiLayoutFlow.Px(Layout.BoxPosOrig);
             UiArt.Panel(screen, "Box", boxSize, boxPos, UiArt.PanelBg, true);
-            UiArt.Art(screen, "BoxFrame", ResPaths.PanelBoxFrameSettings, boxSize, boxPos);
+            var boxFrame = UiArt.Art(screen, "BoxFrame", ResPaths.PanelBoxFrameSettings, boxSize, boxPos);
+            if (boxFrame != null) boxFrame.color = UiArt.PanelBg;   // 在途占位 = 深色（贴图到位后由 SetSprite 覆写回白）
 
             // ④ 标题（原版字模 Font24）
             _title = UiLayoutFlow.FlowLabel.Create(screen, "Title", TitleWaypoint, D2Text.D2Font.Font24,

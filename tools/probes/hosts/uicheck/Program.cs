@@ -433,7 +433,53 @@ namespace Uicheck
                 wiring.Contains("AppWaypoint.Install(ctx)"), "在 App/AppWiring.cs 内检索");
             Check("AppWiring 复位调了 AppWaypoint.ResetStaticForNewPlaySession（防第二局带上一局的已激活集）",
                 wiring.Contains("AppWaypoint.ResetStaticForNewPlaySession()"), "在 App/AppWiring.cs 内检索");
+
+            // ④ ★ ui-fix3（实机"面板底图是一整块纯白矩形"）：底图必须引用**原版窗框素材**，
+            //    且加载在途的占位底色**不得是白色**（白色兜底就是实机那块白矩形的来源 ——
+            //    `UiArt.Art` 缺省兜底 = 白，贴图异步在途的头几帧整块画白）。
+            var wpSrc = File.ReadAllText(Path.Combine(UiDir, "WaypointPanel.cs"));
+            Check("WaypointPanel：底图引用原版窗框（ResPaths.PanelBoxFrameSettings，⛔ 不许纯色/自画顶替）",
+                wpSrc.Contains("ResPaths.PanelBoxFrameSettings"), "在 UI/WaypointPanel.cs 内检索");
+            Check("WaypointPanel：加载在途占位底色 = UiArt.PanelBg（深色，⛔ 不是 UiArt.Art 的白色兜底）",
+                wpSrc.Contains("boxFrame.color = UiArt.PanelBg"), "在 UI/WaypointPanel.cs 内检索");
+
+            // ⑤ ★ ui-fix3：原版窗框素材本体在盘上且不是纯色块（IHDR 尺寸 = 432×348，d2codec 实测）。
+            var framePng = Path.Combine(ResourceRoot, "Clover", "D2", "UI", "Panel", "boxframe_settings.png");
+            Check("原版窗框 boxframe_settings.png 在盘上（Resources/Clover/D2/UI/Panel）", File.Exists(framePng), framePng);
+            if (File.Exists(framePng))
+            {
+                int w, h;
+                PngSize(framePng, out w, out h);
+                Check("原版窗框尺寸 = 432×348（d2codec 拼装实测；≠ 纯色占位）", w == 432 && h == 348, w + "x" + h);
+            }
+
+            // ⑥ ★ ui-fix3（拖影三条）：① 图标 = 被拖物品的原版图标（同一条 `D2Icon.ItemIconPath`）；
+            //    ② 拖影保持半透明（⛔ 不是实心色块）；③ 拖拽结束拖影/高亮必然隐藏（⛔ 无残留节点）。
+            var invSrc = File.ReadAllText(Path.Combine(UiDir, "InventoryPanel.cs"));
+            Check("InventoryPanel：拖影贴被拖物品的原版图标（UiArt.SetSprite(_ghost, iconPath)）",
+                invSrc.Contains("UiArt.SetSprite(_ghost, iconPath)"), "在 UI/InventoryPanel.cs OnBeginDrag 内检索");
+            Check("InventoryPanel：拖影 = 半透明副本（0.65 = _ghost 建立时的既有 alpha，⛔ 不改实心）",
+                invSrc.Contains("new Color(ghostTint.r, ghostTint.g, ghostTint.b, 0.65f)"),
+                "在 UI/InventoryPanel.cs OnBeginDrag 内检索");
+            Check("InventoryPanel：OnEndDrag 隐藏拖影 + 目标格高亮（结束无残留）",
+                invSrc.Contains("_ghost.gameObject.SetActive(false)")
+                && invSrc.Contains("_dropHighlight.gameObject.SetActive(false)"),
+                "在 UI/InventoryPanel.cs OnEndDrag 内检索");
+
             Console.WriteLine();
+        }
+
+        /// <summary>读 PNG IHDR 宽高（uicheck 是无依赖控制台宿主，不引图像库）。</summary>
+        private static void PngSize(string path, out int w, out int h)
+        {
+            w = h = -1;
+            using (var fs = File.OpenRead(path))
+            {
+                var buf = new byte[24];
+                if (fs.Read(buf, 0, 24) < 24) return;
+                w = (buf[16] << 24) | (buf[17] << 16) | (buf[18] << 8) | buf[19];
+                h = (buf[20] << 24) | (buf[21] << 16) | (buf[22] << 8) | buf[23];
+            }
         }
 
         // ═════════════════════════════════════════════════════════════════════

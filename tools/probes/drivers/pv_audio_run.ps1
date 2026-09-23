@@ -202,6 +202,14 @@ Start-Sleep -Seconds 2
 $snap = Run-Step $pvcs 'PVA.Api.Snap' ''
 Say ('SNAP ' + $snap)
 
+# NOTE: the SNAP line reaches Editor.log AFTER the run_script call returns (measured this session:
+# the id list came out empty because $script:lines had not been refreshed since the S2 wait loop).
+for ($k = 0; $k -lt 8; $k++) {
+    Read-New
+    if ((Lines-With '\[PVA\] SNAP').Count -gt 0) { break }
+    Start-Sleep -Seconds 1
+}
+
 # pull the live monster ids out of the SNAP log line: monsters=[ID:kindId:name:...]
 $ids = @()
 $snapLine = @(Lines-With '\[PVA\] SNAP') | Select-Object -Last 1
@@ -216,10 +224,16 @@ $allIds = ($ids -join '|')
 # ---- phase 1: HIT (expect the generic impact sound + the monster own gethit sound) ----
 if ($ids.Count -gt 0) {
     Run-Step $pvcs 'PVA.Api.Mark' 'hit' | Out-Null
-    Run-Step $pvcs 'PVA.Api.Hit' ($ids[0] + '|3') | Out-Null
+    $near = Run-Step $pvcs 'PVA.Api.Nearest' ''
+    $nearId = ''
+    if ($near -match 'id=(\d+)') { $nearId = $Matches[1] }
+    Say ('NEAREST ' + $near + ' id=' + $nearId)
+    # the REAL click-to-attack entry, four times with a real gap (the same way the held left
+    # button is emitted every frame).  This is what drives DamagePipeline, unlike ApplyDamage.
+    for ($a = 0; $a -lt 4; $a++) { Run-Step $pvcs 'PVA.Api.Attack' $nearId | Out-Null; Start-Sleep -Seconds 1 }
     Start-Sleep -Seconds 2
     Run-Step $pvcs 'PVA.Api.Since' '' | Out-Null
-    Run-Step $pvcs 'PVA.Api.Shot' 'pv_audio_1_hit.png' | Out-Null
+    Run-Step $pvcs 'PVA.Api.Shot' (($raw -replace '\\', '/') + '/pv_audio_1_hit.png') | Out-Null
     Start-Sleep -Seconds 2
 
     # ---- phase 2: AGGRO -> the monsters chase (step sound) and swing (attack sound) ----
@@ -227,7 +241,7 @@ if ($ids.Count -gt 0) {
     Run-Step $pvcs 'PVA.Api.Aggro' $allIds | Out-Null
     Start-Sleep -Seconds 6
     Run-Step $pvcs 'PVA.Api.Since' '' | Out-Null
-    Run-Step $pvcs 'PVA.Api.Shot' 'pv_audio_2_chase.png' | Out-Null
+    Run-Step $pvcs 'PVA.Api.Shot' (($raw -replace '\\', '/') + '/pv_audio_2_chase.png') | Out-Null
     Start-Sleep -Seconds 2
 
     # ---- phase 3: KILL (expect the per-class death sound) ----
@@ -235,7 +249,7 @@ if ($ids.Count -gt 0) {
     Run-Step $pvcs 'PVA.Api.Hit' ($ids[0] + '|99999') | Out-Null
     Start-Sleep -Seconds 3
     Run-Step $pvcs 'PVA.Api.Since' '' | Out-Null
-    Run-Step $pvcs 'PVA.Api.Shot' 'pv_audio_3_kill.png' | Out-Null
+    Run-Step $pvcs 'PVA.Api.Shot' (($raw -replace '\\', '/') + '/pv_audio_3_kill.png') | Out-Null
     Start-Sleep -Seconds 2
     Run-Step $pvcs 'PVA.Api.Snap' '' | Out-Null
 }

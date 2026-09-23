@@ -46,55 +46,90 @@ namespace Diablo2.Module
     /// </summary>
     public static class CameraBounds
     {
+        /// <summary>
+        /// ★ camera-follow 片（2026-09-23）：「主角可见」的**安全边距**（占半屏的比例）。
+        /// 机位可以为了藏住虚空而离开焦点，但**不得**超过 `半屏 × 本值` ⇒ 焦点（玩家）永远落在
+        /// 视口 [inset, 1−inset] 内（inset = (1 − 本值)/2），⛔ 不许被顶到画面边框上。
+        /// <para>取值被两侧夹死：① 下界 —— 血腥荒野落点格 (1,20) 需要 `6.083 / 6.667 = 0.9125`
+        /// 个半屏位移才能把虚空压到 0（`mapcheck` §29 `fracProd == 0` + 生产==规格），本值 &lt; 0.9125
+        /// 会让 §29 变红；② 上界 —— `playercheck` §11.10 四角用例的「图外格量不差于修前」在本值 = 1
+        /// 时恰好取等，&gt; 1 没有意义（会允许焦点落到画面外）。⇒ **只能取 1**。</para>
+        /// </summary>
+        public const float FocusSafeMarginRatio = 1f;
+
         /// <summary>"主角可见优先"生效过（只报一次，避免每帧刷屏）。</summary>
         private static bool _visibilityWonLogged;
 
         /// <summary>
-        /// 把机位（= 焦点世界坐标）夹到「可见**格**矩形 ⊆ 地图」，并保证焦点仍在视口内。
+        /// 把机位夹到「可见**格**矩形 ⊆ 地图」，并保证**焦点（玩家）仍在视口安全边距内**。
+        /// <para>★ 口径（camera-follow 片）：夹的是**机位** `camera`，⛔ 不是焦点 ——
+        /// 焦点只作为「机位最多能挪多远」的参照。前一片把两者当同一个量（`camera == focus`），
+        /// 于是「藏虚空」的位移被当成「焦点被夹」⇒ 玩家被顶到画面角落（实机 p50 598px）。</para>
         /// </summary>
-        /// <param name="focus">焦点（= 未夹制时的机位）世界坐标。</param>
+        /// <param name="camera">**机位**世界坐标（被夹的那个量）。</param>
+        /// <param name="focus">**焦点**（玩家）世界坐标 —— 只用于限定位移上限，本身不被改写。</param>
         /// <param name="mapWidth">地图宽（格）。</param>
         /// <param name="mapHeight">地图高（格）。</param>
         /// <param name="halfW">半屏宽（世界单位 = `orthoSize * aspect`）。</param>
         /// <param name="halfH">半屏高（世界单位 = `orthoSize`）。</param>
         /// <returns>夹制后的机位世界坐标（xy）。</returns>
-        public static Vector2 ClampFocusGrid(Vector2 focus, int mapWidth, int mapHeight, float halfW, float halfH)
+        public static Vector2 ClampCameraGrid(Vector2 camera, Vector2 focus, int mapWidth, int mapHeight,
+            float halfW, float halfH)
         {
             var iw = Iso.HalfW;                       // 等距半格（世界单位）：1.0 / 0.5
             var ih = Iso.HalfH;
             if (mapWidth <= 0 || mapHeight <= 0 || halfW <= 0f || halfH <= 0f || iw <= 0f || ih <= 0f)
-                return focus;
+                return camera;
 
             var a = halfW / iw;                       // 半屏在 u 方向的半跨（格）
             var b = halfH / ih;                       // 半屏在 v 方向的半跨（格）
             var margin = a + b;                       // 菱形顶点到中心在两个方向上的合计跨度
 
-            var u = focus.x / iw;                     // 焦点（= 机位）在菱形轴系里的坐标
-            var v = -focus.y / ih;
+            var u = camera.x / iw;                    // **机位**在菱形轴系里的坐标
+            var v = -camera.y / ih;
 
-            var s1 = ClampSpan(u + v, margin, 2f * (mapWidth - 1) - margin);    // = 2·gx
-            var s2 = ClampSpan(v - u, margin, 2f * (mapHeight - 1) - margin);   // = 2·gy
+            // ★ camera-follow 片：上界用 **2·W / 2·H**（格的连续口径），⛔ 不是 2·(W−1)。
+            //   `Iso` 的连续格坐标里「格 g 覆盖 [g, g+1)」⇒ 地图的真实连续范围是 [0, W]×[0, H]；
+            //   取 (W−1) 等于把最外一圈格当成图外，**白白吃掉一整格**可跟随范围
+            //   （56×40 城镇：机位 gy 上限 31.917 → 32.917 ⇒ 玩家↔机位偏移少 1 格 ≈ 144px@1080p）。
+            var s1 = ClampSpan(u + v, margin, 2f * mapWidth - margin);          // = 2·gx
+            var s2 = ClampSpan(v - u, margin, 2f * mapHeight - margin);         // = 2·gy
 
             var u2 = (s1 - s2) * 0.5f;
             var v2 = (s1 + s2) * 0.5f;
 
-            // 主角可见预算：焦点必须还在视口内 ⇒ |Δu| ≤ a、|Δv| ≤ b（见文件头「硬约束」）。
-            var uc = Mathf.Clamp(u2, u - a, u + a);
-            var vc = Mathf.Clamp(v2, v - b, v + b);
+            // ★ 主角可见预算：位移是相对**焦点**（玩家）量的，⛔ 不是相对机位自己
+            //   （相对机位自己量的话，机位已经在边缘上 ⇒ 预算被自己吃掉，玩家一路被顶到画面角上）。
+            //   上界 = 半屏 × FocusSafeMarginRatio ⇒ 焦点永远落在视口 [inset, 1−inset] 内。
+            var uf = focus.x / iw;
+            var vf = -focus.y / ih;
+            var au = a * FocusSafeMarginRatio;
+            var bv = b * FocusSafeMarginRatio;
+            var uc = Mathf.Clamp(u2, uf - au, uf + au);
+            var vc = Mathf.Clamp(v2, vf - bv, vf + bv);
             if (Mathf.Abs(uc - u2) > 1e-4f || Mathf.Abs(vc - v2) > 1e-4f)
             {
                 if (!_visibilityWonLogged)
                 {
                     _visibilityWonLogged = true;
-                    Log.Warn("Camera", $"地图角格处「零虚空」与「主角可见」不可兼得 ⇒ 本次让位给主角可见" +
-                                       $"（机位 ({uc * iw:0.##},{-vc * ih:0.##})，" +
-                                       $"零虚空解为 ({u2 * iw:0.##},{-v2 * ih:0.##})，只报一次）");
+                    Log.Warn("Camera", $"地图角格处「零虚空」与「主角可见（安全边距 {FocusSafeMarginRatio:0.##}）」" +
+                                       $"不可兼得 ⇒ 本次让位给主角可见（机位 ({uc * iw:0.##},{-vc * ih:0.##})，" +
+                                       $"零虚空解为 ({u2 * iw:0.##},{-v2 * ih:0.##})，焦点 ({focus.x:0.##},{focus.y:0.##})，只报一次）");
                 }
                 u2 = uc;
                 v2 = vc;
             }
 
             return new Vector2(u2 * iw, -v2 * ih);
+        }
+
+        /// <summary>
+        /// 兼容口径：**机位与焦点同一处**（= 相机想停在玩家身上的理想情形）。
+        /// `mapcheck` §29 / `playercheck` §11 的用例走这个入口（它们只给一个点）。
+        /// </summary>
+        public static Vector2 ClampFocusGrid(Vector2 focus, int mapWidth, int mapHeight, float halfW, float halfH)
+        {
+            return ClampCameraGrid(focus, focus, mapWidth, mapHeight, halfW, halfH);
         }
 
         /// <summary>纯函数：把 [lo,hi] 这段可行区间夹出来；区间为空（视野比地图还大）⇒ 居中（原版语义）。</summary>

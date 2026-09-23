@@ -539,13 +539,30 @@ namespace Diablo2.Module
         public static Vector3 CameraPosForFocus(Vector3 focus, int mapWidth, int mapHeight,
             float orthoSize, float aspect, float cameraZ)
         {
+            return CameraPosForCamera(focus, focus, mapWidth, mapHeight, orthoSize, aspect, cameraZ);
+        }
+
+        /// <summary>
+        /// ★ camera-follow 片（2026-09-23）：**夹机位，不夹焦点**。
+        /// 纯函数：`机位 → 夹制后的机位`，夹制只改**机位**；焦点（玩家）只作为
+        /// 「机位最多能挪多远」的参照（`CameraBounds.FocusSafeMarginRatio`），本身**不被改写**。
+        /// <para>为什么必须分开：本机位制下 `机位 == 焦点`（正交、不旋转 ⇒ `DesiredPosition` 只是换 z），
+        /// 前一片于是把两者当同一个量 —— 藏虚空的位移被写回成"焦点被夹"，相机对准那个被夹的点，
+        /// 玩家就被顶到画面角落（`play-verify` 实测 p50 598.6px / max 1065.8px）。
+        /// 分开之后：位移照旧用于藏虚空，但**上限由焦点决定** ⇒ 玩家永远在视口安全边距内。</para>
+        /// </summary>
+        /// <param name="camera">**机位**世界坐标（被夹的那个量）。</param>
+        /// <param name="focus">**焦点**（玩家）世界坐标 —— 只用于限定位移上限。</param>
+        public static Vector3 CameraPosForCamera(Vector3 camera, Vector3 focus, int mapWidth, int mapHeight,
+            float orthoSize, float aspect, float cameraZ)
+        {
             // ★ 格空间夹制（⛔ 不是世界 AABB）：把「可见格矩形」夹进 [0..W-1]×[0..H-1]。
-            //   实现只在 `CameraBounds.ClampFocusGrid`（同一份 = 离线宿主 `mapcheck` §29 断言的那份）。
+            //   实现只在 `CameraBounds.ClampCameraGrid`（同一份 = 离线宿主 `mapcheck` §29 断言的那份）。
             // ⛔ 只走**一份**夹制实现（本片与 camera-clamp 片撞车过一次，两份叠加 = 夹两次 + 口径可能打架）。
-            //   「主角可见优先」那条硬约束已在 `CameraBounds.ClampFocusGrid` 内部处理（见该文件头「一条硬约束」段）。
-            var f = CameraBounds.ClampFocusGrid(new Vector2(focus.x, focus.y), mapWidth, mapHeight,
-                orthoSize * aspect, orthoSize);
-            var p = DesiredPosition(new Vector3(f.x, f.y, focus.z), cameraZ);
+            //   「主角可见优先」那条硬约束已在 `CameraBounds.ClampCameraGrid` 内部处理（见该文件头「一条硬约束」段）。
+            var c = CameraBounds.ClampCameraGrid(new Vector2(camera.x, camera.y),
+                new Vector2(focus.x, focus.y), mapWidth, mapHeight, orthoSize * aspect, orthoSize);
+            var p = DesiredPosition(new Vector3(c.x, c.y, focus.z), cameraZ);
             p.z = cameraZ;                        // 焦点 z 不参与（世界是 z=0 的 XY 平面）
             return p;
         }
@@ -896,7 +913,8 @@ namespace Diablo2.Module
             if (_cam == null) return;                 // 拿不到 aspect ⇒ 不做半屏换算
 
             // 走纯函数（与 `tools/playercheck` §11 的取景断言**同一条实现**，避免测试和线上两套算法）
-            var clamped = CameraPosForFocus(_pos, map.Width, map.Height, _ortho, _cam.aspect, _pos.z);
+            // ★ 夹的是**机位** `_pos`；`_focus`（玩家）只作为位移上限的参照（camera-follow 片）。
+            var clamped = CameraPosForCamera(_pos, _focus, map.Width, map.Height, _ortho, _cam.aspect, _pos.z);
             // 被地图边界真的夹住 ⇒ 清速度状态（反积分卷绕）：否则临界阻尼会继续朝"地图外的目标"积分，
             // 等目标回到图内时相机已经攒下一段速度、会冲一下。未被夹住时 clamped 与 _pos 相等（零开销）。
             if (Vector3.SqrMagnitude(clamped - _pos) > 0f) _camVelocity = Vector3.zero;

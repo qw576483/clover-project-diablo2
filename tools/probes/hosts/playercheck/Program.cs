@@ -295,6 +295,7 @@ namespace PlayerCheck
 
             RunStep("1. 五职业 1 级派生属性", () => Step1_FiveClasses(ctx, map));
             RunStep("2. 点击移动", () => Step2_ClickMove(ctx, map, player, bus));
+            RunStep("2b. 近距点击矩阵（U33）", () => Step2b_NearClickMatrix(ctx, map, player, bus));
             RunStep("3. 绕障", () => Step3_Detour(ctx, map, player, bus));
             RunStep("4. 不可达 / 最近可走格回退（R1-B）", () => Step4_Unreachable(ctx, map, player, bus));
             RunStep("4b. 桥/水专项（R1-B）", () => Step4b_BridgeWaterFallback(ctx, map, player, bus));
@@ -477,6 +478,72 @@ namespace PlayerCheck
                 $"次数={bus.CountOf(Events.PlayerGridChanged)}");
             Console.WriteLine($"    ⇒ 起点 {from} / 终点 {player.Grid} / 路径 {player.Motor.LastSteps} 格 / " +
                               $"实际 {player.Motor.LastArriveFrames} 帧（{frames}）");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 2b. ★ U33「鼠标在人附近移动没效果，必须要远」：近距点击矩阵
+        //     出处 = `策划/策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行「鼠标点击移动 …
+        //            按住左键持续更新目标」⇒ 近处（脚下/8 邻域/距离 2）一样要有反应。
+        //     走**单击真链路** `PlayerModule.HandlePrimaryClick`（= `HandleMoveIntent` 的 ① 支），
+        //     每一步先把角色放回 P，保证矩阵各格互不干扰。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step2b_NearClickMatrix(AppContext ctx, object mapObj, PlayerModule player, RecordingEventBus bus)
+        {
+            Section("2b. ★ U33 近距点击矩阵：脚下格 / 8 邻域 / Chebyshev 距离 2 圈（逐帧 Tick 0.02f）");
+            var map = (Diablo2.Module.Map.MapModule)mapObj;
+            map.Generate(AreaId.Town, 20250916);
+            player.CreateNew(PlayerClass.Amazon, "Check");
+            player.TeleportTo(map.SpawnPoint);
+
+            var p = player.Grid;
+            Console.WriteLine($"    玩家格 P={p}（Town 出生点 {map.SpawnPoint}）；地图 {map.Width}x{map.Height}");
+
+            // ① 脚下格：原版语义 = 点自己 ⇒ 停下来（不许移动到别处）
+            player.TeleportTo(p);
+            var foot0 = bus.CountOf(Events.MoveCommand);
+            player.HandlePrimaryClick(p);
+            WalkUntilArrive(player, map, 400, assertWalkableEachFrame: true);
+            Check("点脚下格 P ⇒ 仍下发 MoveCommand、角色原地不动（不是被吞掉，是走了 MoveTo 的「已在目标格」分支）",
+                bus.CountOf(Events.MoveCommand) == foot0 + 1 && player.Grid == p && !player.IsMoving,
+                $"MoveCommand +{bus.CountOf(Events.MoveCommand) - foot0}，终点 {player.Grid}，IsMoving={player.IsMoving}");
+            Check("点脚下格留下了 `[Move] 已在目标格` 日志", CaptureLogger.Has("[Move] 已在目标格"),
+                CaptureLogger.Last("[Move] 已在目标格"));
+
+            // ② (P,M) 矩阵：Chebyshev 距离 1 8 格 + 距离 2 圈 16 格
+            var walkableHit = 0;
+            var walkableTotal = 0;
+            var blockedMoves = 0;
+            var notReached = new List<string>();
+            for (var dx = -2; dx <= 2; dx++)
+            {
+                for (var dy = -2; dy <= 2; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;                 // 脚下格已单独验过
+                    var m = new Vector2Int(p.x + dx, p.y + dy);
+                    if (!map.InBounds(m)) continue;                   // 图外：由既有 §4「图外拒绝」覆盖
+
+                    player.TeleportTo(p);
+                    var mv0 = bus.CountOf(Events.MoveCommand);
+                    player.HandlePrimaryClick(m);
+                    WalkUntilArrive(player, map, 400, assertWalkableEachFrame: true);
+
+                    // ⛔ 放开近距 ≠ 放开阻挡：任何一格走完都不能停在不可走格上
+                    if (!map.Walkable(player.Grid)) blockedMoves++;
+                    if (!map.Walkable(m)) continue;                    // 不可走落点 ⇒ 由既有的 R1-B 回退口径覆盖
+
+                    walkableTotal++;
+                    if (player.Grid == m) walkableHit++;
+                    else notReached.Add($"M={m}(d={Iso.GridDistance(p, m)})终点={player.Grid}");
+                    if (bus.CountOf(Events.MoveCommand) <= mv0) notReached.Add($"M={m} 未下发MoveCommand");
+                }
+            }
+
+            Check($"★ 近距可走格全部走到（{walkableHit}/{walkableTotal} 命中；含 8 邻域与距离 2 圈）",
+                walkableTotal > 0 && walkableHit == walkableTotal,
+                $"命中 {walkableHit}/{walkableTotal}" + (notReached.Count > 0 ? "；未达标：" + string.Join("，", notReached) : string.Empty));
+            Check("点了不可走格也没有把阻挡一起放开（走完仍站在可走格上）", blockedMoves == 0,
+                $"踩到不可走格的格数 = {blockedMoves}");
+            Console.WriteLine($"    ⇒ P={p}；矩阵共 {walkableTotal} 个可走近距格，全部在 ≤400 帧内到达");
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -1396,6 +1463,74 @@ namespace PlayerCheck
                     $"修前可见格 x∈[{loX:0.##},{hiX:0.##}]（x<0 的那几列在图外=黑）机位=({old.x:0.##},{old.y:0.##})");
             }
 
+            // ═════════════════════════════════════════════════════════════════
+            // 11.11 ★ camera-follow 片（2026-09-23）：**玩家焦点必须在视口内（含安全边距）**
+            //   前一片只断言「可见格 ⊆ 地图」⇒ 判据全绿、实机玩家却被顶到画面角落
+            //   （play-verify 实测 玩家↔相机 屏幕距离 p50=598.6px / max=1065.8px / 75.8% 帧 > 半格）。
+            //   本组用例覆盖 **地图四角 + 四边 + 图心**（80×80 血腥荒野、56×40 城镇（实机那张）、
+            //   32×32 `GameConst.Town`），逐条把焦点投影到视口归一化坐标，
+            //   判据 = 焦点必须落在 [inset, 1−inset]（inset = (1 − FocusSafeMarginRatio)/2）。
+            //   ⛔ 退化校验见 report-camerafollow.md：把生产退回「夹焦点」（去掉主角可见预算）
+            //      ⇒ 四角用例必须变红，否则本判据是摆设。
+            // ═════════════════════════════════════════════════════════════════
+            Console.WriteLine();
+            Console.WriteLine("    ── 玩家焦点必须在视口内（含安全边距）：四角 + 四边 + 图心 ──");
+            var insetF = (1f - CameraBounds.FocusSafeMarginRatio) * 0.5f;
+            Console.WriteLine($"  FocusSafeMarginRatio={CameraBounds.FocusSafeMarginRatio:0.##} ⇒ 视口安全边距 inset={insetF:0.###}" +
+                              $"（焦点归一化坐标必须落在 [{insetF:0.###}, {1f - insetF:0.###}]）");
+            var focusCases = new[]
+            {
+                new { W = 80, H = 80, G = new Vector2Int(0, 0),    Tag = "80×80 西北角(0,0)" },
+                new { W = 80, H = 80, G = new Vector2Int(79, 0),   Tag = "80×80 东北角(79,0)" },
+                new { W = 80, H = 80, G = new Vector2Int(0, 79),   Tag = "80×80 西南角(0,79)" },
+                new { W = 80, H = 80, G = new Vector2Int(79, 79),  Tag = "80×80 东南角(79,79)" },
+                new { W = 80, H = 80, G = new Vector2Int(40, 0),   Tag = "80×80 北边(40,0)" },
+                new { W = 80, H = 80, G = new Vector2Int(40, 79),  Tag = "80×80 南边(40,79)" },
+                new { W = 80, H = 80, G = new Vector2Int(0, 40),   Tag = "80×80 西边(0,40)" },
+                new { W = 80, H = 80, G = new Vector2Int(79, 40),  Tag = "80×80 东边(79,40)" },
+                new { W = 80, H = 80, G = new Vector2Int(1, 20),   Tag = "80×80 西边界(1,20)（mapcheck §29 同点）" },
+                new { W = 80, H = 80, G = new Vector2Int(40, 40),  Tag = "80×80 图心(40,40)" },
+                new { W = 56, H = 40, G = new Vector2Int(0, 0),    Tag = "56×40 西北角(0,0)" },
+                new { W = 56, H = 40, G = new Vector2Int(55, 0),   Tag = "56×40 东北角(55,0)" },
+                new { W = 56, H = 40, G = new Vector2Int(0, 39),   Tag = "56×40 西南角(0,39)" },
+                new { W = 56, H = 40, G = new Vector2Int(55, 39),  Tag = "56×40 东南角(55,39)" },
+                new { W = 56, H = 40, G = new Vector2Int(28, 0),   Tag = "56×40 北边(28,0)" },
+                new { W = 56, H = 40, G = new Vector2Int(28, 39),  Tag = "56×40 南边(28,39)" },
+                new { W = 56, H = 40, G = new Vector2Int(0, 20),   Tag = "56×40 西边(0,20)" },
+                new { W = 56, H = 40, G = new Vector2Int(55, 20),  Tag = "56×40 东边(55,20)" },
+                new { W = 56, H = 40, G = new Vector2Int(46, 37),  Tag = "56×40 (46,37)（play-verify 实机回归路径点）" },
+                new { W = 56, H = 40, G = new Vector2Int(20, 33),  Tag = "56×40 (20,33)（play-verify 实机回归路径点）" },
+                new { W = GameConst.TownWidth, H = GameConst.TownHeight, G = new Vector2Int(0, 0),   Tag = "城镇 西北角(0,0)" },
+                new { W = GameConst.TownWidth, H = GameConst.TownHeight, G = new Vector2Int(31, 31), Tag = "城镇 东南角(31,31)" },
+                new { W = GameConst.TownWidth, H = GameConst.TownHeight, G = new Vector2Int(16, 0),  Tag = "城镇 北边(16,0)" },
+                new { W = GameConst.TownWidth, H = GameConst.TownHeight, G = new Vector2Int(0, 16),  Tag = "城镇 西边(0,16)" },
+            };
+            var worstInset = float.MaxValue;
+            var worstTag = "";
+            foreach (var fc in focusCases)
+            {
+                var fw = Iso.GridToWorld(fc.G);
+                // ★ 夹**机位**（camera = 想停在玩家身上的理想机位），焦点只当位移上限的参照
+                var camF = CameraRig.CameraPosForCamera(fw, fw, fc.W, fc.H,
+                    CameraRig.DefaultOrthographicSize, covA, -CameraRig.CameraDistance);
+                var vpf = CameraRig.WorldToViewport(fw, camF, CameraRig.DefaultOrthographicSize, covA);
+
+                // 焦点到视口四边的最小余量（<0 = 焦点已经在画面外）
+                var marginF = Mathf.Min(Mathf.Min(vpf.x, 1f - vpf.x), Mathf.Min(vpf.y, 1f - vpf.y));
+                if (marginF < worstInset) { worstInset = marginF; worstTag = fc.Tag; }
+
+                var okF = vpf.x >= insetF - 1e-3f && vpf.x <= 1f - insetF + 1e-3f
+                       && vpf.y >= insetF - 1e-3f && vpf.y <= 1f - insetF + 1e-3f;
+                Check($"[{fc.W}×{fc.H}] {fc.Tag} ⇒ 焦点（玩家）在视口安全边距内 vp=({vpf.x:0.####},{vpf.y:0.####})",
+                    okF,
+                    $"余量={marginF:0.####}（下限 {insetF:0.####}；<0 = 玩家真的跑出画面）" +
+                    $" 屏幕偏移=({Math.Abs(camF.x - fw.x) / (CameraRig.DefaultOrthographicSize * covA):0.###}," +
+                    $"{Math.Abs(camF.y - fw.y) / CameraRig.DefaultOrthographicSize:0.###})×半屏");
+            }
+            Check("所有用例里最紧的一条仍有非负余量（焦点从未被顶到画面边框上）",
+                worstInset >= insetF - 1e-3f,
+                $"最紧 = {worstTag} 余量={worstInset:0.####}（下限 {insetF:0.####}）");
+
             rig.Reset();
             Check("Reset 后正交尺寸回到默认、跟随与震动清空",
                 Math.Abs(rig.OrthographicSize - CameraRig.DefaultOrthographicSize) < 1e-4f && !rig.IsShaking,
@@ -1451,18 +1586,44 @@ namespace PlayerCheck
             var reader = player.Input;
             reader.Reset();
 
-            // 12.1 目标变化判定（纯函数，验收 #4「变化超过 1 格才重算」）
+            // 12.1 目标变化判定（纯函数）
+            //   ★ 2026-09-23 U33：原验收口径「变化超过 1 格才重算」是 `docs/agents/agent-06` §4 第 4 条的
+            //   **本项目自创**工程优化，不是原版语义（原版口径 = `策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行
+            //   「按住左键持续更新目标」）⇒ 下面两行按原版口径改判：**目标格一变就重算**。
             var from = new Vector2Int(5, 5);
             Check("ShouldRetarget：首次按住 → true",
                 InputReader.ShouldRetarget(from, null, new Vector2Int(6, 5)), "(5,5) 按住到 (6,5)");
-            Check("ShouldRetarget：目标没变 → false",
+            Check("ShouldRetarget：目标没变 → false（唯一的逐帧节流：同一格不重复跑 A*）",
                 !InputReader.ShouldRetarget(from, new Vector2Int(6, 5), new Vector2Int(6, 5)), "同一格");
-            Check("ShouldRetarget：只差 1 格 → false（防抖动/省 A*）",
-                !InputReader.ShouldRetarget(from, new Vector2Int(6, 5), new Vector2Int(7, 5)), "差 1 格");
+            Check("ShouldRetarget：★ U33 差 1 格 → true（旧口径这里返回 false ⇒ 鼠标慢移永远不重算）",
+                InputReader.ShouldRetarget(from, new Vector2Int(6, 5), new Vector2Int(7, 5)), "差 1 格");
             Check("ShouldRetarget：差 ≥2 格 → true",
                 InputReader.ShouldRetarget(from, new Vector2Int(6, 5), new Vector2Int(8, 5)), "差 2 格");
-            Check("ShouldRetarget：点到脚下 → false",
-                !InputReader.ShouldRetarget(from, new Vector2Int(9, 9), from), "now == 玩家当前格");
+            Check("ShouldRetarget：★ U33 目标移到脚下格 → true（由 MoveTo 的「已在目标格 ⇒ 清空路径」落地）",
+                InputReader.ShouldRetarget(from, new Vector2Int(9, 9), from), "now == 玩家当前格");
+
+            // 12.1b ★ U33 矩阵式断言（**真因所在的那一型**：鼠标**只挪了 1 格**也要重算）
+            //   棋局：上一次下发的目标 G0 = M + (1,0)（滚滚手的鼠标在当前目标旁挪一格）
+            //   ⇒ 本次鼠标格 M 取：脚下格 + 8 邻域 + 距离 2 圈（共 25 格）⇒ **全部应为 true**。
+            //   退化：旧口径在这里「next== 玩家格」与「差 ≤1 格」两条都返回 false ⇒ 25 格全红。
+            var miss = new List<string>();
+            var cells = 0;
+            for (var dx = -2; dx <= 2; dx++)
+            {
+                for (var dy = -2; dy <= 2; dy++)
+                {
+                    var m = new Vector2Int(from.x + dx, from.y + dy);
+                    var prev = new Vector2Int(m.x + 1, m.y);       // 鼠标从上一次目标只挪了 1 格
+                    cells++;
+                    if (InputReader.ShouldRetarget(from, prev, m)) continue;
+                    miss.Add($"M={m} 距P={Iso.GridDistance(from, m)}");
+                }
+            }
+            Check($"★ U33 矩阵：鼠标每帧只挪 1 格时，脚下格+8 邻域+距离 2 圈共 {cells} 格 ⇒ 全部重算",
+                miss.Count == 0,
+                $"总共 {cells} 格，未重算 {miss.Count} 格：" + (miss.Count > 0 ? string.Join("，", miss) : "无"));
+            Check("★ U33 矩阵补一格：本次鼠标 == 上一次目标 ⇒ 不重算（仍在节流，不是每帧跑 A*）",
+                !InputReader.ShouldRetarget(from, new Vector2Int(6, 5), new Vector2Int(6, 5)), "M=上一次目标=(6,5)");
 
             // 12.2 按住状态机 + 无相机时点击被拒
             input.Available = true;

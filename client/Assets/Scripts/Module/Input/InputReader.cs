@@ -276,17 +276,29 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 目标格是否需要重算路径（**纯函数**，宿主可离线断言）。
-        /// 规则（`docs/agents/agent-06-*` §4.4）：目标格变化**超过 1 格**才重算，避免每帧跑 A*。
+        /// <para>规则出处 = `策划/策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行「鼠标点击移动 … **按住左键持续更新目标**」
+        /// （同口径：`策划/自审对比/README.md` 第 5 行「左键点地面 → 8 向逐格寻路」）⇒
+        /// **目标格一变就跟着光标重算**，原版没有「必须差够 N 格」这一说。</para>
+        /// <para>★ 2026-09-23 修 U33「鼠标在人附近移动没效果，必须要远」：删掉旧实现里两条**本项目自创**的抑制规则
+        /// （它们的出处是派活文档 `docs/agents/agent-06-主角相机与输入.md` §4 第 4 条
+        /// 「目标格变化超过 1 格才重算路径（避免每帧 A*）」—— 那是工程优化，**不是原版语义**）：
+        /// <list type="bullet">
+        /// <item>「目标只差 1 格 ⇒ 忽略」：鼠标**慢慢移动**时每帧只跨 1 格 ⇒ 永远触发不了重算，
+        /// 只有把光标甩到 ≥2 格外才有反应 ⇒ 用户报的症状逐字对得上；</item>
+        /// <item>「点到脚下格 ⇒ 忽略」：与**同一条链路**的单击分支不一致 ——
+        /// `PlayerModule.HandlePrimaryClick` 对脚下格照样 `Emit(Events.MoveCommand)`，
+        /// `MoveTo` 自己有「已在目标格 ⇒ 清空路径（原地不动）」分支 ⇒ 按住时把光标挪到脚下 = 该停下来。</item>
+        /// </list>
+        /// 唯一保留的节流 = **同一格不重算**（目标没跑 ⇒ 不重复跑 A*，与"避免每帧 A*"等价且不损失手感）。</para>
         /// </summary>
-        /// <param name="from">玩家当前格。</param>
+        /// <param name="from">玩家当前格（★ 2026-09-23 起**不参与**是否重算的判定，仅为保持调用点签名不变）。</param>
         /// <param name="previous">上一次已经下发的目标格（`null` = 还没有）。</param>
         /// <param name="now">本次鼠标所指格。</param>
         public static bool ShouldRetarget(Vector2Int from, Vector2Int? previous, Vector2Int now)
         {
-            if (now == from) return false;                       // 点到脚下：交给 MoveTo 的"已在原地"分支
-            if (!previous.HasValue) return true;                 // 第一次按下：必须下发
-            if (previous.Value == now) return false;             // 没变：不重算
-            return Iso.GridDistance(previous.Value, now) > 1;    // 变了但只差 1 格：忽略（防抖动 + 省 A*）
+            if (!previous.HasValue) return true;            // 第一次按下：必须下发
+            if (previous.Value == now) return false;        // 目标没变：不重算（唯一的逐帧节流）
+            return true;                                    // 变了就跟着光标重算（脚下格 / 相邻格同样算）
         }
 
         // ── 悬停 / 光标（agent-13 §A）──────────────────────────────────────────

@@ -69,6 +69,7 @@ namespace UF3
             StartCoroutine(CaptureThen(ScreenCapturePath("uifix3_wp_panel.png"), delegate {
                 DumpTree(p.transform, "WaypointPanel",
                     Path.Combine(_root, @"test\uifix3_wp_dump.txt"));
+                DumpCanvasOthers(p.transform, Path.Combine(_root, @"test\uifix3_wp_dump.txt"));
                 Say("WP-DUMP-WRITTEN nodes-see-file");
                 _wpDumped = true;
             }));
@@ -192,11 +193,79 @@ namespace UF3
             var img = t.GetComponent<Image>();
             var raw = t.GetComponent<RawImage>();
             var txt = t.GetComponent<Text>();
-            if (img != null) line += " | Image sprite=" + SpriteName(img) + " color=" + Col(img) + " raycast=" + img.raycastTarget;
+            if (img != null)
+            {
+                var mat = img.material != null && img.material.shader != null ? img.material.shader.name : "null";
+                var tex = img.sprite != null && img.sprite.texture != null
+                    ? img.sprite.texture.name + ":" + img.sprite.texture.width + "x" + img.sprite.texture.height : "none";
+                line += " | Image sprite=" + SpriteName(img) + " tex=" + tex + " mat=" + mat
+                    + " color=" + Col(img) + " type=" + img.type + " crCull=" + img.canvasRenderer.cull
+                    + " crMat=" + (img.canvasRenderer.GetMaterial() != null && img.canvasRenderer.GetMaterial().shader != null
+                        ? img.canvasRenderer.GetMaterial().shader.name : "null");
+            }
             if (raw != null) line += " | RawImage tex=" + TextureName(raw) + " uv=" + raw.uvRect + " color=" + Col(raw);
             if (txt != null) line += " | Text '" + txt.text + "' color=" + Col(txt) + " fontNull=" + (txt.font == null ? 1 : 0) + " enabled=" + (txt.enabled ? 1 : 0);
             sb.AppendLine(line);
             for (var i = 0; i < t.childCount; i++) Walk(t.GetChild(i), depth + 1, sb);
+        }
+
+        // every Graphic in the whole canvas whose screen rect overlaps the given
+        // panel rect but is NOT under the panel root (the "who draws the white box"
+        // hunt); appended to the same dump file.
+        private static void DumpCanvasOthers(Transform panelRoot, string file)
+        {
+            try
+            {
+                var canvas = panelRoot.GetComponentInParent<Canvas>();
+                if (canvas == null) return;
+                var box = panelRoot.Find("ScreenFit/BoxFrame") as RectTransform;
+                if (box == null) box = panelRoot as RectTransform;
+                var corners = new Vector3[4];
+                box.GetWorldCorners(corners);
+                var sb = new StringBuilder();
+                sb.AppendLine("== canvas-scan overlap-of-" + box.name + " @ " + DateTime.UtcNow.ToString("o"));
+                var all = canvas.GetComponentsInChildren<Graphic>(true);
+                foreach (var g in all)
+                {
+                    if (g == null || !g.gameObject.activeInHierarchy) continue;
+                    if (g.transform.IsChildOf(panelRoot)) continue;
+                    var c2 = new Vector3[4];
+                    g.rectTransform.GetWorldCorners(c2);
+                    if (Overlaps(corners, c2))
+                    {
+                        var img = g as Image;
+                        sb.AppendLine("OTHER " + PathOf(g.transform) + " type=" + g.GetType().Name
+                            + " color=" + Col(g)
+                            + (img != null ? " sprite=" + SpriteName(img) : "")
+                            + " worldCenter=" + g.rectTransform.position);
+                    }
+                }
+                File.AppendAllText(file, sb.ToString());
+            }
+            catch (Exception ex) { Say("CANVASSCAN-FAIL " + ex.GetType().Name + ": " + ex.Message); }
+        }
+
+        private static bool Overlaps(Vector3[] a, Vector3[] b)
+        {
+            var (amin, amax) = Bounds(a);
+            var (bmin, bmax) = Bounds(b);
+            return amin.x <= bmax.x && bmin.x <= amax.x && amin.y <= bmax.y && bmin.y <= amax.y;
+        }
+
+        private static (Vector2, Vector2) Bounds(Vector3[] c)
+        {
+            var min = new Vector2(Mathf.Min(c[0].x, Mathf.Min(c[1].x, Mathf.Min(c[2].x, c[3].x))),
+                                  Mathf.Min(c[0].y, Mathf.Min(c[1].y, Mathf.Min(c[2].y, c[3].y))));
+            var max = new Vector2(Mathf.Max(c[0].x, Mathf.Max(c[1].x, Mathf.Max(c[2].x, c[3].x))),
+                                  Mathf.Max(c[0].y, Mathf.Max(c[1].y, Mathf.Max(c[2].y, c[3].y))));
+            return (min, max);
+        }
+
+        private static string PathOf(Transform t)
+        {
+            var p = t.name;
+            while (t.parent != null) { t = t.parent; p = t.name + "/" + p; }
+            return p;
         }
     }
 }

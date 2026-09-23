@@ -774,7 +774,21 @@ namespace Diablo2.UI
             _dragAnchor = anchor;
             var item = _data != null && anchor < _data.inventory.Count ? _data.inventory[anchor]?.item : null;
             // ★ agent-18 §B：拖影也用**原版物品图**（取不到才退回品质色块）
-            _ghost.color = item != null ? ItemQualityColor.Of(item.quality) : Color.white;
+            //   ★ ui-fix3 修（实机「拖出后残灰块 / 拖影没图标」的 UI 侧那一半）：
+            //   ① 拖影在贴图**异步在途**的那几帧画的是 `color` —— 原来先置成**不透明**品质色
+            //      （普通品质 = 纯白实心块，深色地皮上就是一块刺眼"灰白块"），图标到了才变成物品图
+            //      ⇒ 实机每一拖都先闪一块纯色。现在**一路保持本拖影既定的 0.65 半透明**
+            //      （该值 = 本文件 `_ghost` 建立时的既有常量，未新增数值），图标到位前后都
+            //      是"半透明物品副本"，不再有实心色块帧。
+            //   ② 「拖出面板后残留在地皮上的那块灰矩形」**不在本面板**：节点级取证
+            //      （`tools/probes/drivers/uifix3_dump.cs`，`.ai-tmp/test/uifix3_inv_dump.txt` /
+            //      play-log 23:08 会话）证明拖出后 `DragGhost`/`DropHighlight`/`ItemTooltip`
+            //      都已 `SetActive(false)`；那块灰 = 地面物品视图的**品质色占位四边形**
+            //      （`Module/View/ViewModule.CreateGroundItem` 只建了带品质色的占位节点、
+            //      没贴原版物品图，白色品质 × 场景光照 ≈ RGB(187,187,187)）—— 归 Module 片修，
+            //      本文件（UI 层）无残留节点（`uicheck` 新增断言见 `tools/probes/hosts/uicheck`）。
+            var ghostTint = item != null ? D2Icon.QualityTint(item.quality) : Color.white;
+            _ghost.color = new Color(ghostTint.r, ghostTint.g, ghostTint.b, 0.65f);
             _ghost.sprite = null;
             if (item != null)
             {
@@ -785,7 +799,7 @@ namespace Diablo2.UI
                 }
                 else
                 {
-                    UiArt.SetArtTint(_ghost, D2Icon.QualityTint(item.quality));
+                    UiArt.SetArtTint(_ghost, _ghost.color);
                     UiArt.SetSprite(_ghost, iconPath);
                 }
             }

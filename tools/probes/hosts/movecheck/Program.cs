@@ -146,9 +146,59 @@ namespace MoveCheck
 
             Section9_SortTieBreak();
 
+            Section10_RetargetSlowDrag();
+
             Console.WriteLine();
             Console.WriteLine($"================ MoveCheck 结束：通过 {_ok} 项，失败 {_fail} 项 ================");
             return _fail == 0 ? 0 : 1;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 10. ★ U33「鼠标在人附近移动没效果，必须要远」：按住左键 + 鼠标**慢慢拖**
+        //     出处 = `策划/策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行「按住左键持续更新目标」
+        //     ⇒ 每一格鼠标位移都要重定标；旧口径（差 1 格忽略 / 脚下格忽略）会让慢拖**全程无效**。
+        //     这里按真调用方（`Module/Player/PlayerModule.HandleMoveIntent` ② 支）的循环推进：
+        //     `ShouldRetarget` 返回 true ⇒ 记下新目标，否则保持旧目标。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Section10_RetargetSlowDrag()
+        {
+            Section("10. ★ U33 按住左键慢拖：鼠标每帧挪 1 格 ⇒ 每一步都要重定标");
+            var p = new Vector2Int(20, 20);
+            Vector2Int? previous = new Vector2Int(24, 24);      // 按下那一次下发的远端目标
+
+            // 鼠标从 (24,24) 一格一格往回拖到角色脚下（玩家格 P），再往外拖到 P+(0,3)
+            var path = new List<Vector2Int>
+            {
+                new Vector2Int(23, 24), new Vector2Int(22, 24), new Vector2Int(21, 23), new Vector2Int(21, 22),
+                new Vector2Int(21, 21), new Vector2Int(20, 21), new Vector2Int(20, 20),   // ← 拖到脚下格
+                new Vector2Int(20, 21), new Vector2Int(20, 22), new Vector2Int(20, 23),
+            };
+
+            var fired = 0;
+            var dead = new List<string>();
+            for (var i = 0; i < path.Count; i++)
+            {
+                var m = path[i];
+                if (InputReader.ShouldRetarget(p, previous, m))
+                {
+                    fired++;
+                    previous = m;
+                }
+                else
+                {
+                    dead.Add($"第{i + 1}步 M={m}");
+                }
+            }
+
+            Check($"慢拖 {path.Count} 步（含拖过脚下格）⇒ 每一步都重定标（{fired}/{path.Count}）",
+                fired == path.Count && dead.Count == 0,
+                $"未重定标 {dead.Count} 步：" + (dead.Count > 0 ? string.Join("，", dead) : "无"));
+            Check("拖到脚下格的那一步也算重定标（由 MoveTo 的「已在目标格 ⇒ 清空路径」停下）",
+                previous.HasValue && InputReader.ShouldRetarget(p, new Vector2Int(20, 21), new Vector2Int(20, 20)),
+                "previous=(20,21) now=脚下格(20,20)");
+            Check("同一格不重复重定标（始终保留逐帧节流，不每帧跑 A*）",
+                !InputReader.ShouldRetarget(p, new Vector2Int(20, 23), new Vector2Int(20, 23)),
+                "previous == now == (20,23)");
         }
 
         // ═════════════════════════════════════════════════════════════════════

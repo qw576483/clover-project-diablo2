@@ -255,6 +255,49 @@ namespace PVA
             return "HIT-OK hp=" + (now != null ? now.hp : -1) + " alive=" + (now != null ? (now.alive ? 1 : 0) : -1);
         }
 
+        /// <summary>The alive monster closest to the player (Chebyshev grid distance). Read-only.</summary>
+        public static string Nearest()
+        {
+            var m = Probe.Monsters();
+            var pl = Probe.Player();
+            if (m == null || m.All == null) { Probe.Warn("NEAREST no MonsterModule"); return "ERR-nomodule"; }
+            var best = -1; var bestD = int.MaxValue; var bestName = "-";
+            for (var i = 0; i < m.All.Count; i++)
+            {
+                var s = m.All[i];
+                if (s == null || !s.alive) continue;
+                var d = 0;
+                if (pl != null) d = Math.Max(Math.Abs(s.gridX - pl.Grid.x), Math.Abs(s.gridY - pl.Grid.y));
+                if (d < bestD) { bestD = d; best = s.id; bestName = s.name; }
+            }
+            Probe.Log("NEAREST id=" + best + " dist=" + bestD + " name=" + bestName
+                      + " player=" + (pl != null ? ("(" + pl.Grid.x + "," + pl.Grid.y + ")") : "(-)"));
+            return "NEAREST id=" + best + " dist=" + bestD;
+        }
+
+        /// <summary>
+        /// The REAL "click the monster" entry: `Game.Event.Emit&lt;int&gt;(Events.AttackRequest, monsterId)`
+        /// -> CombatModule.OnAttackRequest -> RequestAttack -> DamagePipeline.  This is the only
+        /// settlement entry for the player's basic attack, so whatever sounds hang off it (the impact
+        /// sound and the monster's own gethit sound) are the ones we want to observe.
+        /// </summary>
+        public static string Attack(string spec)
+        {
+            int id;
+            if (!int.TryParse(spec, out id)) { Probe.Warn("ATTACK bad id=" + spec); return "ERR-num"; }
+            try
+            {
+                Game.Event.Emit<int>(Diablo2.Core.Events.AttackRequest, id);
+                var m = Probe.Monsters();
+                var st = m != null ? m.Get(id) : null;
+                Probe.Log("ATTACK id=" + id + " hp=" + (st != null ? st.hp : -1)
+                          + " alive=" + (st != null ? (st.alive ? 1 : 0) : -1)
+                          + " frame=" + Time.frameCount);
+                return "ATTACK-OK id=" + id;
+            }
+            catch (Exception ex) { Probe.Warn("ATTACK threw " + ex.GetType().Name + ": " + ex.Message); return "ERR-throw"; }
+        }
+
         /// <summary>Make a monster hostile through the PUBLIC contract `NotifyAttacked` (=> chase / attack).</summary>
         public static string Aggro(string spec)
         {
@@ -274,19 +317,26 @@ namespace PVA
             return "AGGRO-OK [" + sb + "]";
         }
 
-        /// <summary>Capture one screenshot into the raw dir (pv_audio_run.ps1 publishes it).</summary>
+        /// <summary>Capture one screenshot (name relative to the raw dir, OR a full absolute path).</summary>
         public static string Shot(string name)
         {
-            if (string.IsNullOrEmpty(Probe._raw)) { Probe.Warn("SHOT raw dir not set"); return "ERR-nopath"; }
-            var file = Probe._raw + "/" + name;
+            // NOTE (measured 2026-09-23): each `run_script` call compiles this file into ITS OWN
+            // assembly, so the static fields set by Install() are empty here -- a relative name
+            // would therefore have no directory.  Accepting a full path keeps Shot usable.
+            var target = name ?? string.Empty;
+            if (target.IndexOf('/') < 0 && target.IndexOf('\\') < 0)
+            {
+                if (string.IsNullOrEmpty(Probe._raw)) { Probe.Warn("SHOT raw dir not set"); return "ERR-nopath"; }
+                target = Probe._raw + "/" + target;
+            }
             try
             {
-                var dir = Path.GetDirectoryName(file);
+                var dir = Path.GetDirectoryName(target);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                if (File.Exists(file)) File.Delete(file);
-                ScreenCapture.CaptureScreenshot(file);
-                Probe.Log("SHOT-ISSUED file=" + file + " frame=" + Time.frameCount);
-                return "SHOT-OK " + name;
+                if (File.Exists(target)) File.Delete(target);
+                ScreenCapture.CaptureScreenshot(target);
+                Probe.Log("SHOT-ISSUED file=" + target + " frame=" + Time.frameCount);
+                return "SHOT-OK " + target;
             }
             catch (Exception ex) { Probe.Warn("SHOT-FAIL " + ex.GetType().Name + ": " + ex.Message); return "ERR-throw"; }
         }
