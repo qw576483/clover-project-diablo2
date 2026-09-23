@@ -752,9 +752,25 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// 4.2 萨满复活：**配对必须按系统自己的距离口径找**（世界单位 ≤ `ShamanReviveRange`）。
-        /// 旧写法是「任取一个萨满 + 取它 7 **格**内最近的怪」——格距 7 在世界单位下可达 ~10
-        /// ⇒ 抽到的这对可能根本不在复活半径内，`FindRevivableCorpse` 正确返回 -1，测试却报"没复活"。
+        /// 4.2 萨满复活：**配对必须按系统自己的距离口径找**。
+        /// <para>
+        /// ★ 2026-09-24 修正（本片）：本方法原按 `WorldDistance`（= `Iso.GridToWorld` 的**等距世界单位**）
+        /// 选配对，注释声称"世界单位 ≤ `ShamanReviveRange`"。**那是错的** —— 生产口径的出处：
+        /// `Module/Monster/MonsterModule.cs::FindRevivableCorpse` 比的是
+        /// `Vector2.Distance(shaman.Pos, corpse.Pos)`，而 `MonsterRuntime.Pos` 是
+        /// **连续格坐标（格中心制）**（`Module/Monster/MonsterRuntime.cs` 文件头第 11~14 行：
+        /// "格 (gx,gy) 覆盖 [gx,gx+1]×[gy,gy+1]，中心 = (gx+0.5, gy+0.5)"，
+        /// 即 `Pos == (gx+0.5, gy+0.5)` 时才等于 `Iso.GridToWorld(gx,gy)` 的**输入**）
+        /// ⇒ 该距离的单位是 **格**，与 `MonsterTuning.ShamanReviveRange`（注释写明"最大距离（**格**）"）同量纲。
+        /// </para>
+        /// <para>
+        /// 等距世界单位与格欧氏**不是同一个度量**（`world.x=(gx-gy)·1.0`、`world.y=-(gx+gy+1)·0.5`）：
+        /// 实测同一对（萨满 (17,59) ↔ 同伴 (10,54)）**格欧氏 = 8.60 > 7**（生产正确返回 -1，
+        /// 因为这对真的不在复活半径内），而**等距世界距离只有 6.32 ≤ 7** ⇒ 旧判据把一对"够不着"的
+        /// 组合当成"可测场景"，杀掉同伴后萨满当然复活不了 ⇒ 3 项断言连锁变红（既存 FAIL 的真因）。
+        /// `Chebyshev` 格距（= 7）同样不能用：对角时 7 格 Chebyshev = 9.90 格欧氏。
+        /// </para>
+        /// <para>⇒ 判定一律走 <see cref="ReviveScanDistance"/>（与生产同一把尺子）。断言本身一字未改。</para>
         /// </summary>
         /// <returns>true = 本图有可测场景且已完整测过；false = 本图没有可测场景（换 seed）。</returns>
         private static bool AiShamanRevives(int seed)
@@ -767,7 +783,7 @@ namespace CombatCheck
                 foreach (var m in _ctx.Monster.All)
                 {
                     if (m == null || !m.alive || m.id == s.id) continue;
-                    var d = WorldDistance(s, m);
+                    var d = ReviveScanDistance(s, m);
                     if (d >= nearestD) continue;
                     nearestD = d;
                     shaman = s;
@@ -781,20 +797,23 @@ namespace CombatCheck
             }
             if (nearestD > MonsterTuning.ShamanReviveRange)
             {
-                Console.WriteLine($"  seed={seed}：最近的一对（萨满, 同伴）世界距离 = {nearestD:0.00} > " +
-                                  $"ShamanReviveRange = {MonsterTuning.ShamanReviveRange} ⇒ 本图无场景，换图");
+                Console.WriteLine($"  seed={seed}：最近的一对（萨满, 同伴）**格欧氏距离** = {nearestD:0.00} > " +
+                                  $"ShamanReviveRange = {MonsterTuning.ShamanReviveRange}（格）" +
+                                  $" ⇒ 本图无场景，换图");
                 return false;
             }
 
-            Check($"Shaman(seed={seed})：复活半径（{MonsterTuning.ShamanReviveRange}）内有同伴可复活",
-                true, $"最近一对 = {nearestD:0.00}");
+            // ★ 本行原为硬编码 `true`（只当"场景构造成功"的打印）⇒ 改成真的比一遍：判据更严，不是放宽。
+            Check($"Shaman(seed={seed})：复活半径（{MonsterTuning.ShamanReviveRange:0.#} 格）内有同伴可复活",
+                nearestD <= MonsterTuning.ShamanReviveRange, $"最近一对 = {nearestD:0.00} 格（格欧氏）");
 
             // 杀这一对里那个"同伴"（它在复活半径内 ⇒ 萨满必然能吃尸体复活它）
             var companion = nearest;
-            Console.WriteLine($"  Shaman m#{shaman.id} 与同伴 m#{companion.id} 的世界距离 = " +
-                              $"{WorldDistance(shaman, companion):0.00} " +
-                              $"（ShamanReviveRange = {MonsterTuning.ShamanReviveRange}，格距 = " +
-                              $"{Iso.GridDistance(shaman.Grid(), companion.Grid())}）");
+            Console.WriteLine($"  Shaman m#{shaman.id} 与同伴 m#{companion.id} 的**格欧氏距离** = " +
+                              $"{ReviveScanDistance(shaman, companion):0.00} " +
+                              $"（ShamanReviveRange = {MonsterTuning.ShamanReviveRange}（格）；" +
+                              $"Chebyshev 格距 = {Iso.GridDistance(shaman.Grid(), companion.Grid())}；" +
+                              $"等距世界距离 = {WorldDistance(shaman, companion):0.00}（⛔ 非判定口径，仅披露））");
 
             _ctx.Monster.ApplyDamage(companion.id, 9999, DamageType.Physical);
             Check("Shaman：同伴已死且**保留可复活尸体**", !companion.alive && companion.corpseUsable,
@@ -1950,15 +1969,19 @@ namespace CombatCheck
             return null;
         }
 
-        /// <summary>按**世界距离**取最近的活怪（口径与 `MonsterModule.FindRevivableCorpse` 一致）。</summary>
-        private static MonsterState NearestMonsterByWorld(MonsterState from, float maxDistance, int exceptId)
+        /// <summary>
+        /// 按**复活判定用的距离口径**取最近的活怪 —— 与 `MonsterModule.FindRevivableCorpse` 同一把尺子。
+        /// ★ 2026-09-24 修正：原实现用 `WorldDistance`（等距世界单位）并声称"口径与 FindRevivableCorpse 一致"，
+        /// 那是错的（生产比的是 `MonsterRuntime.Pos`，单位 = **格**；见 `AiShamanRevives` 的出处说明）。
+        /// </summary>
+        private static MonsterState NearestMonsterByReviveMetric(MonsterState from, float maxDistance, int exceptId)
         {
             MonsterState best = null;
             var bestD = maxDistance;
             foreach (var m in _ctx.Monster.All)
             {
                 if (m == null || !m.alive || m.id == exceptId) continue;
-                var d = WorldDistance(from, m);
+                var d = ReviveScanDistance(from, m);
                 if (d > bestD) continue;
                 bestD = d;
                 best = m;
@@ -1966,7 +1989,20 @@ namespace CombatCheck
             return best;
         }
 
-        /// <summary>两怪之间的**世界单位**距离（`MonsterState` 只有格坐标 ⇒ 用格中心换算）。</summary>
+        /// <summary>
+        /// **复活判定的唯一距离口径** = `MonsterModule.FindRevivableCorpse` 里那句
+        /// `Vector2.Distance(shaman.Pos, corpse.Pos)`（`MonsterRuntime.Pos` = 连续格坐标，格中心制）
+        /// ⇒ 等价于两格中心的**格欧氏距离**（单位 = 格，与 `MonsterTuning.ShamanReviveRange` 同量纲）。
+        /// ⛔ 不要用 `WorldDistance`（`Iso.GridToWorld` 的等距世界单位）或 `Iso.GridDistance`（Chebyshev）替代。
+        /// </summary>
+        private static float ReviveScanDistance(MonsterState a, MonsterState b)
+            => Iso.GridDistanceEuclidean(a.Grid(), b.Grid());
+
+        /// <summary>
+        /// 两怪之间的**等距世界单位**距离（`MonsterState` 只有格坐标 ⇒ 用格中心 `Iso.GridToWorld` 换算）。
+        /// ⛔ 这**不是**复活判定的口径（易与格欧氏混淆：同一对实测 6.32 世界 vs 8.60 格），
+        /// 仅用于人读参考 / 与相机可见范围打交道的地方。
+        /// </summary>
         private static float WorldDistance(MonsterState a, MonsterState b)
             => Vector2.Distance(Iso.GridToWorld(a.Grid()), Iso.GridToWorld(b.Grid()));
 
@@ -2614,7 +2650,8 @@ namespace CombatCheck
             }
 
             Check("同格攻击**从不**被判定形状拒绝", shapeRejects == 0,
-                $"被拒次数 {shapeRejects}（旧口径下每次都是 1 ⇒ 40 次全拒）");
+                $"被拒次数 {shapeRejects}（⚠️ `WarnThrottled` 会把重复行折叠 ⇒ 这个数是**节流后的下限**；"
+                + "旧口径下非 0 即代表\"一次都没挥出去\"）");
             Check("同格攻击造成了伤害（40 次内至少命中一次）", hit,
                 $"m#{target.id} hp={target.hp} alive={target.alive}");
             Console.WriteLine();

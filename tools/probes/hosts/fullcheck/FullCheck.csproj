@@ -40,6 +40,8 @@
   <ItemGroup>
     <!-- 宿主自身 -->
     <Compile Include="Program.cs" />
+    <!-- ★ 片 ground-item-icon：地面物品图断言（独立文件，避免与他人并发改 Program.cs） -->
+    <Compile Include="GroundIconCheck.cs" />
     <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
     <Compile Include="shim\EngineShim.cs" />
 

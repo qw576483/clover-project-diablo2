@@ -474,7 +474,7 @@ namespace Uicheck
             //        内区（x 22..78% / y 25..75%，alpha>200）实测的**平均 sRGB 亮度** ⇒ 落 btn_plate_luma.tsv；
             //     ② 门槛 = **WCAG 2.1 AA 正文**对比度 **4.5:1**（按钮字按原版 18px Bold 渲染，
             //        18px < 大号文本阈值 18.66px ⇒ 取正文档，⛔ 不取宽松的 3:1）。
-            //   对照实测：改动前 `UiLayoutFlow.ButtonText`(0.098) = 2.79:1 ✗；
+            //   对照实测：改动前默认字色（照抄原版 prefab 的 #191919 = 0.098）= 2.79:1 ✗；
             //             改动后 `UiArt.TitleColor`(0.95/0.87/0.60) = 4.70:1 ✓。
             var plateTsv = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.tsv");
             var platePy = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.py");
@@ -484,25 +484,12 @@ namespace Uicheck
                     ? Path.GetFileName(plateTsv) + " + " + Path.GetFileName(platePy)
                     : "缺 " + plateTsv + "（恢复 = python tools/probes/measure/btn_plate_luma.py）");
 
-            var plateLuma = 0f;
-            if (File.Exists(plateTsv))
-            {
-                foreach (var line in File.ReadAllLines(plateTsv))
-                {
-                    if (line.Length == 0 || line[0] == '#') continue;
-                    var f = line.Split('\t');
-                    if (f.Length >= 2 && f[0].EndsWith("btn_med_normal.png"))
-                    {
-                        float.TryParse(f[1], System.Globalization.NumberStyles.Float,
-                            System.Globalization.CultureInfo.InvariantCulture, out plateLuma);
-                        break;
-                    }
-                }
-            }
+            var plateLuma = ReadPlateLuma();
 
             var wpColor = WaypointPanel.DestLabelColor;
             var wpRatio = ContrastRatioSrgb(wpColor, plateLuma);
-            var oldRatio = ContrastRatioSrgb(UiLayoutFlow.ButtonText, plateLuma);
+            // 已知坏样本 = 本次缺陷的原值（照抄原版 prefab 的 #191919）—— 用它当"判据自检"的负样本
+            var oldRatio = ContrastRatioSrgb(OldPrefabButtonText, plateLuma);
             Check("传送点面板每颗目的地按钮的 glyph 颜色：对按钮底图的对比度 ≥ 4.5:1（WCAG 2.1 AA 正文）",
                 plateLuma > 0.01f && wpRatio >= 4.5f,
                 $"字色 {Describe(wpColor)} vs 底板亮度 {plateLuma:0.###} ⇒ {wpRatio:0.00}:1"
@@ -582,6 +569,37 @@ namespace Uicheck
         {
             if (c <= 0f) return 0f;
             return c <= 0.04045f ? c / 12.92f : MathF.Pow((c + 0.055f) / 1.055f, 2.4f);
+        }
+
+        /// <summary>
+        /// 本次缺陷的原值 = 照抄原版 `WideButton.prefab` 的 `Text.m_Color`（#191919 = 0.098）。
+        /// <para>⚠️ **它不是任何地方的"当前口径"** —— 只作为「判据自检」的**负样本**存在
+        /// （SKILL §8.3：改判据必须证明它"对已知坏样本会红"）。⛔ 不要把它拿去当按钮字色。</para>
+        /// </summary>
+        private static readonly Color OldPrefabButtonText
+            = new Color(0.09803922f, 0.09803922f, 0.09803922f, 1f);
+
+        /// <summary>
+        /// 读 `tools/probes/measure/btn_plate_luma.tsv` 里 `btn_med_normal.png` 的**平均 sRGB 亮度**。
+        /// 返回 -1 = 读不到（缺表/缺行/解析失败）⇒ 依赖它的断言一律红，并给出复跑命令。
+        /// <para>为什么走文件而不是在 C# 里写死：uicheck 是**无图像库**的控制台宿主（不引 PNG 解码），
+        /// 所以"原版素材到底多亮"这件事由 `btn_plate_luma.py` 量、落盘，本宿主只读结论。</para>
+        /// </summary>
+        private static float ReadPlateLuma()
+        {
+            var tsv = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.tsv");
+            if (!File.Exists(tsv)) return -1f;
+            foreach (var line in File.ReadAllLines(tsv))
+            {
+                if (line.Length == 0 || line[0] == '#') continue;
+                var f = line.Split('\t');
+                if (f.Length < 2 || !f[0].EndsWith("btn_med_normal.png")) continue;
+                float v;
+                if (float.TryParse(f[1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out v))
+                    return v;
+            }
+            return -1f;
         }
 
         /// <summary>读 PNG IHDR 宽高（uicheck 是无依赖控制台宿主，不引图像库）。</summary>
@@ -1989,11 +2007,90 @@ namespace Uicheck
                 && flowSrc.Contains("builtin.gameObject.SetActive(false)"),
                 "见 UiLayoutFlow.FlowButton.Create");
 
-            Check("按钮文字色 = 原版 WideButton.prefab 的 Text.m_Color（#191919），**不提亮不压暗**",
-                Math.Abs(UiLayoutFlow.ButtonText.r - 0.09803922f) < 1e-6f
-                && UiLayoutFlow.ButtonText.g == UiLayoutFlow.ButtonText.r
-                && UiLayoutFlow.ButtonText.b == UiLayoutFlow.ButtonText.r,
-                $"#{Mathf.RoundToInt(UiLayoutFlow.ButtonText.r * 255f):X2}");
+            // ── 按钮字色：**判过程**（⛔ 不再判"常量有没有被动过"）───────────────────────────
+            // ★ btn-label-fix（2026-09-23，主 agent 裁决 ①）：
+            //   旧断言 = 「`UiLayoutFlow.ButtonText` 字面等于原版 prefab 的 #191919」——
+            //   它判的是"**常量没被人改过**"，**不判"字读不读得出来"**。这是 SKILL §4.7 点名的
+            //   脆弱判据形态：改一个数字就能让它变绿/变红，而那个数字与用户看到的东西没有必然关系
+            //   （实测：它一直是绿的，而实机图里按钮字糊成一块黑 —— `.ai-tmp/screenshots/uifix4_z_before_btn1.png`）。
+            //   新口径 = **对比度**：字色 vs **按钮底图实测亮度**（量法 `btn_plate_luma.py`，可原地复跑）
+            //   ≥ **4.5:1**（WCAG 2.1 AA 正文；按钮字按原版 18px **Bold** 渲染，18px < 大号文本阈值
+            //   18.66px ⇒ 取更严的正文档 4.5:1，⛔ 不取宽松的 3:1）。
+            //   全项目只有两条按钮字色来源：① `UiLayoutFlow.ButtonText`（FlowButton 默认，7 个流程屏）
+            //   ② `UiArt.ButtonText`（UiArt.Button/SquareButton/OrigButton：NPC 对话/商店/死亡屏）——两条都判。
+            var btnLuma = ReadPlateLuma();
+            var artSrc = File.ReadAllText(Path.Combine(UiDir, "UiArt.cs"));
+            Check("全项目按钮字色①：FlowButton 默认字色（主菜单/暂停/设置/创角/选角/二次确认/传送点）vs 按钮底图 ≥ 4.5:1",
+                btnLuma > 0.01f && ContrastRatioSrgb(UiLayoutFlow.ButtonText, btnLuma) >= 4.5f,
+                $"字色 {Describe(UiLayoutFlow.ButtonText)} vs 底板实测 {btnLuma:0.###} ⇒ {ContrastRatioSrgb(UiLayoutFlow.ButtonText, btnLuma):0.00}:1（门槛 4.5:1）");
+            Check("全项目按钮字色②：UiArt 三条按钮工厂（NPC 对话 / 商店 / 死亡屏）vs 按钮底图 ≥ 4.5:1",
+                btnLuma > 0.01f && ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f,
+                $"字色 {Describe(UiArt.ButtonText)} vs 底板实测 {btnLuma:0.###} ⇒ {ContrastRatioSrgb(UiArt.ButtonText, btnLuma):0.00}:1（门槛 4.5:1）");
+            Check("两条按钮字色**同源**（FlowButton 默认派生自 UiArt.ButtonText；⛔ 不再两条路径各写一个数）",
+                UiLayoutFlow.ButtonText == UiArt.ButtonText
+                && flowSrc.Contains("public static readonly Color ButtonText = UiArt.ButtonText;"),
+                Describe(UiLayoutFlow.ButtonText));
+            Check("禁用态字色低于 4.5:1 = **登记过的有意差异**（WCAG 2.1 §1.4.3：inactive UI component 不设对比度要求）",
+                UiArt.ButtonTextDisabled != UiArt.ButtonText && artSrc.Contains("WCAG 2.1 §1.4.3"),
+                $"禁用态 {Describe(UiArt.ButtonTextDisabled)}（登记在 UiArt.ButtonTextDisabled 的注释里）");
+
+            // ── 逐屏列数：证明**每一屏**的按钮都走这两条字色路（不是只判两个常量就完事）──
+            //   扫描口径（机械）：`UI/*.cs` 里凡出现按钮工厂调用 ⇒ 该屏 label 字色 = 该工厂的字色来源；
+            //   显式传色（本工程只有 `WaypointPanel.DestLabelColor`）按实参算。
+            System.Func<Color, string> ratioOf = c => ContrastRatioSrgb(c, btnLuma).ToString("0.00") + ":1";
+            var scanRows = new List<string>();
+            var scanBad = new List<string>();
+            var panelFiles = Directory.GetFiles(UiDir, "*.cs", SearchOption.TopDirectoryOnly);
+            foreach (var pf in panelFiles)
+            {
+                var name = Path.GetFileName(pf);
+                if (name == "UiArt.cs" || name == "UiLayoutFlow.cs") continue;   // 定义处，不算"屏"
+                var src = File.ReadAllText(pf);
+                var nFlow = System.Text.RegularExpressions.Regex.Matches(src, @"FlowButton\.Create\(").Count;
+                var nArt = System.Text.RegularExpressions.Regex.Matches(src, @"UiArt\.(Button|SquareButton|OrigButton)\(").Count;
+                if (nFlow == 0 && nArt == 0) continue;
+                if (nFlow > 0)
+                {
+                    var c = src.Contains("DestLabelColor") ? WaypointPanel.DestLabelColor : UiLayoutFlow.ButtonText;
+                    var ok = ContrastRatioSrgb(c, btnLuma) >= 4.5f;
+                    scanRows.Add(name + ": FlowButton×" + nFlow + "→" + ratioOf(c));
+                    if (!ok) scanBad.Add(name + "/FlowButton");
+                }
+                if (nArt > 0)
+                {
+                    var ok = ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f;
+                    scanRows.Add(name + ": UiArt按钮×" + nArt + "→" + ratioOf(UiArt.ButtonText));
+                    if (!ok) scanBad.Add(name + "/UiArtButton");
+                }
+            }
+            Check($"按钮 label 对比度 ≥ 4.5:1 **逐屏**（扫到 {scanRows.Count} 个屏/路径；⛔ 扫描口径失效=永真，故同时要求行数下限）",
+                scanRows.Count >= 8 && scanBad.Count == 0,
+                scanRows.Count == 0
+                    ? "扫描 0 行 —— 扫描口径已失效（这是「永真」形态，必须修）"
+                    : string.Join(" ¦ ", scanRows.ToArray()));
+
+            // ⛔ 不许在调用点自造按钮字色（粗筛：工厂实参窗口里出现 `new Color(` ⇒ 绕过了唯一真源）
+            var literalHits = new List<string>();
+            foreach (var pf in panelFiles)
+            {
+                var src = File.ReadAllText(pf);
+                var m = System.Text.RegularExpressions.Regex.Matches(src,
+                    @"(FlowButton\.Create\(|UiArt\.(Button|SquareButton|OrigButton)\()[^;]{0,240}?new Color\(");
+                if (m.Count > 0) literalHits.Add(Path.GetFileName(pf) + "×" + m.Count);
+            }
+            Check("⛔ 按钮 label 字色不许在调用点自造（按钮工厂实参窗口内 `new Color(` = 0 处）",
+                literalHits.Count == 0,
+                literalHits.Count == 0 ? "0 处" : string.Join(", ", literalHits.ToArray()));
+
+            // ── 判据自检（SKILL §8.3：改判据必须做**两次**自检）────────────────────────────
+            //   ① 已知**好**样本（= 生产现值）必须 PASS；
+            //   ② 已知**坏**样本（= 本次缺陷原值 #191919）必须 FAIL —— 证明这条判据**不是永真**。
+            Check("(判据自检①) 已知好样本 = 现值按钮字色 ⇒ PASS",
+                ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f,
+                $"{ratioOf(UiArt.ButtonText)} ≥ 4.5:1");
+            Check("(判据自检②) 已知坏样本 = 旧值 #191919 ⇒ FAIL（判据非永真）",
+                !(ContrastRatioSrgb(OldPrefabButtonText, btnLuma) >= 4.5f),
+                $"{ratioOf(OldPrefabButtonText)} < 4.5:1（旧断言把它判绿 ⇒ 这就是换判据的原因）");
 
             Check("色调 = 原版亮度（白）：UiArt.ArtFullBright == Color.white（贴图加载成功后套的色）",
                 UiArt.ArtFullBright == Color.white, Describe(UiArt.ArtFullBright));

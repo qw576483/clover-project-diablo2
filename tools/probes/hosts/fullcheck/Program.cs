@@ -458,6 +458,10 @@ namespace FullCheck
             Run(Step8_QuestChain);
             Run(Step9_SaveReloadAndReset);
 
+            // ★ 片 ground-item-icon：地面物品图（原版物品图 vs 品质色块）—— 独立文件，只加断言。
+            //   走 Run(...) 包一层：单步隔离（炸掉也不吞掉后面的汇总输出）。
+            Run(() => { _fail += GroundIconCheck.Run(); });
+
             Console.WriteLine();
             Console.WriteLine("──────────────────────────────────────────────────────────────────");
             Console.WriteLine("AppContext.Describe() → " + (AppContext.I != null ? AppContext.I.Describe() : "(未创建)"));
@@ -894,7 +898,7 @@ namespace FullCheck
             // ★ melee-samecell 的**纯函数**判据（与 `combatcheck` 第 18 节同一把尺子；⛔ 不改上一条断言）
             {
                 float sfx, sfy;
-                var nv2 = Iso.DirectionDelta(Dir8.N);
+                var nv2 = Iso.DirectionDelta(Diablo2.Def.Dir8.N);   // ⛔ 必须限定：本宿主同时可见 CloverEngine.Dir8
                 var solvable = MeleeShape.ToUnit(nv2.x, nv2.y, out sfx, out sfy);
                 const float sReach = 1.6f;
                 Check("纯函数：正前方 1.5 格 ⇒ 命中",
@@ -913,7 +917,24 @@ namespace FullCheck
                     && MeleeShape.InMeleeRect(sfx, sfy, 0f, 0f, sReach, MeleeShape.MeleeHalfWidth),
                     "零偏移受距离/框口径保护（0 ≤ reach 恒真），不参与角度比较");
             }
-            ctx.Player.TeleportTo(new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y));
+            // ★ 判据资产修复（2026-09-24，team-lead 批准）：原实现**写死**落点 = `mon - dv`，
+            //   实测该格（Blood Moor 的 (7,15)）**可能不可走** ⇒ `PlayerModule` 走降级分支
+            //   "Teleport 目标格不可走 ⇒ 改用出生点" ⇒ 玩家离靶 28.02 格 ⇒ 下面 4 条判据
+            //   （单次普攻掉血 / 连击打死 / 击杀链 / 击杀经验）**连锁变红**，而它们要测的东西根本没被测到
+            //   （失败发生在 `dist > MeleeRange` 分支，⛔ 根本走不到 `InFrontCone`）。
+            //   现在在怪周围**找一个可走格**再传送：优先"正前方一格"（原意），其次朝向轴 ±45° 的邻格
+            //   （同样能过形状闸门：cos45°=0.707 ≥ 0.5、沿轴 1.00 ≤ 1.60、垂距 1.00 ≤ 1.20），
+            //   并要求线段通畅（不许站在墙后挥）。⛔ 判据条件本身（单次普攻必须掉血 / 连击必须打死）一字未动。
+            float mfx, mfy;
+            if (!MeleeShape.ToUnit(dv.x, dv.y, out mfx, out mfy)) { mfx = 0f; mfy = 0f; }
+            var posture = FindMeleePosture(ctx, mon, mfx, mfy, new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y));
+            ctx.Player.TeleportTo(posture);
+            Console.WriteLine($"  [站位] 玩家=({ctx.Player.Grid.x},{ctx.Player.Grid.y}) 怪=({mon.gridX},{mon.gridY})"
+                              + $" 朝向={ctx.Player.Dir} 偏移=({mon.gridX - ctx.Player.Grid.x},{mon.gridY - ctx.Player.Grid.y})"
+                              + $" 距离={Iso.GridDistanceEuclidean(ctx.Player.Grid, new Vector2Int(mon.gridX, mon.gridY)):0.00}"
+                              + $" 可走={ctx.Map.Walkable(ctx.Player.Grid)}"
+                              + $"（判据资产修复：不再假设 `mon-dv` 一定可走；候选口径 = 可走 ∧ 锥 ∧ 走廊 ∧ 线段通）");
+
             var hp0 = mon.hp;
             var dmg0 = _bus.CountOf(Events.DamageDealt);
 
@@ -933,35 +954,62 @@ namespace FullCheck
             //   再走生产入口 `RequestAttack` ⇒ 必须掉血。⛔ 只**新增**断言；
             //   跑完把站位**放回"怪的正前方一格"**（同一姿态口径）⇒ 下面击杀循环的既有判据条件不变。
             {
-                var sameCellHit = false;
-                var sameCellAttempts = 0;
-                var lastOffset = "(n/a)";
-                int lastHp;
-                for (var i = 0; i < 8 && !sameCellHit; i++)
+                // ⚠️ 本块**必须零副作用**（否则会把下面既有判据的初始条件搅乱）：
+                //   ⓪ **不许打死 Step7 的靶子 `mon`** —— 它要留给下面"连续普攻把怪物打死"那条判据，
+                //      而那条读的 `alive0 = AliveCount` 在本块**之后** ⇒ 块内打死 `mon` 会让它变红
+                //      （实测踩到：AliveCount 26 → 26 FAIL）。⇒ 同格用例改打**除靶子外血最厚**的一只
+                //      （血厚 ⇒ 一次命中打不死），并且**一旦掉血立刻停**（最多 1 次有效命中）。
+                //   ① 出手前记下玩家**当前**格，跑完**原样放回**；
+                //   ② 只推进 **Combat 模块自己的时钟**（清攻击冷却），⛔ 不用 `ctx.Tick` 推进怪物 AI
+                //      （那会让怪在断言之间移动/脱战，属改变既有条件）。
+                var scTarget = TankiestOther(ctx, mon.id);
+                if (scTarget == null)
                 {
-                    if (!mon.alive) break;
-                    ctx.Player.TeleportTo(new Vector2Int(mon.gridX, mon.gridY));   // ← 同格
-                    lastOffset = $"({mon.gridX - ctx.Player.Grid.x},{mon.gridY - ctx.Player.Grid.y})";
-                    var hpBeforeIter = mon.hp;
-                    sameCellAttempts++;
-                    ctx.Combat.RequestAttack(mon.id);
-                    Ticks(ctx, 6, 0.1f);
-                    if (mon.hp < hpBeforeIter || !mon.alive) sameCellHit = true;
+                    Check("同格（偏移 (0,0)）攻击必须结算（★ melee-samecell，真实链路）", false,
+                        "本步无法执行：血腥荒野里除靶子外没有别的存活怪（⚠️ 这是**未测到**，不是通过）");
                 }
-                lastHp = mon.hp;
+                else
+                {
+                    var restoreGrid = ctx.Player.Grid;
+                    var lastOffset = "(n/a)";
+                    var scHit = false;
+                    var scAttempts = 0;
+                    var hpBeforeSc = scTarget.hp;
+                    for (var i = 0; i < 3 && !scHit && scTarget.alive; i++)
+                    {
+                        ctx.Player.TeleportTo(new Vector2Int(scTarget.gridX, scTarget.gridY));   // ← 同格
+                        lastOffset = $"({scTarget.gridX - ctx.Player.Grid.x},{scTarget.gridY - ctx.Player.Grid.y})";
+                        var hpBeforeIter = scTarget.hp;
+                        scAttempts++;
+                        ctx.Combat.RequestAttack(scTarget.id);
+                        ctx.Combat.Tick(GameConst.PlayerAttackInterval + 0.01f);   // 只清冷却，不推进怪物
+                        if (scTarget.hp < hpBeforeIter) scHit = true;              // 一掉血就停（不打死它）
+                    }
 
-                Check("同格（偏移 (0,0)）攻击必须结算（★ melee-samecell，真实链路）",
-                    sameCellHit,
-                    $"出手 {sameCellAttempts} 次、出手瞬间偏移 {lastOffset}；m#{mon.id} hp {hp0} → {lastHp}"
-                    + $"（alive={mon.alive}）；玩家朝向={ctx.Player.Dir}（零偏移下命中不依赖朝向）");
+                    Check("同格（偏移 (0,0)）攻击必须结算（★ melee-samecell，真实链路）", scHit,
+                        $"靶子 m#{scTarget.id} {scTarget.name}（**除 Step7 靶子外**血最厚的一只，故不会打死它）："
+                        + $"出手 {scAttempts} 次、出手瞬间偏移 {lastOffset}；hp {hpBeforeSc} → {scTarget.hp}"
+                        + $"（alive={scTarget.alive}）；玩家朝向={ctx.Player.Dir}（零偏移下命中不依赖朝向）");
 
-                // 放回"怪的正前方一格"（与上面那条既有断言同一姿态口径）⇒ 击杀循环的条件一字未变
-                ctx.Player.TeleportTo(new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y));
+                    ctx.Player.TeleportTo(restoreGrid);      // 原样放回 ⇒ 击杀循环的条件一字未变
+                    if (ctx.Player.Grid != restoreGrid)
+                    {
+                        Console.WriteLine($"  [GAP] melee-samecell 用例未能把玩家放回 {restoreGrid}"
+                                          + $"（现为 {ctx.Player.Grid}）⇒ 后续判据的条件已被改变，见上行 Player 日志");
+                    }
+                }
             }
 
             var alive0 = ctx.Monster.AliveCount;
             for (var i = 0; i < 60 && mon.alive; i++)
             {
+                // ★ 判据资产修复（同 920 行那条，team-lead 批准）：每轮**先把玩家重新摆到能打到怪的合法站位**
+                //   再出手 —— 怪会追人 / 脱战回原位而漂移，而 `RequestAttack` 自己不移动玩家
+                //   （实测：怪漂到 2.00 → 4.12 格 > 近战范围 1.60 ⇒ 60 轮里一次都没结算，
+                //    于是"连续普攻把怪打死"这条**测的其实是怪会不会站着不动**）。
+                //   ⛔ 判据条件（连续普攻必须打死它）一字未动，只修"怎么连续出手"。
+                ctx.Player.TeleportTo(FindMeleePosture(ctx, mon, mfx, mfy,
+                    new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y)));
                 ctx.Combat.RequestAttack(mon.id);
                 Ticks(ctx, 6, 0.1f);        // 每次请求后走完 0.55s 攻击间隔
             }
@@ -1281,6 +1329,79 @@ namespace FullCheck
         private static Vector2Int WalkableTile(AppContext ctx)
         {
             return ctx.Map.SpawnPoint;
+        }
+
+        /// <summary>
+        /// 除 <paramref name="excludeId"/> 外**血量上限最厚**的一只存活怪（同血量取最小 id ⇒ 确定性）。
+        /// <para>用途：melee-samecell 的同格用例要在"不打死 Step7 靶子"的前提下打出一次伤害。</para>
+        /// </summary>
+        private static MonsterState TankiestOther(AppContext ctx, int excludeId)
+        {
+            var all = ctx.Monster.All;
+            MonsterState best = null;
+            for (var i = 0; i < all.Count; i++)
+            {
+                var s = all[i];
+                if (s == null || !s.alive || s.id == excludeId) continue;
+                if (best == null || s.maxHp > best.maxHp || (s.maxHp == best.maxHp && s.id < best.id)) best = s;
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// ★ 判据资产修复（2026-09-24，team-lead 批准）：在怪周围找一个**可走**且**能通过生产形状闸门**
+        /// 的近战站位（`MeleeShape` = 锥 ∧ 走廊 ∧ 线段通畅，与产品同一把尺子）。
+        /// <para>
+        /// 起因：原实现写死落点 `mon - dv`，实测它能落到**不可走**的格 ⇒ `PlayerModule` 降级到出生点
+        /// ⇒ 玩家离靶 28.02 格 ⇒ 4 条战斗判据连锁变红（失败发生在 `dist > MeleeRange` 分支，根本走不到
+        /// `InFrontCone`）。**判据条件本身未动**，只修"怎么把玩家摆到合法姿态"。
+        /// </para>
+        /// <para>
+        /// 候选 = 8 邻域里"玩家站上去后怪落在玩家正面扇形内"的格：偏移 = `+delta`，
+        /// 按与朝向轴的夹角排序（0° → ±45°；±45° 也过闸门：cos=0.707 ≥ 0.5、沿轴 1.00 ≤ reach、垂距 1.00 ≤ 半宽），
+        /// 同角按 dx,dy 升序（确定性）。全部不合格 ⇒ 退回 <paramref name="fallback"/> 并**打一行披露**
+        /// （⛔ 不把"找不到站位"伪装成"打不到"）。
+        /// </para>
+        /// </summary>
+        private static Vector2Int FindMeleePosture(AppContext ctx, MonsterState mon, float fx, float fy,
+                                                   Vector2Int fallback)
+        {
+            var monGrid = new Vector2Int(mon.gridX, mon.gridY);
+            var best = fallback;
+            var bestDot = -2f;
+            var found = false;
+            var considered = 0;
+
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                for (var dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    var cell = new Vector2Int(mon.gridX - dx, mon.gridY - dy);
+                    if (!ctx.Map.Walkable(cell)) continue;
+                    considered++;
+
+                    var len = Mathf.Sqrt((float)(dx * dx + dy * dy));
+                    var dot = (fx * dx + fy * dy) / len;
+                    if (dot < MeleeShape.FrontConeCos) continue;                                   // 正面扇形
+                    if (!MeleeShape.InMeleeRect(fx, fy, dx, dy, GameConst.MeleeRange, MeleeShape.MeleeHalfWidth))
+                        continue;                                                                  // 矩形走廊
+                    if (!MeleeShape.LineClear(ctx.Map.Walkable, cell, monGrid)) continue;           // 线段通畅
+                    if (found && dot <= bestDot + 1e-4f) continue;                                  // 同角保留先到的（确定性）
+
+                    best = cell;
+                    bestDot = dot;
+                    found = true;
+                }
+            }
+
+            if (!found)
+            {
+                Console.WriteLine($"  [GAP] FindMeleePosture: 怪格=({mon.gridX},{mon.gridY}) 的 8 邻域里"
+                                  + $"可走格 {considered} 个，但**没有一个**能过形状闸门 ⇒ 退回写死落点 {fallback}"
+                                  + "（这条会由下面的判据自己变红，不是静默通过）");
+            }
+            return best;
         }
 
         private static int FirstLearnableSkill(AppContext ctx)
