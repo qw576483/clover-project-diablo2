@@ -277,7 +277,11 @@ namespace Diablo2.UI
             _built = true;
 
             // ── 底图：原版 `MENU/questbackground.dc6`（320×432 → ×1.8 = 576×777.6，1:1 不拉伸）──
-            UiArt.Art(transform, "QuestBg", ResPaths.PanelQuestBack, PanelSize, PanelPos);
+            // ★ 片 K（R8）：底图**必须吃射线** —— `UiArt.Art(...)` 的 `raycastTarget` 默认 **false**，
+            //   本图却是**面板矩形**（576×777.6，非满屏）⇒ 与 `ShopPanel.BuySellBg`（true）同口径。
+            //   不吃射线的后果：点面板内部空白 → `IsPointerOverGameObject()` 为 false →
+            //   `InputReader.UiEatsIntent` 判不成"点 UI" → 反投影成"点地面" ⇒ 角色走动。
+            UiArt.Art(transform, "QuestBg", ResPaths.PanelQuestBack, PanelSize, PanelPos, true);
 
             // ── 标题条：原版中文「任務」（`data/local/ui/chi/quests.dc6` = 74×54，位图实测逐字「任務」）。
             //    页签行与石纹区都已排满 ⇒ 贴**面板顶沿、整条在面板上方**（原版无坐标出处，见 E16）。──

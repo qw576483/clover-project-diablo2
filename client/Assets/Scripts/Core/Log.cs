@@ -65,6 +65,18 @@ namespace Diablo2.Core
             //   同一理由（按 tag 检索"只报一次"的生效口径行）；三条日志分别在
             //   `UI/CharCreatePanel.OnOpen`（过渡逐帧矩形 / 名字输入由面板驱动）与 `UI/UiArt.SetSprite`（请求守卫）。
             "R1-C",
+            // ★ T0FIX：T0 缺陷修复片的**证据 tag**（同一理由，按 tag 检索各修复点的生效口径一条 Info）。
+            //   本片的行：`Module/Map/MapView.LogPacingOnce`（建块摊平 + 节点池的口径与预算推导）、
+            //   `Module/Audio/AudioModule`（静音开关落盘 / 冷启动读回）、
+            //   `Module/Flow/AppFlow.OnSaveDone`（`D2.Save.Done` 的消费账目）。
+            //   ⛔ 不加这一行不会报错，但首条 T0FIX 日志会附带一条「tag 不在白名单」的 Warn（本文件 :210）。
+            "T0FIX",
+            // ★ T0GAP：T0 判据挖出的**两个真缺口**的修复证据 tag（同一理由：一条"只报一次"的 Info
+            //   把**生效口径**写清，按 tag 检索即可，不必截图）。
+            //   本片的行：`Module/Player/PlayerModule.ApplyDeathGoldPenalty`（死亡扣金币 10% 的取整口径 +
+            //   扣后不为负的论证）。另一处缺口（双武器组）走模块常规 tag `Item` —— 它是正常流程节点。
+            //   ⛔ 不加这一行不会报错，但首条 T0GAP 日志会附带一条「tag 不在白名单」的 Warn（本文件 :216）。
+            "T0GAP",
         };
 
         /// <summary>全局静默开关（只给压测/自动化用；正常流程不要打开）。</summary>

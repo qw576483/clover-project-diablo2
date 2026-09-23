@@ -149,23 +149,30 @@ namespace Diablo2.Core
         public const string SkillIconAttack = D2UiSkillIcon + "SkilliconAttack";
 
         // ── ★ agent-09（1:1 轮）新增：控制面板上的小箭头按钮（4 帧，逐帧文件）─────────
-        //  出处：`原版资源/参考工程_Diablerie/Diablerie/Assets/Images/ControlPanel/`
-        //        `menubutton__0__0..3.png`（15×24），已由素材脚本复制到
-        //        `Assets/Resources/Clover/D2/UI/Panel/` 同名文件。
         //  用途：① 控制面板「展开/收起小面板」的箭头（原版 `ImageExpBarRight` 的子 Button，
         //        见 `ControlPanelNavBarOpeningHandler.ShowNavigationalBar`）；
         //        ② 人物属性面板的四维加点箭头（原版同尺寸 15×24，见 `UiLayoutGame.CharPlusSize`）。
-        /// <summary>原版上箭头·常态（= `PANEL/menubutton__0__0.png`）。</summary>
-        public const string PanelArrowUp = D2UiPanel + "menubutton__0__0";
+        //
+        //  ★★ w4 修（**数据源换成 DC6 导出的那一套**）：原值指向 `menubutton__0__{0..3}.png` ——
+        //     那是社区复刻工程 Diablerie（`Assets/Images/ControlPanel/`）的副本，
+        //     实测**同画面**但把原版"调色板索引 0 = 透明"写成了**不透明黑 (0,0,0,255)**
+        //     （每帧 38 个像素 ⇒ 箭头周围一圈黑点）。现改指本项目 `tools/d2codec/export_d2ui.py`
+        //     从原版 `data/global/ui/PANEL/menubutton.DC6` 直接解出的 `menubutton_{0..3}.png`
+        //     （尺寸/帧序/内容**一个都没动**），并把 20 个副本文件从磁盘删除。
+        //     复跑对账：`python tools/probes/measure/scan_uigame.py --pairs`。
+        //     ⚠️ 运行时实际取图走 `UI/UiArt.ArrowFrame(i)`（= 同一个拼法），本 4 个常量供
+        //        "路径唯一来源"与自检宿主使用；两处**必须同值**（`uicheck` ㉑ 节断言磁盘存在）。
+        /// <summary>原版上箭头·常态（= `PANEL/menubutton_0.png`，DC6 直出）。</summary>
+        public const string PanelArrowUp = D2UiPanel + "menubutton_0";
 
-        /// <summary>原版上箭头·按下（= `PANEL/menubutton__0__1.png`）。</summary>
-        public const string PanelArrowUpPressed = D2UiPanel + "menubutton__0__1";
+        /// <summary>原版上箭头·按下（= `PANEL/menubutton_1.png`）。</summary>
+        public const string PanelArrowUpPressed = D2UiPanel + "menubutton_1";
 
-        /// <summary>原版下箭头·常态（= `PANEL/menubutton__0__2.png`）。</summary>
-        public const string PanelArrowDown = D2UiPanel + "menubutton__0__2";
+        /// <summary>原版下箭头·常态（= `PANEL/menubutton_2.png`）。</summary>
+        public const string PanelArrowDown = D2UiPanel + "menubutton_2";
 
-        /// <summary>原版下箭头·按下（= `PANEL/menubutton__0__3.png`）。</summary>
-        public const string PanelArrowDownPressed = D2UiPanel + "menubutton__0__3";
+        /// <summary>原版下箭头·按下（= `PANEL/menubutton_3.png`）。</summary>
+        public const string PanelArrowDownPressed = D2UiPanel + "menubutton_3";
 
         /// <summary>原版位图字体 16px。</summary>
         public const string Font16 = D2Fonts + "font16";
@@ -558,6 +565,22 @@ namespace Diablo2.Core
         /// <summary>`MENU/endgameok.dc6` 的帧数 = **2**（常态 / 按下；实测）。</summary>
         public const int FrameCountEndGameOK = 2;
 
+        // ── ★ w5（「选项/暂停底板 = 原版窗框」轮）新增：**只增不改**，上面一个字都没动 ────
+        //  出处：`tools/d2codec/assemble_boxpieces.py` —— 把**已在磁盘上的**原版
+        //        `MENU/boxpieces.DC6` 22 帧（14×15，`D2/UI/Menu/boxpieces_{0..21}.png`）
+        //        按**像素自证反推出来的偏移**拼成整幅窗框，输出到 `D2/UI/Panel/`。
+        //  为什么不是直接从 DC6 拼：`原版资源/`（DC6 本体）被 .gitignore 排除、**本机没有**，
+        //        那 22 帧的 DC6 offset 表拿不到 ⇒ 用「接缝连续 + 外沿是矩形」两条约束反推
+        //        （推导与逐像素判据见该脚本文件头；离线复检在 `uicheck` ㉑ 节 `BoxFrameSide()`）。
+        //  ⚠️ 文件名**不带尺寸**（角色名）⇒ 「窗框该多大」的唯一来源是
+        //     `UI/UiLayoutFlow.BoxFrame` 派生的 `Settings.BoxSize` / `Pause.BoxSize`，
+        //     两者是否一致由 `uicheck` 按 PNG 的 IHDR 断言（不一致必红）。
+        /// <summary>选项面板的窗框（原版 `boxpieces` 拼装，432×348 = 36×29 个 12px 格）。</summary>
+        public const string PanelBoxFrameSettings = D2UiPanel + "boxframe_settings";
+
+        /// <summary>暂停菜单的窗框（原版 `boxpieces` 拼装，288×180 = 24×15 个 12px 格）。</summary>
+        public const string PanelBoxFramePause = D2UiPanel + "boxframe_pause";
+
         /// <summary>配置文件的 Resources 键（放 `Assets/Resources/Configs/config.json` 时生效）。</summary>
         public const string ConfigResourceKey = "Configs/config";
 
@@ -575,6 +598,31 @@ namespace Diablo2.Core
         public static string MonsterDir(string monsterKey)
         {
             return D2Monsters.Replace("{name}", monsterKey ?? string.Empty);
+        }
+
+        // ── ★ 片「武器外观接线」新增：角色**装备外观套**目录（**只增不改**，上面一个字都没动）──
+        //  出处：`tools/d2codec/export_chars.py --equip-sets` 的产物 = 「身体层 + 武器/盾层合成一张」
+        //        的整套 PNG（与徒手套同命名 `{动作}_{方向}_{帧号}.png`，每套带一份 `manifest.json`）；
+        //        落位口径见判据脚本 `tools/probes/measure/d2_equip_sets_check.py` 的文件头。
+        //  ⛔ 本方法 = 该目录的**路径唯一来源**（不许在别的文件里拼 `"equip"` 这段字符串）。
+
+        /// <summary>
+        /// 「装备外观套」目录的目录名模板：`{class}` 填职业小写、`{key}` 填外观 key。
+        /// <para>`key` 的拼法由 `Module/View/EquipVisual.KeyOf` 给（`{武器}_{盾}` / `{武器}` / `{盾}`）。</para>
+        /// </summary>
+        public const string D2CharsEquip = D2Chars + "equip/{key}/";
+
+        /// <summary>
+        /// 角色**装备外观套**目录，例：`CharEquipDir(PlayerClass.Amazon, "jav")` →
+        /// `D2/Chars/amazon/equip/jav/`。
+        /// <para>⛔ 空 key 返回空串（徒手 = 走 <see cref="CharDir"/> 那套，调用方必须先判空）。</para>
+        /// </summary>
+        public static string CharEquipDir(PlayerClass cls, string key)
+        {
+            if (string.IsNullOrEmpty(key)) return string.Empty;
+            return D2CharsEquip
+                .Replace("{class}", cls.ToString().ToLowerInvariant())
+                .Replace("{key}", key.ToLowerInvariant());
         }
 
         /// <summary>物品图标路径，例：`Item("invhp1")` → `D2/Items/invhp1`。</summary>

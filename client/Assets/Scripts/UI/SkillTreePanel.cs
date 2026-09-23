@@ -25,8 +25,11 @@
 //        ③ 页 0 叠在页 k 之上时选中页签是"暗的"，页 k 叠在页 0 之上时是"亮（高亮）的"。
 //   ⇒ 只铺这两张**未改动的原版 PNG**，高亮页签 / 断口 / 右列三件事**全部自动成立**。
 //
-// ★ 技能图标尺寸 = 原版框**内径**（`UiLayoutGame.SkillIconCell` = 45−2×2 × 50−2×2 原版px），
-//   位图 48×48 由 `preserveAspect` 等比落进去（不拉变形、不放大、不加色调 —— 原版没有色调）。
+// ★ 技能图标尺寸 = 原版**位图原生 48×48**（`UiLayoutGame.SkillIconCell` = 48×48 原版px → 86.4 画布px），
+//   中心 = 节点框（`SkillTreeCell.box`，L 形管线的外接矩形）的中心；`preserveAspect` 在正方形框里
+//   是恒等变换（不拉变形、不放大、不加色调 —— 原版没有色调）。
+//   ⚠️ 旧口径「框内径 41×46」把图标缩到 85.4% 并让底图管线露在图标外一圈，w3 审计已按
+//      「控件矩形 == 原版像素 ×1.8」改成原生尺寸（出处见 `UiLayoutGame.SkillIconCell`）。
 //   「能不能学」用**原版灰化帧**表达（`D2Icon.SkillIconPath(def.id, dull:true)`），不画任何自绘标记。
 //
 // ⛔ 零 `using Diablo2.Module`（分层自检 ③；`conventions.md` 硬性）。
@@ -52,7 +55,11 @@ namespace Diablo2.UI
         /// <summary>面板位置（画布居中）。</summary>
         public static readonly Vector2 PanelPos = UiLayoutGame.SkillPanelPos;
 
-        /// <summary>技能图标层尺寸（= 原版节点框内径 41×46 原版px → 73.8×82.8 画布px）。</summary>
+        /// <summary>
+        /// 技能图标层尺寸（= 原版**位图原生 48×48** 原版px → **86.4×86.4** 画布px）。
+        /// <para>★ w3 审计修正：旧值是「节点框内径 41×46」，会把 48×48 的位图缩到 41（= 原版
+        /// 像素的 85.4%）—— 依据与出处见 `UiLayoutGame.SkillIconCell`。图标中心不变。</para>
+        /// </summary>
         public static readonly Vector2 IconCellSize = UiLayoutGame.SkillIconCell;
 
         private sealed class Node
@@ -129,8 +136,11 @@ namespace Diablo2.UI
 
             // ── 底图**两张原版页**：先页 0（右列：木框说明窗 + 3 个系页签）、再页 k（树）──
             //    层序依据见文件头「★ 层序」。此处**只建两个 Image**，贴图在 `ApplyBackdrop` 里按系换。
-            _bgTabs = UiArt.Panel(transform, "TreeBackPage0", PanelSize, PanelPos, UiArt.PanelBg, false);
-            _bgTree = UiArt.Panel(transform, "TreeBackPageK", PanelSize, PanelPos, UiArt.PanelBg, false);
+            // ★ 片 K（R8）：两张底图都**必须吃射线** —— 面板矩形（576×777.6，非满屏）⇒ 面板内空白吃点击、
+            //   面板外仍可点地面走（原版语义）。若不吃射线，点面板内部空白会被反投影成"点地面"⇒ 角色走动。
+            //   两张图**互斥显示**（`ApplyBackdrop` 按系切帧），故两张都要吃（哪张在台上就由哪张吃）。
+            _bgTabs = UiArt.Panel(transform, "TreeBackPage0", PanelSize, PanelPos, UiArt.PanelBg, true);
+            _bgTree = UiArt.Panel(transform, "TreeBackPageK", PanelSize, PanelPos, UiArt.PanelBg, true);
 
             BuildSkillInfoText();
             BuildTabHit();
@@ -193,7 +203,8 @@ namespace Diablo2.UI
                 UiLayoutGame.SkillArtSize(SkillTreeLayout.CellW, SkillTreeLayout.CellH),
                 Vector2.zero, new Color(0f, 0f, 0f, 0f), true);
 
-            // 图标层：全白（原版亮度）+ preserveAspect ⇒ 48×48 位图等比落进 41×46 内径，绝不拉变形
+            // 图标层：全白（原版亮度）+ 原生尺寸 48×48 ×1.8 = 86.4（preserveAspect 在正方形框里是
+            // 恒等变换 ⇒ 原版像素 1:1 落位，既不放大也不拉变形）
             var icon = UiArt.Panel(hit.transform, "Icon", IconCellSize, Vector2.zero, Color.white, false);
             icon.preserveAspect = true;
 

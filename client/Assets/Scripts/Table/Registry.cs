@@ -16,6 +16,7 @@ namespace Table
 		public MonsterTable Monster = new MonsterTable();
 		public MonumodTable Monumod = new MonumodTable();
 		public SkillTable Skill = new SkillTable();
+		public StartItemTable StartItem = new StartItemTable();
 		public TreasureclassTable Treasureclass = new TreasureclassTable();
 
 		// LoadAll 从 dir 加载全部业务表（dir/<name>.tsv），并触发各表钩子。
@@ -30,6 +31,7 @@ namespace Table
 			Monster.LoadWithHooks(Path.Combine(dir, "Monster.tsv"));
 			Monumod.LoadWithHooks(Path.Combine(dir, "Monumod.tsv"));
 			Skill.LoadWithHooks(Path.Combine(dir, "Skill.tsv"));
+			StartItem.LoadWithHooks(Path.Combine(dir, "StartItem.tsv"));
 			Treasureclass.LoadWithHooks(Path.Combine(dir, "Treasureclass.tsv"));
 		}
 	}

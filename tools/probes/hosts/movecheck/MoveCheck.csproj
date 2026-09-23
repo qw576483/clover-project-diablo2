@@ -39,6 +39,20 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+
+    <!-- sunk camera-follow capability (impl-camera): Module/Camera/CameraRig.cs now calls
+         CloverEngine.CameraMath.SmoothDamp, so this host must compile the engine file too
+         or it fails with CS0103. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraMath.cs
+" />
+
+    <!-- sunk frame-pacing capability (impl-camera): Core/FramePacing.cs now forwards to the
+         engine type CloverEngine.FramePacingPolicy, so this host must compile the engine file
+         or it fails with CS0234. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs
+" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />

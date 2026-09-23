@@ -1,0 +1,362 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 8,
+  "spec_md_line": 103,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "血腥荒野（**随机**）",
+  "method": "程序化生成，每局不同",
+  "criterion": "**连开两局**，日志打印 layout seed 与障碍数，两次不同",
+  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row08.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:38",
+  "selectors": {
+    "line_anchors": {},
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_mapcheck.txt": [
+        "[a21 产物] client/_dev/a21_reroll_out.txt",
+        "[Map] Generate 完成：area=BloodMoor requestedSeed=",
+        "blocked=",
+        "[离线] tools/probes/hosts/mapcheck",
+        "[Map] DumpAscii hash="
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 375406,
+      "sha256": "b8b362fb85910ff45d7de12f8202a4c6d6077b283a62a51538dfbe8125f00937",
+      "mtime": "2026-09-22 11:52:37",
+      "lines": 4110,
+      "ok_lines": 0,
+      "fail_lines": 0,
+      "pass_marks": 248,
+      "last_line": [
+        "================ MapCheck 结束：全部通过 ================"
+      ],
+      "matched_lines_total": 21,
+      "checks_written": 22,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "# host mapcheck run 2026-09-22 (offline, refresh after the MapGenWilderness.cs comment fix)",
+      "numbers": [
+        "2026",
+        "-09",
+        "-22"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 20,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] Generate 完成：area=Town(罗格营地) requestedSeed=20250916 effectiveSeed=20250916 attempts=1 size=56x40 blocked=712 walkable=1528 timeMs=17.6",
+      "numbers": [
+        "20250916",
+        "20250916",
+        "1",
+        "56",
+        "40",
+        "712",
+        "1528",
+        "17.6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 21,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] area=Town(罗格营地) size=56x40 seed=20250916 blocked=712 walkable=1528 timeMs=17.6 attempts=1 spawn=(32, 28) exits=3 caveEntrance=- npc=5 monsterSpawns=0",
+      "numbers": [
+        "56",
+        "40",
+        "20250916",
+        "712",
+        "1528",
+        "17.6",
+        "1",
+        "32",
+        "28",
+        "3",
+        "5",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 37,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=ACD969F681174A91（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "969",
+        "681174",
+        "91"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 97,
+      "selected_by": "snippet-head",
+      "text": "[INFO ] [Map] Generate 完成：area=BloodMoor(血腥荒野) requestedSeed=20250916 effectiveSeed=20250916 attempts=1 size=80x80 blocked=2052 walkable=4348 timeMs=19.0",
+      "numbers": [
+        "20250916",
+        "20250916",
+        "1",
+        "80",
+        "80",
+        "2052",
+        "4348",
+        "19.0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 98,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] area=BloodMoor(血腥荒野) size=80x80 seed=20250916 blocked=2052 walkable=4348 timeMs=19.0 attempts=1 spawn=(1, 68) exits=2 caveEntrance=(79, 36) npc=0 monsterSpawns=0",
+      "numbers": [
+        "80",
+        "80",
+        "20250916",
+        "2052",
+        "4348",
+        "19.0",
+        "1",
+        "1",
+        "68",
+        "2",
+        "79",
+        "36",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 114,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=C935853EFD4A26C4（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "935853",
+        "4",
+        "26",
+        "4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 170,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] Generate 完成：area=DenOfEvil(邪恶洞穴) requestedSeed=20250916 effectiveSeed=20250916 attempts=1 size=75x75 blocked=3836 walkable=1789 timeMs=40.6",
+      "numbers": [
+        "20250916",
+        "20250916",
+        "1",
+        "75",
+        "75",
+        "3836",
+        "1789",
+        "40.6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 171,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] area=DenOfEvil(邪恶洞穴) size=75x75 seed=20250916 blocked=3836 walkable=1789 timeMs=40.6 attempts=1 spawn=(3, 12) exits=1 caveEntrance=- npc=0 monsterSpawns=45",
+      "numbers": [
+        "75",
+        "75",
+        "20250916",
+        "3836",
+        "1789",
+        "40.6",
+        "1",
+        "3",
+        "12",
+        "1",
+        "0",
+        "45"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 187,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=E256001F21D258C7（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "256001",
+        "21",
+        "258",
+        "7"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 246,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] Generate 完成：area=Town(罗格营地) requestedSeed=987654321 effectiveSeed=987654321 attempts=1 size=56x40 blocked=712 walkable=1528 timeMs=1.4",
+      "numbers": [
+        "987654321",
+        "987654321",
+        "1",
+        "56",
+        "40",
+        "712",
+        "1528",
+        "1.4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 247,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] area=Town(罗格营地) size=56x40 seed=987654321 blocked=712 walkable=1528 timeMs=1.4 attempts=1 spawn=(32, 28) exits=3 caveEntrance=- npc=5 monsterSpawns=0",
+      "numbers": [
+        "56",
+        "40",
+        "987654321",
+        "712",
+        "1528",
+        "1.4",
+        "1",
+        "32",
+        "28",
+        "3",
+        "5",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 263,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=ACD969F681174A91（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "969",
+        "681174",
+        "91"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 284,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] Generate 完成：area=Town(罗格营地) requestedSeed=987654321 effectiveSeed=987654321 attempts=1 size=56x40 blocked=712 walkable=1528 timeMs=1.4",
+      "numbers": [
+        "987654321",
+        "987654321",
+        "1",
+        "56",
+        "40",
+        "712",
+        "1528",
+        "1.4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 285,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] area=Town(罗格营地) size=56x40 seed=987654321 blocked=712 walkable=1528 timeMs=1.4 attempts=1 spawn=(32, 28) exits=3 caveEntrance=- npc=5 monsterSpawns=0",
+      "numbers": [
+        "56",
+        "40",
+        "987654321",
+        "712",
+        "1528",
+        "1.4",
+        "1",
+        "32",
+        "28",
+        "3",
+        "5",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 301,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=ACD969F681174A91（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "969",
+        "681174",
+        "91"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 346,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=1CB3714CCCC92D3B（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "1",
+        "3714",
+        "92",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 389,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=1CB3714CCCC92D3B（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "1",
+        "3714",
+        "92",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 429,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=916855674B436D75（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "916855674",
+        "436",
+        "75"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 467,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=916855674B436D75（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "916855674",
+        "436",
+        "75"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 511,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Map] DumpAscii hash=ACD969F681174A91（同 seed 两次生成必须同哈希）",
+      "numbers": [
+        "969",
+        "681174",
+        "91"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_mapcheck.txt",
+      "line": 4109,
+      "selected_by": "file-summary-tail",
+      "text": "================ MapCheck 结束：全部通过 ================",
+      "numbers": []
+    }
+  ]
+}

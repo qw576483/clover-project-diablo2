@@ -62,8 +62,23 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <!-- 存档 JSON 编解码（**本片不许动它的序列化语义** ⇒ 逐字节恒等式就是判据） -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Save\SaveJson.cs" />
+
+    <!-- ★ 片 Q（R7 读档失败静默）新增：把**被验证对象本身**编进来 —— `SaveModule.Load/TryLoad` 的三情况判别。
+         ⛔ 只加断言、不改已有断言的判据；⛔ 不复制 SaveModule.cs（与 Assets/ 同一份文件）。
+         依赖：`AppContext`（`SaveModule` 靠它取各模块，离线时为 null ⇒ 只多打几条 Warn）+ `IAppFlow`
+         （`AppContext.Flow` 的类型，`using Diablo2.Module.Flow`）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Save\SaveModule.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\AppContext.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\IAppFlow.cs" />
     <!-- `Core/*.cs` 里几个转发壳依赖引擎侧那几个文件（与 itemcheck 同一套链接，口径一致） -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+
+    <!-- sunk frame-pacing capability (impl-camera): Core/FramePacing.cs now forwards to the
+         engine type CloverEngine.FramePacingPolicy, so this host must compile the engine file
+         or it fails with CS0234. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs
+" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />

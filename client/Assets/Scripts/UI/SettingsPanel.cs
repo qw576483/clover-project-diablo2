@@ -108,8 +108,10 @@ namespace Diablo2.UI
         public override void OnUpdate(float dt)
         {
             // ESC 关闭（与 Flow 的 Stage 站点 ESC=暂停 约定：`AppFlow` 见到本面板已开就不抢 ESC）。
+            // ★ T0FIX-C：走**别名** `GameKeyAlias.KeyClosePanel`（键位单一来源），⛔ 不直连 `GameKey.Escape`；
+            //   值不变 ⇒ 行为逐字不变。
             if (Game.Input == null) return;
-            if (!Game.Input.GetKeyDown(GameKey.Escape)) return;
+            if (!Game.Input.GetKeyDown(GameKeyAlias.KeyClosePanel)) return;
 
             Log.Info("Ui", "ESC 关闭选项面板");
             Game.UI.Close<SettingsPanel>();
@@ -287,8 +289,16 @@ namespace Diablo2.UI
             var screen = UiLayoutFlow.FitRoot(transform, UiLayoutFlow.FitMenu);
             _screen = screen;
 
+            // ① 框内底色：原版窗框内部是**空腔**，对比度由这层深色底兜住（也是本面板的点击吞噬层）。
             UiArt.Panel(screen, "Box", UiLayoutFlow.Settings.BoxSize, UiLayoutFlow.Settings.BoxPos,
                 UiArt.PanelBg, true);
+
+            // ② ★ w5：底板 = **原版 `MENU/boxpieces.DC6` 拼装的窗框**（整幅 432×348 原版px，
+            //    按 ×1.8 定尺 ⇒ 与素材 **1:1 逐像素**，不拉伸）。这一层**替掉**原先的"纯色块占位"。
+            //    出处/拼装口径见 `tools/d2codec/assemble_boxpieces.py` 文件头与
+            //    `UiLayoutFlow.BoxFrame`；点不到它（raycastTarget=false）⇒ 点击仍落在 ① 上。
+            UiArt.Art(screen, "BoxFrame", ResPaths.PanelBoxFrameSettings,
+                UiLayoutFlow.Settings.BoxSize, UiLayoutFlow.Settings.BoxPos);
 
             UiLayoutFlow.FlowLabel.Create(screen, "Title", Text.Title, D2Text.D2Font.Font24,
                 TextAnchor.MiddleCenter, Color.white, UiLayoutFlow.Orig(UiLayoutFlow.Settings.TitleSize),

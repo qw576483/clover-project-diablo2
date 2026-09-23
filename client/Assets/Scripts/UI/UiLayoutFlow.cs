@@ -926,6 +926,31 @@ namespace Diablo2.UI
             /// <summary>一屏最多行数 = 322.5 / 45 = **7**（原版节奏）。</summary>
             public const int MaxRows = 7;
 
+            /// <summary>
+            /// 角色行高（画布单位）= 原版中等按钮高 **35** ×1.8 = **63**。
+            /// <para>★ 本片（w3 流程屏审计）从 `CharSelectPanel.Rebuild` 里**搬进来**的唯一来源：
+            /// 修前那一行写的是 `UiArt.MenuButtonMediumSize.y * UiLayoutFlow.Scale`
+            /// （数值相同，但"行高"这只在 UI 侧算、进不了对照表 ⇒ 拿不到离线断言的覆盖）。</para>
+            /// </summary>
+            public static readonly float RowH = Px(MediumButtonOrig.y);
+
+            /// <summary>
+            /// 角色**行矩形**尺寸（画布）= 容器宽 × 行高（<see cref="RowH"/>）。
+            /// <para>行节点、行热点、行内标签/按钮都以它为"行画框"（`CharSelectPanel.BuildRow`），
+            /// 对照表登记角色行时也用它 ⇒ 三处同源。</para>
+            /// </summary>
+            public static readonly Vector2 RowSize = new Vector2(ListSize.x, RowH);
+
+            /// <summary>
+            /// 第 <paramref name="row"/> 行的**行中心 y（相对容器中心）**，画布单位。
+            /// <para>推导（与原版节奏一致，逐项给出处）：首行**顶边 = 容器顶边内侧**
+            /// ⇒ `首行中心 = (容器高 − 行高)/2`；行步进 = <see cref="UiLayoutFlow.RowStep"/>
+            /// （= 原版 35 + spacing 10 = 45 原版px ×1.8 = 81）。</para>
+            /// <para>★ 本片把这条公式**收进常量表**：`CharSelectPanel` 与对照表（<see cref="UiLayoutFlow.Table"/>）
+            /// 的**角色行登记**都调它 ⇒ 面板画在哪、表里断言的就是哪，不可能各算一套（两张表漂移）。</para>
+            /// </summary>
+            public static float RowY(int row) => (ListSize.y - RowH) * 0.5f - row * RowStep;
+
             /// <summary>行内「角色名」中心 原版 -250 → ×1.8 = **-450**（190×35 → 342×63）。</summary>
             public static readonly Vector2 RowNamePos = new Vector2(-450f, 0f);
 
@@ -952,6 +977,92 @@ namespace Diablo2.UI
         }
 
         // ═════════════════════════════════════════════════════════════════════
+        // 5b. ★ w5 新增：**原版 `MENU/boxpieces.DC6` 拼装窗框**的量法（选项 / 暂停底板）
+        // ═════════════════════════════════════════════════════════════════════
+        //  ★ 为什么本轮才有它：这两屏的底板原先是**纯色块**（占位物，skill §0 视为没做完）。
+        //    原版那套窗框素材（22 帧 14×15）一直躺在磁盘上却零引用，缺的只是「22 帧怎么摆」。
+        //    DC6 本机不在（`原版资源/` 被 .gitignore 排除 ⇒ 帧 offset 表拿不到），
+        //    故按**像素自证**把偏移反推出来 —— 推导、逐像素判据、复跑命令全部落在
+        //    `tools/d2codec/assemble_boxpieces.py` 的文件头里（整幅窗框 PNG 由它生成）。
+        //  ⛔ 本组常量**一个都不是拍出来的**：全部是那 22 张 PNG 上量出来的（见下逐条出处），
+        //    并由 `uicheck` ㉑ 节 `BoxFrameSide()` **重新解像素**核对（改错必红）。
+        //  ⛔ 变体怎么取也有交代：上/下/左/右各有 6/6/3/3 个变体，**只差石纹与金色饰点**，
+        //    「哪个变体放哪一格」在原版里没有出处 ⇒ 一律取该族**第一个**变体
+        //    （上 2 / 下 16 / 左 10 / 右 13），其余 14 帧登记为未使用 —— 这不是"挑了一版好看的"，
+        //    是"不挑"（不引入任何无出处的排布）。
+        /// <summary>原版 `boxpieces` 拼装窗框：网格 pitch / 框厚 / 8 个用到的帧号 / 各族偏移。</summary>
+        public static class BoxFrame
+        {
+            /// <summary>单元格 pitch = **12 原版px**（横竖同值）。出处：每帧实测 14×15、内容恰为
+            /// 内部 12×12，四周页边 = 左 1 / 上 1 / 右 1 / 下 2（x0/x13/y0/y13/y14 全透明）。</summary>
+            public const int TilePitch = 12;
+
+            /// <summary>每帧像素尺寸（22 帧的 IHDR 逐张实测都是它）。</summary>
+            public const int FramePixelW = 14;
+
+            /// <inheritdoc cref="FramePixelW"/>
+            public const int FramePixelH = 15;
+
+            /// <summary>窗框**外沿 → 空腔**的厚度 = **4 原版px**（边带 3px：2px 石色 + 1px 近黑内线，
+            /// 再加 1px 页边）。拼好的整幅上实测：第 0..2 行/列不透明、第 4 行/列起是空腔。</summary>
+            public const int BorderThickness = 4;
+
+            /// <summary>窗框外沿两侧都要让出的总量（= 2×<see cref="BorderThickness"/>），
+            /// 用于「内容外接框 → 窗框外沿」的推导。</summary>
+            public static readonly Vector2 ThicknessEdges =
+                new Vector2(BorderThickness * 2f, BorderThickness * 2f);
+
+            // ── 用到的 8 个帧（`D2/UI/Menu/boxpieces_{帧号}.png`）────────────────
+            /// <summary>左上角块（内容 12×12，边带压在 x1..3 / y1..3）。</summary>
+            public const int TileTopLeft = 0;
+
+            /// <summary>右上角块（边带压在 x10..12 / y1..3）。</summary>
+            public const int TileTopRight = 1;
+
+            /// <summary>左下角块（边带压在 x1..3 / y10..12）。</summary>
+            public const int TileBottomLeft = 8;
+
+            /// <summary>右下角块（边带压在 x10..12 / y10..12）。</summary>
+            public const int TileBottomRight = 9;
+
+            /// <summary>上边块（内容 12×3，边带 y1..3）。</summary>
+            public const int TileTop = 2;
+
+            /// <summary>下边块（内容 12×3，边带 y1..3 ⇒ 相对下外沿要 dy=+9）。</summary>
+            public const int TileBottom = 16;
+
+            /// <summary>左边块（内容 3×12，边带 x5..7 ⇒ 相对左外沿要 dx=−4）。</summary>
+            public const int TileLeft = 10;
+
+            /// <summary>右边块（内容 3×12，边带 x5..7、近黑内线在 x5 ⇒ 相对右外沿要 dx=+5）。</summary>
+            public const int TileRight = 13;
+
+            // ── 偏移（相对"该单元格左上角"，原版px；**像素自证反推**，见脚本文件头）──
+            /// <summary>上边块：与角块同页边 ⇒ 无偏移。</summary>
+            public static readonly Vector2 OffsetTop = new Vector2(0f, 0f);
+
+            /// <summary>下边块：内容第 1 行 = 近黑内线，要落到外沿的第 10 行 ⇒ dy = 10−1 = **+9**。</summary>
+            public static readonly Vector2 OffsetBottom = new Vector2(0f, 9f);
+
+            /// <summary>左边块：边带在 x5..7，要落到左外沿 x1..3 ⇒ dx = 1−5 = **−4**。</summary>
+            public static readonly Vector2 OffsetLeft = new Vector2(-4f, 0f);
+
+            /// <summary>右边块：边带在 x5..7，要落到右外沿 x10..12（角块口径）⇒ dx = 10−5 = **+5**。</summary>
+            public static readonly Vector2 OffsetRight = new Vector2(5f, 0f);
+
+            /// <summary>把窗框尺寸**吸附到拼装网格**（12 的整数倍；向上取，宁可留白不留缺口）。</summary>
+            public static float Snap(float origPx)
+            {
+                if (origPx <= 0f) return TilePitch;
+                return Mathf.CeilToInt(origPx / TilePitch) * (float)TilePitch;
+            }
+
+            /// <inheritdoc cref="Snap(float)"/>
+            public static Vector2 Snap(Vector2 origSize)
+                => new Vector2(Snap(origSize.x), Snap(origSize.y));
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
         // 6. 暂停菜单 / 选项 / 读条 / 启动（原版无对应 prefab ⇒ 本项目新增）
         // ═════════════════════════════════════════════════════════════════════
         // 暂停菜单：**直接复用主菜单按钮列的原版几何**（272×35、x=0、原版 4 个槽位）
@@ -959,6 +1070,21 @@ namespace Diablo2.UI
         //      故取本项目里唯一有依据的菜单按钮几何，不另造一套。
         public static class Pause
         {
+            /// <summary>
+            /// ★ w5：暂停菜单底板（原版 `boxpieces` 拼装窗框，**288×180 原版px**）。
+            /// <para>推导（⛔ 无裸魔数）：底板外沿 = **4 个菜单按钮**的外接框 + 窗框厚度，再吸附 12 网格：
+            ///   按钮 = 原版 `WideButton` 272×35、行节奏 45（原版 35+10）⇒
+            ///   外接框 x ±136、y **−170..0**（170 高）⇒ + 2×4 = 280×178
+            ///   ⇒ <see cref="BoxFrame.Snap(Vector2)"/> = **288×180** = 24×15 个 12px 格。</para>
+            /// <para>⛔ 底部那行提示（`PRESS ESC TO CONTINUE`）**不进框**：它是本项目新增的一行注
+            ///   （原版 ESC 菜单没有这一行），故不参与外接框。</para>
+            /// </summary>
+            public static readonly Vector2 BoxSize =
+                BoxFrame.Snap(new Vector2(272f, 170f) + BoxFrame.ThicknessEdges) * Scale;
+
+            /// <summary>底板中心 = 上述按钮外接框的中心 (0,−85) → ×1.8 = **(0,−153)**。</summary>
+            public static readonly Vector2 BoxPos = new Vector2(0f, -85f) * Scale;
+
             /// <summary>第 1 项中心 = 原版主菜单首行 (0,-17.5) → ×1.8 = **(0,-31.5)**。</summary>
             public static readonly Vector2 ResumePos = new Vector2(0f, -31.5f);
 
@@ -975,18 +1101,115 @@ namespace Diablo2.UI
             public static readonly Vector2 HintPos = new Vector2(0f, -355.5f);
         }
 
-        // 选项面板：原版无 prefab ⇒ 用一个本项目新增的框（420×335 原版px）+ 原版行节奏 45。
-        //   框：纵向盖住 原版 -230..105（标题顶 +105、脚注底 -230），横向 ±210
+        // ═════════════════════════════════════════════════════════════════════
+        // 6b. ★ 本轮新增：二次确认弹窗（原版窗框 + 原版按钮）
+        // ═════════════════════════════════════════════════════════════════════
+        //  缺陷（实机图 `.ai-tmp/screenshots/x_b3_delete_confirm.png`）：选角屏 / 暂停菜单的
+        //  「二次确认」原先调引擎通用件 `Game.UI.Confirm(...)`（`Runtime/Presentation/UI.cs:318`
+        //  → `ConfirmLayer.Build`），画出来是**引擎默认 uGUI**：深灰方块 + 两颗纯蓝按钮
+        //  （`UIWidgets.cs:628-649` 硬编码 `new Vector2(760f,420f)` 与 `new Color(0.16f,0.44f,0.78f)`）
+        //  —— 同一屏的角色行按钮却是原版石雕按钮 ⇒ **一屏两种风格**。
+        //
+        //  ⛔ 为什么不"只靠引擎 API 换皮"（任务里的做法 ②）：`IUIManager.Confirm` 的签名
+        //  （`Runtime/Core/PresentationContracts.cs:111`）**只有文案与回调**，没有任何外观参数；
+        //  `ConfirmLayer` 是引擎包内的 `internal sealed` 类、几何/配色全部写死在 `Build` 里
+        //  ⇒ 项目侧无法换皮。故走做法 ①：本项目自建 `UI/D2ConfirmPanel.cs`（`UIPanel`），
+        //  底板与按钮都用原版素材（`ResPaths.PanelBoxFramePause` / `ResPaths.BtnMed*`）。
+        //
+        //  ⛔ 下面每个数都是**派生值**（不新拍几何；出处逐条见各行注释）：
+        //    · 底板 = **与暂停菜单同一块原版窗框**（`boxframe_pause`，288×180 原版px）——
+        //      它的推导在 §6 `Pause.BoxSize`（= 原版宽按钮 272 × 4 行节奏 170 + 2×框厚 4 → 吸附 12 网格）。
+        //      确认弹窗要装「标题 + 正文 + 两颗按钮」，与暂停菜单那 4 行窗框装的是同一套东西
+        //      ⇒ 直接复用同一尺寸与同一素材，⛔ 不生成第三张窗框（少一个"哪个变体放哪格"的无出处决策）。
+        //    · 行的**纵向**位置 = 暂停菜单那 4 行相对底板的偏移（= 原版行节奏 45 原版px，见 §6 `Pause`）：
+        //      第 1 行 = `Pause.ResumePos − Pause.BoxPos` = 画布 (0,+121.5)；第 2/3 行中点 = (0,0)；
+        //      第 4 行 = `Pause.ToMainPos − Pause.BoxPos` = 画布 (0,−121.5)。
+        //    · 两颗按钮的**横向**偏移 = ±(原版宽按钮宽 272 − 原版中等按钮宽 128)/2 = ±72 原版px
+        //      （两钮外沿贴齐 272 的外接框；两个操作数都是原版素材尺寸）。
+        //    · 弹窗**居中** = 画布 (0,0)：模态确认框，原版没有可对照的 prefab（登记为本项目新增），
+        //      取画布中心不引入新坐标（原版 prefab 的锚点本来就以屏幕中线为原点）。
+        public static class Confirm
+        {
+            /// <summary>
+            /// 底板外沿 = 暂停菜单那一块（**288×180 原版px** = 24×15 个 12px 格）。
+            /// <para>出处 = `Pause.BoxSize` 的原版值（`Orig(Pause.BoxSize)`）；推导见 §6 `Pause` 的注释。</para>
+            /// </summary>
+            public static readonly Vector2 BoxSizeOrig = new Vector2(288f, 180f);
+
+            /// <inheritdoc cref="BoxSizeOrig"/>
+            public static readonly Vector2 BoxSize = Px(BoxSizeOrig);
+
+            /// <summary>底板中心 = 画布正中 (0,0)（模态确认框；见本节注释）。</summary>
+            public static readonly Vector2 BoxPos = Vector2.zero;
+
+            /// <summary>标题行中心：原版 (0,67.5) → 画布 **(0,121.5)**（= `Pause.ResumePos − Pause.BoxPos`）。</summary>
+            public static readonly Vector2 TitlePos = Px(new Vector2(0f, 67.5f));
+
+            /// <summary>
+            /// 标题框尺寸 = 原版宽按钮宽 **272** × 原版文本框高 **30**。
+            /// <para>出处：宽 272 = `WideButton.prefab` 的 `m_SizeDelta.x`（= 本底板外接框的来源宽度）；
+            /// 高 30 = `ClassSelectMenu.prefab` 的 `SelectHeroClass` / `ClassName` 文本框高。</para>
+            /// </summary>
+            public static readonly Vector2 TitleSizeOrig = new Vector2(272f, 30f);
+
+            /// <inheritdoc cref="TitleSizeOrig"/>
+            public static readonly Vector2 TitleSize = Px(TitleSizeOrig);
+
+            /// <summary>正文行中心 = 暂停菜单第 2/3 行的中点（相对底板 0）→ 画布 **(0,0)**。</summary>
+            public static readonly Vector2 MessagePos = Vector2.zero;
+
+            /// <summary>
+            /// 正文框尺寸 = 原版 **272 × 90**（宽同 <see cref="TitleSizeOrig"/>；
+            /// 高 90 = 2 行节奏 45 原版px ⇒ 占窗框中间两行，够长文案折两行）。
+            /// </summary>
+            public static readonly Vector2 MessageSizeOrig = new Vector2(272f, 90f);
+
+            /// <inheritdoc cref="MessageSizeOrig"/>
+            public static readonly Vector2 MessageSize = Px(MessageSizeOrig);
+
+            /// <summary>
+            /// 取消钮中心：原版 (−72,−67.5) → 画布 **(−129.6,−121.5)**。
+            /// <para>「左 = 取消」照原版槽位语义（`ClassSelectMenu.prefab` 的 `ExitButton` 在左、
+            /// `OkButton` 在右 —— 同本项目 `CharSelectPanel` 底部两钮的归位口径）。</para>
+            /// </summary>
+            public static readonly Vector2 CancelPos = Px(new Vector2(-72f, -67.5f));
+
+            /// <summary>确认钮中心：原版 (+72,−67.5) → 画布 **(129.6,−121.5)**（「右 = 确认」，同 <see cref="CancelPos"/>）。</summary>
+            public static readonly Vector2 ConfirmPos = Px(new Vector2(72f, -67.5f));
+        }
+
+        // 选项面板：原版无 prefab ⇒ 用一个本项目新增的框 + 原版行节奏 45。
+        //   ★ w5：框**不再是纯色块** —— 底图换成原版 `boxpieces` 拼装的窗框
+        //     （`ResPaths.PanelBoxFrameSettings`），框的尺寸改为**从本屏元素的外接框派生**。
         public static class Settings
         {
             /// <summary>
-            /// 面板框 原版中心 (0,-42.5) ×1.8 → **(0,-76.5)**；原版 420×335 → ×1.8 = **756×603**。
-            /// <para>框内元素全部落在 原版 -208..105 ⇒ ×1.8 后 y -374..189、x ±378，整块在 1920×1080 画布内。</para>
+            /// 本屏**内容外接框**（原版px；逐条取自本类下面已有的元素常量，⛔ 没有新拍的数）：
+            /// <list type="bullet">
+            /// <item>x 左 = <c>LabelPos.x − LabelSize.x/2</c> = −140 − 80 = **−220**（音量行标签，最左）；</item>
+            /// <item>x 右 = <c>FootPos.x + FootSize.x/2</c> = 0 + 200 = **+200**（脚注 400 宽，最右）；</item>
+            /// <item>y 下 = <c>FootPos.y − FootSize.y/2</c> = −200 − 10 = **−210**；</item>
+            /// <item>y 上 = <c>TitlePos.y + TitleSize.y/2</c> = 110 + 15 = **+125**。</item>
+            /// </list>
+            /// ⇒ 420×335（中心 (−10,−42.5)）。
+            /// <para>⚠️ w5 修掉一处**既有缺陷**：旧框是 420×335 中心 (0,−42.5) ⇒ 左沿 −210 而
+            /// 标签左沿 −220 ⇒ 标签**一直探出框外 10px**（离线断言没覆盖"框要包住子元素"这一条）。
+            /// 现在框由内容外接框派生 ⇒ 必然包住全部子元素。</para>
             /// </summary>
-            public static readonly Vector2 BoxPos = new Vector2(0f, -76.5f);
+            public static readonly Vector2 ContentSizeOrig = new Vector2(420f, 335f);
 
-            /// <inheritdoc cref="BoxPos"/>
-            public static readonly Vector2 BoxSize = new Vector2(756f, 603f);
+            /// <inheritdoc cref="ContentSizeOrig"/>
+            public static readonly Vector2 ContentCenterOrig = new Vector2(-10f, -42.5f);
+
+            /// <summary>
+            /// 面板框外沿（原版 432×348）= 内容外接框 + 2×框厚（4）后**吸附 12 拼装网格**
+            /// ⇒ ×1.8 = **777.6×626.4 画布单位**（原版 432×348 ×1.8，**1:1 不拉伸**）。
+            /// </summary>
+            public static readonly Vector2 BoxSize =
+                BoxFrame.Snap(ContentSizeOrig + BoxFrame.ThicknessEdges) * Scale;
+
+            /// <summary>面板框中心 = 内容外接框中心 (−10,−42.5) → ×1.8 = **(−18,−76.5)**。</summary>
+            public static readonly Vector2 BoxPos = ContentCenterOrig * Scale;
 
             /// <summary>标题 原版 (0,110) 300×30 → ×1.8 = **(0,198) 540×54**。</summary>
             public static readonly Vector2 TitlePos = new Vector2(0f, 198f);
@@ -1096,11 +1319,31 @@ namespace Diablo2.UI
             /// <summary>选角 / 创角屏（适配系数 <see cref="FitClass"/>）。</summary>
             public const string Class = "Class";
 
+            /// <summary>
+            /// **选角屏专属**元素（适配系数 <see cref="FitClass"/>）。
+            /// <para>★ 本片（w3 流程屏审计）新开这个组的原因：`Panel.Class` 是**选角 + 创角两屏共用**的一组，
+            /// 而两屏的专属元素**从不同时出现在画面上**（例：创角屏的 5 个半身像 vs 选角屏的角色行）
+            /// ⇒ 把它们放在同一组里做"两两不重叠"，**跨屏的那些元件对是毫无意义的比较**
+            /// （既可能误报重叠、也会让真正同屏的重叠被淹没）。</para>
+            /// <para>本组只收**选角屏有、创角屏没有**的元件（角色列表容器 + 角色行）。
+            /// 两屏**共用**的骨架（标题 / 说明行 / 底部两钮 / 整屏贴图）与**创角屏专属**元件
+            /// （半身像 / 热点 / 名字行）仍在 <see cref="Class"/> 组 —— 一次性重切两屏归属会动到
+            /// 既有断言的字面量与计数，超出本片范围（已在回报的「未决」里点名）。</para>
+            /// </summary>
+            public const string CharSelect = "CharSelect";
+
             /// <summary>暂停菜单（复用主菜单按钮几何）。</summary>
             public const string Pause = "Pause";
 
             /// <summary>选项面板。</summary>
             public const string Settings = "Settings";
+
+            /// <summary>
+            /// 二次确认弹窗（★ 本轮新增；底板复用暂停菜单那块原版窗框，见 §6b `Confirm`）。
+            /// <para>单开一组的原因与 <see cref="CharSelect"/> 同一口径：弹窗**只在自己出现时有内容**，
+            /// 与任何屏的元素做"两两不重叠"都是无意义的跨屏比较。</para>
+            /// </summary>
+            public const string Confirm = "Confirm";
 
             /// <summary>读条屏。</summary>
             public const string Loading = "Loading";
@@ -1114,10 +1357,12 @@ namespace Diablo2.UI
         {
             switch (panel)
             {
-                case Panel.Class: return FitClass;
+                case Panel.Class:
+                case Panel.CharSelect: return FitClass;
                 case Panel.Menu:
                 case Panel.Pause:
                 case Panel.Settings:
+                case Panel.Confirm:
                 case Panel.Loading:
                 case Panel.Boot: return FitMenu;
                 default:
@@ -1253,11 +1498,46 @@ namespace Diablo2.UI
             //   `(新增属性行) 四维加减行`、`(新增预览行) 生命/法力/耐力预览`。
             //   ⛔ 难度选择也**不在**本表里：原版控件坐标拿不出出处（见回报的 BLOCKED）。
 
-            // ── 选角屏角色列表 ──
-            Add(Panel.Class, "ClassSelectMenu/Canvas/(新增角色列表容器)",
+            // ── 选角屏角色列表（★ 本片：**从 `Panel.Class` 移到 `Panel.CharSelect`**）──
+            //   这些元件**只有选角屏有**（创角屏不建角色列表）⇒ 放进 `Class` 组会和创角屏的半身像/
+            //   名字框做**毫无意义的跨屏重叠比较**。见 `Panel.CharSelect` 的注释。
+            Add(Panel.CharSelect, "ClassSelectMenu/Canvas/(新增角色列表容器)",
                 "角色列表（原版热点带左/右 + 说明行底/按钮行顶之间）",
                 new Vector2(13f, -51.25f), new Vector2(714f, 322.5f),
                 Select.ListPos, Select.ListSize, false);
+
+            // ★★ 本片（w3 流程屏审计 I2）**补登记：角色行内的 6 个元件**（行模板）。
+            //   修前 `Panel.Class` 段只有「容器」⇒ 行内的 名字/职业/等级/ENTER/DELETE/行热点
+            //   既不在画布断言、也不在两两重叠断言里（与上面 §Settings 段同一漏洞）。
+            //   登记口径：**只登记第 1 行与最后一行**（行栈的上下极端）——
+            //   中间 5 行是同模板的平移，由「行步进 81 > 行内元件最大高 63」这条断言罩住
+            //   （`uicheck` 第 ⑲ 节），两行极端在界内且互不重叠 ⇒ 整栈都被包住；
+            //   且不会让对照表日志一次多出 35 行。
+            //   ⚠️ 行内元件的坐标 = `Select.ListPos + (行内偏移 x, Select.RowY(row))`，
+            //   与 `CharSelectPanel.BuildRow` **同一个来源**（`Select.RowY`）。
+            void AddRowItem(int row, string node, string use, Vector2 local, Vector2 size)
+            {
+                var pos = new Vector2(Select.ListPos.x + local.x, Select.ListPos.y + Select.RowY(row));
+                Add(Panel.CharSelect, node, use,
+                    new Vector2(Orig(pos.x), Orig(pos.y)), Orig(size), pos, size, false);
+            }
+
+            for (var row = 0; row < Select.MaxRows; row += Select.MaxRows - 1)     // row = 0 与 6
+            {
+                var nth = row == 0 ? "第 1 行" : $"最后一行（第 {row + 1} 行）";
+                var prefix = $"ClassSelectMenu/Canvas/(新增角色行·{nth}";
+                AddRowItem(row, prefix + "·名字)", $"{nth}：角色名", Select.RowNamePos, Select.RowNameSize);
+                AddRowItem(row, prefix + "·职业)", $"{nth}：职业", Select.RowClassPos, Select.RowClassSize);
+                AddRowItem(row, prefix + "·等级)", $"{nth}：等级", Select.RowLevelPos, Select.RowLevelSize);
+                AddRowItem(row, prefix + "·进入)", $"{nth}：进入（原版中等按钮）",
+                    Select.RowEnterPos, MediumButton);
+                AddRowItem(row, prefix + "·删除)", $"{nth}：删除（原版中等按钮）",
+                    Select.RowDeletePos, MediumButton);
+                // 行热点 = 整行宽的**透明点击区**（`UiLayoutFlow.Hotspot`）⇒ Use 里带「(热点)」，
+                // 既有重叠断言按"透明热点"豁免（它的子元素本来就压在它上面）。
+                AddRowItem(row, prefix + "·热点)", $"{nth}：行热点（透明点击区）(热点)",
+                    Vector2.zero, Select.RowSize);
+            }
 
             // ── 暂停 / 选项 / 读条 ──
             Add(Panel.Pause, "MainMenu/GameMenu/Buttons/SinglePlayerButton(复用)",
@@ -1270,11 +1550,93 @@ namespace Diablo2.UI
                 "暂停：回主菜单", new Vector2(0f, -152.5f), WideButtonOrig, Pause.ToMainPos, WideButton, false);
             Add(Panel.Pause, "MainMenu/GameMenu/Buttons/(新增下一行)",
                 "暂停：底部提示", new Vector2(0f, -197.5f), WideButtonOrig, Pause.HintPos, WideButton, false);
-            Add(Panel.Settings, "(新增选项面板框)", "选项面板底板", new Vector2(0f, -42.5f), new Vector2(420f, 335f),
+            // ★ w5：暂停菜单的底板也进表（以前这一屏**没有底板**，只有 4 个按钮浮在整屏遮罩上）。
+            //   原版尺寸 (288,180) 与中心 (0,-85) 都是**派生值**，推导见 §6 `Pause.BoxSize` 的注释。
+            Add(Panel.Pause, "(原版 MENU/boxpieces.DC6 拼装窗框)", "暂停菜单底板（窗框）",
+                new Vector2(0f, -85f), new Vector2(288f, 180f),
+                Pause.BoxPos, Pause.BoxSize, false);
+
+            // ── ★ 本轮新增：二次确认弹窗（`D2ConfirmPanel`）────────────────────────
+            //   为什么登记进表：本项目最高频的缺陷形态是"定义了但没人查"（启动屏署名行当初就是这么漏的）
+            //   ⇒ 弹窗的 5 个矩形都进表后，**既有的两条断言真的会检查它**：
+            //     ① 「乘适配系数后落在 1920×1080 画布内」；② 「两两不重叠」。
+            //   ⚠️ 所有 orig 值都是派生值（出处逐条见 §6b `Confirm` 的注释），⛔ 不是拍出来的。
+            Add(Panel.Confirm, "(原版 MENU/boxpieces.DC6 拼装窗框)", "确认弹窗底板（窗框）",
+                new Vector2(0f, 0f), new Vector2(288f, 180f),
+                Confirm.BoxPos, Confirm.BoxSize, false);
+            Add(Panel.Confirm, "(新增确认框·标题)", "确认框标题（原版宽按钮宽 272 × 原版文本框高 30）",
+                new Vector2(0f, 67.5f), new Vector2(272f, 30f),
+                Confirm.TitlePos, Confirm.TitleSize, false);
+            Add(Panel.Confirm, "(新增确认框·正文)", "确认框正文（272 × 90，占窗框中间两行）",
+                new Vector2(0f, 0f), new Vector2(272f, 90f),
+                Confirm.MessagePos, Confirm.MessageSize, false);
+            Add(Panel.Confirm, "(新增确认框·取消)", "确认框·取消（原版中等按钮 128×35，屏左）",
+                new Vector2(-72f, -67.5f), MediumButtonOrig, Confirm.CancelPos, MediumButton, false);
+            Add(Panel.Confirm, "(新增确认框·确认)", "确认框·确认（原版中等按钮 128×35，屏右）",
+                new Vector2(72f, -67.5f), MediumButtonOrig, Confirm.ConfirmPos, MediumButton, false);
+
+            // ★ w5：选项底板由"420×335 纯色块"改为**原版 boxpieces 拼装窗框**，
+            //   外沿由内容外接框 + 框厚派生（原版 (432,348) @ (−10,−42.5)，见 §6 `Settings`）。
+            Add(Panel.Settings, "(原版 MENU/boxpieces.DC6 拼装窗框)", "选项面板底板（窗框）",
+                new Vector2(-10f, -42.5f), new Vector2(432f, 348f),
                 Settings.BoxPos, Settings.BoxSize, false);
             Add(Panel.Settings, "(新增画质行)", "画质 / 质量等级行（第 4 行，行节奏 45）",
                 new Vector2(0f, -75f), new Vector2(0f, 35f),
                 new Vector2(0f, Settings.Row4Y), new Vector2(0f, Px(35f)), false);
+
+            // ★★ 本片（w3 流程屏审计 I2）**补登记：选项面板的每一个可见元件**。
+            //   修前 `Panel.Settings` 段只有「底板」+ 一条**零宽**的「画质行」度量行 ⇒ 实测后果：
+            //     ① `BoundsOf(Panel.Settings)` 只包住底板 ⇒「乘适配系数后落在 1920×1080 画布内」
+            //        这条断言对选项屏的**标题 / 4 行控件 / 关闭钮 / 脚注**是**空集**（查了等于没查）；
+            //     ②「两两不重叠」同样漏掉它们 ⇒ 把某一行 y 改错 30px、或把 Close 压到第 4 行上，
+            //        **没有任何断言会红**。
+            //   这正是本项目最高频的缺陷形态（"定义了但没人查"；启动屏署名行当初就是这么漏的 ——
+            //   它与版权行重叠 48px 且离线断言全程沉默）。⇒ 逐元件登记，让既有两条断言**真的覆盖**本屏。
+            //   ⚠️ 每条的 `orig` 值 = 画布值 ÷1.8，全部是 §6 `Settings` 组按「原版按钮高 35 + 间距 10」
+            //   行节奏推出来的整数（出处写在该组的注释里），**不是拍出来的**。
+            Add(Panel.Settings, "(新增选项标题)", "选项标题", new Vector2(0f, 110f), new Vector2(300f, 30f),
+                Settings.TitlePos, Settings.TitleSize, false);
+            Add(Panel.Settings, "(新增选项关闭钮)", "关闭（原版中等按钮）", new Vector2(0f, -170f),
+                MediumButtonOrig, Settings.ClosePos, MediumButton, false);
+            Add(Panel.Settings, "(新增选项脚注)", "脚注", new Vector2(0f, -200f), new Vector2(400f, 20f),
+                Settings.FootPos, Settings.FootSize, false);
+
+            // 4 行控件（第 1/2 行 = 音量：标签 + − + 值 + + + 音量条；第 3/4 行 = 开关：标签 + 原版中等按钮）。
+            //   `orig y` 与「原版行节奏 45」一一对应：60 / 15 / -30 / -75。
+            //   ± 的边长 = 原版按钮行高 35×35（画布 63×63，出处见 §6 `Settings` 组注释）。
+            var minusOrig = new Vector2(35f, 35f);
+            var minusSize = Px(minusOrig);
+            var barOrig = new Vector2(240f, 6f);          // 音量条：原版 240×6
+            var barSize = Px(barOrig);
+            var rowYs = new[] { Settings.Row1Y, Settings.Row2Y, Settings.Row3Y, Settings.Row4Y };
+            for (var r = 0; r < rowYs.Length; r++)
+            {
+                var y = rowYs[r];
+                var oy = Orig(y);                          // 108→60 / 27→15 / -54→-30 / -135→-75
+                var row = (r + 1).ToString();
+                Add(Panel.Settings, $"(新增选项第 {row} 行·标签)", $"第 {row} 行标签",
+                    new Vector2(-140f, oy), new Vector2(160f, 35f),
+                    new Vector2(Settings.LabelPos.x, y), Settings.LabelSize, false);
+                if (r > 1)
+                {
+                    // 第 3/4 行 = 开关行（全屏 / 画质）：只有「标签 + 原版中等按钮」，**没有** ± ／ 数值 ／ 音量条
+                    Add(Panel.Settings, $"(新增选项第 {row} 行·开关)", $"第 {row} 行开关（原版中等按钮）",
+                        new Vector2(60f, oy), MediumButtonOrig,
+                        new Vector2(Settings.TogglePos.x, y), MediumButton, false);
+                    continue;
+                }
+                // 第 1/2 行 = 音量行：标签 + − + 数值 + + + 音量条（**没有开关**）
+                Add(Panel.Settings, $"(新增选项第 {row} 行·减号)", $"第 {row} 行 −（原版按钮行高做边长）",
+                    new Vector2(0f, oy), minusOrig, new Vector2(Settings.MinusPos.x, y), minusSize, false);
+                Add(Panel.Settings, $"(新增选项第 {row} 行·数值)", $"第 {row} 行数值（位图字体）",
+                    new Vector2(45f, oy), new Vector2(50f, 35f),
+                    new Vector2(Settings.ValuePos.x, y), Settings.ValueSize, false);
+                Add(Panel.Settings, $"(新增选项第 {row} 行·加号)", $"第 {row} 行 +（原版按钮行高做边长）",
+                    new Vector2(90f, oy), minusOrig, new Vector2(Settings.PlusPos.x, y), minusSize, false);
+                Add(Panel.Settings, $"(新增选项第 {row} 行·音量条)", $"第 {row} 行音量条（轨道）",
+                    new Vector2(-40f, oy - 24f), barOrig,
+                    new Vector2(Settings.BarPos.x, y + Settings.BarPos.y), barSize, false);
+            }
             Add(Panel.Loading, "(原版进图读条图 Loading/loadingscreen，居中)",
                 "进图读条图（原版帧 256×256，中心 = 屏幕正中）",
                 Vector2.zero, Loading.ArtOrigSize, Loading.ArtPos, Loading.ArtSize, true);

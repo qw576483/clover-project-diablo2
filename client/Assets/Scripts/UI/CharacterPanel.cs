@@ -41,7 +41,13 @@ namespace Diablo2.UI
         /// <summary>面板尺寸（原版 `charstat.png` 320×432 → ×1.8 = 576×777.6）。</summary>
         public static readonly Vector2 PanelSize = UiLayoutGame.CharPanelSize;
 
-        /// <summary>面板中心（原版 Panel pivot(1.0,0.5)@(0,0) ⇒ 原版矩形 x −320..0 ⇒ 我们的 (−384,0)）。</summary>
+        /// <summary>
+        /// 面板中心（原版 Panel pivot(1.0,0.5)@(0,0) ⇒ 原版矩形 x −320..0 ⇒ 中心 (−160,0)
+        /// ⇒ ×1.8 = **(−288,0)**）。
+        /// <para>⚠️ w3 审计修正注释：旧注释写「(−384,0)」与值不符（−384 = 原版 −213.33×1.8，
+        /// 既不是 −320×1.8(=−576) 也不是 −160×1.8(=−288)）。**值一直是对的**（见
+        /// `UiLayoutGame.CharPanelPos = (−160×K, 0)`），只是注释里的数字抄错了。</para>
+        /// </summary>
         public static readonly Vector2 PanelPos = UiLayoutGame.CharPanelPos;
 
         /// <summary>四维行对应的枚举（顺序与 <see cref="UiLayoutGame.CharStatRowOrig"/> 一致）。</summary>
@@ -110,7 +116,9 @@ namespace Diablo2.UI
             if (_built) return;
             _built = true;
 
-            var bg = UiArt.Panel(transform, "CharstatBg", PanelSize, PanelPos, Color.white, false);
+            // ★ 片 K（R8）：底图吃射线 —— 面板矩形（576×777.6，非满屏）⇒ 面板内空白吃掉点击、
+            //   面板外仍可点地面走。理由与逐字判据见 `InventoryPanel.Build` 的同款注释。
+            var bg = UiArt.Panel(transform, "CharstatBg", PanelSize, PanelPos, Color.white, true);
             UiArt.SetSprite(bg, ResPaths.PanelCharStat);
 
             // ── 角色名（原版 CharName 矩形）──
@@ -147,15 +155,21 @@ namespace Diablo2.UI
                     UiArt.TextColor, nameSize, center + nameOffset);
                 nm.raycastTarget = false;
 
+                // ★ 片 font-scale：补显式字号（默认 0 = 按原版 px 1:1 画 ⇒ 只有应有的 ~55%；
+                //   用户报「属性面板文字太小」的 4 组之一）。字号唯一出处 = `UiLayoutGame.FontPx16`。
                 _statValues[i] = D2Label.Create(transform, "StatValue" + i, "0", D2Text.D2Font.Font16,
-                    TextAnchor.MiddleRight, UiArt.TitleColor, valueSize, center + valueOffset);
+                    TextAnchor.MiddleRight, UiArt.TitleColor, valueSize, center + valueOffset,
+                    (int)UiLayoutGame.FontPx16);
 
-                // 加点箭头（原版底图行尾的三角槽）：贴图用原版 `menubutton__0__0.png`(15×24)
+                // 加点箭头（原版底图行尾的三角槽）：贴图用原版 `PANEL/menubutton.DC6` 帧 0（15×24）。
+                // ★ w3 审计换帧名来源：`UiArt.ArrowFrame(0)` = DC6 直出那一套（索引 0 = 透明），
+                //   不用 Diablerie 副本（同画面但透明像素被写成不透明黑；该副本文件已由 w4 删除）
+                //   —— 理由逐条见 `UI/UiArt.cs` 的「原版小图标帧」一节。
                 var kind = StatRowKind[i];
                 var index = i;
                 var plus = UiArt.Panel(transform, "Plus" + i, UiLayoutGame.CharPlusSize,
                     center + new Vector2(UiLayoutGame.CharPlusX, 0f), Color.white, true);
-                UiArt.SetSprite(plus, ResPaths.D2UiPanel + "menubutton__0__0");
+                UiArt.SetSprite(plus, UiArt.ArrowFrame(0));
                 var button = plus.gameObject.AddComponent<Button>();
                 button.targetGraphic = plus;
                 button.onClick.AddListener(() => Allocate(kind, index));
@@ -176,9 +190,11 @@ namespace Diablo2.UI
                     new Vector2(size.x * 0.55f, size.y), center + new Vector2(-size.x * 0.22f, 0f));
                 _derivedNames[i].raycastTarget = false;
 
+                // ★ 片 font-scale：补显式字号（唯一出处 `UiLayoutGame.FontPx16`）。
                 _derivedValues[i] = D2Label.Create(transform, "DerivedValue" + i, "0", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
-                    new Vector2(size.x * 0.45f, size.y), center + new Vector2(size.x * 0.27f, 0f));
+                    new Vector2(size.x * 0.45f, size.y), center + new Vector2(size.x * 0.27f, 0f),
+                    (int)UiLayoutGame.FontPx16);
             }
         }
 
@@ -195,9 +211,11 @@ namespace Diablo2.UI
                     new Vector2(size.x * 0.55f, size.y), center + new Vector2(-size.x * 0.22f, 0f));
                 _extraNames[i].raycastTarget = false;
 
+                // ★ 片 font-scale：补显式字号（唯一出处 `UiLayoutGame.FontPx16`）。
                 _extraValues[i] = D2Label.Create(transform, "ExtraValue" + i, "0", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
-                    new Vector2(size.x * 0.45f, size.y), center + new Vector2(size.x * 0.27f, 0f));
+                    new Vector2(size.x * 0.45f, size.y), center + new Vector2(size.x * 0.27f, 0f),
+                    (int)UiLayoutGame.FontPx16);
             }
         }
 
@@ -214,9 +232,14 @@ namespace Diablo2.UI
                     new Vector2(size.x * 0.66f, size.y), center + new Vector2(-size.x * 0.17f, 0f));
                 _resistNames[i].raycastTarget = false;
 
+                // ★ 片 font-scale：补显式字号（唯一出处 `UiLayoutGame.FontPx16`）。
+                //   ⚠️ 值列框 = 0.34 × 74.3 ×1.8 = **45.5 画布px**（最窄的一列）⇒ 字高 28 时
+                //   换行阈值 = 45.5/scale ≈ 29 原版px（"75%" ≈ 24px，放得下；"100%" 会折行）。
+                //   实测（Probe/Play）逐条核 `LineCount`；若出现折行就按"值列不折行"处理（Overflow）。
                 _resistValues[i] = D2Label.Create(transform, "ResistValue" + i, "0%", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
-                    new Vector2(size.x * 0.34f, size.y), center + new Vector2(size.x * 0.33f, 0f));
+                    new Vector2(size.x * 0.34f, size.y), center + new Vector2(size.x * 0.33f, 0f),
+                    (int)UiLayoutGame.FontPx16);
             }
         }
 

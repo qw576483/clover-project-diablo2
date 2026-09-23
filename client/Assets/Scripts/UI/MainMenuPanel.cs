@@ -93,6 +93,14 @@ namespace Diablo2.UI
 
         private bool _built;
 
+        /// <summary>
+        /// 层：<see cref="UILayer.Normal"/>（= 文件头「层：Normal」）。
+        /// <para>★ 本片（w3 流程屏逐控件审计）**显式声明**：基类默认值就是 Normal
+        /// （`PresentationContracts.cs:174`）⇒ **行为零变化**；加它是为了让它成为 `uicheck`
+        /// `PanelSpec` 能断言的契约（修前本屏不在 PanelSpec 表里）。</para>
+        /// </summary>
+        public override UILayer Layer => UILayer.Normal;
+
         /// <inheritdoc/>
         public override void OnOpen(object param)
         {
@@ -150,10 +158,13 @@ namespace Diablo2.UI
             //   那一族的自画元素）；署名行不属那三类、也不是那三个名字 ⇒ 不会误撞。
             //   （本行刻意**不写带引号的那三个词** —— 写成带引号就会被那条断言当成真元素命中，
             //     实测踩过：第一版注释里写了它们，uicheck 直接 FAIL。）
+            //   ★ 2026 品牌署名轮：与启动屏同一口径加 `forceChi: true` —— 原版拉丁字模不分大小写
+            //   （`by clover-engine` 会被画成 `BY CLOVER-ENGINE`），逐字小写只有原版 `font24_chi` 能画。
+            //   见 `BootPanel` 里同一行的注释与 `D2Text.D2Label._forceChi`。
             UiArt.Label(screen, "ByLine", UiLayoutFlow.Brand.ByLineText,
                 UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font24), TextAnchor.MiddleCenter,
                 UiLayoutFlow.Brand.ByLineColor, UiLayoutFlow.Brand.ByLineSize,
-                UiLayoutFlow.Brand.ByLinePos);
+                UiLayoutFlow.Brand.ByLinePos, forceChi: true);
 
             // 对照表进日志（每个面板一次）：验收要的「面板 → 原版坐标 → 我们的坐标 → 依据节点名」
             UiLayoutFlow.LogTable(nameof(MainMenuPanel));

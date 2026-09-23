@@ -46,6 +46,17 @@ namespace Diablo2.Module.Npc
         private int _builtArea = -1;
 
         /// <summary>
+        /// ★ 片 T（S-19）：「本 (seed, 区域, 已生成?) 组合**已经处理过**」的标记。
+        /// <para>为什么必须有它：旧去重判据是 `_defs.Count &gt; 0 &amp;&amp; …` —— 而修复后
+        /// **非城镇区域**的 `_defs` 合法地保持空 ⇒ 那个判据会每帧重跑 `EnsureBuilt`
+        /// （等于把"不装配 + 记一行日志"变成每帧一次的新刷屏）。</para>
+        /// </summary>
+        private bool _built;
+
+        /// <summary>上一次处理时地图是否**已生成**（未生成 → 已生成 也必须重建一次）。</summary>
+        private bool _builtGenerated;
+
+        /// <summary>
         /// 当前正在对话的 NPC（`Events.DialogOptionChosen` 只带下标，必须记住是谁）。
         /// <para>★ R1-E 的 **S3** 建立了这条**不变式**：`_currentNpcId != None` 的区间
         /// **恰好等于** `NpcDialogPanel` 实例的存活区间 —— 面板关闭/被引擎销毁时必须归零，
@@ -104,8 +115,18 @@ namespace Diablo2.Module.Npc
             {
                 if (_defs[i].id == npcId) return _defs[i];
             }
-            Log.Warn("Npc", $"Get(npcId={npcId})：没有这个 NPC（本项目只有 5 个：0={Names[0]} 1={Names[1]} "
-                + $"2={Names[2]} 3={Names[3]} 4={Names[4]}）");
+            // ★ 片 T（S-19 回归修复）：把**两种完全不同的 null** 分开报 —— 旧文案一律说
+            //   「没有这个 NPC（本项目只有 5 个）」，在**非城镇区域**是**误导**：NPC 定义存在，
+            //   只是按 S-19 / agent-26 的城镇门禁**不装配**。⛔ 返回 null 本身是契约（见 `GetDialog` 的
+            //   ★ 注），但**原因必须准** —— 实测代价：`itemcheck` 在洞里取阿卡拉台词拿到 null ⇒
+            //   宿主 NRE 崩在 `Program.cs:1075`，被读成"对话表缺条目/我改坏了对话"。
+            var map = Map;
+            var reason = map != null && map.IsGenerated && map.Area != AreaId.Town
+                ? $"当前区域 {map.Area} 不是罗格营地 ⇒ 本区域**不装配**任何 NPC（S-19 / 城镇门禁）"
+                : "`_defs` 为空：地图未生成 / `NpcPoints` 缺站位 / 尚未装配（见 `EnsureBuilt` 的日志）";
+            Log.WarnOnce("Npc", "npc.get.miss." + npcId,
+                $"Get(npcId={npcId})：该 NPC 在当前场景取不到定义 ⇒ 返回 null。原因：{reason}"
+                + $"（本项目 5 个 NPC：0={Names[0]} 1={Names[1]} 2={Names[2]} 3={Names[3]} 4={Names[4]}）");
             return null;
         }
 
@@ -185,11 +206,21 @@ namespace Diablo2.Module.Npc
             return true;
         }
 
-        /// <summary>取当前对话内容（**文本随任务阶段变化**）。</summary>
+        /// <summary>
+        /// 取当前对话内容（**文本随任务阶段变化**）。
+        /// <para>
+        /// ★ 片 T：**null 契约是确定的，且只有两种出口**（调用方必须判 null，⛔ 不许直接解引用）：
+        /// ① `Get(npcId) == null` —— 该 NPC **在当前场景取不到定义**（非罗格营地 ⇒ 不装配；
+        ///    或地图未生成 / `NpcPoints` 缺站位），此时 `Get` 会打一条**点名原因**的 Warn（只报一次）；
+        /// ② 否则**恒返回非 null**：`NpcDialog.Build` 对 5 个 NPC × 4 个 `QuestState` **都有原版串**
+        ///    （`NpcDialog.TextOf` 的 switch 全覆盖，见 `itemcheck` §9 的 20 格穷举断言）。
+        /// ⇒ 「台词取不到」永远不是本方法的返回值，而是 ① 那条 Warn。
+        /// </para>
+        /// </summary>
         public NpcDialogArgs GetDialog(int npcId)
         {
             var def = Get(npcId);
-            if (def == null) return null;
+            if (def == null) return null;      // 唯一 null 出口（原因已由 Get 的 WarnOnce 说清）
 
             var quest = Quest;
             var state = quest != null ? quest.DenOfEvil : QuestState.NotStarted;
@@ -523,6 +554,8 @@ namespace Diablo2.Module.Npc
         public void Reset()
         {
             _defs.Clear();
+            _built = false;
+            _builtGenerated = false;
             _builtSeed = int.MinValue;
             _builtArea = -1;
             _currentNpcId = (int)NpcId.None;
@@ -577,32 +610,44 @@ namespace Diablo2.Module.Npc
             var map = Map;
             var seed = map != null ? map.Seed : int.MinValue;
             var area = map != null ? (int)map.Area : -1;
-            if (_defs.Count > 0 && seed == _builtSeed && area == _builtArea) return;
+            var generated = map != null && map.IsGenerated;
+            if (_built && generated == _builtGenerated && seed == _builtSeed && area == _builtArea) return;
 
             _defs.Clear();
+            _built = true;
+            _builtGenerated = generated;
+            _builtSeed = seed;
+            _builtArea = area;
 
-            var points = map != null ? map.NpcPoints : null;
+            // ★ 片 T（S-19）：**站位缺失 ⇒ 不装配**，⛔ 不再落到 (0,0)。两条理由都可回查：
+            //   ① 旧兜底会在**非城镇区域**凭空造出 5 个站在原点的幽灵 NPC（原 `Log.Warn … 暂用 (0,0)`，
+            //      09-23 日志 115 条），而 `FindNearest` 只按**距离**判 ⇒ 进洞后靠近原点就弹出阿卡拉
+            //      对话（`NpcModule.FindNearest` 的 ★ 注释记录了那次实机复现，验收 #38）。
+            //   ② 站位一律取自 `IMapModule.NpcPoints` —— 城镇生成器按原版数据摆放
+            //      （实测 阿卡拉=(41,19)、恰西=(21,21)），⛔ 本文件不许硬编码任何坐标。
+            if (!generated || map.Area != AreaId.Town)
+            {
+                Log.Info("Npc", $"NPC 未装配：当前区域 {(map != null ? map.Area.ToString() : "无地图")}"
+                    + $"（已生成={generated}）—— NPC 只属于罗格营地，⛔ 不生成 (0,0) 占位（S-19）");
+                return;
+            }
+
+            var points = map.NpcPoints;
+            var missing = new List<string>();
             for (var i = 0; i < Names.Length; i++)
             {
-                var gx = 0;
-                var gy = 0;
-                if (points != null && i < points.Count)
+                if (points == null || i >= points.Count)
                 {
-                    gx = points[i].x;
-                    gy = points[i].y;
-                }
-                else
-                {
-                    Log.Warn("Npc", $"NPC「{Names[i]}」的站位缺失（`IMapModule.NpcPoints` 长度 "
-                        + $"{(points == null ? "null" : points.Count.ToString())} < {i + 1}）⇒ 暂用 (0,0)");
+                    missing.Add(Names[i]);       // 站位缺失 ⇒ **跳过**（⛔ 不用 (0,0) 兜底）
+                    continue;
                 }
 
                 _defs.Add(new NpcDef
                 {
                     id = i,
                     name = Names[i],
-                    gridX = gx,
-                    gridY = gy,
+                    gridX = points[i].x,
+                    gridY = points[i].y,
                     areaId = (int)AreaId.Town,
                     isQuestGiver = i == (int)NpcId.Akara,
                     hasShop = i == (int)NpcId.Akara || i == (int)NpcId.Charsi || i == (int)NpcId.Gheed,
@@ -611,10 +656,18 @@ namespace Diablo2.Module.Npc
                 });
             }
 
-            _builtSeed = seed;
-            _builtArea = area;
-            Log.Info("Npc", $"NPC 站位已按地图装配（seed={seed} 区域={(map != null ? map.Area.ToString() : "无地图")}）："
-                + $"{Names.Length} 个（阿卡拉/卡夏/恰西/基德/瓦瑞夫）");
+            // 真的缺站位 = 地图数据异常：⛔ 不静默（点名到 NPC），但**只报一次**（同 seed+区域只走一遍）。
+            if (missing.Count > 0)
+            {
+                Log.WarnOnce("Npc", "npc.spot.missing",
+                    $"NPC 站位缺失（`IMapModule.NpcPoints` 长度 "
+                    + $"{(points == null ? "null" : points.Count.ToString())} < {Names.Length}）"
+                    + $"⇒ 这些 NPC **不装配**（⛔ 不用 (0,0) 兜底）：{string.Join("、", missing.ToArray())}");
+            }
+
+            Log.Info("Npc", $"NPC 站位已按地图装配（seed={seed} 区域={map.Area}）："
+                + $"{_defs.Count}/{Names.Length} 个（阿卡拉/卡夏/恰西/基德/瓦瑞夫）；"
+                + $"坐标取自 IMapModule.NpcPoints，⛔ 无硬编码");
         }
 
         // ── 内部：商店 ─────────────────────────────────────────────────────────

@@ -9,9 +9,11 @@
 // ⛔ 只读断言，不改任何工程产物。
 // ─────────────────────────────────────────────────────────────────────────────
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Diablo2.Core;
+using Diablo2.Def;
 using Diablo2.UI;
 using UnityEngine;
 
@@ -26,6 +28,7 @@ namespace Uicheck
             DeathLayout();
             DeathSource();
             MiniMapSource();
+            MiniMapAutomapSource();   // ★ w6：automap 素材「在不在」+ 现行画法口径 + 与原版的差异项
             Assets();
         }
 
@@ -246,11 +249,239 @@ namespace Uicheck
             Program.Check("小地图源码：标记按原版图标是白模板 ⇒ 必须上色（SetArtTint）",
                 src.Contains("UiArt.SetArtTint(dot,"), "见 BuildMarkers()");
 
-            Program.Check("小地图框位置 = 画布右上角留 20（940, 520）、图标边长 = 16 × K = 28.8",
-                Math.Abs(UiLayoutGame.MiniMapBoxPos.x - 940f) < 0.01f
-                && Math.Abs(UiLayoutGame.MiniMapBoxPos.y - 520f) < 0.01f
-                && Math.Abs(UiLayoutGame.MiniMapIconPx - 28.8f) < 0.01f,
-                $"boxPos={UiLayoutGame.MiniMapBoxPos} iconPx={UiLayoutGame.MiniMapIconPx}");
+            // ★ 片 `automap-original-verdict`（2026-09-22）：右上角**定尺框**口径已消除
+            //   （原版 = 满屏叠加层）⇒ 断言它连同三个常量一起**不会回来**。
+            var layoutSrc = File.ReadAllText(Path.Combine(Program.ProjectRoot, "client", "Assets",
+                "Scripts", "UI", "UiLayoutGame.cs"));
+            var layoutCode = CodeOnly(layoutSrc);
+            var srcCode = CodeOnly(src);
+            var boxLeft = string.Empty;
+            foreach (var g in new[] { "MiniMapBoxMax", "MiniMapMargin", "MiniMapBoxPos" })
+            {
+                if (layoutCode.Contains(g)) boxLeft += g + "(UiLayoutGame) ";
+                if (srcCode.Contains(g)) boxLeft += g + "(MiniMapPanel) ";
+            }
+            Program.Check("小地图：右上角**定尺框**口径 0 命中（MiniMapBoxMax / MiniMapMargin / MiniMapBoxPos）",
+                boxLeft.Length == 0, boxLeft.Length == 0 ? "0 命中（原版 = 满屏叠加层）" : boxLeft);
+
+            Program.Check("小地图：标记图标边长 = 原版 16 × K = 28.8（原版按固定像素 blit，不随地图缩放）",
+                Math.Abs(UiLayoutGame.MiniMapIconPx - 28.8f) < 0.01f,
+                $"iconPx={UiLayoutGame.MiniMapIconPx}");
+
+            // ── ★ w6：画法口径（从"大色块棋盘"换成"暗底 + 细线 / 小点"）──
+            //    色值**全部来自盘上原版 automap 家族素材的实测像素**（见 MiniMapPanel 文件头出处 A/B/C）。
+            var oldPaint = string.Empty;
+            foreach (var g in new[] { "ColWalkable", "ColBlocking", "ColExit", "ColInteractable",
+                                      "ColUnexplored", "ColVoid", "private static Color32 ColorOf(" })
+                if (src.Contains(g)) oldPaint += "\"" + g + "\" ";
+            Program.Check("小地图源码：旧「大色块」配色与 ColorOf() **0 命中**（画法已换代）",
+                oldPaint.Length == 0, oldPaint.Length == 0 ? "0 命中" : oldPaint);
+
+            // ── ★ 片 `automap-original-verdict`：画法 = **原版 cel**（`AutoMap.txt` 的 CelN → `MaxiMap.dc6`
+            //    帧，ACT1 调色板）blit 到 1/10 等距位置 —— 旧「程序化点阵 + 自选配色」口径已消除 ──
+            var ghostPaint = string.Empty;
+            foreach (var g in new[] { "ColBackdrop", "ColFloor", "ColBlock", "SuperSample",
+                                      "FloorDotPx", "BlockDotPx", "ExitDotPx", "PaintSquare",
+                                      "PaintCell(", "PixelBase(" })
+                if (srcCode.Contains(g)) ghostPaint += "\"" + g + "\" ";
+            Program.Check("小地图源码：旧「程序化点阵 + 本项目自选配色」的实现常量**全部删除**（0 命中）",
+                ghostPaint.Length == 0, ghostPaint.Length == 0 ? "0 命中" : ghostPaint);
+
+            Program.Check("小地图源码：逐格图形 = 原版 cel（`MinimapArgs.CelAt` + `AutoMapCel.CelPixels`）"
+                          + "，⛔ 本文件里没有任何自选色常量",
+                src.Contains("_map.CelAt(x, y, false)") && src.Contains("_map.CelAt(x, y, true)")
+                && src.Contains("AutoMapCel.CelPixels") && src.Contains("AutoMapCel.PaletteRgb")
+                && !src.Contains("new Color32(0x"),
+                "见 Redraw() / Blit()（颜色只来自 ACT1 调色板表）");
+
+            Program.Check("小地图源码：叠加层**铺满画布**（Backdrop 锚点 0..1）+ 以玩家格为中心平移（UpdateView）",
+                src.Contains("anchorMin = Vector2.zero") && src.Contains("anchorMax = Vector2.one")
+                && src.Contains("private void UpdateView()"),
+                "原版 = 满屏叠加层（⛔ 不是右上角定尺框）");
+
+            // 生成物（`Core/AutoMapCel.generated.cs`）：帧数 / 帧尺寸 / 调色板 / 像素数据自洽
+            Program.Check("automap 生成物：`MaxiMap` 帧数 = 1260、cel 帧尺寸 = 16×32（ACT1 调色板解，实测）",
+                AutoMapCel.FrameCount == 1260 && AutoMapCel.W == 16 && AutoMapCel.H == 32
+                && AutoMapCel.ScaleDen == 10,
+                $"FrameCount={AutoMapCel.FrameCount} {AutoMapCel.W}×{AutoMapCel.H} 1/{AutoMapCel.ScaleDen}");
+
+            Program.Check("automap 生成物：ACT1 调色板 = 256×RGB = 768 字节（原版 `ACT1/Pal.PL2`）",
+                AutoMapCel.PaletteRgb != null && AutoMapCel.PaletteRgb.Length == 768,
+                $"len={AutoMapCel.PaletteRgb?.Length ?? -1}");
+
+            var badCel = -1;
+            foreach (var kv in AutoMapCel.CelPixels)
+                if (kv.Key < 0 || kv.Key >= AutoMapCel.FrameCount || kv.Value == null
+                    || kv.Value.Length == 0 || kv.Value.Length % 3 != 0)
+                { badCel = kv.Key; break; }
+            Program.Check($"automap 生成物：{AutoMapCel.CelPixels.Count} 个 cel 的像素数据自洽"
+                          + "（0 ≤ cel < 1260 / 3 字节一组 / 非空）",
+                badCel < 0, badCel < 0 ? "全部自洽" : $"cel={badCel} 不合规");
+
+            // 逐格 Cel 字段（契约增补，见 `Module/Contracts.cs` 的 `# contract:` 注释）
+            var celArgs = new MinimapArgs();
+            Program.Check("`MinimapArgs` 增补了逐格 Cel 字段（`cels` 地面层 / `celsOver` 物件层）",
+                celArgs.cels != null && celArgs.celsOver != null
+                && celArgs.CelAt(-1, 0, false) == -1 && celArgs.CelAt(0, 0, true) == -1,
+                "越界/未填 ⇒ -1（原版这一格不画）");
+
+            Program.Check("小地图源码：文件头把「与原版差在哪」写实（AUTOMAP 图块表 / AutoMap.txt / 满屏叠加层）",
+                src.Contains("MaxiMap.dc6") && src.Contains("AutoMap.txt") && src.Contains("满屏叠加层"),
+                "见文件头 §素材结论 + §与原版还差在哪（① 口径 ② 图块 vs 点阵 ③ 视野）");
+        }
+
+        /// <summary>
+        /// 只留**代码行**（去掉 `//` / `*` / `/*` 起头的行）。
+        /// 为什么要它：源码文件头**必须**写清"旧口径已删除"，而那几句说明会**引用**旧常量名
+        /// （如 `ColBackdrop`）⇒ 直接 `src.Contains` 会被自己的注释判红。
+        /// 与 `tools/verify.ps1` 的 `-skipComment` 同口径。
+        /// </summary>
+        private static string CodeOnly(string text)
+        {
+            var sb = new StringBuilder();
+            foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+            {
+                var t = line.TrimStart();
+                if (t.StartsWith("//") || t.StartsWith("*") || t.StartsWith("/*")) continue;
+                sb.Append(line).Append('\n');
+            }
+            return sb.ToString();
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ④-b ★ 片 `automap-original-verdict`（2026-09-22）：automap 素材「在不在」+ 原版口径的判据
+        //
+        // 结论（本机实测，两路互相印证）：
+        //   · **已到位**：原版图块表 `ui/AUTOMAP/MaxiMap.dc6`（1260 帧 × 16×32）与逐格 Cel 表
+        //     `AutoMap.txt`（2603 行）—— 它们落在 `<仓库根>/原版资源/`（skill §1.9 的唯一落点；
+        //     `.gitignore` 排除）⇒ 下面的 `CheckOriginalRes` 从「[SKIP]」**自动变成真判**。
+        //   · **在**（工程内）：automap 家族的横幅 5 张（`data/local/ui/chi/*.dc6` 解出）
+        //     + 标记图标（`MINIMAP/mapicons.DC6` 的 8 帧 16×16 白模板）。
+        //   · **仍不在工程内**（是**刻意**的）：`MaxiMap` 的帧**不整包复制**进 `Assets/`
+        //     —— 只把被引用的那几帧的索引数据 + ACT1 调色板编进生成物
+        //     `client/Assets/Scripts/Core/AutoMapCel.generated.cs`（skill §3.6）。
+        //   ⇒ 现行画法 = 原版的「按 `AutoMap.txt` 的 Cel 号从 `MaxiMap.dc6` blit」口径（见 ⑯）。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void MiniMapAutomapSource()
+        {
+            // ① 原版图块 / Cel 表：`CheckOriginalRes`（不在位 ⇒ [SKIP] 且给期望路径）。
+            Program.CheckOriginalRes("原版 automap 图块表在磁盘上（原版 blit 口径的素材，片 1「未解」的那批）",
+                Path.Combine(Program.OriginalResDir, "d2dc6", "data", "global", "ui", "AUTOMAP", "MaxiMap.dc6"));
+            Program.CheckOriginalRes("原版逐格 Cel 表 AutoMap.txt 在磁盘上（决定「哪格画哪个 Cel 号」）",
+                Path.Combine(Program.OriginalResDir, "d2raw", "data", "global", "excel", "AutoMap.txt"));
+
+            // ② 工程侧：`Resources/Clover/D2/**` 里**没有任何 AUTOMAP 图块**（只有横幅 + 8 帧图标）
+            var d2 = Path.Combine(Program.ResourceRoot, "Clover", "D2");
+            var tileHits = string.Empty;
+            if (Directory.Exists(d2))
+            {
+                foreach (var f in Directory.GetFiles(d2, "*.png", SearchOption.AllDirectories))
+                {
+                    var n = Path.GetFileName(f);
+                    if (n.StartsWith("MaxiMap") || n.StartsWith("Act2Map") || n.StartsWith("Act4Map"))
+                        tileHits += n + " ";
+                }
+            }
+            Program.Check("工程内 AUTOMAP 图块（MaxiMap* / Act2Map* / Act4Map*）**0 张** ⇒ 图块素材本机不存在",
+                tileHits.Length == 0, tileHits.Length == 0 ? "0 命中（Resources/Clover/D2 全树）" : tileHits);
+
+            Program.Check("工程内没有 D2/UI/AutoMap 目录（automap 图块目录只有原版才有）",
+                !Directory.Exists(Path.Combine(d2, "UI", "AutoMap")),
+                Path.Combine("Clover", "D2", "UI", "AutoMap"));
+
+            // ③ 「在的」那两组：横幅 5 张 + 标记图标 8 帧（尺寸 = 原版 DC6 实测帧尺寸）
+            var want = new[]
+            {
+                (name: "automap_0", w: 256, h: 36), (name: "automap_1", w: 122, h: 36),
+                (name: "AutoMapCenter_0", w: 120, h: 34), (name: "AutoMapParty_0", w: 96, h: 34),
+                (name: "AutoMapOptions_0", w: 222, h: 54),
+            };
+            var ok = true;
+            var detail = new StringBuilder();
+            foreach (var b in want)
+            {
+                var size = PngSize(ResPath("D2/UI/Banner/" + b.name + ".png"));
+                var m = size.x == b.w && size.y == b.h;
+                ok &= m;
+                detail.Append($"{b.name}={size.x}x{size.y}{(m ? "" : $"(≠{b.w}x{b.h})")} ");
+            }
+            Program.Check("automap 家族**横幅** 5 张在磁盘上、尺寸 = 原版帧尺寸（`data/local/ui/chi/*.dc6`）",
+                ok, detail.ToString());
+
+            ok = true;
+            detail.Clear();
+            for (var i = 0; i < ResPaths.FrameCountMiniMapIcon; i++)
+            {
+                var size = PngSize(ResPath(ResPaths.MiniMapIcon(i) + ".png"));
+                var m = size.x == 16 && size.y == 16;
+                ok &= m;
+                if (!m) detail.Append($"mapicon_{i}={size.x}x{size.y} ");
+            }
+            Program.Check("automap 家族**标记图标** 8 帧（16×16）× 全在磁盘上、尺寸 = 原版（`MINIMAP/mapicons.DC6`）",
+                ok, ok ? $"{ResPaths.FrameCountMiniMapIcon} 帧全 16×16" : detail.ToString());
+
+            // ④ ★ 逐格 Cel：**独立重解析**原版 `AutoMap.txt`（⛔ 不信生成物），再对生成表做金标抽样。
+            var txt = Path.Combine(Program.OriginalResDir, "d2raw", "data", "global", "excel",
+                "AutoMap.txt");
+            if (!File.Exists(txt))
+            {
+                Console.WriteLine("   [SKIP] 原版 AutoMap.txt 不在位（环境依赖）：" + txt);
+            }
+            else
+            {
+                var raw = File.ReadAllLines(txt);
+                var rows = new List<string>();
+                foreach (var l in raw) if (l.Trim().Length > 0) rows.Add(l);
+                var hdr = rows[0].Split('\t');
+                Program.Check("原版 AutoMap.txt：1 表头 + **2603 数据行**、13 列（列名 / 语义见 plan §1.1）",
+                    rows.Count - 1 == 2603 && hdr.Length == 13,
+                    $"表头 {hdr.Length} 列 = {string.Join("|", hdr)}");
+
+                var levels = new List<string>();
+                var byLevel = new Dictionary<string, int>();
+                var styles = new List<int>();
+                var minCel = int.MaxValue;
+                var maxCel = -1;
+                for (var i = 1; i < rows.Count; i++)
+                {
+                    var f = rows[i].Split('\t');
+                    if (!byLevel.ContainsKey(f[0])) { byLevel[f[0]] = 0; levels.Add(f[0]); }
+                    byLevel[f[0]]++;
+                    var st = int.Parse(f[2]);
+                    if (!styles.Contains(st)) styles.Add(st);
+                    for (var k = 6; k <= 12; k += 2)
+                    {
+                        var c = int.Parse(f[k]);
+                        if (c > maxCel) maxCel = c;
+                        if (c >= 0 && c < minCel) minCel = c;
+                    }
+                }
+                Program.Check("原版 AutoMap.txt：LevelName = `<act> <LevelType>` 共 28 个（含 1 Town / 1 Wilderness / 1 Cave）",
+                    levels.Count == 28 && byLevel.ContainsKey("1 Town")
+                    && byLevel.ContainsKey("1 Wilderness") && byLevel.ContainsKey("1 Cave"),
+                    $"1 Town={byLevel["1 Town"]} 行 / 1 Wilderness={byLevel["1 Wilderness"]} 行"
+                    + $" / 1 Cave={byLevel["1 Cave"]} 行；Style {styles.Count} 种");
+
+                Program.Check("原版 AutoMap.txt：CelN 值域 = **0..1254** ⊂ MaxiMap 的 0..1259 ⇒ CelN 就是帧序号",
+                    maxCel == 1254 && minCel == 0,
+                    $"Cel ∈ [{minCel},{maxCel}]，MaxiMap 帧数 {AutoMapCel.FrameCount}（−1 = 空槽位，本断言只看 ≥0）");
+            }
+
+            // 金标抽样：值由 `python tools/probes/gen_automap.py` 复算（口径见生成物文件头）；
+            // 生成链路一漂移，这几条就变红（⛔ 不是"从生成物里抄一遍"）。
+            var golden = new (int Area, bool Obj, string Key, int Cel)[]
+            {
+                (0, false, "moor_bridge/020", 0), (0, true, "moor_bridge/001", 60),
+                (2, false, "cave/004", 130), (2, false, "cave/005", 131),
+            };
+            var gbad = string.Empty;
+            foreach (var g in golden)
+            {
+                var got = AutoMapCel.Cel(g.Area, g.Obj, g.Key);
+                if (got != g.Cel) gbad += $"{g.Key} 期望{g.Cel} 实得{got}；";
+            }
+            Program.Check("automap 生成物：逐格 Cel **金标抽样** 4 条（area/层/瓦片键 → Cel 号）",
+                gbad.Length == 0, gbad.Length == 0 ? "4/4 一致" : gbad);
         }
 
         // ═════════════════════════════════════════════════════════════════════

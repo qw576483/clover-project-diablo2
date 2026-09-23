@@ -54,6 +54,9 @@ namespace Diablo2.Module.Save
             Field(sb, "statPoints", s.statPoints, true);
             Field(sb, "skillPoints", s.skillPoints, true);
             Field(sb, "gold", s.gold, true);
+            // ★ 双武器组（新字段，写在 gold 之后与 CharacterSave 的字段顺序一致）：
+            //   旧档没有这一行 ⇒ 读侧 GetInt(..., 0) 走默认值 0 = Ⅰ组（向后兼容，见 TryParse）。
+            Field(sb, "activeWeaponIndex", s.activeWeaponIndex, true);
             Field(sb, "areaId", s.areaId, true);
             Field(sb, "gridX", s.gridX, true);
             Field(sb, "gridY", s.gridY, true);
@@ -370,6 +373,9 @@ namespace Diablo2.Module.Save
             s.statPoints = GetInt(dict, "statPoints", 0);
             s.skillPoints = GetInt(dict, "skillPoints", 0);
             s.gold = GetInt(dict, "gold", 0);
+            // ★ 双武器组：**缺字段按 0（= Ⅰ组）** —— 这是"旧档无该字段仍可读且不崩"的落点
+            //   （本文件的既有约定：缺字段一律取默认值、绝不抛异常，见文件头与 TryParse 注释）。
+            s.activeWeaponIndex = GetInt(dict, "activeWeaponIndex", 0);
             s.areaId = GetInt(dict, "areaId", 0);
             s.gridX = GetInt(dict, "gridX", 0);
             s.gridY = GetInt(dict, "gridY", 0);

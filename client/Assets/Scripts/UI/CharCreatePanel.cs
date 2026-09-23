@@ -304,6 +304,14 @@ namespace Diablo2.UI
         /// <summary>★ R1-F：默认名语义（首次键入整体替换 / 未首次键入时删除键不生效）只报一次。</summary>
         private static bool _r1fNameLogged;
 
+        /// <summary>
+        /// 层：<see cref="UILayer.Normal"/>（= 文件头「层：Normal」）。
+        /// <para>★ 本片（w3 流程屏逐控件审计）**显式声明**：基类默认值就是 Normal
+        /// （`PresentationContracts.cs:174`）⇒ **行为零变化**；加它是为了让它成为 `uicheck`
+        /// `PanelSpec` 能断言的契约（修前本屏不在 PanelSpec 表里）。</para>
+        /// </summary>
+        public override UILayer Layer => UILayer.Normal;
+
         /// <inheritdoc/>
         public override void OnOpen(object param)
         {
@@ -1007,6 +1015,17 @@ namespace Diablo2.UI
             if (_descLabel != null) _descLabel.SetText(desc);
 
             // 「确定」：没选职业就置灰（原版 `ClassSelectMenu.cs:110-111 okButton.Disabled = true`）
+            // ★ T0FIX-H 判据注记（**不是行为改动，只是把判定写清楚**）：
+            //   未选职业时本按钮 `interactable = false` ⇒ uGUI 走 `Selectable.DoStateTransition` 的
+            //   **禁用态**，套 `spriteState.disabledSprite`（`UiArt.Apply` 里 = `btn_med_normal` 常态帧）
+            //   ⇒ 此时**悬停/按下都不换底图**（`OnPointerDown` 在 `!IsInteractable()` 时直接 return）
+            //   ⇒ 实测"悬停/按下像素差 0.0%"是**符合原版语义的正确行为**，⛔ 不是"SpriteSwap 没接上"。
+            //   依据链：① 本行（原版 `ClassSelectMenu.cs:110-111` 的 `okButton.Disabled = true`）；
+            //   ② `策划/状态矩阵.tsv:2457` 的判据列本身就是「边界: 禁用态 = 无反馈」；
+            //   ③ 同屏对照 = `CharSelectPanel` 的 Enter/Delete（可交互）实测差 37%（`t0e_hover_contact.index.tsv` g3/g4）。
+            //   ⚠️ 仍未实机确认的是"**选职业之后**悬停 Confirm 是否换成 `btn_med_sel`"（那一档 uGUI 走
+            //   高亮态、`spriteState.highlightedSprite` 已由 `UiArt` 设好 ⇒ 预期与 Back 同档 33~37%），
+            //   本片纯离线不采 ⇒ 留给下一批实机的 HOVER 扫描（`tools/probes/drivers/t0e_drive.cs`）重采。
             if (_okButton != null) _okButton.SetEnabled(_classes.Count > 0 && _classIndex >= 0);
         }
 

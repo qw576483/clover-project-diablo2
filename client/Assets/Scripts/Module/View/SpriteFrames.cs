@@ -150,10 +150,22 @@ namespace Diablo2.Module.View
             }
         }
 
-        /// <summary>动作是否循环（只有死亡不循环；受击短暂动作靠 `PlayHit` 后的状态自动切回）。</summary>
+        /// <summary>
+        /// 动作是否**循环播放**：只有 `Idle` / `Walk` / `Run` 循环（原版 `NU` / `WL` / `RN`
+        /// 都是周期动画 —— 站着呼吸 / 每循环走完一格）。
+        /// <para>★ 片 W5 修正（审计 `w3_anim_audit.tsv` 的「walk 循环 / attack 播完回 idle / death 停末帧」
+        /// 三项判据）：`Attack`(A1) / `Cast`(SC) / `Hit`(GH) / `Death`(DT) 一律**单次播放**
+        /// —— 旧实现是 `anim != Death`，让这三个也循环，产生两个可判定缺陷：
+        /// ① **保持时长 &gt; 动画时长**时动作会**自己重播**（一次出手看见"挥了第二刀"；
+        ///    例：怪物 A1 11 帧 @12fps = 0.92s，而 `MonsterTuning.AttackAnimSeconds` = 0.35s
+        ///    这类参数一旦被调大就会显形）；
+        /// ② `Hit` 若循环 ⇒ <see cref="SpriteAnimator.Finished"/> **永不为真**
+        ///    ⇒ 没法用"受击动画播完"当保持结束条件（玩家受击动作因此只能出 1 帧，见 `ViewModule.TickPlayer`）。</para>
+        /// <para>原版语义：一次出手 / 一次施法 / 一次受击 / 一次死亡各播一套动画，播完回到静止。</para>
+        /// </summary>
         public static bool LoopOf(ViewAnim anim)
         {
-            return anim != ViewAnim.Death;
+            return anim == ViewAnim.Idle || anim == ViewAnim.Walk || anim == ViewAnim.Run;
         }
 
         /// <summary>
@@ -204,6 +216,24 @@ namespace Diablo2.Module.View
             return Build(unitKey, ResPaths.CharDir(cls), anim, dir);
         }
 
+        /// <summary>
+        /// ★ 片「武器外观接线」：角色**装备外观套**的某个动作/方向的帧键数组。
+        /// <para>与上面那个重载**同形**，只多一个"用哪一套"的维度：目录 =
+        /// <see cref="ResPaths.CharEquipDir"/>，单位键 = `"{class}/equip/{key}"`
+        /// （见 <see cref="EquipVisual.UnitKeyOf"/>，也是生成物 <see cref="EquipFrameCounts.ByUnit"/> 的键）。
+        /// 帧数来源 = `EquipFrameCounts`（由各套 `manifest.json` 生成）——
+        /// ⛔ **不能**沿用徒手套的帧数：同一职业装上武器后逐动作帧数会变（例 amazon attack 13 → 15）。</para>
+        /// <para><paramref name="equipKey"/> 为 null / 空 ⇒ 等价于徒手（走上面那个重载），
+        /// 这是 `EquipVisual.Candidates` 链尾的正常形态，不是异常。</para>
+        /// </summary>
+        public static string[] Keys(PlayerClass cls, string equipKey, ViewAnim anim, Dir8 dir)
+        {
+            if (string.IsNullOrEmpty(equipKey)) return Keys(cls, anim, dir);
+
+            var unitKey = EquipVisual.UnitKeyOf(cls, equipKey);
+            return Build(unitKey, ResPaths.CharEquipDir(cls, equipKey), anim, dir);
+        }
+
         /// <summary>怪物的某个动作/方向的帧键数组（<paramref name="spriteCode"/> = `monster_c.sprite`）。</summary>
         public static string[] Keys(string spriteCode, ViewAnim anim, Dir8 dir)
         {
@@ -238,10 +268,24 @@ namespace Diablo2.Module.View
             }
         }
 
+        /// <summary>
+        /// 某单位 / 某装备外观套的某动作**真实**帧数（0 = 该套没有这个动作的原版动画）。
+        /// <para>两张生成物都查：**装备外观套**（`EquipFrameCounts`，键含 `/equip/`）与本来的
+        /// **徒手/怪物**表（`SpriteFrameCounts`）。两张表的键空间不相交（前者含 `/equip/`），
+        /// 所以顺序不影响结果 —— 先查装备表只是为了少一次字典查找。</para>
+        /// </summary>
+        private static int LookupCount(string unitKey, ViewAnim anim)
+        {
+            if (string.IsNullOrEmpty(unitKey)) return 0;
+            var n = EquipFrameCounts.Of(unitKey, anim);
+            if (n > 0) return n;
+            return SpriteFrameCounts.Of(unitKey, anim);
+        }
+
         /// <summary>某单位的某动作**真实**帧数（0 = 该单位没有这个动作的原版动画）。</summary>
         public static int FrameCountOf(string unitKey, ViewAnim anim)
         {
-            var n = SpriteFrameCounts.Of(unitKey, anim);
+            var n = LookupCount(unitKey, anim);
             if (n > 0) return n;
 
             var i = (int)anim;
@@ -255,7 +299,7 @@ namespace Diablo2.Module.View
         /// </summary>
         public static ViewAnim ResolveAnim(string unitKey, ViewAnim anim)
         {
-            if (SpriteFrameCounts.Of(unitKey, anim) > 0) return anim;
+            if (LookupCount(unitKey, anim) > 0) return anim;
 
             var chain = (int)anim >= 0 && (int)anim < FallbackChain.Length ? FallbackChain[(int)anim] : null;
             if (chain != null)

@@ -51,6 +51,12 @@
          引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
          依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <!-- ⚠️ 本行**与起始装备改动无关**（起始装备轮实测发现，已写进回报）：`Core/FramePacing.cs` 已改成
+         转发 `CloverEngine.FramePacingPolicy`，而引擎侧那一份（`Runtime/Presentation/FramePacing.cs`）
+         **没有被任何宿主链进来** ⇒ 本宿主与 savecheck / playercheck … **全部离线宿主**都编不过
+         （`error CS0234: 命名空间"CloverEngine"中不存在类型或命名空间名"FramePacing"`，2026-09-22 复现）。
+         本行的作用 = 只把本宿主救回来（本文件在本片白名单内）；其它宿主同样缺这一行，由主 agent 统一处理。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs" />
     <!-- ★ agent-38 补（`# direct-fix:`）：agent-37 引擎下沉 A6 把项目存档改成走引擎的
          `CloverEngine.FileSlotStore`（`Module/Save/SaveModule.cs:64`），但本宿主的链接清单没跟着加
          ⇒ `CS0246: 未能找到类型或命名空间名"FileSlotStore"`（verify.ps1 的 offline-hosts 因此 FAIL）。
@@ -69,6 +75,35 @@
     -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\IAppFlow.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\App\AppContext.cs" />
+    <!-- ★ 本轮（T0 判据缺口 1「死亡不掉金币」）新增：把 `Module/Player` + `Module/Input` 编进来，
+         让本宿主能用**真实** `PlayerModule`（而不是本文件的 `StubPlayer`）断言「死亡扣当前金币 10%」——
+         这条断言必须打在**生产实现**上，打在桩上等于没测（桩的 `Kill()` 只把生命置 0）。
+         依赖：`Module/Player/**`（PlayerStats/PlayerMotor/PlayerLog）+ `Module/Input/**`
+         （`InputReader`/`HoverPicker`，命名空间是 `Diablo2.Module`）+ `AppContext` + `Iso`/`Table`。
+         ⛔ 不改任何业务代码，只把源文件链进本宿主。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Player\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Input\*.cs" />
+    <!-- ★ 片 G1 补（# direct-fix:）：宿主原先编不过的**既有**缺口 ——
+         `Module/Player/PlayerModule.cs:160` 现在引用 `Diablo2.Module.Map`（M3 的接缝/桥面改动之后），
+         而本宿主的链接清单里没有 `Module/Map/**` ⇒ `CS0234: 命名空间"Diablo2.Module"中不存在"Map"`。
+         ⇒ 把 `Module/Map/**` 链进来（本片没改这些文件，只是让宿主恢复可编译）。
+         本宿主已有 `StubMap : IMapModule`（不重名，无冲突）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+
+    <!-- ★ 起始装备轮新增：只链 `DamageFormula.cs` + `CombatLog.cs` 两个文件（**不是**整个 Module/Combat/**），
+         为的是用**生产入口**断言「起始装备让普攻伤害真的 > 0」（配表 → ItemStack.dmg → 官方物理伤害公式）。
+         ⚠️ 不链 `Module/Combat/*.cs` 全量：那会把 CombatModule/Monster/Skill/View 一起拉进来，
+            与本宿主已有的桩（StubMonster/StubSkill）冲突。
+         依赖检查：`DamageFormula` 只用到 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def` / `UnityEngine` / `Table`
+            与 `CombatLog`；`CombatLog` 只用到 `Diablo2.Core.Log`（**不读时钟**，故离线宿主可安全调用）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Combat\DamageFormula.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Combat\CombatLog.cs" />
+    <!-- ★ 片 O（R6）新增：只链 `DeathFlow.cs`（不是整个 Module/Combat/**，那会与 StubMonster/StubSkill 冲突），
+         为的是用**生产入口**断言「精英怪的 TC 槽位判定」`DeathFlow.EliteKindOf`（词缀 kind → TreasureClass2/3）。
+         依赖检查：DeathFlow 只用 `CloverEngine` / `Diablo2.Core`(Events/Rng/Log) / `Diablo2.Def` / `Table` /
+             `UnityEngine` + 本宿主已链的 `CombatLog` + 门面 `AppContext`(已链) 与 `Contracts.cs`(已链)。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Combat\DeathFlow.cs" />
+
     <!-- 本 agent 的四个模块 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Quest\*.cs" />

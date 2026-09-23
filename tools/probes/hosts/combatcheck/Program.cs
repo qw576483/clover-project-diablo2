@@ -134,9 +134,13 @@ namespace CombatCheck
             Run(Step7_DropGridsWalkable);
             Run(Step8_SkillTree);
             Run(Step9_CastManaAndCooldown);
+            Run(Step16_SkillSlotBinding);      // ★ 审计 R4（impl-I）：F1~F8 → 左右键技能格 + 存档往返
             Run(Step10_ProjectileFlight);
             Run(Step11_SpriteAnimator);
             Run(Step14_ViewStaleRefSafety);
+            Run(Step15_ProjectileTerrainAndDeckSort);   // ★ 审计 B 红行 R2/R3（投射物）
+            Run(Step17_WeaponDamageSkills);              // ★ 片 N：审计 R1/R2（武器伤害类技能）
+            Run(Step18_AttackShape);                     // ★ C3：攻击判定形状（扇形/矩形/线段，不是圆）
             Run(Step12_UnwiredDegradation);
             Run(Step13_AutoWireContract);   // 放最后：它会新建一个 AppContext（真实游戏走的就是 AutoWire）
 
@@ -467,8 +471,12 @@ namespace CombatCheck
                 return;
             }
 
-            // 5 格起步、且欧氏 ≤ 7：既在发现半径(8)内，也在射程(8)内，还大于"保持距离"(4)
-            PlacePlayerAtDistance(m.Grid(), 5, 7f);
+            // ⚠️ 摆位口径必须用**真实出手上限** `MonsterTuning.RangedAttackMaxRange`（= **5.0**，C3 新增：
+            //   用户「屏幕外都能打我」⇒ 出手距离由 `GameConst.RangedRange`(8) 收到 5.0，见该常量注释）。
+            //   旧写法按"射程(8)"把玩家摆到欧氏 7 格 ⇒ 怪**合理地不出手**（实测日志
+            //   `RequestMonsterAttack: 距离 7.07 > 射程 5.00 ⇒ 本次攻击取消`；5 格环上也实测 5.83 > 5.00）。
+            //   现在摆在「保持距离 4.0 之外、出手上限 5.0 之内」那一段；断言（在射程内必须出手）一字未改。
+            PlacePlayerAtDistance(m.Grid(), 4, MonsterTuning.RangedAttackMaxRange - 0.2f);
             var before = DistanceToPlayer(m.Grid());
 
             TickSim(6f);
@@ -871,6 +879,132 @@ namespace CombatCheck
         // ═════════════════════════════════════════════════════════════════════
         // 9. 施放：扣法力 + 冷却
         // ═════════════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════════════
+        // 16. ★ R4（impl-I）：F1~F8 技能槽 → 左右键技能格绑定（真 SkillModule）
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step16_SkillSlotBinding()
+        {
+            Section("16. ★ R4：F1~F8 技能槽 → 左右键技能格（真 SkillModule；改动前 8 键 0 消费）+ 存档往返");
+
+            var save = NewSave(PlayerClass.Amazon, 0);
+            _ctx.Skill.ResetForClass(PlayerClass.Amazon, save);
+            _player.SetLevel(99);
+            _player.SetSkillPoints(99);
+
+            // 多趟学（前置链要逐级满足）
+            for (var pass = 0; pass < 4; pass++)
+                foreach (var def in _ctx.Skill.Available) _ctx.Skill.Learn(def.id);
+
+            // 期望表 = 生产口径的独立复述：已学（等级>0）且**非被动**，顺序 = `Available`（技能树顺序）
+            var expected = new List<SkillDef>();
+            foreach (var def in _ctx.Skill.Available)
+            {
+                if (_ctx.Skill.GetLevel(def.id) <= 0) continue;
+                var row = Table.Tables.Default.Skill.Get(def.id);
+                if (row != null && row.Passive != 0) continue;
+                expected.Add(def);
+            }
+            Check("亚马逊已学且可主动施放的技能 ≥4 个（供 F1~F4 / F5~F8 绑定）", expected.Count >= 4,
+                $"{expected.Count} 个（已学共 {CountLearned()} 个，顺序 = 技能树 tree→reqLevel→id）");
+            if (expected.Count < 4) return;
+
+            SkillButtonsArgs lastButtons = null;
+            Game.Event.On<SkillButtonsArgs>(Events.SkillButtonsChanged, a => lastButtons = a);
+
+            // ── ① F1~F4 ⇒ 左键 = 已学可施放第 1~4 个（逐个发、逐个核）──
+            var leftOk = true;
+            var leftDetail = string.Empty;
+            for (var slot = 1; slot <= 4; slot++)
+            {
+                Game.Event.Emit(Events.SkillSlotAssignRequest, slot);
+                var want = expected[GameKeyAlias.SkillSlotIndex(slot)];
+                var got = _ctx.Skill.GetButtonSkill(0);
+                if (got != want.id)
+                {
+                    leftOk = false;
+                    leftDetail += $" F{slot}:{got}≠{want.id}";
+                }
+            }
+            Check("F1~F4 ⇒ 左键依次绑到「已学可施放」第 1~4 个（下标 = (slot-1)%4）",
+                leftOk, leftOk ? $"最终左键={DescribeSkill(_ctx.Skill.GetButtonSkill(0))}" : leftDetail);
+
+            // ── ② F5~F8 ⇒ 右键 = 同表第 1~4 个 ──
+            var rightOk = true;
+            var rightDetail = string.Empty;
+            for (var slot = 5; slot <= 8; slot++)
+            {
+                Game.Event.Emit(Events.SkillSlotAssignRequest, slot);
+                var want = expected[GameKeyAlias.SkillSlotIndex(slot)];
+                var got = _ctx.Skill.GetButtonSkill(1);
+                if (got != want.id)
+                {
+                    rightOk = false;
+                    rightDetail += $" F{slot}:{got}≠{want.id}";
+                }
+            }
+            Check("F5~F8 ⇒ 右键依次绑到同表第 1~4 个（下标 = (slot-1)%4）",
+                rightOk, rightOk ? $"最终右键={DescribeSkill(_ctx.Skill.GetButtonSkill(1))}" : rightDetail);
+
+            // ── ③ 存档镜像 + 读档往返（重启后仍在）──
+            Check("绑定镜像到存档 buttonSkills[0]/[1]（格式不变：既有字段）",
+                save.buttonSkills != null && save.buttonSkills.Count >= 2
+                && save.buttonSkills[0] == _ctx.Skill.GetButtonSkill(0)
+                && save.buttonSkills[1] == _ctx.Skill.GetButtonSkill(1),
+                save.buttonSkills != null ? string.Join(",", save.buttonSkills) : "null");
+
+            var reload = NewSave(PlayerClass.Amazon, 0);
+            reload.skillIds = new List<int>(save.skillIds);
+            reload.skillLevels = new List<int>(save.skillLevels);
+            reload.buttonSkills = new List<int>(save.buttonSkills);
+            _ctx.Skill.ResetForClass(PlayerClass.Amazon, reload);
+            Check("读档重建（ResetForClass）后左右键绑定与存档一致 ⇒ 重启后仍在",
+                _ctx.Skill.GetButtonSkill(0) == save.buttonSkills[0]
+                && _ctx.Skill.GetButtonSkill(1) == save.buttonSkills[1],
+                $"左={DescribeSkill(_ctx.Skill.GetButtonSkill(0))} 右={DescribeSkill(_ctx.Skill.GetButtonSkill(1))}");
+
+            // ── ④ HUD 数据源：SkillButtonsChanged 真的发了，且载荷 = 左右两格 + 显示名 ──
+            Check("发 Events.SkillButtonsChanged（载荷 Def.SkillButtonsArgs：左右 id + 显示名）",
+                lastButtons != null
+                && lastButtons.leftId == _ctx.Skill.GetButtonSkill(0)
+                && lastButtons.rightId == _ctx.Skill.GetButtonSkill(1)
+                && !string.IsNullOrEmpty(lastButtons.leftName) && !string.IsNullOrEmpty(lastButtons.rightName),
+                lastButtons == null ? "(没发事件)"
+                    : $"左={lastButtons.leftName}({lastButtons.leftId}) 右={lastButtons.rightName}({lastButtons.rightId})");
+
+            // ── ⑤ 非预期分支：还没有已学技能时按 F ⇒ 不改绑定（并留 Warn）──
+            _ctx.Skill.ResetForClass(PlayerClass.Amazon, NewSave(PlayerClass.Amazon, 0));
+            Check("换到「0 已学」的角色后绑定回 -1（ResetForClass 清空）",
+                _ctx.Skill.GetButtonSkill(0) == -1 && _ctx.Skill.GetButtonSkill(1) == -1,
+                $"左={_ctx.Skill.GetButtonSkill(0)} 右={_ctx.Skill.GetButtonSkill(1)}");
+            Game.Event.Emit(Events.SkillSlotAssignRequest, 1);
+            Check("无已学可施放技能时按 F1 ⇒ 不改绑定（保持 -1；槽位下限等非预期分支已留 Warn）",
+                _ctx.Skill.GetButtonSkill(0) == -1 && _ctx.Skill.GetButtonSkill(1) == -1,
+                $"左={_ctx.Skill.GetButtonSkill(0)} 右={_ctx.Skill.GetButtonSkill(1)}");
+            Check("槽号越界（0 / 9）⇒ 不改绑定（SkillSlotIndex 返回 -1）",
+                EmitSlotAndCheck(0) && EmitSlotAndCheck(9), "0/9 都被拒");
+            Console.WriteLine();
+        }
+
+        private static bool EmitSlotAndCheck(int slot)
+        {
+            Game.Event.Emit(Events.SkillSlotAssignRequest, slot);
+            return _ctx.Skill.GetButtonSkill(0) == -1 && _ctx.Skill.GetButtonSkill(1) == -1;
+        }
+
+        private static int CountLearned()
+        {
+            var n = 0;
+            foreach (var def in _ctx.Skill.Available) if (_ctx.Skill.GetLevel(def.id) > 0) n++;
+            return n;
+        }
+
+        private static string DescribeSkill(int id)
+        {
+            if (id < 0) return "普通攻击(-1)";
+            foreach (var def in _ctx.Skill.Available) if (def.id == id) return $"{def.name}#{id}";
+            return "#" + id;
+        }
+
         private static void Step9_CastManaAndCooldown()
         {
             Section("9. TryCast：扣法力 + 进冷却（贴数字）");
@@ -911,6 +1045,17 @@ namespace CombatCheck
 
             _player.SetMana(1);
             Check("法力不足时 = false 且法力不变", !_ctx.Skill.TryCast(fb.id, grid) && _player.Mana == 1, $"mana={_player.Mana}");
+
+            // ★ w7：扣蓝契约入口本体（`IPlayerModule.TrySpendMana`）—— 成功扣减 / 不足 / 非正数
+            _player.SetMana(20);
+            var spent = _player.TrySpendMana(5);
+            Check("TrySpendMana(5) = true 且 -5（扣蓝入口生效）", spent && _player.Mana == 15,
+                $"返回 {spent}，mana={_player.Mana}");
+            Check("TrySpendMana(99) 不足 = false 且不扣", !_player.TrySpendMana(99) && _player.Mana == 15,
+                $"mana={_player.Mana}");
+            Check("TrySpendMana(0)/(-1) = false 且不扣（非正数不扣）",
+                !_player.TrySpendMana(0) && !_player.TrySpendMana(-1) && _player.Mana == 15,
+                $"mana={_player.Mana}");
 
             // 未学技能 / 被动的拒绝路径
             var notLearned = FirstLearnable(PlayerClass.Sorceress);
@@ -982,6 +1127,321 @@ namespace CombatCheck
             Check("日志里有投射物的发出与命中记录",
                 _log.Has("[Skill] 投射物") && _log.Has("命中 m#" + target.id), "见上方日志");
             Console.WriteLine();
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 15. ★ 审计 B 红行 R2/R3：投射物 × 地形碰撞 / 投射物 × 桥栏杆排序
+        // ═════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// 审计 B（`.ai-tmp/test/audit-B-geo-input.md` §3）两条**高**严重度红行：
+        ///   R3 = `Projectile.Step` / `TickProjectiles` 全无地形判定 ⇒ 隔墙/隔水/隔树射杀；
+        ///   R2 = 投射物表现用**裸实体档**（`ProjectileView.cs:50,77`）⇒ 桥面射出的投射物被
+        ///        正南一格桥栏杆盖住（"桥下走"同族，上一轮只修了实体一条路径）。
+        /// 判**过程**不判结果：逐类裁决表 + 真实地图上的 P→W→T 三连格 + 一帧跨 3 格 + deck 逐格不等式。
+        /// </summary>
+        private static void Step15_ProjectileTerrainAndDeckSort()
+        {
+            Section("15. ★ 审计 B R2/R3：投射物撞地形消散（不穿墙）+ 投射物排序走 deck 口径");
+
+            // ── 15.1 逐类裁决表（口径唯一出处 = `SkillModule.BlocksProjectile`）───────
+            // 期望值**独立写**（⛔ 不是把 `IsWalkable` 抄一遍）：新增 TileKind 却忘了裁决 ⇒ 当场变红
+            var expect = new Dictionary<TileKind, bool>
+            {
+                { TileKind.Void,      true  },   // 图外 / 未生成
+                { TileKind.Grass,     false },   // 地面层
+                { TileKind.Dirt,      false },   // 地面层（桥面 = Dirt + deck 登记）
+                { TileKind.Road,      false },   // 地面层
+                { TileKind.Rock,      true  },   // 石头矮墙 / 桥栏杆 / 水 / 崖壁 / 碎石（占整格；R12：水=Rock）
+                { TileKind.Tree,      true  },   // 树干
+                { TileKind.Fence,     true  },   // 栅栏（本项目占满整格，不是"半格矮物"）
+                { TileKind.Wall,      true  },   // 帐篷 / 摊位 / 货车
+                { TileKind.CaveFloor, false },   // 洞穴地面
+                { TileKind.CaveWall,  true  },   // 洞穴岩壁
+                { TileKind.Exit,      false },   // 出入口（可走）
+                { TileKind.TownFloor, false },   // 城镇地面
+                // ★ 2026-09-23 片 L 把「水」从 Rock 拆成独立值 12 后**回来重判**：
+                //   水 = 占满整格 + 不可走；项目对 TileKind 只有一个"可走性"轴（没有"仅挡行走不挡弹道"
+                //   的数据位）；拆值前水就是 Rock ⇒ 判"挡"= 零行为回归。
+                //   ⚠️ 仍待参考物：原版 ds1 的 BlockWalk / BlockMissile 是两个位；若水只置 BlockWalk，
+                //   投射物应飞过水面 ⇒ 那时改 SkillModule 一行 + 本表一行。
+                { TileKind.Water,     true  },   // 水（本片裁决：挡；待参考物复核）
+            };
+            var wrong = 0;
+            var uncovered = new List<string>();
+            foreach (TileKind k in Enum.GetValues(typeof(TileKind)))
+            {
+                if (!expect.ContainsKey(k)) { uncovered.Add(k.ToString()); continue; }
+                if (SkillModule.BlocksProjectile(k) != expect[k]) wrong++;
+            }
+            Console.WriteLine("  [逐类裁决] " + string.Join(" / ",
+                new List<string>(new[] { "Void", "Grass", "Dirt", "Road", "Rock", "Tree", "Fence", "Wall",
+                    "CaveFloor", "CaveWall", "Exit", "TownFloor", "Water" })));
+            Check("每个 TileKind 都有明确裁决（新增地形必须回来登记本表）",
+                uncovered.Count == 0, uncovered.Count == 0 ? $"共 {expect.Count} 类" : "未登记: " + FmtStr(uncovered));
+            Check("逐类裁决与期望一致（⛔ 不是一刀切地照抄可走性）", wrong == 0, $"不一致 {wrong} 类");
+
+            // 与「可走性」的关系（语义不同、当前同集）：作为"新地形漏裁决"的机械闸门
+            var walkMismatch = 0;
+            foreach (TileKind k in Enum.GetValues(typeof(TileKind)))
+                if (SkillModule.BlocksProjectile(k) != TileKindInfo.IsBlocking(k)) walkMismatch++;
+            Check("裁决表与 TileKindInfo.IsBlocking 逐类同集（新地形漏裁决会被抓住）",
+                walkMismatch == 0, $"不一致 {walkMismatch} 类");
+
+            // ── 15.2 隔墙不命中（先跑"无墙对照"，防"把投射物全废了"）───────────────
+            PrepareMap(AreaId.BloodMoor, 1502001);
+            _ctx.Monster.SpawnArea(AreaId.BloodMoor);
+
+            MonsterState victim = null;
+            foreach (var m in _ctx.Monster.All)
+            {
+                if (m != null && m.alive) { victim = m; break; }
+            }
+            Check("有可用于测试的活怪", victim != null, victim != null ? $"m#{victim.id} {victim.name}" : "none");
+            if (victim == null) return;
+
+            var save = NewSave(PlayerClass.Sorceress, 0);
+            _ctx.Skill.ResetForClass(PlayerClass.Sorceress, save);
+            _player.SetLevel(99);
+            _player.SetSkillPoints(10);
+            _player.SetMana(50);
+            var fb = FindSkill(PlayerClass.Sorceress, "火弹");
+            if (fb == null) { Check("找到法师「火弹」", false, "null"); return; }
+            _ctx.Skill.Learn(fb.id);
+
+            // 对照：弹道全程可穿 + 没有别的怪挡路 ⇒ **必须命中并掉血**
+            // 构造 = 找一条 **5 格连续可走**的走廊（起点可走 ⇒ 全程可穿由构造保证，不靠运气）
+            if (FindClearCorridor(victim, out var ctrlPlayer, out var ctrlTarget))
+            {
+                victim.gridX = ctrlTarget.x;
+                victim.gridY = ctrlTarget.y;
+                _player.SetGrid(ctrlPlayer, Iso.DirectionTo(ctrlPlayer, ctrlTarget));
+                var hp0 = victim.hp;
+                var cast0 = _ctx.Skill.TryCast(fb.id, ctrlTarget);
+                var proj0 = _skillImpl.Projectiles.Count > 0 ? _skillImpl.Projectiles[0] : null;
+                var n0 = 0;
+                while (proj0 != null && proj0.alive && !proj0.hitSomething && !proj0.hitTerrain && n0 < 400)
+                {
+                    _ctx.Skill.Tick(Dt); n0++;
+                }
+                Console.WriteLine($"  [对照·无墙] {n0} 步：cast={cast0} hitMonsterId=" +
+                                  $"{(proj0 != null ? proj0.hitMonsterId.ToString() : "null")} hitTerrain=" +
+                                  $"{(proj0 != null ? proj0.hitTerrain.ToString() : "null")}；怪血 {hp0} → {victim.hp}");
+                Check("对照：无墙时命中该怪（投射物没被这次改动废掉）",
+                    proj0 != null && proj0.hitMonsterId == victim.id,
+                    proj0 != null ? proj0.hitMonsterId.ToString() : "null");
+                Check("对照：目标真的掉血", victim.hp < hp0, $"{hp0} → {victim.hp}");
+                Check("对照：没有误判成地形命中", proj0 != null && !proj0.hitTerrain,
+                    proj0 != null ? proj0.hitTerrain.ToString() : "null");
+            }
+            else
+            {
+                Check("对照：地图上找到弹道全程可穿的一对格", false, "none");
+            }
+
+            // ── 15.2b 隔墙：P(可走) → W(阻挡) → T(可走) ─────────────────────────
+            // 对照组那一发可能把目标打死了 ⇒ 重新挑一只活怪（否则下面的"没掉血"是 0→0 的空断言）
+            if (!victim.alive)
+            {
+                foreach (var m in _ctx.Monster.All)
+                {
+                    if (m != null && m.alive && m.hp > 0) { victim = m; break; }
+                }
+            }
+            Check("隔墙用例的目标是**存活且血量 > 0** 的怪（断言不是 0→0 空跑）",
+                victim.alive && victim.hp > 0, $"m#{victim.id} alive={victim.alive} hp={victim.hp}");
+
+            if (!FindWallAlley(out var pGrid, out var wGrid, out var tGrid))
+            {
+                Check("地图上找到 P(可走)→W(阻挡)→T(可走) 三连格", false, "none");
+                return;
+            }
+            Console.WriteLine($"  [隔墙用例] P={pGrid} → W={wGrid}({_ctx.Map.TileAt(wGrid)}) → T={tGrid}");
+
+            victim.gridX = tGrid.x; victim.gridY = tGrid.y;          // 把怪挪到墙后
+            _player.SetGrid(pGrid, Iso.DirectionTo(pGrid, tGrid));
+            _ctx.Skill.Tick(1f);                                     // 清掉上一发的冷却
+            _player.SetMana(50);
+
+            var hpBefore = victim.hp;
+            var cast = _ctx.Skill.TryCast(fb.id, tGrid);
+            var proj = _skillImpl.Projectiles.Count > 0 ? _skillImpl.Projectiles[0] : null;
+            Check("隔墙用例：施放成功并生成投射物", cast && proj != null,
+                $"{cast} / {_skillImpl.Projectiles.Count}");
+            if (proj == null) return;
+
+            var steps = 0;
+            while (proj.alive && !proj.hitSomething && !proj.hitTerrain && steps < 400)
+            {
+                _ctx.Skill.Tick(Dt); steps++;
+            }
+            Console.WriteLine($"  [隔墙] {steps} 步：hitTerrain={proj.hitTerrain} terrainCell={proj.terrainCell}" +
+                              $"({proj.terrainKind}) hitMonsterId={proj.hitMonsterId}；飞了 {proj.traveled:0.00} 格；" +
+                              $"怪血 {hpBefore} → {victim.hp}");
+            Check("隔墙：怪物**没有掉血**", victim.hp == hpBefore, $"{hpBefore} → {victim.hp}");
+            Check("隔墙：投射物在**墙格**命中地形消散", proj.hitTerrain && proj.terrainCell == wGrid,
+                $"hitTerrain={proj.hitTerrain} cell={proj.terrainCell} 期望 {wGrid}");
+            Check("隔墙：没有命中任何怪", proj.hitMonsterId == -1, proj.hitMonsterId.ToString());
+            Check("隔墙：日志里有『命中地形消散』记录", _log.Has("命中地形消散"), "见上方日志");
+
+            // ── 15.3 高速投射物：一帧跨 3 格也不穿墙 ─────────────────────────────
+            victim.gridX = tGrid.x; victim.gridY = tGrid.y;
+            _player.SetGrid(pGrid, Iso.DirectionTo(pGrid, tGrid));
+            _ctx.Skill.Tick(1f);
+            _player.SetMana(50);
+
+            var hp3 = victim.hp;
+            var cast3 = _ctx.Skill.TryCast(fb.id, tGrid);
+            var proj3 = _skillImpl.Projectiles.Count > 0 ? _skillImpl.Projectiles[0] : null;
+            Check("高速用例：施放成功并生成投射物", cast3 && proj3 != null,
+                $"{cast3} / {_skillImpl.Projectiles.Count}");
+            if (proj3 != null)
+            {
+                var dtOne = 3f / (proj3.speed > 0.01f ? proj3.speed : 1f);
+                _ctx.Skill.Tick(dtOne);                              // **一次** Tick = 一帧走 3 格
+                Console.WriteLine($"  [高速] 一帧 dt={dtOne:0.000}s ⇒ 位移 {proj3.speed * dtOne:0.00} 格（≥3）；" +
+                                  $"hitTerrain={proj3.hitTerrain} terrainCell={proj3.terrainCell} " +
+                                  $"hitMonsterId={proj3.hitMonsterId}；怪血 {hp3} → {victim.hp}");
+                Check("高速：一帧位移 ≥ 3 格（用例确实跨多格）", proj3.speed * dtOne >= 3f,
+                    $"{proj3.speed * dtOne:0.00} 格");
+                Check("高速：仍在墙格消散（没穿墙）", proj3.hitTerrain && proj3.terrainCell == wGrid,
+                    $"hitTerrain={proj3.hitTerrain} cell={proj3.terrainCell}");
+                Check("高速：墙后的怪没有掉血", victim.hp == hp3, $"{hp3} → {victim.hp}");
+            }
+
+            // ── 15.4 【R2】桥面投射物排序 = 实体同一口径（ViewModule.EntitySortOrder）──
+            PrepareMap(AreaId.Town, 0);                              // 城镇 = 固定布局（含 deck 桥面）
+            var deck = new List<Vector2Int>();
+            for (var y = 0; y < _ctx.Map.Height; y++)
+            {
+                for (var x = 0; x < _ctx.Map.Width; x++)
+                {
+                    var g = new Vector2Int(x, y);
+                    if (_ctx.Map.IsDeckGrid(g)) deck.Add(g);
+                }
+            }
+            Check("城镇存在 deck（桥面）格 ⇒ 下面逐格断言不是空跑", deck.Count > 0, $"{deck.Count} 格");
+
+            var okLow = 0;
+            var okHigh = 0;
+            var plainCovered = 0;
+            foreach (var g in deck)
+            {
+                var order = ViewModule.EntitySortOrder(g);            // ← 投射物现在调的就是这个
+                if (order > Iso.SortOrder(new Vector2Int(g.x, g.y + 1), GameConst.LayerOffsetObject)) okLow++;
+                if (order < Iso.SortOrder(new Vector2Int(g.x, g.y + 2), GameConst.LayerOffsetObject)) okHigh++;
+                if (Iso.SortOrder(g, GameConst.LayerOffsetEntity) <=
+                    Iso.SortOrder(new Vector2Int(g.x, g.y + 1), GameConst.LayerOffsetObject)) plainCovered++;
+            }
+            var sample = new Vector2Int(46, 25);
+            Console.WriteLine($"  deck 格 = {deck.Count}；例（格(46,25)）：投射物路径排序 = " +
+                              $"{ViewModule.EntitySortOrder(sample)}（普通实体档 = " +
+                              $"{Iso.SortOrder(sample, GameConst.LayerOffsetEntity)}，正南一格物件层 = " +
+                              $"{Iso.SortOrder(new Vector2Int(sample.x, sample.y + 1), GameConst.LayerOffsetObject)}，" +
+                              $"正南两格物件层 = {Iso.SortOrder(new Vector2Int(sample.x, sample.y + 2), GameConst.LayerOffsetObject)}）");
+            Check("【R2】投射物排序逐格 > 正南一格物件层（桥上射出的投射物不被栏杆盖住）",
+                okLow == deck.Count, $"{okLow}/{deck.Count}");
+            Check("【R2】投射物排序逐格 < 正南两格物件层（不越档）", okHigh == deck.Count, $"{okHigh}/{deck.Count}");
+            Check("【R2】反证根因：普通实体档确实逐格被正南栏杆盖住（= 改前的值）",
+                plainCovered == deck.Count, $"{plainCovered}/{deck.Count}");
+            Console.WriteLine();
+        }
+
+        /// <summary>找 P(可走) → W(阻挡) → T(可走) 的三连格（东向优先；⛔ 不写死坐标，从当前地图搜）。</summary>
+        private static bool FindWallAlley(out Vector2Int p, out Vector2Int w, out Vector2Int t)
+        {
+            var dirs = new[] { new Vector2Int(1, 0), new Vector2Int(0, 1) };
+            for (var y = 1; y < _ctx.Map.Height - 1; y++)
+            {
+                for (var x = 1; x < _ctx.Map.Width - 1; x++)
+                {
+                    foreach (var d in dirs)
+                    {
+                        var a = new Vector2Int(x, y);
+                        var b = new Vector2Int(x + d.x, y + d.y);
+                        var c = new Vector2Int(x + 2 * d.x, y + 2 * d.y);
+                        if (!_ctx.Map.Walkable(a)) continue;
+                        if (_ctx.Map.Walkable(b)) continue;          // 中格必须阻挡
+                        if (!_ctx.Map.Walkable(c)) continue;
+                        p = a; w = b; t = c;
+                        return true;
+                    }
+                }
+            }
+            p = w = t = _ctx.Map.SpawnPoint;
+            return false;
+        }
+
+        /// <summary>
+        /// 找一条**5 格连续可走**的水平走廊（用作"无墙对照"）：玩家格 = 起点、怪格 = 终点。
+        /// <para>为什么这样构造：起点可走 ⇒ 弹道全程可穿是**构造保证**的（不靠环上碰运气，
+        /// 实测按环找在尖刺鼠附近会一个都找不到 ⇒ 断言恒红）。另需弹道附近没有别的活怪。</para>
+        /// </summary>
+        private static bool FindClearCorridor(MonsterState target, out Vector2Int playerGrid,
+            out Vector2Int targetGrid)
+        {
+            for (var y = 0; y < _ctx.Map.Height; y++)
+            {
+                var run = 0;
+                for (var x = 0; x < _ctx.Map.Width; x++)
+                {
+                    var g = new Vector2Int(x, y);
+                    run = _ctx.Map.Walkable(g) ? run + 1 : 0;
+                    if (run < 5) continue;
+
+                    var start = new Vector2Int(x - 4, y);
+                    if (!TerrainClear(start, g)) continue;
+                    if (!MonsterLineClear(start, g, target.id)) continue;
+                    playerGrid = start;
+                    targetGrid = g;
+                    return true;
+                }
+            }
+            playerGrid = targetGrid = _ctx.Map.SpawnPoint;
+            return false;
+        }
+
+        /// <summary>该格到某点的直线上有没有别的活怪（阈值 1.6 格 = 弹道命中半径量级）。</summary>
+        private static bool MonsterLineClear(Vector2Int from, Vector2Int toGrid, int excludeMonsterId)
+        {
+            var a = new Vector2(from.x + 0.5f, from.y + 0.5f);
+            var b = new Vector2(toGrid.x + 0.5f, toGrid.y + 0.5f);
+            foreach (var m in _ctx.Monster.All)
+            {
+                if (m == null || !m.alive || m.id == excludeMonsterId) continue;
+                var p = new Vector2(m.gridX + 0.5f, m.gridY + 0.5f);
+                if (PointSegmentDistance(p, a, b) <= 1.6f) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 该段直线是否**全程可被投射物穿过**（判据口径 = `SkillModule.PassableForProjectile`，
+        /// 与运行时同一份实现；⛔ 宿主里不另写一份地形判定）。
+        /// </summary>
+        private static bool TerrainClear(Vector2Int from, Vector2Int to)
+        {
+            var a = new Vector2(from.x + 0.5f, from.y + 0.5f);
+            var b = new Vector2(to.x + 0.5f, to.y + 0.5f);
+            var d = b - a;
+            var dist = d.magnitude;
+            if (dist <= 0f) return true;
+
+            var steps = Mathf.CeilToInt(dist / 0.25f);
+            var last = new Vector2Int(int.MinValue, int.MinValue);
+            for (var i = 0; i <= steps; i++)
+            {
+                var pt = a + d * ((float)i / steps);
+                var g = new Vector2Int(Mathf.FloorToInt(pt.x), Mathf.FloorToInt(pt.y));
+                if (g == last) continue;
+                last = g;
+                if (!SkillModule.PassableForProjectile(_ctx.Map.TileAt(g))) return false;
+            }
+            return true;
+        }
+
+        private static string FmtStr(List<string> items)
+        {
+            return items.Count == 0 ? "-" : string.Join(",", items);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -1342,6 +1802,26 @@ namespace CombatCheck
         private static void PlacePlayerAtDistance(Vector2Int monsterGrid, int distance,
             float maxEuclidean = float.MaxValue)
         {
+            // ★ C3 之后「线段不得被不可走地形阻断」对**怪物出手**同样生效
+            //   （`CombatModule.RequestMonsterAttack` → `MeleeShape.LineClear`，与玩家侧同一把尺子）
+            //   ⇒ 玩家被摆到墙/水后面时，怪"在射程内却不出手"是**正确行为**，不是缺陷。
+            //   本方法原先只按「可走 + 欧氏距离达标」挑格 ⇒ 会把玩家摆到视线被挡的位置
+            //   （Range 用例实测出手 0 次）。现在**优先挑视线通畅**的格（同一把 `MeleeShape.LineClear`），
+            //   环上找不到才退回旧口径并留一行披露 —— 断言本身（在射程内必须出手）一字未改。
+            if (TryPlacePlayerAtDistance(monsterGrid, distance, maxEuclidean, true)) return;
+
+            Console.WriteLine("   [披露] 环上没有**视线通畅**的可走格（C3 线段口径）⇒ 退回旧口径（允许被墙挡住）；"
+                + "若因此不出手，那是正确行为，见该怪日志 `monatk.blocked`");
+            if (TryPlacePlayerAtDistance(monsterGrid, distance, maxEuclidean, false)) return;
+
+            MonsterLogFallback(monsterGrid, distance, maxEuclidean);
+            _player.SetGrid(_ctx.Map.SpawnPoint);
+        }
+
+        /// <summary>在环上挑一格摆玩家；<paramref name="requireLineOfSight"/> = 是否要求与怪的线段通畅。成功返回 true。</summary>
+        private static bool TryPlacePlayerAtDistance(Vector2Int monsterGrid, int distance,
+            float maxEuclidean, bool requireLineOfSight)
+        {
             var center = new Vector2(monsterGrid.x + 0.5f, monsterGrid.y + 0.5f);
 
             for (var r = distance; r <= distance + 3; r++)
@@ -1356,15 +1836,15 @@ namespace CombatCheck
 
                         var euclid = Vector2.Distance(center, new Vector2(g.x + 0.5f, g.y + 0.5f));
                         if (euclid > maxEuclidean) continue;
+                        if (requireLineOfSight && !MeleeShape.LineClear(_ctx.Map.Walkable, monsterGrid, g)) continue;
 
                         _player.SetGrid(g, Iso.DirectionTo(g, monsterGrid));
-                        return;
+                        return true;
                     }
                 }
             }
 
-            MonsterLogFallback(monsterGrid, distance, maxEuclidean);
-            _player.SetGrid(_ctx.Map.SpawnPoint);
+            return false;
         }
 
         /// <summary>摆位失败时说清楚（否则测试报"怪没出手"会让人查错方向）。</summary>
@@ -1388,6 +1868,7 @@ namespace CombatCheck
                 {
                     if (!TrySpotOnRing(cand.Grid(), r, out var g)) continue;
                     if (!LineIsClear(g, cand)) continue;
+                    if (!TerrainClear(g, cand.Grid())) continue;   // ★ 15.2 起地形会挡投射物
 
                     playerGrid = g;
                     return cand;
@@ -1532,6 +2013,320 @@ namespace CombatCheck
                 if (s.name == name) return s;
             }
             return null;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 17. ★ 片 N（审计 R1/R2）：武器伤害类技能（官方 skills.txt `SrcDam`≠0）
+        // ═════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// 审计 R1（21 个武器伤害类技能"零效果"，含用户报的「重击#121」）+ R2（30 行次要投射物槽未导出）
+        /// 的**回归断言**。判**过程**、不判"调用了一次函数"：
+        /// <list type="number">
+        /// <item><description>配表：`skill_c` 里 `src_dam>0` = 33 行；其中"自身无伤害值(dmg_max=0) ∧ 无主投射物"
+        /// = 21 行，**逐个列出** `calc1` 原文 / `*calc1 desc` / 解析出的倍率（⛔ 不抽样）。</description></item>
+        /// <item><description>生产入口：21 行逐个过 `DamageFormula.PhysicalDamageEd`（与技能结算**同一入口**），
+        /// 用 `item_c` 里**真实的两把武器**（最小/最大 `dmg_max`）做对照 ⇒ 伤害必须 >0 且随武器单调变化、
+        /// 随技能等级变化。</description></item>
+        /// <item><description>端到端：野蛮人真学「重击」→ `TryCast` ⇒ 从**运行时自己打的日志**取 `⇒ raw=`，
+        /// 比较「徒手 vs 装备武器」两组 + 怪物真的掉血。</description></item>
+        /// </list>
+        /// </summary>
+        private static void Step17_WeaponDamageSkills()
+        {
+            Section("17. ★ 片 N（审计 R1/R2）：武器伤害类技能（官方 SrcDam≠0）—— 配表 + 生产入口 + 徒手/武器对照");
+
+            // ── 17.1 配表（21 行逐个，⛔ 不抽样）────────────────────────────────
+            var all = Table.Tables.Default.Skill.All();
+            var srcRows = new List<Table.BaseSkillRow>();
+            var armed = new List<Table.BaseSkillRow>();
+            var slotRows = 0;
+            for (var i = 0; i < all.Count; i++)
+            {
+                var r = all[i];
+                if (r == null) continue;
+                if (!string.IsNullOrEmpty(r.MissileA) || !string.IsNullOrEmpty(r.MissileB)
+                    || !string.IsNullOrEmpty(r.MissileC)) slotRows++;
+                if (r.SrcDam <= 0) continue;
+                srcRows.Add(r);
+                if (r.DmgMax <= 0 && string.IsNullOrEmpty(r.Missile)) armed.Add(r);
+                Console.WriteLine($"  id={r.Id,3} {r.Name,-6} src_dam={r.SrcDam,3}/128 calc1=\"{r.DmgPctCalc}\" " +
+                                  $"desc=\"{r.DmgPctDesc}\" base={r.DmgPctBase} per_lvl={r.DmgPctPerLvl} " +
+                                  $"parsed={r.DmgPctParsed} 主槽=\"{r.Missile}\" " +
+                                  $"次槽=({r.MissileA}|{r.MissileB}|{r.MissileC})");
+            }
+            Check("skill_c 里官方 SrcDam≠0 的技能 = 33 行（官方 skills.txt 5 职业口径）",
+                srcRows.Count == 33, srcRows.Count.ToString());
+            Check("其中「自身无伤害值(dmg_max=0) ∧ 无主投射物」= 21 行（= 审计 R1 同族，含「重击#121」）",
+                armed.Count == 21, armed.Count.ToString());
+            var noCalc = 0;
+            var hasBash = false;
+            for (var i = 0; i < armed.Count; i++)
+            {
+                var r = armed[i];
+                if (r.DmgPctParsed == 0 && string.IsNullOrEmpty(r.DmgPctCalc)) noCalc++;
+                if (string.Equals(r.Code, "Bash", StringComparison.Ordinal)) hasBash = true;
+            }
+            Check("21 行都带官方 calc1 原文（parsed=0 的行也不静默：原文在表里 + 运行时 WarnOnce）",
+                noCalc == 0, $"缺原文 {noCalc} 行");
+            Check("「重击」= 官方 Bash，被识别为武器伤害类", hasBash, "skill_c.code=Bash");
+            Check("★ R2：次要投射物槽 missile_a/b/c 已导出 = 31 行（旧表 0 行）",
+                slotRows == 31, slotRows.ToString());
+
+            // ── 17.2 生产入口公式（21 行 × 真实武器）──────────────────────────
+            var items = Table.Tables.Default.Item.All();
+            Table.BaseItemRow wSmall = null, wBig = null;
+            for (var i = 0; i < items.Count; i++)
+            {
+                var it = items[i];
+                if (it == null || it.Source != "weap") continue;
+                if (it.DmgMin <= 0 || it.DmgMax <= 0) continue;      // 排除单手列为空的双手/投掷武器行
+                if (wSmall == null || it.DmgMax < wSmall.DmgMax) wSmall = it;
+                if (wBig == null || it.DmgMax > wBig.DmgMax) wBig = it;
+            }
+            Check("item_c 里取到两把真实武器（最小/最大 dmg_max）",
+                wSmall != null && wBig != null && wBig.DmgMax > wSmall.DmgMax,
+                wSmall == null || wBig == null
+                    ? "null"
+                    : $"{wSmall.Name}({wSmall.DmgMin}-{wSmall.DmgMax}) vs {wBig.Name}({wBig.DmgMin}-{wBig.DmgMax})");
+            if (wSmall == null || wBig == null || wBig.DmgMax <= wSmall.DmgMax) return;
+
+            const int fakeStr = 20;     // FakePlayer 固定 Str/Dex = 20（见 shim/HostFakes.cs）
+            const int fakeDex = 20;
+            var notPositive = 0;
+            var noScale = 0;
+            var noLevel = 0;
+            for (var i = 0; i < armed.Count; i++)
+            {
+                var r = armed[i];
+                var ed1 = r.DmgPctParsed != 0 ? r.DmgPctBase : 0;
+                var ed3 = r.DmgPctParsed != 0 ? r.DmgPctBase + r.DmgPctPerLvl * 2 : 0;
+
+                // 三个对照点（**同一次掷值下比才可比**）：
+                //   lo    = 大武器**最小掷值** ⇒ 必须 >0（连最小值都出伤害）
+                //   hiS   = 小武器最大掷值 / hiB = 大武器最大掷值 ⇒ hiB > hiS（伤害随武器变）
+                //   hiB3  = 大武器最大掷值 @3 级 ⇒ > hiB（倍率随技能等级变）
+                var lo = DamageFormula.PhysicalDamageEd(wBig.DmgMin, fakeStr, fakeDex,
+                    wBig.StrBonus, wBig.DexBonus, ed1);
+                var hiS = DamageFormula.PhysicalDamageEd(wSmall.DmgMax, fakeStr, fakeDex,
+                    wSmall.StrBonus, wSmall.DexBonus, ed1);
+                var hiB = DamageFormula.PhysicalDamageEd(wBig.DmgMax, fakeStr, fakeDex,
+                    wBig.StrBonus, wBig.DexBonus, ed1);
+                var hiB3 = DamageFormula.PhysicalDamageEd(wBig.DmgMax, fakeStr, fakeDex,
+                    wBig.StrBonus, wBig.DexBonus, ed3);
+
+                if (lo <= 0) notPositive++;
+                if (!(hiB > hiS)) noScale++;
+                if (r.DmgPctParsed != 0 && r.DmgPctPerLvl != 0 && !(hiB3 > hiB)) noLevel++;
+
+                Console.WriteLine($"  {r.Name,-6}#{r.Id,-3} 倍率 {ed1}%（3 级 {ed3}%）⇒ " +
+                                  $"{wBig.Name} 最小掷={lo}；最大掷 {wSmall.Name}={hiS} vs {wBig.Name}={hiB} " +
+                                  $"，{wBig.Name}@3级={hiB3}");
+            }
+            Check("21 行的武器伤害都 >0（连武器最小掷值都出伤害 ⇒ 武器真的进了计算）",
+                notPositive == 0, $"非正 {notPositive} 行");
+            Check("21 行的伤害随武器变化（同一掷值：大武器 > 小武器；逐行单调，不是「调用过」）",
+                noScale == 0, $"未随武器变化 {noScale} 行");
+            Check("每级伤害倍率增量真的生效（增量≠0 的行：3 级 > 1 级）", noLevel == 0, $"未随等级变化 {noLevel} 行");
+
+            // ── 17.3 端到端：野蛮人真学「重击」→ 徒手 vs 装备武器 ──────────────
+            var bashId = 0;
+            for (var i = 0; i < armed.Count; i++)
+                if (string.Equals(armed[i].Code, "Bash", StringComparison.Ordinal)) bashId = armed[i].Id;
+            Check("找到「重击」id（官方 Bash）", bashId > 0, bashId.ToString());
+            if (bashId <= 0) return;
+
+            var save = NewSave(PlayerClass.Barbarian, 5);
+            _ctx.Skill.ResetForClass(PlayerClass.Barbarian, save);
+            _player.SetLevel(1);
+            _player.SetSkillPoints(5);
+            Check($"野蛮人学会「重击#{bashId}」", _ctx.Skill.Learn(bashId), $"等级 {_ctx.Skill.GetLevel(bashId)}");
+
+            // 端到端要"必定"看出差别 ⇒ 选一把 `dmg_min ≥ 5` 的武器：徒手上限 = 2×(1+70%) ≈ 3 < 5×(1+70%) ≈ 8
+            // ⇒ 与随机掷值无关，装备组一定大于徒手组（不靠运气）。
+            Table.BaseItemRow wE2E = null;
+            for (var i = 0; i < items.Count; i++)
+            {
+                var it = items[i];
+                if (it == null || it.Source != "weap") continue;
+                if (it.DmgMin < 5) continue;
+                if (wE2E == null || it.DmgMax > wE2E.DmgMax) wE2E = it;
+            }
+            Check("端到端用武器：item_c 里存在 dmg_min ≥ 5 的武器（保证「装备 > 徒手」与掷值无关）",
+                wE2E != null, wE2E == null ? "null" : $"{wE2E.Name}({wE2E.DmgMin}-{wE2E.DmgMax})");
+            if (wE2E == null) return;
+
+            PrepareMap(AreaId.BloodMoor, 771717);
+            _player.SetMana(500);
+
+            int hpUnarmed, hpArmed;
+            bool castUnarmed, castArmed;
+            var rawUnarmed = CastBashAndReadRaw(bashId, false, wE2E, out hpUnarmed, out castUnarmed);
+            var rawArmed = CastBashAndReadRaw(bashId, true, wE2E, out hpArmed, out castArmed);
+
+            Console.WriteLine($"  徒手 raw={rawUnarmed}（掉血 {hpUnarmed}）/ " +
+                              $"装备 {wE2E.Name}({wE2E.DmgMin}-{wE2E.DmgMax}) raw={rawArmed}（掉血 {hpArmed}）");
+            Check("徒手施放「重击」成功且怪物真的掉血", castUnarmed && hpUnarmed > 0,
+                $"cast={castUnarmed} drop={hpUnarmed}");
+            Check("装备武器施放「重击」成功且怪物真的掉血", castArmed && hpArmed > 0,
+                $"cast={castArmed} drop={hpArmed}");
+            Check("★ 同一技能：装备武器的结算伤害 > 徒手（武器真的参与 ⇒ 不再是「零效果」）",
+                rawArmed > rawUnarmed && rawUnarmed > 0, $"{rawUnarmed} → {rawArmed}");
+            Check("结算日志带官方 SrcDam 与官方 calc1 倍率（可追溯到配表列，不是硬编码）",
+                _log.Has("×SrcDam 128/128") && _log.Has("技能倍率=50%"), "见上方 [Skill] 武器伤害结算 行");
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// 片 N 用：刷怪 → 摆武器（或不摆）→ 放「重击」→ 从**运行时自己的日志**取 `⇒ raw=`
+        /// （L3 锚点：由被测程序在结算时写出，不是断言方自己算的）。
+        /// 返回 -1 表示没读到 ⇒ 断言必红，不会假绿。
+        /// </summary>
+        private static int CastBashAndReadRaw(int bashId, bool armed, Table.BaseItemRow weapon,
+            out int hpDrop, out bool castOk)
+        {
+            hpDrop = 0;
+            castOk = false;
+
+            _ctx.Monster.DespawnAll();
+            _ctx.Monster.SpawnArea(AreaId.BloodMoor);
+
+            _item.EquipmentOverride.Clear();
+            if (armed && weapon != null)
+            {
+                _item.EquipmentOverride.Add(new ItemStack
+                {
+                    itemId = weapon.Id,
+                    name = weapon.Name,
+                    type = ItemType.Weapon,
+                    dmgMin = weapon.DmgMin,
+                    dmgMax = weapon.DmgMax,
+                    count = 1,
+                });
+            }
+
+            var target = PickMonster(m => m.alive && m.ai == MonsterAI.Melee);
+            if (target == null) target = PickMonster(m => m.alive);
+            if (target == null) return -1;
+
+            PlacePlayerAdjacent(target.Grid());
+            _player.SetMana(500);
+            _ctx.Skill.Tick(10f);                       // 清冷却（上一组的冷却不该污染这一组）
+
+            var hp0 = target.hp;
+            var since = _log.Lines.Count;
+            castOk = _ctx.Skill.TryCast(bashId, target.Grid());
+            hpDrop = hp0 - target.hp;
+            return LastWeaponRaw(since);
+        }
+
+        /// <summary>片 N 用：取 `since` 之后最后一条 `⇒ raw=N` 里的 N（只认 SkillModule 武器结算那条）。</summary>
+        private static int LastWeaponRaw(int since)
+        {
+            for (var i = _log.Lines.Count - 1; i >= 0 && i >= since; i--)
+            {
+                var k = _log.Lines[i].IndexOf("⇒ raw=", StringComparison.Ordinal);
+                if (k < 0) continue;
+                var s = _log.Lines[i].Substring(k + 6);
+                var e = s.IndexOf(' ');
+                if (e > 0) s = s.Substring(0, e);
+                int v;
+                if (int.TryParse(s, out v)) return v;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// 18. ★ C3：**攻击判定形状**（正面扇形 + 矩形走廊 + 线段通畅）——
+        /// 起因 = 用户本轮原话「你是圆形判断的打击范围」「为什么打击范围这么奇怪」「屏幕外都能打我？？？？？」。
+        /// <para>纯函数逐例驱动（不埋 MonoBehaviour、不依赖 AppContext 与真实地图）。</para>
+        /// <para>⛔ 只**新增**断言，不动 1~17 节的任何判据。</para>
+        /// </summary>
+        private static void Step18_AttackShape()
+        {
+            Section("18. ★ C3：攻击判定形状 = 正面扇形 + 矩形走廊 + 线段通畅（⛔ 不是圆）");
+
+            const float reach = 1.6f;   // 契约常量（下表断言它 == GameConst.MeleeRange）
+            Check("判据用到的 reach 与契约常量一致", Math.Abs(reach - GameConst.MeleeRange) < 0.001f,
+                $"reach={reach:0.00} GameConst.MeleeRange={GameConst.MeleeRange:0.00}");
+
+            // 朝向取 N。格增量走**引擎权威表** `Iso.DirectionDelta(Dir8.N)`（⛔ 宿主与 MeleeShape 都不另写映射表）
+            var nv = Iso.DirectionDelta(Dir8.N);
+            float fx, fy;
+            var got = MeleeShape.ToUnit(nv.x, nv.y, out fx, out fy);
+            Check("朝向 N（Iso.DirectionDelta）可解成单位向量", got && Math.Abs(fx * fx + fy * fy - 1f) < 1e-4f,
+                $"N=({fx:0.00},{fy:0.00}) len²={fx * fx + fy * fy:0.0000} 表值=({nv.x},{nv.y})");
+            float zx, zy;
+            Check("零向量（朝向不可解）⇒ 返回 false",
+                !MeleeShape.ToUnit(0, 0, out zx, out zy), "(0,0) ⇒ false");
+
+            // ① 正前方 1.5 格（沿朝向、垂距 0）⇒ 命中
+            Check("正前方 1.5 格 ⇒ 在判定形状内",
+                MeleeShape.InFrontCone(fx, fy, 0f, -1.5f, MeleeShape.FrontConeCos)
+                && MeleeShape.InMeleeRect(fx, fy, 0f, -1.5f, reach, MeleeShape.MeleeHalfWidth),
+                "偏移 (0,-1.5)：锥内 ∧ 走廊内");
+
+            // ② 正侧方 1.5 格（90°）⇒ **不**命中 —— 这一条就是"扇形/矩形 vs 圆"的分水岭
+            var sideCone = MeleeShape.InFrontCone(fx, fy, 1.5f, 0f, MeleeShape.FrontConeCos);
+            var sideRect = MeleeShape.InMeleeRect(fx, fy, 1.5f, 0f, reach, MeleeShape.MeleeHalfWidth);
+            Check("正侧方 1.5 格 ⇒ **不**命中（旧圆口径会命中）", !sideCone && !sideRect,
+                $"锥内={sideCone} 走廊内={sideRect}；距离 1.5 ≤ {reach:0.00} ⇒ 纯半径判定必命中");
+
+            // ③ 正后方 1.5 格 ⇒ 不命中
+            Check("正后方 1.5 格 ⇒ 不命中",
+                !MeleeShape.InFrontCone(fx, fy, 0f, 1.5f, MeleeShape.FrontConeCos)
+                && !MeleeShape.InMeleeRect(fx, fy, 0f, 1.5f, reach, MeleeShape.MeleeHalfWidth),
+                "偏移 (0,+1.5) = 背后");
+
+            // ④ 距离 > 攻击范围 ⇒ 不命中
+            Check("正前方 2.5 格（> 攻击范围）⇒ 不命中",
+                !MeleeShape.InMeleeRect(fx, fy, 0f, -2.5f, reach, MeleeShape.MeleeHalfWidth),
+                $"沿轴 2.5 > reach {reach:0.00}");
+
+            // ⑤ 8 向量化误差（22.5°）下的斜向贴身不许被丢掉（否则"打不到贴身的怪"）
+            //   ⚠️ 偏差偏移必须**以引擎权威朝向向量 (fx,fy) 为轴**旋转，不许假定"N 的格增量 = (0,-1)"：
+            //   `Iso.DirectionDelta(Dir8.N)` = (-1,-1)（`IsoLayout.DirectionDelta` 的表；屏幕正上）——
+            //   旧写法按 (0,-1) 口径摆偏移 ⇒ 沿轴/垂距两项都算错（实测把"实际垂距 1.30 > 半宽 1.20"
+            //   错报成"沿轴 1.30 ≤ 1.60、垂距 0.54 ≤ 1.20"）。这里改为现算轴与投影。
+            var c = (float)Math.Cos(22.5 * Math.PI / 180.0);
+            var s = (float)Math.Sin(22.5 * Math.PI / 180.0);
+            const float diag = 1.41f;
+            // 把**单位朝向向量**绕原点旋转 22.5° 再乘距离 ⇒ "与朝向差 22.5°、距 1.41 格"的偏移
+            var offX = diag * (fx * c - fy * s);
+            var offY = diag * (fx * s + fy * c);
+            var along = offX * fx + offY * fy;                 // 沿轴投影（现算，不用假定轴）
+            var perp = Math.Abs(offX * (-fy) + offY * fx);     // 垂距（现算）
+            Check("斜向贴身（偏差 22.5°、距离 1.41）⇒ 仍命中（8 向不丢）",
+                MeleeShape.InFrontCone(fx, fy, offX, offY, MeleeShape.FrontConeCos)
+                && MeleeShape.InMeleeRect(fx, fy, offX, offY, reach, MeleeShape.MeleeHalfWidth),
+                $"朝向向量 ({fx:0.00},{fy:0.00})（引擎表 N=({nv.x},{nv.y})）偏移 ({offX:0.00},{offY:0.00}) "
+                + $"沿轴 {along:0.00} ≤ {reach:0.00}、垂距 {perp:0.00} ≤ 半宽 {MeleeShape.MeleeHalfWidth:0.00}、"
+                + $"余弦 {(offX * fx + offY * fy) / diag:0.000} ≥ 锥阈值 {MeleeShape.FrontConeCos:0.000}");
+
+            // ⑥ 线段通畅（不许隔墙/隔水打）
+            Func<Vector2Int, bool> wall = g => !(g.x == 1 && g.y == 0);
+            Check("隔一格墙 ⇒ 线段不通",
+                !MeleeShape.LineClear(wall, new Vector2Int(0, 0), new Vector2Int(2, 0)),
+                "from(0,0) → to(2,0)，(1,0) 不可走");
+            Check("相邻 1 格（无中间格）⇒ 线段通（两端点不作阻断判据）",
+                MeleeShape.LineClear(wall, new Vector2Int(0, 0), new Vector2Int(1, 0)),
+                "from(0,0) → to(1,0)");
+            Check("空地直线 4 格 ⇒ 线段通",
+                MeleeShape.LineClear(g => true, new Vector2Int(0, 0), new Vector2Int(4, 2)),
+                "无阻断格");
+            Check("walkable 委托为 null（地图未接入）⇒ 放行，不把'没地图'变成'打不到'",
+                MeleeShape.LineClear(null, new Vector2Int(0, 0), new Vector2Int(4, 2)),
+                "null ⇒ true");
+
+            // ⑦ 远程出手距离上限必须**严格小于画面半宽**（= 用户「屏幕外都能打我」的判据）
+            const float tileWorldW = GameConst.IsoTilePxW / (float)GameConst.PixelsPerUnit;   // 128/64 = 2.0
+            var visibleHalfWidthTiles = 6f * (16f / 9f) / tileWorldW;                          // ortho 6 × 画幅 ÷ 格宽
+            Check("远程出手上限 < 可见半宽（出手时怪物一定在画面内）",
+                MonsterTuning.RangedAttackMaxRange < visibleHalfWidthTiles,
+                $"RangedAttackMaxRange={MonsterTuning.RangedAttackMaxRange:0.00} < 可见半宽 {visibleHalfWidthTiles:0.00} 格" +
+                $"（ortho 6 ×16/9 ÷ 一格世界宽 {tileWorldW:0.0}）");
+            Check("远程出手上限 > 近战范围（远程仍比近战远）",
+                MonsterTuning.RangedAttackMaxRange > GameConst.MeleeRange,
+                $"{MonsterTuning.RangedAttackMaxRange:0.00} > {GameConst.MeleeRange:0.00}");
         }
 
         private static void Section(string title)

@@ -8,9 +8,9 @@
  "equip": "lit",
  "weaponClass": "hth",
  "canvas": {
-  "w": 130,
+  "w": 142,
   "h": 178,
-  "originX": 65,
+  "originX": 71,
   "originY": 89,
   "pivot": [
    0.5,

@@ -21,6 +21,12 @@ namespace Diablo2.Module.Item
     {
         private readonly List<ItemStack> _items = new List<ItemStack>();
 
+        /// <summary>
+        /// ★ 双武器组：**生效**组的下标（0 = Ⅰ组 / 1 = Ⅱ组）。
+        /// 读取一律经 <see cref="ActiveWeaponIndex"/>（按实际武器件数钳制）⇒ 本字段可以"脏"。
+        /// </summary>
+        private int _activeWeapon;
+
         // 限频告警：**不用** `Log.WarnThrottled`（它读 `UnityEngine.Time.realtimeSinceStartup`，
         // 离线宿主 `tools/itemcheck/` 会抛 SecurityException）⇒ 本类自带"同 key 只报一次"。
         private static readonly HashSet<string> Warned = new HashSet<string>();
@@ -130,6 +136,118 @@ namespace Diablo2.Module.Item
             return null;
         }
 
+        // ── 双武器组（原版 W 键切换；★ 本轮新增，T0 判据缺口 2）──────────────────
+
+        /// <summary>
+        /// 当前**生效**的武器组下标（0 = Ⅰ组 / 1 = Ⅱ组）。
+        /// <para>
+        /// 语义：<see cref="ItemSlot.Weapon"/> 槽最多两件（<see cref="MaxPerSlot"/> = 2，本类文件头已写
+        /// 「武器按双武器组处理」）⇒ 槽内序号 0 = Ⅰ组、1 = Ⅱ组。**只有生效组那把算"主手"**：
+        /// 属性/伤害只吃它的词缀（见 <see cref="ToActiveList"/>），另一把是备用的另一组（原版切出去
+        /// 的那一套不生效）。
+        /// </para>
+        /// <para>读取一律**按当前实际武器件数钳制**（卸下/丢弃后序号自然回落）⇒ 永不越界。</para>
+        /// </summary>
+        public int ActiveWeaponIndex
+        {
+            get
+            {
+                var n = WeaponCount;
+                if (n <= 0) return 0;
+                if (_activeWeapon < 0) return 0;
+                return _activeWeapon >= n ? n - 1 : _activeWeapon;
+            }
+        }
+
+        /// <summary>武器槽里的件数（0/1/2；= 已装备的武器组套数）。</summary>
+        public int WeaponCount
+        {
+            get
+            {
+                var n = 0;
+                for (var i = 0; i < _items.Count; i++)
+                {
+                    var it = _items[i];
+                    if (it != null && SlotOf(it) == ItemSlot.Weapon) n++;
+                }
+                return n;
+            }
+        }
+
+        /// <summary>当前生效武器组里的那把武器（没有武器 ⇒ null）。</summary>
+        public ItemStack ActiveWeapon => Get(ItemSlot.Weapon, ActiveWeaponIndex);
+
+        /// <summary>
+        /// 设生效武器组（**读档 / 刚装备一把新武器**时用）；越界 ⇒ 钳到合法范围并告警一次
+        /// （非预期分支必须留痕，用本类自带的 `WarnOnce`）。
+        /// </summary>
+        public void SetActiveWeapon(int index)
+        {
+            var n = WeaponCount;
+            if (n <= 0)
+            {
+                if (index != 0) WarnOnce("equip.wgroup.none", $"设置武器组 {index}：当前没有装备任何武器 ⇒ 按 0 处理");
+                _activeWeapon = 0;
+                return;
+            }
+
+            if (index < 0 || index >= n)
+            {
+                var clamped = index < 0 ? 0 : n - 1;
+                WarnOnce("equip.wgroup.range", $"武器组下标 {index} 越界（当前 {n} 件武器）⇒ 钳到 {clamped}");
+                _activeWeapon = clamped;
+                return;
+            }
+
+            _activeWeapon = index;
+        }
+
+        /// <summary>
+        /// 在两组武器之间切换（Ⅰ ⇄ Ⅱ），返回切换后的下标。
+        /// **只有 1 件武器（或没有）⇒ 不改动、原样返回**（调用方据此打 Warn：原版切组需要两套武器）。
+        /// 原版 D2 的 <c>W</c> 做的正是这件事 —— 本项目把"两套武器"落在武器槽的两个序号上。
+        /// </summary>
+        public int ToggleActiveWeapon()
+        {
+            if (WeaponCount < 2) return ActiveWeaponIndex;   // 无可切换目标
+            _activeWeapon = ActiveWeaponIndex == 0 ? 1 : 0;
+            return _activeWeapon;
+        }
+
+        /// <summary>
+        /// **生效装备列表**（`Events.EquipChanged` / `Events.InventoryChanged` 的载荷）
+        /// = 全部装备**去掉非生效组的武器**。
+        /// <para>
+        /// 为什么必须过滤（双武器组"真的生效"的关键）：`PlayerStats.ApplyEquipment` 会对载荷里
+        /// **每一件**装备的词缀求和 ⇒ 若两把武器都给它，备用武器会**同时**加属性/伤害
+        /// （成了"背着两把武器 = 双倍词缀"）。原版只有当前那一套武器生效。
+        /// </para>
+        /// <para>
+        /// 另一个后果正是我们要的**可见反馈**：`UI/InventoryPanel.ApplyEquip` 用
+        /// `FindEquipped(equip, ItemSlot.Weapon, 0)` 取右手槽（`rarm`）显示的武器 ⇒ 过滤后
+        /// **切组会真的换掉背包面板右手槽上的那把武器图**（用的是原版物品图 + 原版槽位，未自画任何图）。
+        /// </para>
+        /// </summary>
+        public List<ItemStack> ToActiveList()
+        {
+            var res = new List<ItemStack>(_items.Count);
+            var active = ActiveWeaponIndex;
+            var seen = 0;
+            for (var i = 0; i < _items.Count; i++)
+            {
+                var it = _items[i];
+                if (it == null) continue;
+
+                if (SlotOf(it) == ItemSlot.Weapon)
+                {
+                    var mine = seen++;
+                    if (mine != active) continue;            // 非生效组的武器：不进载荷
+                }
+                res.Add(it);
+            }
+            return res;
+        }
+
         /// <summary>
         /// 装备一件（自动挑选槽内空位；满则该槽序号 0 被换下）。
         /// 返回 false 表示"不是装备"（<paramref name="replaced"/> 无意义）。
@@ -202,16 +320,18 @@ namespace Diablo2.Module.Item
             return true;
         }
 
-        /// <summary>清空。</summary>
+        /// <summary>清空（含生效武器组复位）。</summary>
         public void Clear()
         {
             _items.Clear();
+            _activeWeapon = 0;
         }
 
         /// <summary>按存档恢复（非装备条目 Warn 跳过）。</summary>
         public void LoadFrom(List<ItemStack> saved)
         {
             _items.Clear();
+            _activeWeapon = 0;                  // ★ 双武器组：读档先归零，由 ItemModule 按存档字段设（缺字段 ⇒ 默认 0）
             if (saved == null)
             {
                 Log.Warn("Item", "Equipment.LoadFrom 收到 null（存档里没有装备字段）⇒ 按空装备处理");

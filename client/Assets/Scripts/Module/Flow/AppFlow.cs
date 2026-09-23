@@ -112,6 +112,38 @@ namespace Diablo2.Module.Flow
         /// <summary>正在做区域切换（防重入）。</summary>
         private bool _switchingArea;
 
+        // ── ★ 片 T（S-08）：自环过门请求的**限频**状态（同一去处只报一次 + 每 N 次汇总）──────
+        /// <summary>`出入口指向当前区域` 上一次报的"当前区域"（`-1` = 还没报过）。</summary>
+        private int _dupExitFrom = -1;
+
+        /// <summary>上一次报的"目标区域"。</summary>
+        private int _dupExitTo = -1;
+
+        /// <summary>同一去处被连续忽略的次数（换去处 / 真的切了区域就归零）。</summary>
+        private int _dupExitCount;
+
+        /// <summary>汇总报告间隔（每这么多次重复打一条 Warn；⛔ 不是静默，是"记一次 + 汇总"）。</summary>
+        private const int DupExitReportEvery = 1000;
+
+        /// <summary>★ T0FIX-D：最近一次存档的结果（`Events.SaveDone` 的参数）。</summary>
+        private bool _lastSaveOk;
+
+        /// <summary>
+        /// ★ R7（本片 Q）：本会话**已经弹过提示**的读档失败原因（含档名）。
+        /// 为什么必须去重：`ISaveModule.ListAll()` 是**逐个 `Load()`** 的（`SaveModule.cs:340-350`），
+        /// 选角屏每次刷新都会再过一遍 ⇒ 不去重就是"每开一次选角屏弹一个框"，玩家关不掉。
+        /// </summary>
+        private readonly HashSet<string> _loadFailureNotified = new HashSet<string>();
+
+        /// <summary>★ T0FIX-D：本次会话已消费的存档事件次数（可观测账目）。</summary>
+        private int _savesObserved;
+
+        /// <summary>★ T0FIX-D：最近一次存档是否成功（`Events.SaveDone` 的消费者账目；自证/诊断用）。</summary>
+        public bool LastSaveOk { get { return _lastSaveOk; } }
+
+        /// <summary>★ T0FIX-D：已消费的存档事件次数（自证用）。</summary>
+        public int SavesObserved { get { return _savesObserved; } }
+
         /// <summary>
         /// ★§A「Stage 场景加载代号」：每次引擎回调 `Game.Scene.OnSceneLoaded(Stage)` 自增。
         /// <para>用途：`OnEnterStage` 在 `_stageActive` 重入时判断**本次重入前场景是否被重载过**
@@ -432,6 +464,11 @@ namespace Diablo2.Module.Flow
             Game.Event.On(Events.PauseRequest, OnPauseRequest);
             Game.Event.On(Events.ResumeRequest, OnResumeRequest);
             Game.Event.On(Events.SaveAndExitRequest, OnSaveAndExitRequest);
+            // ★ T0FIX-D：`Events.SaveDone` 的**唯一消费者**（此前 0 生产者 / 0 消费者）
+            Game.Event.On<bool>(Events.SaveDone, OnSaveDone);
+            // ★ R7（本片 Q）：`Events.LoadDone` 的**唯一消费者**（`Core/Events.cs:368`：参数 null = 读档失败）。
+            //   修前该事件只有 `SaveModule.Load` 成功路径在发、且 **0 订阅者** ⇒ 损坏档完全静默。
+            Game.Event.On<CharacterSave>(Events.LoadDone, OnLoadDone);
             Game.Event.On(Events.ToMainMenuRequest, OnToMainMenuRequest);
             Game.Event.On(Events.QuitRequest, OnQuitRequest);
             Game.Event.On(Events.MultiplayerUnavailable, OnMultiplayerUnavailable);
@@ -979,6 +1016,11 @@ namespace Diablo2.Module.Flow
             Game.UI.Close<SettingsPanel>();
         }
 
+        /// <summary>
+        /// ★ T0FIX-C：ESC 一律走**别名** `GameKeyAlias.KeyPause`（键位的单一来源），
+        /// ⛔ 不再直连 `GameKey.Escape` —— 直连会让"改键位只改一处"失效（D11 的零消费别名）。
+        /// 值不变（两者都是 `GameKey.Escape`）⇒ 行为逐字不变。
+        /// </summary>
         private static bool EscPressed()
         {
             if (Game.Input == null)
@@ -986,7 +1028,7 @@ namespace Diablo2.Module.Flow
                 FlowLog.WarnOnce("input.null", "Game.Input 未挂载（CloverInput.Init 未调用）⇒ ESC 暂停/继续不可用");
                 return false;
             }
-            return Game.Input.GetKeyDown(GameKey.Escape);
+            return Game.Input.GetKeyDown(GameKeyAlias.KeyPause);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -1057,6 +1099,24 @@ namespace Diablo2.Module.Flow
                 Log.Info(FlowLog.Tag, $"创角：「{save.name}」本局地图 seed={save.mapSeed}");
             }
 
+            // ★ 起始装备（配表 `start_item_c` ← 官方 charstats.txt 的 item1..item10）：
+            //   原版新角色自带「武器（+ 盾）+ 药水 + 卷轴」⇒ 必须在**写档 / 入名册之前**落到 `save` 里，
+            //   否则落盘的是一份空装备档（用户实测：新角色徒手打不动怪）。
+            //   走**已有的 `IItemModule` 契约**（`LoadFrom` 内部会对"新鲜草稿档"按职业补装备，
+            //   见 `Module/Item/StartItems.cs` 与 `ItemModule.LoadFrom`），`WriteTo` 再把结果回写进 `save`。
+            //   ⛔ 这里**不引用** `Diablo2.Module.Item` 的任何类型 —— 分层自检 ② 要求
+            //      `Module/*` 里 0 处 `using Diablo2.Module.*`（跨模块协作走事件或 App 注入接口）。
+            var itemMod = Ctx?.Item;
+            if (itemMod == null)
+            {
+                FlowLog.Missing("IItemModule");      // 起始装备发不了 —— 必须留痕（不许静默）
+            }
+            else
+            {
+                itemMod.LoadFrom(save);              // 新鲜草稿档 ⇒ 按职业补 `equip` / `inventory`
+                itemMod.WriteTo(save);               // 回写（写档之前）
+            }
+
             if (!_roster.Create(save))
             {
                 Log.Error(FlowLog.Tag, $"创角失败：角色「{save.name}」未能写入名册（见上一行原因）");
@@ -1068,7 +1128,49 @@ namespace Diablo2.Module.Flow
             Log.Info(FlowLog.Tag,
                 $"建角成功：{save.name} 职业={ClassTable.NameOf(save.cls)} 等级={save.level} " +
                 $"生命={save.life} 法力={save.mana} 耐力={save.stamina} 剩余点数={save.statPoints} ⇒ 回选角屏");
+            Log.Info(FlowLog.Tag,
+                $"建角『{save.name}』起始装备已落档：装备 {save.equip.Count} 件 / 背包格 {save.inventory.Count} 格"
+                + $"（锚点 {CountAnchors(save.inventory)} 个）→ "
+                + DescribeStartEquip(save));
             Game.Fsm.Trigger(Events.Fsm.TriggerCreated);
+        }
+
+        /// <summary>背包锚点数（= 实际入包的物品件数；创角日志用）。</summary>
+        private static int CountAnchors(List<InventorySlot> inv)
+        {
+            if (inv == null) return 0;
+            var n = 0;
+            for (var i = 0; i < inv.Count; i++)
+            {
+                if (inv[i] != null && inv[i].isAnchor && inv[i].item != null) n++;
+            }
+            return n;
+        }
+
+        /// <summary>起始装备的可读清单（`装备:名字` + 背包锚点，日志/自证用）。</summary>
+        private static string DescribeStartEquip(CharacterSave save)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("装备=[");
+            for (var i = 0; i < save.equip.Count; i++)
+            {
+                var it = save.equip[i];
+                if (it == null) continue;
+                if (sb.Length > 1) sb.Append(',');
+                sb.Append(it.name).Append('×').Append(it.count);
+            }
+            sb.Append("] 背包=[");
+            var first = true;
+            for (var i = 0; i < save.inventory.Count; i++)
+            {
+                var s = save.inventory[i];
+                if (s == null || !s.isAnchor || s.item == null) continue;
+                if (!first) sb.Append(',');
+                first = false;
+                sb.Append(s.item.name).Append('×').Append(s.item.count).Append('@').Append(s.index);
+            }
+            sb.Append(']');
+            return sb.ToString();
         }
 
         private void OnCharSelectRequest(string name)
@@ -1082,11 +1184,35 @@ namespace Diablo2.Module.Flow
                 return;
             }
 
-            var save = _roster.Load(name);
+            // ★ R7（本片 Q）：改走契约的 `TryLoad`（修前**全仓 0 调用点**）—— 它给出"读到没读到"的布尔，
+            //   配合契约既有的 `LastError` 就能**区分两种 null**：
+            //   · 失败 + `LastError` 非空 ⇒ 真的读不出来（损坏 / 槽位目录不可用）—— 用户可见反馈已由
+            //     `OnLoadDone` 弹过 `D2ConfirmPanel` ⇒ 这里 ⛔ **不再叠一条"找不到该角色"的 Toast**（那是误导）；
+            //   · 失败 + `LastError` 为空 ⇒ 档不存在（正常）⇒ 保留原有的"找不到该角色"轻提示。
+            CharacterSave save;
+            var saveMod = Ctx?.Save;
+            if (saveMod != null)
+            {
+                if (!saveMod.TryLoad(name, out save)) save = null;
+            }
+            else
+            {
+                save = _roster.Load(name);      // 降级路径：无存档模块 ⇒ 会话内名册
+            }
+
             if (save == null)
             {
-                Log.Warn(FlowLog.Tag, $"选角失败：名册里找不到角色「{name}」");
-                Game.UI.Toast("找不到该角色");
+                var reason = saveMod != null ? saveMod.LastError : null;
+                if (!string.IsNullOrEmpty(reason))
+                {
+                    Log.Warn(FlowLog.Tag, $"选角失败：角色「{name}」的存档读不出来 ⇒ 已弹「存档损坏」用户可见提示" +
+                        $"并留在选角屏；原因={reason}");
+                }
+                else
+                {
+                    Log.Warn(FlowLog.Tag, $"选角失败：名册里找不到角色「{name}」");
+                    Game.UI.Toast("找不到该角色");
+                }
                 OpenCharSelect();
                 return;
             }
@@ -1147,6 +1273,110 @@ namespace Diablo2.Module.Flow
             BackToMain();
         }
 
+        /// <summary>
+        /// ★ T0FIX-D：`Events.SaveDone`（参数 = 是否成功）的**唯一消费者**。
+        /// <para>为什么这样处置（而不是删事件）：`Events.SaveDone` 在 `Core/Events.cs:316` 已有明确的
+        /// 参数语义（bool 是否成功），而 `Core/` 是冻结层（删它要改 Core）⇒ 按验收表**规则 7**
+        /// 「定义了但没人用」的本意，补上**生产者**（`SaveModule.Save/Save(CharacterSave)` 的
+        /// 成功/失败**两条**出口都发）与**消费者**（本方法）。</para>
+        /// <para>消费者形态 = **可观测的最小消费者**：存档结果账（`LastSaveOk`）+ 每次存档一条
+        /// 可检索日志。⛔ **不加"保存中/已保存"的 UI 元件** —— 原版 D2 单机存档是**静默**的
+        /// （没有该提示的素材/出处），按全局 skill §0「A 没有 ⇒ 不加」。</para>
+        /// </summary>
+        private void OnSaveDone(bool ok)
+        {
+            _lastSaveOk = ok;
+            _savesObserved++;
+            if (ok)
+            {
+                Log.Info(FlowLog.Tag,
+                    $"[T0FIX] 收到 {Events.SaveDone}(success=true) ⇒ 存档结果账 = 成功（第 {_savesObserved} 次）");
+                return;
+            }
+
+            Log.Warn(FlowLog.Tag,
+                $"[T0FIX] 收到 {Events.SaveDone}(success=false) ⇒ 本次存档失败（第 {_savesObserved} 次；" +
+                "详细原因见 Save 模块的 Error 行）");
+        }
+
+        /// <summary>
+        /// ★ R7（本片 Q）：`Events.LoadDone` 的**消费者**（`Core/Events.cs:368`：参数 null = 读档失败）。
+        /// <para>**缺陷**（穷举审计片 `audit-C` 红行 R7，用户没报过）：`SaveModule.Load()` 的"档不存在"与
+        /// "解析失败"**都返回 null**，而 `LastError` 的唯一消费者是**保存**失败分支
+        /// ⇒ 玩家的读档失败**没有任何用户可见反馈**（损坏档在选角屏表现为"角色凭空消失"）。</para>
+        /// <para>修法：把两种失败按 `LastError` 分流（空 = 档不存在 = 正常，不报错；非空 = 真失败 ⇒ 提示）。</para>
+        /// </summary>
+        private void OnLoadDone(CharacterSave data)
+        {
+            if (data != null) return;                 // 成功：`SaveModule.Load` 自己已记完整日志
+
+            var save = Ctx?.Save;
+            if (save == null)
+            {
+                Log.Warn(FlowLog.Tag, $"收到 {Events.LoadDone}(null) 但 ISaveModule 未接入 ⇒ 拿不到失败原因");
+                return;
+            }
+
+            var reason = save.LastError;
+            if (string.IsNullOrEmpty(reason))
+            {
+                // 档不存在 = **正常情形**（新玩家 / 空槽）⇒ 不报错、不弹提示（R7 情况 ①）
+                Log.Info(FlowLog.Tag, $"收到 {Events.LoadDone}(null)：LastError 为空 ⇒ 判定为「档不存在」（正常），不提示");
+                return;
+            }
+
+            NotifyLoadFailure(reason);
+        }
+
+        /// <summary>
+        /// ★ R7：读档失败的**用户可见反馈**（复用项目既有的 `UI/D2ConfirmPanel`：原版窗框 + 原版中等按钮）。
+        /// <para>⛔ **不新造面板 / 不换皮**（`D2ConfirmPanel` 的文件头已论证过"引擎 `Game.UI.Confirm` 是引擎默认 uGUI，
+        /// 与本项目的原版石雕按钮同屏两种风格"）。</para>
+        /// <para>⛔ **不在此处替玩家删档** —— 损坏文件原样保留（引擎 `FileSlotStore` 另有 `.corrupt` 留档），
+        /// 删档只能由玩家在选角屏显式点 DELETE；故本提示的两个出口都只关闭弹窗（组件本身恒为两按钮）。</para>
+        /// </summary>
+        private void NotifyLoadFailure(string reason)
+        {
+            if (!_loadFailureNotified.Add(reason))
+            {
+                // 已提示过（`ListAll()` 每次刷新都会重新 `Load` 一遍同一批档）⇒ 只留痕，不再弹
+                Log.Info(FlowLog.Tag, $"[R7] 同一读档失败本会话已提示过 ⇒ 不再重复弹框：{reason}");
+                return;
+            }
+
+            Log.Error(FlowLog.Tag,
+                $"[R7·读档失败·用户可见] 提示玩家「存档损坏」：{reason}；" +
+                "该存档不会出现在角色列表中（文件未被覆盖/删除）");
+
+            if (Game.UI == null)
+            {
+                Log.Warn(FlowLog.Tag, "[R7] 读档失败但 Game.UI 未接入 ⇒ 无法弹提示（已在日志里点名，不静默）");
+                return;
+            }
+
+            D2ConfirmPanel.Show(
+                "存档损坏",
+                ShortReason(reason),
+                () => Log.Info(FlowLog.Tag, "[R7] 玩家确认了「存档损坏」提示"),
+                () => Log.Info(FlowLog.Tag, "[R7] 玩家关闭了「存档损坏」提示"),
+                "确定", "关闭");
+        }
+
+        /// <summary>
+        /// ★ R7：把 <see cref="ISaveModule.LastError"/> 压成能放进 `D2ConfirmPanel` 正文框的一句玩家话。
+        /// <para>为什么必须有这一步（**实机图给的教训**，⛔ 不是想当然）：提示框正文框只有
+        /// **272×90 原版px**（`UiLayoutFlow.Confirm.MessageSizeOrig`）＝约 17 个汉字/行 × 2 行；
+        /// 第一版直接把 `LastError`（含引擎判定 + `.corrupt` 副本路径，80+ 字）塞进去，
+        /// 实机图 `.ai-tmp/screenshots/q3_corrupt_dialog.png` 上文字**冲出框外**。
+        /// 修法：框里只放一句话，**完整技术细节留在 `[Save]` 的 Error 行**（排障入口不变）。</para>
+        /// </summary>
+        private static string ShortReason(string reason)
+        {
+            const int max = 32;
+            if (string.IsNullOrEmpty(reason)) return "存档读取失败";
+            return reason.Length <= max ? reason : reason.Substring(0, max) + "...";
+        }
+
         private void OnToMainMenuRequest()
         {
             Log.Info(FlowLog.Tag, $"收到回主菜单请求（当前站点={CurrentState}）");
@@ -1179,10 +1409,37 @@ namespace Diablo2.Module.Flow
                 return;
             }
 
-            if (to == _area)
+            // ★ 片 T（S-08）：**与发送方同源判据** —— `PlayerModule.CheckExit` 决定"发不发过门请求"
+            //   用的就是 `IMapModule.Area`（出口目标由它推出），而这里原来只比 `_area`
+            //   ⇒ 两道闸门不同源：地图还没重生成/地图未接入时 `_area` 已前进、`map.Area` 还停在旧值，
+            //     同一个去处会被反复拒（这正是两道闸门"各判各的"那种缺陷的形状）。
+            //   现在：以**已生成的地图**为准（它就是玩家脚下那张图），地图不可用时才退回 `_area`。
+            var ctxMap = Ctx?.Map;
+            var cur = ctxMap != null && ctxMap.IsGenerated ? ctxMap.Area : _area;
+            if (to == cur)
             {
-                Log.Warn(FlowLog.Tag, $"出入口指向当前区域 {to}（数据异常？）⇒ 忽略，不重生成地图");
+                // ⛔ 不静默（不是把铃声拆掉）：第一次把数据异常完整说清；之后按 1000 次汇总，
+                //   防日志风暴 —— 实测 `.ai-tmp/test` 记的 12 分钟 39069 条就是这一行刷出来的。
+                if (_dupExitFrom != (int)cur || _dupExitTo != (int)to)
+                {
+                    _dupExitFrom = (int)cur;
+                    _dupExitTo = (int)to;
+                    _dupExitCount = 0;
+                    Log.Warn(FlowLog.Tag, $"出入口指向当前区域 {to}（数据异常？）⇒ 忽略，不重生成地图"
+                        + $"（判据 = 地图 Area，与 PlayerModule.CheckExit 同源；同一去处只报一次）");
+                }
+                else if (++_dupExitCount % DupExitReportEvery == 0)
+                {
+                    Log.Warn(FlowLog.Tag, $"出入口仍指向当前区域 {to} ⇒ 已累计忽略 {_dupExitCount} 次"
+                        + $"（形如上游在重复发同一次过门请求，见上一条 Warn）");
+                }
                 return;
+            }
+
+            if (_dupExitCount > 0)
+            {
+                Log.Info(FlowLog.Tag, $"出入口自环请求结束：{_dupExitFrom} 共被忽略 {_dupExitCount} 次");
+                _dupExitCount = 0;
             }
 
             _switchingArea = true;

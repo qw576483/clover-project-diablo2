@@ -105,8 +105,10 @@ internal static class Program
         Check(ProjectBuilder.MenuPath == "Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）",
             "菜单名逐字等于契约：Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）");
 
-        Check(ProjectBuilder.PanelNames.Length == 16,
-            "面板清单 = 16 个（实测 " + ProjectBuilder.PanelNames.Length + "）");
+        // ★ 本轮 17 → 18：新增 `WaypointPanel`（原版「傳送點」屏；见 `UI/WaypointPanel.cs`
+        //   与 `Assets/Editor/ProjectBuilder.cs` 里 `PanelNames` 的 "★ 片 g1-resume 新增" 三项）。
+        Check(ProjectBuilder.PanelNames.Length == 18,
+            "面板清单 = 18 个（实测 " + ProjectBuilder.PanelNames.Length + "）");
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var dup = new List<string>();
@@ -124,7 +126,7 @@ internal static class Program
                 missing.Add(n);
         }
         Check(missing.Count == 0,
-            "16 个面板类都能在 Assets/Scripts/UI/{类名}.cs 里找到 `class {类名} : UIPanel`"
+            "18 个面板类都能在 Assets/Scripts/UI/{类名}.cs 里找到 `class {类名} : UIPanel`"
             + (missing.Count == 0 ? "" : "（缺：" + string.Join(",", missing.ToArray()) + "）"));
 
         Check(ProjectBuilder.PanelsDir == "Assets/Resources/UI", "预制体目录 = Assets/Resources/UI（契约 §3.6）");
@@ -153,7 +155,7 @@ internal static class Program
 
         var dir = P("client", "Assets", "Resources", "UI");
         var files = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.prefab") : new string[0];
-        Check(files.Length == 16, "预制体个数 = 16（实测 " + files.Length + "）");
+        Check(files.Length == 18, "预制体个数 = 18（实测 " + files.Length + "）");
 
         var bad = new List<string>();
         for (int i = 0; i < ProjectBuilder.PanelNames.Length; i++)
@@ -188,7 +190,7 @@ internal static class Program
         }
 
         Check(bad.Count == 0,
-            "16 个预制体：根节点铺满(anchorMin=0,0 / anchorMax=1,1 / anchoredPosition=0,0 / sizeDelta=0,0 / pivot=0.5,0.5)"
+            "18 个预制体：根节点铺满(anchorMin=0,0 / anchorMax=1,1 / anchoredPosition=0,0 / sizeDelta=0,0 / pivot=0.5,0.5)"
             + " + m_Script 指向本面板脚本的 .cs.meta guid + layer=UI"
             + (bad.Count == 0 ? "" : "；不合格：" + string.Join("; ", bad.ToArray())));
 
@@ -478,7 +480,8 @@ internal static class Program
         if (!ebsOk) wouldWrite.Add("EditorBuildSettings.asset");
 
         Check(prefabSkip == ProjectBuilder.PanelNames.Length,
-            "第二次运行：16/16 面板预制体都会走「已存在 ⇒ 跳过」分支（实测 " + prefabSkip + "/16）");
+            "第二次运行：" + ProjectBuilder.PanelNames.Length + "/" + ProjectBuilder.PanelNames.Length
+            + " 面板预制体都会走「已存在 ⇒ 跳过」分支（实测 " + prefabSkip + "/" + ProjectBuilder.PanelNames.Length + "）");
         Check(sceneSkip == ProjectBuilder.SceneOrder.Length,
             "第二次运行：3/3 场景都会走「已存在 ⇒ 跳过」分支（实测 " + sceneSkip + "/3）");
         Check(ebsOk, "第二次运行：Build Settings 已正确（Boot→Menu→Stage）⇒ 整体不改写");
@@ -486,8 +489,8 @@ internal static class Program
             "第二次运行：实际写入 0 项、0 报错（会写的：" + (wouldWrite.Count == 0 ? "无" : string.Join(",", wouldWrite.ToArray())) + "）");
 
         // 日志条数：逐项"创建/跳过"日志只在实际写入时打；跳过走分组汇总 ⇒ 第二次运行日志大幅减少
-        // 第一次：16 预制体创建 + 1 预制体分组 + 3 场景创建 + 3 相机日志 + 1 场景分组
-        //         + 1 BuildSettings + 1 总汇总 = 26
+        // 第一次：17 预制体创建 + 1 预制体分组 + 3 场景创建 + 3 相机日志 + 1 场景分组
+        //         + 1 BuildSettings + 1 总汇总 = 27
         // 第二次：1 预制体分组 + 1 场景分组 + 1 BuildSettings + 1 总汇总 = 4（跳过不逐项打）
         int run1 = ProjectBuilder.PanelNames.Length + 1 + ProjectBuilder.SceneOrder.Length
                    + ProjectBuilder.SceneOrder.Length + 1 + 1 + 1;

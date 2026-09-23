@@ -39,6 +39,92 @@
 //   白名单、取证与生效口径见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay`。
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ★ T0FIX-A（本片）：**单帧尖峰**（`ShowArea`/整图重铺单帧 46.3~73.9 ms ≫ 一帧预算 16.67 ms）
+//   的两条处置 —— 「对象池」+「增量新块分帧」。
+//
+//   ① **对象池**（`TileNodePool`）：节点不再 `Destroy` / 不再每次 `new GameObject`
+//      —— 归还进池、取出即复用，**取出的那一路无条件重设全部渲染字段**（见 `ApplyTileState`）。
+//      节点创建只有一条路径（`TileNodePool.Take` 的冷分支），所以「新建」与「复用」不可能出现
+//      两种渲染结果 ⇒ 画面逐像素不变。
+//   ② **增量新块分帧**（`MaxChunksPerFrame`）：相机走进新的块范围时，`RefreshVisibleChunks`
+//      **只登记**待建块，真正的建块在 `Update` 里每帧至多建 `MaxChunksPerFrame` 块
+//      （旧口径 = 同一帧把新进范围的块**全建完**，一次 3~7 块 ⇒ 单帧尖峰）。
+//      「块根先 `SetActive(false)`、块内全部格建完才激活」⇒ ⛔ 不出现"半块地图"可见态。
+//   ③ **整图重铺（`RebuildLayers`）保留一帧铺完、不拆帧**：
+//      ⛔ **这条取舍已被 T0FIX-H 推翻**（见下面那段）—— 旧画面其实**留得住**（整图双缓冲），
+//      所以整图重铺也纳入了分帧预算；本节其余两条（池化 / 增量分帧）逐字仍生效。
+//
+//   每帧预算的依据（⛔ 不是魔数）：
+//     `ComputeVisibleChunkRange` 已把视口**外扩 1 块** = `ChunkSize` 格 = 16 格余量；
+//     相机最快 `GameConst.PlayerWalkSpeed` = 3.0 格/s ⇒ 走完这 16 格余量要
+//     16 / 3.0 = 5.333 s = 5.333 s × `FramePacing.TargetFrameRate`(60) = **320 帧**。
+//     ⇒ 每帧建 1 块（16 格/帧 = 960 格/s）比"刚好跟上相机"快 320 倍，
+//       且一帧 1 块 ⇒ 一帧节点数 ≤ `ChunkSize² × 2 + 3` = 515（出货配置不开迷雾），
+//       远低于"一帧预算"能承受的量级。断言与逐条数字见 `tools/probes/hosts/mapcheck` §17。
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ═════════════════════════════════════════════════════════════════════════════
+// ★ T0FIX-H（本片）：**整图重铺（`ShowArea` / 贴图到位 / 迷雾开关 → `RebuildLayers`）的单帧尖峰**
+//   也降到一帧预算内 —— 手法 = **整图双缓冲 + 每帧节点预算 + 一帧原子切换 + 分帧回收旧集**。
+//
+//   缺陷（T0E 实测，⛔ 不是推测）：`RebuildLayers` 单帧建 **2824** 个节点
+//   （town-rebuild p50 58714 µs / max 77423 µs ⇒ **27.416 µs/GO**；一帧预算 16666.7 µs ÷ 2824
+//   = 5.902 µs/GO ⇒ **超 4.6 倍**），且 5 次触发里 **4 次**落在 `fsm=Stage / uiLoading=0`
+//   （玩家可操作期，来源 `.ai-tmp/screenshots/t0e_hover/repave_window_{2..5}.txt`）⇒ 掉 3~5 帧。
+//
+//   为什么上一版"拆帧必露空"的理由站不住：露空**只对"没有旧画面"成立**，
+//   而这三条触发路径**都有旧画面** —— 只要把新图建在**隐藏的缓冲集**上，旧图就能一直留到新图就绪：
+//     · `ShowArea`（换区）⇒ 屏幕上仍是**旧区**的完整地图，直到切换（不是空白）；
+//     · 贴图到位重铺 ⇒ 屏幕上仍是旧（占位/低清）图；
+//     · 迷雾开关 ⇒ 屏幕上仍是旧迷雾态。
+//
+//   四条硬口径（逐条对应任务书的三条约束）：
+//     ① **画面结果逐像素不变**：一格的渲染状态仍是 `GroundState/ObjectState/FogState` 三个**纯函数**
+//        （T0FIX-A 起就是），`ApplyTileState` 仍无条件写全 6 项、零分支；本片只改
+//        "**什么时候算、算到哪个节点上**"：
+//          · 块清单顺序仍是 **cx 外层 / cy 内层**（= 改前 `BuildChunkRange` 与"全图逐块"循环的顺序），
+//            纯函数 `PlannedChunks` 就是它（供离线复算）；
+//          · 块内格序仍是 **x 外层 / y 内层**（游标 `CursorX/CursorY`，跨帧续建也不变）；
+//          · 节点仍一律经 `NewTile` ⇒ `SetParent(parent, false)` **追加到末尾**
+//            ⇒ 兄弟序（同 `sortingOrder` 时的平局次序）与改前逐项一致。
+//     ② **不露空 / 不半张图 / 不闪帧**：新图整幅建在**隐藏**的缓冲层根（`GroundLayerB`…）下，
+//        建完才**一帧**切换（6 次**层根** `SetActive`，⛔ 不逐个节点动）⇒ 任何中间帧上，
+//        屏幕上要么是**完整的旧图**、要么是**完整的新图**（不存在"半张"）。
+//     ③ **单帧预算**：每帧**新建节点** ≤ `MaxTileNodesPerFrame`（= 512，算式见该常量注释）；
+//        每帧扫描格 ≤ `MaxTileCellsPerFrame`（= 2×512 —— 一格最多 2 个节点）；
+//        旧集**回收**同样按帧预算分摊（⛔ 不在切换帧里逐个 `SetParent` / `Destroy`）。
+//     ④ **保底**：缓冲层根若被销毁（场景卸载那类非预期态）⇒ 放弃分帧、**一帧铺完**并打 Warn
+//        （⛔ 不许静默、不许留空白）。
+//
+//   ⚠️ 本片**纯离线**（任务书明令不进 Play）⇒ 帧时间必须由下一批实机重采；
+//      本片给的是"预算算式 × 实测基线"的对照与结构性断言，逐条见回报与 `mapcheck` §19。
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ═════════════════════════════════════════════════════════════════════════════
+// ★ T0FIX-I（本片）：修 T0FIX-H 引入的**致命回归 = Stage 黑屏**（双缓冲建出的地图从未被渲染）。
+//
+//   实机（上一棒 DIAG，同机位全屏，机位/几何/贴图一字未改）：
+//     · 进图就绪后：`wholeMapView_totalSR=5134` 而 **`activeSR=0`**、`gRoot_activeChildren=0`、
+//       `chunk0_activeSelf=0`、`chunk0Tile0_activeInHierarchy=0`、全屏 **`mean_lum=5.42/255`**（近全黑）；
+//     · 把同一子树强制 `SetActive(true)` ⇒ `ground_activeSR=2210 / object_activeSR=357`、
+//       **`mean_lum=31.63/255`**（地形出现）。
+//
+//   根因 = **两处 `activeSelf` 残留**（都靠"激活父节点"救不回来，Unity 语义如此）：
+//     ① `EnsureJobChunk` 把缓冲集块根 `SetActive(false)`，而 `SwapToBuilt` 只激活**层根**
+//        ⇒ 新图整棵的 `activeInHierarchy` 恒 false（层根一激活也带不活它们）；
+//     ② `TileNodePool.Return` 把瓦片 `SetActive(false)`，而 `Take` / `ApplyTileState` 只复位
+//        `SpriteRenderer.enabled`，**不复位 `GameObject.activeSelf`** ⇒ 池复用过的瓦片永远不可见。
+//
+//   处置（**保住双缓冲分帧，⛔ 不回退"一帧铺完"**）：
+//     · `TileNodePool.Take`：**取出即 `SetActive(true)`**，与 `Return` 的 `SetActive(false)` 严格配对；
+//     · `MarkJobChunkBuilt`：块内格**建满那一帧**把该块三个块根逐块复活（层根仍隐藏 ⇒ 仍不可见，
+//       成本 3 次 `SetActive`/块，摊在建图帧里、不落在切换帧）；
+//     · `SwapToBuilt`：激活层根**之前**先 `ActivateChunkRoots(...)` 逐块兜底（正常路径空转）。
+//     ⛔ 这三处都是**逐块显式**设置 `activeSelf`，**不依赖**"激活父节点会复活子节点"这条语义。
+//     离线判据（复现黑屏 + 验证修复 + 不露空）见 `tools/probes/hosts/mapcheck` §20。
+// ═════════════════════════════════════════════════════════════════════════════
+
 using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
@@ -55,6 +141,45 @@ namespace Diablo2.Module.Map
 
         /// <summary>分块边长（格）。超过阈值的大图按「可见区域」逐块铺。</summary>
         public const int ChunkSize = 16;
+
+        /// <summary>
+        /// ★ T0FIX-A：**增量路径**每帧最多建几块（> 0）。
+        /// <para>依据（⛔ 不是魔数，逐项都是生产常量）：`ComputeVisibleChunkRange` 外扩 1 块
+        /// = <see cref="ChunkSize"/> 格余量，相机最快 <see cref="GameConst.PlayerWalkSpeed"/> 格/s
+        /// ⇒ 走完余量需 <c>ChunkSize / PlayerWalkSpeed</c> = 5.333 s = 320 帧 @
+        /// <see cref="FramePacing.TargetFrameRate"/>；而一次刷新最多新增 7 块（mapcheck §16 ⑤）
+        /// ⇒ 需要 ≈ 0.02 块/帧 ⇒ <b>取整数下限 1 块/帧</b>（裕度 ≈ 45 倍，且建图速率
+        /// 1 块/帧 = 16 格/帧 = 960 格/s ≫ 相机 3.0 格/s）。</para>
+        /// <para>⛔ 整图重铺（<see cref="RebuildLayers"/>）**不受**本常量约束（它走 T0FIX-H 的另一套预算
+        /// <see cref="MaxTileNodesPerFrame"/> 节点/帧，见类头的 T0FIX-H 段）：本常量只约束
+        /// "相机走进新块范围"这条增量路径。</para>
+        /// </summary>
+        public const int MaxChunksPerFrame = 1;
+
+        /// <summary>
+        /// ★ T0FIX-H：**整图重铺**每帧最多**新建**几个节点（> 0）。
+        /// <para>算式（⛔ 不是魔数，逐项都是生产常量或实测基线）：</para>
+        /// <para>· 一帧预算 = 1 s ÷ <see cref="FramePacing.TargetFrameRate"/> = **16666.7 µs**；</para>
+        /// <para>· T0E 实测整图重铺的每节点成本 = **27.416 µs/GO**（最差）/ 20.79 µs/GO（p50）
+        /// （town-rebuild nodes=2824 p50=58714us max=77423us；出处 = `策划/状态矩阵.tsv` 的
+        /// `perf:帧时间(ms/frame)` 行 × `.ai-tmp/screenshots/t0e_hover/repave_window_*.txt`）；</para>
+        /// <para>· ⇒ 16666.7 ÷ 27.416 = **607.9** ⇒ 取 **512**（2 的幂，且 ≤ 一块满铺的节点上限
+        /// `ChunkSize²×2 + 3 = 515` ⇒ 与增量路径 <see cref="MaxChunksPerFrame"/> = 1 块/帧**同量级**）。</para>
+        /// <para>⇒ 单帧最差 512 × 27.416 = **14037 µs** ≤ 16666.7 µs（裕度 **1.19×**；按 p50 算 10645 µs ⇒ 1.57×）。
+        /// ⛔ 而且本路径每帧**只做"建"或"回收"之一**，单位节点的开销比实测基线（建 + Destroy 挤在同一帧）更低。</para>
+        /// </summary>
+        public const int MaxTileNodesPerFrame = 512;
+
+        /// <summary>
+        /// ★ T0FIX-H：整图重铺每帧最多**扫描**几格 = `MaxTileNodesPerFrame × 2`。
+        /// <para>⛔ 不是随手写的：一格最多 2 个节点。它保证"本帧扫过的格数"也有上界 ——
+        /// 否则洞穴里成片的"原版那格不画"（`groundKey == ""`）格子会让一帧扫过整张图
+        /// （虽不建节点，但同样是白花帧）。</para>
+        /// </summary>
+        public const int MaxTileCellsPerFrame = MaxTileNodesPerFrame * 2;
+
+        /// <summary>★ T0FIX-H：一个块在三个层上各有一个**块根**节点 ⇒ 建一块 = 3 个结构节点（= `BuildChunk` 的 3 处 `NewChild`）。</summary>
+        private const int ChunkRootNodeCount = 3;
 
         /// <summary>可见区域的检查间隔（秒）——避免每帧算相机视口。</summary>
         private const float ChunkRefreshInterval = 0.25f;
@@ -102,13 +227,69 @@ namespace Diablo2.Module.Map
         private Vector2Int _chunkMin;
         private Vector2Int _chunkMax;
 
+        // ── ★ T0FIX-A：节点池 + 增量建块队列 ────────────────────────────────────
+        /// <summary>节点池（唯一创建者；`Take` 冷分支才 `new GameObject`）。</summary>
+        private TileNodePool _pool;
+
+        /// <summary>池化节点的挂载点（在 `MapRoot` 下 ⇒ 随场景一起销毁，不跨场景泄漏）。</summary>
+        private Transform _poolRoot;
+
+        /// <summary>★ T0FIX-A：待建块队列（`RefreshVisibleChunks` 只登记，建块在 `Update` 按帧预算摊平）。</summary>
+        private readonly Queue<Vector2Int> _pendingChunks = new Queue<Vector2Int>();
+
+        /// <summary>★ T0FIX-A：本节流口径只报一次。</summary>
+        private bool _pacingLogged;
+
+        /// <summary>★ T0FIX-A：本帧已经建了几块（自证用；`Update` 每帧开头清零）。</summary>
+        private int _builtThisFrame;
+
+        /// <summary>★ T0FIX-A：历史单帧建块数的最大值（自证用）。</summary>
+        private int _builtPeakPerFrame;
+
         private Transform _groundRoot;
         private Transform _objectRoot;
         private Transform _overlayRoot;
 
-        private readonly Dictionary<Vector2Int, Transform> _groundChunks = new Dictionary<Vector2Int, Transform>();
-        private readonly Dictionary<Vector2Int, Transform> _objectChunks = new Dictionary<Vector2Int, Transform>();
-        private readonly Dictionary<Vector2Int, Transform> _overlayChunks = new Dictionary<Vector2Int, Transform>();
+        // ★ T0FIX-H：这三份字典**不再是 readonly** —— 整图重铺完成时它们与"缓冲集"的三份字典
+        //   整份互换（见 `SwapToBuilt`）。语义不变：它们永远描述**当前可见集**。
+        private Dictionary<Vector2Int, Transform> _groundChunks = new Dictionary<Vector2Int, Transform>();
+        private Dictionary<Vector2Int, Transform> _objectChunks = new Dictionary<Vector2Int, Transform>();
+        private Dictionary<Vector2Int, Transform> _overlayChunks = new Dictionary<Vector2Int, Transform>();
+
+        // ── ★ T0FIX-H：整图重铺的**双缓冲**（新图先建在隐藏的缓冲集上，建完一帧切换）──────────────
+        /// <summary>缓冲集的三层层根（`GroundLayerB` / `ObjectLayerB` / `OverlayLayerB`；**恒隐藏**）。</summary>
+        private Transform _bufGroundRoot;
+        private Transform _bufObjectRoot;
+        private Transform _bufOverlayRoot;
+
+        /// <summary>缓冲集的块字典（铺装期间由 `EnsureJobChunk` 填；切换时整份变成可见集的那份）。</summary>
+        private Dictionary<Vector2Int, Transform> _bufGroundChunks = new Dictionary<Vector2Int, Transform>();
+        private Dictionary<Vector2Int, Transform> _bufObjectChunks = new Dictionary<Vector2Int, Transform>();
+        private Dictionary<Vector2Int, Transform> _bufOverlayChunks = new Dictionary<Vector2Int, Transform>();
+
+        /// <summary>进行中的整图重铺任务（null = 空闲）。</summary>
+        private RebuildJob _job;
+
+        /// <summary>已切到隐藏、**待分帧归还池**的旧块根（切换帧里逐个归还 = 又一个尖峰）。</summary>
+        private readonly Queue<Transform> _retireChunks = new Queue<Transform>();
+
+        /// <summary>最近一次整图重铺用了多少帧（自证量）。</summary>
+        private int _rebuildFramesLast;
+
+        /// <summary>历史「整图重铺帧数」峰值（自证量）。</summary>
+        private int _rebuildFramesPeak;
+
+        /// <summary>上一帧回收了几个节点（自证量）。</summary>
+        private int _retiredLastFrame;
+
+        /// <summary>历史「单帧回收节点数」峰值（应 ≤ `max(MaxTileNodesPerFrame, 单块节点上限)`）。</summary>
+        private int _retirePeakPerFrame;
+
+        /// <summary>历史「整图重铺单帧新建节点数」峰值（应恒 ≤ `MaxTileNodesPerFrame`）。</summary>
+        private int _rebuildPeakNodesPerFrame;
+
+        /// <summary>历史「整图重铺单帧扫描格数」峰值（应恒 ≤ `MaxTileCellsPerFrame`）。</summary>
+        private int _rebuildPeakCellsPerFrame;
 
         private bool _fogOn;
         private bool[,] _explored;
@@ -146,6 +327,46 @@ namespace Diablo2.Module.Map
         {
             get { return _groundChunks.Count + _objectChunks.Count + _overlayChunks.Count; }
         }
+
+        // ── ★ T0FIX-A 自证量（供离线/实机断言读，纯读数、无副作用）──────────────
+
+        /// <summary>待建块数（排队中、尚未建）。</summary>
+        public int PendingChunkCount { get { return _pendingChunks.Count; } }
+
+        /// <summary>节点池"新建"计数（冷分支次数）。</summary>
+        public int PoolCreatedCount { get { return _pool != null ? _pool.CreatedCount : 0; } }
+
+        /// <summary>节点池"复用"计数（热分支次数）。</summary>
+        public int PoolReusedCount { get { return _pool != null ? _pool.ReusedCount : 0; } }
+
+        /// <summary>池中当前空闲节点数。</summary>
+        public int PoolFreeCount { get { return _pool != null ? _pool.FreeCount : 0; } }
+
+        /// <summary>历史「单帧建块数」峰值（应恒 ≤ <see cref="MaxChunksPerFrame"/>；整图重铺走另一套预算）。</summary>
+        public int BuiltPeakPerFrame { get { return _builtPeakPerFrame; } }
+
+        // ── ★ T0FIX-H 自证量（供下一批实机/离线断言读，纯读数、无副作用）──────────────────
+
+        /// <summary>整图重铺是否在进行中（新图正在隐藏的缓冲集上分帧建）。</summary>
+        public bool RebuildInProgress { get { return _job != null; } }
+
+        /// <summary>最近一次整图重铺用了多少帧（0 = 还没铺过）。</summary>
+        public int RebuildFramesLast { get { return _rebuildFramesLast; } }
+
+        /// <summary>历史「整图重铺帧数」峰值（自证量）。</summary>
+        public int RebuildFramesPeak { get { return _rebuildFramesPeak; } }
+
+        /// <summary>待分帧归还池的旧块根个数（0 = 回收已完）。</summary>
+        public int PendingRetireChunks { get { return _retireChunks.Count; } }
+
+        /// <summary>历史「单帧回收节点数」峰值（应 ≤ <c>max(MaxTileNodesPerFrame, 单块节点上限 515)</c>）。</summary>
+        public int RetirePeakPerFrame { get { return _retirePeakPerFrame; } }
+
+        /// <summary>整图重铺的**单帧新建节点数**峰值（应恒 ≤ <see cref="MaxTileNodesPerFrame"/>）。</summary>
+        public int RebuildPeakNodesPerFrame { get { return _rebuildPeakNodesPerFrame; } }
+
+        /// <summary>整图重铺**单帧扫描格数**峰值（应恒 ≤ <see cref="MaxTileCellsPerFrame"/>）。</summary>
+        public int RebuildPeakCellsPerFrame { get { return _rebuildPeakCellsPerFrame; } }
 
         // ═════════════════════════════════════════════════════════════════════
         // 对外接口
@@ -242,7 +463,13 @@ namespace Diablo2.Module.Map
         /// <summary>清空渲染与已探索记录（退出 Stage）。</summary>
         public void Clear()
         {
+            _job = null;                                 // ★ T0FIX-H：分帧重铺任务作废（下面 DestroyAllChunks 会连缓冲集一起清）
             DestroyAllChunks();
+            _bufGroundRoot = null;                       // ★ T0FIX-H：缓冲层根也随 `DestroyAllChunks` 的回收失去内容
+            _bufObjectRoot = null;
+            _bufOverlayRoot = null;
+            _pendingChunks.Clear();                      // ★ T0FIX-A：待办队列一并作废
+            if (_pool != null) _pool.Clear();            // ★ T0FIX-A：退场时真销毁池（不跨场景留节点）
             _map = null;
             _showing = false;
             _chunked = false;
@@ -323,32 +550,539 @@ namespace Diablo2.Module.Map
                 "画面不变：重铺的**内容**一字未改，只改发生频率。断言：tools/probes/hosts/playercheck §15 e");
         }
 
-        /// <summary>重建全部三层（`ShowArea` / 迷雾开关 / 贴图异步到位时调用）。</summary>
+        /// <summary>
+        /// 重建全部三层（`ShowArea` / 迷雾开关 / 贴图异步到位时调用）。
+        /// <para>
+        /// ★ T0FIX-H（本片）**改口径**：本方法不再"一帧铺完"，而是**开一个分帧重铺任务** ——
+        /// 新图建在**隐藏的缓冲集**（`GroundLayerB`…）上，每帧至多 <see cref="MaxTileNodesPerFrame"/> 个节点，
+        /// 建满后**一帧原子切换**；旧集再按同一预算分帧归还池。
+        /// </para>
+        /// <para>为什么上一版"拆帧必露空"的判断要推翻：露空**只对"没有旧画面"成立**。
+        /// 这三条触发路径都有旧画面（换区 = 旧区、贴图到位 = 旧图、迷雾开关 = 旧迷雾态），
+        /// 只要新图建在隐藏缓冲集上，旧图就能一直留到新图就绪 ⇒ 中间帧**要么完整旧图、要么完整新图**。
+        /// 逐条依据见类头的 T0FIX-H 段。</para>
+        /// <para>本方法**只做登记与建缓冲集**（⛔ 不在调用点泵帧：`ShowArea`/`SetFogOfWar` 是同步调用，
+        /// 当场泵会把它变成"调用方那一帧的尖峰"）；真正的推进在 <see cref="Update"/> 的
+        /// <see cref="PumpRebuild"/>（每帧一次，含首次）。</para>
+        /// </summary>
         private void RebuildLayers()
         {
+            StartRebuild("整图重铺");
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H：开一次整图重铺任务（缓冲集 + 块清单 + 游标）。
+        /// <para>块清单顺序由纯函数 <see cref="PlannedChunks"/> 给出（= 改前 `BuildChunkRange` /
+        /// "全图逐块"循环的顺序：cx 外层、cy 内层）⇒ 兄弟序与改前一致。</para>
+        /// </summary>
+        private void StartRebuild(string why)
+        {
             EnsureLayerRoots();
-            DestroyAllChunks();
+            if (_job != null) CancelRebuildJob("被新的整图重铺请求取代");
+            EnsureBufferRoots();
+
+            _pendingChunks.Clear();           // 整图重铺 = 缓冲集从头建 ⇒ 队列里的增量待办作废
             _flatWallOverlaySkipped = 0;      // 本次铺装的计数（R1-B）
 
             _fogTiles = _fogOn ? new SpriteRenderer[_map.Width, _map.Height] : null;
             _chunked = _map.Width * _map.Height > BuildAllTileThreshold;
 
-            if (_chunked)
+            ComputeVisibleChunkRange(out var min, out var max);
+            var buildX0 = Mathf.Max(0, min.x);
+            var buildY0 = Mathf.Max(0, min.y);
+            _chunkMin = new Vector2Int(buildX0, buildY0);
+            _chunkMax = new Vector2Int(max.x, max.y);
+            _hasChunkRange = true;
+
+            var chunks = new List<Vector2Int>(_chunked ? 32 : ChunkCountX * ChunkCountY);
+            PlannedChunks(_chunked, buildX0, buildY0, _chunkMax.x, _chunkMax.y, ChunkCountX, ChunkCountY, chunks);
+            if (chunks.Count == 0)
             {
-                _hasChunkRange = false;
-                RefreshVisibleChunks();
+                // 非预期分支：地图尺寸为 0（不该发生）⇒ 点名，不留"以为铺过了"的假态
+                MapLog.Error($"MapView.StartRebuild({why}): 块清单为空（地图 {_map.Width}x{_map.Height}）⇒ 本次不铺装");
+                return;
             }
+
+            var job = new RebuildJob
+            {
+                GroundRoot = _bufGroundRoot,
+                ObjectRoot = _bufObjectRoot,
+                OverlayRoot = _bufOverlayRoot,
+                Chunks = chunks,
+                Building = _retireChunks.Count == 0,       // 旧集还没回收完 ⇒ 先回收（缓冲集必须是空的）
+            };
+            job.CursorX = chunks[0].x * ChunkSize;
+            job.CursorY = chunks[0].y * ChunkSize;
+            job.CreatedBefore = PoolCreatedCount;
+            job.ReusedBefore = PoolReusedCount;
+            _job = job;
+
+            MapLog.Info($"[T0FIX-H] 整图重铺改为**分帧双缓冲**（{why}）：块 {chunks.Count} 个" +
+                        $"（{(_chunked ? "可见范围" : "全图")}），每帧新建节点 ≤ {MaxTileNodesPerFrame}、扫描格 ≤ {MaxTileCellsPerFrame}；" +
+                        $"新图建在隐藏的缓冲层根（GroundLayerB/ObjectLayerB/OverlayLayerB）下，建满后**一帧**切换" +
+                        $"（6 次层根 SetActive、⛔ 不逐个节点动），旧集按同一预算分帧归还池" +
+                        $"（待回收 {_retireChunks.Count} 块）⇒ 中间帧**要么完整旧图、要么完整新图**");
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H 的**保底**（非预期态专用）：一帧铺完（= T0FIX-H 之前的口径）。
+        /// <para>唯一触发条件 = 分帧重铺期间缓冲层根被销毁（场景卸载那类）⇒ 宁可有尖峰，
+        /// 也不许静默留一张空图。⛔ 它与分帧路径**共用**判定与建节点
+        /// （`PlanCell` / `ApplyCellPlan` / `BuildChunk`），差别只有"目标集 + 分不分帧"。</para>
+        /// </summary>
+        private void RebuildImmediate(string why)
+        {
+            MapLog.Warn($"[T0FIX-H] {why} ⇒ 本次整图重铺**放弃分帧、一帧铺完**（保底：⛔ 不退化成空白、不静默；" +
+                        "这条分支实测只在场景卸载那类态上出现）");
+
+            EnsureLayerRoots();
+            _job = null;
+            _retireChunks.Clear();
+            DestroyAllChunks();               // 连缓冲集一起清（它可能已被销毁 ⇒ 判空无害）
+            _pendingChunks.Clear();
+            _flatWallOverlaySkipped = 0;
+
+            _fogTiles = _fogOn ? new SpriteRenderer[_map.Width, _map.Height] : null;
+            _chunked = _map.Width * _map.Height > BuildAllTileThreshold;
+
+            ComputeVisibleChunkRange(out var min, out var max);
+            var buildX0 = Mathf.Max(0, min.x);
+            var buildY0 = Mathf.Max(0, min.y);
+            _chunkMin = new Vector2Int(buildX0, buildY0);
+            _chunkMax = new Vector2Int(max.x, max.y);
+            _hasChunkRange = true;
+
+            if (_chunked) BuildChunkRange(buildX0, buildY0, _chunkMax.x, _chunkMax.y);
             else
             {
-                var chunksX = (int)Mathf.Ceil((float)_map.Width / ChunkSize);
-                var chunksY = (int)Mathf.Ceil((float)_map.Height / ChunkSize);
-                for (var cx = 0; cx < chunksX; cx++)
+                for (var cx = 0; cx < ChunkCountX; cx++)
                 {
-                    for (var cy = 0; cy < chunksY; cy++) BuildChunk(new Vector2Int(cx, cy));
+                    for (var cy = 0; cy < ChunkCountY; cy++) BuildChunk(new Vector2Int(cx, cy));
                 }
             }
 
-            ReportFlatWallOverlaySkips();     // R1-B：只报一次的数值证据（下一批进 Play 直接抄这一行）
+            _rebuildFramesLast = 1;
+            LogPacingOnce("整图重铺(保底)");
+            ReportFlatWallOverlaySkips();
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H **纯函数**（离线可断言）：整图重铺要建的**块清单**与顺序。
+        /// <para>顺序 = 改前两条路径的顺序，逐字保留：分块模式 = `BuildChunkRange`（**cx 外层、cy 内层**）；
+        /// 非分块模式 = "全图逐块"循环（同样 cx 外层、cy 内层）。兄弟序（同 `sortingOrder` 的平局次序）
+        /// 就靠它不变 ⇒ 画面逐像素不变。</para>
+        /// </summary>
+        public static void PlannedChunks(bool chunked, int buildX0, int buildY0, int buildX1, int buildY1,
+            int chunksX, int chunksY, List<Vector2Int> into)
+        {
+            if (into == null) return;
+            if (chunked)
+            {
+                for (var cx = buildX0; cx <= buildX1; cx++)
+                {
+                    for (var cy = buildY0; cy <= buildY1; cy++) into.Add(new Vector2Int(cx, cy));
+                }
+                return;
+            }
+            for (var cx = 0; cx < chunksX; cx++)
+            {
+                for (var cy = 0; cy < chunksY; cy++) into.Add(new Vector2Int(cx, cy));
+            }
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H **纯函数**（离线可断言）：本帧还能不能再处理**一格**（成本 <paramref name="cost"/> 个节点）。
+        /// <para>MapView 的分帧循环与离线断言**共用这一条** ⇒ 预算口径不可能漂。两条闸门：
+        /// ① 本帧已用节点 + 本格成本 ≤ <paramref name="nodeBudget"/>；
+        /// ② 本帧已扫格数 &lt; <paramref name="cellBudget"/>（防"成片不画的格子让一帧扫过整张图"）。</para>
+        /// </summary>
+        public static bool FrameAccepts(int usedNodes, int usedCells, int cost, int nodeBudget, int cellBudget)
+        {
+            if (usedCells >= cellBudget) return false;
+            return usedNodes + cost <= nodeBudget;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ T0FIX-H：整图重铺的**分帧双缓冲**（建缓冲集 → 一帧切换 → 分帧回收旧集）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>★ T0FIX-H：一次整图重铺任务的进度（同时只有一个；`_job == null` = 空闲）。</summary>
+        private sealed class RebuildJob
+        {
+            /// <summary>目标（**恒隐藏**的）缓冲层根。</summary>
+            public Transform GroundRoot, ObjectRoot, OverlayRoot;
+
+            /// <summary>要建的块清单（顺序见 <see cref="PlannedChunks"/>）。</summary>
+            public List<Vector2Int> Chunks;
+
+            /// <summary>下一块在 <see cref="Chunks"/> 里的下标。</summary>
+            public int ChunkIndex;
+
+            /// <summary>当前块内的续建游标（**x 外层 / y 内层**，与改前块内格序逐字一致）。</summary>
+            public int CursorX, CursorY;
+
+            /// <summary>true = 已进入"建"阶段（false = 先等旧集回收完，缓冲集必须是空的）。</summary>
+            public bool Building;
+
+            /// <summary>本任务已经用了多少帧。</summary>
+            public int Frames;
+
+            /// <summary>本任务累计建的节点数。</summary>
+            public int NodesBuilt;
+
+            /// <summary>本任务单帧建节点数的峰值（应 ≤ <see cref="MaxTileNodesPerFrame"/>）。</summary>
+            public int PeakNodesInFrame;
+
+            /// <summary>本任务单帧扫描格数的峰值（应 ≤ <see cref="MaxTileCellsPerFrame"/>）。</summary>
+            public int PeakCellsInFrame;
+
+            /// <summary>任务开始时的池计数（用来算"这次重铺新建/复用了多少"）。</summary>
+            public int CreatedBefore, ReusedBefore;
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H：缓冲集（`GroundLayerB` / `ObjectLayerB` / `OverlayLayerB`）—— 新图先建在这里、
+        /// **恒隐藏**，建满才一帧切换。懒创建；场景卸载后会判空重建（与 `EnsureLayerRoots` 同口径）。
+        /// </summary>
+        private void EnsureBufferRoots()
+        {
+            if (_bufGroundRoot == null) _bufGroundRoot = NewChild(transform, "GroundLayerB");
+            if (_bufObjectRoot == null) _bufObjectRoot = NewChild(transform, "ObjectLayerB");
+            if (_bufOverlayRoot == null) _bufOverlayRoot = NewChild(transform, "OverlayLayerB");
+
+            // ⛔ 恒隐藏：任何时刻缓冲集都不可见（可见性只由 SwapToBuilt 的 6 次层根 SetActive 决定）
+            _bufGroundRoot.gameObject.SetActive(false);
+            _bufObjectRoot.gameObject.SetActive(false);
+            _bufOverlayRoot.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H：丢弃"建到一半"的重铺任务。缓冲集里的节点**不逐个归还池**（那正是要避免的单帧尖峰，
+        /// 实测每节点 20.79~27.416 µs）⇒ 直接销毁缓冲层根（连子树）。**非预期分支** ⇒ 一定打 Warn。
+        /// </summary>
+        private void CancelRebuildJob(string why)
+        {
+            var job = _job;
+            if (job == null) return;
+            _job = null;
+            MapLog.Warn($"[T0FIX-H] 上一次分帧重铺被丢弃（{why}）：已建 {job.NodesBuilt} 个节点 / {job.Frames} 帧" +
+                        "⇒ 半成品缓冲集**连子树整根销毁**（⛔ 不逐个归还池：那会把单帧尖峰搬到这一帧），下次重铺重建");
+
+            _bufGroundChunks.Clear();
+            _bufObjectChunks.Clear();
+            _bufOverlayChunks.Clear();
+            if (job.GroundRoot != null) Destroy(job.GroundRoot.gameObject);
+            if (job.ObjectRoot != null) Destroy(job.ObjectRoot.gameObject);
+            if (job.OverlayRoot != null) Destroy(job.OverlayRoot.gameObject);
+            _bufGroundRoot = null;
+            _bufObjectRoot = null;
+            _bufOverlayRoot = null;
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H：把"已不可见"的旧块**按帧预算**归还池（每帧 ≤ <paramref name="budget"/> 个节点）。
+        /// 返回 true = 回收完（队列空）。
+        /// <para>为什么回收也要分帧：切换帧里逐个 `SetParent` + `SetActive` 上万次 = 又一个尖峰
+        /// （实测每节点 20.79~27.416 µs ⇒ 2824 个节点 ≈ 59~77 ms）。</para>
+        /// <para>口径：每帧**至少**回收一块（否则退回"永远回收不完"），故单帧上界 =
+        /// `max(budget, 单块节点上限 515)`。</para>
+        /// </summary>
+        private bool PumpRetire(int budget)
+        {
+            var nodes = 0;
+            while (_retireChunks.Count > 0)
+            {
+                var chunkRoot = _retireChunks.Peek();
+                if (chunkRoot == null) { _retireChunks.Dequeue(); continue; }   // 已被场景卸载销毁
+                if (nodes > 0 && nodes + chunkRoot.childCount > budget) break;  // 下一块放不下 ⇒ 留到下一帧
+                _retireChunks.Dequeue();
+                nodes += RecycleChunk(chunkRoot);
+            }
+
+            _retiredLastFrame = nodes;
+            if (nodes > _retirePeakPerFrame) _retirePeakPerFrame = nodes;
+            return _retireChunks.Count == 0;
+        }
+
+        /// <summary>★ T0FIX-H：把一份块字典里的块根全部登记进"待回收"队列（只登记，⛔ 不回收）。</summary>
+        private void EnqueueRetire(Dictionary<Vector2Int, Transform> dict)
+        {
+            foreach (var kv in dict)
+            {
+                if (kv.Value != null) _retireChunks.Enqueue(kv.Value);
+            }
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H：把整图重铺推进一帧（`Update` 每帧一次；预算 = <see cref="MaxTileNodesPerFrame"/> /
+        /// <see cref="MaxTileCellsPerFrame"/>）。
+        /// <para>四个出口：① 预算用尽 ⇒ 下帧续建；② 全部建完 ⇒ **同一帧**切换（O(1)）；
+        /// ③ 缓冲层根被销毁（非预期）⇒ 转一帧铺完保底；④ 没任务 ⇒ 什么都不做。</para>
+        /// </summary>
+        private void PumpRebuild()
+        {
+            var job = _job;
+            if (job == null) return;
+
+            if (!job.Building)
+            {
+                if (!PumpRetire(MaxTileNodesPerFrame)) return;   // 本帧先把旧集回收完（缓冲集必须空）
+                job.Building = true;
+            }
+
+            if (job.GroundRoot == null || job.ObjectRoot == null || job.OverlayRoot == null)
+            {
+                // 非预期分支：缓冲层根被销毁（场景卸载那类）⇒ 放弃分帧，退回一帧铺完（⛔ 不静默留空白）
+                _bufGroundRoot = null;
+                _bufObjectRoot = null;
+                _bufOverlayRoot = null;
+                _bufGroundChunks.Clear();
+                _bufObjectChunks.Clear();
+                _bufOverlayChunks.Clear();
+                RebuildImmediate("分帧重铺期间缓冲层根被销毁（场景卸载 / 被外部销毁？）");
+                return;
+            }
+
+            job.Frames++;
+            var used = 0;
+            var cells = 0;
+
+            while (job.ChunkIndex < job.Chunks.Count)
+            {
+                var chunk = job.Chunks[job.ChunkIndex];
+
+                if (!_bufGroundChunks.ContainsKey(chunk))
+                {
+                    // 块根 = 3 个结构节点，**同样计入预算**（预算是"本帧新建节点上限"，不是"瓦片节点上限"）
+                    if (!FrameAccepts(used, cells, ChunkRootNodeCount, MaxTileNodesPerFrame, MaxTileCellsPerFrame)) break;
+                    EnsureJobChunk(chunk);
+                    used += ChunkRootNodeCount;
+                }
+
+                var x0 = chunk.x * ChunkSize;
+                var y0 = chunk.y * ChunkSize;
+                var x1 = Mathf.Min(x0 + ChunkSize, _map.Width);
+                var y1 = Mathf.Min(y0 + ChunkSize, _map.Height);
+                var deferred = false;
+
+                for (var x = job.CursorX; x < x1 && !deferred; x++)
+                {
+                    var yFrom = x == job.CursorX ? job.CursorY : y0;
+                    for (var y = yFrom; y < y1; y++)
+                    {
+                        var g = new Vector2Int(x, y);
+                        var plan = PlanCell(_map, _area, g);          // ⛔ 先决定要几个节点，再决定要不要建（预算必须精确）
+                        if (!FrameAccepts(used, cells, plan.NodeCount, MaxTileNodesPerFrame, MaxTileCellsPerFrame))
+                        {
+                            job.CursorX = x;
+                            job.CursorY = y;
+                            deferred = true;
+                            break;
+                        }
+                        used += ApplyCellPlan(plan, g, _bufGroundChunks[chunk], _bufObjectChunks[chunk], _bufOverlayChunks[chunk]);
+                        cells++;
+                    }
+                }
+                if (deferred) break;
+
+                job.ChunkIndex++;
+                // ★ T0FIX-I：这一块的格**已全部建完** ⇒ 把它的三个块根 `activeSelf` 逐块置回 true。
+                //   层根此刻仍隐藏 ⇒ **仍然不可见**（缓冲集的可见性只由 `SwapToBuilt` 的层根 SetActive 决定）；
+                //   这么做的意义 = 切换那一帧「层根一激活，整块就出来」，且**不依赖**"激活父节点顺带复活
+                //   `activeSelf=false` 的子节点"这种 Unity 语义（那正是本片 Stage 黑屏的根因）。
+                MarkJobChunkBuilt(chunk);
+                if (job.ChunkIndex < job.Chunks.Count)
+                {
+                    var next = job.Chunks[job.ChunkIndex];
+                    job.CursorX = next.x * ChunkSize;
+                    job.CursorY = next.y * ChunkSize;
+                }
+            }
+
+            job.NodesBuilt += used;
+            if (used > job.PeakNodesInFrame) job.PeakNodesInFrame = used;
+            if (cells > job.PeakCellsInFrame) job.PeakCellsInFrame = cells;
+            if (used > _rebuildPeakNodesPerFrame) _rebuildPeakNodesPerFrame = used;
+            if (cells > _rebuildPeakCellsPerFrame) _rebuildPeakCellsPerFrame = cells;
+
+            if (job.ChunkIndex >= job.Chunks.Count) SwapToBuilt(job);   // 建满 ⇒ 同一帧切换
+        }
+
+        /// <summary>★ T0FIX-H：在**缓冲集**里建一块的三层块根（建出来即失活 ⇒ 切换前绝不可见）。</summary>
+        private void EnsureJobChunk(Vector2Int chunk)
+        {
+            var name = $"Chunk_{chunk.x}_{chunk.y}";
+            var ground = NewChild(_bufGroundRoot, name);
+            var obj = NewChild(_bufObjectRoot, name);
+            var overlay = NewChild(_bufOverlayRoot, name);
+            ground.gameObject.SetActive(false);
+            obj.gameObject.SetActive(false);
+            overlay.gameObject.SetActive(false);
+
+            _bufGroundChunks[chunk] = ground;
+            _bufObjectChunks[chunk] = obj;
+            _bufOverlayChunks[chunk] = overlay;
+        }
+
+        /// <summary>
+        /// ★ T0FIX-I：把**一个已建满的块**的三个块根逐块复活（`activeSelf = true`）。
+        /// <para>为什么要单独一步：`EnsureJobChunk` 建块时把块根 `SetActive(false)`（缓冲集恒隐藏的双保险），
+        /// 而 Unity 的语义是「激活父节点**不**复活 `activeSelf=false` 的子节点」⇒ 只激活层根的话，
+        /// 双缓冲建出的整张图**一次都不会被渲染**（实机实测：整图 `activeSR=0`、全屏 `mean_lum=5.42/255`）。</para>
+        /// <para>时机：块内格**全部建完**那一帧（层根仍隐藏 ⇒ 仍不可见），成本 = 3 次 `SetActive`/块，
+        /// 摊在建图帧里 ⇒ 不落在 `SwapToBuilt` 的切换帧上。</para>
+        /// </summary>
+        private void MarkJobChunkBuilt(Vector2Int chunk)
+        {
+            Transform ground, obj, overlay;
+            if (_bufGroundChunks.TryGetValue(chunk, out ground) && ground != null) ground.gameObject.SetActive(true);
+            if (_bufObjectChunks.TryGetValue(chunk, out obj) && obj != null) obj.gameObject.SetActive(true);
+            if (_bufOverlayChunks.TryGetValue(chunk, out overlay) && overlay != null) overlay.gameObject.SetActive(true);
+        }
+
+        /// <summary>
+        /// ★ T0FIX-I：切换前的**不变量兜底** —— 逐块确认新集每个块根 `activeSelf` 已为 true
+        /// （正常路径上 `MarkJobChunkBuilt` 已复活过 ⇒ 这里是 O(块数) 的空转，不碰任何瓦片节点）。
+        /// <para>⛔ 它的存在意义 = 「不靠层根整体激活」：块根是否可见由它**逐个**负责，而不是赌
+        /// Unity 会替我们把 `activeSelf=false` 的子节点复活。</para>
+        /// </summary>
+        private static void ActivateChunkRoots(Dictionary<Vector2Int, Transform> ground,
+            Dictionary<Vector2Int, Transform> obj, Dictionary<Vector2Int, Transform> overlay)
+        {
+            ActivateChunkRootsIn(ground);
+            ActivateChunkRootsIn(obj);
+            ActivateChunkRootsIn(overlay);
+        }
+
+        /// <summary>★ T0FIX-I：见 <see cref="ActivateChunkRoots"/>（单层）。</summary>
+        private static void ActivateChunkRootsIn(Dictionary<Vector2Int, Transform> dict)
+        {
+            foreach (var kv in dict)
+            {
+                var t = kv.Value;
+                if (t != null && !t.gameObject.activeSelf) t.gameObject.SetActive(true);
+            }
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H：**一帧原子切换**（新图就绪 ⇒ 缓冲集显示、旧集隐藏）。
+        /// <para>⛔ 本方法体内**不许**出现任何"逐个节点"的操作（`SetParent` / `Destroy` / `Return` /
+        /// `new GameObject` / 写 `sprite`/`color`/`sortingOrder`）—— 那正是尖峰的来源。
+        /// 这里只有：6 次**层根** `SetActive` + 三份字典的引用互换 + `O(块数)` 次入队
+        /// （旧块进 <see cref="_retireChunks"/>，由 <see cref="PumpRetire"/> 按帧预算归还池）。
+        /// 结构性断言见 `tools/probes/hosts/mapcheck` §19。</para>
+        /// </summary>
+        private void SwapToBuilt(RebuildJob job)
+        {
+            // ① 旧集：整根失活（内容还在 ⇒ 块根进回收队列，逐帧归还池）
+            _groundRoot.gameObject.SetActive(false);
+            _objectRoot.gameObject.SetActive(false);
+            _overlayRoot.gameObject.SetActive(false);
+            EnqueueRetire(_groundChunks);
+            EnqueueRetire(_objectChunks);
+            EnqueueRetire(_overlayChunks);
+
+            // ② 新集：整根激活（内容在隐藏状态下已经建满 ⇒ 一次切换就是完整新图）
+            //   ★ T0FIX-I（**根因修复**）：先**逐块**把新集每个块根的 `activeSelf` 置 true，再激活层根。
+            //     `EnsureJobChunk` 建块时置过 false；正常路径上 `MarkJobChunkBuilt` 已在块建满那一帧复活
+            //     （⇒ 这里实测是空转），本行是切换帧的**不变量兜底**。
+            //     ⛔ 不许删掉它退回"只做下面 3 次层根 SetActive"—— Unity 激活父节点**不**复活
+            //     `activeSelf=false` 的子节点，那正是本片 Stage 黑屏到 `mean_lum=5.42/255` 的根因。
+            ActivateChunkRoots(_bufGroundChunks, _bufObjectChunks, _bufOverlayChunks);
+            job.GroundRoot.gameObject.SetActive(true);
+            job.ObjectRoot.gameObject.SetActive(true);
+            job.OverlayRoot.gameObject.SetActive(true);
+
+            // ③ 层根与字典互换（旧集变成"下一次的缓冲集"；它的字典已交给回收队列 ⇒ 清空备用）
+            var g0 = _groundRoot; _groundRoot = _bufGroundRoot; _bufGroundRoot = g0;
+            var o0 = _objectRoot; _objectRoot = _bufObjectRoot; _bufObjectRoot = o0;
+            var v0 = _overlayRoot; _overlayRoot = _bufOverlayRoot; _bufOverlayRoot = v0;
+            var dg = _groundChunks; _groundChunks = _bufGroundChunks; _bufGroundChunks = dg;
+            var dob = _objectChunks; _objectChunks = _bufObjectChunks; _bufObjectChunks = dob;
+            var dov = _overlayChunks; _overlayChunks = _bufOverlayChunks; _bufOverlayChunks = dov;
+            _bufGroundChunks.Clear();
+            _bufObjectChunks.Clear();
+            _bufOverlayChunks.Clear();
+
+            _job = null;
+            _rebuildFramesLast = job.Frames;
+            if (job.Frames > _rebuildFramesPeak) _rebuildFramesPeak = job.Frames;
+
+            LogPacingOnce("整图重铺");
+            ReportFlatWallOverlaySkips();     // R1-B：只报一次的数值证据
+            MapLog.Info($"[T0FIX-H] 整图重铺完成并**一帧切换**：{job.Frames} 帧 / 块 {job.Chunks.Count} / " +
+                        $"建节点 {job.NodesBuilt}（单帧峰值 {job.PeakNodesInFrame}/{MaxTileNodesPerFrame}，" +
+                        $"扫描峰值 {job.PeakCellsInFrame}/{MaxTileCellsPerFrame}）/ " +
+                        $"新建 GO {PoolCreatedCount - job.CreatedBefore} + 复用 {PoolReusedCount - job.ReusedBefore}；" +
+                        $"旧集 {_retireChunks.Count} 块转由回收队列按帧（≤ {MaxTileNodesPerFrame} 节点）归还池");
+        }
+
+        /// <summary>块网格的列数（`Ceil(Width / ChunkSize)`）。</summary>
+        private int ChunkCountX { get { return (int)Mathf.Ceil((float)_map.Width / ChunkSize); } }
+
+        /// <summary>块网格的行数（`Ceil(Height / ChunkSize)`）。</summary>
+        private int ChunkCountY { get { return (int)Mathf.Ceil((float)_map.Height / ChunkSize); } }
+
+        /// <summary>把 `[x0,x1] × [y0,y1]` 的块**本帧**建完（`RebuildLayers` 用；不排队）。</summary>
+        private void BuildChunkRange(int x0, int y0, int x1, int y1)
+        {
+            for (var cx = x0; cx <= x1; cx++)
+            {
+                for (var cy = y0; cy <= y1; cy++) BuildChunk(new Vector2Int(cx, cy));
+            }
+        }
+
+        /// <summary>
+        /// ★ T0FIX-A 的**纯函数**（离线可断言）：本帧该建几块 = `min(待建块数, 预算)`。
+        /// 逐条数字与断言见 `tools/probes/hosts/mapcheck` §17。
+        /// </summary>
+        public static int ChunksThisFrame(int pendingCount, int budgetPerFrame)
+        {
+            if (pendingCount <= 0 || budgetPerFrame <= 0) return 0;
+            return pendingCount < budgetPerFrame ? pendingCount : budgetPerFrame;
+        }
+
+        /// <summary>
+        /// ★ T0FIX-A：把队列里的待建块**按帧预算**建出来（`Update` 每帧调用一次）。
+        /// 一帧至多建 <paramref name="budget"/> 块 ⇒ 单帧新增节点 ≤ 预算 × 单块节点上限。
+        /// </summary>
+        private void PumpChunkBuild(int budget)
+        {
+            var n = ChunksThisFrame(_pendingChunks.Count, budget);
+            if (n <= 0) return;
+
+            _builtThisFrame += n;
+            for (var i = 0; i < n; i++)
+            {
+                var chunk = _pendingChunks.Dequeue();
+                BuildChunk(chunk);
+            }
+
+            if (_builtThisFrame > _builtPeakPerFrame) _builtPeakPerFrame = _builtThisFrame;
+            LogPacingOnce("增量补块");
+        }
+
+        /// <summary>
+        /// ★ T0FIX-A：把「本帧建块摊平 + 节点池」的**生效口径**报一次（tag `T0FIX`），
+        /// 数字全部由生产常量现算（⛔ 不写裸数字）。
+        /// </summary>
+        private void LogPacingOnce(string how)
+        {
+            if (_pacingLogged) return;
+            _pacingLogged = true;
+
+            var budgetFrames = ChunkSize / GameConst.PlayerWalkSpeed * FramePacing.TargetFrameRate;
+            var perFrameGrid = MaxChunksPerFrame * ChunkSize * FramePacing.TargetFrameRate;
+            Log.Info("T0FIX",
+                $"[T0FIX] 地图建块摊平 + 节点池生效（{how}）：增量路径每帧至多 {MaxChunksPerFrame} 块" +
+                $"（= {MaxChunksPerFrame * ChunkSize} 格/帧 = {perFrameGrid:0} 格/s，" +
+                $"相机最快 {GameConst.PlayerWalkSpeed:0.0} 格/s）；" +
+                $"依据 = 视口外扩 1 块 {ChunkSize} 格 ÷ {GameConst.PlayerWalkSpeed:0.0} 格/s = " +
+                $"{ChunkSize / GameConst.PlayerWalkSpeed:0.###} s = {budgetFrames:0} 帧 @{FramePacing.TargetFrameRate}fps；" +
+                $"② **整图重铺**（`RebuildLayers` → 缓冲集）每帧新建节点 ≤ {MaxTileNodesPerFrame}、扫描格 ≤ {MaxTileCellsPerFrame}，" +
+                "建满后**一帧**切换（6 次层根 SetActive），旧集按同一预算分帧归还池" +
+                $"（口径见类头 T0FIX-H 段与 `MaxTileNodesPerFrame` 的算式）；" +
+                $"池计数：新建 {PoolCreatedCount} / 复用 {PoolReusedCount}；块根建出先 SetActive(false)、块内建完才激活");
         }
 
         /// <summary>
@@ -369,7 +1103,12 @@ namespace Diablo2.Module.Map
                 "仅渲染层：TileKind / 可走性 / 逐格键一个字未动");
         }
 
-        /// <summary>按可见区域补块 / 回收远处块（只在大图模式下走）。</summary>
+        /// <summary>
+        /// 按可见区域**登记**待建块 / 回收远处块（只在大图模式下走）。
+        /// <para>★ T0FIX-A：旧口径是"本帧把新进范围的块**全建完**"（一次 3~7 块 ⇒ 单帧尖峰）；
+        /// 新口径 = **只登记**，建块交给 `Update` 的 <see cref="PumpChunkBuild"/> 按
+        /// <see cref="MaxChunksPerFrame"/> 摊平。登记顺序 = 行主序（块内格序不变）。</para>
+        /// </summary>
         private void RefreshVisibleChunks()
         {
             // ★ agent-16：层根被销毁（场景卸载）时**绝不**继续铺（否则在已销毁父节点上建子节点）。
@@ -398,9 +1137,16 @@ namespace Diablo2.Module.Map
             _chunkMax = new Vector2Int(buildX1, buildY1);
             _hasChunkRange = true;
 
+            // ★ T0FIX-A：只登记（不建）；已建的不重复排队，队列里已有的不重复入队
             for (var cx = buildX0; cx <= buildX1; cx++)
             {
-                for (var cy = buildY0; cy <= buildY1; cy++) BuildChunk(new Vector2Int(cx, cy));
+                for (var cy = buildY0; cy <= buildY1; cy++)
+                {
+                    var c = new Vector2Int(cx, cy);
+                    if (_groundChunks.ContainsKey(c)) continue;
+                    if (_pendingChunks.Contains(c)) continue;
+                    _pendingChunks.Enqueue(c);
+                }
             }
 
             ReleaseFarChunks(buildX0 - 1, buildY0 - 1, buildX1 + 1, buildY1 + 1);
@@ -443,13 +1189,27 @@ namespace Diablo2.Module.Map
                                  Mathf.Clamp(maxY / ChunkSize + 1, 0, chunksY - 1));
         }
 
+        /// <summary>
+        /// 建一块（3 个块根 + 逐格）。
+        /// <para>★ T0FIX-A：块根一建出来先 `SetActive(false)`，**块内全部格建完才激活**
+        /// ⇒ 任何时刻都不会出现"半块地图"可见态（分帧也安全）。同帧建完时激活点仍是同一帧
+        /// ⇒ 画面与改前逐像素一致。节点全部走 <see cref="EnsurePool"/> 的池（冷池才 `new`）。</para>
+        /// </summary>
         private void BuildChunk(Vector2Int chunk)
         {
             if (_groundChunks.ContainsKey(chunk)) return;   // 已铺过
 
-            _groundChunks[chunk] = NewChild(_groundRoot, $"Chunk_{chunk.x}_{chunk.y}");
-            _objectChunks[chunk] = NewChild(_objectRoot, $"Chunk_{chunk.x}_{chunk.y}");
-            _overlayChunks[chunk] = NewChild(_overlayRoot, $"Chunk_{chunk.x}_{chunk.y}");
+            var name = $"Chunk_{chunk.x}_{chunk.y}";
+            var ground = NewChild(_groundRoot, name);
+            var obj = NewChild(_objectRoot, name);
+            var overlay = NewChild(_overlayRoot, name);
+            ground.gameObject.SetActive(false);
+            obj.gameObject.SetActive(false);
+            overlay.gameObject.SetActive(false);
+
+            _groundChunks[chunk] = ground;
+            _objectChunks[chunk] = obj;
+            _overlayChunks[chunk] = overlay;
 
             var x0 = chunk.x * ChunkSize;
             var y0 = chunk.y * ChunkSize;
@@ -460,14 +1220,86 @@ namespace Diablo2.Module.Map
             {
                 for (var y = y0; y < y1; y++) BuildCell(new Vector2Int(x, y), chunk);
             }
+
+            // 块内全部格建完 ⇒ 三个块根一起激活（同一帧激活点 ⇒ 不出现半块）
+            ground.gameObject.SetActive(true);
+            obj.gameObject.SetActive(true);
+            overlay.gameObject.SetActive(true);
         }
 
+        /// <summary>
+        /// 建一格（**增量路径**用：目标是当前可见集的块）。
+        /// <para>★ T0FIX-H：判定与落地拆成 `PlanCell`（纯函数、零节点）+ `ApplyCellPlan`（建节点）——
+        /// 分帧预算必须**在建节点之前**知道本格要几个节点，否则单帧会超预算。
+        /// 本方法 = 两者的薄壳（判定逐条与改前 `BuildCell` 同源）。</para>
+        /// </summary>
         private void BuildCell(Vector2Int g, Vector2Int chunk)
         {
-            var kind = _map.Get(g);
-            if (kind == TileKind.Void) return;      // 图外/未生成：什么都不画
+            var plan = PlanCell(_map, _area, g);
+            if (!plan.Draw) return;
+            ApplyCellPlan(plan, g, _groundChunks[chunk], _objectChunks[chunk], _overlayChunks[chunk]);
+        }
 
-            var world = Iso.GridToWorld(g);
+        /// <summary>★ T0FIX-H：一格的**建/画决定**（纯值；`NodeCount` = 本格要几个节点：0/1/2）。</summary>
+        internal readonly struct CellPlan
+        {
+            /// <summary>这格要不要画（false = `TileKind.Void`：图外/未生成 —— 连迷雾都不画）。</summary>
+            public readonly bool Draw;
+
+            /// <summary>地面层瓦片键（null/"" = 这格不画地面：原版洞穴的纯黑岩体就是这样）。</summary>
+            public readonly string GroundKey;
+
+            /// <summary>地面层用的 `TileKind`（决定占位色）。</summary>
+            public readonly TileKind GroundKind;
+
+            /// <summary>物件层 `TileKind`（决定占位色）。</summary>
+            public readonly TileKind ObjectKind;
+
+            /// <summary>物件层瓦片键（仅 <see cref="DrawObject"/> 为真时有效；null = 纯色占位）。</summary>
+            public readonly string ObjectKey;
+
+            /// <summary>物件层画不画（已含 `IsHiddenSolidInterior` 排除）。</summary>
+            public readonly bool DrawObject;
+
+            /// <summary>R1-B：本格的平色水墙瓦片被"不叠"跳过了（只用于计数）。</summary>
+            public readonly bool SkipFlatWall;
+
+            /// <summary>构造（唯一入口；全部字段显式给）。</summary>
+            public CellPlan(bool draw, string groundKey, TileKind groundKind, TileKind objectKind,
+                bool drawObject, string objectKey, bool skipFlatWall)
+            {
+                Draw = draw;
+                GroundKey = groundKey;
+                GroundKind = groundKind;
+                ObjectKind = objectKind;
+                DrawObject = drawObject;
+                ObjectKey = objectKey;
+                SkipFlatWall = skipFlatWall;
+            }
+
+            /// <summary>本格要建的节点数（0 = 什么都不画；1 = 只有一层；2 = 两层都画）。</summary>
+            public int NodeCount
+            {
+                get
+                {
+                    var n = 0;
+                    if (!string.IsNullOrEmpty(GroundKey)) n++;
+                    if (DrawObject) n++;
+                    return n;
+                }
+            }
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H **纯函数**（离线可断言）：一格要画什么。⛔ 零副作用（不建节点、不动
+        /// `_flatWallOverlaySkipped`、不请求贴图）—— 与 <see cref="ApplyCellPlan"/> 的分工见 `BuildCell`。
+        /// <para>判定逐条与改前 `BuildCell` 同源：逐格「原版瓦片键」覆盖（罗格营地 / 邪恶洞穴）、
+        /// 地面层排序下移、物件层不做 `TileKind` 兜底、R1-B 平色水墙不叠、洞穴实心岩体不画物件。</para>
+        /// </summary>
+        internal static CellPlan PlanCell(GridMap map, AreaId area, Vector2Int g)
+        {
+            var kind = map.Get(g);
+            if (kind == TileKind.Void) return new CellPlan(false, null, kind, kind, false, null, false);
 
             // ── 逐格「原版瓦片键」覆盖：**罗格营地**（`MapGenTownLayout`，源 `townW1.ds1`）
             //    与**邪恶洞穴**（`MapGenCaveLayout`，源 `CAVES/*.ds1`）都用它。
@@ -476,19 +1308,12 @@ namespace Diablo2.Module.Map
             //      · 返回 true 且 groundKey == "" ⇒ **原版这格不画**（洞穴里的纯黑实心岩体就是
             //        这种格），⛔ 不许兜底成占位菱形 —— 兜底会把它变成一堆灰方块。
             string ds1Ground = null, ds1Object = null;
-            var fromDs1 = _map.TryGetTiles(g.x, g.y, out ds1Ground, out ds1Object);
+            var fromDs1 = map.TryGetTiles(g.x, g.y, out ds1Ground, out ds1Object);
 
             // ── 地面层 ──
             // ★ 地面整体下移一个排序步长：见文件头「地面层为什么额外 -SortOrderStep」
-            var groundKind = TileKindInfo.IsGroundLayer(kind) ? kind : BaseGroundOf(_area);
-            var groundKey = fromDs1 ? ds1Ground : GroundKeyOf(groundKind, _area, g);
-            if (!string.IsNullOrEmpty(groundKey))
-            {
-                var groundSprite = TrySprite(ResPaths.Tile(groundKey));
-                NewTile(_groundChunks[chunk], PlaceOf(world, groundSprite, isFloor: true),
-                    groundSprite, GroundColor(groundKind),
-                    Iso.SortOrder(g, GameConst.LayerOffsetGround) - GameConst.SortOrderStep);
-            }
+            var groundKind = TileKindInfo.IsGroundLayer(kind) ? kind : BaseGroundOf(area);
+            var groundKey = fromDs1 ? ds1Ground : GroundKeyOf(groundKind, area, g);
 
             // ── 物件层 ──
             // **有逐格覆盖的区域（营地 / 洞穴）**：只画原版那一格真的有的瓦片 —— 原版那格没有
@@ -501,39 +1326,67 @@ namespace Diablo2.Module.Map
             //   口径与出处见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay` 的注释；
             //   ⛔ 只影响本帧画不画这一张物件，**不动** `GridMap` 的键 / `TileKind` / 可走性。
             var skipFlatWallOverlay = ds1HasObject && IsPaletteCycledFlatWallOverlay(ds1Ground, ds1Object);
-            if (skipFlatWallOverlay) _flatWallOverlaySkipped++;
 
             var drawObject = fromDs1 ? (ds1HasObject && !skipFlatWallOverlay) : IsObjectKind(kind);
-            if (drawObject && !IsHiddenSolidInterior(g, kind))
+            if (drawObject && IsHiddenSolidInterior(map, g, kind)) drawObject = false;
+
+            var objectKey = drawObject
+                ? (ds1HasObject ? ds1Object : (fromDs1 ? null : ObjectKeyOf(kind, area, g)))
+                : null;
+
+            return new CellPlan(true, groundKey, groundKind, kind, drawObject, objectKey, skipFlatWallOverlay);
+        }
+
+        /// <summary>
+        /// ★ T0FIX-H：把一格的计划**落地**（建节点），返回本格**新建的节点数**（恒等于
+        /// <see cref="CellPlan.NodeCount"/> —— 帧预算就是按它扣的）。
+        /// <para>本方法**不含任何决定**（决定全在 `PlanCell`）；贴图请求（`TrySprite` 的异步侧效）
+        /// 与 R1-B 计数都在这里，顺序与改前 `BuildCell` 逐字一致：地面 → 物件 → 迷雾。</para>
+        /// </summary>
+        private int ApplyCellPlan(CellPlan p, Vector2Int g, Transform ground, Transform obj, Transform overlay)
+        {
+            if (!p.Draw) return 0;      // Void：连迷雾都不画（与改前 `BuildCell` 的早退同口径）
+
+            var n = 0;
+
+            if (!string.IsNullOrEmpty(p.GroundKey))
             {
-                var objectKey = ds1HasObject ? ds1Object
-                              : (fromDs1 ? null : ObjectKeyOf(kind, _area, g));
-                var objectSprite = objectKey != null ? TrySprite(ResPaths.ObjectSprite(objectKey)) : null;
-                NewTile(_objectChunks[chunk], PlaceOf(world, objectSprite, isFloor: false),
-                    objectSprite, ObjectColor(kind),
-                    Iso.SortOrder(g, GameConst.LayerOffsetObject));
+                var groundSprite = TrySprite(ResPaths.Tile(p.GroundKey));
+                NewTile(ground, GroundState(groundSprite, p.GroundKind, g));
+                n++;
+            }
+
+            if (p.SkipFlatWall) _flatWallOverlaySkipped++;
+
+            if (p.DrawObject)
+            {
+                var objectSprite = p.ObjectKey != null ? TrySprite(ResPaths.ObjectSprite(p.ObjectKey)) : null;
+                NewTile(obj, ObjectState(objectSprite, p.ObjectKind, g));
+                n++;
             }
 
             // ── 遮蔽层（迷雾）──
-            if (_fogOn) CreateFog(g, chunk);
+            if (_fogOn) CreateFog(g, overlay);
+            return n;
         }
 
-        private void CreateFog(Vector2Int g, Vector2Int chunk)
+        /// <summary>建一格的迷雾（目标 = 那一层的块根；`_fogTiles` 记录节点以便 `MarkExplored` 直接关掉）。</summary>
+        private void CreateFog(Vector2Int g, Transform overlay)
         {
             if (_fogTiles == null || _explored == null) return;
             if (_explored[g.x, g.y]) return;
             if (_fogTiles[g.x, g.y] != null) return;
 
-            _fogTiles[g.x, g.y] = NewTile(_overlayChunks[chunk], Iso.GridToWorld(g), null,
-                new Color(0f, 0f, 0f, FogAlpha), Iso.SortOrder(g, GameConst.LayerOffsetOverlay));
+            _fogTiles[g.x, g.y] = NewTile(overlay, FogState(g));
         }
 
         /// <summary>
         /// 洞穴实心岩体（`CaveWall` 且四周没有一格可走）不画物件层：
         /// 原版洞穴里那些区域是**全黑**的，画出来反而多余，也省下几千个 GameObject。
+        /// <para>★ T0FIX-H：改成**静态**（吃 `map` 参数）—— `PlanCell` 是纯函数，它必须能被离线复算。</para>
         /// </summary>
-        private bool IsHiddenSolidInterior(Vector2Int g, TileKind kind)
-            => kind == TileKind.CaveWall && !_map.HasWalkableNeighbor(g);
+        private static bool IsHiddenSolidInterior(GridMap map, Vector2Int g, TileKind kind)
+            => kind == TileKind.CaveWall && !map.HasWalkableNeighbor(g);
 
         // ═════════════════════════════════════════════════════════════════════
         // 素材 / 颜色 / 节点
@@ -601,6 +1454,10 @@ namespace Diablo2.Module.Map
                 case TileKind.CaveWall:
                 case TileKind.Exit:      // 出入口要看得见（营地出口 = 围栏缺口；野外洞穴口 = `CAVES/cavedr.dt1`）
                     return true;
+                // ★ 片 L / R12：水**显式登记为"不是物件"**（原版水面是 floor 层）。
+                //   显式写出来 = 即便将来 default 改成 true，水也不会被画成石头/崖壁的物件。
+                case TileKind.Water:
+                    return false;
                 default:
                     return false;
             }
@@ -647,6 +1504,32 @@ namespace Diablo2.Module.Map
 
         /// <summary>洞穴实心岩体（`CaveWall`）的地面：同洞穴地面，岩壁另有物件层盖上去。</summary>
         private static readonly string[] CaveWallGroundTiles = CaveFloorTiles;
+
+        /// <summary>
+        /// 水面（`TileKind.Water`）的 floor 瓦片 —— 原版 `ACT1/OUTDOORS/river.dt1` 解出的
+        /// `Tiles/moor_river/*`（44 张水面瓦片，见 `PaletteCycledFlatWallTiles` 的 R1-B 取证）。
+        /// <para>
+        /// ★ 片 L / R12：本表按**原版数据**取，不靠挑图 —— 键集合 = `MapGenTownLayout` 里
+        /// 全部 `'r'` 格实际引用的 floor 键（去重 **41** 个，离线脚本逐格解 6 字符 packId+idx 得到）。
+        /// </para>
+        /// <para>
+        /// 只在**没有逐格原版瓦片键**的路径（`MapGenTownLayout.TryGetTiles` 返回 false 的保底布局）
+        /// 才会被 `GroundKeyOf` 用到；城镇 / 野外 / 洞穴三图都走逐格键，所以这是**兜底**，
+        /// 但它保证"保底布局下水面也不会退化成灰块"。
+        /// </para>
+        /// </summary>
+        private static readonly string[] WaterTiles =
+        {
+            "moor_river/000", "moor_river/001", "moor_river/002", "moor_river/003", "moor_river/004",
+            "moor_river/005", "moor_river/006", "moor_river/007", "moor_river/008", "moor_river/009",
+            "moor_river/010", "moor_river/011", "moor_river/012", "moor_river/013", "moor_river/014",
+            "moor_river/015", "moor_river/016", "moor_river/017", "moor_river/018", "moor_river/019",
+            "moor_river/020", "moor_river/021", "moor_river/022", "moor_river/023", "moor_river/024",
+            "moor_river/025", "moor_river/026", "moor_river/027", "moor_river/029", "moor_river/033",
+            "moor_river/034", "moor_river/035", "moor_river/036", "moor_river/037", "moor_river/038",
+            "moor_river/039", "moor_river/040", "moor_river/041", "moor_river/042", "moor_river/043",
+            "moor_river/044",
+        };
 
         /// <summary>岩石 / 水边（城镇东侧的河岸、野外碎石）。</summary>
         private static readonly string[] RockTownTiles =
@@ -819,6 +1702,9 @@ namespace Diablo2.Module.Map
                     // 出入口本身是块地：城镇/野外的门走土路，洞穴口走洞内地面
                     set = area == AreaId.DenOfEvil ? CaveFloorTiles : DirtTiles;
                     break;
+                // ★ 片 L / R12：水**有独立的地面瓦片表**（原版 `river.dt1` 水面）。
+                //   ⛔ 不走 default（default = "未登记 ⇒ 纯色占位 + Warn"），否则水面退化成灰块。
+                case TileKind.Water: set = WaterTiles; break;
                 case TileKind.Rock:
                 case TileKind.Tree:
                 case TileKind.Fence:
@@ -853,6 +1739,9 @@ namespace Diablo2.Module.Map
                     set = area == AreaId.Town ? TentTiles : WallMoorTiles;
                     break;
                 case TileKind.CaveWall: set = CaveWallTiles; break;
+                // ★ 片 L / R12：水**没有物件层**（原版水面是 floor 层；`moor_river/028` 那张平色水墙
+                //   瓦片已由 R1-B 判为"不叠"）。显式分支 = 不靠 default 兜底，语义明确。
+                case TileKind.Water: return null;
                 case TileKind.Exit:
                     // ⛔ 只有**洞穴口**有物件瓦片；营地/野外的出口原版**不画物件**
                     //    （营地出口 = 围栏缺口，wall 层本来就是空的）。别再给营地出口编一张物件。
@@ -891,6 +1780,10 @@ namespace Diablo2.Module.Map
                 case TileKind.CaveFloor: return new Color(0.55f, 0.50f, 0.45f);
                 case TileKind.CaveWall: return new Color(0.07f, 0.07f, 0.09f);   // 洞穴实心岩体：近黑
                 case TileKind.Exit: return new Color(0.00f, 0.85f, 1.00f);       // 出入口：亮青（显眼）
+                // ★ 片 L / R12：水面的占位色 = **深蓝**（区分于岩石的灰）。只在贴图缺失时可见；
+                //   取值照原版 R1-B 取证到的那张平色水瓦片 `Objects/moor_river/028` 的实测色
+                //   RGBA(0,32,68)（= `PaletteCycledFlatWallTiles` 注释），不是随手挑的蓝。
+                case TileKind.Water: return new Color(0f, 32f / 255f, 68f / 255f);
                 default: return new Color(0.5f, 0.5f, 0.5f);
             }
         }
@@ -965,29 +1858,106 @@ namespace Diablo2.Module.Map
             return go.transform;
         }
 
-        private static SpriteRenderer NewTile(Transform parent, Vector3 worldOrPlace, Sprite sprite,
-            Color placeholderColor, int order)
+        /// <summary>取池（懒创建；池根挂在 `MapRoot` 下 ⇒ 随场景一起销毁，不跨场景泄漏）。</summary>
+        private TileNodePool EnsurePool()
         {
-            var go = new GameObject(sprite != null ? "T" : "T_placeholder");
-            go.transform.SetParent(parent, false);
-            go.transform.position = worldOrPlace;          // 用世界坐标：与父节点是否偏移无关
+            if (_pool != null) return _pool;
+            if (_poolRoot == null) _poolRoot = NewChild(transform, "TileNodePool");
+            _pool = new TileNodePool(_poolRoot);
+            return _pool;
+        }
 
-            var sr = go.AddComponent<SpriteRenderer>();
-            if (sprite != null)
-            {
-                sr.sprite = sprite;
-                sr.color = Color.white;
-                // 原版瓦片的 PPU 与本项目契约 PPU（64）不同 ⇒ 用缩放把"一格 = 160 px"对上
-                // （见 PlaceOf / D2TilePixelsPerUnit）。像素本身不动，只是显示尺寸换算。
-                go.transform.localScale = Vector3.one * (GameConst.PixelsPerUnit / D2TilePixelsPerUnit);
-            }
-            else
-            {
-                sr.sprite = DiamondSprite;                 // 占位：菱形 128×64 @ PPU 64 = 正好一格
-                sr.color = placeholderColor;
-            }
-            sr.sortingOrder = order;
+        /// <summary>
+        /// 一格瓦片的节点：**从池里取**（池空才新建），然后由
+        /// <see cref="ApplyTileState"/> **无条件**重设全部渲染字段。
+        /// <para>★ T0FIX-A：全工程**只有这一处**建/复用瓦片节点（`new GameObject` 只出现在
+        /// <see cref="TileNodePool.Take"/> 的冷分支）⇒「新建」与「复用」不可能出现两种渲染结果。
+        /// 断言见 `tools/probes/hosts/mapcheck` §17。</para>
+        /// </summary>
+        private SpriteRenderer NewTile(Transform parent, TileRenderState state)
+        {
+            var sr = EnsurePool().Take(parent);
+            ApplyTileState(sr, parent, state);
             return sr;
+        }
+
+        /// <summary>
+        /// 把一格瓦片的**全部**渲染字段无条件写到节点上（★ T0FIX-A 的"池化前后逐项相等"就靠这里）：
+        /// <list type="number">
+        ///   <item>`transform.SetParent(parent, false)` —— **追加到末尾** ⇒ 块内格序与新建时一致；</item>
+        ///   <item>`sprite`；</item>
+        ///   <item>`color`；</item>
+        ///   <item>`transform.localScale`；</item>
+        ///   <item>`transform.position`（世界坐标，含 x/y/z）；</item>
+        ///   <item>`sortingOrder`；</item>
+        ///   <item>`enabled` —— ⛔ **池化必须复位它**：迷雾节点会被 `MarkExplored` 置
+        ///       `enabled = false`，若不复位，复用到它的一格会**静默不可见**。</item>
+        /// </list>
+        /// ⛔ 本方法里**不许**出现"是不是复用节点"的分支（一个字都不许）—— 一旦有分支，
+        /// 「逐项相等」就不再是结构性保证。
+        /// </summary>
+        private static void ApplyTileState(SpriteRenderer sr, Transform parent, TileRenderState st)
+        {
+            sr.name = st.Sprite != null ? "T" : "T_placeholder";
+            sr.transform.SetParent(parent, false);
+            sr.sprite = st.Sprite;
+            sr.color = st.Color;
+            sr.transform.localScale = st.LocalScale;
+            sr.transform.position = st.Position;
+            sr.sortingOrder = st.SortingOrder;
+            sr.enabled = true;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ T0FIX-A：一格瓦片的**渲染状态**（纯函数；离线可断言、与节点/池无关）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>地面层一格的状态（`kind` 决定占位色；有贴图则色 = 白、按 80 px/单位缩放）。</summary>
+        internal static TileRenderState GroundState(Sprite sprite, TileKind kind, Vector2Int g)
+        {
+            return new TileRenderState(
+                sprite,
+                ColorFor(sprite != null, kind, true),
+                LocalScaleFor(sprite != null),
+                PlaceOf(Iso.GridToWorld(g), sprite, true),
+                Iso.SortOrder(g, GameConst.LayerOffsetGround) - GameConst.SortOrderStep);
+        }
+
+        /// <summary>物件层一格的状态。</summary>
+        internal static TileRenderState ObjectState(Sprite sprite, TileKind kind, Vector2Int g)
+        {
+            return new TileRenderState(
+                sprite,
+                ColorFor(sprite != null, kind, false),
+                LocalScaleFor(sprite != null),
+                PlaceOf(Iso.GridToWorld(g), sprite, false),
+                Iso.SortOrder(g, GameConst.LayerOffsetObject));
+        }
+
+        /// <summary>迷雾（遮蔽层）一格的状态：无贴图 + 固定暗色（恒压在格中心）。</summary>
+        internal static TileRenderState FogState(Vector2Int g)
+        {
+            return new TileRenderState(
+                null,
+                new Color(0f, 0f, 0f, FogAlpha),
+                LocalScaleFor(false),
+                Iso.GridToWorld(g),
+                Iso.SortOrder(g, GameConst.LayerOffsetOverlay));
+        }
+
+        /// <summary>节点缩放：有原版贴图 ⇒ `契约PPU / 80`（见 <see cref="D2TilePixelsPerUnit"/>）；占位菱形 ⇒ 1。</summary>
+        internal static Vector3 LocalScaleFor(bool hasSprite)
+        {
+            return hasSprite
+                ? Vector3.one * (GameConst.PixelsPerUnit / D2TilePixelsPerUnit)
+                : Vector3.one;
+        }
+
+        /// <summary>节点颜色：有原版贴图 ⇒ 白（原版像素不能被染色）；占位 ⇒ 可辨的占位色。</summary>
+        internal static Color ColorFor(bool hasSprite, TileKind kind, bool isGround)
+        {
+            if (hasSprite) return Color.white;
+            return isGround ? GroundColor(kind) : ObjectColor(kind);
         }
 
         /// <summary>
@@ -1009,10 +1979,20 @@ namespace Diablo2.Module.Map
         ///     就是它的落脚菱形，更高的部分向上长（栅栏/树/帐篷都是这样）。
         /// </summary>
         private static Vector3 PlaceOf(Vector3 cellCenter, Sprite sprite, bool isFloor)
-        {
-            if (sprite == null) return cellCenter;         // 占位菱形本来就与格同心
+            => PlaceOfPx(cellCenter, sprite != null ? Mathf.RoundToInt(sprite.rect.height) : 0, isFloor);
 
-            var h = sprite.rect.height / D2TilePixelsPerUnit;   // 图像在世界单位下的高
+        /// <summary>
+        /// <see cref="PlaceOf"/> 的**纯内核**（接口只吃"图像高(px)"，⛔ 不碰 `Sprite`）
+        /// —— 离线自检宿主因此能逐格复算并断言"画面逐像素不变"（mapcheck §17）。
+        /// </summary>
+        /// <param name="cellCenter">格中心的世界坐标（`Iso.GridToWorld`）。</param>
+        /// <param name="spriteHeightPx">图像高（px）；0 = 占位菱形（与格同心，不做对齐修正）。</param>
+        /// <param name="isFloor">true = 地砖（顶边贴格中心上方半格）；false = 墙/物件（底边贴下方半格）。</param>
+        internal static Vector3 PlaceOfPx(Vector3 cellCenter, int spriteHeightPx, bool isFloor)
+        {
+            if (spriteHeightPx <= 0) return cellCenter;         // 占位菱形本来就与格同心
+
+            var h = spriteHeightPx / D2TilePixelsPerUnit;       // 图像在世界单位下的高
             var dy = isFloor
                 ? GameConst.IsoHalfH - h * 0.5f             // 顶边在 +halfH ⇒ 中心下移
                 : h * 0.5f - GameConst.IsoHalfH;            // 底边在 -halfH ⇒ 中心上移
@@ -1023,14 +2003,26 @@ namespace Diablo2.Module.Map
         // 回收 / 帧循环
         // ═════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// 拆掉全部块。★ T0FIX-A：块内节点**归还池**（不再 `Destroy`），只销毁 3 个块根空节点。
+        /// 归还的节点已 `SetParent(池根)` ⇒ 块根被销毁时**不会**连带销毁它们。
+        /// </summary>
         private void DestroyAllChunks()
         {
-            DestroyChildren(_groundRoot);
-            DestroyChildren(_objectRoot);
-            DestroyChildren(_overlayRoot);
+            RecycleChildren(_groundRoot);
+            RecycleChildren(_objectRoot);
+            RecycleChildren(_overlayRoot);
+            // ★ T0FIX-H：**缓冲集也要清**（它可能装着"上一次重铺"的旧内容或"建到一半"的新内容）
+            RecycleChildren(_bufGroundRoot);
+            RecycleChildren(_bufObjectRoot);
+            RecycleChildren(_bufOverlayRoot);
+            _retireChunks.Clear();            // 待回收队列里的块根已被上面两轮覆盖 ⇒ 不作废队列 = 悬空引用
             _groundChunks.Clear();
             _objectChunks.Clear();
             _overlayChunks.Clear();
+            _bufGroundChunks.Clear();
+            _bufObjectChunks.Clear();
+            _bufOverlayChunks.Clear();
         }
 
         /// <summary>回收可见范围之外的块（外层留 1 块缓冲，避免来回走动时反复重建）。</summary>
@@ -1039,6 +2031,29 @@ namespace Diablo2.Module.Map
             ReleaseFarChunksIn(_groundChunks, keepX0, keepY0, keepX1, keepY1);
             ReleaseFarChunksIn(_objectChunks, keepX0, keepY0, keepX1, keepY1);
             ReleaseFarChunksIn(_overlayChunks, keepX0, keepY0, keepX1, keepY1);
+            DropFarPendingChunks(keepX0, keepY0, keepX1, keepY1);
+        }
+
+        /// <summary>
+        /// ★ T0FIX-A：把"待建队列里已经走远"的块撤掉（否则会补一块**永远看不到**的图，
+        /// 白花帧预算；也不会有第二次机会被回收）。
+        /// </summary>
+        private void DropFarPendingChunks(int keepX0, int keepY0, int keepX1, int keepY1)
+        {
+            if (_pendingChunks.Count == 0) return;
+
+            var keep = new List<Vector2Int>(_pendingChunks.Count);
+            var dropped = 0;
+            while (_pendingChunks.Count > 0)
+            {
+                var c = _pendingChunks.Dequeue();
+                if (c.x >= keepX0 && c.x <= keepX1 && c.y >= keepY0 && c.y <= keepY1) keep.Add(c);
+                else dropped++;
+            }
+            for (var i = 0; i < keep.Count; i++) _pendingChunks.Enqueue(keep[i]);
+
+            if (dropped > 0)
+                MapLog.Info($"MapView: 待建队列里撤掉 {dropped} 个已经走远的块（剩余待建 {_pendingChunks.Count}）");
         }
 
         private void ReleaseFarChunksIn(Dictionary<Vector2Int, Transform> dict, int x0, int y0, int x1, int y1)
@@ -1056,15 +2071,42 @@ namespace Diablo2.Module.Map
             for (var i = 0; i < drop.Count; i++)
             {
                 var node = dict[drop[i]];
-                if (node != null) Destroy(node.gameObject);
+                if (node != null) RecycleChunk(node);
                 dict.Remove(drop[i]);
             }
         }
 
-        private static void DestroyChildren(Transform root)
+        /// <summary>
+        /// 把一个层根下的**全部块**回收成池（块内节点归还、块根销毁）。
+        /// </summary>
+        private void RecycleChildren(Transform root)
         {
             if (root == null) return;
-            for (var i = root.childCount - 1; i >= 0; i--) Destroy(root.GetChild(i).gameObject);
+            for (var i = root.childCount - 1; i >= 0; i--) RecycleChunk(root.GetChild(i));
+        }
+
+        /// <summary>
+        /// 回收一个块：块内所有瓦片节点归还池 ⇒ 再销毁块根空节点。
+        /// <para>★ T0FIX-H：**返回归还的节点数**（供 <see cref="PumpRetire"/> 按帧预算摊平；
+        /// 已销毁的块根判空返回 0 ⇒ 保底/取消路径上的悬空引用不会抛异常）。</para>
+        /// </summary>
+        private int RecycleChunk(Transform chunkRoot)
+        {
+            if (chunkRoot == null) return 0;             // 已随场景卸载销毁：跳过（不静默留脏引用）
+            var n = 0;
+            for (var i = chunkRoot.childCount - 1; i >= 0; i--)
+            {
+                var child = chunkRoot.GetChild(i);
+                var sr = child.GetComponent<SpriteRenderer>();
+                if (sr != null && _pool != null)
+                {
+                    _pool.Return(sr);
+                    n++;
+                }
+                else Destroy(child.gameObject);          // 非预期形态（不是瓦片节点）：照旧销毁，不静默留孤儿
+            }
+            Destroy(chunkRoot.gameObject);
+            return n;
         }
 
         private void Update()
@@ -1080,20 +2122,45 @@ namespace Diablo2.Module.Map
                 // ★ R1-D：贴图流式到位期间**合并**重铺（旧口径 = 每来一张贴图就整图重建一次），
                 //   是否到点由纯函数决定（超时兜底保证贴图一定会换上）。见 `ShouldRepaintNow`。
                 var now = Time.unscaledTime;
-                if (ShouldRepaintNow(now, _repaintFirstAt, _repaintLastAt, _lastRepaintAt))
+                // ★ T0FIX-H：上一次重铺**还在进行/还在回收**时**不消费**这次请求（否则会把
+                //   "建到一半的缓冲集"丢掉重来 ⇒ 白干 + 多一次销毁尖峰）；留在下一帧再判。
+                if ((_job == null && _retireChunks.Count == 0)
+                    && ShouldRepaintNow(now, _repaintFirstAt, _repaintLastAt, _lastRepaintAt))
                 {
                     _repaintRequested = false;
                     _repaintFirstAt = -1f;
                     _lastRepaintAt = now;
                     RebuildLayers();
                 }
+                // ⛔ 这里**不 return**（T0FIX-A 的旧口径是 return）：重铺已改成分帧，
+                //   必须每帧继续泵（下面几步就是它）。新开的任务在同一帧就吃到第一份预算。
+            }
+
+            // ★ T0FIX-H：分帧重铺进行中 ⇒ 本帧只泵它（增量路径等它做完，避免两套铺装互相打架）
+            if (_job != null)
+            {
+                PumpRebuild();
                 return;
             }
 
-            if (!_chunked) return;    // 小图一次铺满，不存在逐帧工作
-            if (Time.unscaledTime < _nextChunkRefresh) return;
-            _nextChunkRefresh = Time.unscaledTime + ChunkRefreshInterval;
-            RefreshVisibleChunks();
+            // ★ T0FIX-H：旧集还没回收完 ⇒ 先按帧预算回收（它已不可见，不影响画面）
+            if (_retireChunks.Count > 0)
+            {
+                PumpRetire(MaxTileNodesPerFrame);
+                return;
+            }
+
+            _builtThisFrame = 0;
+
+            if (_chunked && Time.unscaledTime >= _nextChunkRefresh)
+            {
+                _nextChunkRefresh = Time.unscaledTime + ChunkRefreshInterval;
+                RefreshVisibleChunks();          // ★ T0FIX-A：只**登记**新进入范围的块（本帧不建）
+            }
+
+            // ★ T0FIX-A：每帧至多建 `MaxChunksPerFrame` 块 —— 单帧尖峰就此摊平。
+            //   队列空时是 0 开销（小图 `!_chunked` 从不入队 ⇒ 等价于旧口径的"无逐帧工作"）。
+            PumpChunkBuild(MaxChunksPerFrame);
         }
     }
 }

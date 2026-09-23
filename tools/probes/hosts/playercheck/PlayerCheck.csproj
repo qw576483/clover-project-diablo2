@@ -51,12 +51,25 @@
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
          寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <!-- ★ 本片（镜头抖 / 帧节奏下沉）：引擎新增的两个 Presentation 件必须链进来，
+         否则 `CameraRig` 调 `CloverEngine.CameraMath.SmoothDamp` 会 CS0117、`Core/FramePacing`
+         调 `CloverEngine.FramePacing` 会 CS0246 —— 宿主是"引擎改了签名就编不过"的覆盖率哨兵。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraMath.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Player\*.cs" />
+    <!-- ★ 本轮（T0 判据缺口 2「双武器组缺失」）新增：把 `Module/Item` 编进来，
+         让本宿主断言"W 键 → 事件 → 装备数据真的换了主手"这条链的**装备侧**行为
+         （`Equipment` 的生效武器组：主手/副手互换、切回原样）。
+         为什么在 playercheck 而不是只靠 itemcheck：本宿主编的是**真实 PlayerModule**，
+         可以端到端验 `PlayerModule.RequestSwapWeapon()`（读键 → 发 `Events.SwapWeaponRequest`）
+         与 `ItemModule.OnSwapWeaponRequest`（收 → 改状态 → 重算派生）之间的对接。
+         ⛔ 不改任何业务代码，只把源文件链进来。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Camera\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Input\*.cs" />
     <!-- App/：只编 AppContext（组合根，模块经它取接口）；**不编 Bootstrap**（MonoBehaviour + 真实引擎启动） -->

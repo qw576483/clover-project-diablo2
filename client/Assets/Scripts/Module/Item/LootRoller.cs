@@ -11,6 +11,9 @@
 //
 // 已导入的 TC 里**缺**官方若干子 TC（`weap3`/`armo3`/`bow3`/`mele3`）与个别物品 code
 //   （`gcy`/`skc`/`jew`/`cm1..3`）—— 这是配表导入范围问题，不是本模块能改的契约。
+//   ★ 片 O（R4）**显式登记**：`jew`/`cm1..3` 被过滤是**有意的** —— 本项目按**经典版**范围导入
+//   （官方 `version>0` = 资料片专属，`convert.py` 打表日志逐条列出被过滤 code）；代价是
+//   TC `Jewelry A` 有 8/20 = 40% 权重永久落空 ⇒ `Resolve` 的未知 token 分支必须**点名 Warn**（TC 名 + token + 权重 + 原因）。
 //   处置（**本项目兜底，已在回报「未决」登记**）：
 //     ① `weapN/armoN/bowN/meleN` → 按 `item_c.item_level ≤ N` 从对应池里随机取（**只用配表列**，不发明数值）；
 //     ② 未知物品 code → 跳过该条并限频 Warn（不伪造物品）；
@@ -202,7 +205,9 @@ namespace Diablo2.Module.Item
                 }
                 var token = tokens[idx];
                 if (string.IsNullOrEmpty(token)) continue;          // NoDrop
-                Resolve(token, level, rng, depth, outList);
+                // ★ 片 O（R4）：把**当前 TC 名**与**该槽位权重**一并带给 `Resolve`，
+                //   否则"抽中未导入 token"只能报出 token、报不出是谁的槽位、也报不出丢了多少权重。
+                Resolve(tcName, token, weights[idx], level, rng, depth, outList);
             }
         }
 
@@ -235,8 +240,13 @@ namespace Diablo2.Module.Item
             return 1;
         }
 
-        /// <summary>把一个 token 落成"子 TC 递归"或"具体物品"。</summary>
-        private void Resolve(string rawToken, int level, Rng rng, int depth, List<ItemStack> outList)
+        /// <summary>
+        /// 把一个 token 落成"子 TC 递归"或"具体物品"。
+        /// </summary>
+        /// <param name="tcName">该 slot 所属的 TC 名（**只用于日志点名**，见 R4）。</param>
+        /// <param name="prob">该 slot 在所属 TC 里的权重（**只用于日志点名**：说明丢了多少权重）。</param>
+        private void Resolve(string tcName, string rawToken, int prob, int level, Rng rng, int depth,
+            List<ItemStack> outList)
         {
             var token = rawToken;
 
@@ -294,8 +304,14 @@ namespace Diablo2.Module.Item
                 return;
             }
 
-            WarnOnce("tc.token." + token,
-                $"LootRoller：token \"{token}\" 既不是 TC 名也不是 item_c.code ⇒ 跳过（配表导入范围问题）");
+            // ★ 片 O（R4）：**点名** = TC 名 + token + 权重 + 原因。旧版只说"token 未知"，据此查不出是哪个 TC、
+            //   也看不出丢了多少权重（实测 TC `Jewelry A` 的 `jew;2|cm3;2|cm2;2|cm1;2` ⇒ 20 份权重里丢 8 份 = 40%）。
+            WarnOnce("tc.token." + tcName + "." + token,
+                $"LootRoller：TC \"{tcName}\" 的 token \"{token}\" 既不是 TC 名也不是 item_c.code ⇒ 本次抽取落空"
+                + $"（该槽位权重 {prob}）。原因 = 本项目按**经典版**范围导入：官方 `version>0`（资料片专属，"
+                + "如 `jew` / `cm1` / `cm2` / `cm3`）与 `code != normcode`（资料片品质）的行不进 item_c；"
+                + "被过滤的 code 由 `tools/table-convert/convert.py` 打表日志逐条列出（片 O R4 已显式登记）"
+                + " ⇒ 该权重**永久落空**，属已登记的数据差异，不是随机性");
         }
 
         /// <summary>金币掉落（**本项目新增折算**：按等级给基数，`mul` 以 256 为一档）。</summary>

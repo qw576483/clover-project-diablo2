@@ -41,7 +41,9 @@ namespace Table
 		public int Undead; // 亡灵（官方 lUndead|hUndead）
 		public int Demon; // 恶魔（官方 demon）
 		public int Flying; // 飞行（官方 flying）
-		public string TreasureClass; // 掉落表（官方 TreasureClass1，指向 treasureclass_c）
+		public string TreasureClass; // 掉落表（官方 TreasureClass1 = 普通怪槽位，指向 treasureclass_c）
+		public string TreasureClassChamp; // 冠军怪掉落表（官方 TreasureClass2）
+		public string TreasureClassUnique; // 唯一（精英）怪掉落表（官方 TreasureClass3）
 	}
 
 	// BaseMonsterTable 表 "monster_c" 的只读容器（按主键索引）。
@@ -100,6 +102,8 @@ namespace Table
 				row.Demon = TableParsers.ToInt(TableParsers.Cell(rec, 31));
 				row.Flying = TableParsers.ToInt(TableParsers.Cell(rec, 32));
 				row.TreasureClass = TableParsers.Cell(rec, 33);
+				row.TreasureClassChamp = TableParsers.Cell(rec, 34);
+				row.TreasureClassUnique = TableParsers.Cell(rec, 35);
 				rows.Add(row);
 				index[row.Id] = row;
 			}

@@ -138,11 +138,37 @@ namespace Diablo2.Core
         /// <summary>请求拾取地面物品（参数 <see cref="int"/> 地面物品 id；-1 = 最近一个）。</summary>
         public const string PickupRequest = "D2.Input.Pickup";
 
+        /// <summary>
+        /// 请求切换武器组（**无参**）—— 原版 <c>W</c> 键（`Def/GameKeyAlias.KeySwapWeapon`）。
+        /// <para>
+        /// 发送方：`Module/Player/PlayerModule.RequestSwapWeapon`（读键的唯一入口
+        /// `Module/Input/InputReader.SwapWeaponPressed`）。
+        /// 收方：`Module/Item/ItemModule`（订阅后切 `Equipment` 的生效武器组）；
+        /// 与 `Events.UseBeltRequest` 同一条"读键 → 发请求 → Item 侧改状态"的路子。
+        /// </para>
+        /// <para>★ 本轮新增（T0 判据挖出的缺口 2「双武器组缺失」）；**只增不改**，
+        /// 因为原版 D2 确有双武器组（武器切换）而本工程此前 0 处消费该键位。</para>
+        /// </summary>
+        public const string SwapWeaponRequest = "D2.Item.SwapWeaponRequest";
+
         /// <summary>请求与 NPC 交互/对话（参数 <see cref="int"/> 见 <c>Def.NpcId</c>）。</summary>
         public const string NpcInteractRequest = "D2.Input.NpcInteract";
 
         /// <summary>请求切换面板（参数 <see cref="string"/> 面板类名）。</summary>
         public const string PanelToggleRequest = "D2.Ui.PanelToggle";
+
+        /// <summary>
+        /// 地面物品名牌变化（参数 <c>Def.GroundItemLabelsArgs</c>）。
+        /// <para>★ impl-I-input 新增。发送方 = `Module/Input/InputReader.UpdateHover`
+        /// （消费 `InputReader.ShowGroundItems` = 原版 `Alt` 常显，以及当前悬停格）；
+        /// 收方 = `UI/GroundItemLabelView`（HUD 持有的名牌层）。</para>
+        /// <para>为什么需要它：原版 D2 悬停地面物品会显示该物品的名牌、按住 `Alt` 则常显全部
+        /// 地面物品名 —— 改动前 `InputReader.ShowGroundItems` 与 `HoverTargetChanged` **都没有消费方**，
+        /// 这两条表现完全缺失（审计 R5）。载荷放 `Diablo2.Def` 是为了让 UI 层能合法消费
+        /// （分层自检 ③：`UI/**` 不许 `using Diablo2.Module`）。</para>
+        /// <para>只在**内容真的变化**时发（按 id/格/Alt 态去重），不是逐帧刷。</para>
+        /// </summary>
+        public const string GroundItemLabelsChanged = "D2.Input.GroundItemLabels";
 
         // ═════════════════════════════════════════════════════════════════════
         // 战斗（Combat）
@@ -209,6 +235,30 @@ namespace Diablo2.Core
         /// <summary>技能冷却就绪（参数 <see cref="int"/> skillId）。</summary>
         public const string SkillReady = "D2.Skill.Ready";
 
+        /// <summary>
+        /// 请求把某个技能槽键（原版 `F1`~`F8`）对应的已学技能绑到左/右键技能格
+        /// （参数 <see cref="int"/> = 槽号 **1..8**：1~4 绑左键、5~8 绑右键）。
+        /// <para>★ impl-I-input 新增。发送方 = `Module/Input/InputReader.PollHotkeys`
+        /// （读键的唯一入口；键位单一来源 = `Def/GameKeyAlias.cs` 的 `SkillSlotKey(int)`）；
+        /// 收方 = `Module/Skill/SkillModule`（把"第 N 个已学技能"解析出来并调契约的
+        /// `ISkillModule.AssignToButton(button, skillId)`）。</para>
+        /// <para>为什么用事件而不是新增契约方法：`ISkillModule` 是**冻结契约**不许改；
+        /// 而「槽号 → 第 N 个已学技能」这层解析属技能模块的业务，不该塞进输入层。</para>
+        /// <para>绑定结果经既有 `CharacterSave.buttonSkills` 落档（读档时 `LoadButtonsFrom` 还原），
+        /// 并经 <see cref="SkillButtonsChanged"/> 通知 HUD。</para>
+        /// </summary>
+        public const string SkillSlotAssignRequest = "D2.Skill.SlotAssignRequest";
+
+        /// <summary>
+        /// 左右键技能格的绑定发生变化（参数 <c>Def.SkillButtonsArgs</c>）。
+        /// <para>★ impl-I-input 新增。发送方 = `Module/Skill/SkillModule`
+        /// （`SelectSkill` / `AssignToButton` / `ResetForClass` 之后）；
+        /// 收方 = `UI/HudPanel`（把 `LeftSkill` / `RightSkill` 两格的图标换成绑定技能的图标）。</para>
+        /// <para>与既有的 <see cref="SkillSelected"/> 的区别：那个只带**右键**技能 id、只表达
+        /// "当前选中的施放技能"（战斗/HUD 语义）；本事件同时带左右两格 + 显示名，专供 HUD 换图。</para>
+        /// </summary>
+        public const string SkillButtonsChanged = "D2.Skill.ButtonsChanged";
+
         // ═════════════════════════════════════════════════════════════════════
         // 物品（Item）
         // ═════════════════════════════════════════════════════════════════════
@@ -249,8 +299,14 @@ namespace Diablo2.Core
         /// <summary>
         /// 请求在背包内移动/交换物品。
         /// 参数 <see cref="int"/> = `fromAnchor | (toAnchor &lt;&lt; 16)`（两个背包锚点格索引）。
-        /// ⚠️ **暂无收方**：`IItemModule`（契约冻结）没有 `MoveItem/Swap`
-        /// ⇒ `App/AppEventRouting.cs` 只打一条可定位的 Warn，等主 agent 裁决（加契约方法或 UI 改两步走）。
+        /// <para>
+        /// ★ 片 G1 起**真的落地**（修用户报的「道具没法拖动！」）：收方 =
+        /// `App/AppEventRouting.cs` → `IItemModule.MoveItem(from, to, out reason)`
+        /// （`Module/Item/ItemModule.cs`，落格实现 = `Inventory.Move`：空格放下 / 与另一件交换 /
+        /// 大件放小空位 ⇒ 拒绝并把可直接展示的中文原因回给 UI 做 Toast）。
+        /// 发送方 = `UI/InventoryPanel.OnEndDrag`（`PlanDrop` 判出 `DropKind.Move`；落面板外走
+        /// `ItemDropRequest` = 丢地上）。
+        /// </para>
         /// </summary>
         public const string MoveInInventoryRequest = "D2.Item.MoveInInventoryRequest";
 
@@ -266,6 +322,28 @@ namespace Diablo2.Core
         /// 收方：`App/AppEventRouting.cs` → `INpcModule.GetShop(npcId)` 后发 `Events.ShopOpen`（面板/HUD 订阅它）。
         /// </summary>
         public const string ShopOpenRequest = "D2.Npc.ShopOpenRequest";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 传送点（Waypoint）★ 片 g1-resume 新增
+        //
+        // 契约（**只增不改**）：
+        //   · 锚点数据 = `IMapModule.WaypointPoints`（罗格营地 1 个，坐标出自原版表）；
+        //   · "点它 ⇒ 面板开" 不走事件：`App/AppWaypoint.cs` 自己判点击 + 就近到达后
+        //     `Game.UI.Open<WaypointPanel>(args)`（与 `NpcModule` 的"点 NPC 走过去说话"同形）；
+        //   · 本事件 = **面板里选了目的地**那一步，见下。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 请求传送到某个区域（参数 <see cref="int"/> = `(int)Def.AreaId`）。
+        /// <para>
+        /// 发送方 = `UI/WaypointPanel.cs`（点列表里的一条目的地）。收方 = `App/AppWaypoint.cs`：
+        /// 校验"该区域确实是已激活的目的地"后，转发 `Events.ExitEntered`（切区域那条既有链路
+        /// `AppFlow.EnterArea`）——⛔ 本事件**不绕过** `ExitEntered`，因为区域切换（重生成地图 /
+        /// 移怪 / 挪玩家 / 关所有面板）的唯一实现就在那条链上。
+        /// </para>
+        /// <para>非法请求（未激活 / 就是当前区域 / 地图未生成）⇒ 收方点名 Warn 并拒绝，⛔ 不静默。</para>
+        /// </summary>
+        public const string WaypointTravelRequest = "D2.Map.WaypointTravelRequest";
 
         // ═════════════════════════════════════════════════════════════════════
         // 任务（Quest）

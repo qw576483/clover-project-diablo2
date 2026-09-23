@@ -9,9 +9,9 @@
  "weaponClass": "hth",
  "canvas": {
   "w": 158,
-  "h": 162,
+  "h": 214,
   "originX": 79,
-  "originY": 81,
+  "originY": 107,
   "pivot": [
    0.5,
    0.5

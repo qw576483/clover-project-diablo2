@@ -52,12 +52,29 @@ namespace Diablo2.Module
         /// <summary>日志 tag。</summary>
         private const string Tag = "Input";
 
-        /// <summary>滚轮轴名（与引擎自带的 `Runtime/Presentation/ThirdPersonCamera.cs:219` 同口径）。</summary>
+        /// <summary>滚轮轴名（与引擎自带的 `Runtime/Presentation/CloverThirdPersonCamera.cs:221` 同口径
+        /// —— 该处处说明「滚轮轴（"Mouse ScrollWheel"）两个后端都已支持」，用点在 `:238` 的
+        /// `input.GetAxis("Mouse ScrollWheel")`；轴名换算见 `Runtime/Presentation/Input.cs:544/563`。
+        /// ★ 2026-09-23 更正：原文引的 `ThirdPersonCamera.cs:219` **全盘不存在**（该文件已更名/拆分为
+        /// `CloverThirdPersonCamera.cs`）⇒ 由 audit-C-logic-num §13 的引用可达性复核抓出，本行按现盘更正）。</summary>
         public const string ScrollWheelAxis = "Mouse ScrollWheel";
+
+        /// <summary>左键的鼠标键号（原版「左键 = 左手技能」，`Game.Input.GetMouseButton*(0)`）。</summary>
+        public const int PrimaryMouseButton = 0;
+
+        /// <summary>
+        /// 右键的鼠标键号（原版「右键 = 右手技能」；★ impl-I-input 新增读取点，见 <see cref="SecondaryDown"/>）。
+        /// <para>取值出处 = Unity/引擎 `Game.Input.GetMouseButton(int)` 的键号约定（0 = 左 / 1 = 右 / 2 = 中），
+        /// 与既有 <see cref="PrimaryMouseButton"/> 的 `0` 同源；这是唯一的右键读取点。</para>
+        /// </summary>
+        public const int SecondaryMouseButton = 1;
 
         private bool _down;
         private bool _held;
         private bool _up;
+        private bool _secDown;
+        private bool _secHeld;
+        private bool _secUp;
         private float _wheel;
         private Camera _cam;
 
@@ -93,6 +110,16 @@ namespace Diablo2.Module
         private bool _hoverLogged;
         private int _lastMonsterHoverId = -1;
 
+        /// <summary>上一次广播出去的地面物品名牌（去重：内容没变就**不重发**，不是逐帧刷）。</summary>
+        private readonly System.Collections.Generic.List<GroundItemLabel> _labelsPrev
+            = new System.Collections.Generic.List<GroundItemLabel>();
+
+        /// <summary>上一次广播时的 Alt 态（参与去重）。</summary>
+        private bool _labelsAltPrev;
+
+        /// <summary>`[GroundItemLabel]` 的非预期分支只报一次（Alt 查询抛异常 / 名牌层未接线）。</summary>
+        private bool _labelsProbeWarned;
+
         /// <summary>鼠标所在格（相机不可用/输入不可用时保持上一次的值，仅作光标提示用）。</summary>
         public Vector2Int HoverGrid { get; private set; }
 
@@ -113,6 +140,20 @@ namespace Diablo2.Module
 
         /// <summary>本帧左键是否抬起。</summary>
         public bool PrimaryUp => _up;
+
+        /// <summary>
+        /// 本帧**右键**是否按下（原版 D2：右键 = 使用**右手技能**）。
+        /// <para>★ impl-I-input：改动前 `Poll()` 只读 button 0，全仓 0 处读 button 1
+        /// ⇒ HUD 上已经画出来的 `RightSkill` 技能格**没有任何入口**（审计 R1）。
+        /// 消费方 = `Module/Player/PlayerModule`（右键意图 → 已有的技能施放入口 `ISkillModule.TryCast`）。</para>
+        /// </summary>
+        public bool SecondaryDown => _secDown;
+
+        /// <summary>本帧右键是否按住（原版按住右键持续使用右手技能）。</summary>
+        public bool SecondaryHeld => _secHeld;
+
+        /// <summary>本帧右键是否抬起。</summary>
+        public bool SecondaryUp => _secUp;
 
         /// <summary>本帧滚轮轴值（未 `Poll` 时为 0）。</summary>
         public float ScrollWheel => _wheel;
@@ -144,9 +185,13 @@ namespace Diablo2.Module
                 return;
             }
 
-            _down = input.GetMouseButtonDown(0);
-            _held = input.GetMouseButton(0);
-            _up = input.GetMouseButtonUp(0);
+            _down = input.GetMouseButtonDown(PrimaryMouseButton);
+            _held = input.GetMouseButton(PrimaryMouseButton);
+            _up = input.GetMouseButtonUp(PrimaryMouseButton);
+            // ★ impl-I-input（审计 R1）：右键 = 右手技能，唯一读取点就是这三行（全仓别处不许再读 button 1）。
+            _secDown = input.GetMouseButtonDown(SecondaryMouseButton);
+            _secHeld = input.GetMouseButton(SecondaryMouseButton);
+            _secUp = input.GetMouseButtonUp(SecondaryMouseButton);
             _wheel = input.GetAxis(ScrollWheelAxis);
 
             var cam = ResolveCamera();
@@ -180,6 +225,20 @@ namespace Diablo2.Module
             grid = HoverGrid;
             if (!_held) return false;
             if (UiEatsIntent(_held, IsPointerOverUi())) return false;
+            return TryProjectMouse(out grid);
+        }
+
+        /// <summary>
+        /// 本帧**右键按下** → 该点的**地面格**（右键技能施放入口；★ impl-I-input 新增）。
+        /// <para>与 <see cref="TryGetGroundClick"/> 同一套护栏：相机/输入不可用 ⇒ false + 首次日志；
+        /// 指针压在 UI 上（点面板/按钮）⇒ 本次右键**不算**施放意图（<see cref="UiEatsIntent"/>）。
+        /// **不产生任何移动意图**（原版右键不移动角色）。</para>
+        /// </summary>
+        public bool TryGetSecondaryClick(out Vector2Int grid)
+        {
+            grid = HoverGrid;
+            if (!_secDown) return false;
+            if (UiEatsIntent(_secDown, IsPointerOverUi())) return false;
             return TryProjectMouse(out grid);
         }
 
@@ -224,6 +283,118 @@ namespace Diablo2.Module
             if (!canInteract) return _hover;
             Publish(_picker.Resolve(HoverGrid));
             return _hover;
+        }
+
+        /// <summary>
+        /// 发布**地面物品名牌**（事件 <see cref="Events.GroundItemLabelsChanged"/>；★ impl-I-input，审计 R5）。
+        /// <para>两种触发（与原版一致）：① 按住 Alt（`altHeld = true`）⇒ **全部**地面物品；
+        /// ② 没按 Alt 时，只显示**当前悬停的那一件**（`Events.HoverTargetChanged` 解析出的 `Pickup` 目标）。</para>
+        /// <para>★ 为什么 Alt 态由**调用方**（`PlayerModule.Tick`）传进来，而不是本类自己读
+        /// <see cref="ShowGroundItems"/>：审计 B 的静态对账口径是「属性消费点在 `InputReader` **之外**」
+        /// （`audit-B-static-out.txt` ④：`InputReader` 内部引用不算消费方）⇒ 消费者放到 `PlayerModule`
+        /// 那一条 `_input.ShowGroundItems` 上，脚本才判得出「已有消费方」。</para>
+        /// <para>去重：Alt 态 + 名牌内容（id/格/名字）不变 ⇒ 不发事件、不打日志（本方法每帧被调）。</para>
+        /// </summary>
+        /// <param name="altHeld">原版 `Alt` 是否按住（调用方传 <see cref="ShowGroundItems"/>）。</param>
+        public void PublishGroundItemLabels(bool altHeld)
+        {
+            var alt = altHeld;
+            var args = new GroundItemLabelsArgs { altHeld = alt };
+
+            if (alt)
+            {
+                var probe = _picker.AllLabels;
+                if (probe == null)
+                {
+                    if (!_labelsProbeWarned)
+                    {
+                        _labelsProbeWarned = true;
+                        Log.Warn(Tag, "Alt 常显地面物品名：HoverPicker.AllLabels 未接线 ⇒ 本次只显示悬停的那一件（只报一次）");
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        var all = probe();
+                        if (all != null) args.labels = all;
+                    }
+                    catch (Exception e)
+                    {
+                        if (!_labelsProbeWarned)
+                        {
+                            _labelsProbeWarned = true;
+                            Log.Warn(Tag, $"枚举地面物品名牌抛异常（{e.GetType().Name}: {e.Message}）⇒ 本次按" +
+                                          "「没有地面物品」处理（只报一次）");
+                        }
+                    }
+                }
+            }
+            else if (_hover != null && _hover.hasTarget && _hover.cursor == CursorKind.Pickup)
+            {
+                var quality = ItemQuality.Normal;
+                var qProbe = _picker.ItemQualityOf;
+                if (qProbe != null)
+                {
+                    try { quality = qProbe(_hover.id); }
+                    catch (Exception e)
+                    {
+                        if (!_labelsProbeWarned)
+                        {
+                            _labelsProbeWarned = true;
+                            Log.Warn(Tag, $"查地面物品品质抛异常（{e.GetType().Name}: {e.Message}）⇒ 名牌按普通（白）配色（只报一次）");
+                        }
+                    }
+                }
+
+                args.labels.Add(new GroundItemLabel
+                {
+                    id = _hover.id,
+                    name = _hover.name,
+                    quality = quality,
+                    gridX = _hover.gridX,
+                    gridY = _hover.gridY,
+                });
+            }
+
+            if (!LabelsChanged(args)) return;
+
+            _labelsPrev.Clear();
+            for (var i = 0; i < args.labels.Count; i++) _labelsPrev.Add(args.labels[i]);
+            _labelsAltPrev = args.altHeld;
+
+            Emit(Events.GroundItemLabelsChanged, args);
+
+            if (args.labels.Count == 0)
+            {
+                Log.Info(Tag, "[GroundItemLabel] 名牌清空（Alt 已松开，且指针下没有地面物品）");
+                return;
+            }
+
+            var first = args.labels[0];
+            Log.Info(Tag, $"[GroundItemLabel] 名牌 {args.labels.Count} 条（altHeld={args.altHeld}）："
+                + $"首个 #{first.id}「{first.name}」品质={first.quality} 格=({first.gridX},{first.gridY})"
+                + (args.labels.Count > 1 ? $" …共 {args.labels.Count} 件（常显）" : string.Empty));
+        }
+
+        /// <summary>名牌内容是否与上一次广播的不同（Alt 态 + 条数 + 每条的 id/格/名字）。</summary>
+        private bool LabelsChanged(GroundItemLabelsArgs args)
+        {
+            if (args == null) return false;
+            if (args.altHeld != _labelsAltPrev) return true;
+            if (args.labels == null) return _labelsPrev.Count > 0;
+            if (args.labels.Count != _labelsPrev.Count) return true;
+
+            for (var i = 0; i < args.labels.Count; i++)
+            {
+                var a = args.labels[i];
+                var b = _labelsPrev[i];
+                if (a == null || b == null) return true;
+                if (a.id != b.id || a.gridX != b.gridX || a.gridY != b.gridY) return true;
+                if (!string.Equals(a.name, b.name, StringComparison.Ordinal)) return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -295,6 +466,14 @@ namespace Diablo2.Module
         /// <summary>本帧是否按下「走/跑切换」（原版 `R`）。</summary>
         public bool RunTogglePressed => GetKeyDown(GameKeyAlias.KeyRunToggle);
 
+        /// <summary>
+        /// 本帧是否按下「切换武器组」（原版 `W`）。
+        /// <para>键位**唯一来源** = <see cref="GameKeyAlias.KeySwapWeapon"/>；消费方 =
+        /// `Module/Player/PlayerModule.Tick`（⇒ 发 `Events.SwapWeaponRequest`）。⛔ 本文件与消费方
+        /// 都不出现 `GameKey.W` 字面量（改键位只改 `Def/GameKeyAlias.cs` 一处）。</para>
+        /// </summary>
+        public bool SwapWeaponPressed => GetKeyDown(GameKeyAlias.KeySwapWeapon);
+
         /// <summary>`Game.Input.GetKey` 的薄封装（`Game.Input` 为 null 时返回 false）。</summary>
         public bool GetKey(GameKey key)
         {
@@ -310,8 +489,12 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// 腰带快捷键（原版数字键 1~4）→ 发 `Events.UseBeltRequest`（参数 = 0..3 格号）。
+        /// 腰带快捷键（原版数字键 1~4）→ 发 `Events.UseBeltRequest`（参数 = 0..3 格号）；
+        /// **技能槽键**（原版 `F1`~`F8`）→ 发 `Events.SkillSlotAssignRequest`（参数 = 槽号 1..8）。
         /// `canUse` = 角色存活且未暂停；false 时不读、不发。
+        /// <para>★ impl-I-input（审计 R4）：`GameKeyAlias.KeySkillSlot1..8` / `SkillSlotKey(int)` /
+        /// `SkillSlotCount` 在改动前**全仓 0 消费**（登记了没消费者）。这里只做"读键 → 发意图"，
+        /// 槽号 → 具体技能 id 的解析在 `Module/Skill/SkillModule`（业务不塞进输入层）。</para>
         /// </summary>
         public void PollHotkeys(bool canUse)
         {
@@ -326,13 +509,29 @@ namespace Diablo2.Module
                 Log.Info(Tag, $"腰带 {i + 1} 键（{key}）按下 ⇒ 发 {Events.UseBeltRequest}（格号 {i}）");
                 Emit(Events.UseBeltRequest, i);
             }
+
+            // ── 技能槽键（F1~F8）→ 绑到左右键技能格（原版语义）──────────────
+            for (var slot = 1; slot <= GameKeyAlias.SkillSlotCount; slot++)
+            {
+                var key = GameKeyAlias.SkillSlotKey(slot);
+                if (key == GameKey.None) continue;
+                if (!Game.Input.GetKeyDown(key)) continue;
+
+                var hand = GameKeyAlias.SkillSlotIsLeftHand(slot) ? "左键" : "右键";
+                Log.Info(Tag, $"技能槽键 {slot}（{key}）按下 ⇒ 发 {Events.SkillSlotAssignRequest}"
+                    + $"（绑{hand}技能格；已学技能表下标 {GameKeyAlias.SkillSlotIndex(slot)}）");
+                Emit(Events.SkillSlotAssignRequest, slot);
+            }
         }
 
         /// <summary>复位（回主菜单 / 换角色：清缓存与相机引用，下次 `Poll` 重新探测）。</summary>
         public void Reset()
         {
             _down = _held = _up = false;
+            _secDown = _secHeld = _secUp = false;
             _wheel = 0f;
+            _labelsPrev.Clear();
+            _labelsAltPrev = false;
             HoverGrid = Vector2Int.zero;
             _noCamLogged = false;
             _noInputLogged = false;

@@ -1,0 +1,146 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 41,
+  "spec_md_line": 136,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "存档",
+  "method": "`Game.Setting`；多角色",
+  "criterion": "存→退→重进，等级/背包/任务/位置一致",
+  "conclusion": "通过（跨进程重启后的复读本轮未演）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row41.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {
+      ".ai-tmp/screenshots/w1_host_itemcheck.txt": [
+        212
+      ],
+      ".ai-tmp/screenshots/w1_host_savecheck.txt": [
+        30,
+        31
+      ]
+    },
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_itemcheck.txt": [
+        "[a21 产物] log_a21_menu.txt:76514",
+        "[Save] 读档成功：「Hero」等级=1 金币=0 位置=(0,0) area=0 seed=1587940985 背包锚点=0 装备=0 技能=0 任务=无 大小=368 字节",
+        "[a22 现场]",
+        "T20 角色名='accA'",
+        "[离线] tools/probes/hosts/itemcheck",
+        "[ OK ] 读档带回金币/背包/任务 (gold=1234 anchors=1 quest=1)"
+      ],
+      ".ai-tmp/screenshots/w1_host_savecheck.txt": [
+        "[a21 产物] log_a21_menu.txt:76514",
+        "[Save] 读档成功：「Hero」等级=1 金币=0 位置=(0,0) area=0 seed=1587940985 背包锚点=0 装备=0 技能=0 任务=无 大小=368 字节",
+        "[a22 现场]",
+        "T20 角色名='accA'",
+        "[离线] tools/probes/hosts/itemcheck",
+        "SAVECHECK_SUMMARY FAIL=0"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 18443,
+      "sha256": "3e1b34e05911c9f93e88f70b4922ba86fdaa44e435e872387307d2b357a35161",
+      "mtime": "2026-09-21 14:30:46",
+      "lines": 245,
+      "ok_lines": 134,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。"
+      ],
+      "matched_lines_total": 0,
+      "checks_written": 3,
+      "checks_truncated": false
+    },
+    {
+      "path": ".ai-tmp/screenshots/w1_host_savecheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 21208,
+      "sha256": "c5799bd74c4187f17c56874bac731b08f6dd61d394b7bb61fc65cea8b8455536",
+      "mtime": "2026-09-21 14:30:54",
+      "lines": 199,
+      "ok_lines": 65,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "SAVECHECK_SUMMARY FAIL=0"
+      ],
+      "matched_lines_total": 1,
+      "checks_written": 4,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "=== ItemCheck：物品 / 任务 / NPC / 存档 离线自检 ===",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 212,
+      "selected_by": "anchor",
+      "text": "[ OK ] 读档带回金币/背包/任务   (gold=1234 anchors=1 quest=1)",
+      "numbers": [
+        "1234",
+        "1",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 244,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_savecheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "╔══════════════════════════════════════════════════════════════════╗",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_savecheck.txt",
+      "line": 30,
+      "selected_by": "anchor",
+      "text": "[ERROR] [Setting] Load 失败（json 损坏）：expected '\"' at 1；已保留副本 'C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\setting-demo\\settings.json.corrupt'，配置回退默认值 | FormatException: expected '\"' at 1",
+      "numbers": [
+        "1",
+        "2",
+        "2",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_savecheck.txt",
+      "line": 31,
+      "selected_by": "anchor",
+      "text": "[ OK ] 改前手法③：`settings.json` 损坏 ⇒ **不抛** + 回退默认值 + 整份文件留档 `.corrupt`   （留档=C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\setting-demo\\settings.json.corrupt；粒度 = **整份文件**（新类 `FileSlotStore` 是**单槽**粒度 ⇒ 不是同一层，见回报对照表））",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_savecheck.txt",
+      "line": 198,
+      "selected_by": "snippet",
+      "text": "SAVECHECK_SUMMARY FAIL=0",
+      "numbers": [
+        "0"
+      ]
+    }
+  ]
+}

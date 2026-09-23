@@ -324,6 +324,40 @@ namespace Diablo2.UI
         /// <summary>chi 字模是否已就绪（映射表 + 图集都在内存里）。</summary>
         public static bool ChiReady(D2Font font) { return Slot(font).Ready; }
 
+        /// <summary>
+        /// `Game.Res` 未就绪时被**延迟**的字模（见 <see cref="EnsureChi"/>；不降级、不丢）。
+        /// 由 <see cref="RetryDeferred"/> 重试 —— 逐帧被 <see cref="D2TextMirror.Update"/> 调一次。
+        /// </summary>
+        private static readonly List<D2Font> _deferred = new List<D2Font>();
+
+        /// <summary>`EnsureS2T` 是否因 `Game.Res == null` 被延迟（见 <see cref="EnsureS2T"/>）。</summary>
+        private static bool _s2tDeferred;
+
+        /// <summary>
+        /// 重试"因 `Game.Res` 未就绪而延迟"的字模加载（幂等、极廉价：队列空 ⇒ 一次判空返回）。
+        /// <para>为什么必须有它：`EnsureChi` 的加载是异步的，而**触发重画**的
+        /// `D2Label.RebuildAll()` 只在加载完成回调里调 —— 若当初因 `Game.Res == null` 直接返回，
+        /// 就再没有任何人会发起加载 ⇒ 那些"启动期建好的标签"会永远空着。
+        /// 调用点 = <see cref="D2TextMirror.Update"/>（每帧一次，字模一到就自愈）。</para>
+        /// </summary>
+        public static void RetryDeferred()
+        {
+            if (_deferred.Count == 0 && !_s2tDeferred) return;
+            if (Game.Res == null) return;                 // 还没就绪 ⇒ 继续等（不再降级）
+
+            for (var i = _deferred.Count - 1; i >= 0; i--)
+            {
+                var f = _deferred[i];
+                _deferred.RemoveAt(i);
+                EnsureChi(f);                             // 就绪后的加载；完成后会自动 RebuildAll
+            }
+            if (_s2tDeferred)
+            {
+                _s2tDeferred = false;
+                EnsureS2T();
+            }
+        }
+
         /// <summary>触发某字号 chi 字模的异步加载（幂等；就绪后自动重画已有标签）。</summary>
         public static void EnsureChi(D2Font font)
         {
@@ -332,7 +366,25 @@ namespace Diablo2.UI
 
             if (Game.Res == null)
             {
-                OnAtlasFailure($"Game.Res 未初始化（CloverRes.Init 未调用）⇒ 取不到原版中文字模 font{SizeOf(font)}");
+                // ★★ V6 修（**全项目文字降级的唯一根因**，实机日志可复跑）：
+                //   改前这里调 `OnAtlasFailure` ⇒ `D2Label.MarkBitmapUnavailable`
+                //   ⇒ **`_bitmapUnavailable` 是一局之内不再恢复的静态开关** ⇒ 整个 Play 里
+                //   所有文字都退化成引擎默认 TTF（原版位图字模再也回不来）。
+                //   而这次触发点**每次进 Play 都会命中**（实测 11:57:46 / 12:04:27 / 12:54:41 /
+                //   13:05:58 / 13:12:39 五局五次）：`Game.Launch` 期间就有业务面板建了中文标签
+                //   （`CloverRes.Init` 还没调用 ⇒ `Game.Res == null`），引擎那条 `D2TextMirror` 挂钩
+                //   （`UI/D2EngineTextHook.cs`）**只保护它自己接收的引擎 Text**，业务面板直接
+                //   `UiArt.Label` / `D2Label.Create` 建的标签不经过它。
+                //   ⇒ 这里改成**延迟**（与 `D2EngineTextHook` 的"寄存"同一思路）：不降级、不丢，
+                //     记下字号，等 `Game.Res` 就绪后由 `RetryDeferred()` 重新发起加载。
+                //   判据：实机 `STAGE-READY` 的 `bitmapUnavailable=0` + 日志出现
+                //   `[原版中文字模] font16 就绪` 且**没有** `位图字模整体不可用` 的 Error。
+                if (!_deferred.Contains(font)) _deferred.Add(font);
+                slot.Loading = false;
+                UiLog.WarnOnce("chifont.deferred." + SizeOf(font),
+                    $"Game.Res 未初始化（CloverRes.Init 未调用）⇒ font{SizeOf(font)} 字模加载**延后**"
+                    + "（不降级：不再把全项目字模永久切成系统字体）；Game.Res 就绪后由 "
+                    + "`D2Text.RetryDeferred()` 自动重试（见 D2Text.EnsureChi 注释）");
                 return;
             }
 
@@ -439,9 +491,12 @@ namespace Diablo2.UI
 
             if (Game.Res == null)
             {
+                // ★ V6：与 `EnsureChi` 同一处置 —— 启动期（`CloverRes.Init` 之前）不把"暂时取不到"
+                //   当成"永久缺失"，只记延迟，等 `RetryDeferred()` 再取。
+                _s2tDeferred = true;
                 UiLog.WarnOnce("chifont.s2t.nores",
-                    "Game.Res 未初始化 ⇒ 取不到简体→原版字形映射表（font_chi_s2t）；"
-                    + "后果：简体字在字模里查不到时会不显示");
+                    "Game.Res 未初始化 ⇒ 简体→原版字形映射表（font_chi_s2t）加载**延后**（不视为缺失）；"
+                    + "就绪后由 `D2Text.RetryDeferred()` 自动重试");
                 return;
             }
 
@@ -689,6 +744,18 @@ namespace Diablo2.UI
         /// <summary>是否按框宽换行（`HorizontalWrapMode.Wrap`）。</summary>
         private bool _wrap;
 
+        /// <summary>
+        /// 强制整条走 **chi（原版中文）字模**，即使文案全是 ASCII。
+        /// <para>★ 为什么需要这个开关（根因，2026 品牌署名轮实测）：
+        /// **原版拉丁字模 `font{16,24,30,42}.png` 是不分大小写的** —— 码位 97..122（a..z）的格子里
+        /// 放的是**缩小号的同形大写**（实测 `font24_98`＝小号 B、`font24_121`＝小号 Y，
+        /// 且 g/p/q/y 一律**没有降部**：底边与基线齐平）。于是 `by clover-engine` 经拉丁字模画出来
+        /// 是 `BY CLOVER-ENGINE`（小型大写），**不是逐字小写** —— 违反全局 skill §1.6 的判据。
+        /// 原版**中文**字模 `font{N}_chi` 里 ASCII 是**真小写**（实测 `font24_chi` 码位 97＝真 a、
+        /// 103＝带降部的 g、121＝带降部的 y）⇒ 只有它能把这一行画成逐字小写。</para>
+        /// </summary>
+        private bool _forceChi;
+
         /// <summary>是否"缩到框里"（对应 uGUI 的 `resizeTextForBestFit`）。</summary>
         private bool _bestFit;
         private int _bestFitMin;
@@ -743,6 +810,13 @@ namespace Diablo2.UI
 
         /// <summary>竖排溢出策略（本项目一律 Overflow；留成员只为与 `Text` 接口对齐）。</summary>
         public VerticalWrapMode verticalOverflow { get; set; }
+
+        /// <summary>强制走 chi 字模（见 <see cref="_forceChi"/>；改它会重排）。</summary>
+        public bool forceChi
+        {
+            get { return _forceChi; }
+            set { if (_forceChi != value) { _forceChi = value; Render(); } }
+        }
 
         /// <summary>缩到框里（对应 `Text.resizeTextForBestFit`）。</summary>
         public bool resizeTextForBestFit
@@ -839,11 +913,31 @@ namespace Diablo2.UI
 
             if (!_bitmapUnavailable)
             {
-                var chi = !D2Text.IsLatinOnly(_text);
+                // `_forceChi`（品牌署名行）：拉丁字模不分大小写，ASCII 也改走 chi 字模，见 _forceChi 注释
+                var chi = _forceChi || !D2Text.IsLatinOnly(_text);
                 if (chi)
                 {
                     D2Text.EnsureChi(_font);      // 中文/混合：整条走 chi 字模
                     D2Text.EnsureS2T();
+
+                    // ★★ V6 修（缺陷 1：实机图 `v5_03_npc_dialog.png` 里「標題 + 正文」整行画在石框**之外**）：
+                    //   根因 = 「字模**在途**」这一瞬被当成了「字模**不可用**」——
+                    //   chi 字模是异步加载的（`EnsureChi`），到货前 `BuildBitmap` 返回 false，
+                    //   于是下面 `BuildFallback()` **用系统 TTF 顶上**画了一帧；而系统字体那条路的
+                    //   排版框是坏的（见 `BuildFallback` 的 sizeDelta 注释）⇒ 字被画到框外半屏处；
+                    //   等到字模到货 `RebuildAll` 才画成位图字 ⇒ 一屏里先看到"跑出框的字"。
+                    //   `BuildBitmap` 自己的注释早就写明了本意：**"字模在途：本帧不画（等就绪后
+                    //   RebuildAll 重画）"** —— 这里把这个本意落实：**在途就不画，且绝不用系统字体顶替**
+                    //   （系统字体只允许在**真的取不到**字模时出现，那一支由 `_bitmapUnavailable` 走）。
+                    //   判据：实机 `v6_01_dialog.png`（标题/正文落在石框内）+ `uicheck` 的 D2Text 断言
+                    //   （`BuildFallback` 只在 `_bitmapUnavailable` 时可达）。
+                    if (!D2Text.ChiReady(_font))
+                    {
+                        ClearChildren();
+                        _glyphLayer = null;
+                        _fallback = null;
+                        return;
+                    }
                 }
                 if (BuildBitmap(chi)) return;
             }
@@ -985,14 +1079,26 @@ namespace Diablo2.UI
             _fallback = UIFactory.CreateText("Text", _root, _text, pt, _anchor, _color);
             UIFactory.Stretch(_fallback.rectTransform);
             _fallback.raycastTarget = false;
+
+            // ★★ V6 修（缺陷 1 的第二半：系统字体这条兜底路把字画到了框外）：
+            //   原来这里还有一句 `if (size.x > 0f) _fallback.rectTransform.sizeDelta = size;` ——
+            //   `Stretch` 之后子节点的矩形**已经** == 标签节点（= 排版框），再设一次 `sizeDelta`
+            //   会在**拉伸锚点**下把矩形从锚框**再向外撑大** `size` ⇒ 矩形左上角跑到
+            //   （节点中心 − 半宽, 节点中心 + 半高）之外 ⇒ 左上对齐的文本整行画到**框外**、
+            //   居中的文本被整体上抬半框。实机证据（V6 逐节点 dump，2026-09-23 13:06）：
+            //   `body` 节点 screen=(607,533)-(1302,774)，而画面上那行字出现在 screen y≈187..213
+            //   （= 石框之外、屏幕上方），偏移量正是 (±W/2, ±H/2)。
+            //   ⇒ 删掉这一句：兜底文本与位图文本**共用同一个框**（节点矩形），位置口径从此只有一套。
+            //   判据：V6 的 `body.Glyphs` / 兜底路径取证 + 实机图 `v6_01_dialog.png`。
             if (_bestFit)
             {
                 _fallback.resizeTextForBestFit = true;
                 _fallback.resizeTextMinSize = _bestFitMin > 0 ? _bestFitMin : 8;
                 _fallback.resizeTextMaxSize = _bestFitMax > 0 ? _bestFitMax : pt;
             }
+            // ⛔ V6 已删除本方法末尾那句"给兜底文本再设一次框尺寸"的赋值（见上一条注释的实机证据）：
+            //    `Stretch` 之后它的矩形**就是**标签节点的框，再设一次只会在拉伸锚点下把框撑大一倍。
             _fallback.horizontalOverflow = _wrap ? HorizontalWrapMode.Wrap : HorizontalWrapMode.Overflow;
-            if (size.x > 0f) _fallback.rectTransform.sizeDelta = size;
         }
 
         /// <summary>整串降级为默认字体时用的字号（位图字号 → uGUI 字号，视觉接近）。</summary>

@@ -72,6 +72,18 @@ namespace Diablo2.Module.Skill
         /// <summary>命中的怪物 id（-1 = 未命中任何目标）。</summary>
         public int hitMonsterId = -1;
 
+        /// <summary>
+        /// 是否**命中地形**（撞墙 / 树 / 栅栏 / 水 / 桥栏杆…）后消散 —— 与 <see cref="hitSomething"/>
+        /// （只表示命中怪物）互斥。判据与逐类裁决见 `SkillModule.BlocksProjectile`。
+        /// </summary>
+        public bool hitTerrain;
+
+        /// <summary>命中的地形格（仅 <see cref="hitTerrain"/> == true 时有意义）。</summary>
+        public Vector2Int terrainCell;
+
+        /// <summary>命中的地形类型（仅 <see cref="hitTerrain"/> == true 时有意义；日志/自证用）。</summary>
+        public TileKind terrainKind;
+
         /// <summary>累计飞行距离（格，自证用）。</summary>
         public float traveled;
 

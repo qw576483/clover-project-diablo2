@@ -465,6 +465,35 @@ namespace FlowCheck
             Check("★过门/进图全程没有「重复生成」假警报",
                 ConsoleLogger.CountOf("重复生成") == 0, "count=" + ConsoleLogger.CountOf("重复生成"));
 
+            // ⑧-2 ★ 片 T（S-08）：**自环过门请求不许刷屏，但不许静默**
+            //     现场：上游（探针/回声）在"已经在 BloodMoor"时重复发 `ExitEntered(BloodMoor)`，
+            //     旧实现每一条都写一行 Warn ⇒ 09-23 日志 12 分钟 39069 条（≈54 条/秒）。
+            //     修复口径 = 第一次 Warn 说清、之后每 1000 次汇总一条（⛔ 不是把铃声拆掉）。
+            //     判据打在**日志条数**上（判过程）：2001 次自环请求 ⇒ Warn 恰好 1 条 + 汇总恰好 2 条。
+            const int dupRepeats = 2001;
+            var doorSerialBeforeDup = AppDoorGuard.DoorSerial;
+            var stationsBeforeDup = StationLog.Count;
+            var switchLinesBeforeDup = ConsoleLogger.CountOf("[Stage] 区域已切换为");
+            for (var i = 0; i < dupRepeats; i++) bus.Emit(Events.ExitEntered, AreaId.BloodMoor);
+
+            Check($"★S-08 自环过门 {dupRepeats} 次 ⇒ Warn「出入口指向当前区域 BloodMoor」**只报 1 条**",
+                ConsoleLogger.CountOf("出入口指向当前区域 BloodMoor") == 1,
+                "warn=" + ConsoleLogger.CountOf("出入口指向当前区域 BloodMoor") + "（修前 = " + dupRepeats + "）");
+            Check("★S-08 自环过门 ⇒ 汇总条数 = 2（每 1000 次一条，⛔ 不是静默丢弃）",
+                ConsoleLogger.CountOf("已累计忽略") == 2, "summary=" + ConsoleLogger.CountOf("已累计忽略"));
+            Check("★S-08 自环过门不重生成地图、不换站点（拒绝语义保持）",
+                StationLog.Count == stationsBeforeDup &&
+                ConsoleLogger.CountOf("[Stage] 区域已切换为") == switchLinesBeforeDup &&
+                AppDoorGuard.DoorSerial == doorSerialBeforeDup + dupRepeats,
+                $"stations={stationsBeforeDup}→{StationLog.Count} switchLines=" + switchLinesBeforeDup +
+                "→" + ConsoleLogger.CountOf("[Stage] 区域已切换为") + " doorSerial=" + doorSerialBeforeDup +
+                "→" + AppDoorGuard.DoorSerial);
+            bus.Emit(Events.ExitEntered, AreaId.Town);
+            Check("★S-08 自环之后**真的换区**仍然生效（同源判据不是把出口锁死）",
+                ConsoleLogger.CountOf("[Stage] 区域已切换为") == switchLinesBeforeDup + 1,
+                "switchLines=" + ConsoleLogger.CountOf("[Stage] 区域已切换为"));
+            bus.Emit(Events.ExitEntered, AreaId.BloodMoor);   // 复位现场（后续用例假定在 BloodMoor）
+
             // ⑧b ★§B 现象 1（同类漏关）：暂停里的「选项」是子面板 ⇒ `Pause → Stage` 必须把它一起关掉
             //     （修前 Play 实测：`fsm=Stage PausePanel=False SettingsPanel=True` ⇒ 选项面板一直叠在 HUD 上）
             //     兜底 Warn 的基线：上面那个"故意留面板"的用例已经打过 1 条，这里只断言"**没有新增**"，

@@ -71,7 +71,7 @@ namespace Diablo2.Module.Map
 
             var sb = new StringBuilder((map.Width + 8) * Mathf.Min(map.Height, maxRows > 0 ? maxRows : map.Height) + 256);
             sb.AppendLine($"ASCII y={map.Height - 1}→0  x=0→{map.Width - 1}   " +
-                          "图例: ' '=图外/未生成 '.'=可走 '#'=障碍 'S'=出生点 'E'=出口 'C'=洞穴入口 'N'=NPC 'M'=刷怪点");
+                          "图例: ' '=图外/未生成 '.'=可走 '#'=障碍 '~'=水 'S'=出生点 'E'=出口 'C'=洞穴入口 'N'=NPC 'M'=刷怪点");
 
             var rows = 0;
             for (var y = map.Height - 1; y >= 0; y--)
@@ -153,6 +153,9 @@ namespace Diablo2.Module.Map
 
             var kind = map.Get(x, y);
             if (kind == TileKind.Void) return ' ';
+            // ★ 片 L / R12：水在字符画里用 '~'（与障碍 '#' 分开）⇒ 日志/离线取证一眼能分出
+            //   "这条是河"还是"这条是石头"。⛔ 只改显示字符，可走性仍走 `TileKindInfo`（水 = 阻挡）。
+            if (kind == TileKind.Water) return '~';
             return TileKindInfo.IsWalkable(kind) ? '.' : '#';
         }
 

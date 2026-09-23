@@ -132,16 +132,29 @@ namespace Uicheck
                 NearV(HudPanel.RightSkillPos, new Vector2(-192.2f * K, BottomY(35.5f))),
                 HudPanel.RightSkillPos.ToString());
 
-            Check("小面板底图 = 原版 ImageMinipanel 152×26 @ (0,60) ×1.8",
-                NearV(HudPanel.MiniPanelSize, new Vector2(152f * K, 26f * K))
-                && Near(HudPanel.MiniPanelY, BottomY(60f)),
+            // ★ w3 审计改口径（**不是放宽**：从"照 prefab 节点 sizeDelta"改成"照素材原生尺寸 ×1.8"）：
+            //   原版这张底图（`Panel/minipanel.png`）实测 **173×26**，而 `ControlPanel.prefab` 的
+            //   `ImageMinipanel` 节点写 152×26 ⇒ 照 152 贴会把图**水平压到 87.9%**（垂直不动）＝ 非等比拉伸，
+            //   且同批的 7 个按钮（20×20 原生）是按 ×1.8 摆的 ⇒ 一块 HUD 上两种水平比例。
+            //   判据 = 本次审计统一口径「控件矩形 == 原版像素 ×1.8」（原版像素 = 素材自己的像素）。
+            // ★ U3 改口径（**不是放宽**）：y 不再取 prefab 的 60 —— 扫底图实测格带（技能格/腰带）
+            //   横跨 art y(自上而下) 79..113，而 art y 65.7..91.7 的底条会**压住格带上沿 13px**
+            //   （原版底条不透明 ⇒ 不可能相交）。新值 = 把底条**下沿贴住格带上沿**：中心 origY = 72.7
+            //   （= 60 + 12.7）。依据与推导写在该常量的注释里；`.ai-tmp/test/u3_scan.py` 可复跑扫描。
+            Check("小面板底图 = 原版素材原生 173×26，y = 底条下沿贴格带上沿（origY 72.7，**不是** prefab 的 60）",
+                NearV(HudPanel.MiniPanelSize, new Vector2(173f * K, 26f * K))
+                && Near(HudPanel.MiniPanelY, BottomY(72.7f)),
                 $"{HudPanel.MiniPanelSize} @ y={HudPanel.MiniPanelY}");
-            Check("小面板 7 按钮 = 原版 20×20、x −63..63 步进 21、y 与底图同 ×1.8",
+            // ★ U3：**按钮数 7 → 8**。依据 = `minipanelbtn.DC6` 16 帧 = 8 对（常态/按下）
+            //   + `string.tbl` 的 8 条 `minipanel*` tooltip + `strpanel1..8`（见 UiLayoutGame.MiniButtonCount）。
+            //   8 钮按 pitch 21 居中排 ⇒ 中心 ±10.5/±31.5/±52.5/±73.5（占宽 167 ≤ 173）。
+            Check("小面板 = 原版 8 按钮 20×20、pitch 21 居中（±10.5..±73.5）、y 与底图同 ×1.8",
                 Near(HudPanel.MiniButtonSize, 20f * K)
-                && HudPanel.MiniButtonX.Length == 7
-                && Near(HudPanel.MiniButtonX[0], -63f * K)
-                && Near(HudPanel.MiniButtonX[3], 0f)
-                && Near(HudPanel.MiniButtonX[6], 63f * K)
+                && HudPanel.MiniButtonX.Length == 8
+                && Near(HudPanel.MiniButtonX[0], -73.5f * K)
+                && Near(HudPanel.MiniButtonX[3], -10.5f * K)
+                && Near(HudPanel.MiniButtonX[4], 10.5f * K)
+                && Near(HudPanel.MiniButtonX[7], 73.5f * K)
                 && Near(HudPanel.MiniButtonX[1] - HudPanel.MiniButtonX[0], 21f * K),
                 string.Join(",", HudPanel.MiniButtonX));
 
@@ -243,14 +256,13 @@ namespace Uicheck
             //   （★ agent-27 已删掉旧豁免 ②「SkillBar0×RunButton / SkillBar4×MiniArrow」：
             //    那两个按钮的 y 已从 prefab 原值挪到格带下方的空白条 ⇒ 不再压技能格，
             //    豁免没必要了 —— 留着反而会掩盖回归。见 `UiLayoutGame.HudSubBarArtY`。）
-            static bool ExemptPair(string a, string b)
-            {
-                var aBar = a.StartsWith("SkillBar", StringComparison.Ordinal);
-                var bBar = b.StartsWith("SkillBar", StringComparison.Ordinal);
-                var aMini = a.StartsWith("MiniBtn", StringComparison.Ordinal);
-                var bMini = b.StartsWith("MiniBtn", StringComparison.Ordinal);
-                return (aBar && bMini) || (aMini && bBar);
-            }
+            //
+            // ★★ U3 又删掉豁免 ①（`SkillBar×MiniBtn`）—— 同一条理由：底条 y 已改成
+            //   「下沿贴住格带上沿」（origY 60 → 72.7，见 `UiLayoutGame.MiniPanelY`），
+            //   实测 MiniBtn 底沿 = −388.8、SkillBar 顶沿 = −405.7 ⇒ **不再相交**
+            //   ⇒ 豁免已无对象，留着只会掩盖"以后谁把底条挪回去"这种回归。
+            //   ⛔ 现在 HUD 图元的**零豁免**判定：任何一对相交都算失败。
+            static bool ExemptPair(string a, string b) => false;
 
             var rects = UiLayoutGame.HudRects();
             var bad = new List<string>();
@@ -268,7 +280,7 @@ namespace Uicheck
                 }
             }
             Check($"HUD {counted} 个图元两两不重叠（整幅底图/小面板底图作容器不参与判定；"
-                  + "SkillBar×MiniBtn 是原版自身重叠，唯一保留的豁免）", bad.Count == 0,
+                  + "★ U3 起**零豁免**：SkillBar×MiniBtn 也已不再重叠，豁免已删）", bad.Count == 0,
                 bad.Count == 0 ? "0 冲突" : string.Join(", ", bad.ToArray()));
 
             Check("HUD 图元都在 1920×1080 之内（底图也已不再越界，见上一条）",
@@ -581,7 +593,9 @@ namespace Uicheck
         //    生成器：`tools/d2codec/export_skilltree_layout.py`（从
         //    `Panel/skltree_{cls}_back_{0..3}.png` 逐像素解析 + 与原版 `skilldesc.txt` 对账 15/15）。
         //    口径：面板 = 原版 320×432 ×1.8 = 576×777.6；节点框 = 原版画出的框（45×50 原版px）；
-        //          技能图标 = 框**内径**（45−2×2 × 50−2×2 原版px）。
+        //          技能图标 = **原版位图原生 48×48**（×1.8 = 86.4；★ w3 审计由"框内径 41×46"改来，
+        //          理由与出处见 `UiLayoutGame.SkillIconCell`：节点处画的是 L 形管线不是插座方框，
+        //          把 48×48 缩到 41 会让图标小 15% 且让管线露在图标外一圈）。
         //    ⛔ 上一版那套「由原版图标尺寸反推」的常量（SkillNodeSize / SkillNodeX/Y /
         //       SkillTreeColumnX / SkillNodeStepY / SkillLinkW / SkillPanelW/H …）**已删除**。
         //    ⚠️ 本节的断言只覆盖**结构不变量**（表自洽、网格值、页签槽、说明区）；
@@ -598,9 +612,9 @@ namespace Uicheck
             Check("技能树面板高 ≤ 画布高 1080（否则上下被裁）",
                 SkillTreePanel.PanelSize.y <= UiArt.RefHeight, $"高 = {SkillTreePanel.PanelSize.y:0.#} ≤ 1080");
 
-            Check("技能图标层 = 原版框**内径**（45−2×2 × 50−2×2 原版px ×1.8 = 73.8×82.8）",
-                Near(SkillTreePanel.IconCellSize.x, (45f - 4f) * K)
-                && Near(SkillTreePanel.IconCellSize.y, (50f - 4f) * K)
+            Check("技能图标层 = 原版**位图原生 48×48** ×1.8 = 86.4×86.4（★ w3 审计由框内径 41×46 改来）",
+                Near(SkillTreePanel.IconCellSize.x, UiLayoutGame.SkillIconArtPx * K)
+                && Near(SkillTreePanel.IconCellSize.y, UiLayoutGame.SkillIconArtPx * K)
                 && NearV(SkillTreePanel.IconCellSize, UiLayoutGame.SkillIconCell),
                 SkillTreePanel.IconCellSize.ToString());
 
@@ -693,7 +707,11 @@ namespace Uicheck
 
         /// <summary>
         /// 图标中心与框中心的**原版px**偏差（取全表最大值）。
-        /// <para>图标层 = 框内缩 2px（框线宽）⇒ 中心与框中心同点 ⇒ 期望 0。</para>
+        /// <para>★ w3 审计：图标层不再是"框内缩 2px"，而是**框的原生 48×48 图标居中于框中心**
+        /// （`SkillTreePanel.CreateNode` 把 Icon 建成 Hit 的居中子节点、`anchoredPosition = 0`；
+        /// Hit 自己居中于 `SkillTreeCell.box` 的中心）⇒ 偏差仍恒为 0。
+        /// 这里保留"逐格算一遍"的形式（不是恒返回 0），因为它是**映射规则**的等价改写：
+        /// 只要将来谁把图标改成相对框的偏移，这条断言就会红。</para>
         /// </summary>
         private static float IconCenterDelta()
         {
@@ -702,10 +720,9 @@ namespace Uicheck
             {
                 var boxCx = c.box.x + c.box.w * 0.5f;
                 var boxCy = c.box.y + c.box.h * 0.5f;
-                var iconCx = (c.box.x + UiLayoutGame.SkillCellLine)
-                             + (c.box.w - 2f * UiLayoutGame.SkillCellLine) * 0.5f;
-                var iconCy = (c.box.y + UiLayoutGame.SkillCellLine)
-                             + (c.box.h - 2f * UiLayoutGame.SkillCellLine) * 0.5f;
+                // 图标层 = 原生 48×48、居中于框中心 ⇒ 中心 = 框中心 + (0,0)
+                var iconCx = boxCx + (UiLayoutGame.SkillIconCell.x - UiLayoutGame.SkillIconArtPx * K) * 0.5f;
+                var iconCy = boxCy + (UiLayoutGame.SkillIconCell.y - UiLayoutGame.SkillIconArtPx * K) * 0.5f;
                 worst = Math.Max(worst, Math.Abs(iconCx - boxCx));
                 worst = Math.Max(worst, Math.Abs(iconCy - boxCy));
             }

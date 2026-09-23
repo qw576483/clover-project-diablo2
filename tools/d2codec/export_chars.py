@@ -55,7 +55,33 @@ Point / Single / PPU=64 / 无压缩 / 无 mipmap / **轴心 = (0.5, 0.5)**）：
 
 用法：
     python export_chars.py [--out <Resources/Clover/D2 根>] [--only am,fa,rc] [--all-classes]
-                           [--emit-cs <SpriteFrameCounts.cs 路径>] [--d2assets <_assets_src 路径>]
+                           [--emit-cs <SpriteFrameCounts.cs 路径>] [--d2assets <原版资源 路径>]
+                           [--mpq-dir <含 d2char.mpq/d2data.mpq 的目录>] [--no-cs] [--layers auto|body|all]
+                           [--equip-sets '<token>:<cofWc>:<code>:<comp=equip,...>[;…]']
+
+**装备套（起始装备的"整套角色帧"）** —— `--equip-sets` 专用：与徒手套同口径，但把
+"武器/盾覆盖层"也合成进同一张画布，落进 `Chars/<class>/equip/<code>/`：
+    client/Assets/Resources/Clover/D2/Chars/{class}/equip/{code}/{action}_{dir}_{frame}.png
+    client/Assets/Resources/Clover/D2/Chars/{class}/equip/{code}/manifest.json
+三条与徒手套**不同**的规则（都是数据驱动，见各函数注释）：
+  · 找 `.cof` 用的武器类别 = **该武器自己的 subtype**（`jav`→`1ht`、`hax`→`1hs`），不是 `hth`；
+  · 每层的 `equip` **逐层解析**：`RH` = 右手武器 code、`SH` = 盾 code、其余层先试 `lit`
+    （`S1/S2` 原版有 `lit` 变体 ⇒ 用 `lit`），取不到再退到该层所在槽位的 code；
+    每层最终实际用的文件名逐条记进 manifest 的 `actions[*].layerFiles`；
+  · `DT`/`DD` 的 COF 原版**只有 hth 变体**（实测 `amdt1ht.cof`/`badt1hs.cof` 都不存在）
+    ⇒ 同动作再试一次 `<mode>hth`（**回退的是同一动作的另一武器类别**，不是别的动作）。
+`--equip-sets` 一旦给出，**只**导这些套（不碰徒手套、不写 `SpriteFrameCounts.cs`）
+⇒ 不带该参数时既有产物逐字节不变。
+
+本机可复跑的一条命令（包在 `原版资源/_mpq_incoming/`；`--mpq-dir` 不传也会自动认这个布局）：
+    cd <仓库根>
+    python tools/d2codec/export_chars.py --only am --out .ai-tmp/test/out-chars --no-cs
+
+读包用 `tools/d2codec/storm.py`（StormLib ctypes 封装；`storm.dll` **不入仓**，
+在 `<仓库根>/.ai-tmp/test/storm/storm.dll`，也可用环境变量 `D2_STORM_DLL` 指定）。
+⚠️ 那份 DLL 的 `SFileHasFile` / `SFileOpenFileEx` / `SFileFindFirstFile` **都不可用**
+（前两个返回垃圾值、后者吃 8+GB 内存）⇒ 唯一可靠的读盘原语是 `SFileExtractFile`；
+名字枚举只能读 MPQ 自带的 `(listfile)`（`d2char.mpq` 完整、`D2data.mpq` 只有 4 条）。
 """
 
 import collections
@@ -86,8 +112,25 @@ DEFAULT_CS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
 #: 的实测证据；按 R,G,B 读会得到"蓝紫色的亚马逊"。
 PALETTE_REL = 'data/global/palette/units/Pal.dat'
 
-#: 每个动作的 equip（"lit" = 无甲身体 / 头发 / 怪物本体）。
+#: 默认 equip（"lit" = 无甲身体 / 头发 / 怪物本体）。
+#: ⚠️ 实测（`.ai-tmp/test/d2char-probe/equip-report.txt`，片 impl-weapon-export）：**equip 是逐层的** ——
+#:   `RH`/`LH`（武器）与 `SH`（盾）**没有 `lit` 变体**，它们的 equip 必须是**具体物品 code**
+#:   （`am/rh` 505 条 = 43 个 code、`am/lh` 60 条 = 6 个弓弩 code、`am/sh` 102 条 = 6 个盾 code，
+#:   三者的 `lit` 计数都是 0）⇒ 想让角色手里出现武器/盾，必须按层给 code
+#:   （机制 = `Unit.equip_map` + `--equip-sets`，见 `equip_for()` 与 `parse_equip_sets()`）。
 EQUIP = 'lit'
+
+#: **共画布**（`--canvas "amazon:158:214;barbarian:142:178;…"`）：`职业目录名 → (w, h)`。
+#: origin 恒取 `(w//2, h//2)`（居中 ⇒ `pivot` 恒 `(0.5,0.5)`、脚底恒在画布中心）。
+#: 为什么必须显式给：实测各套自然画布彼此不同（见 `export_unit` 里的注释）⇒ 换套会"脚跳"。
+#: ⛔ 空 = 默认行为（逐套按自身包围盒算），与改动前逐字节一致。
+FIXED_CANVAS = {}
+
+
+def class_key(unit):
+    """`Chars/<class>[/equip/<code>]` → `<class>`（共画布按**职业**统一，不按套）。"""
+    parts = unit.out_dir.replace('\\', '/').split('/')
+    return parts[1] if len(parts) > 1 and parts[0] == 'Chars' else ''
 
 #: 找 `.cof` 用的武器类别：玩家用 `hth`（徒手 = 原版新角色无装备的默认外观）；
 #: 怪物/NPC 用 **`MonStats.txt` 的 `BaseW` 列**（= 该单位自带的基础武器类别）——
@@ -173,7 +216,7 @@ class Unit(object):
     """一个要导出的单位。"""
 
     __slots__ = ('kind', 'token', 'out_dir', 'mpq', 'class_name', 'note', 'weapon_class',
-                 'component_flags')
+                 'component_flags', 'equip_map')
 
     def __init__(self, kind, token, out_dir, mpq, class_name=None, note=''):
         self.kind = kind          # player / monster / npc
@@ -185,6 +228,17 @@ class Unit(object):
         # 由 `monstats.txt` 填（玩家固定 hth / 无 component_flags），见 `load_monstats`
         self.weapon_class = PLAYER_WEAPON_CLASS
         self.component_flags = {}
+        #: 非空 = **装备套**（起始装备的整套角色帧，见文件头 `--equip-sets`）：
+        #: `组件码 → equip（物品 code / 'lit'）`。空 = 徒手/怪物口径（全局 `EQUIP='lit'`）。
+        #: ⚠️ 它同时是"该单位走装备套分支"的**唯一判据**（`plan_layers` / `resolve_mode` /
+        #: `export_unit` 的 manifest 都看它）⇒ 徒手/怪物路径的行为**逐字节不受影响**。
+        self.equip_map = {}
+
+    def equip_for(self, component):
+        """该组件用哪个 `equip` 段：装备套查表，其余一律全局 `EQUIP`（'lit'）。"""
+        if not self.equip_map:
+            return EQUIP
+        return self.equip_map.get(component, EQUIP)
 
     def __repr__(self):
         return 'Unit(%s/%s wc=%s)' % (self.out_dir, self.token, self.weapon_class)
@@ -270,26 +324,40 @@ NPCS = (
 #  MPQ 读取（ctypes 包 StormLib；`_assets_src/storm.py` 已被验证可解加密 mpq）
 # ═════════════════════════════════════════════════════════════════════════════
 class Archive(object):
-    """一个已打开的 MPQ + 名字索引（**大小写不敏感**）。"""
+    """一个已打开的 MPQ + 名字索引（**大小写不敏感**）。
+
+    名字索引 = MPQ 自带的 `(listfile)`（**唯一可用的枚举手段**，见 `storm.py` 坑 2）。
+    ⚠️ 它**不保证完整**：实测 `d2char.mpq` = 10034 条（够用），而 `D2data.mpq` 只有 **4 条**
+    （该包的 listfile 是个 stub）⇒ 由此定下两条：
+      · `read()` **不依赖索引**（索引里没有就按名直读 —— "索引不全" ≠ "文件不在"）；
+      · `has_prefix()` / `list_prefix()` 依赖索引，索引不完整时会**恒 False** ⇒
+        ⛔ 不许把它们的返回值当"包里没有这个文件"的判据（`main()` 里那行 SKIP 只是提示，
+        真正的判据是 `read()` 能不能读回非空字节）。
+    """
 
     def __init__(self, storm, path):
         self.storm = storm
         self.path = path
         self.handle = storm.open_archive(path)
-        # ⚠️ MPQ 里存的是**反斜杠**路径；`SFileOpenFileEx` 用原件名最稳（大小写不敏感，
-        #    但分隔符不要自己换）⇒ 索引键用正斜杠小写，读盘时用原件名。
-        self.names = [n.replace('\\', '/') for n in storm.list_files(self.handle)]
-        raw = list(storm.list_files(self.handle))
+        # ⚠️ MPQ 里存的是**反斜杠**路径；索引键用正斜杠小写，读盘时用原件名。
+        try:
+            raw = list(storm.list_files(self.handle))
+        except OSError as exc:
+            print('[WARN] %s：读不到 (listfile)（%s）⇒ 名字索引为空（has_prefix 恒 False）'
+                  % (os.path.basename(path), exc))
+            raw = []
+        self.names = [n.replace('\\', '/') for n in raw]
         self.by_lower = dict((n.replace('\\', '/').lower(), n) for n in raw)
         self._cache = {}
 
     def read(self, rel):
-        """按相对路径读（大小写不敏感、分隔符正斜杠）；不存在返回 None。"""
+        """按相对路径读（大小写不敏感、分隔符正斜杠）；不存在返回 None。
+
+        ⛔ 不用 `by_lower` 当存在性判据（见类注释）：索引里没有 ⇒ 按 MPQ 原件拼法直读兜底。
+        """
         key = rel.lower()
-        real = self.by_lower.get(key)
-        if real is None:
-            return None
         if key not in self._cache:
+            real = self.by_lower.get(key, rel.replace('/', '\\'))
             self._cache[key] = self.storm.read_file(self.handle, real)
         return self._cache[key]
 
@@ -308,13 +376,15 @@ class Archive(object):
 class LayerSource(object):
     """一个"要画的层"：组件码 + 它的 DCC 文件名 + 解码出的方向数据。"""
 
-    __slots__ = ('component', 'dcc_rel', 'dcc', 'key')
+    __slots__ = ('component', 'dcc_rel', 'dcc', 'key', 'equip')
 
-    def __init__(self, component, dcc_rel):
+    def __init__(self, component, dcc_rel, equip=EQUIP):
         self.component = component
         self.dcc_rel = dcc_rel
         self.dcc = None          # dccmod.Dcc
         self.key = None
+        #: 该层实际用的 equip 段（'lit' / 具体物品 code）——记进 manifest 的 `layerFiles`
+        self.equip = equip
 
 
 def unit_root(unit):
@@ -324,32 +394,52 @@ def unit_root(unit):
     return 'data/global/monsters/%s/' % unit.token
 
 
-def cof_rel(unit, mode):
-    """`.cof` 相对路径：`<root>/cof/<token><mode><weaponClass>.cof`（出处 `cof.py` 文件头）。"""
-    return '%scof/%s%s%s.cof' % (unit_root(unit), unit.token, mode, unit.weapon_class)
+def cof_rel(unit, mode, weapon_class=None):
+    """`.cof` 相对路径：`<root>/cof/<token><mode><weaponClass>.cof`（出处 `cof.py` 文件头）。
+
+    `weapon_class` 省略时用 `unit.weapon_class`（装备套会额外试一次 `hth`，见 `resolve_mode`）。
+    """
+    wc = unit.weapon_class if weapon_class is None else weapon_class
+    return '%scof/%s%s%s.cof' % (unit_root(unit), unit.token, mode, wc)
 
 
-def component_dcc_rel(unit, component, mode, weapon_class):
+def component_dcc_rel(unit, component, mode, weapon_class, equip=None):
     """组件 DCC 相对路径：`<root>/<comp>/<token><comp><equip><mode><wc>.dcc`。
 
     出处 Diablerie `COF.cs:105-108` 的 `GetSpritesheetFilename(layer, equip)`：
     文件名 = `token + layer.name + equip + mode + **layer.weaponClass**`。
     ⚠️ 这里用的是**该层自己的 weaponClass**（来自 COF，逐层不同：亚马逊 hth COF 里
-    `HD/LA/LG/S1/S2/SH/TR` 是 `1ht`、`RA` 是 `hth`），**不是**找 COF 时用的那个武器类别；
+    `HD/LA/LG/S1/S2/SH/TR` 是 `1ht`、`RA` 是 `hth`；barbarian 1hs COF 里 `RA/RH` 是 `1hs`、
+    其余是 `hth`），**不是**找 COF 时用的那个武器类别；
     写错会**静默取不到图**（只剩个别层能出图，其余被当"无变体"跳过）。
+    `equip` 默认按组件查 `unit.equip_for()`（徒手/怪物 = 全局 `EQUIP='lit'`）。
     """
-    stem = '%s%s%s%s%s' % (unit.token, component, EQUIP, mode, weapon_class)
+    if equip is None:
+        equip = unit.equip_for(component)
+    stem = '%s%s%s%s%s' % (unit.token, component, equip, mode, weapon_class)
     return '%s%s/%s.dcc' % (unit_root(unit), component.lower(), stem)
 
 
 def resolve_mode(arch, unit, mode):
-    """找一个可用的模式代号：`mode` 本身 → `FALLBACK` 链。返回 (mode, cof_bytes) 或 (None, None)。"""
+    """找一个可用的模式代号：`mode` 本身 → `FALLBACK` 链。返回 (mode, cof_bytes) 或 (None, None)。
+
+    ⚠️ 装备套（`unit.equip_map` 非空）多一条**同动作的武器类别回退**：`<mode><weaponClass>`
+    找不到就再试 `<mode>hth`。依据（两个 MPQ 的 COF 名单实测）：`DT`/`DD` 的 COF 原版**只**有
+    hth 变体 —— `amdt1ht.cof` / `badt1hs.cof` **都不存在**，只有 `amdthth.cof` / `badthth.cof`
+    ⇒ 死亡/倒地与武器类别无关，原版渲染走的也是 hth 那一份。
+    ⛔ 回退的是**同一动作的另一武器类别**，不是别的动作（用别的动作 = 假动画）。
+    ⛔ 只在装备套启用 ⇒ 既有 `--only` 产物逐字节不变。
+    """
     for cand in (mode,) + FALLBACK.get(mode, ()):
         if cand == mode and mode in FALLBACK.get(mode, ()):
             continue
         data = arch.read(cof_rel(unit, cand))
         if data:
             return cand, data
+        if unit.equip_map and unit.weapon_class != PLAYER_WEAPON_CLASS:
+            data = arch.read(cof_rel(unit, cand, PLAYER_WEAPON_CLASS))
+            if data:
+                return cand, data
     return None, None
 
 
@@ -389,6 +479,8 @@ def plan_layers(arch, unit, cof, mode):
       · 组件白名单：玩家 = `BODY_COMPONENTS`（徒手，不出现幻影武器）；
         怪物/NPC = `MONSTER_COMPONENTS` ∩ `monstats.txt` 逐组件标志（见两个常量的注释）；
       · 文件存在但被白名单挡掉、或白名单允许但文件不存在 ⇒ **都记进 `skipped`**（可核对）。
+      · **装备套**（`unit.equip_map` 非空）：`allowed` = COF 里出现的层**全画**（含武器/盾覆盖层），
+        每层的 `equip` 逐层解析（`unit.equip_for`），实际用的文件名也记进 `skipped`/manifest。
     """
     # 每个单位"允许画"的组件集合：
     #   · 玩家：身体 `HD/TR/LG/LA/RA`（无装备 ⇒ 不画武器/盾，否则会出现幻影武器）；
@@ -402,12 +494,16 @@ def plan_layers(arch, unit, cof, mode):
         allowed = set(BODY_COMPONENTS)
     elif LAYER_POLICY == 'all':
         allowed = set(COMPONENTS)
+    if unit.equip_map:
+        # 装备套优先级**最高**（`--layers` 不许把它降回徒手口径）：COF 声明的层就是这一套的全部构成。
+        allowed = set(COMPONENTS)
 
     drawn = []
     skipped = []
     for layer in cof.layers:
         comp = layer.component_code
-        rel = component_dcc_rel(unit, comp, mode, layer.weapon_class)
+        equip = unit.equip_for(comp)
+        rel = component_dcc_rel(unit, comp, mode, layer.weapon_class, equip)
         exists = bool(arch.read(rel))
         if comp not in allowed:
             if unit.component_flags.get(comp) is False:
@@ -422,14 +518,19 @@ def plan_layers(arch, unit, cof, mode):
                            % (layer.index, comp, layer.weapon_class, why,
                               '存在' if exists else '不存在'))
             continue
-        if comp in GEAR_COMPONENTS and unit.kind == 'player':
+        if comp in GEAR_COMPONENTS and unit.kind == 'player' and not unit.equip_map:
             skipped.append('layer#%d(%s,wc=%s)：装备层（%s）⇒ 徒手/无装备时不画'
                            '（文件%s）' % (layer.index, comp, layer.weapon_class,
                                         '武器/盾/覆盖层', '存在' if exists else '不存在'))
             continue
         if exists:
-            drawn.append(LayerSource(comp, rel))
+            drawn.append(LayerSource(comp, rel, equip))
+        elif unit.equip_map:
+            skipped.append('layer#%d(%s,wc=%s,equip=%s) 无该变体 ⇒ 跳过（DCC 不存在：%s）'
+                           % (layer.index, comp, layer.weapon_class, equip, rel))
         else:
+            # ⚠️ 这条文案 = 徒手/怪物口径的**原样**（⛔ 不许顺手改字面量）：
+            #    manifest 的 `skipped` 会被逐字节比对，改字 = 既有产物不再逐字节可复现。
             skipped.append('layer#%d(%s,wc=%s) 无 %s 变体 ⇒ 跳过（%s）'
                            % (layer.index, comp, layer.weapon_class, EQUIP,
                               'DCC 不存在' if not exists else '策略'))
@@ -556,10 +657,27 @@ def export_unit(arch, unit, out_root, palette):
     # ② 画布：原点落在正中 ⇒ Unity 轴心恒为 (0.5, 0.5)
     half_w = max(abs(min_left), abs(min_right))
     half_h = max(abs(min_top), abs(min_bottom))
-    canvas_w = max(2, 2 * half_w)
-    canvas_h = max(2, 2 * half_h)
-    origin_x = canvas_w // 2
-    origin_y = canvas_h // 2
+    # ⚠️ **共画布**（`--canvas`）：运行时每个实体只有**一个 `SpriteRenderer`**、pivot 是导入设置里的常量
+    # （`(0.5,0.5)`），拿不到 manifest 去补偿 ⇒ 若"徒手套"与"装备套"的画布尺寸/origin 不同，
+    # 换套时角色**脚会跳**。实测（`.ai-tmp/test/canvas-recon.txt`）：各套自然画布彼此不同
+    # （amazon hth 158x162 vs equip/jav 158x214；paladin hth 112x170 vs equip/ssd 158x190 …），
+    # 且**没有一个职业的装备套装得进它自己的徒手画布** ⇒ 必须走"显式共画布"并**把徒手套一起重导**。
+    # `FIXED_CANVAS` 为空 ⇒ 行为与改动前**逐字节一致**（默认路径不动）。
+    fixed = FIXED_CANVAS.get(class_key(unit))
+    if fixed:
+        w, h = fixed
+        origin_x, origin_y = w // 2, h // 2
+        if half_w > origin_x or half_h > origin_y:
+            print('   [FAIL] %s：固定画布 %dx%d（origin (%d,%d)）**装不下**本套内容'
+                  '（需 half_w>=%d、half_h>=%d）⇒ ⛔ 拒绝裁切，本套不出'
+                  % (unit.out_dir, w, h, origin_x, origin_y, half_w, half_h))
+            return None
+        canvas_w, canvas_h = w, h
+    else:
+        canvas_w = max(2, 2 * half_w)
+        canvas_h = max(2, 2 * half_h)
+        origin_x = canvas_w // 2
+        origin_y = canvas_h // 2
     print('   画布 %dx%d（原点在图内 (%d,%d) = 正中 ⇒ pivot=(0.5,0.5)）'
           % (canvas_w, canvas_h, origin_x, origin_y))
 
@@ -641,6 +759,15 @@ def export_unit(arch, unit, out_root, palette):
                          'dirs': len([1 for d in range(LOGICAL_DIRS) if per_dir.get(d) is not None]),
                          'layers': [s.component.upper() for s in sources],
                          'skipped': skipped}
+        if unit.equip_map:
+            # 装备套：**每层最终实际用的文件**逐条登记（审计口径 = "取了哪一条要写清"）。
+            # ⚠️ 同时登记 `cofLayers` = 该动作所用 COF **声明的**层清单 —— 它回答
+            # "没画 RH/SH"到底是"原版这个动作就没有这一层"（如 `DT`，实测 `amdthth.cof`
+            # 只有 TR）还是"被静默丢掉"（那是缺陷）。⛔ 没有这两列就无法机械区分。
+            stats[action]['layerFiles'] = [
+                {'component': s.component.upper(), 'equip': s.equip, 'file': s.dcc_rel}
+                for s in sources]
+            stats[action]['cofLayers'] = [l.component_code for l in cof.layers]
 
     # ④ manifest（审计用；与 export_tiles.py 的做法一致）
     manifest = {
@@ -660,6 +787,10 @@ def export_unit(arch, unit, out_root, palette):
         'actions': stats,
         'pngCount': total,
     }
+    if unit.equip_map:
+        # 装备套专有字段（徒手/怪物口径不写 ⇒ 既有 manifest 逐字节不变）
+        manifest['equipSet'] = unit.out_dir.split('/')[-1]
+        manifest['equipMap'] = dict(sorted(unit.equip_map.items()))
     with open(os.path.join(out_dir, 'manifest.json'), 'w', encoding='utf-8') as fh:
         json.dump(manifest, fh, ensure_ascii=False, indent=1)
     print('   → %d 张 PNG + manifest.json' % total)
@@ -739,14 +870,87 @@ def emit_cs(manifests, path):
     print('→ %s' % path)
 
 
+def parse_equip_sets(spec):
+    """解析 `--equip-sets` 规范串 → `[Unit, …]`（装备套，见文件头）。
+
+    格式（多条用 `;` 分隔）：`<token>:<cofWc>:<code>:<组件=equip>[,…]`
+      例：`am:1ht:jav:RH=jav,SH=buc;ba:1hs:hax:RH=hax,SH=buc`
+    `token` 必须是 `PLAYERS` 里的 2 字母代码（决定源目录 `data/global/chars/<token>/` 与
+    输出类别目录 `Chars/<class>/`）；`cofWc` = 找 `.cof` 用的武器类别（= 该武器的 subtype）；
+    `code` = 输出目录名 `Chars/<class>/equip/<code>/`；组件表里没写的层一律用 `lit`。
+    """
+    units = []
+    for spec_item in spec.split(';'):
+        spec_item = spec_item.strip()
+        if not spec_item:
+            continue
+        parts = spec_item.split(':')
+        if len(parts) != 4:
+            raise ValueError('条目应为 <token>:<cofWc>:<code>:<comp=equip,…>：%s' % spec_item)
+        token, cof_wc, code, eq_str = (p.strip() for p in parts)
+        base = None
+        for p in PLAYERS:
+            if p.token == token.lower():
+                base = p
+                break
+        if base is None:
+            raise ValueError('未知 token %r（只有 %s）' % (token, [p.token for p in PLAYERS]))
+        emap = {}
+        for kv in (x for x in eq_str.split(',') if x.strip()):
+            comp, sep, equip = kv.partition('=')
+            if not sep or not comp.strip() or not equip.strip():
+                raise ValueError('组件项应为 <组件>=<equip>：%r（条目 %s）' % (kv, spec_item))
+            emap[comp.strip().upper()] = equip.strip().lower()
+        if not emap:
+            raise ValueError('条目 %s 没有任何 <组件=equip> ⇒ 装备套至少要有武器或盾' % spec_item)
+        u = Unit('player', base.token, '%s/equip/%s' % (base.out_dir, code.lower()),
+                 base.mpq, base.class_name, note='起始装备套（code=%s）' % code.lower())
+        u.weapon_class = cof_wc.lower()
+        u.equip_map = emap
+        units.append(u)
+    return units
+
+
+def resolve_mpq_dir(d2assets, override=None):
+    """找含 `d2char.mpq` / `d2data.mpq` 的目录。
+
+    历史布局 = `<d2assets>/d2mpq/`（旧 `_assets_src` 时代）；本机实际 = `原版资源/_mpq_incoming/`
+    （`extract_wanted.py` 文件头的落点约定，见 `原版资源/清单.md`）⇒ 两个都认，
+    `--mpq-dir` 可显式覆盖。⛔ 这**只**决定"包放哪"，不影响任何导出逻辑。
+    """
+    if override:
+        return os.path.abspath(override)
+    for cand in (os.path.join(d2assets, 'd2mpq'),
+                 os.path.join(d2assets, '_mpq_incoming')):
+        if os.path.exists(os.path.join(cand, 'd2char.mpq')):
+            return cand
+    return os.path.join(d2assets, 'd2mpq')       # 都没有 ⇒ 返回历史布局，让下面的报错说明缺什么
+
+
 def main(argv):
     d2assets = DEFAULT_D2ASSETS
     out_root = DEFAULT_OUT
     cs_path = DEFAULT_CS
     only = None
     want_classes = None
+    mpq_dir = None
+    equip_sets = None
+    if '--equip-sets' in argv:
+        equip_sets = argv[argv.index('--equip-sets') + 1]
+    if '--canvas' in argv:
+        # `--canvas "amazon:158:214;barbarian:142:178"`（`<职业目录名>:<w>:<h>`，origin 自动取居中）
+        for _item in argv[argv.index('--canvas') + 1].split(';'):
+            _item = _item.strip()
+            if not _item:
+                continue
+            _cls, _s, _wh = _item.partition(':')
+            _w, _s2, _h = _wh.partition(':')
+            FIXED_CANVAS[_cls.strip()] = (int(_w), int(_h))
+        print('共画布（--canvas）= %s' % FIXED_CANVAS)
     if '--d2assets' in argv:
         d2assets = argv[argv.index('--d2assets') + 1]
+    if '--mpq-dir' in argv:
+        mpq_dir = argv[argv.index('--mpq-dir') + 1]
     if '--out' in argv:
         out_root = argv[argv.index('--out') + 1]
     if '--emit-cs' in argv:
@@ -764,25 +968,42 @@ def main(argv):
             print('--layers 只接受 auto / body / all')
             return 2
 
+    # ⚠️ 必须**在打开 MPQ 之前**把路径全部绝对化：`storm.open_archive()` 会 `os.chdir`
+    #    到包所在目录（ANSI 接口 + 中文路径，见 `storm.py` 坑 1）。实测代价：传相对
+    #    `--out` 时产物全部落到 `原版资源/_mpq_incoming/.ai-tmp/test/…` 下。
+    d2assets = os.path.abspath(d2assets)
+    out_root = os.path.abspath(out_root)
+    if cs_path:
+        cs_path = os.path.abspath(cs_path)
+    if mpq_dir:
+        mpq_dir = os.path.abspath(mpq_dir)
+
     # Windows 控制台默认 GBK，输出里的 ⇒/· 会抛 UnicodeEncodeError ⇒ 强制 UTF-8（替换非法字符）
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
+    # `storm.py` 与本文件同目录（`tools/d2codec/storm.py`，StormLib ctypes 封装）
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     sys.path.insert(0, d2assets)
     try:
         import storm
     except ImportError:
-        print('找不到 storm.py（%s）—— 需要 `_assets_src/storm.py` 才能读 MPQ' % d2assets)
+        print('找不到 storm.py —— 需要 `tools/d2codec/storm.py`（StormLib ctypes 封装）才能读 MPQ')
         return 2
+    # 临时文件（每次解包的中转）只许落在 `<项目根>/.ai-tmp/test/` 下（skill §3.5）
+    storm.set_work_dir(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        '.ai-tmp', 'test', 'storm-tmp'))
 
-    mpqs = os.path.join(d2assets, 'd2mpq')
+    mpqs = resolve_mpq_dir(d2assets, mpq_dir)
+    print('MPQ 目录 = %s（storm.dll = %s）' % (mpqs, getattr(storm.load(), '_dll_path', '?')))
     arcs = {}
     for name in ('d2char.mpq', 'd2data.mpq'):
         p = os.path.join(mpqs, name)
         if not os.path.exists(p):
-            print('缺少数据包：%s' % p)
+            print('缺少数据包：%s（可用 --mpq-dir 指定含 d2char.mpq/d2data.mpq 的目录）' % p)
             return 2
         arcs[name] = Archive(storm, p)
 
@@ -803,16 +1024,30 @@ def main(argv):
     palette = dccmod.read_pl2(tmp_pal)
     print('调色板 %s（%d 字节）' % (pal_rel, len(pal_bytes)))
 
-    units = list(PLAYERS if want_classes else PLAYERS[:1]) + list(MONSTERS) + list(NPCS)
-    if only:
-        units = [u for u in units if u.token in only or u.out_dir.split('/')[-1] in only]
+    if equip_sets:
+        # 装备套路径：**只**导这些套（不碰徒手套、不写 SpriteFrameCounts.cs）
+        try:
+            units = parse_equip_sets(equip_sets)
+        except ValueError as exc:
+            print('--equip-sets 解析失败：%s' % exc)
+            return 2
+        if not units:
+            print('--equip-sets 没有解析出任何条目')
+            return 2
+        cs_path = None
+        print('装备套 %d 个：%s' % (len(units), [u.out_dir for u in units]))
+    else:
+        units = list(PLAYERS if want_classes else PLAYERS[:1]) + list(MONSTERS) + list(NPCS)
+        if only:
+            units = [u for u in units if u.token in only or u.out_dir.split('/')[-1] in only]
 
     # 每个单位的 COF 武器类别 + 可画组件：玩家固定 hth / 只画身体；
     # 怪物/NPC 取 monstats.txt 的 BaseW + 逐组件标志（见 `load_monstats` 的注释）
     stats = load_monstats(arcs['d2data.mpq'])
     for u in units:
         if u.kind == 'player':
-            u.weapon_class = PLAYER_WEAPON_CLASS
+            if not u.equip_map:                     # 装备套的 weapon_class = 该武器的 subtype，别覆盖
+                u.weapon_class = PLAYER_WEAPON_CLASS
             continue
         rec = stats.get(u.token)
         if rec:

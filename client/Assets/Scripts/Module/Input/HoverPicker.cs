@@ -24,6 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
+using System.Collections.Generic;
 using Diablo2.Core;
 using Diablo2.Def;
 using UnityEngine;
@@ -57,10 +58,27 @@ namespace Diablo2.Module
         /// </summary>
         public Func<Vector2Int, HoverHit?> GroundItemAt { get; set; }
 
+        /// <summary>
+        /// 「当前区域**全部**地面物品名牌」查询（★ impl-I-input 新增的非契约注入点；原版 `Alt` 常显用）。
+        /// <para>默认 = <see cref="AllLabelsViaView"/>（经 `IItemModule.GroundItems` + `IViewModule.GetView`
+        /// 反推格，与 <see cref="GroundItemAtViaView"/> 同一套数据来源）；离线宿主可整体替换。</para>
+        /// <para>永不抛异常由**调用方**兜（`InputReader.PublishGroundItemLabels` 有 try/catch）。</para>
+        /// </summary>
+        public Func<List<Diablo2.Def.GroundItemLabel>> AllLabels { get; set; }
+
+        /// <summary>
+        /// 「地面物品 id → 品质」查询（★ impl-I-input 新增的非契约注入点；名牌配色用）。
+        /// <para>为什么要它：`HoverTarget`（悬停载荷）里**没有**品质字段 ⇒ 悬停单件时靠它补配色；
+        /// 默认 = <see cref="QualityOfViaItem"/>（查 `IItemModule.GroundItems`，O(1) 字典查找）。</para>
+        /// </summary>
+        public Func<int, ItemQuality> ItemQualityOf { get; set; }
+
         /// <summary>构造：装上默认的地面物品查询实现。</summary>
         public HoverPicker()
         {
             GroundItemAt = GroundItemAtViaView;
+            AllLabels = AllLabelsViaView;
+            ItemQualityOf = QualityOfViaItem;
         }
 
         /// <summary>
@@ -216,6 +234,92 @@ namespace Diablo2.Module
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// 默认的「全部地面物品名牌」实现（★ impl-I-input，原版 `Alt` 常显）：
+        /// `IItemModule.GroundItems`（id → ItemStack，含名字/品质）+ `IViewModule.GetView(id)`
+        /// 的世界坐标反推格（与 <see cref="GroundItemAtViaView"/> 同一口径）。
+        /// <para>接口缺失 / 无渲染能力（离线进程）⇒ 返回空列表并只报一次 Info（不抛）。</para>
+        /// </summary>
+        private List<Diablo2.Def.GroundItemLabel> AllLabelsViaView()
+        {
+            var list = new List<Diablo2.Def.GroundItemLabel>();
+
+            var ctx = AppContext.I;
+            if (ctx == null) return list;
+
+            var item = ctx.Item;
+            var view = ctx.View;
+            if (item == null || view == null)
+            {
+                if (!_noViewLogged)
+                {
+                    _noViewLogged = true;
+                    Log.Info(Tag, "Alt 常显地面物品名：IItemModule / IViewModule 未接入 ⇒ 本帧没有可显的名牌（只报一次）");
+                }
+                return list;
+            }
+
+            var ground = item.GroundItems;
+            if (ground == null) return list;
+
+            for (var i = 0; i < ground.Count; i++)
+            {
+                var kv = ground[i];
+                if (kv.Key < 0) continue;
+
+                var go = view.GetView(kv.Key);
+                if (go == null) continue;                    // 该 id 尚无视图（未建节点/离线）
+
+                Vector3 p;
+                try
+                {
+                    p = go.transform.position;
+                }
+                catch (Exception e)
+                {
+                    if (!_noViewLogged)
+                    {
+                        _noViewLogged = true;
+                        Log.Warn(Tag, $"Alt 常显：读取地面物品视图世界坐标失败（{e.GetType().Name}: {e.Message}）" +
+                                      "⇒ 本帧该项不可显（只报一次）");
+                    }
+                    return list;
+                }
+
+                var grid = Iso.WorldToGrid(p);
+                var stack = kv.Value;
+                list.Add(new Diablo2.Def.GroundItemLabel
+                {
+                    id = kv.Key,
+                    name = stack != null && !string.IsNullOrEmpty(stack.name) ? stack.name : go.name,
+                    quality = stack != null ? stack.quality : ItemQuality.Normal,
+                    gridX = grid.x,
+                    gridY = grid.y,
+                });
+            }
+
+            return list;
+        }
+
+        /// <summary>默认的「地面物品 id → 品质」实现（查 `IItemModule.GroundItems`；查不到按普通）。</summary>
+        private ItemQuality QualityOfViaItem(int groundItemId)
+        {
+            var ctx = AppContext.I;
+            var item = ctx != null ? ctx.Item : null;
+            var ground = item != null ? item.GroundItems : null;
+            if (ground == null) return ItemQuality.Normal;
+
+            for (var i = 0; i < ground.Count; i++)
+            {
+                if (ground[i].Key != groundItemId) continue;
+                var stack = ground[i].Value;
+                return stack != null ? stack.quality : ItemQuality.Normal;
+            }
+
+            // 非预期但可解释：悬停目标已消失（刚被拾取/过期移除）⇒ 按普通配色，不报错
+            return ItemQuality.Normal;
         }
     }
 }

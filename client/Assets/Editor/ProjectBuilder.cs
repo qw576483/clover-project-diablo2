@@ -5,7 +5,7 @@
 //         `Diablo2/重建工程资产（覆盖已有场景与预制体）`
 //
 //  干什么：
-//    ① 为 16 个面板类各生成一个**空壳预制体** `Assets/Resources/UI/{类名}.prefab`
+//    ① 为 17 个面板类各生成一个**空壳预制体** `Assets/Resources/UI/{类名}.prefab`
 //       —— 根节点 = 面板组件 + 铺满父层的 RectTransform（anchorMin=0/anchorMax=1/pivot=0.5/
 //       offsetMin=offsetMax=0）；**面板内容不在预制体里摆**，由脚本 `OnOpen` 用 `UIFactory` 搭。
 //    ② 生成三个场景 `Assets/Scenes/{Boot,Menu,Stage}.unity`（内容见下）
@@ -67,15 +67,24 @@ namespace Diablo2.Editor
         private const float CameraDistance = 10f;
 
         // ── 契约清单（`docs/步骤文档.md` §3.6：预制体路径 = Resources/UI/{类名}）──
-        /// <summary>16 个面板类名（顺序无意义，只影响生成顺序）。</summary>
+        /// <summary>17 个面板类名（顺序无意义，只影响生成顺序）。</summary>
         public static readonly string[] PanelNames =
         {
             // 流程（agent-05）
             "BootPanel", "MainMenuPanel", "SettingsPanel", "CharSelectPanel", "CharCreatePanel",
             "LoadingPanel", "PausePanel",
+            // ★ 本轮新增：**原版风格的二次确认弹窗**（替掉引擎默认 uGUI 弹窗；见 `UI/D2ConfirmPanel.cs`）。
+            //   它是弹窗、不属任何 FSM 站点，但同样要一个 `Resources/UI/{类名}` 空壳预制体
+            //   （`UIManager.Open<T>` 按类名加载，见 `Runtime/Presentation/UI.cs:131-140`）。
+            "D2ConfirmPanel",
             // 游戏内（agent-09）
             "HudPanel", "MiniMapPanel", "InventoryPanel", "CharacterPanel", "SkillTreePanel",
             "QuestLogPanel", "NpcDialogPanel", "ShopPanel", "DeathPanel",
+            // ★ 片 g1-resume 新增：传送面板（原版「傳送點」屏；见 `UI/WaypointPanel.cs`）。
+            //   与 `D2ConfirmPanel` 同理：不属 FSM 站点，但同样要一个 `Resources/UI/{类名}` 空壳预制体
+            //   （`UIManager.Open<T>` 按类名加载）。它是**游戏内面板**（层 = Popup），由
+            //   `App/AppWaypoint.cs` 在"走到传送点"后打开。
+            "WaypointPanel",
         };
 
         /// <summary>预制体目录（契约）。</summary>
@@ -110,7 +119,7 @@ namespace Diablo2.Editor
         {
             if (!EditorUtility.DisplayDialog(
                     "重建工程资产",
-                    "将删除并重建 3 个场景与 16 个面板预制体（你手改过的样式会丢）。\n\n确定继续？",
+                    "将删除并重建 3 个场景与 17 个面板预制体（你手改过的样式会丢）。\n\n确定继续？",
                     "重建", "取消"))
                 return;
 
@@ -237,7 +246,7 @@ namespace Diablo2.Editor
         // ─────────────────────────────────────────────────────────────────────────────────────
         //  ① 面板预制体
         // ─────────────────────────────────────────────────────────────────────────────────────
-        /// <summary>生成 16 个面板空壳预制体。</summary>
+        /// <summary>生成 17 个面板空壳预制体。</summary>
         private static int BuildPanelPrefabs(bool force, bool quiet, ref int errors)
         {
             if (!AssetDatabase.IsValidFolder(PanelsDir))

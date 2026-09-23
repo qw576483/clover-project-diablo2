@@ -73,7 +73,9 @@ namespace Diablo2.Module.Player
         /// 「走」的速度倍率。
         /// <para>★ 片 2b：**值已迁到** `GameConst.PlayerWalkSpeedFactor`（= 原版 `walkSpeed 7 / runSpeed 15`；
         /// 旧值 0.5「走 ≈ 跑的一半」**无出处**）。这里保留同名常量只为兼容既有引用方
-        /// （离线宿主 `tools/playercheck/Program.cs` 读它），**不含第二份字面量**。</para>
+        /// （离线宿主 `tools/probes/hosts/playercheck/Program.cs` 读它 —— ★ 2026-09-23 更正：原文写
+        /// `tools/playercheck/Program.cs`，**该目录不存在**，`tools/` 下宿主已全部迁到 `tools/probes/hosts/`；
+        /// 由 audit-C-logic-num §13 的引用可达性复核抓出），**不含第二份字面量**。</para>
         /// </summary>
         public const float WalkSpeedFactor = GameConst.PlayerWalkSpeedFactor;
 
@@ -82,6 +84,32 @@ namespace Diablo2.Module.Player
 
         /// <summary>R1-B 证据日志的 tag（`Core/Log.cs` 的 KnownTags 白名单内）。</summary>
         private const string EvidenceTag = "R1-B";
+
+        /// <summary>
+        /// ★ T0GAP：软核死亡惩罚的证据 tag（`Core/Log.cs` 的 KnownTags 白名单内）。
+        /// 用途 = 一条只报一次的 Info，写清**生效口径**（扣多少 / 取整口径 / 为什么不会为负）。
+        /// </summary>
+        private const string DeathGoldTag = "T0GAP";
+
+        /// <summary>
+        /// ★ T0GAP：死亡时扣除**当前金币**的百分比。
+        /// <para>
+        /// **出处（不是本项目自创）**：`策划/验收表.md` 第 33 行 · 金币行的判据原文 =
+        /// 「金币｜拾取 + **死亡掉 10%**｜死亡前后金币数变化」⇒ 10 是本项目的规格值。
+        /// </para>
+        /// <para>
+        /// **取整口径 = 向下取整（整数除法 `gold / 10`，即 <c>floor(gold × 10%)</c>）**，理由三条：
+        /// ① 金币是整数（`int`），扣分量必须也是整数；② 向下取整保证 `lost ≤ gold` **恒成立**
+        /// ⇒ 扣后**永远不会为负**（`gold ≥ 0 ⇒ gold/10 ≤ gold`）—— 不需要额外的钳制分支；
+        /// ③ 与原版/D2 的整数运算口径一致（伤害/抗性结算在本项目同样用整数截断，见
+        /// `Module/Combat/DamageFormula`）。
+        /// 推论（**边界行为，断言里逐条验**）：金币 0 ⇒ 损失 0（不扣 + 留一条 Info）；
+        /// 金币 1~9 ⇒ 损失 0（同理，因为 9/10 = 0）。
+        /// </para>
+        /// <para>⛔ 本常量只描述"扣多少"；**死因/复活语义**一字未改（`Events.PlayerDied` 是无参契约，
+        /// 未加参数，见本片回报）。</para>
+        /// </summary>
+        private const int DeathGoldPercent = 10;
 
         /// <summary>
         /// ★ R1-B：点击落点**图内但不可走**时的「最近可走格」回退半径（Chebyshev，格）。
@@ -123,9 +151,33 @@ namespace Diablo2.Module.Player
         private Vector2Int? _holdTarget;          // 按住左键时上一次下发的目标格
         private bool _running = true;             // 跑/走切换（原版默认跑；R 键切换）
         private int _lastAttackTargetId = int.MinValue;   // 上一次打日志的攻击目标（防按住时刷屏）
-        private Vector2Int _lastExitGrid = NoGrid;
+        /// <summary>
+        /// ★ 片 C4：出口/接缝的**触发闩锁**（唯一判据 = `Module/Map/ExitLatch`，纯值类型，离线宿主可断言）。
+        /// 旧口径是"记住上一格"（`_lastExitGrid`）—— 停在出口格上确实只发一次，但**沿出口格逐格挪动**
+        /// （出口列 / 东边接缝那一列）会**每格各发一次**（同一族缺陷）。闩锁口径 = "在出口区只在进入时发一次、
+        /// 离开出口格后重新武装"；两种口径都不许让角色卡住（离开再进仍能真的触发切换区域）。
+        /// </summary>
+        private Diablo2.Module.Map.ExitLatch _exitLatch;
         private bool _unreachableLogged;
         private bool _moveFallbackLogged;         // R1-B：最近可走格回退的生效口径只报一次
+
+        // ★ impl-I-input（审计 R1）：右键施放的三个非预期分支各只报一次。
+        //   降频用**私有 bool 标志位**（不是 `WarnOnce`）：① `Module/Player/PlayerLog.cs` 这个项目侧薄封装
+        //   只暴露 `Info/Warn/Error/Move`（没有 `WarnOnce/WarnThrottled` 重载，加三参版本更是越层用
+        //   `Core/Log` 的底层实现）② 本模块既有约定就是私有标志位（见 `_unreachableLogged` /
+        //   `_moveFallbackLogged`）。
+        //   ⚠️ 【审计 R-engine 2026-09-23 更正】`PlayerLog.cs:15-17` 那句"降频依赖
+        //   `Time.realtimeSinceStartup` ⇒ 离线宿主会抛 SecurityException"**已过期**：行号已随
+        //   `Core/Log.cs` 重写平移（真闸门现在在 `Core/Log.cs:195-204` = `ShouldLog(...)`），且时钟机制
+        //   **已下沉到引擎仓** `clover-client-unity-engine/Runtime/Core/LogThrottle.cs:278-308`（= `Now()`；
+        //   客户端**无**同名文件 ⇒ 引用基准必须含引擎仓），它对非 Unity 进程的 ECall 是 try/catch 接住 +
+        //   自动降级 `Stopwatch`（语义约束见该文件头 :30-31「永不抛异常」）。
+        //   ★ 2026-09-23：以上两处出处由 audit-A-matrix §10.10 逐条复核为**可达**（前提 = 引擎仓在位）；
+        //     按"路径 + 符号名"写法登记（行号会漂、裸行号会被"仓内查不到"误判为失效）。
+        //   ⇒ 本片**不据**那条过期理由下结论，只用"约定一致 + 无可用重载"这条理由。
+        private bool _secNoCtxLogged;             // AppContext 未装配
+        private bool _secNoSkillLogged;           // ISkillModule 未接入
+        private bool _secUnboundLogged;           // 右键未绑技能且指针下没怪
         private bool _mapWarned;
         private bool _ctxWarned;
         private bool _noMapGeneratedWarned;
@@ -133,6 +185,8 @@ namespace Diablo2.Module.Player
         private bool _deadMoveWarned;
         private bool _selfHealLogged;
         private bool _equipSubscribed;
+        private bool _deathGoldLogged;            // ★ T0GAP：死亡扣金币的生效口径只报一次
+        private bool _swapWeaponKeyOffLogged;     // ★ 双武器组：W 键按下但模块侧未响应时只报一次
 
         /// <summary>
         /// 构造即订阅事件（`Game.Event` 没有句柄，注销必须用**同一个方法引用**）。
@@ -319,8 +373,10 @@ namespace Diablo2.Module.Player
             _lastAttackTargetId = int.MinValue;
             _motor.Reset();                           // 同时把 SpeedScale 复位为 1（跑）
             _holdTarget = null;
-            _lastExitGrid = NoGrid;
+            _exitLatch.Reset();
             _selfHealLogged = false;
+            _deathGoldLogged = false;                 // ★ T0GAP：新角色 ⇒ 死亡口径行重新报一次
+            _swapWeaponKeyOffLogged = false;
             _input.Reset();
 
             PlayerLog.Info(
@@ -361,8 +417,10 @@ namespace Diablo2.Module.Player
             _lastAttackTargetId = int.MinValue;
             _motor.SpeedScale = 1f;
             _holdTarget = null;
-            _lastExitGrid = NoGrid;
+            _exitLatch.Reset();
             _selfHealLogged = false;
+            _deathGoldLogged = false;                 // ★ T0GAP：换角色读档 ⇒ 死亡口径行重新报一次
+            _swapWeaponKeyOffLogged = false;
 
             // 位置：存档格必须可走；不可走（或地图尚未生成）则退回出生点并 Warn。
             var map = MapOrNull();
@@ -436,7 +494,7 @@ namespace Diablo2.Module.Player
             _running = true;
             _lastAttackTargetId = int.MinValue;
             _holdTarget = null;
-            _lastExitGrid = NoGrid;
+            _exitLatch.Reset();
             _motor.Reset();
             _input.Reset();
             _unreachableLogged = false;
@@ -444,6 +502,8 @@ namespace Diablo2.Module.Player
             _notCreatedWarned = false;
             _deadMoveWarned = false;
             _selfHealLogged = false;
+            _deathGoldLogged = false;                 // ★ T0GAP：回主菜单再进图要重新报一次死亡口径
+            _swapWeaponKeyOffLogged = false;
             PlayerLog.Info("复位：角色/数值/路径/输入缓存已清空（回主菜单）");
         }
 
@@ -627,7 +687,7 @@ namespace Diablo2.Module.Player
             var map = MapOrNull();
             _motor.Teleport(grid, map);
             _holdTarget = null;
-            _lastExitGrid = NoGrid;
+            _exitLatch.Reset();
             _selfHealLogged = false;
             PlayerLog.Info($"落位：格=({_motor.Grid.x},{_motor.Grid.y}) 世界=({_motor.World.x:0.00},{_motor.World.y:0.00})");
             Emit(Events.PlayerGridChanged, _motor.Grid);
@@ -658,9 +718,15 @@ namespace Diablo2.Module.Player
 
             _input.Poll();
 
-            // ② 悬停 / 光标（每帧；目标变化才发事件）+ 走/跑切换（原版 R）
+            // ② 悬停 / 光标（每帧；目标变化才发事件）+ 走/跑切换（原版 R）+ 切换武器组（原版 W）
             _input.UpdateHover(!_dead);
+
+            // ②b ★ impl-I-input（审计 R5）：地面物品名牌（原版：悬停单件显示名 / 按住 **Alt** 常显全部）。
+            //    `_input.ShowGroundItems` 是本属性的**唯一消费点**（改动前它全仓 0 消费 ⇒ Alt 永不生效；
+            //    审计 B 的静态对账要求消费点在 `InputReader` 之外，故读键放在这一行）。
+            if (!_dead) _input.PublishGroundItemLabels(_input.ShowGroundItems);
             if (!_dead && _input.RunTogglePressed) ToggleRun();
+            if (!_dead && _input.SwapWeaponPressed) RequestSwapWeapon();
 
             // ③ 推进移动（沿路点走；路点合法性在 PlayerMotor 内逐格校验）
             var before = _motor.Grid;
@@ -673,6 +739,10 @@ namespace Diablo2.Module.Player
 
             // ④ 输入 → 移动 / 攻击意图
             if (!_dead) HandleMoveIntent(map);
+
+            // ④b ★ impl-I-input（审计 R1）：右键 → **右手技能**施放（原版「右键 = 使用右键技能」）。
+            //   与左键**互不干扰**（两个键各自判 Down/held），故单列一步而不是插进 HandleMoveIntent。
+            if (!_dead) HandleSecondaryIntent();
 
             // ⑤ 腰带快捷键（存活时才发）
             _input.PollHotkeys(!_dead);
@@ -740,6 +810,86 @@ namespace Diablo2.Module.Player
 
             _holdTarget = grid;
             Emit(Events.MoveCommand, grid);            // 契约事件（本类的 OnMoveCommand 会执行 MoveTo）
+        }
+
+        /// <summary>
+        /// **右键意图**（原版 D2：右键 = 使用**右手技能**）。★ impl-I-input（审计 R1）。
+        /// <list type="bullet">
+        /// <item>右键技能格绑了技能（`ISkillModule.GetButtonSkill(1) &gt;= 0`）⇒ 走**已有的施放入口**
+        /// `ISkillModule.TryCast(skillId, 目标格)`：扣蓝 / 冷却 / 伤害 / 投射物全由 `Module/Skill` 结算，
+        /// 本类**不重造**一套施放链。</item>
+        /// <item>没绑（-1）⇒ 原版左右键默认都是**普通攻击**：指针下有怪物就发 `Events.AttackRequest`
+        /// （与左键点怪同一条链路）；没有则**不产生任何动作**（原版右键不移动角色）并留一条 WarnOnce。</item>
+        /// </list>
+        /// ⛔ 本方法**不发** `Events.MoveCommand`（右键不移动）；指针压在 UI 上时
+        /// `InputReader.TryGetSecondaryClick` 已把这次右键吃掉 ⇒ 面板按钮不会顺手放技能。
+        /// </summary>
+        private void HandleSecondaryIntent()
+        {
+            Vector2Int grid;
+            if (!_input.TryGetSecondaryClick(out grid)) return;
+            HandleSecondaryClick(grid);
+        }
+
+        /// <summary>
+        /// 以某格派发一次**右键意图**（★ impl-I-input）。**非契约入口**（自证 / 集成走它，与
+        /// <see cref="HandlePrimaryClick"/> 完全同一处置）—— 离线自检宿主拿不到相机，
+        /// 无法经 `TryGetSecondaryClick` 反投影 ⇒ 由宿主直接给格坐标来驱动同一条链路。
+        /// </summary>
+        public void HandleSecondaryClick(Vector2Int grid)
+        {
+            var ctx = AppContext.I;
+            if (ctx == null)
+            {
+                if (!_secNoCtxLogged)
+                {
+                    _secNoCtxLogged = true;
+                    PlayerLog.Warn("右键施放：AppContext.I 为 null（Bootstrap 未装配？）⇒ 本次右键忽略（只报一次）");
+                }
+                return;
+            }
+
+            var skill = ctx.Skill;
+            var skillId = skill != null ? skill.GetButtonSkill(1) : -1;
+
+            if (skillId >= 0)
+            {
+                var hov = _input.HoverAt(grid);
+                var ok = skill.TryCast(skillId, grid);
+                var who = hov != null && hov.hasTarget ? $"（指针下「{hov.name}」id={hov.id}）" : string.Empty;
+                var how = ok ? "成功（扣蓝/冷却/伤害/投射物由 SkillModule 结算）"
+                             : "被拒（原因见 [Skill] 日志：未学/冷却中/法力不足/无目标）";
+                PlayerLog.Info($"[Cast] 右键施放技能 #{skillId} → 格 ({grid.x},{grid.y}){who} ⇒ TryCast {how}");
+                return;
+            }
+
+            if (skill == null && !_secNoSkillLogged)
+            {
+                _secNoSkillLogged = true;
+                PlayerLog.Warn("右键施放：ISkillModule 未接入（AppContext.Skill == null）"
+                    + "⇒ 右键按普通攻击处理（只报一次）");
+            }
+
+            // 未绑定 ⇒ 原版默认的「普通攻击」：只打指针下的怪物，不移动
+            var h = _input.HoverAt(grid);
+            if (IsAttackable(h))
+            {
+                Emit(Events.AttackRequest, h.id);
+                if (_lastAttackTargetId != h.id)
+                {
+                    _lastAttackTargetId = h.id;
+                    PlayerLog.Info($"[Attack] 右键点怪 m#{h.id}「{h.name}」格=({h.gridX},{h.gridY})" +
+                                   $"（右键技能格未绑定 ⇒ 按原版默认的普通攻击处理）⇒ 发 {Events.AttackRequest}");
+                }
+                return;
+            }
+
+            if (!_secUnboundLogged)
+            {
+                _secUnboundLogged = true;
+                PlayerLog.Warn("右键按下，但右键技能格未绑定技能、指针下也没有怪物 ⇒ 本次右键无动作"
+                    + "（原版左右键默认都是普通攻击；可用技能树右键设技能，或按 F5~F8 绑定已学技能；只报一次）");
+            }
         }
 
         /// <summary>该悬停目标是否"可攻击"（怪物）。</summary>
@@ -834,20 +984,52 @@ namespace Diablo2.Module.Player
             EmitStats();      // HudDirty + PlayerStatsChanged（HUD 的 run/walk 按钮只切贴图）
         }
 
+        // ═════════════════════════════════════════════════════════════════════
+        // 切换武器组（原版 W 键；`Def/GameKeyAlias.KeySwapWeapon`）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// ★ 双武器组：**读键**（`InputReader.SwapWeaponPressed` → 键位唯一来源
+        /// `Def/GameKeyAlias.KeySwapWeapon`，⛔ 本文件不出现 `GameKey.W`）→ 发
+        /// <see cref="Events.SwapWeaponRequest"/>（**无参**）。
+        /// <para>
+        /// 为什么本模块只"发请求"不自己切：双武器组的**状态与装备数据在 `IItemModule`**
+        /// （`Equipment` 的武器槽 + `ItemModule` 的存档字段）；`Module/Player` **不许** using
+        /// `Module/Item` 的具体类型（`tools/ai-skill/conventions.md`「跨模块判定只许写在 App」）
+        /// ⇒ 与"腰带数字键"完全同一条路子（`InputReader.PollHotkeys` 发 `Events.UseBeltRequest`，
+        /// `ItemModule` 订阅）。
+        /// </para>
+        /// <para>死亡时不切换（与原版一致：倒下的人不能动作），暂停时 `Tick` 提前返回（`dt ≤ 0`）。</para>
+        /// </summary>
+        public void RequestSwapWeapon()
+        {
+            if (!_swapWeaponKeyOffLogged)
+            {
+                _swapWeaponKeyOffLogged = true;      // 接线口径只报一次（其余按次由 Item 侧出日志）
+                PlayerLog.Info($"[SwapWeapon] 原版 W 键按下（键位来源 GameKeyAlias.KeySwapWeapon）" +
+                               $"⇒ 发 {Events.SwapWeaponRequest}（由 IItemModule 切武器组；只报一次）");
+            }
+            Emit(Events.SwapWeaponRequest);
+        }
+
         /// <summary>踩到 `TileKind.Exit` 时发 `Events.ExitEntered`（Flow 据此切区域）。</summary>
         private void CheckExit(IMapModule map)
         {
             if (map == null || !map.IsGenerated) return;
 
             var g = _motor.Grid;
-            if (map.TileAt(g) != TileKind.Exit)
-            {
-                _lastExitGrid = NoGrid;          // 离开出口格：允许下次再触发
-                return;
-            }
+            // ★ 片 M3（2026-09-23）：**东边界接缝**也当出城口 —— 原版城镇关卡的东边界列与野外第 0 列
+            //   是同一条「共享边列」（出处 `OutRoom.zig:271`，见 `Module/Map/MapSeam` 文件头），
+            //   玩家过桥踏上关卡最后一列 = 进入野外。用户实测「穿过桥去不了下一张地图」即此缺。
+            //   判据唯一出处 = `MapSeam.IsTownEastSeam`（纯函数）⇒ 离线宿主可断言，不在本类里重写条件。
+            var onExit = map.TileAt(g) == TileKind.Exit ||
+                         Diablo2.Module.Map.MapSeam.IsTownEastSeam(map.Area, map.Width, g, map.IsDeckGrid(g));
 
-            if (_lastExitGrid == g) return;      // 同一格只触发一次（防每帧刷屏 / 反复切区域）
-            _lastExitGrid = g;
+            // ★ 片 C4：**什么算出口**照旧（上面这一行，形状一行未动）；"要不要发"改由**唯一判据**
+            //   `Module/Map/ExitLatch`（纯值类型）决定 —— 在出口区**只在进入时**发一次（同一格 / 沿出口列
+            //   逐格挪动都只算一次），离开出口格后重新武装（⛔ 出口仍能真的触发切换，不会把角色卡住）。
+            //   旧口径 `_lastExitGrid`（记住上一格）在"沿出口格逐格走"时会每格各发一次。
+            if (!_exitLatch.ShouldEmit(onExit, g)) return;
 
             var to = ExitTargetArea(map, g);
             if (to == map.Area)
@@ -968,6 +1150,36 @@ namespace Diablo2.Module.Player
             if (before != _mana) EmitStats();
         }
 
+        /// <summary>
+        /// ★ w7 契约新增（`IPlayerModule.TrySpendMana`）：**扣蓝**（技能消耗）。
+        /// 成功扣减返回 true；<paramref name="amount"/> ≤ 0 或法力不足 ⇒ false 且**不改值**。
+        /// 数值变更走与 <see cref="RestoreMana"/>/<see cref="Heal"/> 同一条属性刷新路径
+        /// （<see cref="EmitStats"/> ⇒ `Events.HudDirty` + `Events.PlayerStatsChanged`）。
+        /// ⛔ 与 <see cref="RestoreMana"/> 相反：本方法**只做消耗**，不承担回复语义。
+        /// </summary>
+        /// <inheritdoc />
+        public bool TrySpendMana(int amount)
+        {
+            if (amount <= 0)
+            {
+                PlayerLog.Warn($"TrySpendMana({amount}) 非正数 ⇒ 不扣、返回 false（扣蓝传正数；扣不掉不是回复）");
+                return false;
+            }
+
+            if (_mana < amount)
+            {
+                PlayerLog.Warn($"法力不足：需要 {amount}，当前 {_mana}/{_stats.MaxMana} ⇒ 不扣、返回 false");
+                return false;
+            }
+
+            var before = _mana;
+            _mana -= amount;
+            if (_mana < 0) _mana = 0;      // 防御性钳制（上一行已判 _mana ≥ amount，理论不可达）
+            PlayerLog.Info($"扣蓝 {amount}：法力 {before} → {_mana}/{_stats.MaxMana}（技能消耗）");
+            EmitStats();
+            return true;
+        }
+
         /// <inheritdoc />
         public void RestoreStamina(int amount)
         {
@@ -996,10 +1208,56 @@ namespace Diablo2.Module.Player
             _dead = true;
             _motor.Stop();
             _holdTarget = null;
+            ApplyDeathGoldPenalty();          // ★ T0GAP：软核死亡惩罚（扣当前金币 10%）
             PlayerLog.Info($"died {_name} 等级={_stats.Level}（发 {Events.PlayerDied}，" +
                            "死亡面板由 UI 侧监听；复活走 ICombatModule.RevivePlayer → Player.Revive）");
             Emit(Events.PlayerDied);
             EmitStats();
+        }
+
+        /// <summary>
+        /// ★ T0GAP：**死亡惩罚** —— 死亡时扣当前金币的 <see cref="DeathGoldPercent"/>%（软核规则）。
+        /// <para>
+        /// 为什么实现点在**这里**（而不是 UI / Combat）：`_gold` 的唯一归属是本模块
+        /// （`Contracts.cs` 的 `IPlayerModule.Gold`；`ItemModule.Gold/AddGold` 在 Player 接入时全部转发过来），
+        /// 所以"死亡那一刻读当前金币"只有本模块做得到 —— 这也是为什么**不需要**给
+        /// `Events.PlayerDied` 加参数（它是契约冻结的无参事件；`UI/DeathPanel.cs:37-40` 登记的
+        /// 「UI 侧拿不到死亡前金币 ⇒ 算不出损失金额」因此**不构成阻塞**：损失金额不需要 UI 显示）。
+        /// </para>
+        /// <para>
+        /// 数值变更走既有唯一入口 <see cref="AddGold"/>（负数扣除）⇒ 自动发 `Events.GoldChanged`
+        /// 与 HUD 刷新，不新增第二条金币写入路径。
+        /// </para>
+        /// <para>
+        /// 生效口径只报一次（tag = <see cref="DeathGoldTag"/>，第一次死亡时打）：
+        /// 因为"扣多少"是恒定口径、"扣了多少"由 `AddGold` 自己那条日志逐次给出。
+        /// </para>
+        /// </summary>
+        private void ApplyDeathGoldPenalty()
+        {
+            var before = _gold;
+            var lost = before / DeathGoldPercent;        // 向下取整（整数除法；见 DeathGoldPercent 注释）
+
+            if (!_deathGoldLogged)
+            {
+                _deathGoldLogged = true;
+                Log.Info(DeathGoldTag,
+                    $"[T0GAP] 死亡扣金币 {DeathGoldPercent}%（软核规则；出处 = 策划/验收表.md 行 33" +
+                    $"「金币｜拾取 + 死亡掉 10%」）。生效口径：扣**当前**金币的 {DeathGoldPercent}%，" +
+                    $"取整 = **向下取整**（整数除法 gold / {DeathGoldPercent} ⇒ floor(gold×{DeathGoldPercent}%)）；" +
+                    $"因 gold ≥ 0 ⇒ 损失 ≤ 金币 ⇒ **扣后不会为负**（无需钳制分支）；" +
+                    $"金币 0~{DeathGoldPercent - 1} ⇒ 损失 0（不扣）。" +
+                    $"本次：金币 {before} ⇒ 损失 {lost}，扣后 {before - lost}。");
+            }
+
+            if (lost <= 0) return;                        // 金币 0~9：不扣、不改值（口径行已在上方留痕）
+
+            // 走既有唯一入口（负数扣除 ⇒ 发 GoldChanged + EmitStats；余额不足时它会 Warn 且不改值）
+            if (!AddGold(-lost))
+            {
+                PlayerLog.Warn($"死亡扣金币失败：AddGold(-{lost}) 返回 false（金币 {before}）⇒ 金币未变" +
+                               "（理论上不可达：lost = gold/10 ≤ gold）");
+            }
         }
 
         /// <inheritdoc />
@@ -1019,7 +1277,7 @@ namespace Diablo2.Module.Player
             var map = MapOrNull();
             var spawn = map != null && map.IsGenerated ? map.SpawnPoint : _motor.Grid;
             _motor.Teleport(spawn, map);
-            _lastExitGrid = NoGrid;
+            _exitLatch.Reset();
             _selfHealLogged = false;
 
             PlayerLog.Info($"复活：回出生点 ({_motor.Grid.x},{_motor.Grid.y}) " +

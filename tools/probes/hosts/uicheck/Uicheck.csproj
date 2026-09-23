@@ -42,7 +42,17 @@
     <Compile Include="LoadingCheck.cs" />
     <!-- 片 5：死亡屏（EndGame）拼装口径 + 布局；小地图（标题/图例已删、标记走原版 mapicon） -->
     <Compile Include="P5Check.cs" />
+    <!-- ★ w3：流程屏（启动/菜单/选角/创角/读条/设置/暂停/死亡）逐控件审计 ——
+         素材 IHDR ↔ 常量表 ↔ 面板源码三类互证（节 ⑲） -->
+    <Compile Include="W3FlowCheck.cs" />
+    <Compile Include="W3GameCheck.cs" />
+    <!-- ★ 片 impl-shop：商店买卖屏「10×10 格盘几何（解原版 PNG 像素）+ 按物品自身占格摆放
+         （纯函数逐格断言）+ 边界（放不下要点名 Warn 且不覆盖）」—— 独立文件，避免与
+         Program.cs / W3GameCheck.cs 的并发改动冲突 -->
+    <Compile Include="ShopGridCheck.cs" />
     <!-- 引擎门面替身：**复用 flowcheck 那一份**（同一份文件，两个宿主共用，改一处即同步） -->
+    <Compile Include="GroundItemLabelCheck.cs" />
+    <Compile Include="V6Check.cs" />
     <Compile Include="..\flowcheck\shim\EngineShim.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制；文件集与 flowcheck 一致） -->
@@ -51,6 +61,20 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Log.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <!-- [2026-09-23 gate-G-host] impl-invfix changed the pickup-range test in Module/Item/**
+         (ItemModule.cs / GroundItems.cs) to Iso.IsAdjacent(...). Uicheck is a whitelist host
+         (EnableDefaultCompileItems=false + explicit Compile list, NOT a glob), so Iso.cs and its
+         implementation deps must be linked or the build fails with CS0103 "Iso does not exist":
+           client/Assets/Scripts/Core/Iso.cs      (facade public static class Iso, namespace Diablo2.Core)
+           engine Runtime/Core/IsoLayout.cs       (new IsoLayout(...) + all forwarded math)
+           engine Runtime/Core/Dir8.cs            (Iso.DirectionTo/DirectionDelta cast CloverEngine.Dir8 <-> Diablo2.Def.Dir8)
+         Same Include pair as itemcheck / mapcheck / audiocheck. -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Iso.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <!-- ★ 片 automap-original-verdict：自动地图的逐格 Cel 表 + cel 像素 + ACT1 调色板（生成物，
+         由 tools/probes/gen_automap.py 产出）—— `UI/MiniMapPanel.cs` 引它 ⇒ 必须链进白名单 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\AutoMapCel.generated.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
@@ -64,9 +88,18 @@
          引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
          依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <!-- ⚠️ 片 impl-camera 的下沉件（`CloverEngine.FramePacing`）：`client/.../Core/FramePacing.cs`
+         现在用 `CloverEngine.FramePacing.DefaultTargetFrameRate/DefaultVSyncCount/Pin/TryRead/Describe`
+         ⇒ 不链它就 CS0234（宿主编译直接停），实测 2026-09-22 撞上。
+         ★ 若另一片也加这一行会出现 CS2002（同一文件被指定两次）⇒ 合并时只留一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\*.cs" />
+    <!-- ⚠️ 另一片（起始装备 / 武器）新增了 `Module/Item/StartItems.cs` 并让 `Module/Flow/AppFlow.cs`
+         引用了 `Diablo2.Module.Item` ⇒ 本宿主（白名单）不链它就 CS0234（实测 2026-09-22）。
+         ★ 若别的片也加同一行会出现 CS2002（同一文件被指定两次）⇒ 合并时只留一行。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
   </ItemGroup>

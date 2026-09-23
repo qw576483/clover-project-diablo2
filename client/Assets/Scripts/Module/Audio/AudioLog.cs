@@ -36,6 +36,9 @@ namespace Diablo2.Module.Audio
         /// <summary>已就「未登记的键」告警过的键。</summary>
         private static readonly HashSet<string> UnregisteredWarned = new HashSet<string>(StringComparer.Ordinal);
 
+        /// <summary>已就「同键重复过快被节流」告警过的键（★ 片 C4 新增，每键一条）。</summary>
+        private static readonly HashSet<string> ThrottledWarned = new HashSet<string>(StringComparer.Ordinal);
+
         private static bool _noSoundWarned;
         private static bool _noResWarned;
         private static bool _noSettingWarned;
@@ -50,6 +53,9 @@ namespace Diablo2.Module.Audio
 
         /// <summary>「未登记键」累计告警条数（自检用）。</summary>
         internal static int UnregisteredWarnCount;
+
+        /// <summary>「同键重复过快」累计告警条数（★ 片 C4，自检用；生产只读）。</summary>
+        internal static int ThrottledWarnCount;
 
         // ── 普通转发（重载引擎 `Game.Logger`，tag 固定）────────────────────────
 
@@ -79,6 +85,23 @@ namespace Diablo2.Module.Audio
             Log.Warn(Tag,
                 $"BGM 文件缺失：键=\"{key}\" 期望文件=\"{fileName}\"（路径 {path}）" +
                 "⇒ 本次及之后**静默跳过**（只报这一条）；素材到位后自动生效，无需改代码");
+        }
+
+        /// <summary>
+        /// ★ 片 C4：**同一音效键重复过快，本次被节流丢弃**（每键一条，见 `SfxThrottle`）。
+        /// <para>为什么不用 `Core/Log.WarnThrottled`：那个入口读 `Time.realtimeSinceStartup`（`Core/Log.cs:133`），
+        /// 在离线自检宿主（纯 .NET 进程）会抛 `SecurityException` —— 与本类文件头记的同一个坑；
+        /// 这里用私有集合实现"每键一次"，离线宿主也跑得通。</para>
+        /// </summary>
+        public static void WarnThrottledSfx(string key, float sinceSeconds)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            if (!ThrottledWarned.Add(key)) return;          // 每个键只留一条痕（防"节流日志自己刷屏"）
+            ThrottledWarnCount++;
+            Log.Warn(Tag,
+                $"音效键 \"{key}\" 重复过快：距上次起播仅 {sinceSeconds * 1000f:0} ms" +
+                $"（最小间隔 {SfxThrottle.MinRepeatSeconds * 1000f:0} ms）⇒ 本次丢弃" +
+                $"（累计丢弃 {SfxThrottle.DropCount} 次；本键只报这一条）");
         }
 
         /// <summary>请求了登记表里没有的键（每键一次）：照常尝试播放，但提醒补登记。</summary>
@@ -167,6 +190,7 @@ namespace Diablo2.Module.Audio
             MissingSfxWarned.Clear();
             MissingBgmWarned.Clear();
             UnregisteredWarned.Clear();
+            ThrottledWarned.Clear();
             _noSoundWarned = false;
             _noResWarned = false;
             _noSettingWarned = false;
@@ -177,6 +201,7 @@ namespace Diablo2.Module.Audio
             _noMapWarned = false;
             MissingWarnCount = 0;
             UnregisteredWarnCount = 0;
+            ThrottledWarnCount = 0;
         }
     }
 }

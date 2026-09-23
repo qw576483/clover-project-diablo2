@@ -60,3 +60,4 @@ Jewelry A	0	0	1	0	rin;8|amu;4|jew;2|cm3;2|cm2;2|cm1;2		0	0	0	0	0
 Misc 0	0	0	1	0	key;3|tsc;3|isc;3|opl;2|gpl;2		0	0	0	0	0
 Potion 1	0	0	1	0	hp1;12|hp2;4|mp1;5|mp2;4|rvs;1|vps;4		0	0	0	0	0
 Potion 2	0	0	1	0	hp1;4|hp2;8|hp3;5|mp2;2|mp3;5|rvs;1|vps;2|yps;3|wms;1		0	0	0	0	0
+Quill 1	16	0	1	125	gld;19|Act 1 Junk;19	Act 1 Junk	0	0	0	0	1

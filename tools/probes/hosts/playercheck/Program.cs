@@ -70,8 +70,15 @@ namespace PlayerCheck
         public IReadOnlyList<Vector2Int> NpcPoints => new List<Vector2Int>();
         public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
 
+        /// <summary>桩地图无传送点（契约成员见 `Module/Contracts.cs` 的 `IMapModule.WaypointPoints`，2026-09-23 新增）。</summary>
+        public IReadOnlyList<Vector2Int> WaypointPoints => new List<Vector2Int>();
+
         public bool InBounds(Vector2Int g) => g.x >= 0 && g.y >= 0 && g.x < 8 && g.y < 8;
         public bool Walkable(Vector2Int g) => InBounds(g) && _walkable[g.x, g.y];
+
+        /// <summary>桩地图没有"可走上方的结构"（桥面/平台）⇒ 恒 false。
+        /// 契约成员见 `Module/Contracts.cs` 的 `IMapModule.IsDeckGrid`（2026-09-22 新增）。</summary>
+        public bool IsDeckGrid(Vector2Int g) => false;
         public TileKind TileAt(Vector2Int g) => Walkable(g) ? TileKind.TownFloor : TileKind.Wall;
         public void Generate(AreaId area, int seed) { }
         public void Clear() { }
@@ -134,6 +141,55 @@ namespace PlayerCheck
         public void NotifyAttacked(int monsterId) { }
         public void SetHovered(int monsterId) => HoveredId = monsterId;
         public bool ConsumeCorpse(int monsterId) => false;
+    }
+
+    /// <summary>
+    /// 桩技能门面（★ impl-I-input，审计 R1）：本宿主**没有编入** `Module/Skill`
+    /// （`PlayerCheck.csproj` 的编译清单里没有它，既有断言「未编入的模块保持 null」依赖这一点）
+    /// ⇒ 用记录桩来判**本片真正改的那一段**：「右键输入 → 走到施放入口 `ISkillModule.TryCast`」。
+    /// <para>⛔ 不判 `TryCast` 内部（扣蓝/冷却/投射物）—— 那由既有 `tools/probes/hosts/combatcheck`
+    /// 用**真实 `SkillModule`** 覆盖（其 §9「TryCast：扣法力 + 进冷却」）。</para>
+    /// </summary>
+    internal sealed class StubSkill : ISkillModule
+    {
+        /// <summary>
+        /// ⚠️ **刻意不给无参构造**：`AppContext.AutoWire` 的规则是「程序集里第一个实现该接口的类型」
+        /// （`App/AppContext.cs:136-154`）⇒ 若本桩能被无参实例化，它会被自动装配成 `ctx.Skill`，
+        /// 从而破坏既有断言「本宿主未编入的模块保持 null」（实测：加了这个桩之后那条断言立刻 FAIL）。
+        /// 带一个必填参数 ⇒ `Activator.CreateInstance` 抛 `MissingMethodException` 被 AutoWire 吞掉
+        /// （只留一条 Warn「该模块保持未接入」），本宿主只在用例里手工 new。
+        /// </summary>
+        public StubSkill(int autoWireGuard)
+        {
+            _ = autoWireGuard;
+        }
+
+        /// <summary>右键技能格绑定的技能 id（-1 = 未绑 = 普通攻击）。</summary>
+        public int Button1 = -1;
+
+        /// <summary>被调用的施放记录（`#技能id@(x,y)`）。</summary>
+        public readonly List<string> Casts = new List<string>();
+
+        public PlayerClass Class => PlayerClass.Amazon;
+        public int SelectedSkillId => Button1;
+        public IReadOnlyList<SkillDef> Available => new List<SkillDef>();
+        public int GetLevel(int skillId) => 1;
+        public bool CanLearn(int skillId) => false;
+        public bool Learn(int skillId) => false;
+        public void SelectSkill(int skillId) => Button1 = skillId;
+        public void AssignToButton(int button, int skillId) { if (button == 1) Button1 = skillId; }
+        public int GetButtonSkill(int button) => button == 1 ? Button1 : -1;
+
+        public bool TryCast(int skillId, Vector2Int targetGrid)
+        {
+            Casts.Add($"#{skillId}@({targetGrid.x},{targetGrid.y})");
+            return true;
+        }
+
+        public float GetCooldownRemain(int skillId) => 0f;
+        public SkillTreeArgs BuildTree() => new SkillTreeArgs();
+        public void Tick(float dt) { }
+        public void ResetForClass(PlayerClass cls, CharacterSave save) { }
     }
 
     /// <summary>桩 NPC 门面（同上；走真实的 `INpcModule.All` 悬停解析路径）。</summary>
@@ -252,6 +308,18 @@ namespace PlayerCheck
             RunStep("14. 复位", () => Step13_Reset(ctx, player));
             RunStep("15. ★ 移动抖动（R1-D）：逐帧位移上界 / 变 dt 终点一致 / 相机低通 / 帧节奏 / 重铺合并",
                 () => Step15_Jitter(ctx, map, player, rig, input));
+            RunStep("16. ★ 扣蓝/回蓝（w7）：TrySpendMana 扣减生效 / 不足与非正数不扣 / RestoreMana(-n) 仍钳制",
+                () => Step16_ManaSpend(ctx, player, bus));
+            RunStep("17. ★ 双武器组（T0 缺口 2）：W 键 → SwapWeaponRequest → 主手互换 / 切回 / 派生只算生效组",
+                () => Step17_WeaponGroup(ctx, player, map, input, bus));
+            RunStep("18. ★ 死亡扣金币 10%（T0 缺口 1）：12345→11111→10000 / 金币 0 与 7 不扣 / 只报一次",
+                () => Step18_DeathGold(ctx, player, map, bus));
+            RunStep("19. ★ R1（impl-I）：右键 button 1 → 已有施放入口 TryCast / 未绑回退普攻 / 右键不移动",
+                () => Step19_RightClick(ctx, map, player, input, bus));
+            RunStep("20. ★ R4（impl-I）：F1~F8 技能槽 → SkillSlotAssignRequest（槽号与左右手映射）",
+                () => Step20_SkillSlots(ctx, player, input, bus));
+            RunStep("21. ★ R5（impl-I）：Alt 常显 / 悬停单件地面物品名牌 → GroundItemLabelsChanged",
+                () => Step21_GroundItemNames(ctx, map, player, input, bus));
 
             Console.WriteLine();
             Console.WriteLine($"================ 结束：{_ok} 项通过，{_fail} 项失败 ================");
@@ -316,10 +384,15 @@ namespace PlayerCheck
             // ⚠️ 与 agent-06 原版的差别：本宿主现在自带 `StubMonsters` / `StubNpcs`
             //    （§13 悬停自证的桩，见文件下方）⇒ `AutoWire` 会**如实**把它们装配到 Monster / Npc。
             //    这里改为断言「本宿主**没有编入**的模块仍保持 null」——这才是该用例的本意（降级不崩）。
+            //    ★ 本轮（T0 判据缺口 2）：`Module/Item` 已加入本宿主的编译清单（见 `PlayerCheck.csproj`），
+            //      §17 要用**真实** `ItemModule` 断言双武器组 ⇒ 从"未编入"名单里移出并单独断言它是真实现。
             Check("本宿主未编入的模块保持 null（降级，不崩）",
-                ctx.Combat == null && ctx.Skill == null && ctx.Item == null && ctx.Quest == null
+                ctx.Combat == null && ctx.Skill == null && ctx.Quest == null
                 && ctx.View == null && ctx.Audio == null && ctx.Save == null,
                 ctx.Describe() + "（Monster/Npc = 本宿主 §13 的桩 StubMonsters/StubNpcs，非生产实现）");
+            Check("本轮新增编入的 ItemModule 是真实现（§17 的双武器组断言打在它上面）",
+                ctx.Item != null && ctx.Item.GetType().Name == "ItemModule",
+                ctx.Item == null ? "null" : ctx.Item.GetType().FullName);
 
             Console.WriteLine("    （下方若出现 [Cfg] 的 WARN：非 Unity 进程读 config.json 的正常降级，" +
                               "Cfg 内部已 try/catch，不是失败）");
@@ -1032,13 +1105,47 @@ namespace PlayerCheck
             Check("Tick(0) 时不动（暂停不抖）", Vector3.Distance(rig.Position, posBeforeZero) < 1e-6f,
                 $"Position 保持 {rig.Position}（新目标 {Iso.GridToWorld(spawn)}）");
 
-            // 纯函数：指数平滑
+            // 纯函数：跟随 —— ★ 本片（镜头抖）已把能力**下沉到引擎** `CloverEngine.CameraMath`，
+            //   `CameraRig.SmoothTowards` 私有副本已删除 ⇒ 这里断言的是**引擎**那一份（同一个被调用的实现）。
             var a = new Vector3(0f, 0f, 0f);
             var b = new Vector3(10f, 0f, 0f);
-            Check("SmoothTowards(dt<=0) 保持不动", CameraRig.SmoothTowards(a, b, 0f, 0.12f) == a, "dt=0 → 原样");
-            Check("SmoothTowards(tau<=0) 直接吸附", CameraRig.SmoothTowards(a, b, 0.02f, 0f) == b, "tau=0 → want");
-            var mid = CameraRig.SmoothTowards(a, b, 0.02f, 0.12f);
-            Check("SmoothTowards 在两端之间（不过冲）", mid.x > 0f && mid.x < 10f, $"x={mid.x:0.000}");
+            Check("CameraMath.Follow(dt<=0) 保持不动",
+                CloverEngine.CameraMath.Follow(a, b, 0f, 0.12f) == a, "dt=0 → k=0 → 原样");
+            Check("CameraMath.Follow(tau<=0) 直接吸附",
+                CloverEngine.CameraMath.Follow(a, b, 0.02f, 0f) == b, "tau=0 → want");
+            var mid = CloverEngine.CameraMath.Follow(a, b, 0.02f, 0.12f);
+            Check("CameraMath.Follow(Vector3) 在两端之间（不过冲）", mid.x > 0f && mid.x < 10f, $"x={mid.x:0.000}");
+            var midF = CloverEngine.CameraMath.Follow(0f, 10f, 0.02f, 0.12f);
+            Check("CameraMath.Follow(Vector3) 与既有 float 版**同公式**（逐轴一致 ⇒ 下沉没有改数值）",
+                Math.Abs(midF - mid.x) < 1e-6f, $"float={midF:0.######} vs Vector3.x={mid.x:0.######}");
+
+            // 纯函数：**临界阻尼**跟随（带速度状态）—— 本项目相机跟随改用它（换向不摆滞后矢量）
+            var vel = Vector3.zero;
+            var sd0 = CloverEngine.CameraMath.SmoothDamp(Vector3.zero, b, ref vel, 0.02f, 0f);
+            Check("CameraMath.SmoothDamp(dt<=0) 保持不动且速度清零", sd0 == Vector3.zero && vel == Vector3.zero, $"→ {sd0}");
+            vel = Vector3.zero;
+            var y = Vector3.zero;
+            var overshoot = 0f;
+            for (var i = 0; i < 200; i++)
+            {
+                y = CloverEngine.CameraMath.SmoothDamp(y, b, ref vel, 0.02f, Dt);
+                if (y.x > b.x + 1e-4f) overshoot = MathF.Max(overshoot, y.x - b.x);
+            }
+            Check("CameraMath.SmoothDamp 收敛到目标且**不过冲**（临界阻尼）",
+                Math.Abs(y.x - b.x) < 1e-3f && overshoot < 1e-4f,
+                $"200 帧后 x={y.x:0.######}（目标 {b.x}），最大过冲 {overshoot:0.######}");
+            // 稳态滞后 = speed×smoothTime（临界阻尼解析解 y = v·t − 2v/ω，ω=2/smoothTime）—— c5 的理论口径
+            vel = Vector3.zero;
+            var yy = Vector3.zero;
+            var tt = 0f;
+            for (var i = 0; i < 300; i++) { tt += Dt; yy = CloverEngine.CameraMath.SmoothDamp(yy, new Vector3(3f * tt, 0f, 0f), ref vel, 0.02f, Dt); }
+            // 稳态滞后：连续解析值 = v×smoothTime；Unity 的**离散**实现实测更小（本机 0.577×）⇒ 断言写成
+            // 「> 0 且 ≤ 解析上界」（下界非零 = 确实有阻尼跟随，不是刚性；上界 = 连续解，不与实现细节耦合）。
+            var lagMeasured = 3f * tt - yy.x;
+            Check("CameraMath.SmoothDamp 稳态滞后 ∈ (0, speed×smoothTime]（连续解析值是上界）",
+                lagMeasured > 0f && lagMeasured <= 3f * 0.02f + 1e-4f,
+                $"实测滞后 {lagMeasured:0.######} 格 = 连续解析值 {3f * 0.02f:0.######} 格的 " +
+                $"{lagMeasured / (3f * 0.02f):0.000} 倍（Unity 离散实现偏小；解析值当上界用）");
 
             // 边界钳制（纯函数）
             var min = new Vector2(-10f, -10f);
@@ -1585,6 +1692,51 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
+        // 16. ★ 扣蓝 / 回蓝（w7：SkillModule.TryCast 扣法力修复的契约侧回归）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// w7 契约新增 <c>IPlayerModule.TrySpendMana(int)</c>（**扣蓝**入口）的回归 + <c>RestoreMana</c> 既有语义不变：
+        /// ① 成功扣减并走 <c>Events.HudDirty</c> 属性刷新路径；② 法力不足 ⇒ false 且不扣；
+        /// ③ 非正数 ⇒ false 且不扣；④ **<c>RestoreMana(-n)</c> 仍按非正数忽略**（⛔ 不许为扣蓝把它改成减法）。
+        /// </summary>
+        private static void Step16_ManaSpend(AppContext ctx, PlayerModule player, RecordingEventBus bus)
+        {
+            Section("16. ★ 扣蓝/回蓝（w7）：TrySpendMana 扣减生效 + HudDirty；不足/非正数不扣；RestoreMana(-n) 仍忽略");
+            player.CreateNew(PlayerClass.Sorceress, "ManaCheck");
+            var full = player.MaxMana;
+            Check("建角后法力 = 上限（前置）", player.Mana == full && full > 3, $"法力 {player.Mana}/{full}");
+
+            // ① 成功扣蓝（必须走既有属性刷新路径）
+            var hudBefore = bus.CountOf(Events.HudDirty);
+            var ok = player.TrySpendMana(3);
+            Check("TrySpendMana(3) 返回 true 且法力 -3", ok && player.Mana == full - 3,
+                $"返回 {ok}，法力 {full} → {player.Mana}");
+            Check("扣蓝发了 Events.HudDirty（走既有属性刷新路径）",
+                bus.CountOf(Events.HudDirty) > hudBefore,
+                $"{Events.HudDirty} {hudBefore} → {bus.CountOf(Events.HudDirty)}");
+
+            // ② 法力不足 ⇒ false 且不扣
+            if (full - 4 > 0) player.TrySpendMana(full - 4);        // 扣到只剩 1
+            Check("扣到只剩 1 法力（前置）", player.Mana == 1, $"法力 {player.Mana}");
+            Check("法力不足（1 < 5）⇒ false 且不扣", !player.TrySpendMana(5) && player.Mana == 1,
+                $"法力 {player.Mana}");
+
+            // ③ 非正数 ⇒ false 且不扣
+            Check("TrySpendMana(0) = false 且不扣", !player.TrySpendMana(0) && player.Mana == 1,
+                $"法力 {player.Mana}");
+            Check("TrySpendMana(-5) = false 且不扣", !player.TrySpendMana(-5) && player.Mana == 1,
+                $"法力 {player.Mana}");
+
+            // ④ RestoreMana 既有语义不变：非正数仍忽略（⛔ 没被改成扣蓝）
+            player.RestoreMana(10);
+            var afterRestore = player.Mana;
+            player.RestoreMana(-5);
+            Check("RestoreMana(-5) 仍被忽略（法力不变，未退化成扣蓝）",
+                afterRestore == 11 && player.Mana == afterRestore, $"法力 {afterRestore} → {player.Mana}");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
         // 14. 复位（连续两次进图无残留）
         // ═════════════════════════════════════════════════════════════════════
         private static void Step13_Reset(AppContext ctx, PlayerModule player)
@@ -1757,9 +1909,18 @@ namespace PlayerCheck
                 Check("c2 匀速**单方向直线**段：相机每帧位移单调不减（收敛过程无来回）",
                     hasLine && steadyOk && steady > 5,
                     $"直线段 {lineFrom}→{lineTo}（{camLine.Count} 帧）；末帧位移 {(camLine.Count > 0 ? camLine[camLine.Count - 1] : 0f):0.#####} ⇒ 渐近标称 {limitFixed:0.#####} 格；{probe}");
-                Check("c3 二阶差分有界（平滑、无跳变；锯齿与直线段都算）",
-                    jumpMax <= limitFixed * 0.25f + 1e-4f && lineJump <= limitFixed * 0.25f + 1e-4f,
-                    $"锯齿段最大 |Δstep| = {jumpMax:0.#####}；直线段 = {lineJump:0.#####}（上限 {limitFixed * 0.25f:0.#####}）");
+                // ⚠️ 本片**改过阈值**（0.25 → 0.6），改法与依据必须写清（⛔ 不许把闸门偷偷放宽）：
+                //   · 旧阈值 0.25 是为**旧口径**（纯指数滞后 τ=0.12，把一切高频都抹平）标定的；
+                //     本片换成临界阻尼 + 小 smoothTime 后，相机更贴住焦点，换向时"每帧位移大小"的
+                //     波纹自然更大 —— 这是**有意交换**：用这一点位移波纹换掉用户看到的**横向摆动**
+                //     （见下方 c7 / c8 的配对实测）。
+                //   · 0.6 仍在"有低通"这一侧：**刚性跟随（smoothTime=0）**换一次 45° 向时
+                //     |Δstep| = |Δv|·dt = 2·sin22.5° × 标称 = **0.765 × 标称**，而本口径实测 0.38 × 标称
+                //     ⇒ 阈值 0.6 同时满足"实测留 ~1.6 倍余量"与"仍能把无低通判红"。
+                Check("c3 二阶差分有界（平滑、无跳变；锯齿与直线段都算；阈值 0.6×标称，来历见源码注释）",
+                    jumpMax <= limitFixed * 0.6f + 1e-4f && lineJump <= limitFixed * 0.6f + 1e-4f,
+                    $"锯齿段最大 |Δstep| = {jumpMax:0.#####}（= {jumpMax / MathF.Max(1e-6f, limitFixed):0.00}×标称）；" +
+                    $"直线段 = {lineJump:0.#####}（上限 {limitFixed * 0.6f:0.#####}；刚性跟随会是 0.765×）");
                 Check("c4 相机与焦点同帧位移之差 ≤ 一个标称帧步（不甩开、不提前）",
                     diffMax <= limitFixed + 1e-4f,
                     $"最大差 {diffMax:0.#####} 格 = 标称帧步的 {diffMax / MathF.Max(1e-6f, limitFixed) * 100f:0.0}%");
@@ -1779,6 +1940,95 @@ namespace PlayerCheck
                 Check("c6 dt 抖动传导比 ≤ 1.3（相机不放大帧长抖动；1.0 = 原样通过）",
                     amp <= 1.3f && cvPlay > 0.05f,
                     $"输入 dt 抖动 CV={cvPlay:0.###} → 相机单帧位移 CV={cvCam:0.###}，传导比 {amp:0.###}（稳态取样，剔除首 {skip} 帧与末 5 帧）");
+
+                // ── c7 ★ 本片新增（用户投诉「镜头移动得很抖，不平滑」的**根因行**）─────────────
+                //   旧口径（纯指数滞后 τ=0.12s）：稳态滞后 = 速度×τ = 3.0×0.12 = 0.36 格，而 A* 走 8 向
+                //   锯齿、每 1~2 格换一次向 ⇒ 滞后矢量每帧要转 45° ⇒ 相对偏移的**横向**分量来回摆
+                //   （实测 before：峰峰值 0.5 格级 ≈ 70+ 屏幕像素 @1080p）—— 这就是用户看到的"抖"。
+                //   新口径（临界阻尼 + 小 smoothTime）：滞后随 smoothTime 线性缩小 ⇒ 摆幅同比例缩小。
+                //   阈值 = 实测 after 上界 × 2 余量（来历写在 CameraRig.ZigZagLateralSwingMax 的注释里）。
+                var zigLat = new List<float>();
+                TraceCamera(player, rig, map, map.SpawnPoint, target, null, 0.02f, new List<float>(),
+                    new List<float>(), out gapMax, out limitFixed, out gapLast, zigLat);
+                var swing = 0f;
+                if (zigLat.Count > 0)
+                {
+                    var lo = zigLat[0];
+                    var hi = zigLat[0];
+                    for (var i = 1; i < zigLat.Count; i++)
+                    {
+                        if (zigLat[i] < lo) lo = zigLat[i];
+                        if (zigLat[i] > hi) hi = zigLat[i];
+                    }
+                    swing = hi - lo;
+                }
+                Check($"c7 8 向锯齿路径：相机与焦点相对偏移的**横向**摆幅 ≤ {CameraRig.ZigZagLateralSwingMax:0.###} 格（换向不再摆）",
+                    zigLat.Count > 10 && swing <= CameraRig.ZigZagLateralSwingMax,
+                    $"横向偏移峰峰值 {swing:0.#####} 格（{zigLat.Count} 帧；阈值 {CameraRig.ZigZagLateralSwingMax:0.#####} 格" +
+                    "= 本口径的解析上界 2×speed×smoothTime×sin45°（+余量），来历见 CameraRig.ZigZagLateralSwingMax 注释）");
+
+                // ── c8 ★ 本片新增：**同一段路径上的配对实测**（旧口径 vs 新口径）─────────────────
+                //   旧口径 = 本片删掉的那个实现（纯指数滞后 τ=0.12）—— 作为**冻结参照模型**写在本行里
+                //   （⛔ 不写回产品代码）；两条模型喂**同一条玩家路径、同一个 dt**，只换相机那一行，
+                //   因此差值只可能来自相机口径本身（不是地图/路径/帧长差异）。
+                {
+                    player.Stop();
+                    player.TeleportTo(map.SpawnPoint);
+                    rig.Reset();
+                    rig.EnableZoom = false;
+                    rig.EnableEdgeScroll = false;
+                    rig.SetTargetGrid(map.SpawnPoint);
+                    rig.SnapToTarget();
+                    rig.Tick(0.02f);
+
+                    const float oldTau = 0.12f;                       // 旧口径的时间常数（冻结值）
+                    var oldPos = rig.Position;
+                    var latNew = new List<float>();
+                    var latOld = new List<float>();
+                    var prevW = player.World;
+                    player.MoveTo(target);
+                    var cf = 0;
+                    for (; cf < 20000 && player.IsMoving; cf++)
+                    {
+                        player.Tick(0.02f);
+                        rig.Tick(0.02f);                              // 新口径（产品实现）
+                        var want = CameraRig.DesiredPosition(player.World, -CameraRig.CameraDistance);
+                        var kOld = 1f - MathF.Exp(-0.02f / oldTau);    // 旧口径：纯指数滞后（一步 Lerp）
+                        oldPos = Vector3.Lerp(oldPos, want, kOld);
+
+                        var pw = player.World;
+                        var dpx = pw.x - prevW.x;
+                        var dpy = pw.y - prevW.y;
+                        var st = MathF.Sqrt(dpx * dpx + dpy * dpy);
+                        if (st > 1e-6f)
+                        {
+                            var lx = -dpy / st;
+                            var ly = dpx / st;
+                            latNew.Add((pw.x - rig.Position.x) * lx + (pw.y - rig.Position.y) * ly);
+                            latOld.Add((pw.x - oldPos.x) * lx + (pw.y - oldPos.y) * ly);
+                        }
+                        prevW = pw;
+                    }
+
+                    float swNew = 0f, swOld = 0f;
+                    if (latNew.Count > 0)
+                    {
+                        float nlo = latNew[0], nhi = latNew[0], olo = latOld[0], ohi = latOld[0];
+                        for (var i = 1; i < latNew.Count; i++)
+                        {
+                            if (latNew[i] < nlo) nlo = latNew[i];
+                            if (latNew[i] > nhi) nhi = latNew[i];
+                            if (latOld[i] < olo) olo = latOld[i];
+                            if (latOld[i] > ohi) ohi = latOld[i];
+                        }
+                        swNew = nhi - nlo;
+                        swOld = ohi - olo;
+                    }
+                    Check("c8 同一段锯齿路径上：新口径横向摆幅 < 旧口径（配对实测，只换相机口径）",
+                        latNew.Count > 10 && swOld > 0f && swNew < swOld * 0.5f,
+                        $"旧口径(纯指数 τ={oldTau}) 峰峰值 {swOld:0.#####} 格 → 新口径(临界阻尼 {CameraRig.FollowSmoothTime}s) " +
+                        $"{swNew:0.#####} 格（{cf} 帧，同路径同 dt；降幅 {(swOld > 0f ? (1f - swNew / swOld) * 100f : 0f):0.0}%）");
+                }
             }
             finally
             {
@@ -1843,6 +2093,194 @@ namespace PlayerCheck
                 GameConst.WildernessMaxSize * GameConst.WildernessMaxSize > Diablo2.Module.Map.MapView.BuildAllTileThreshold,
                 $"野外最大 {GameConst.WildernessMaxSize}×{GameConst.WildernessMaxSize} = {GameConst.WildernessMaxSize * GameConst.WildernessMaxSize} 格 > {Diablo2.Module.Map.MapView.BuildAllTileThreshold}" +
                 $" ⇒ 每块 {chunkCells * perCellMax} 个节点（不在本片改动范围，只登记）");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 17. ★ 双武器组（T0 判据缺口 2）—— 读键 → 事件 → 装备侧真的换了主手 → 派生重算
+        // ═════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// ★ 本轮新增：原版 <c>W</c> 键切武器组的**端到端**自证。
+        /// <para>
+        /// 断言分三层，每层都咬在生产代码上：
+        /// ① **读键层**：`InputReader.SwapWeaponPressed` 只由 `GameKeyAlias.KeySwapWeapon` 驱动
+        ///    （按 W 为真 / 按 R 为假）—— 直接咬"键位唯一来源"这条硬约束；
+        /// ② **链路层**：`PlayerModule.Tick` 读键 ⇒ 发 `Events.SwapWeaponRequest`；`ItemModule` 收到后
+        ///    真的改了生效武器组（`ActiveWeaponGroup` 翻转）；
+        /// ③ **数值层**：装备载荷只带**生效组**那把武器 ⇒ `PlayerModule` 的攻击力只吃它的词缀
+        ///    （换组后 AR 从 +20 变 +50，而**不是** +70 —— 这条正是"背着两把武器双倍加成"的反向断言）。
+        /// </para>
+        /// </summary>
+        private static void Step17_WeaponGroup(AppContext ctx, PlayerModule player, object mapObj,
+            ScriptedInput input, RecordingEventBus bus)
+        {
+            Section("17. ★ 双武器组（T0 判据缺口 2）：W 键 → SwapWeaponRequest → 主手互换 / 切回 / 派生只算生效组");
+
+            var map = (Diablo2.Module.Map.MapModule)mapObj;
+            map.Generate(AreaId.Town, 20250916);
+            player.CreateNew(PlayerClass.Amazon, "WgHero");
+            player.TeleportTo(map.SpawnPoint);
+
+            var itemMod = ctx.Item as Diablo2.Module.Item.ItemModule;
+            Check("ItemModule 是真实现（本步断言打在它上面，不是桩）", itemMod != null,
+                ctx.Item == null ? "null" : ctx.Item.GetType().FullName);
+
+            ctx.Item.Reset();
+            var factory = new Diablo2.Module.Item.ItemFactory();
+            // 表里两件 **str_req=0 / lvl_req=0** 的武器（`item_c`）：1 = 手斧 hax（1×3，伤害 3-6）、
+            // 5 = 法杖 wnd（1×2，伤害 2-4）⇒ 1 级亚马逊也装得上，断言不依赖职业数值。
+            var wA = factory.Create(1, 1, ItemQuality.Normal, new Rng(9001));
+            var wB = factory.Create(5, 1, ItemQuality.Normal, new Rng(9002));
+            wA.affixes.Add(new ItemAffix { affixId = 101, kind = AffixKind.Prefix, mod = "att", value = 20 });
+            wB.affixes.Add(new ItemAffix { affixId = 102, kind = AffixKind.Prefix, mod = "att", value = 50 });
+            Check("两件武器就位（各带一条 att 词缀：Ⅰ组 +20 / Ⅱ组 +50）",
+                wA != null && wB != null && wA.strReq == 0 && wB.strReq == 0 && wA.lvlReq == 0 && wB.lvlReq == 0,
+                $"{wA?.name}(att +{wA?.affixes[0].value}) vs {wB?.name}(att +{wB?.affixes[0].value})");
+
+            var arBase = player.AttackRating;
+            ctx.Item.AddToInventory(wA);
+            var a1 = FirstItemAnchor(ctx.Item);
+            Check("装 Ⅰ组武器", a1 >= 0 && ctx.Item.EquipFromInventory(a1), "anchor=" + a1);
+            Check("只有 1 件武器 ⇒ 生效组 = 0（Ⅰ）", itemMod.ActiveWeaponGroup == 0 && itemMod.WeaponGroupCount == 1,
+                $"active={itemMod.ActiveWeaponGroup} groups={itemMod.WeaponGroupCount}");
+            Check("AR = 基础 + 20（Ⅰ组词缀生效）", player.AttackRating == arBase + 20,
+                $"{arBase} → {player.AttackRating}");
+
+            ctx.Item.AddToInventory(wB);
+            var a2 = FirstItemAnchor(ctx.Item);
+            Check("装 Ⅱ组武器", a2 >= 0 && ctx.Item.EquipFromInventory(a2), "anchor=" + a2);
+            // ★ `IItemModule.Equipment` 的语义已收紧为**生效集**（只含生效组那把武器）⇒
+            //   `CombatModule.GetWeaponDamage` 不再把两把武器的 dmg 相加；两套都存得住由 `WriteTo` 保证。
+            Check("两把武器都装着（组数 = 2）而生效集只有 1 把（基础伤害也只算这一把）",
+                itemMod.WeaponGroupCount == 2 && ctx.Item.Equipment.Count == 1,
+                $"组数={itemMod.WeaponGroupCount} 生效集={ctx.Item.Equipment.Count}");
+            Check("生效组跟着新武器 = 1（Ⅱ）", itemMod.ActiveWeaponGroup == 1, "active=" + itemMod.ActiveWeaponGroup);
+            Check("AR = 基础 + 50 **而不是** +70（非生效组的词缀不进载荷 ⇒ 不会双倍加成）",
+                player.AttackRating == arBase + 50, $"{arBase} → {player.AttackRating}（+20 与 +70 都是错的）");
+
+            // ① 读键层：只有 W 为真
+            input.BeginFrame();
+            input.Press(GameKeyAlias.KeySwapWeapon);
+            Check("InputReader.SwapWeaponPressed：按 W（GameKeyAlias.KeySwapWeapon）为真",
+                player.Input.SwapWeaponPressed, "SwapWeaponPressed=true");
+            input.BeginFrame();
+            input.Press(GameKeyAlias.KeyRunToggle);
+            Check("按 R（走/跑键）时 SwapWeaponPressed 为假 ⇒ 键位绑定是 W 而不是「任意键」",
+                !player.Input.SwapWeaponPressed, "SwapWeaponPressed=false");
+            input.BeginFrame();
+
+            // ② 链路层：W → 事件 → Item 侧真的切了
+            var swapsBefore = bus.CountOf(Events.SwapWeaponRequest);
+            input.BeginFrame();
+            input.Press(GameKeyAlias.KeySwapWeapon);
+            player.Tick(Dt);
+            input.BeginFrame();
+            Check("W 键 ⇒ 发 Events.SwapWeaponRequest（消费点从 0 变 1）",
+                bus.CountOf(Events.SwapWeaponRequest) == swapsBefore + 1,
+                $"次数 {swapsBefore} → {bus.CountOf(Events.SwapWeaponRequest)}");
+            Check("切换后生效组 = 0（Ⅰ）", itemMod.ActiveWeaponGroup == 0, "active=" + itemMod.ActiveWeaponGroup);
+            Check("AR 回到 基础 + 20（主手/副手互换后派生重算）", player.AttackRating == arBase + 20,
+                $"{arBase + 50} → {player.AttackRating}");
+
+            var eqSwap = ctx.Item.Snapshot().equip;
+            Check("装备载荷里只剩 Ⅰ组那把（主手互换，非生效组不进载荷）",
+                WeaponsIn(eqSwap).Count == 1 && WeaponsIn(eqSwap)[0].itemId == wA.itemId,
+                "载荷武器=" + WeaponNamesOf(eqSwap));
+            Check("接线口径留了一条 Info（只报一次）", CaptureLogger.Has("[SwapWeapon] 原版 W 键按下"),
+                CaptureLogger.Last("[SwapWeapon]"));
+            Check("切换本体留了含两个组名的 Info", CaptureLogger.Has("[SwapWeapon] 武器组 Ⅱ → Ⅰ"),
+                CaptureLogger.Last("[SwapWeapon] 武器组"));
+
+            // ③ 再按一次 W ⇒ 切回原样
+            input.BeginFrame();
+            input.Press(GameKeyAlias.KeySwapWeapon);
+            player.Tick(Dt);
+            input.BeginFrame();
+            Check("再按一次 W ⇒ 回到 Ⅱ（可逆）", itemMod.ActiveWeaponGroup == 1, "active=" + itemMod.ActiveWeaponGroup);
+            Check("切回后 AR 又是 基础 + 50（与切换前一致）", player.AttackRating == arBase + 50,
+                "AR=" + player.AttackRating);
+            Check("两条事件（一来一回）", bus.CountOf(Events.SwapWeaponRequest) == swapsBefore + 2,
+                "次数=" + bus.CountOf(Events.SwapWeaponRequest));
+        }
+
+        /// <summary>（★ 本轮新增）装备载荷里的武器（`ItemStack.type == ItemType.Weapon`）。</summary>
+        private static List<ItemStack> WeaponsIn(List<ItemStack> equip)
+        {
+            var res = new List<ItemStack>();
+            if (equip == null) return res;
+            for (var i = 0; i < equip.Count; i++)
+            {
+                if (equip[i] != null && equip[i].type == ItemType.Weapon) res.Add(equip[i]);
+            }
+            return res;
+        }
+
+        /// <summary>（★ 本轮新增）装备载荷里武器的可读清单（断言失败时的详情）。</summary>
+        private static string WeaponNamesOf(List<ItemStack> equip)
+        {
+            var w = WeaponsIn(equip);
+            if (w.Count == 0) return "(无武器)";
+            var sb = new System.Text.StringBuilder();
+            for (var i = 0; i < w.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append(w[i].name).Append('#').Append(w[i].itemId);
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>（★ 本轮新增）背包里第一个"有物品的锚点格"（本步先 Reset 过背包 ⇒ 就是刚放进去那件）。</summary>
+        private static int FirstItemAnchor(Diablo2.Module.IItemModule item)
+        {
+            var inv = item.Inventory;
+            for (var i = 0; i < inv.Count; i++)
+            {
+                if (inv[i].isAnchor && inv[i].item != null) return i;
+            }
+            return -1;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 18. ★ 死亡扣金币 10%（T0 判据缺口 1）—— 与 itemcheck §13 互相独立复验
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step18_DeathGold(AppContext ctx, PlayerModule player, object mapObj, RecordingEventBus bus)
+        {
+            Section("18. ★ 死亡扣金币 10%（T0 判据缺口 1；本宿主用真实 PlayerModule 独立复验一遍）");
+
+            var town = (Diablo2.Module.Map.MapModule)mapObj;
+            town.Generate(AreaId.Town, 20250916);
+
+            player.CreateNew(PlayerClass.Amazon, "GoldHero");
+            player.TeleportTo(town.SpawnPoint);
+            player.AddGold(12345);
+            Check("金币就位 12345", player.Gold == 12345, "gold=" + player.Gold);
+
+            var ruleLines = CaptureLogger.Count("死亡扣金币");
+            player.Kill();
+            Check("死亡扣 10%：12345 → 11111（损失 1234 = floor(12345×10%)）", player.Gold == 11111,
+                "gold=" + player.Gold);
+            Check("生效口径行打了一条（tag = T0GAP）", CaptureLogger.Count("死亡扣金币") == ruleLines + 1,
+                $"口径行 {ruleLines} → {CaptureLogger.Count("死亡扣金币")}");
+            Check("口径行写清了取整口径与「不会为负」的论证",
+                CaptureLogger.Has("[T0GAP]") && CaptureLogger.Has("向下取整") && CaptureLogger.Has("不会为负"),
+                CaptureLogger.Last("[T0GAP]"));
+
+            player.Revive();
+            player.Kill();
+            Check("同一角色连续第二次死亡仍扣：11111 → 10000（损失 1111）", player.Gold == 10000,
+                "gold=" + player.Gold);
+            Check("口径行只报一次（第二次死亡不再打）", CaptureLogger.Count("死亡扣金币") == ruleLines + 1,
+                "口径行=" + CaptureLogger.Count("死亡扣金币"));
+            Check("扣后不为负", player.Gold >= 0, "gold=" + player.Gold);
+
+            player.Revive();
+            Check("先花光金币", player.AddGold(-player.Gold) && player.Gold == 0, "gold=" + player.Gold);
+            player.Kill();
+            Check("金币 0 ⇒ 死亡不扣、不为负", player.Gold == 0, "gold=" + player.Gold);
+
+            player.Revive();
+            player.AddGold(7);
+            player.Kill();
+            Check("金币 7（< 10）⇒ 损失 floor(7/10)=0 ⇒ 仍为 7", player.Gold == 7, "gold=" + player.Gold);
         }
 
         /// <summary>世界坐标 → **连续格坐标**（z 分量清零：世界是 z=0 的 XY 平面，相机 z=-10）。</summary>
@@ -1929,7 +2367,8 @@ namespace PlayerCheck
         /// </summary>
         private static void TraceCamera(PlayerModule player, CameraRig rig, Diablo2.Module.Map.MapModule map,
             Vector2Int start, Vector2Int target, float[] dtSeq, float fixedDt, List<float> camSteps,
-            List<float> playSteps, out float gapMax, out float limit, out float gapLast)
+            List<float> playSteps, out float gapMax, out float limit, out float gapLast,
+            List<float> latOffsets = null)
         {
             player.Stop();
             player.TeleportTo(start);
@@ -1943,6 +2382,7 @@ namespace PlayerCheck
             player.MoveTo(target);
             var prevCam = CellOf(rig.Position);
             var prevPlay = CellOf(player.World);
+            var prevWorld = player.World;                  // 世界坐标（横向偏移量法要用未取整的一份）
             gapMax = 0f;
             gapLast = 0f;
             limit = 0f;
@@ -1954,6 +2394,24 @@ namespace PlayerCheck
                 rig.Tick(dtNow);
                 var c = CellOf(rig.Position);
                 var p = CellOf(player.World);
+
+                // ★ 本片新增：相对偏移（玩家 − 相机）在**本帧行进方向的正交方向**上的分量。
+                //   定义与离线量法 `tools/probes/drivers/camjitter_metrics.py` 的 lat_i 逐字一致
+                //   （r·perp(u)，u = 本帧玩家位移方向）⇒ 线上 Play 证据与离线断言同一把尺。
+                if (latOffsets != null)
+                {
+                    var pw = player.World;
+                    var dpx = pw.x - prevWorld.x;
+                    var dpy = pw.y - prevWorld.y;
+                    var st = MathF.Sqrt(dpx * dpx + dpy * dpy);
+                    if (st > 1e-6f)
+                    {
+                        var lx = -dpy / st;
+                        var ly = dpx / st;
+                        latOffsets.Add((pw.x - rig.Position.x) * lx + (pw.y - rig.Position.y) * ly);
+                    }
+                    prevWorld = pw;
+                }
                 camSteps.Add((c - prevCam).magnitude);
                 playSteps.Add((p - prevPlay).magnitude);
                 var gap = (p - c).magnitude;
@@ -2048,6 +2506,289 @@ namespace PlayerCheck
                     if (map.TileAt(g) == kind) return g;
                 }
             return null;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 19. ★ R1：鼠标右键（原版「右键 = 使用右键技能」）
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step19_RightClick(AppContext ctx, object mapObj, PlayerModule player,
+            ScriptedInput input, RecordingEventBus bus)
+        {
+            Section("19. ★ R1：右键（button 1）= 使用右键技能 ⇒ 走**已有**施放入口 ISkillModule.TryCast");
+            var map = (Diablo2.Module.Map.MapModule)mapObj;
+            map.Generate(AreaId.Town, 20250923);
+            player.CreateNew(PlayerClass.Amazon, "RightClick");
+            player.TeleportTo(map.SpawnPoint);
+            player.Stop();
+
+            var reader = player.Input;
+            reader.Reset();
+            input.Available = true;
+            input.BeginFrame();
+
+            // ── ① Poll 真的读了 button 1（改动前只读 button 0 —— 审计 R1 的根因）──
+            input.RightMouseDown();
+            player.Tick(0.02f);
+            Check("Poll 读 button 1 ⇒ SecondaryDown / SecondaryHeld 都为 true（改动前恒 false）",
+                reader.SecondaryDown && reader.SecondaryHeld,
+                $"down={reader.SecondaryDown} held={reader.SecondaryHeld}");
+
+            input.BeginFrame();
+            input.RightMouseUp();
+            player.Tick(0.02f);
+            Check("右键抬起 ⇒ SecondaryUp 为 true（抬起语义与左键同款）",
+                reader.SecondaryUp, $"up={reader.SecondaryUp}");
+            input.BeginFrame();
+
+            // ── ② 右键技能格绑了技能 ⇒ 走已有的 TryCast（右键技能真的被施放）──
+            var stub = new StubSkill(0) { Button1 = 121 };
+            ctx.Skill = stub;
+
+            var cells = WalkableCells(map, 2);
+            Check("找到 ≥2 个可走格供右键用例", cells.Count >= 2, $"找到 {cells.Count} 个");
+            if (cells.Count < 2)
+            {
+                ctx.Skill = null;
+                return;
+            }
+            var castGrid = cells[0];
+
+            player.HandleSecondaryClick(castGrid);
+            Check("右键绑了技能 ⇒ 调 ISkillModule.TryCast(右键技能 id, 目标格) 恰好 1 次且参数正确",
+                stub.Casts.Count == 1 && stub.Casts[0] == $"#121@({castGrid.x},{castGrid.y})",
+                stub.Casts.Count > 0 ? string.Join(" / ", stub.Casts) : "(无调用)");
+            Check("留下了 [Cast] 右键施放技能 日志（数值类判据的锚点）",
+                CaptureLogger.Has("[Cast] 右键施放技能 #121"),
+                CaptureLogger.Last("[Cast]"));
+
+            // ── ③ 未绑（-1）+ 指针下有怪 ⇒ 原版默认的普通攻击；右键**不移动** ──
+            stub.Button1 = -1;
+            stub.Casts.Clear();
+
+            var monGrid = cells[1];
+            var monsterId = GameConst.MonsterIdBase + 77;
+            var stubMon = new StubMonsters();
+            stubMon.Add(new MonsterState
+            {
+                id = monsterId, name = "堕落者(右键自检)", gridX = monGrid.x, gridY = monGrid.y,
+                alive = true, hp = 10, maxHp = 10,
+            });
+            ctx.Monster = stubMon;
+            reader.OverrideHoverGrid(monGrid);
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+
+            var atk0 = bus.CountOf(Events.AttackRequest);
+            var mv0 = bus.CountOf(Events.MoveCommand);
+            player.HandleSecondaryClick(monGrid);
+            Check("未绑右键技能 ⇒ 按原版默认的普通攻击：发 AttackRequest 1 次且 id 正确",
+                stub.Casts.Count == 0 && bus.CountOf(Events.AttackRequest) == atk0 + 1
+                && bus.LastArgOf(Events.AttackRequest) == monsterId.ToString(),
+                $"TryCast={stub.Casts.Count} Attack +{bus.CountOf(Events.AttackRequest) - atk0} 载荷={bus.LastArgOf(Events.AttackRequest)}");
+            Check("右键**不产生移动意图**（原版右键不移动角色）：MoveCommand 不增",
+                bus.CountOf(Events.MoveCommand) == mv0,
+                $"MoveCommand +{bus.CountOf(Events.MoveCommand) - mv0}");
+
+            // ── ④ 未绑 + 指针下没怪 ⇒ 无动作（非预期分支留 Warn，不空放技能）──
+            var emptyGrid = map.SpawnPoint;
+            reader.OverrideHoverGrid(emptyGrid);
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+            var atk1 = bus.CountOf(Events.AttackRequest);
+            player.HandleSecondaryClick(emptyGrid);
+            Check("未绑 + 指针下无怪 ⇒ 不发 AttackRequest / 不调 TryCast（只留一条 Warn）",
+                bus.CountOf(Events.AttackRequest) == atk1 && stub.Casts.Count == 0,
+                $"Attack +{bus.CountOf(Events.AttackRequest) - atk1} TryCast={stub.Casts.Count}");
+
+            // ── ⑤ 指针压在 UI 上 ⇒ 右键不算施放意图（纯判定，不碰真实 EventSystem）──
+            Check("UiEatsIntent(true,true)=true 且 (true,false)=false（点面板不会顺手放技能）",
+                InputReader.UiEatsIntent(true, true) && !InputReader.UiEatsIntent(true, false)
+                && !InputReader.UiEatsIntent(false, true),
+                "见 InputReader.UiEatsIntent（TryGetSecondaryClick 的反投影之前就过它）");
+
+            ctx.Skill = null;
+            ctx.Monster = null;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 20. ★ R4：F1~F8 技能槽 → SkillSlotAssignRequest
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step20_SkillSlots(AppContext ctx, PlayerModule player,
+            ScriptedInput input, RecordingEventBus bus)
+        {
+            Section("20. ★ R4：F1~F8 技能槽（改动前 8 个键 + SkillSlotKey()/SkillSlotCount 全仓 0 消费）");
+
+            // ── ① 键位与左右手映射（唯一来源 = Def/GameKeyAlias）──
+            var allMapped = true;
+            var leftOk = true;
+            var idxOk = true;
+            for (var slot = 1; slot <= GameKeyAlias.SkillSlotCount; slot++)
+            {
+                var key = GameKeyAlias.SkillSlotKey(slot);
+                if (key == GameKey.None) allMapped = false;
+                if (GameKeyAlias.SkillSlotIsLeftHand(slot) != (slot <= 4)) leftOk = false;
+                if (GameKeyAlias.SkillSlotIndex(slot) != (slot - 1) % 4) idxOk = false;
+            }
+            Check("SkillSlotKey(1..8) 全部有键位（改动前 0 消费）", allMapped, $"count={GameKeyAlias.SkillSlotCount}");
+            Check("SkillSlotIsLeftHand：F1~F4 = 左键 / F5~F8 = 右键", leftOk, "1..4=左, 5..8=右");
+            Check("SkillSlotIndex：F1/F5=0、F2/F6=1、F3/F7=2、F4/F8=3", idxOk, "(slot-1)%4");
+            Check("越界槽号：SkillSlotKey(0/9)=None、SkillSlotIndex(0/9)=-1",
+                GameKeyAlias.SkillSlotKey(0) == GameKey.None && GameKeyAlias.SkillSlotKey(9) == GameKey.None
+                && GameKeyAlias.SkillSlotIndex(0) == -1 && GameKeyAlias.SkillSlotIndex(9) == -1,
+                "0/9 都拒绝");
+
+            // ── ② 按下 F1~F8 ⇒ 每个键恰好发一次 SkillSlotAssignRequest，载荷 = 槽号 ──
+            var received = new List<int>();
+            bus.On<int>(Events.SkillSlotAssignRequest, s => received.Add(s));
+
+            var reader = player.Input;
+            reader.Reset();
+            input.Available = true;
+            input.BeginFrame();
+
+            for (var slot = 1; slot <= GameKeyAlias.SkillSlotCount; slot++)
+            {
+                input.BeginFrame();
+                input.Press(GameKeyAlias.SkillSlotKey(slot));
+                reader.PollHotkeys(true);                 // 与 PlayerModule.Tick 同一调用点
+                input.Release(GameKeyAlias.SkillSlotKey(slot));
+            }
+            input.BeginFrame();
+
+            var ordered = received.Count == GameKeyAlias.SkillSlotCount;
+            for (var i = 0; ordered && i < received.Count; i++) ordered = received[i] == i + 1;
+            Check("F1~F8 各发一次 SkillSlotAssignRequest，载荷 = 槽号 1..8（顺序）",
+                ordered, received.Count > 0 ? string.Join(",", received) : "(没发)");
+
+            // ── ③ 不按时不发（不是逐帧刷）──
+            var n0 = received.Count;
+            reader.PollHotkeys(true);
+            reader.PollHotkeys(true);
+            Check("没按 F 键 ⇒ 不发（每帧调用也不刷）", received.Count == n0, $"仍为 {received.Count}");
+
+            // ── ④ 不存活时（canUse=false）不发 ──
+            input.BeginFrame();
+            input.Press(GameKeyAlias.KeySkillSlot1);
+            reader.PollHotkeys(false);
+            input.Release(GameKeyAlias.KeySkillSlot1);
+            input.BeginFrame();
+            Check("死亡/暂停（canUse=false）时 F 键不发（与腰带键同一条闸门）", received.Count == n0,
+                $"仍为 {received.Count}");
+
+            // 收方（Module/Skill）不编入本宿主 ⇒ 这里只判输入侧；绑定与存档往返由 combatcheck §19 用真 SkillModule 判。
+            Console.WriteLine("    [说明] 本宿主未编入 Module/Skill ⇒ 只判「读键 → 发意图」；" +
+                              "槽号→技能 id 的解析与存档镜像见 combatcheck §19。");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 21. ★ R5：Alt 常显 / 悬停单件地面物品名牌
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step21_GroundItemNames(AppContext ctx, object mapObj, PlayerModule player,
+            ScriptedInput input, RecordingEventBus bus)
+        {
+            Section("21. ★ R5：地面物品名牌（Alt 常显 / 悬停单件）⇒ Events.GroundItemLabelsChanged");
+            var map = (Diablo2.Module.Map.MapModule)mapObj;
+            map.Generate(AreaId.Town, 20250923);
+            player.CreateNew(PlayerClass.Amazon, "GroundNames");
+            player.TeleportTo(map.SpawnPoint);
+            player.Stop();
+
+            var reader = player.Input;
+            reader.Reset();
+            input.Available = true;
+            input.BeginFrame();
+
+            var cells = WalkableCells(map, 2);
+            Check("找到 ≥2 个可走格供名牌用例", cells.Count >= 2, $"找到 {cells.Count} 个");
+            if (cells.Count < 2)
+            {
+                reader.Hover.GroundItemAt = null;
+                return;
+            }
+            var itemGrid = cells[0];
+            var emptyGrid = cells[1];
+            const int groundItemId = GameConst.GroundItemIdBase + 9;
+
+            reader.Hover.GroundItemAt = g => g == itemGrid
+                ? (HoverHit?)new HoverHit { id = groundItemId, name = "短剑(名牌自检)" }
+                : null;
+            reader.Hover.ItemQualityOf = id => id == groundItemId ? ItemQuality.Magic : ItemQuality.Normal;
+
+            GroundItemLabelsArgs last = null;
+            var fired = 0;
+            bus.On<GroundItemLabelsArgs>(Events.GroundItemLabelsChanged,
+                a => { last = a; fired++; });
+
+            // ── ① 悬停地面物品（光标 = Pickup）⇒ 单件名牌 ──
+            reader.OverrideHoverGrid(itemGrid);
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+            Check("悬停地面物品 ⇒ 名牌 1 条，id/名字/格 = 悬停目标，altHeld=false",
+                last != null && !last.altHeld && last.labels.Count == 1
+                && last.labels[0].id == groundItemId && last.labels[0].name == "短剑(名牌自检)"
+                && last.labels[0].gridX == itemGrid.x && last.labels[0].gridY == itemGrid.y,
+                last == null ? "(没发事件)" : $"altHeld={last.altHeld} 条数={last.labels.Count}" +
+                    (last.labels.Count > 0 ? $" 首={last.labels[0].name}@({last.labels[0].gridX},{last.labels[0].gridY})" : ""));
+            Check("名牌品质来自 HoverPicker.ItemQualityOf（本用例注入 Magic ⇒ 配色蓝）",
+                last != null && last.labels.Count == 1 && last.labels[0].quality == ItemQuality.Magic,
+                last != null && last.labels.Count == 1 ? last.labels[0].quality.ToString() : "(无)");
+
+            // ── ② 按住 Alt ⇒ 常显**全部**地面物品（消费 InputReader.ShowGroundItems）──
+            reader.Hover.AllLabels = () => new List<GroundItemLabel>
+            {
+                new GroundItemLabel { id = groundItemId, name = "短剑(名牌自检)", quality = ItemQuality.Magic,
+                    gridX = itemGrid.x, gridY = itemGrid.y },
+                new GroundItemLabel { id = groundItemId + 1, name = "皮靴(名牌自检)", quality = ItemQuality.Normal,
+                    gridX = emptyGrid.x, gridY = emptyGrid.y },
+            };
+            input.BeginFrame();
+            input.Press(GameKeyAlias.KeyShowGroundItems);       // 原版 Alt
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+            Check("按住 Alt ⇒ altHeld=true 且名牌 = 全部地面物品（2 条）",
+                last != null && last.altHeld && last.labels.Count == 2,
+                last == null ? "(没发事件)" : $"altHeld={last.altHeld} 条数={last.labels.Count}");
+
+            // ── ③ 松开 Alt ⇒ 回到「只显示悬停那件」──
+            input.BeginFrame();
+            input.Release(GameKeyAlias.KeyShowGroundItems);
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+            Check("松开 Alt ⇒ 回到悬停单件（altHeld=false / 1 条）",
+                last != null && !last.altHeld && last.labels.Count == 1,
+                last == null ? "(没发事件)" : $"altHeld={last.altHeld} 条数={last.labels.Count}");
+
+            // ── ④ 内容不变 ⇒ 不重发（本方法每帧被调，防刷屏/防每帧重建节点）──
+            var firedBefore = fired;
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+            Check("名牌内容不变 ⇒ 不重发（每帧调用但事件只在变化时发）", fired == firedBefore,
+                $"fired={fired}（变化前 {firedBefore}）");
+
+            // ── ⑤ 悬停离开（悬停目标消失）⇒ 发空名牌，UI 侧据此清空 ──
+            reader.OverrideHoverGrid(emptyGrid);
+            reader.UpdateHover(true);
+            // 与 PlayerModule.Tick ②b 同口径：Alt（原版常显）由**调用方**读 `ShowGroundItems` 传进来
+            reader.PublishGroundItemLabels(reader.ShowGroundItems);
+            Check("悬停离开地面物品 ⇒ 发空名牌（UI 名牌层清空；非预期分支已留日志）",
+                last != null && last.labels.Count == 0 && fired > firedBefore,
+                $"条数={last?.labels.Count} fired={fired}");
+            Check("留下了 [GroundItemLabel] 日志（节点名/条数的锚点）",
+                CaptureLogger.Has("[GroundItemLabel]"), CaptureLogger.Last("[GroundItemLabel]"));
+
+            // 收尾：撤掉注入，别影响后面的用例
+            reader.Hover.AllLabels = null;
+            reader.Hover.GroundItemAt = null;
+            reader.Hover.ItemQualityOf = null;
         }
 
         private static void Section(string title)

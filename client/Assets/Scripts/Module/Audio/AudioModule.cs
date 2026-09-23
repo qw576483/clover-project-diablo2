@@ -21,8 +21,16 @@
 //
 // 音量（硬要求 ①）：`Game.Sound.SetVolume(SoundGroup.BGM/SFX, v)` + `Game.Sound.SetMute(…)`，
 //   并持久化到 `Game.Setting`（键 `GameConst.SettingKeyBgmVolume/SfxVolume`，初值取 `Cfg`）。
-//   ⚠️ 静音开关**不落盘**：`GameConst` 里没有对应设置键，而 `Core/` 是冻结的（不许改）——
-//      已在回报里列为"未决"（主 agent 若要持久化静音，请加两个 `SettingKey*Mute` 常量）。
+// ★ T0FIX-B（本片）：**静音开关已接进持久化链**（旧注释"`GameConst` 里没有对应设置键 ⇒ 不落盘"
+//   早已过期 —— 键在 `Core/GameConst.cs:217/220` 就有）：
+//     · 冷启动读回：`LoadVolumeFromSettings` 读 `SettingKeyBgmMute/SfxMute`（缺项 ⇒ false）；
+//     · 生效：`ApplyVolumeToEngine` 把两个开关施加到 `Sound.SetMute(BGM/SFX, …)`；
+//     · 运行期修改：`SetMute` 落盘（`Setting.Set` + `Save()`）再施加 ⇒ 重启仍在。
+//   语义 = 与音量**两个维度、互不覆盖**（`GameConst.SettingKeyBgmMute` 的注释已定口径：
+//   音量 0 与静音是两回事，取消静音要能还原到静音前的音量）。
+//   ⚠️ 目前**没有 UI 调用方**（原版设置屏的静音开关在 `Menu/SoundOptions` 素材侧无逐帧出处
+//   ⇒ 按"⛔ A 没有的不加"不新增 UI 元件）；调用入口 = `IAudioModule.SetMute`（契约已有），
+//   本片的实机判据走 `[T0] S3-MUTE`（SetMute 后 settings.json 有键 + 冷启动读回）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -186,8 +194,10 @@ namespace Diablo2.Module.Audio
             _bgmMute = bgmMute;
             _sfxMute = sfxMute;
             ApplyVolumeToEngine();
-            AudioLog.Info($"静音已设置：bgm={_bgmMute} sfx={_sfxMute}" +
-                          "（本次会话有效；`GameConst` 无可用的静音设置键 ⇒ 不落盘）");
+            PersistMute();                                   // ★ T0FIX-B：落盘（旧口径只改内存字段）
+            AudioLog.Info($"[T0FIX] 静音已设置：bgm={_bgmMute} sfx={_sfxMute}" +
+                          $"（已施加到 Sound.SetMute(BGM/SFX) 并写 Game.Setting" +
+                          $"[\"{GameConst.SettingKeyBgmMute}\"/\"{GameConst.SettingKeySfxMute}\"] + Save() ⇒ 重启仍在）");
         }
 
         /// <inheritdoc />
@@ -236,6 +246,18 @@ namespace Diablo2.Module.Audio
             }
 
             if (!SfxRegistry.IsSfx(key)) AudioLog.UnregisteredKey(key, false);
+
+            // ★ 片 C4（接收侧防御）：同一键最小间隔节流 —— 这里是**一切 SFX 的唯一出口**
+            //   （`AudioHook` 的事件触发与 `DamagePipeline` / `MonsterModule` 的直连 `SfxAt` 都走这里），
+            //   所以闸门放在这里才能真正防住"某个键把 32 个音源占满 ⇒ 别的音效被静默丢弃"。
+            //   口径与推导见 `SfxThrottle` 文件头（含"时间源不可用 ⇒ 闸门惰性"）。
+            float throttledSince;
+            if (SfxThrottle.ShouldDrop(key, out throttledSince))
+            {
+                AudioLog.WarnThrottledSfx(key, throttledSince);
+                return;
+            }
+
             if (_missingSfx.Contains(key)) return;                 // 已知缺失：静默（只报过一次）
 
             if (!_probedSfx.Contains(key))
@@ -308,13 +330,21 @@ namespace Diablo2.Module.Audio
                 AudioLog.NoSetting();
                 _bgm = Mathf.Clamp01(Cfg.BgmVolume);
                 _sfx = Mathf.Clamp01(Cfg.SfxVolume);
+                _bgmMute = false;                            // ★ T0FIX-B：没设置后端 ⇒ 静音取默认 false
+                _sfxMute = false;
                 return;
             }
 
             _bgm = Mathf.Clamp01(setting.Get<float>(GameConst.SettingKeyBgmVolume, Cfg.BgmVolume));
             _sfx = Mathf.Clamp01(setting.Get<float>(GameConst.SettingKeySfxVolume, Cfg.SfxVolume));
+            // ★ T0FIX-B：静音开关的**冷启动读回**（缺项 = false = 原版默认不静音）
+            _bgmMute = setting.Get<bool>(GameConst.SettingKeyBgmMute, false);
+            _sfxMute = setting.Get<bool>(GameConst.SettingKeySfxMute, false);
             AudioLog.Info($"音量初值：bgm={_bgm:0.00} sfx={_sfx:0.00}" +
                           $"（读 \"{GameConst.SettingKeyBgmVolume}\" / \"{GameConst.SettingKeySfxVolume}\"，缺项回落 Cfg）");
+            AudioLog.Info($"[T0FIX] 静音初值（冷启动读回）：bgmMute={_bgmMute} sfxMute={_sfxMute}" +
+                          $"（读 \"{GameConst.SettingKeyBgmMute}\" / \"{GameConst.SettingKeySfxMute}\"，缺项默认 false；" +
+                          "旧口径不落盘 ⇒ 每次启动都回到 false）");
         }
 
         /// <summary>把当前音量/静音施加到引擎。</summary>
@@ -345,6 +375,26 @@ namespace Diablo2.Module.Audio
 
             setting.Set(GameConst.SettingKeyBgmVolume, _bgm);
             setting.Set(GameConst.SettingKeySfxVolume, _sfx);
+            setting.Save();
+        }
+
+        /// <summary>
+        /// ★ T0FIX-B：静音开关落盘（键 = `Core/GameConst.cs:217/220` 的
+        /// `SettingKeyBgmMute` / `SettingKeySfxMute`）。与 <see cref="PersistVolume"/> 分开：
+        /// 音量行与静音开关是**两个维度**（`GameConst.SettingKeyBgmMute` 的注释定的口径），
+        /// 谁改谁写、互不覆盖。
+        /// </summary>
+        private void PersistMute()
+        {
+            var setting = Game.Setting;
+            if (setting == null)
+            {
+                AudioLog.NoSetting();
+                return;
+            }
+
+            setting.Set(GameConst.SettingKeyBgmMute, _bgmMute);
+            setting.Set(GameConst.SettingKeySfxMute, _sfxMute);
             setting.Save();
         }
 

@@ -18,6 +18,8 @@ using Diablo2.Def;
 using Diablo2.Module;
 using Diablo2.Module.Monster;
 using Diablo2.Module.View;
+// 接缝判据用例（§4）要摆 `Vector2Int`；本宿主另 `using Diablo2.Def;`（其中无同名类型）⇒ 显式取 Unity 的。
+using Vector2Int = UnityEngine.Vector2Int;
 
 namespace MoveCheck
 {
@@ -140,9 +142,124 @@ namespace MoveCheck
 
             Section7_AnimReset();
 
+            Section8_ExitAndNpc();
+
+            Section9_SortTieBreak();
+
             Console.WriteLine();
             Console.WriteLine($"================ MoveCheck 结束：通过 {_ok} 项，失败 {_fail} 项 ================");
             return _fail == 0 ? 0 : 1;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 8. ★ 片 T（S-08 出口判据同源 / S-19 NPC 站位不落 (0,0)）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 片 T 的两条判据，全部打在**真源码**上（真 `MapModule` + 真 `PlayerModule` + 真 `NpcModule`）：
+        /// <list type="number">
+        /// <item><b>S-08 出口判据同源</b>：`PlayerModule.CheckExit` 用 `IMapModule.Area` 推"目标区域"，
+        ///   `AppFlow.EnterArea` 也改判 `map.Area` ⇒ 逐区域逐出口走上去，断言
+        ///   「过门请求恰好 1 次 **且** 目标区域 ≠ 当前区域」（⛔ 自环出口 = 玩家走到出口不换图）。</item>
+        /// <item><b>S-19 NPC 站位</b>：站位只来自 `IMapModule.NpcPoints`。城镇里逐格等于地图点位；
+        ///   非城镇区域**不装配**（旧实现落 (0,0) ⇒ 洞里靠近原点误开阿卡拉对话）。</item>
+        /// </list>
+        /// ⛔ 不复制被测逻辑：只读真模块的公开接口。
+        /// </summary>
+        private static void Section8_ExitAndNpc()
+        {
+            Section("8. ★ 片 T：出口判据同源（S-08）+ NPC 站位不落 (0,0)（S-19）");
+
+            var ctx = Diablo2.App.AppContext.Create();
+            var map = new Diablo2.Module.Map.MapModule();
+            ctx.Map = map;
+
+            // ── S-08：走到出口格 ⇒ 真的发一次过门请求，且目标 ≠ 当前区域 ──
+            var player = new Diablo2.Module.Player.PlayerModule();
+            player.BindMap(map);
+            player.CreateNew(PlayerClass.Amazon, "ExitJudge");
+            var fired = new List<AreaId>();
+            Action<AreaId> onExit = a => fired.Add(a);
+            CloverEngine.Game.Event.On<AreaId>(Diablo2.Core.Events.ExitEntered, onExit);
+
+            var totalExits = 0;
+            var selfLoop = 0;
+            var noFire = 0;
+            var multiFire = 0;
+            var unreachable = 0;
+            foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil })
+            {
+                map.Generate(area, 20260923);
+                for (var i = 0; i < map.Exits.Count; i++)
+                {
+                    var g = map.Exits[i];
+                    if (map.TileAt(g) != TileKind.Exit) continue;
+                    var from = WalkableNeighbor(map, g);
+                    if (from.x < 0) { unreachable++; continue; }   // 出口四面都不可走 ⇒ 用例无效，如实计数
+                    totalExits++;
+
+                    fired.Clear();
+                    player.TeleportTo(from);
+                    player.MoveTo(g);
+                    for (var f = 0; f < 200 && player.Grid != g; f++) player.Tick(Dt);
+
+                    if (fired.Count == 0) noFire++;
+                    else if (fired.Count > 1) multiFire++;
+                    if (fired.Count == 1 && fired[0] == map.Area) selfLoop++;
+                }
+            }
+            CloverEngine.Game.Event.Off<AreaId>(Diablo2.Core.Events.ExitEntered, onExit);
+
+            Check("★S-08 各区域都能枚举到出口（用例有效性：至少 3 个可走上去的出口）",
+                totalExits >= 3, $"可走上出口={totalExits}（不可达={unreachable}）");
+            Check("★S-08 走到出口格 ⇒ **真的**发一次过门请求（0 次 = 出口静默失效）",
+                noFire == 0 && multiFire == 0, $"未触发={noFire} 重复触发={multiFire}");
+            Check("★S-08 出口目标区域 **恒 ≠** 当前区域（两道闸门同源 ⇒ 不存在自环出口）",
+                selfLoop == 0, $"自环出口={selfLoop}（>0 = 走到出口不换图）");
+
+            // ── S-19：NPC 站位只来自地图点位；非城镇区域不装配 ──
+            ctx.Npc = new Diablo2.Module.Npc.NpcModule();
+
+            map.Generate(AreaId.Town, 20260923);
+            var defs = ctx.Npc.All;
+            var placed = 0;
+            var points = map.NpcPoints;
+            for (var i = 0; i < defs.Count && i < points.Count; i++)
+                if (defs[i].gridX == points[i].x && defs[i].gridY == points[i].y) placed++;
+            Check("★S-19 城镇：5 个 NPC 站位**逐格等于** `IMapModule.NpcPoints`（⛔ 无硬编码坐标）",
+                defs.Count == 5 && placed == 5 && points.Count >= 5,
+                $"defs={defs.Count} placed={placed} points={points.Count}");
+
+            var akara = ctx.Npc.FindNearest(points.Count > 0 ? points[0] : new UnityEngine.Vector2Int(41, 19));
+            Check("★S-19 城镇：站在阿卡拉的点位上能找到她（站位真的可交互）",
+                akara != null && akara.id == 0, akara == null ? "null" : ("id=" + akara.id + " @" + akara.gridX + "," + akara.gridY));
+
+            var beforeCount = defs.Count;
+            map.Generate(AreaId.BloodMoor, 20260923);
+            var moor = ctx.Npc.All;
+            Check("★S-19 非城镇（BloodMoor）：**一个都不装配**（旧实现 = 5 个落 (0,0) 的幽灵）",
+                moor.Count == 0, $"defs={beforeCount}→{moor.Count}");
+            Check("★S-19 非城镇：原点附近找不到 NPC（洞里不再误开阿卡拉对话）",
+                ctx.Npc.FindNearest(new UnityEngine.Vector2Int(0, 0)) == null, "FindNearest((0,0)) = null");
+            Check("★S-19 非城镇：`Interact(0)` 直接拒绝",
+                !ctx.Npc.Interact(0), "Interact(0) = false");
+        }
+
+        /// <summary>出口格四周找一个可走邻格（找不到返回 (-1,-1)）。</summary>
+        private static UnityEngine.Vector2Int WalkableNeighbor(Diablo2.Module.Map.MapModule map,
+            UnityEngine.Vector2Int g)
+        {
+            var dirs = new[]
+            {
+                new UnityEngine.Vector2Int(1, 0), new UnityEngine.Vector2Int(-1, 0),
+                new UnityEngine.Vector2Int(0, 1), new UnityEngine.Vector2Int(0, -1),
+            };
+            for (var i = 0; i < dirs.Length; i++)
+            {
+                var n = new UnityEngine.Vector2Int(g.x + dirs[i].x, g.y + dirs[i].y);
+                if (map.Walkable(n) && map.TileAt(n) != TileKind.Exit) return n;
+            }
+            return new UnityEngine.Vector2Int(-1, -1);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -374,6 +491,108 @@ namespace MoveCheck
             }
             var expect = baseFps * 5f;
             return Math.Abs(advances - expect) <= 1f;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 9. ★ 片 M3（2026-09-23）：实体排序的**确定性 tie-break**
+        //    用户症状：「人物与 npc 重合时候，会闪一会人物一会 npc」。
+        //    根因：同格（或 gx+gy 相同）的两个实体 `sortingOrder` **完全相等**，世界坐标 z 也都是 0
+        //          ⇒ Unity 只剩"到相机距离"可判、而距离也相等 ⇒ 每帧交替。
+        //    修法（本片）：`ViewModule.SortTieZ`（类型档 + EntityId 的纯函数）当 z 次级键（见那里的注释）。
+        //    判据（数值类，秒级，不进 Play）：
+        //      ① 纯函数：100 次重复调用结果恒定；
+        //      ② 同格 4 个实体的次级键两两不等（比较键唯一 ⇒ 次序确定，不依赖渲染器提交顺序）；
+        //      ③ 100 次比较的**次序完全一致**，且次序 = 玩家 > NPC > 怪物 > 地面物品。
+        //    ⛔ 只加断言，不改既有判据。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Section9_SortTieBreak()
+        {
+            Section("9. ★ 片 M3：实体同格排序的确定性 tie-break（重复调用恒定 + 玩家压 NPC）");
+
+            var grid = new Vector2Int(20, 25);
+            var sameOrder = Iso.EntitySortOrder(grid, false);   // 同一格 ⇒ sortingOrder 必然相等
+            var ids = new[] { GameConst.PlayerEntityId, -1, 1001, GameConst.GroundItemIdBase + 1 };
+            var names = new[] { "玩家", "NPC(阿卡拉)", "怪物#1001", "地面物品#100001" };
+
+            // ① 纯函数：同一 id 反复调用得到同一个值（100 次）
+            var pure = true;
+            for (var it = 0; it < 100; it++)
+            {
+                for (var k = 0; k < ids.Length; k++)
+                {
+                    if (ViewModule.SortTieZ(ids[k]) != ViewModule.SortTieZ(ids[k])) pure = false;
+                }
+            }
+            Check("SortTieZ 是纯函数（100 次重复调用结果恒定）", pure,
+                $"z(玩家) = {ViewModule.SortTieZ(ids[0]):0.0000}");
+
+            // ② 同格 4 个实体的次级键两两不等
+            var zs = new float[ids.Length];
+            for (var k = 0; k < ids.Length; k++) zs[k] = ViewModule.SortTieZ(ids[k]);
+            var distinct = true;
+            for (var a = 0; a < zs.Length; a++)
+            {
+                for (var b = a + 1; b < zs.Length; b++)
+                {
+                    if (Math.Abs(zs[a] - zs[b]) < 1e-6f) distinct = false;
+                }
+            }
+            var zlist = "";
+            for (var k = 0; k < zs.Length; k++) zlist += (k > 0 ? " " : "") + names[k] + "=" + zs[k].ToString("0.0000");
+            Check("同格 4 个实体的 z 次级键两两不等（比较键唯一 ⇒ 次序确定）", distinct, zlist);
+
+            // ③ 100 次比较的次序恒定，且 = 玩家 > NPC > 怪物 > 地面物品
+            //    等 sortingOrder 时：z 小者离（正交）相机近 ⇒ 画在前面。
+            var expect = new[] { 0, 1, 2, 3 };
+            var stable = true;
+            var lastOrder = new int[ids.Length];
+            for (var it = 0; it < 100; it++)
+            {
+                var order = new int[ids.Length];
+                for (var k = 0; k < ids.Length; k++) order[k] = k;
+                for (var a = 0; a < order.Length; a++)
+                {
+                    for (var b = a + 1; b < order.Length; b++)
+                    {
+                        if (zs[order[b]] < zs[order[a]])
+                        {
+                            var t = order[a]; order[a] = order[b]; order[b] = t;
+                        }
+                    }
+                }
+                for (var k = 0; k < order.Length; k++)
+                {
+                    lastOrder[k] = order[k];
+                    if (order[k] != expect[k]) stable = false;
+                }
+            }
+            var actual = "";
+            for (var k = 0; k < lastOrder.Length; k++)
+                actual += (k > 0 ? " > " : "") + names[lastOrder[k]];
+            Check("同格比较 100 次次序恒定，且 = 玩家 > NPC > 怪物 > 地面物品", stable,
+                $"sortingOrder={sameOrder}；次序 = {actual}");
+            Check("玩家在 NPC 之前（用户症状：同格时不许闪）", zs[0] < zs[1],
+                $"玩家 z={zs[0]:0.0000} < NPC z={zs[1]:0.0000}");
+
+            // ④ ★ 片 M3：东边界接缝判据（`MapSeam`，用户症状「穿过桥去不了下一张地图」）
+            //    纯函数 ⇒ 直接断言；出处见 `Module/Map/MapSeam.cs` 文件头。
+            var townW = GameConst.TownWidth;
+            Check("接缝判据：城镇东边界列上的桥面格 = 接缝（真）",
+                Diablo2.Module.Map.MapSeam.IsTownEastSeam(AreaId.Town, townW,
+                    new Vector2Int(townW - 1, 25), true),
+                $"Area=Town x={townW - 1} (y=25) deck=true");
+            Check("接缝判据：东边界列但**不是**桥面 ⇒ 不是接缝（假）",
+                !Diablo2.Module.Map.MapSeam.IsTownEastSeam(AreaId.Town, townW,
+                    new Vector2Int(townW - 1, 25), false),
+                "deck=false ⇒ 河对岸孤立窄条不算接缝（登记成出口会让连通性自检必然失败）");
+            Check("接缝判据：桥面但**不在**东边界列 ⇒ 不是接缝（假）",
+                !Diablo2.Module.Map.MapSeam.IsTownEastSeam(AreaId.Town, townW,
+                    new Vector2Int(townW - 2, 25), true),
+                $"x={townW - 2} ⇒ 桥中部不是接缝");
+            Check("接缝判据：野外区域 ⇒ 不是接缝（假）",
+                !Diablo2.Module.Map.MapSeam.IsTownEastSeam(AreaId.BloodMoor, townW,
+                    new Vector2Int(townW - 1, 25), true),
+                "Area=BloodMoor ⇒ 只有城镇那条共享边列是接缝");
         }
 
         private static bool MathfApprox(float a, float b) => Math.Abs(a - b) < 1e-4f;

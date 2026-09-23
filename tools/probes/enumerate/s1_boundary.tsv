@@ -1,0 +1,45 @@
+﻿=== S1Check：配表越界边界（回落默认值 + 一次 Warn）===
+    [ OK ] 配表目录可解析 + 10 张表加载成功   (dir=C:\Work\Server\f-v2\clover-project-diablo2\client/Assets/StreamingAssets\Table)
+    [ OK ] 表数 = 10（每表 2 条边界 ⇒ 20 条）   (表数=10)
+[WARN ] [CloverTable] 配表 Affix 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Affix · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Affix 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Affix 里没有 int 主键 302 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Affix · id=max+1(302) ⇒ 回落默认值 null + 恰一次 Warn   (id=302（表内最大 id=301）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Affix 里没有 int 主键 302 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Class 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Class · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Class 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Class 里没有 int 主键 6 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Class · id=max+1(6) ⇒ 回落默认值 null + 恰一次 Warn   (id=6（表内最大 id=5）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Class 里没有 int 主键 6 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Experience 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Experience · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Experience 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Experience 里没有 int 主键 100 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Experience · id=max+1(100) ⇒ 回落默认值 null + 恰一次 Warn   (id=100（表内最大 id=99）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Experience 里没有 int 主键 100 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Item 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Item · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Item 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Item 里没有 int 主键 138 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Item · id=max+1(138) ⇒ 回落默认值 null + 恰一次 Warn   (id=138（表内最大 id=137）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Item 里没有 int 主键 138 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Level 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Level · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Level 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Level 里没有 int 主键 4 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Level · id=max+1(4) ⇒ 回落默认值 null + 恰一次 Warn   (id=4（表内最大 id=3）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Level 里没有 int 主键 4 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Missile 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Missile · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Missile 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Missile 里没有 int 主键 43 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Missile · id=max+1(43) ⇒ 回落默认值 null + 恰一次 Warn   (id=43（表内最大 id=42）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Missile 里没有 int 主键 43 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Monster 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Monster · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Monster 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Monster 里没有 int 主键 9 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Monster · id=max+1(9) ⇒ 回落默认值 null + 恰一次 Warn   (id=9（表内最大 id=8）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Monster 里没有 int 主键 9 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Monumod 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Monumod · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Monumod 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Monumod 里没有 int 主键 19 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Monumod · id=max+1(19) ⇒ 回落默认值 null + 恰一次 Warn   (id=19（表内最大 id=18）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Monumod 里没有 int 主键 19 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Skill 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Skill · id=空(ToInt("")→0) ⇒ 回落默认值 null + 恰一次 Warn   (3 次查询全 null=True；Warn 条数=1（同主键限频 ⇒ 重复查不刷屏）；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Skill 里没有 int 主键 0 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Skill 里没有 int 主键 151 ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Skill · id=max+1(151) ⇒ 回落默认值 null + 恰一次 Warn   (id=151（表内最大 id=150）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Skill 里没有 int 主键 151 ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Treasureclass 里没有 string 主键 "" ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Treasureclass · id=空(string 主键 "") ⇒ 回落默认值 null + 恰一次 Warn   (string 主键表（58 行，末键="Potion 2"）；2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Treasureclass 里没有 string 主键 "" ⇒ 返回 null（同一主键限频告警）)
+[WARN ] [CloverTable] 配表 Treasureclass 里没有 string 主键 "Potion 2~" ⇒ 返回 null（同一主键限频告警）
+    [ OK ] Treasureclass · id=max+1(末键之后 "Potion 2~") ⇒ 回落默认值 null + 恰一次 Warn   (2 次查询全 null=True；Warn 条数=1；非 Warn 行=0 ｜ 原文=[CloverTable] 配表 Treasureclass 里没有 string 主键 "Potion 2~" ⇒ 返回 null（同一主键限频告警）)
+    [ OK ] 边界行总数 = 20（10 表 × 2）   (rows=20)
+S1CHECK_SUMMARY FAIL=0

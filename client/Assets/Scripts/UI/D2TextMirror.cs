@@ -35,6 +35,16 @@ namespace Diablo2.UI
         /// <summary>非 null ⇒ 本节点是输入框的占位符（按 `InputField` 的聚焦/内容状态显隐）。</summary>
         public InputField PlaceholderFor;
 
+        /// <summary>
+        /// 强制走 chi（原版中文）字模，即使文案全是 ASCII。
+        /// <para>★ 为什么存在：**原版拉丁字模 `font{16,24,30,42}` 不分大小写** —— 码位 97..122 的格子是
+        /// 缩小号的同形大写、且没有降部 ⇒ `by clover-engine` 会被画成 `BY CLOVER-ENGINE`（小型大写），
+        /// 违反全局 skill §1.6 的「逐字」判据。原版 `font{N}_chi` 里 ASCII 是真小写
+        /// （实测 `font24_chi`：97＝真 a、103＝带降部 g、121＝带降部 y）⇒ 品牌署名行走它。
+        /// 细节与实测见 `D2Text.D2Label._forceChi` 的注释。</para>
+        /// </summary>
+        public bool ForceChi;
+
         private D2Label _label;
         private string _lastText;
         private Color _lastColor;
@@ -47,7 +57,8 @@ namespace Diablo2.UI
         private bool _lastPlaceholderVisible = true;
 
         /// <summary>挂上并立刻同步一次（幂等；重复调用只换引用）。</summary>
-        public static D2TextMirror Attach(Text source, D2Text.D2Font font, InputField placeholderFor)
+        public static D2TextMirror Attach(Text source, D2Text.D2Font font, InputField placeholderFor,
+            bool forceChi = false)
         {
             if (source == null) return null;
 
@@ -60,12 +71,18 @@ namespace Diablo2.UI
             mirror.Source = source;
             mirror.Font = font;
             mirror.PlaceholderFor = placeholderFor;
+            mirror.ForceChi = forceChi;
             mirror.Sync(true);
             return mirror;
         }
 
         private void Update()
         {
+            // ★ V6：启动期（`Game.Res` 未就绪）被**延迟**的字模在这里自愈 ——
+            //   引擎那条 Text 挂钩有 `FlushPending`（Bootstrap 里紧跟 CloverRes.Init 调一次），
+            //   但业务面板自己建的标签（`UiArt.Label` / `D2Label.Create`）没有那个人，
+            //   只能靠每帧一次的这里把"延后的加载"补上（见 `D2Text.EnsureChi` 的注释）。
+            D2Text.RetryDeferred();
             Sync(false);
         }
 
@@ -77,6 +94,7 @@ namespace Diablo2.UI
             {
                 _label = D2Label.Attach(Source.rectTransform, Source.text, Font, Source.alignment,
                     Source.color, Vector2.zero, Source.fontSize);
+                _label.forceChi = ForceChi;      // 见 ForceChi 的注释（品牌署名行 = 逐字小写）
                 _lastText = Source.text;
                 _lastColor = Source.color;
                 _lastSize = Source.fontSize;
@@ -151,7 +169,8 @@ namespace Diablo2.UI
         /// </summary>
         private float LinePitch()
         {
-            var chi = !D2Text.IsLatinOnly(Source != null ? Source.text : null);
+            // 与 D2Label 的字模选择**同一口径**（含 ForceChi；两边不一致会让行距与字形错档）
+            var chi = ForceChi || !D2Text.IsLatinOnly(Source != null ? Source.text : null);
             var cell = (chi ? D2Text.ChiCellH(Font) : D2Text.CellHeight(Font)) * 1.8f;
             var pt = Source != null && Source.fontSize > 0 ? Source.fontSize : cell;
             return pt;

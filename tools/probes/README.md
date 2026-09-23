@@ -39,6 +39,10 @@
 | `ledger/dispatch-log.tsv` | 派活台账（**49 条数据行**，含 R1 七片：R1-A..R1-F + 证据批）：谁 / 何时 / 什么任务 / 覆盖范围 —— `tools\verify.ps1` 第 15 项 `impl-by-executor` 的判据源；`# adjudicated:` 行是例外登记通道 | 只读（`verify.ps1` 仍从 `.ai-tmp\test\` 读同名文件，本份是入仓副本） | 与 `.ai-tmp\test\dispatch-log.tsv` 内容一致（**最近一次逐字节同步：2026-09-20 play-budget 对齐轮**）；现存 2 条生效的 `# adjudicated:`：`path-reachability:reference-pictures` / `freeze-before-capture`；原 3 条 `# adjudicated: play-budget` **已撤**（阈值按 skill §2.6 废除，理由改由 `verify.ps1` 第 22 项逐行判），原理由转为 `#` 留痕注释 |
 | `ledger/play-log.tsv` | 进 Play 台账（**23 条数据行**，含 R1 批次的 4 条 `r1-batch-evidence`）：时间 / 执行者 / 片名 / **为什么必须进这条链** —— `verify.ps1` 第 22 项 `play-budget` 的判据源 | 只读（同上，`verify.ps1` 读 `.ai-tmp\test\play-log.tsv`） | 4 列 TSV；**行数不设上限**（skill §2「进 Play 记账，但不设上限」）—— `verify.ps1` 第 22 项只判「每行第 4 列是否写了理由（≥4 字）」，行数仅作 INFO 打印；原 `$playBudget = 8` 阈值与其 `# adjudicated: play-budget` 静默通道**已按 skill §2.6 废除** |
 | `interact/p_runbg.cs` | `eval_file` 片段：让 Play 在编辑器失焦时全速跑（`Application.runInBackground=true`、`vSyncCount=0`、`targetFrameRate=60`）+ 打 `[RUNBG]` / `[HB]` 行 —— 治 skill P-2「失焦不 tick」 | `unity command eval_file --path tools/probes/interact/p_runbg.cs`（原位于 `client/_dev/p_runbg.cs`，该目录本轮已删） | 编辑器已开 `client/` + `unity` CLI |
+| `measure/s1_common.py`<br>`measure/s1_value_diff.py`<br>`measure/s1_selftest.py`<br>`measure/s1_plan.py`<br>`measure/s1_plan.tsv` | **S1 数值维比对器全套**（「官方 1.10f txt ↔ 我们的运行时表」逐字段对账）：`s1_common.py` = 字段映射表（运行时列 ↔ 官方 `文件:列/公式`，与 `convert.py` 的 build_* 一一对应）+ 官方载体定位；`s1_value_diff.py` = 比对器（**期望值直接调 `tools/table-convert/convert.py` 的 build_***，不重写任何公式；官方载体不在位 ⇒ 行结论一律 `缺官方值`，⛔ 一个 `一致` 都不许有）；`s1_plan.py` → `s1_plan.tsv` = **821 行**逐行比对计划（行数 == 闸门 `coverage-filled` 报的 821；⛔ 只写"要比什么"，不填任何推定值）；`s1_selftest.py` = 两次自检 + 两条守卫 | 比对器：`python tools/probes/measure/s1_value_diff.py [--src "<txt 根\|*.mpq>"] [--rows <file>] [--probe] [--gate-artifacts]`（`--src` 省略时先试环境变量 `D2SRC_DIR`，再试项目内默认落点 `原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel`）<br>只重生成计划：`python tools/probes/measure/s1_plan.py`<br>自检：`python tools/probes/measure/s1_selftest.py`（退出码 0 = 全过）<br>**退出码三分**：`0` = 比过且 0 个 `不一致` / `1` = 有 `不一致` / `2` = 官方载体不在位（BLOCKED，**根本没比**——⛔ 别把 2 当成通过） | Python 3.12（只用标准库）；`--src` 需官方 1.10f 的 17 个 txt（缺哪个点名报哪个；`*.mpq` 需**先解包**，本仓无 MPQ 解包器 ⇒ 只打印指引）。⚠️ `策划/数值文档/*_c.txt`（转写件）与 `client/Assets/StreamingAssets/Table/*.tsv` **逐格相同**（实测 10/10 表 row-level-diff=0）⇒ 转写件**不进结论**，只作 `s1_value_diff.trans.tsv` 的漂移交叉校验（与运行时表互比是同义反复，一个总能变绿的"判据"等于没判） |
+| `.ai-tmp/test/s1/UNBLOCK.md`（**一次性产物，不入仓**） | S1 阻塞点可执行清单：缺的 3 样东西放哪 / 每样到手后跑的确切命令 / 影响 821 行 / 「官方到手也仍判不了」的列清单（本项目编号、中文名、monumod 的 7 个登记占位）+ `id`↔`official_id` 这类口径说明 | 只读 | — |
+| `.ai-tmp/test/s1/s1_selftest.md`（**一次性产物，不入仓**） | 自检记录：两次自检 + 两条守卫的**完整原文** + 注入缺陷的定位行 + 转写漂移清单 | 只读（重生成：`s1_selftest.py` 后按 `_evidence.py` 的写法汇总；正式判据是 `s1_selftest.py` 本身） | — |
+| `.ai-tmp/screenshots/s1_value_diff.{tsv,rows.tsv,json}`<br>`.ai-tmp/test/s1/s1_value_diff.{tsv,rows.tsv,json}` | 比对器产物（**机器可读**：tsv/json ⇒ 闸门 `numeric-log-only` 认）：`*.tsv` = 逐 (矩阵行 × 字段) 的 `行号/实体id/官方来源文件:列/官方值/我们的值/差值/结论`；`*.rows.tsv` = 逐矩阵行一行（821 行）；`*.json` = 汇总结论 | 只读；重生成 = 跑比对器（`--gate-artifacts` 同时落 `.ai-tmp/screenshots/`） | ⛔ 产物内**无时间戳** ⇒ 同一输入复跑逐字节一致（幂等，可机械复检） |
 
 ### 宿主的两类「环境依赖」（不是缺陷，别当成红去修代码）
 
@@ -124,3 +128,90 @@
 > 而 P17 把表里的引用改成了小写 `.ai-tmp/screenshots/...` ⇒ 该项现在报 `0 screenshot reference(s)`（空判）。
 > **人工复核结果**（同一套正则 + 区间展开，把 `$shots` 指到 `.ai-tmp\screenshots`）：引用 raw=147 / 唯一 86 条，
 > `Test-Path` **缺 0 条**。⇒ 路径本身是可达的，只是自动判据眼下看不见它们。
+
+## 覆盖率闸门：`tools/verify.ps1` 第 25~29 项（T0 穷举覆盖）
+
+> 依据 `patterns/full-coverage-audit.md` §7 + `scaffold/coverage-matrix.md`。这 5 项原先只写在**提示词**里
+> ⇒ 结构上永远不会被执行；现在落成闸门里**能测红**的条目（SKILL §0.5「提示词是请求，闸门才是保证」）。
+> 列名按派活契约：`策划/实体清单.tsv`（维度/实体/载体·路径/出处/状态数/判据类型/归属片）、
+> `策划/状态矩阵.tsv`（维度/实体/状态·事件/边界值/期望表现(出处)/实测/结论/证据）、
+> `策划/差异登记.tsv`（是什么/为什么/出处/何时消除）；`#` 开头为注释行。
+
+| 项 | 名字 | 判据（一句话） | 怎么复现红 |
+| --- | --- | --- | --- |
+| 25 | `coverage-rows` | 清单数据行数 == 矩阵去重(维度,实体)数，**且**矩阵数据行数 == 清单 Σ状态数 | 改一个「状态数」，或从矩阵删/加一行 |
+| 26 | `coverage-filled` | 矩阵零空行：每行 `实测`/`结论`/`证据` 非空，且 `结论` 属三种合法取值 | 删掉某行最后一列（证据） |
+| 27 | `coverage-diff` | `不一致*` 计数 == 0；每条 `允许的差异*` 都按「是什么」在 `差异登记.tsv` 找到四要素齐的登记行 | 写一条 `不一致(...)`；或把登记的「何时消除」留空 |
+| 28 | `coverage-acceptance` | `策划/验收表.md` 每条编号判定行都至少引用一个在盘路径（`.ai-tmp/screenshots/` / `tools/probes/` / `策划/` / `w1_host_*.txt`） | 删掉某行正文里的路径引用 |
+| 29 | `coverage-dimensions` | 15 个维度码（D1..D12 / S1..S3）在实体清单里每个 ≥1 行 | 删掉某维度的全部行 |
+
+- ⛔ **不设裁定通道**：`策划/实体清单.tsv` 或 `策划/状态矩阵.tsv` 不存在 ⇒ 这 5 项**一律 FAIL**
+  （不许 skip / PASS / 降级 INFO，也不给 `# adjudicated:` 豁免）—— 表还没产出就是「没做完」，红得对。
+- **沙盒复现法（⛔ 不动真表）**：把 `tools/verify.ps1` 复制到 `<临时目录>/tools/verify.ps1`，
+  在同级建 `策划/` 放三张表 + `验收表.md`，直接跑那个副本 —— `$root` 按脚本位置推导，整套检查都在沙盒里跑。
+  本轮的通过/失败夹具就是这么造的一次性产物（按 §1.8 用完即删）。
+- **一项已登记的口径差**：模板 §7 第 1 条的字面是「实体清单行数 == 验收表判定行数」，而本项目验收表是
+  47 行**系统级**汇总、矩阵是**实体级**穷举 ⇒ 第 25 项按「清单 ↔ 矩阵」对账（输出里带
+  `note=grain: manifest<->matrix ...`），验收表那侧的关系由第 28 项兜住。
+
+## 采样档位（scale-tier）—— 本项目闸门第 38 项的判据源
+
+> **本工程的采样档位声明已归位到规格文档**（模板 `reference/verify-template.md` 要求的「闸门 0 只判一次」位置）：
+> **`策划/策划案/暗黑破坏神2参考规格.md` → `## 0. 形态（闸门 0，只判一次）`** 的表格内。
+> 本文件**不再重复声明**（避免两处漂移）；`tools/verify.ps1` 第 38 项 `scale-tier` 读 `策划/策划案/*.md`，照旧 PASS。
+> （2026-09-22：原「档位声明」一小段由本轮移入规格文档，本处改为指向规格文档的一行指针。）
+
+## 闸门与模板对齐（2026-09-22 闸门对齐片）
+
+`scripts/gate-sync.ps1` 要求「本项目实现的检查项 **⊇** 模板 GATE-ITEMS 清单」。
+原先 `tools/verify.ps1` 用 `Pass/Fail/HumanOnly` 包装函数输出，而 gate-sync 按
+`Say '<STATUS>' '<name>'` 抽项名 ⇒ **0 命中**、30 项全报 missing（**闸门与模板脱节**）。
+本轮把输出形态改成 `Say '<STATUS>' '<name>' <detail>`（**判据一字未放宽**：只改形态 / 改名），并补齐真缺的项。
+
+| 模板项名 | 本项目原名 | 处置 |
+| --- | --- | --- |
+| `acceptance-table` | `table-summary` | 改名（判据不变：汇总数 == 表体行数） |
+| `allowed-diff` | `allow-diff-registry` | 改名 |
+| `screenshot-refs` | `path-reachability` | 改名（子项 `path-reachability:reference-pictures` 保留原判据） |
+| `evidence-freshness` | `freshness:u2-rows` | 改名（按行判：该行证据晚于该行实现文件） |
+| `reference-table` | `six-dim-parity` | 改名（原版值(出处) / 我们的值 / 差值） |
+| `row-category` | `table-category` | 改名 |
+| `play-ledger` | `play-budget` | 改名（不设次数上限，只判每行第 4 列有理由） |
+| `engine-credit` | `engine-selfname` | **替换**（后者是源码 grep ⇒ 永久 HUMAN-ONLY；新项 = 半机判 + 半 HUMAN-ONLY） |
+| `numeric-log-only` / `verify-entry` / `spec-doc` / `asset-research-doc` / `baseline-images` / `no-assets-screenshots` / `no-team-sessions` / `graphics-device` / `scale-tier` / `impact-radius` | （无） | **新增**（判据照 `reference/verify-template.md`，接到本项目真实数据） |
+
+新增项的判据源速查：
+
+| 项 | 判据源 / 怎么复现红 |
+| --- | --- |
+| `baseline-images` | `tools/probes/refs/*.png`（**原版参考裁图** 10 张，本文件上面已登记）；0 张 ⇒ FAIL |
+| `graphics-device` | `client/Logs/Editor.log` 的 `[D3D12 Device Filter] Device Name:` 行；命中 `WARP`/`Basic*` ⇒ FAIL；无该行 ⇒ HUMAN-ONLY |
+| `engine-credit` | `tools/probes/refs/engine_credit.txt`（**实机跑出来的 UI 标签文本回读**）；文件不存在 ⇒ HUMAN-ONLY（⛔ 不许用源码 grep 冒充实机判据）；文本不含 `by clover-engine` 逐字 ⇒ FAIL |
+| `scale-tier` | 本文件上面的「采样档位」段 + `策划/策划案/*.md` |
+| `numeric-log-only` | `策划/验收表.md` 的 `数值类` 行：只挂日志行 ⇒ HUMAN-ONLY；一个在盘产物都不挂 ⇒ FAIL |
+| `spec-doc` / `asset-research-doc` | `策划/策划案/*.md` / `策划/素材调研.md` 存在且非空 |
+| `no-assets-screenshots` | `client/Assets/Screenshots` 目录存在 ⇒ FAIL（只看这一个目录，别按 `client/Assets/**` 下的 png 判 —— 本工程那里有正式美术 png，那样判是假红） |
+| `no-team-sessions` | `.codebuddy/teams/` 下的**会话产物文件**数 > 0 ⇒ FAIL（空目录不算 —— 模板第 11 条：判真实产物，不判「目录存在」） |
+| `verify-entry` | `tools/verify.ps1` 存在、非空、**语法 0 错** |
+| `impact-radius` | `.ai-tmp/test/impact-radius.tsv` 每行 ≥ 3 列 |
+
+## S1 数值维比对器（2026-09-22 S1 片）—— 判据**不许**放宽的三条
+
+> 这一节是给**下一个读这份 README 的人**看的：下面三条都是实测踩出来的，改掉任何一条 =
+> 让 821 行红行"假装变绿"，比不判更糟。
+
+1. **官方值只认官方载体**：`<根>/data/global/excel/*.txt`（或由 `*.mpq` 解出来的同一批 txt）。
+   ⛔ **不许**拿 `策划/数值文档/*_c.txt`（转写件）当官方值 —— 实测它与
+   `client/Assets/StreamingAssets/Table/*.tsv`（运行时表）**逐格相同**（10/10 张表 row-level-diff=0），
+   二者是同一份转写的两个落点；拿它去比运行时表是同义反复，**永远只会报"一致"**。
+   转写件的正确用途只有一个：官方载体到位后做**漂移交叉校验**（`s1_value_diff.trans.tsv`）。
+2. **期望值不重写公式**：比对器直接 `import` `tools/table-convert/convert.py` 并调它的 `build_*`。
+   ⛔ 不许在比对器里再抄一遍列映射/公式/取整口径（两边各写一遍 = 各错一半，且判据会漂移）。
+   `s1_common.FIELD_MAP` 只管**标签**（"官方哪张表哪一列/什么公式"），**不管取值**；
+   自检 `[guard-2]` 会核对它的列序与 `convert.py` 的 `Sheet.cols` 完全一致。
+3. **`缺官方值` ≠ `一致`**：官方载体不在位 ⇒ 821 行全部 `缺官方值`，比对器退出码 `2`（BLOCKED，根本没比）。
+   `id`（本项目顺序编号）/ `name`（中文显示名）/ `skill_class` / monumod 的 7 个登记占位
+   **天然**没有官方对手 ⇒ 单列落 `缺官方值` 且不计入行结论；该集合钉死在
+   `s1_common.EXPECTED_NO_CARRIER`，自检 `[guard-1]` 每次核对（偷偷放宽 ⇒ 立刻报 FAIL）。
+   逐列明细仍全部落盘可见（`s1_value_diff.tsv`），不是在藏。
+   ⇒ 用户拿到官方表的**一把钥匙**：缺什么 / 放哪 / 到手后跑什么 ⇒ `.ai-tmp/test/s1/UNBLOCK.md`。

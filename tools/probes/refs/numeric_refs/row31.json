@@ -1,0 +1,358 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 31,
+  "spec_md_line": 126,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "物品掉落",
+  "method": "官方 TC 表",
+  "criterion": "杀 N 只怪统计掉率；日志 `[Item] drop=`",
+  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row31.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {
+      ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
+        3
+      ],
+      ".ai-tmp/screenshots/w1_host_itemcheck.txt": [
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62
+      ]
+    },
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
+        "[离线] tools/probes/hosts/itemcheck",
+        "treasureclass_c",
+        "[a21 产物]",
+        "[Combat] DeathFlow 已订阅：MonsterKilled"
+      ],
+      ".ai-tmp/screenshots/w1_host_itemcheck.txt": [
+        "[离线] tools/probes/hosts/itemcheck",
+        "treasureclass_c",
+        "[a21 产物]",
+        "[Combat] DeathFlow 已订阅：MonsterKilled",
+        "[ OK ] 掉落产出 > 0 件物品 (items=1141)",
+        "[ OK ] 掉落格全部可走 (unwalkable=0)",
+        "[ OK ] 掉落含金币堆 (goldPiles=179 gold=3968)"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 136482,
+      "sha256": "0b348bb03d16b96051825188372bfd328c768e94d2beed1e05120c3072848c5e",
+      "mtime": "2026-09-21 14:30:35",
+      "lines": 1119,
+      "ok_lines": 132,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。"
+      ],
+      "matched_lines_total": 3,
+      "checks_written": 5,
+      "checks_truncated": false
+    },
+    {
+      "path": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 18443,
+      "sha256": "3e1b34e05911c9f93e88f70b4922ba86fdaa44e435e872387307d2b357a35161",
+      "mtime": "2026-09-21 14:30:46",
+      "lines": 245,
+      "ok_lines": 134,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。"
+      ],
+      "matched_lines_total": 10,
+      "checks_written": 24,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "================ CombatCheck 开始 ================",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 3,
+      "selected_by": "anchor",
+      "text": "[INFO ] [Combat] DeathFlow 已订阅：MonsterKilled（经验+掉落）、PlayerDied（脱战+死亡屏）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1032,
+      "selected_by": "snippet",
+      "text": "[WARN ] [Combat] DeathFlow: treasureclass_c 里找不到 TC「Quill 1」⇒ 本次不掉落（配表/转换脚本核对）",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1095,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Combat] DeathFlow 已订阅：MonsterKilled（经验+掉落）、PlayerDied（脱战+死亡屏）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1118,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。",
+      "numbers": [
+        "8"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "=== ItemCheck：物品 / 任务 / NPC / 存档 离线自检 ===",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 6,
+      "selected_by": "snippet",
+      "text": "[ OK ] treasureclass_c 行数 = 58   (treasureclass_c=58)",
+      "numbers": [
+        "58",
+        "58"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 41,
+      "selected_by": "snippet",
+      "text": "── 3) 掉落 1000 次（monster_c 的 TC 列 → treasureclass_c 递归） ──",
+      "numbers": [
+        "3",
+        "1000"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 42,
+      "selected_by": "snippet",
+      "text": "[WARN ] [Item] LootRoller：TC \"bow3\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 bow 池兜底",
+      "numbers": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 43,
+      "selected_by": "snippet",
+      "text": "[WARN ] [Item] LootRoller：TC \"bow6\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 bow 池兜底",
+      "numbers": [
+        "6",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 44,
+      "selected_by": "snippet",
+      "text": "[WARN ] [Item] LootRoller：TC \"armo9\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 armo 池兜底",
+      "numbers": [
+        "9",
+        "9"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 46,
+      "selected_by": "snippet",
+      "text": "[WARN ] [Item] LootRoller：TC \"armo6\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 armo 池兜底",
+      "numbers": [
+        "6",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 47,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：TC \"armo3\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 armo 池兜底",
+      "numbers": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 48,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：TC \"bow9\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 bow 池兜底",
+      "numbers": [
+        "9",
+        "9"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 49,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：TC \"weap6\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 weap 池兜底",
+      "numbers": [
+        "6",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 50,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：weap 池里有 2 行属于**资料片职业专属装备**（h2h/orb/pelt/phlm/ashd/head，本批经典版素材里没有它们的原版图标）⇒ 本次已剔除，不出现在掉落与商店里（见 `ItemIconAvailability`）",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 51,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：TC \"weap3\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 weap 池兜底",
+      "numbers": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 52,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：TC \"weap12\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 12 从 weap 池兜底",
+      "numbers": [
+        "12",
+        "12"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 53,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：TC \"weap9\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 weap 池兜底",
+      "numbers": [
+        "9",
+        "9"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 54,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] item_c 里找不到 code=\"cm2\" 的物品（掉落表引用了未导入的行）",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 55,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：token \"cm2\" 既不是 TC 名也不是 item_c.code ⇒ 跳过（配表导入范围问题）",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 56,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] item_c 里找不到 code=\"cm1\" 的物品（掉落表引用了未导入的行）",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 57,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：token \"cm1\" 既不是 TC 名也不是 item_c.code ⇒ 跳过（配表导入范围问题）",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 58,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] item_c 里找不到 code=\"jew\" 的物品（掉落表引用了未导入的行）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 59,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Item] LootRoller：token \"jew\" 既不是 TC 名也不是 item_c.code ⇒ 跳过（配表导入范围问题）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 60,
+      "selected_by": "anchor",
+      "text": "[ OK ] 掉落产出 > 0 件物品   (items=1141)",
+      "numbers": [
+        "0",
+        "1141"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 61,
+      "selected_by": "anchor",
+      "text": "[ OK ] 掉落格全部可走   (unwalkable=0)",
+      "numbers": [
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 62,
+      "selected_by": "anchor",
+      "text": "[ OK ] 掉落含金币堆   (goldPiles=179 gold=3968)",
+      "numbers": [
+        "179",
+        "3968"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 244,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。",
+      "numbers": []
+    }
+  ]
+}

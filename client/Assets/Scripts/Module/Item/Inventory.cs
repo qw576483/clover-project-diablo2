@@ -117,7 +117,18 @@ namespace Diablo2.Module.Item
                 }
             }
 
-            Log.Warn("Item", $"背包放不下「{item.name}」({w}×{h})：空格 {FreeCellCount} 但无连续块");
+            // 2026-09-23（N2 复核）：**把"为什么放不下"写准** —— 原先无论哪种情况都打
+            // "空格 N 但无连续块"，当 `N == 0`（背包真的 40/40 占满）时这句话会被读成
+            // "有空格但没法用"（实测就是这么被误判成缺陷的）。两种原因必须能区分。
+            var free = FreeCellCount;
+            if (free <= 0)
+            {
+                Log.Warn("Item", $"背包放不下「{item.name}」({w}×{h})：背包已满（占用 {_slots.Count}/{_slots.Count} 格，空格 0）");
+            }
+            else
+            {
+                Log.Warn("Item", $"背包放不下「{item.name}」({w}×{h})：空格 {free} 但无 {w}×{h} 连续块（碎片化）");
+            }
             return false;
         }
 
@@ -176,6 +187,113 @@ namespace Diablo2.Module.Item
                 _slots[i].item = null;
                 _slots[i].anchorIndex = -1;
             }
+            return true;
+        }
+
+        /// <summary>
+        /// 把某锚点格上的物品移到目标格（目标格被**另一件**物品占据 ⇒ 两件**互换**）。
+        /// <para>
+        /// ★ 片 G1 新增（修用户报的「道具没法拖动！」的**落地**那一半）：UI 侧
+        /// `UI/InventoryPanel.PlanDrop` 早就能判出 `DropKind.Move`，但**没有任何地方真的搬动物品** ——
+        /// 本方法 = 那次拖放的落地实现（口径：**目标格 = 目标物品的锚点格**，被占用就整体互换，
+        /// 与 `PlanDrop` / `AppEventRouting` 的注释同源）。
+        /// </para>
+        /// <para>
+        /// 判定顺序（三步全过才真正落格，**否则原样放回**，不留半途状态）：
+        /// ① 源格必须是物品锚点、目标格必须在界内且 ≠ 源格；
+        /// ② 这件物品要放得进目标格（大件放小空位 ⇒ 拒绝）；
+        /// ③ 若目标格有物品，它要**放得回源格**（放不回 ⇒ 整体取消，不许把东西挤出去/挤丢）。
+        /// 实现 = 「先摘下来 → 试放 → 不成就按原格位放回」（不用"排除法"判空，避免整块/碎片算错）。
+        /// </para>
+        /// </summary>
+        /// <param name="fromAnchor">拖起的物品锚点格（线性下标）。</param>
+        /// <param name="toAnchor">落点格（线性下标；被占用时按该格所属物品的锚点处理）。</param>
+        /// <param name="failReason">失败时给出**可直接展示给玩家的中文文案**（成功为 null）。</param>
+        public bool Move(int fromAnchor, int toAnchor, out string failReason)
+        {
+            failReason = null;
+
+            if (fromAnchor < 0 || fromAnchor >= _slots.Count)
+            {
+                failReason = $"源格 {fromAnchor} 越界";
+                Log.Warn("Item", $"Inventory.Move：{failReason} ⇒ 拒绝");
+                return false;
+            }
+            if (toAnchor < 0 || toAnchor >= _slots.Count)
+            {
+                failReason = $"目标格 {toAnchor} 越界";
+                Log.Warn("Item", $"Inventory.Move：{failReason} ⇒ 拒绝");
+                return false;
+            }
+
+            var src = _slots[fromAnchor];
+            if (!src.occupied || !src.isAnchor || src.item == null)
+            {
+                failReason = $"源格 {fromAnchor} 上没有物品";
+                Log.Warn("Item", $"Inventory.Move：{failReason} ⇒ 拒绝");
+                return false;
+            }
+
+            // 落点格被占用 ⇒ 目标是**那件物品的锚点格**（互换）；空格 ⇒ 就是它自己。
+            var dstProbe = _slots[toAnchor];
+            var targetAnchor = dstProbe.occupied ? dstProbe.anchorIndex : toAnchor;
+            if (targetAnchor == fromAnchor)
+            {
+                failReason = "落点就是原格（没有发生移动）";
+                Log.Info("Item", $"Inventory.Move：{failReason}（锚点格 {fromAnchor}）⇒ 不请求移动");
+                return false;
+            }
+
+            var dst = _slots[targetAnchor];
+            var targetItem = dst.isAnchor ? dst.item : null;
+
+            var item = src.item;
+            var sx = src.x;
+            var sy = src.y;
+            var w = item.gridW > 0 ? item.gridW : 1;
+            var h = item.gridH > 0 ? item.gridH : 1;
+            var tx = targetAnchor % GameConst.InventoryCols;
+            var ty = targetAnchor / GameConst.InventoryCols;
+
+            var tw = 1;
+            var th = 1;
+            if (targetItem != null)
+            {
+                tw = targetItem.gridW > 0 ? targetItem.gridW : 1;
+                th = targetItem.gridH > 0 ? targetItem.gridH : 1;
+            }
+
+            // ── 先摘下来（两件都摘，才判得准"整块"是否放得下）─────────────────────
+            RemoveAt(fromAnchor);
+            if (targetItem != null) RemoveAt(targetAnchor);
+
+            var movedOk = CanPlaceBlock(tx, ty, w, h);
+            var swapOk = targetItem == null || CanPlaceBlock(sx, sy, tw, th);
+
+            if (!movedOk)
+            {
+                failReason = $"「{item.name}」是 {w}×{h}，目标格 {targetAnchor} 处空间不够，放不下";
+            }
+            else if (!swapOk)
+            {
+                failReason = $"与「{targetItem.name}」交换失败：它是 {tw}×{th}，放不回原格 {fromAnchor}";
+            }
+
+            if (!movedOk || !swapOk)
+            {
+                // 原样放回（两件都按**原来的格位**放，故必然成功）——⛔ 不许留下"东西不见了"的中间态
+                PlaceBlock(item, sx, sy, w, h);
+                if (targetItem != null) PlaceBlock(targetItem, tx, ty, tw, th);
+                Log.Warn("Item", $"Inventory.Move：{failReason} ⇒ 拒绝（两件均留在原格）");
+                return false;
+            }
+
+            PlaceBlock(item, tx, ty, w, h);
+            if (targetItem != null) PlaceBlock(targetItem, sx, sy, tw, th);
+
+            Log.Info("Item", targetItem != null
+                ? $"背包内交换：「{item.name}」({fromAnchor}) ↔ 「{targetItem.name}」({targetAnchor})"
+                : $"背包内移动：「{item.name}」({fromAnchor}) → 空格 ({targetAnchor})");
             return true;
         }
 

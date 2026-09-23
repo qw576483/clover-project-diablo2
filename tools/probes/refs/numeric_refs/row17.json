@@ -1,0 +1,204 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 17,
+  "spec_md_line": 112,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "派生属性",
+  "method": "生命/法力/耐力/防御/命中",
+  "criterion": "属性点加体力 → 生命上升（图上数字与日志对一遍）",
+  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row17.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:38",
+  "selectors": {
+    "line_anchors": {},
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_playercheck.txt": [
+        "[a21 产物]",
+        "[Player] [Equip] 装备生效：",
+        "[Player] [Load]",
+        "[离线] tools/probes/hosts/playercheck",
+        "class_c",
+        "[INFO ] [Player] [Equip] 装备生效："
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 101627,
+      "sha256": "8c7adb7b705b42f43ec719e88b690c7d426bb8fc015ceac4dbd4ac7d05ed8372",
+      "mtime": "2026-09-21 14:30:52",
+      "lines": 873,
+      "ok_lines": 204,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "③ 跟随相机的「手感」（是否抖）与像素级画面。"
+      ],
+      "matched_lines_total": 10,
+      "checks_written": 8,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "================ PlayerCheck：主角/相机/输入 离线自检 ================",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 7,
+      "selected_by": "snippet",
+      "text": "[ OK ] class_c 5 个职业可读   (class1=亚马逊 class5=野蛮人)",
+      "numbers": [
+        "5",
+        "1",
+        "5"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 32,
+      "selected_by": "snippet",
+      "text": "▶ 1. 五职业 1 级 MaxLife/MaxMana/MaxStamina ↔ class_c 计算值逐一相等",
+      "numbers": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 397,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Equip] 装备生效：1 件（含防御 1 件 → 护甲 25）；力+3 敏+0 体+0 精+0 生命+5 法力+0 耐力+0 防御+7(+10%) AR+20 格挡+0 抗性(火/冰/电/毒)+15/5/5/5 ⇒ 生命上限 84 防御 41 AR 115 格挡 0%",
+      "numbers": [
+        "1",
+        "1",
+        "25",
+        "3",
+        "0",
+        "0",
+        "0",
+        "5",
+        "0",
+        "0",
+        "7",
+        "10",
+        "20",
+        "0",
+        "15",
+        "5",
+        "5",
+        "5",
+        "84",
+        "41",
+        "115",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 404,
+      "selected_by": "snippet",
+      "text": "[ OK ] 留下了装备生效日志   ([INFO ] [Player] [Equip] 装备生效：1 件（含防御 1 件 → 护甲 25）；力+3 敏+0 体+0 精+0 生命+5 法力+0 耐力+0 防御+7(+10%) AR+20 格挡+0 抗性(火/冰/电/毒)+15/5/5/5 ⇒ 生命上限 84 防御 41 AR 115 格挡 0%)",
+      "numbers": [
+        "1",
+        "1",
+        "25",
+        "3",
+        "0",
+        "0",
+        "0",
+        "5",
+        "0",
+        "0",
+        "7",
+        "10",
+        "20",
+        "0",
+        "15",
+        "5",
+        "5",
+        "5",
+        "84",
+        "41",
+        "115",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 407,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Equip] 装备生效：1 件（含防御 1 件 → 护甲 25）；力+3 敏+0 体+0 精+0 生命+5 法力+0 耐力+0 防御+7(+10%) AR+20 格挡+0 抗性(火/冰/电/毒)+15/5/5/5 ⇒ 生命上限 84 防御 41 AR 115 格挡 0%",
+      "numbers": [
+        "1",
+        "1",
+        "25",
+        "3",
+        "0",
+        "0",
+        "0",
+        "5",
+        "0",
+        "0",
+        "7",
+        "10",
+        "20",
+        "0",
+        "15",
+        "5",
+        "5",
+        "5",
+        "84",
+        "41",
+        "115",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 408,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Equip] 装备生效：0 件（含防御 0 件 → 护甲 0）；力+0 敏+0 体+0 精+0 生命+0 法力+0 耐力+0 防御+0(+0%) AR+0 格挡+0 抗性(火/冰/电/毒)+0/0/0/0 ⇒ 生命上限 79 防御 6 AR 95 格挡 0%",
+      "numbers": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "79",
+        "6",
+        "95",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 872,
+      "selected_by": "file-summary-tail",
+      "text": "③ 跟随相机的「手感」（是否抖）与像素级画面。",
+      "numbers": []
+    }
+  ]
+}

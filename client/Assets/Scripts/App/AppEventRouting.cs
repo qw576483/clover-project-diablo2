@@ -14,7 +14,9 @@
 //       `UnequipRequest`         装备栏点击卸下（**agent-12 新增的常量**）
 //       `ShopOpenRequest`        显式「打开商店」（**agent-12 新增的常量**）
 //       `Revived`                复活完成通知（**agent-12 新增的常量**；发送方见下）
-//       `MoveInInventoryRequest` 背包内移动物品（**agent-12 新增的常量**）—— ⚠️ 无法落地，见回报「需裁决」
+//       `MoveInInventoryRequest` 背包内移动物品（**agent-12 新增的常量**）—— ★ 片 G1 起**真的落地**：
+//                                   `IItemModule.MoveItem(from, to, out reason)`（八年前那句
+//                                   「无 Move/Swap ⇒ 无法移动物品」的 Warn 已删除）
 //
 // ⛔ 本层**不做判定**：不查血量/距离/金币/背包空间 —— 那些由模块的门面方法自己判并打日志。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -133,14 +135,31 @@ namespace Diablo2.App
         }
 
         /// <summary>
-        /// 背包内移动物品：**当前无法落地** —— `IItemModule`（契约冻结）没有 `MoveItem/Swap`，
-        /// `Module/Item/Inventory.cs` 也未对外开放移动。这里只给一条可定位的 Warn（不许假装成功）。
+        /// 背包内移动/交换：参数 = `fromAnchor | (toAnchor &lt;&lt; 16)`（口径同 `Core/Events.cs` 与
+        /// `UI/InventoryPanel.PackMoveInInventory`）。
+        /// <para>
+        /// ★ **片 G1 落地**（修用户报的「道具没法拖动！」）：本层原先只打一条
+        /// 「`IItemModule` 无 Move/Swap 方法 ⇒ 无法移动物品」的 Warn（UI 侧意图对了，**落格没地方去**）。
+        /// `IItemModule.MoveItem(from, to, out reason)` 补齐后，这里**真的转发**；失败时把模块给出的
+        /// **同一句话**既写日志又弹 Toast（⛔ 不许只把 Warn 换成另一条 Warn）。
+        /// </para>
         /// </summary>
         private static void OnMoveInInventoryRequest(int packed)
         {
-            Game.Logger.Warn(Tag,
-                $"{Events.MoveInInventoryRequest}(packed={packed})：`IItemModule` 无 Move/Swap 方法 ⇒ 无法移动物品。" +
-                "需主 agent 裁决：要么给契约加 `MoveItem(fromAnchor, toAnchor)`，要么由 UI 侧改为「取出+放回」两步");
+            var ctx = AppWiring.Ctx;
+            if (ctx?.Item == null) { AppWiring.Missing("IItemModule"); return; }
+
+            var fromAnchor = packed & 0xFFFF;
+            var toAnchor = (packed >> 16) & 0xFFFF;
+
+            if (ctx.Item.MoveItem(fromAnchor, toAnchor, out var reason))
+            {
+                Game.Logger.Info(Tag, $"{Events.MoveInInventoryRequest}({fromAnchor} → {toAnchor})：移动/交换已完成");
+                return;
+            }
+
+            Game.Logger.Warn(Tag, $"{Events.MoveInInventoryRequest}({fromAnchor} → {toAnchor}) 被拒绝：{reason}");
+            if (!string.IsNullOrEmpty(reason)) Game.UI.Toast(reason);
         }
 
         private static void OnPlayerDied()

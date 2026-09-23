@@ -202,6 +202,15 @@ namespace Diablo2.UI
 
             // 内层 = 位图字体按**原版 px** 排版（等效原版满宽 × 300 高），再整体 ×1.8 ⇒ 字面尺寸与整屏口径一致。
             // 与 `UiLayoutFlow.FlowLabel` 同一套做法（那边也是"内容按原版 px 排版 + 根节点 ×1.8"）。
+            //
+            // ★ 片 font-scale（**核实结论：这一处不是缺陷，故不给 `fontSize`**）：
+            //   全仓扫「`D2Label.Create` 没给字号」时这一处会被机械命中（V6 报告 §4-② 也列了它），
+            //   但它的放大来自 `label.Root.localScale = K`（下方 :213）**而不是** `fontSize`：
+            //     font30 的 chi 格高 30 原版px × 1.8 ⇒ 画出来就是 **54 画布px = `UiLayoutGame.FontPx30`**，
+            //   与"传 fontSize = FontPx30"等效。⛔ 若照 §4-② 再加一个 `(int)UiLayoutGame.FontPx30`
+            //   就会**双重放大**（54 → 97.2）—— V6 对 `UiLayoutFlow.cs:1806` 已给出同款警告。
+            //   判据：`uicheck` 的 FontScaleCheck 把它作为**已登记例外**（要求同域内出现 `localScale`
+            //   的 ×K 放大）；实机 `Probe.LevelTitle` dump 的字块画布高应 ≈ 54。
             var origSize = UiLayoutGame.LevelTitleOrigSize;
             var label = D2Label.Create(root, "Title", string.Empty, Font, TextAnchor.MiddleCenter,
                 TextColor, origSize, Vector2.zero);

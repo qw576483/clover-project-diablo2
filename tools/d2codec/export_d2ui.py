@@ -648,7 +648,7 @@ def group_menu(pal):
         #   ⇒ 用 `EndGame/Pal.PL2`（片 1 用的 ACT1 是错的）。两条独立判据：
         #     ① 麻点度量（相邻不透明像素对的平均颜色跳变）ACT1 = **84.5** vs EndGame = **28.8**
         #        （2.9 倍差距、方向明确；与 `EndGame.dc6` 定案时同一口径同一方向）；
-        #     ② 肉眼复核（一次性联络图 `.ai-tmp/test/sheet_deathui.png`，复跑 = `.ai-tmp/test/p5_probe.py`）：
+        #     ② 肉眼复核（⛔ 原一次性联络图 `.ai-tmp/test/sheet_deathui.png` 与探针 `.ai-tmp/test/p5_probe.py` **均已删、在盘无替代** ⇒ 不可复跑；口径见本文件 `:80-89` 与定案登记行 `策划/验收表.md:433`（BL-4））：
         #        @ACT1 = 满屏彩色噪点（错色）、@EndGame = 干净的深灰石板按钮。
         #   其余 `MENU/**` 文件仍是 **BLOCKED** —— 它们的麻点度量差距 < 2 倍（判据不成立）：
         #     `okcancelbtn` 30.3(ACT1) vs 30.9(EndGame) 基本持平；

@@ -306,17 +306,8 @@ namespace Diablo2.UI
             return new Color(1f - (1f - c.r) * 0.38f, 1f - (1f - c.g) * 0.38f, 1f - (1f - c.b) * 0.38f, 1f);
         }
 
-        /// <summary>把一串技能 id 按职业分组（顺序保持首次出现的先后）。离线断言用。</summary>
-        public static List<int> DistinctClasses(IEnumerable<int> skillIds)
-        {
-            var list = new List<int>();
-            if (skillIds == null) return list;
-            foreach (var id in skillIds)
-            {
-                var c = ClassOfSkill(id);
-                if (c != 0 && !list.Contains(c)) list.Add(c);
-            }
-            return list;
-        }
+        // ⚠️ w3 审计删除：`DistinctClasses(IEnumerable<int>)` —— 全仓（含 13 个离线宿主）
+        //   **零调用方**（「定义了但没人用」）。技能树面板现在按 `Def/SkillTreeLayout` 的
+        //   `cell.tree` 分组（原版 `skilldesc.txt` 的 SkillPage），不再需要按 class 归并。
     }
 }

@@ -37,6 +37,23 @@ namespace Diablo2.Module.View
         /// <summary>怪物精灵代码（`monster_c.sprite` 小写；非怪物为空）。</summary>
         public string SpriteCode;
 
+        /// <summary>
+        /// ★ 片「武器外观接线」：玩家当前的**装备外观套 key**（`jav` / `buc` / `jav_buc`…）。
+        /// <para>`null` / 空 = **徒手**（走 `Chars/{class}/` 那套已验收素材）；非玩家视图恒为 null。</para>
+        /// <para>key 的拼法与回退由 `EquipVisual`（纯函数）给；它决定 `SpriteFrames.Keys` 的
+        /// 帧目录与帧数来源（`EquipFrameCounts`）⇒ **换 key = 换整套帧键**，不是只换贴图。</para>
+        /// </summary>
+        public string EquipKey;
+
+        /// <summary>
+        /// ★ 片「武器外观接线」：进图首帧是否已复核过 <see cref="EquipKey"/>（只做一次）。
+        /// <para>为什么要复核：`CreatePlayer` 与"装备落进 `IItemModule`"是两条独立步骤
+        /// （`AppFlow.RunBuildStep(1)` vs `SaveModule` 的读档），顺序若变，`CreatePlayer` 会读到
+        /// 空装备 ⇒ 角色一辈子徒手且**不报任何错**。首帧补一次 + `Events.EquipChanged` 驱动，
+        /// 不引入每帧重算。</para>
+        /// </summary>
+        public bool EquipKeySettled;
+
         /// <summary>视图根节点。</summary>
         public GameObject Root;
 

@@ -1,9 +1,9 @@
-id	name	code	name_str	base_id	level	base_level	min_grp	max_grp	rarity	hp	hp_min	hp_max	ac	ar	dmg_min	dmg_max	exp	ai	speed	run	res_phys	res_magic	res_fire	res_light	res_cold	res_poison	sprite	corpse_usable	revive	undead	demon	flying	treasure_class
-1	堕落者	fallen1	Fallen	fallen1	1	1	2	3	2	2	1	4	5	8	1	2	18	Fallen	5	5	0	0	0	0	0	0	FA	1	1	0	1	0	Act 1 H2H A
-2	堕落萨满	fallenshaman1	FallenShaman	fallenshaman1	1	2	1	1	2	5	4	7	5	8	0	2	24	FallenShaman	4	4	0	0	25	0	0	0	FS	1	1	0	1	0	Act 1 Cast A
-3	尖刺鼠	quillrat1	QuillRat	quillrat1	1	1	1	2	2	3	1	5	5	8	1	2	21	QuillRat	3	3	0	0	0	0	0	0	SI	1	1	0	0	0	Quill 1
-4	僵尸	zombie1	Zombie	zombie1	1	1	1	2	2	9	7	12	5	8	1	3	33	Zombie	1	3	0	0	0	0	0	50	ZM	1	1	1	0	0	Act 1 H2H A
-5	堕落罗格	corruptrogue1	DarkHunter	corruptrogue1	1	2	2	3	2	5	4	7	5	8	0	2	23	CorruptRogue	5	5	0	0	0	0	0	0	CR	1	1	0	1	0	Act 1 H2H A
-6	血鹰	foulcrow2	BloodHawk	foulcrow1	1	6	3	4	2	1	1	2	0	7	0	1	11	BloodHawk	4	4	0	0	0	0	0	0	BK	1	1	0	0	1	Act 1 Cast B
-7	巨兽	brute1	GargantuanBeast	brute2	1	2	1	1	1	12	9	15	5	8	1	2	36	Brute	3	3	0	0	0	0	0	0	YE	1	1	0	0	0	Act 1 H2H A
-8	幽灵	wraith1	Ghost	wraith1	1	7	1	2	1	8	5	11	5	7	1	2	27	Wraith	5	5	20	0	0	0	0	50	WR	1	1	1	0	1	Act 1 Wraith B
+id	name	code	name_str	base_id	level	base_level	min_grp	max_grp	rarity	hp	hp_min	hp_max	ac	ar	dmg_min	dmg_max	exp	ai	speed	run	res_phys	res_magic	res_fire	res_light	res_cold	res_poison	sprite	corpse_usable	revive	undead	demon	flying	treasure_class	treasure_class_champ	treasure_class_unique
+1	堕落者	fallen1	Fallen	fallen1	1	1	2	3	2	2	1	4	5	8	1	2	18	Fallen	5	5	0	0	0	0	0	0	FA	1	1	0	1	0	Act 1 H2H A	Act 1 Champ A	Act 1 Unique A
+2	堕落萨满	fallenshaman1	FallenShaman	fallenshaman1	1	2	1	1	2	5	4	7	5	8	0	2	24	FallenShaman	4	4	0	0	25	0	0	0	FS	1	1	0	1	0	Act 1 Cast A	Act 1 Champ A	Act 1 Unique A
+3	尖刺鼠	quillrat1	QuillRat	quillrat1	1	1	1	2	2	3	1	5	5	8	1	2	21	QuillRat	3	3	0	0	0	0	0	0	SI	1	1	0	0	0	Quill 1	Act 1 Champ A	Act 1 Unique A
+4	僵尸	zombie1	Zombie	zombie1	1	1	1	2	2	9	7	12	5	8	1	3	33	Zombie	1	3	0	0	0	0	0	50	ZM	1	1	1	0	0	Act 1 H2H A	Act 1 Champ A	Act 1 Unique A
+5	堕落罗格	corruptrogue1	DarkHunter	corruptrogue1	1	2	2	3	2	5	4	7	5	8	0	2	23	CorruptRogue	5	5	0	0	0	0	0	0	CR	1	1	0	1	0	Act 1 H2H A	Act 1 Champ A	Act 1 Unique A
+6	血鹰	foulcrow2	BloodHawk	foulcrow1	1	6	3	4	2	1	1	2	0	7	0	1	11	BloodHawk	4	4	0	0	0	0	0	0	BK	1	1	0	0	1	Act 1 Cast B	Act 1 Champ B	Act 1 Unique B
+7	巨兽	brute1	GargantuanBeast	brute2	1	2	1	1	1	12	9	15	5	8	1	2	36	Brute	3	3	0	0	0	0	0	0	YE	1	1	0	0	0	Act 1 H2H A	Act 1 Champ A	Act 1 Unique A
+8	幽灵	wraith1	Ghost	wraith1	1	7	1	2	1	8	5	11	5	7	1	2	27	Wraith	5	5	20	0	0	0	0	50	WR	1	1	1	0	1	Act 1 Wraith B	Act 1 Champ B	Act 1 Unique B

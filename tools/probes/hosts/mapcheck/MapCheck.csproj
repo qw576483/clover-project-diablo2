@@ -44,7 +44,19 @@
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <!-- ★ T0FIX-A：`Module/Map/MapView.cs` 的建块预算**由生产常量现算**（`FramePacing.TargetFrameRate`
+         × `GameConst.PlayerWalkSpeed` × `MapView.ChunkSize`）⇒ 宿主必须能编到它（⛔ 不写裸数字）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\FramePacing.cs" />
+    <!-- ⚠️ 本行与上面那行是**一对**：`Core/FramePacing.cs` 已改用下沉到引擎的
+         `CloverEngine.FramePacingPolicy`（`Runtime/Presentation/FramePacing.cs`）⇒ 不链引擎件就
+         CS0234「命名空间 CloverEngine 中不存在类型 FramePacingPolicy」= **宿主整编不过**。
+         处置与 uicheck / playercheck / flowcheck 完全一致（那三个宿主已链同一份引擎件）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <!-- automap piece: `Module/Map/MapModule.BuildMinimap` calls `AutoMapCel.Cel(...)` (the
+         generated per-cell Cel table from tools/probes/gen_automap.py) => the white-list
+         compile set must carry it or this host dies with CS0103. Same as uicheck. -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\AutoMapCel.generated.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />

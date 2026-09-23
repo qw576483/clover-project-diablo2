@@ -1,0 +1,5 @@
+# BGM 溯源台账（由 tools/probes/mpq/bgm_provenance.py 生成；⛔ 不手改）
+# key	sound	sounds_line	mpq_entry	src_bytes	src_sha256	clip_bytes	clip_sha256	match
+town	music_town_1	4675	data\global\music\act1\town1.wav	21805760	0f4c6f49cd3699bd83ddbc76cf739030792d8c7bcc4d6d55ea3bb05a2b6d79fc	21805760	0f4c6f49cd3699bd83ddbc76cf739030792d8c7bcc4d6d55ea3bb05a2b6d79fc	YES
+bloodmoor	music_wilderness	4681	data\global\music\act1\wild.wav	42270644	5792977e500540ae15139f66630b9a3967d445fb3436e59b7be323d840af824c	42270644	5792977e500540ae15139f66630b9a3967d445fb3436e59b7be323d840af824c	YES
+denofevil	music_caves	4659	data\global\music\act1\caves.wav	20518012	186dc610c3b4ffc60fd77535fff4c63fc18e6c1f568eef4738d36ac73afa057b	20518012	186dc610c3b4ffc60fd77535fff4c63fc18e6c1f568eef4738d36ac73afa057b	YES

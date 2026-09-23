@@ -1,0 +1,115 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 20,
+  "spec_md_line": 115,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "命中判定（**片 6 换成官方整数口径**）",
+  "method": "官方 `DAMAGE_RollAttackHit @0057d9b0`：两次**整数截断** + `<6⇒5` / `>94⇒95`",
+  "criterion": "探针手算期望命中率 vs 实机日志里的命中率逐值对账",
+  "conclusion": "通过（**U1 未覆盖**：玩家普攻 `[普攻]` 行本轮没取到 —— 断言那一刻玩家到最近怪的距离 > 近战范围 1.6，模块按设计不结算；`HitChance` 已由 `[怪攻]` 覆盖同一函数/同一代码路径，详见 `数值对照.md` §3.1）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row20.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:38",
+  "selectors": {
+    "line_anchors": {
+      ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
+        27,
+        45,
+        46
+      ]
+    },
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
+        "[p6 现场]",
+        "[P6] A1 ALvl=1 DLvl=10 AR=DR=100 ⇒ 9.00%",
+        "A3 ⇒ 5.00% / 95.00%",
+        "[Combat] [怪攻] m#1008 堕落者",
+        "8×100/14 = 57",
+        "m#1009 ⇒ 命中",
+        "m#1007 ⇒ 命中",
+        "[离线] tools/probes/hosts/combatcheck",
+        "命中率：ALvl=1 DLvl=10 AR=DR=100 → 9.00%",
+        "[ OK ] 命中率：官方整数截断"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 136482,
+      "sha256": "0b348bb03d16b96051825188372bfd328c768e94d2beed1e05120c3072848c5e",
+      "mtime": "2026-09-21 14:30:35",
+      "lines": 1119,
+      "ok_lines": 132,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。"
+      ],
+      "matched_lines_total": 1,
+      "checks_written": 5,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "================ CombatCheck 开始 ================",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 27,
+      "selected_by": "anchor",
+      "text": "命中率：ALvl=1  DLvl=10 AR=DR=100 → 9.00%（期望 9.09%）",
+      "numbers": [
+        "1",
+        "10",
+        "100",
+        "9.00",
+        "9.09"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 45,
+      "selected_by": "anchor",
+      "text": "[ OK ] 命中率：官方整数截断（ALvl=1/DLvl=10/AR=DR=100 ⇒ 恰好 9%）   (9.00)",
+      "numbers": [
+        "1",
+        "10",
+        "100",
+        "9",
+        "9.00"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 46,
+      "selected_by": "anchor",
+      "text": "[ OK ] 命中率：负数交叉（AR=0 DR=-50 ⇒ 中间值 100% 后夹到 95%，**不是** 0%）   (95.00)",
+      "numbers": [
+        "0",
+        "-50",
+        "100",
+        "95",
+        "0",
+        "95.00"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1118,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。",
+      "numbers": [
+        "8"
+      ]
+    }
+  ]
+}

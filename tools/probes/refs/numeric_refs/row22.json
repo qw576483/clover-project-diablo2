@@ -1,0 +1,333 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 22,
+  "spec_md_line": 117,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "区域等级 / 怪物数值（**片 6 逐条对官方公式复算**）",
+  "method": "官方 `MONSTER_CalculateLevelScaledStats @006538a0`：`AC/AR/伤害/经验/HP = MonLvl.行 × MonStats.列 / 100`（**截断**）",
+  "criterion": "用官方表**逐值复算** 8 只怪 × 8 列 = 64 项；再与实机 `[Monster] spawn` 行比",
+  "conclusion": "通过（**行内判据 = 数值类 ⇒ 给复算表 + 运行时日志**；13 项取整差 **未改**，登记 **E30 + BL-7**）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row22.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {},
+    "unscoped_anchors": [
+      1
+    ],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
+        "[p6 复算]",
+        "python tools/probes/hosts/verify_monster_values.py",
+        "自审对比/数值对照.md",
+        "[p6 现场]",
+        "[P6] C2",
+        "僵尸 hp=10/10 dr=5 ar=8 dmg=1-3 毒抗50",
+        "堕落者 hp=3/3 dmg=1-2",
+        "尖刺鼠 hp=4/4",
+        "狂热 僵尸 hp=30/30 ar=14 dmg=2-6",
+        "MonLvl.txt",
+        "AC6/TH8/HP7/DM2/XP30",
+        "[Monster] spawn m#"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 136482,
+      "sha256": "0b348bb03d16b96051825188372bfd328c768e94d2beed1e05120c3072848c5e",
+      "mtime": "2026-09-21 14:30:35",
+      "lines": 1119,
+      "ok_lines": 132,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。"
+      ],
+      "matched_lines_total": 10,
+      "checks_written": 12,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "================ CombatCheck 开始 ================",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 106,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1000 僵尸 lvl=1 hp=9/9 dmg=1-3 ac=5 ar=8 exp=33 ai=Melee speed=1.0 格=(4,53) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒50 魔0]",
+      "numbers": [
+        "1000",
+        "1",
+        "9",
+        "9",
+        "1",
+        "-3",
+        "5",
+        "8",
+        "33",
+        "1.0",
+        "4",
+        "53",
+        "0",
+        "0",
+        "0",
+        "0",
+        "50",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 107,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1001 僵尸 lvl=1 hp=9/9 dmg=1-3 ac=5 ar=8 exp=33 ai=Melee speed=1.0 格=(3,52) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒50 魔0]",
+      "numbers": [
+        "1001",
+        "1",
+        "9",
+        "9",
+        "1",
+        "-3",
+        "5",
+        "8",
+        "33",
+        "1.0",
+        "3",
+        "52",
+        "0",
+        "0",
+        "0",
+        "0",
+        "50",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 108,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1002 尖刺鼠 lvl=1 hp=3/3 dmg=1-2 ac=5 ar=8 exp=21 ai=Range speed=3.0 格=(9,34) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒0 魔0]",
+      "numbers": [
+        "1002",
+        "1",
+        "3",
+        "3",
+        "1",
+        "-2",
+        "5",
+        "8",
+        "21",
+        "3.0",
+        "9",
+        "34",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 109,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1003 尖刺鼠 lvl=1 hp=3/3 dmg=1-2 ac=5 ar=8 exp=21 ai=Range speed=3.0 格=(37,8) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒0 魔0]",
+      "numbers": [
+        "1003",
+        "1",
+        "3",
+        "3",
+        "1",
+        "-2",
+        "5",
+        "8",
+        "21",
+        "3.0",
+        "37",
+        "8",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 110,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1004 尖刺鼠 lvl=1 hp=3/3 dmg=1-2 ac=5 ar=8 exp=21 ai=Range speed=3.0 格=(38,27) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒0 魔0]",
+      "numbers": [
+        "1004",
+        "1",
+        "3",
+        "3",
+        "1",
+        "-2",
+        "5",
+        "8",
+        "21",
+        "3.0",
+        "38",
+        "27",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 111,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1005 尖刺鼠 lvl=1 hp=3/3 dmg=1-2 ac=5 ar=8 exp=21 ai=Range speed=3.0 格=(48,68) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒0 魔0]",
+      "numbers": [
+        "1005",
+        "1",
+        "3",
+        "3",
+        "1",
+        "-2",
+        "5",
+        "8",
+        "21",
+        "3.0",
+        "48",
+        "68",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 112,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1006 尖刺鼠 lvl=1 hp=3/3 dmg=1-2 ac=5 ar=8 exp=21 ai=Range speed=3.0 格=(53,11) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒0 魔0]",
+      "numbers": [
+        "1006",
+        "1",
+        "3",
+        "3",
+        "1",
+        "-2",
+        "5",
+        "8",
+        "21",
+        "3.0",
+        "53",
+        "11",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 113,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1007 僵尸 lvl=1 hp=9/9 dmg=1-3 ac=5 ar=8 exp=33 ai=Melee speed=1.0 格=(53,22) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒50 魔0]",
+      "numbers": [
+        "1007",
+        "1",
+        "9",
+        "9",
+        "1",
+        "-3",
+        "5",
+        "8",
+        "33",
+        "1.0",
+        "53",
+        "22",
+        "0",
+        "0",
+        "0",
+        "0",
+        "50",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 114,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1008 僵尸 lvl=1 hp=9/9 dmg=1-3 ac=5 ar=8 exp=33 ai=Melee speed=1.0 格=(60,63) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒50 魔0]",
+      "numbers": [
+        "1008",
+        "1",
+        "9",
+        "9",
+        "1",
+        "-3",
+        "5",
+        "8",
+        "33",
+        "1.0",
+        "60",
+        "63",
+        "0",
+        "0",
+        "0",
+        "0",
+        "50",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 115,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Monster] spawn m#1009 堕落者 lvl=1 hp=2/2 dmg=1-2 ac=5 ar=8 exp=18 ai=Coward speed=5.0 格=(63,15) 区域=BloodMoor 尸体可用=True 抗性=[物0 火0 冰0 电0 毒0 魔0]",
+      "numbers": [
+        "1009",
+        "1",
+        "2",
+        "2",
+        "1",
+        "-2",
+        "5",
+        "8",
+        "18",
+        "5.0",
+        "63",
+        "15",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1118,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。",
+      "numbers": [
+        "8"
+      ]
+    }
+  ]
+}

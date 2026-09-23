@@ -245,12 +245,18 @@ namespace CloverEngine
         private bool _mouse0Held;
         private bool _mouse0Up;
 
+        // ★ impl-I-input（审计 R1）：右键（button 1）也必须能注入 ——
+        //   改动前本替身**只认 button 0**（与生产代码同款缺口），右键链在离线宿主根本无法驱动。
+        private bool _mouse1Down;
+        private bool _mouse1Held;
+        private bool _mouse1Up;
+
         public bool GetKey(GameKey key) => _held.Contains(key) || _down.Contains(key);
         public bool GetKeyDown(GameKey key) => _down.Contains(key);
         public bool GetKeyUp(GameKey key) => _up.Contains(key);
-        public bool GetMouseButton(int button) => button == 0 && _mouse0Held;
-        public bool GetMouseButtonDown(int button) => button == 0 && _mouse0Down;
-        public bool GetMouseButtonUp(int button) => button == 0 && _mouse0Up;
+        public bool GetMouseButton(int button) => button == 0 ? _mouse0Held : button == 1 && _mouse1Held;
+        public bool GetMouseButtonDown(int button) => button == 0 ? _mouse0Down : button == 1 && _mouse1Down;
+        public bool GetMouseButtonUp(int button) => button == 0 ? _mouse0Up : button == 1 && _mouse1Up;
         public float GetAxis(string axis, bool raw = false)
             => string.Equals(axis, "Mouse ScrollWheel", StringComparison.Ordinal) ? Wheel : 0f;
 
@@ -261,6 +267,8 @@ namespace CloverEngine
             _up.Clear();
             _mouse0Down = false;
             _mouse0Up = false;
+            _mouse1Down = false;
+            _mouse1Up = false;
         }
 
         /// <summary>模拟按下（本帧 down + held）。</summary>
@@ -277,6 +285,15 @@ namespace CloverEngine
 
         /// <summary>是否按住左键。</summary>
         public bool LeftHeld => _mouse0Held;
+
+        /// <summary>模拟**右键**按下（本帧 down + held；★ impl-I-input，审计 R1 的驱动点）。</summary>
+        public void RightMouseDown() { _mouse1Down = true; _mouse1Held = true; }
+
+        /// <summary>模拟**右键**抬起。</summary>
+        public void RightMouseUp() { _mouse1Held = false; _mouse1Up = true; }
+
+        /// <summary>是否按住右键。</summary>
+        public bool RightHeld => _mouse1Held;
     }
 
     /// <summary>`Runtime/Core/Setting.cs:11`（子集；内存实现）。</summary>

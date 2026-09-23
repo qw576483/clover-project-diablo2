@@ -465,6 +465,19 @@ namespace Diablo2.Def
         /// <summary>金币。</summary>
         public int gold;
 
+        /// <summary>
+        /// ★ 双武器组：**生效**武器组下标（0 = Ⅰ组 / 1 = Ⅱ组）—— 原版 <c>W</c> 键切出来的那一套。
+        /// <para>
+        /// **向后兼容口径（硬要求）**：这是**新加**字段，旧档 JSON 里没有它
+        /// ⇒ `SaveJson.TryParse` 读缺字段时取默认值 **0（= Ⅰ组）**，不抛异常、读档照常成功
+        /// （`ItemModule` 会在读档摘要里留一条 Info 说明该口径）。写档时由
+        /// `ItemModule.WriteTo` 写入当前生效组 ⇒ "存档往返一致"可离线断言。
+        /// </para>
+        /// <para>⛔ 不参与 `GameConst.SaveVersion`：新增带默认值的字段不改变旧档可读性，
+        /// 升版本反而会让所有旧档走"版本不符降级"分支（`SaveModule.Load` 的 Warn）。</para>
+        /// </summary>
+        public int activeWeaponIndex;
+
         /// <summary>所在区域（见 <see cref="AreaId"/>）。</summary>
         public int areaId;
 
@@ -642,6 +655,20 @@ namespace Diablo2.Def
         /// <summary>售价（买入价）。</summary>
         public int price;
 
+        /// <summary>
+        /// 物品**占格宽**（原版 `item_c.grid_w` = 官方 `invwidth`；1 = 单格）。
+        /// <para>★ 2026-09-22 新增（主 agent 定契约）：买卖界面的格区**按物品自身占格摆放**
+        /// （原版口径 —— 大盾 2×3、法杖 1×4，与背包同规则）。此前 `ShopEntry` 不带尺寸 ⇒
+        /// 面板只能"1 件 = 1 格"（大盾/长杖被缩进一格 = 用户实测「商店商品占的格子不对」）。</para>
+        /// <para>口径与背包**同源**：`ItemFactory` 造物时已从 `item_c` 填进 `ItemStack.gridW/gridH`
+        /// （见 `Module/Item/ItemFactory.cs` 的赋值与 `Inventory.TryPlace` 的占格算法）——
+        /// 商店只是把同一个值搬过来，⛔ 不许在商店链路里另算一份。</para>
+        /// </summary>
+        public int gridW = 1;
+
+        /// <summary>物品**占格高**（原版 `item_c.grid_h` = 官方 `invheight`）。见 <see cref="gridW"/>。</summary>
+        public int gridH = 1;
+
         /// <summary>剩余数量（-1 = 无限）。</summary>
         public int count = -1;
 
@@ -793,6 +820,28 @@ namespace Diablo2.Def
         /// <summary>标记点类型（与 <see cref="markerX"/> 对齐；取 `MinimapArgs.Tile*` 常量）。</summary>
         public List<byte> markerKind = new List<byte>();
 
+        // # contract: 增补字段（片 `automap-original-verdict`，主 agent 授权「`MinimapArgs` 允许新增
+        //   逐格 Cel 字段这类契约增补」）。口径 = 原版 `data/global/excel/AutoMap.txt` 的 `CelN`
+        //   = `data/global/ui/AUTOMAP/MaxiMap.dc6` 的**帧序号**（实测 1260 帧 × 16×32）；
+        //   索引方式 = (LevelName = `<act> <LevelType>`、Style = DS1 格 `prop3 & 0x0F`、
+        //   Sequence = DS1 格 `prop2`) ⇒ 值由 `Core/AutoMapCel.generated.cs`（生成物）给。
+        //   ⛔ 语义：**不是**"地形码换色"，是原版那一格的 automap 图块号；`< 0` = 原版这一格不画。
+
+        /// <summary>逐格 automap Cel（**地面层**；行优先，与 <see cref="tiles"/> 对齐；`-1` = 该格原版不画）。</summary>
+        public List<short> cels = new List<short>();
+
+        /// <summary>逐格 automap Cel（**物件/墙层**；行优先，与 <see cref="tiles"/> 对齐；`-1` = 该格原版不画）。</summary>
+        public List<short> celsOver = new List<short>();
+
+        /// <summary>取某格的 automap Cel（越界返回 -1）。</summary>
+        public short CelAt(int x, int y, bool objectLayer)
+        {
+            if (x < 0 || y < 0 || x >= width || y >= height) return -1;
+            var i = y * width + x;
+            var list = objectLayer ? celsOver : cels;
+            return i < list.Count ? list[i] : (short)-1;
+        }
+
         /// <summary>取某格的地形码（越界返回 <see cref="TileVoid"/>）。</summary>
         public byte TileAt(int x, int y)
         {
@@ -840,6 +889,114 @@ namespace Diablo2.Def
 
         /// <summary>音效是否静音。</summary>
         public bool sfxMute;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ★ impl-I-input 新增 DTO（**只增不改**：既有类型与字段逐字未动）
+    //
+    // 为什么加在 `Diablo2.Def` 而不是别的命名空间：分层自检 ③ 要求 `UI/**` 不许
+    // `using Diablo2.Module`，而下面这两个载荷的收方就是 HUD（UI 层）⇒ 只能在 Def。
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 左右键技能格绑定的技能快照（事件 `Events.SkillButtonsChanged` 的参数）。
+    /// <para>发送方 = `Module/Skill/SkillModule`（`SelectSkill` / `AssignToButton` 改绑时发）；
+    /// 收方 = `UI/HudPanel`（把 HUD 上的 `LeftSkill` / `RightSkill` 两格换成对应技能图标）。</para>
+    /// </summary>
+    [Serializable]
+    public class SkillButtonsArgs
+    {
+        /// <summary>左键技能 id（-1 = 普通攻击）。</summary>
+        public int leftId = -1;
+
+        /// <summary>右键技能 id（-1 = 普通攻击）。</summary>
+        public int rightId = -1;
+
+        /// <summary>左键技能显示名（-1 时为「普通攻击」）。</summary>
+        public string leftName;
+
+        /// <summary>右键技能显示名（-1 时为「普通攻击」）。</summary>
+        public string rightName;
+    }
+
+    /// <summary>地面物品名牌的一条（`Events.GroundItemLabelsChanged` 的载荷元素）。</summary>
+    [Serializable]
+    public class GroundItemLabel
+    {
+        /// <summary>地面物品实例 id（`GameConst.GroundItemIdBase` 起）。</summary>
+        public int id = -1;
+
+        /// <summary>显示名（原版地面物品名；品质配色由 <see cref="quality"/> 决定）。</summary>
+        public string name;
+
+        /// <summary>品质（决定名牌颜色，见 `UI/ItemTooltip.cs` 的 `ItemQualityColor`）。</summary>
+        public ItemQuality quality = ItemQuality.Normal;
+
+        /// <summary>所在格 X。</summary>
+        public int gridX;
+
+        /// <summary>所在格 Y。</summary>
+        public int gridY;
+    }
+
+    /// <summary>
+    /// 地面物品名牌集合（事件 `Events.GroundItemLabelsChanged` 的参数）。
+    /// <para>发送方 = `Module/Input/InputReader`（消费 `InputReader.ShowGroundItems` = 原版 `Alt`，
+    /// 以及 `Events.HoverTargetChanged` 的当前悬停格）；收方 = `UI/GroundItemLabelView`。</para>
+    /// <para>语义：<see cref="altHeld"/> = true ⇒ <see cref="labels"/> 是**当前区域全部**地面物品
+    /// （原版按 Alt 常显）；false ⇒ 只含**当前悬停的那一件**（原版悬停显示单件名牌）。</para>
+    /// </summary>
+    [Serializable]
+    public class GroundItemLabelsArgs
+    {
+        /// <summary>是否按住 Alt（原版「常显地面物品名」）。</summary>
+        public bool altHeld;
+
+        /// <summary>要显示名牌的地面物品（可能为空列表 = 不显示任何名牌）。</summary>
+        public List<GroundItemLabel> labels = new List<GroundItemLabel>();
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ★ 片 g1-resume 新增 DTO（**只增不改**：既有类型与字段逐字未动）
+    //
+    // 为什么加在 `Diablo2.Def`：分层自检 ③ 要求 `UI/**` 不许 `using Diablo2.Module`，
+    // 而下面这两个载荷的收方就是传送面板（UI 层）⇒ 只能在 Def。
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// <summary>传送面板里的一条目的地（`UI/WaypointPanel` 的列表项）。</summary>
+    [Serializable]
+    public class WaypointDest
+    {
+        /// <summary>目标区域（`(int)Def.AreaId`）。</summary>
+        public int area;
+
+        /// <summary>显示名（= 本工程区域名；本项目只做 Act I 的三张图，见 `registry.md`）。</summary>
+        public string name;
+    }
+
+    /// <summary>
+    /// 传送面板的打开参数（★ 片 g1-resume；发送方 = `App/AppWaypoint.cs`）。
+    /// <para>
+    /// 语义 = 原版传送面板（`Objects.txt` Id=119 Token=wp，原版字串见
+    /// `原版资源/d2text/chi_string.txt`：标题「傳送點」/ 提示「選擇你的目的地」/
+    /// 空列表「尚未啟動其他傳送點」）：只列**已激活**的目的地。
+    /// </para>
+    /// <para>⛔ 目的地的**集合口径在下游**（`App/AppWaypoint` 记的"已去过区域"），本 DTO 只是搬运。</para>
+    /// </summary>
+    [Serializable]
+    public class WaypointArgs
+    {
+        /// <summary>面板标题（缺省 = 原版字串「傳送點」）。</summary>
+        public string title;
+
+        /// <summary>列表上方的提示（缺省 = 原版字串「選擇你的目的地」）。</summary>
+        public string hint;
+
+        /// <summary>列表为空时的提示（缺省 = 原版字串「尚未啟動其他傳送點」）。</summary>
+        public string empty;
+
+        /// <summary>已激活的目的地（可能为空 = 原版那一句"尚未啟動其他傳送點"）。</summary>
+        public List<WaypointDest> dests = new List<WaypointDest>();
     }
 }
 
@@ -896,11 +1053,40 @@ namespace Diablo2.Module
         /// <summary>怪物刷新点（洞穴生成时产出；野外为空列表）。</summary>
         IReadOnlyList<Vector2Int> MonsterSpawns { get; }
 
+        /// <summary>
+        /// 传送点交互锚点（★ 片 g1-resume 新增；修复用户报的「传送点没效果」）。
+        /// <para>
+        /// 口径 = 原版 `Objects.txt` Id=119（`Name=Waypoint` / `Token=wp` / `SizeX=SizeY=5` 子格
+        /// = 1 格的交互锚点）在**关卡坐标**上的位置；本工程目前只有罗格营地有（`Levels.txt`
+        /// 「Act 1 - Town」的 `Waypoint` 列 = 0 = 本关传送点编号 0），其它区域为空列表。
+        /// </para>
+        /// <para>
+        /// 数据来源（⛔ 不许在 UI/交互层硬编码坐标）：`Module/Map/MapGenTown` 里逐条写了出处 ——
+        /// 原版四块城镇 DS1（`TownN1/E1/S1/W1.ds1`）各自带的那个**四块对齐后重合**的 `kind=2`
+        /// 预设单位，关卡坐标 (31,26)。
+        /// </para>
+        /// </summary>
+        IReadOnlyList<Vector2Int> WaypointPoints { get; }
+
         /// <summary>是否在图内（不判可走）。</summary>
         bool InBounds(Vector2Int g);
 
         /// <summary>该格是否可走（图外 = false；**唯一判定走 `Def.TileKindInfo.IsWalkable`**）。</summary>
         bool Walkable(Vector2Int g);
+
+        /// <summary>
+        /// 该格是否是**"可走上方的结构"**（桥面 / 平台 / 甲板；本项目目前只有罗格营地出城那座桥）。
+        /// <para>★ 2026-09-22 新增（主 agent 定契约，为修用户实测的「营地出门的桥，还是从桥下走」）。</para>
+        /// <para><b>为什么需要它</b>：等距排序值 = `(gx+gy)*4 + 层偏移`（`Core/GameConst.cs` 的
+        /// `LayerOffsetGround/Object/Entity/Overlay`）。桥面格**正南那一行恰好是桥的栏杆物件**
+        /// （`moor_bridge` 物件，图形自本格底边向上长 2 格）⇒ 站在桥面上的实体 `4D+102`
+        /// **必然**被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住 ⇒ 画面上人物"从桥下走"（确定性必然，非偶发）。
+        /// 视图层据此对"站在 deck 上的实体"再抬一档（见 `Iso.SortOrder` 与 `Module/View/ViewModule`）。</para>
+        /// <para><b>数据来源</b>：由 `Module/Map` 在生成/铺图时登记（桥面 = 地砖取自 deck 类包，
+        /// 见 `MapGenTownLayout` 的桥面行与 `Packs` 表）—— ⛔ 视图层不许自己去猜几何。</para>
+        /// <para>图外 / 未生成 ⇒ 返回 false（与 <see cref="Walkable"/> 的越界口径一致）。</para>
+        /// </summary>
+        bool IsDeckGrid(Vector2Int g);
 
         /// <summary>该格地形（图外返回 <see cref="TileKind.Void"/>）。</summary>
         TileKind TileAt(Vector2Int g);
@@ -1063,6 +1249,18 @@ namespace Diablo2.Module
 
         /// <summary>回复法力。</summary>
         void RestoreMana(int amount);
+
+        /// <summary>
+        /// 扣减法力（技能/消耗品的**消耗**入口）。成功扣减返回 <c>true</c>；
+        /// <paramref name="amount"/> ≤ 0 或当前法力不足时返回 <c>false</c> 且**不改值**。
+        /// <para>★ **w7 契约新增（主 agent 授权的一次契约扩展）**：此前契约里只有
+        /// <see cref="RestoreMana"/>，且实现方对非正数一律忽略 ⇒ 技能侧用
+        /// <c>RestoreMana(-cost)</c> 扣蓝会被静默钳掉（实测：施法不扣法力）。
+        /// 扣蓝是**消耗**语义，与回复是两件事，故给独立入口。</para>
+        /// <para>⛔ **不改 <see cref="RestoreMana"/> 既有语义**：它对负数/0 仍按「非正数 ⇒ 忽略」处理
+        /// （那是对的，别为省事让它扣蓝）。</para>
+        /// </summary>
+        bool TrySpendMana(int amount);
 
         /// <summary>回复耐力。</summary>
         void RestoreStamina(int amount);
@@ -1229,7 +1427,17 @@ namespace Diablo2.Module
         /// <summary>背包格快照（长度 = `GameConst.InventoryCellCount`）。</summary>
         IReadOnlyList<InventorySlot> Inventory { get; }
 
-        /// <summary>已装备物品。</summary>
+        /// <summary>
+        /// **当前生效的装备集**（双武器组：只含**生效组**那把武器；签名未改，语义本轮收紧）。
+        /// <para>
+        /// 为什么要收紧（T0 缺口 2 的另一半）：原语义 = "全部已装备物品"，而唯一的生产消费方
+        /// `Module/Combat/CombatModule.GetWeaponDamage`（`CombatModule.cs:222-230`）会把集合里
+        /// **每把**武器的 `dmgMin/dmgMax` **相加** ⇒ 装备两把武器时基础伤害是两把之和、切武器组
+        /// 也**不会**变。原版只有当前那一套武器生效 ⇒ 这里改为"生效集"。
+        /// </para>
+        /// <para>配套口径：`CharacterSave.equip` 与 `ItemModule.WriteTo` 仍写**全集**（两套都存）、
+        /// `IItemModule.GetRepairAllCost` 仍按**全集**算（备用组也能修）⇒ 只有"生效/数值"这一面被收窄。</para>
+        /// </summary>
         IReadOnlyList<ItemStack> Equipment { get; }
 
         /// <summary>腰带（长度 = `GameConst.BeltSlots`，空位为 null）。</summary>
@@ -1274,6 +1482,23 @@ namespace Diablo2.Module
         /// —— 由 `App/AppEventRouting.cs` 转发到本方法（**agent-12 接线**；UI 不许 `using Diablo2.Module`）。
         /// </summary>
         bool Unequip(ItemSlot slot, int slotIndex);
+
+        /// <summary>
+        /// **背包内移动/交换**：把某锚点格上的物品移到另一个锚点格；目标格有物品 ⇒ **两件互换**。
+        /// <para>
+        /// ★ 片 G1 新增（修用户报的「道具没法拖动！」）：UI 入口 = `Events.MoveInInventoryRequest`
+        /// （参数 = `fromAnchor | (toAnchor &lt;&lt; 16)`，口径见 `Core/Events.cs` 该常量的注释），
+        /// 由 `App/AppEventRouting.cs` 转发到本方法（UI 不许 `using Diablo2.Module`）。
+        /// </para>
+        /// <para>
+        /// 失败返回 false 且**不改动任何格**（物品留在原处），<paramref name="failReason"/> 给出
+        /// **可直接展示的中文文案**（调用方拿它做 Toast）——⛔ 不许"假装成功"、也不许只返回 false 不给原因。
+        /// </para>
+        /// </summary>
+        /// <param name="fromAnchor">拖起的物品锚点格（线性下标）。</param>
+        /// <param name="toAnchor">落点格（线性下标；被占用时按该格所属物品的锚点处理）。</param>
+        /// <param name="failReason">失败原因（成功 = null）。</param>
+        bool MoveItem(int fromAnchor, int toAnchor, out string failReason);
 
         /// <summary>使用某锚点格的物品（药水/卷轴）。</summary>
         bool UseItem(int anchorIndex);

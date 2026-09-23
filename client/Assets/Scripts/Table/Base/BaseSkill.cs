@@ -51,6 +51,15 @@ namespace Table
 		public int Passive; // 是否被动技能（官方 passive）
 		public string Missile; // 投射物（官方 srvmissile，空则取 cltmissile；指向 missile_c.code）
 		public string Desc; // 技能说明（本项目按官方字段拼装）
+		public int SrcDam; // 武器伤害转移比（官方 SrcDam，分母 128 ⇒ 128=100%；0=不用武器伤害）
+		public string DmgPctCalc; // 官方 calc1 原文（伤害倍率公式；语义见 dmg_pct_desc）
+		public string DmgPctDesc; // 官方 *calc1 desc 原文（damage% / max targets / # missiles ...）
+		public int DmgPctBase; // 1 级伤害倍率%（calc1 以 ln12⇒Param1 / ln34⇒Param3 开头时；否则 0）
+		public int DmgPctPerLvl; // 每级伤害倍率增量%（ln12⇒Param2 / ln34⇒Param4；否则 0）
+		public int DmgPctParsed; // 1 = dmg_pct_base/per_lvl 可信；0 = calc1 无法静态解析（运行时按 0% + 留日志）
+		public string MissileA; // 第 2 投射物槽（官方 srvmissilea，指向 missile_c.code）
+		public string MissileB; // 第 3 投射物槽（官方 srvmissileb）
+		public string MissileC; // 第 4 投射物槽（官方 srvmissilec）
 	}
 
 	// BaseSkillTable 表 "skill_c" 的只读容器（按主键索引）。
@@ -118,6 +127,15 @@ namespace Table
 				row.Passive = TableParsers.ToInt(TableParsers.Cell(rec, 40));
 				row.Missile = TableParsers.Cell(rec, 41);
 				row.Desc = TableParsers.Cell(rec, 42);
+				row.SrcDam = TableParsers.ToInt(TableParsers.Cell(rec, 43));
+				row.DmgPctCalc = TableParsers.Cell(rec, 44);
+				row.DmgPctDesc = TableParsers.Cell(rec, 45);
+				row.DmgPctBase = TableParsers.ToInt(TableParsers.Cell(rec, 46));
+				row.DmgPctPerLvl = TableParsers.ToInt(TableParsers.Cell(rec, 47));
+				row.DmgPctParsed = TableParsers.ToInt(TableParsers.Cell(rec, 48));
+				row.MissileA = TableParsers.Cell(rec, 49);
+				row.MissileB = TableParsers.Cell(rec, 50);
+				row.MissileC = TableParsers.Cell(rec, 51);
 				rows.Add(row);
 				index[row.Id] = row;
 			}

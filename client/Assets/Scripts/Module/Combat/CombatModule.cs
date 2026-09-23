@@ -156,6 +156,22 @@ namespace Diablo2.Module.Combat
                 return;
             }
 
+            // ★ C3（用户本轮：「你是圆形判断的打击范围」「为什么打击范围这么奇怪」）：
+            //   旧口径 = **纯半径**（圆）⇒ 背后的 / 正侧方的 / 隔着墙水的目标只要在 1.6 格内就能打到。
+            //   新口径 = **正面扇形（±60°）+ 以朝向为轴的矩形走廊 + 线段不得被地形阻断**，三关都过才结算。
+            //   形状函数唯一出处 = `Module/Combat/MeleeShape.cs`（纯函数，`combatcheck` 第 18 节逐例驱动）。
+            //   ⛔ 不消耗冷却（不合格 = 没挥出去，与"超距"同一口径）：由 Player/Input 先转身/靠近。
+            var shape = ShapeGate(player.Dir, player.Grid, monsterGrid, GameConst.MeleeRange);
+            if (shape != null)
+            {
+                CombatLog.WarnThrottled("atk.shape",
+                    $"RequestAttack: 目标 m#{monsterId} 被**判定形状**拒绝：{shape}" +
+                    $"（玩家朝向={player.Dir} 偏移=({monsterGrid.x - player.Grid.x},{monsterGrid.y - player.Grid.y})" +
+                    $" 距离 {dist:0.00} ≤ 近战范围 {GameConst.MeleeRange:0.00}）" +
+                    " ⇒ 本次不结算（转身/靠近后重试）");
+                return;
+            }
+
             _attackCd = GameConst.PlayerAttackInterval;
             monster.NotifyAttacked(monsterId);         // 官方：被打的怪立刻转入仇恨
 
@@ -207,8 +223,13 @@ namespace Diablo2.Module.Combat
         /// `item_c` 的 `str_bonus` / `dex_bonus` 读（打表来源 = 官方 `Weapons.txt` 的
         /// `StrBonus` / `DexBonus`）。近战多为 `100/0`、**弓弩为 `0/100`**；空手按官方近战口径 `100/0`。
         /// </para>
+        /// <para>
+        /// ★ 片 N：改为 `internal` —— **武器伤害类技能**（官方 `skills.txt` 列 219 `SrcDam ≠ 0`，
+        /// 如「重击」Bash）必须与普攻**同一处**取武器区间/加成系数，
+        /// 调用点 = `Module/Skill/SkillModule.RollWeaponSkillDamage`。⛔ 不许在 Skill 侧另写一份。
+        /// </para>
         /// </summary>
-        private static void GetWeaponDamage(AppContext ctx, out int min, out int max,
+        internal static void GetWeaponDamage(AppContext ctx, out int min, out int max,
                                             out int strBonus, out int dexBonus)
         {
             min = 0;
@@ -260,6 +281,48 @@ namespace Diablo2.Module.Combat
                     $"GetWeaponDamage: 没有装备武器 ⇒ 按官方空手 {min}-{max} 结算（加成 100/0）");
             }
             if (min > max) min = max;
+        }
+
+        /// <summary>
+        /// 玩家近战**判定形状**闸门（★ C3）。返回 null = 通过；否则返回可读的拒绝原因。
+        /// <para>
+        /// 三关：① **正面扇形**（±`FrontConeHalfAngleDeg`）② **以朝向为轴的矩形走廊**
+        /// （长 = `reach`，半宽 = `MeleeShape.MeleeHalfWidth`）③ **线段不得被不可走地形阻断**。
+        /// </para>
+        /// 形状口径只在 `MeleeShape` 里（⛔ 这儿不复制常量）；逐例判据 = `combatcheck` 第 18 节。
+        /// </summary>
+        // ⚠️ 2026-09-23 主 agent 修编译（C3 落卡时引入）：本文件既有 `using Diablo2.Def;` 又为
+        //    `Iso.DirectionDelta` 加了 `using CloverEngine;` ⇒ **两个命名空间都有 `Dir8`** ⇒ CS0104 歧义，
+        //    整棵树编不过（4 个并行片全部因它无法进 Play）。这里显式限定为**项目自己的** `Diablo2.Def.Dir8`
+        //    （`Iso.DirectionDelta` 签名要的也是它），语义零改动。
+        private static string ShapeGate(Diablo2.Def.Dir8 dir, Vector2Int from, Vector2Int to, float reach)
+        {
+            // 朝向 → 格增量：走引擎权威表 `Iso.DirectionDelta`（⛔ 不在 MeleeShape 里另写一份映射）
+            var dv = Iso.DirectionDelta(dir);
+            float fx, fy;
+            if (!MeleeShape.ToUnit(dv.x, dv.y, out fx, out fy))
+                return $"玩家朝向不可解（Dir={dir}）";
+
+            var dx = (float)(to.x - from.x);
+            var dy = (float)(to.y - from.y);
+            if (!MeleeShape.InFrontCone(fx, fy, dx, dy, MeleeShape.FrontConeCos))
+                return $"不在正面扇形内（锥半角 {MeleeShape.FrontConeHalfAngleDeg:0}°）";
+            if (!MeleeShape.InMeleeRect(fx, fy, dx, dy, reach, MeleeShape.MeleeHalfWidth))
+                return $"不在矩形走廊内（长 {reach:0.00} / 半宽 {MeleeShape.MeleeHalfWidth:0.00}）";
+            if (!MeleeShape.LineClear(WalkableProbe, from, to))
+                return "线段被不可走地形阻断（不许隔墙 / 隔水挥到）";
+            return null;
+        }
+
+        /// <summary>
+        /// 把 `IMapModule.Walkable` 适配成 `MeleeShape.LineClear` 需要的委托。
+        /// ⛔ 拿不到地图（未接入 / 未生成）⇒ 一律 true = **放行**（不把"没地图"变成"打不到"，由调用方留痕）。
+        /// </summary>
+        private static bool WalkableProbe(Vector2Int grid)
+        {
+            var map = AppContext.I != null ? AppContext.I.Map : null;
+            if (map == null || !map.IsGenerated) return true;
+            return map.Walkable(grid);
         }
 
         /// <summary>技能倍率（普通攻击 = 1；技能伤害走 `SkillModule` 自己的通道，不在此处）。</summary>
@@ -340,13 +403,31 @@ namespace Diablo2.Module.Combat
 
             var monsterGrid = new Vector2Int(state.gridX, state.gridY);
             var dist = Iso.GridDistanceEuclidean(player.Grid, monsterGrid);
-            var range = state.ai == MonsterAI.Range || state.ai == MonsterAI.Shaman
-                ? GameConst.RangedRange
+            // ★ C3（用户本轮：「**屏幕外都能打我？？？？？**」）：旧口径里远程/萨满用
+            //   `GameConst.RangedRange`(8 格) —— 8 格 = 16 世界单位，而**可见半宽只有
+            //   6 ×(16/9) ÷ 2.0 格/单位 = 5.33 格**（相机 ortho 6 / 一格 2.0×1.0 世界单位，
+            //   见 `GameConst.IsoTilePxW/HalfTilePxW` 与 `Editor/ProjectBuilder` 的主相机）
+            //   ⇒ 怪可以在**画面外**开枪（用户看到的正是这个）。
+            //   新口径：远程/萨满的出手距离再被 `MonsterTuning.RangedAttackMaxRange` 夹一次
+            //   （推导见该常量），近战不受影响（1.6 格 ≪ 屏幕）。
+            var ranged = state.ai == MonsterAI.Range || state.ai == MonsterAI.Shaman;
+            var range = ranged
+                ? Mathf.Min(GameConst.RangedRange, Diablo2.Module.Monster.MonsterTuning.RangedAttackMaxRange)
                 : GameConst.MeleeRange;
             if (dist > range)
             {
                 CombatLog.WarnThrottled("monatk.range",
                     $"RequestMonsterAttack: m#{monsterId}（{state.ai}）距离 {dist:0.00} > 射程 {range:0.00} ⇒ 本次攻击取消");
+                return;
+            }
+
+            // ★ C3：**线段不得被不可走地形阻断**（隔墙 / 隔水 / 跨河不许打到 —— 与玩家侧同一把尺子）。
+            //   形状函数唯一出处 = `Module/Combat/MeleeShape.LineClear`。
+            if (!MeleeShape.LineClear(WalkableProbe, monsterGrid, player.Grid))
+            {
+                CombatLog.WarnThrottled("monatk.blocked",
+                    $"RequestMonsterAttack: m#{monsterId}（{state.ai}）与玩家的线段被不可走地形阻断" +
+                    $"（距离 {dist:0.00} ≤ 射程 {range:0.00}）⇒ 本次攻击取消（不许隔墙打）");
                 return;
             }
 

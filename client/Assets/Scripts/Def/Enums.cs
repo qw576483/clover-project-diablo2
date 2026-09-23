@@ -111,6 +111,27 @@ namespace Diablo2.Def
         CaveWall = 9,    // 洞穴岩壁（不可走）
         Exit = 10,       // 场景出入口（**可走**，并带特殊语义）
         TownFloor = 11,  // 城镇地面（可走）
+
+        /// <summary>
+        /// 水（河 / 水塘 / 水域地面）—— **不可走**（原版不可涉水）。
+        /// <para>
+        /// ★ 片 L / 缺陷 **R12**：此前「水 = 石头 = 崖壁 = 碎石 = 杂物」全归 `Rock`
+        /// （`MapGenTown.KindOf('r')` / `MapGenWilderness.KindOf('X')`），于是「水」在
+        /// `TileKind` 层**没有语义**。本值把**城镇布局的 `'r'`**（= 原版 `Levels.txt` /
+        /// `LvlTypes.txt` 的水域地形）单独摘出来。
+        /// </para>
+        /// <para>
+        /// 出处：① `MapGenTownLayout.cs:28` 的地图键 —— `'r'` = **水（阻挡）**（生成物，
+        /// 源 `data/global/tiles/ACT1/TOWN/*.ds1`）；② 水格的 floor 键全是 `moor_river/*`
+        /// （`Tiles/moor_river` = `ACT1/OUTDOORS/river.dt1` 解出的**水瓦片**，
+        /// 见 `MapView.PaletteCycledFlatWallTiles` 的 R1-B 取证）；③ 原版水**不可涉水**
+        /// ⇒ 可走性必须保持 `false`（`TileKindInfo.IsWalkable`）。
+        /// </para>
+        /// <para>
+        /// ⚠️ 值取 **12**（追加在末尾）：既有值 0..11 一个都不动（改值会让存档 / 哈希漂移）。
+        /// </para>
+        /// </summary>
+        Water = 12,
     }
 
     /// <summary>
@@ -231,6 +252,9 @@ namespace Diablo2.Def
                 case TileKind.Fence:
                 case TileKind.Wall:
                 case TileKind.CaveWall:
+                // ★ 片 L / R12：水**显式登记为不可走**（原版不可涉水）。⛔ 不许让它掉到 default ——
+                //   default 只是"忘了登记"的兜底，不代表"水本来就该这么判"。
+                case TileKind.Water:
                     return false;
 
                 default:
@@ -245,8 +269,11 @@ namespace Diablo2.Def
         /// <summary>是否为地面层地形（渲染时画在 GroundLayer）。</summary>
         public static bool IsGroundLayer(TileKind kind)
         {
+            // ★ 片 L / R12：水是**地面层**（原版 `river.dt1` 的水面属于 floor 层；
+            //   城镇水格的 floor 键就是 `moor_river/*`）⇒ 归 ground，⛔ 不是物件（`MapView.IsObjectKind`）。
             return kind == TileKind.Grass || kind == TileKind.Dirt || kind == TileKind.Road
-                || kind == TileKind.CaveFloor || kind == TileKind.TownFloor || kind == TileKind.Exit;
+                || kind == TileKind.CaveFloor || kind == TileKind.TownFloor || kind == TileKind.Exit
+                || kind == TileKind.Water;
         }
     }
 }

@@ -16,15 +16,24 @@
 用法：
   python tools/d2codec/verify_d2ui_export.py <d2dc6 根> <工程 client 目录> [--only <组名逗号分隔>]
 
-退出码：0 = 全等；1 = 有不一致（逐条打印）。临时文件只落 `<项目根>/.ai-tmp/test/`，跑完即删。
+退出码：0 = 全等；1 = 有不一致（逐条打印）。
+
+临时文件只落 `<项目根>/.ai-tmp/test/verify_tmp/`，**原地复用、跑完不删**（2026-09-22 改）。
+为什么不再删：宿主有 **safe-delete 守门** —— 同一轮累计 > 500 次删除会被拦下并让脚本非 0 退出
+（实测 `[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":726,"threshold":500,"scope":"turn"}`；
+该坑记在 `原版资源/清单.md` §5.2 第 4 条，`tools/probes/mpq/extract_wanted.py` 坑 4 同因）。
+旧写法收尾 `shutil.rmtree(verify_tmp)` 一次要删 726 个文件 ⇒ 必然被拦 ⇒ 判据没红、退出码却非 0，
+把"内容全等"这件事搞成一个要看运气的信号。现在：
+  · B 条输出去 `<verify_tmp>/<组>/<stem>_<i>.png`，**名字是确定性的**，下轮同名覆盖
+    （`write_png_rgba` 走 `open(...,'wb')`，只截断、不 unlink）⇒ 目录大小有界、不增长；
+  · 图集抽样目录同样按 `<verify_tmp>/<stem>/` 定名复用（旧写法 `tempfile.mkdtemp` 随机名 ⇒ 每跑必留垃圾）；
+  · 残留物在 `.ai-tmp/test/` 内，属 SKILL 1.8 允许的一次性产物的位置，交给 `stray-temp-files` 看。
 """
 
 import hashlib
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -128,8 +137,10 @@ def check_atlas_png(rec, workdir):
         if bytes(got) != bytes(dc6.frame_rgba(f, rec["pal"])):
             bad.append("帧 %d（格 %d,%d）像素不一致" % (i, i % cols, i // cols))
 
-    tmp = tempfile.mkdtemp(prefix="d2chi_", dir=workdir)
+    # 定名复用，⛔ 不用 tempfile.mkdtemp（随机名 ⇒ 每跑留一个新目录，而删它又会撞 safe-delete 守门）
     stem = "chi" + os.path.basename(rec["src"]).lower().replace(".dc6", "")
+    tmp = os.path.join(workdir, stem)
+    os.makedirs(tmp, exist_ok=True)
     subprocess.check_call([sys.executable, os.path.join(HERE, "dc6.py"), "png",
                            rec["src"], rec["pl2"], tmp, stem], stdout=subprocess.DEVNULL)
     checked = 0
@@ -144,7 +155,7 @@ def check_atlas_png(rec, workdir):
         if _sha256(mine) != _sha256(os.path.join(tmp, "%s_%d.png" % (stem, i))):
             bad.append("帧 %d：图集格子 vs `dc6.py png` 复算 SHA256 不同" % i)
         checked += 1
-    shutil.rmtree(tmp, ignore_errors=True)
+    # ⛔ 不 rmtree(tmp)：见文件头「临时文件」段（safe-delete 守门 / 原地复用）
     return bad, checked, n
 
 
@@ -220,7 +231,13 @@ def main():
         print("  %-10s 图集 4 张 / 帧 %d（全帧内存比对）；`dc6.py png` 抽样复算 SHA256 比对 %d 帧"
               % ("chifont", groups["chifont"]["frames"], groups["chifont"]["cli"]))
 
-    shutil.rmtree(work, ignore_errors=True)
+    # ⛔ 不 rmtree(work)：那是一次 700+ 文件的批量删除，必被宿主 safe-delete 守门拦下
+    #    （实测 count=726 / threshold=500 / scope=turn），让"内容全等"变成非 0 退出。
+    #    目录按确定性文件名原地复用，大小有界；残留物留在 .ai-tmp/test/ 内。
+    n_files = 0
+    for _r, _d, _fs in os.walk(work):
+        n_files += len(_fs)
+    print("临时树 %s ：%d 个文件（原地复用，不删）" % (work, n_files))
     print("\n%s（用时 %.1fs）" % ("PASS：全部全等" if not fail else "FAIL：存在不一致", time.time() - t0))
     return fail
 

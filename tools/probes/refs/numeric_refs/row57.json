@@ -1,0 +1,72 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 57,
+  "spec_md_line": 1152,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "证据链·闸门",
+  "method": "验收表每条引用必须真在盘（不许纯正则）",
+  "criterion": "`tools/verify.ps1` 第 28 项 `coverage-acceptance` 实测",
+  "conclusion": "未修(缺陷)：闸门侧已修（真做 `Test-Path`），文献侧仍红  ｜类别：数值类",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {},
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/test/gateP_fullverify.txt": [
+        "FAIL=8"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/test/gateP_fullverify.txt",
+      "state": "on-disk",
+      "encoding": "utf-8-replace",
+      "bytes": 20230,
+      "sha256": "0967273f4b9f5e853e0aea8e410056f086cd4dfd413d3447e1259b77d5483867",
+      "mtime": "2026-09-23 08:37:35",
+      "lines": 188,
+      "ok_lines": 0,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "FAIL present -- nobody may say \"done\" while this is non-zero (SKILL 1.11)"
+      ],
+      "matched_lines_total": 1,
+      "checks_written": 3,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/test/gateP_fullverify.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "===== verify.ps1 =====",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/gateP_fullverify.txt",
+      "line": 186,
+      "selected_by": "snippet",
+      "text": "===== summary: FAIL=8  HUMAN-ONLY=3 =====",
+      "numbers": [
+        "8",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/gateP_fullverify.txt",
+      "line": 187,
+      "selected_by": "file-summary-tail",
+      "text": "FAIL present -- nobody may say \"done\" while this is non-zero (SKILL 1.11)",
+      "numbers": [
+        "1.11"
+      ]
+    }
+  ]
+}

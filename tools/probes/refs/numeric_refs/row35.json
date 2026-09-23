@@ -1,0 +1,200 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 35,
+  "spec_md_line": 130,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "魔法词缀",
+  "method": "官方前后缀表",
+  "criterion": "生成魔法物品，词缀名与效果对得上",
+  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row35.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {
+      ".ai-tmp/screenshots/w1_host_itemcheck.txt": [
+        1
+      ]
+    },
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_itemcheck.txt": [
+        "[离线] tools/probes/hosts/itemcheck",
+        "affix_c",
+        "Assets/StreamingAssets/Table/Affix.tsv",
+        "affix_c 行数 = 301",
+        "魔法物品词缀数 1~2",
+        "词缀等级 ≤ 物品等级",
+        "[ OK ]"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 18443,
+      "sha256": "3e1b34e05911c9f93e88f70b4922ba86fdaa44e435e872387307d2b357a35161",
+      "mtime": "2026-09-21 14:30:46",
+      "lines": 245,
+      "ok_lines": 134,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。"
+      ],
+      "matched_lines_total": 15,
+      "checks_written": 15,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 1,
+      "selected_by": "anchor",
+      "text": "=== ItemCheck：物品 / 任务 / NPC / 存档 离线自检 ===",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 3,
+      "selected_by": "snippet",
+      "text": "[ OK ] 配表已加载（TableLoader，与 Bootstrap 同链路）   (dir=C:\\Work\\Server\\f-v2\\clover-project-diablo2\\client\\Assets\\Scripts\\Table\\Tsv)",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 4,
+      "selected_by": "snippet",
+      "text": "[ OK ] item_c 行数 > 100   (item_c=137)",
+      "numbers": [
+        "100",
+        "137"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 5,
+      "selected_by": "snippet",
+      "text": "[ OK ] affix_c 行数 = 301（源表 302 行含表头）   (affix_c=301)",
+      "numbers": [
+        "301",
+        "302",
+        "301"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 6,
+      "selected_by": "snippet",
+      "text": "[ OK ] treasureclass_c 行数 = 58   (treasureclass_c=58)",
+      "numbers": [
+        "58",
+        "58"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 13,
+      "selected_by": "snippet",
+      "text": "[ OK ] ItemModule 已自动装配   (Diablo2.Module.Item.ItemModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 14,
+      "selected_by": "snippet",
+      "text": "[ OK ] QuestModule 已自动装配   (Diablo2.Module.Quest.QuestModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 15,
+      "selected_by": "snippet",
+      "text": "[ OK ] NpcModule 已自动装配   (Diablo2.Module.Npc.NpcModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 16,
+      "selected_by": "snippet",
+      "text": "[ OK ] SaveModule 已自动装配   (Diablo2.Module.Save.SaveModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 17,
+      "selected_by": "snippet",
+      "text": "[ OK ] 装备实现类型都是 internal sealed（可反射创建）   (模块装配：Flow=NULL Map=ok Player=ok Combat=NULL Monster=ok Skill=ok Item=ok Quest=ok Npc=ok Camera=NULL View=NULL Audio=NULL Save=ok)",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 20,
+      "selected_by": "snippet",
+      "text": "[ OK ] 魔法武器生成成功   (毒素抗性 5~10 斧 之 att-skill 5~3)",
+      "numbers": [
+        "5",
+        "10",
+        "5",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 21,
+      "selected_by": "snippet",
+      "text": "[ OK ] 魔法物品词缀数 1~2   (affixes=2)",
+      "numbers": [
+        "1",
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 22,
+      "selected_by": "snippet",
+      "text": "[ OK ] 词缀等级 ≤ 物品等级(12)   (affixLvl=[5,6] itemLevel=12)",
+      "numbers": [
+        "12",
+        "5",
+        "6",
+        "12"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 28,
+      "selected_by": "snippet",
+      "text": "[ OK ] 稀有防具词缀等级 ≤ 物品等级(12)   (affixLvl=[1,12,7] itemLevel=12)",
+      "numbers": [
+        "12",
+        "1",
+        "12",
+        "7",
+        "12"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_itemcheck.txt",
+      "line": 244,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。",
+      "numbers": []
+    }
+  ]
+}

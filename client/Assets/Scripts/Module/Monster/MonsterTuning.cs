@@ -133,6 +133,24 @@ namespace Diablo2.Module.Monster
         /// <summary>【本项目新增】（纯逻辑参数）：后撤时选点的搜索半径（格）。</summary>
         public const int BackOffSearchRadius = 3;
 
+        /// <summary>
+        /// 【例外 **E28**（新增一条）】**远程 / 萨满出手距离的上限（格）** —— 不得在画面外攻击。
+        /// <para>
+        /// 起因（用户本轮原话）：「**屏幕外都能打我？？？？？**」。
+        /// 旧口径 = `GameConst.RangedRange`(8 格)：8 格 = **16 世界单位**，而**可见半宽**
+        /// = 相机 ortho 尺寸 **6** ×(16/9 画幅) ÷ **2.0 世界单位/格**（`GameConst.IsoTilePxW` 128 ÷ `PixelsPerUnit` 64
+        /// ⇒ 一格宽 2.0、高 1.0）= **5.33 格** ⇒ 8 格一定在画面外。
+        /// </para>
+        /// <para>
+        /// 取 **5.0 格**：① 严格小于可见半宽 5.33（含相机跟随滞后 `CameraRig` 的余量）
+        /// ⇒ **出手时怪物一定在画面内**；② 仍是"远程"（远大于近战 1.6 格、且 &gt; `RangedKeepDistance`
+        /// 的计算区间）；③ 原版 `AiParms.txt`「Spike Fiend」`P1`（= 考虑发射飞弹的距离，`quillrat1` 的 `aip1 = 10`）
+        /// 的单位是 **world subtiles**，而 subtile → 格 的换算本项目**未确证**（同
+        /// <see cref="ShamanReviveRange"/> 的 E28 备注）⇒ ⛔ 不拿 `aip1` 当出处，登记 E28。
+        /// </para>
+        /// </summary>
+        public const float RangedAttackMaxRange = 5.0f;
+
         // ── 萨满复活同伴 ─────────────────────────────────────────────────────
         /// <summary>
         /// 复活冷却（秒）= 官方 `aidel` 15 帧 ÷ 25 fps = **0.6s**（官方萨满每个 AI 思考帧才判定一次

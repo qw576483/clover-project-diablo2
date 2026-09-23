@@ -810,13 +810,24 @@ namespace FullCheck
             }
             Console.WriteLine($"  [靶子] m#{mon.id} {mon.name}（列表里第一个 TC 可解析的存活怪）");
 
-            ctx.Player.TeleportTo(new Vector2Int(mon.gridX, mon.gridY));
+            // ★ C3（用户本轮「你是圆形判断的打击范围」）之后近战有**形状**闸门：
+            //   正面扇形 ±60° + 以朝向为轴的矩形走廊 + 线段不得被地形阻断；唯一出处
+            //   `Module/Combat/MeleeShape.cs`。该文件头写明「零距离（与攻击者同格）⇒ false」
+            //   ⇒ 旧驱动"把玩家落到怪同格"**不再是合法攻击姿态**（这不是缺陷，是形状口径的必然结果）。
+            //   改正：把玩家摆到**怪的正前方一格** —— 沿玩家当前朝向反推站位，使
+            //   `MonsterGrid == PlayerGrid + Iso.DirectionDelta(player.Dir)`（即怪正落在朝向轴上，
+            //   距离 1~√2 ≤ MeleeRange 1.6）。这正是真实玩法「点怪 → 走到怪身边 → 面向它出刀」的姿态；
+            //   断言本身（单次普攻必须掉血）一字未改。
+            var dv = Iso.DirectionDelta(ctx.Player.Dir);
+            ctx.Player.TeleportTo(new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y));
             var hp0 = mon.hp;
             var dmg0 = _bus.CountOf(Events.DamageDealt);
 
             ctx.Combat.RequestAttack(mon.id);
             Check("攻击请求已发出（当前目标 = 该怪）", ctx.Combat.CurrentTargetId == mon.id,
-                $"目标 m#{mon.id}（{mon.name}）距离 0（玩家已落到同格）");
+                $"目标 m#{mon.id}（{mon.name}）玩家格=({ctx.Player.Grid.x},{ctx.Player.Grid.y}) 朝向={ctx.Player.Dir} "
+                + $"偏移=({mon.gridX - ctx.Player.Grid.x},{mon.gridY - ctx.Player.Grid.y}) 距离 "
+                + $"{Iso.GridDistanceEuclidean(ctx.Player.Grid, new Vector2Int(mon.gridX, mon.gridY)):0.00} 格");
 
             Ticks(ctx, 12, 0.1f);
             Check("单次普攻产生伤害（DamageDealt 事件 + 目标掉血）",
@@ -1030,8 +1041,17 @@ namespace FullCheck
 
             var invBackup = ctx.Item.Snapshot();
             Game.Event.Emit(Events.UnequipRequest, ((int)ItemSlot.Weapon) & 0xFF);
-            Check("`Events.UnequipRequest` 转发到 `IItemModule.Unequip`（空槽 ⇒ 只 Warn 不崩）",
-                _log.Contains("卸下装备失败"), $"背包快照格数={invBackup.inventory.Count}");
+            // ⚠️ 2026-09-23 主 agent 落（片 `impl-gate-close` §⑥-2 定位 + 给出同一行修法）：
+            //   断言口径从「**空槽** ⇒ 只 Warn」改成「**转发链真的被调用**」—— 判**过程**不判结果（SKILL §4.10）。
+            //   为什么必须改（实测根因，不是"为了变绿"）：片 `impl-startequip` 按官方 `charstats.txt`
+            //   给**新角色加了起始装备**（item1=jav/item2=buc …）⇒ 本宿主里 Weapon 槽**非空**
+            //   ⇒ 这一次 `UnequipRequest` **真的卸下了**武器（同一份输出里紧邻的行是
+            //   `[Item] [StartItems] 起始装备已应用 … 装备槽 = 【Weapon:标枪×1, Shield:圆盾×1】`
+            //   与 `[Item] 卸下「标枪」（Weapon[0] → 背包格 6）`），**不再走**"空槽只 Warn"那条分支。
+            //   旧断言因此是**前提过期**（把好链路判成 FAIL），不是链路坏了。
+            //   两种合法结果都接受：槽非空 ⇒ 真卸下（`卸下「`）；槽为空 ⇒ 只 Warn 不崩（`卸下装备失败`）。
+            Check("`Events.UnequipRequest` 转发到 `IItemModule.Unequip`（槽非空 ⇒ 真卸下；空槽 ⇒ 只 Warn 不崩）",
+                _log.Contains("卸下装备失败") || _log.Contains("卸下「"), $"背包快照格数={invBackup.inventory.Count}");
 
             Check("`Events.MoveInInventoryRequest` 无契约能力 ⇒ 明确 Warn（不许假装成功）",
                 true, "见上方 [App] " + "D2.Item.MoveInInventoryRequest … 需主 agent 裁决");

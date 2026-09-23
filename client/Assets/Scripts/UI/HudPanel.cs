@@ -18,7 +18,8 @@
 //     Background(948×160, pivot(0.5,0), pos(0,-21.3))
 //     Lifebulb(108×108 @ -316.01,66.96)   Manabulb(108×108 @ 299.56,66.96)
 //     LeftSkill(33.495×35.12 @ -229.9,35.2, 文本 "Attack")  RightSkill(同尺寸 @ -192.2,35.5)
-//     ImageMinipanel(152×26 @ 0,60) + 7 子按钮(20×20, x=-63/-42/-21/0/21/42/63, y=0)
+//     ImageMinipanel(节点 152×26 @ 0,60 / **素材原生 173×26** —— 取后者，见 UiLayoutGame.MiniPanelSize)
+//     + 7 子按钮(20×20, x=-63/-42/-21/0/21/42/63, y=0)
 //     ExperienceBar(486.94×4.06 @ -8.9,7.77)    ExpBarOverlay(948×160 @ 0,59.1)
 //     ImageExpBarLeft(128×104 @ -90,3) 的子 Button(16×20 @ 18,18)  → 跑/走按钮
 //   腰带 4 格：原版 `ControlPanel.png` 底图上**已画出的格子**（实测 art x 中心 599.5/630.5/
@@ -37,6 +38,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
+using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
@@ -108,17 +110,34 @@ namespace Diablo2.UI
         public static readonly Vector2 MiniPanelArrowPos = UiLayoutGame.MiniPanelArrowPos;
 
         /// <summary>
-        /// 展开/收起小面板的箭头贴图（原版 `PANEL/menubutton__0__0..3.png`，15×24，逐帧文件）：
+        /// 展开/收起小面板的箭头贴图（原版 `PANEL/menubutton.DC6` 帧 0..3，15×24，逐帧文件）：
         /// `[0]` 上箭头常态、`[1]` 上箭头按下、`[2]` 下箭头常态、`[3]` 下箭头按下。
-        /// 路径来源 = `Core/ResPaths.cs`（唯一来源），帧序 = `AssetImporter` 的单帧 PNG 顺序。
+        /// <para>
+        /// ★ 本轮（w3 游戏内 UI 审计）**换数据源**：原版这张图在工程里有**两套导出**
+        /// （素材双份，见审计 TSV 的「双套素材」节）——
+        ///   · `menubutton_{0..3}.png` = 本项目 `tools/d2codec/export_d2ui.py` 从原版
+        ///     `data/global/ui/PANEL/menubutton.DC6` 直接解出（**索引 0 = 透明**，即 D2 的口径）；
+        ///   · `menubutton__0__{0..3}.png` = 社区复刻工程 `Diablerie/Assets/Images/ControlPanel/`
+        ///     的同名副本 —— 实测**同画面**，但把原版的透明像素写成了**不透明黑 (0,0,0,255)**
+        ///     （每帧 **38 个像素**，逐像素比对见
+        ///      `python tools/probes/measure/scan_uigame.py --pairs`）。
+        /// 旧代码走的是副本 ⇒ 箭头周围会带一圈**黑点**（原版那里是透出大理石底）。
+        /// 现走 DC6 导出那一套（同画面、alpha 正确），尺寸/帧序/位置**一个都没动**。
+        /// </para>
+        /// <para>★ w4 已收口：`ResPaths.PanelArrowUp/Down*` 四个常量已改指 `menubutton_{0..3}`
+        /// 且 4 个副本文件已从磁盘删除（`Core/ResPaths.cs`）。本文件仍不直接经它们取图；
+        /// 路径以 `ResPaths.D2UiPanel` 为唯一前缀来源，**帧名唯一来源 = `UiArt.ArrowFrame`**
+        /// （本节与人物属性面板的加点箭头共用它）—— 两处同值，`uicheck` ㉑ 节断言磁盘存在。</para>
         /// </summary>
         public static readonly string[] MiniPanelArrowFrames =
         {
-            ResPaths.PanelArrowUp, ResPaths.PanelArrowUpPressed,
-            ResPaths.PanelArrowDown, ResPaths.PanelArrowDownPressed,
+            UiArt.ArrowFrame(0), UiArt.ArrowFrame(1), UiArt.ArrowFrame(2), UiArt.ArrowFrame(3),
         };
 
-        /// <summary>小面板底图尺寸（原版 152×26 → ×1.8 = 273.6×46.8）。</summary>
+        /// <summary>
+        /// 小面板底图尺寸（**原版素材原生 173×26** → ×1.8 = 311.4×46.8；不是 prefab 的 152×26 ——
+        /// 理由/出处逐条见 `UiLayoutGame.MiniPanelSize`）。
+        /// </summary>
         public static readonly Vector2 MiniPanelSize = UiLayoutGame.MiniPanelSize;
 
         /// <summary>小面板底图中心 y（原版 pos(0,60) → 贴底抬升后 y = −393.66）。</summary>
@@ -172,8 +191,28 @@ namespace Diablo2.UI
         private readonly Image[] _beltCells = new Image[GameConst.BeltSlots];
         private readonly Image[] _beltIcons = new Image[GameConst.BeltSlots];
 
-        /// <summary>6 格技能栏的图标层（原版 `SkillPanel`；技能系统接线后才贴图，见 `BuildSkillBar`）。</summary>
+        /// <summary>
+        /// 6 格技能栏的图标层（原版 `SkillPanel`）。
+        /// <para>★ impl-I-input（审计 R4）：本层现在由 `OnSkillTreeChanged` 按**已学技能顺序**
+        /// 贴上真实技能图标（改动前恒空 + 点击只打「未接线」日志）。</para>
+        /// </summary>
         private readonly Image[] _skillBarIcons = new Image[SkillBarSlots];
+
+        /// <summary>
+        /// 左右键技能格的图标层（★ impl-I-input，审计 R1/R4）：由 `OnSkillButtonsChanged`
+        /// 换成当前绑定的技能图标；未绑（-1）时回退普通攻击图标（原版左右键默认都是 Attack）。
+        /// </summary>
+        private Image _leftSkillIcon;
+        private Image _rightSkillIcon;
+
+        /// <summary>地面物品名牌层（★ impl-I-input，审计 R5；见 `UI/GroundItemLabelView.cs`）。</summary>
+        private GroundItemLabelView _groundLabels;
+
+        /// <summary>最近一次收到的左右键技能格绑定快照（自证/断言用）。</summary>
+        internal SkillButtonsArgs SkillButtons { get; private set; }
+
+        /// <summary>最近一次收到的地面物品名牌载荷（自证/断言用）。</summary>
+        internal GroundItemLabelsArgs GroundItemLabels { get; private set; }
 
         /// <summary>小面板开关箭头（原版 `ImageExpBarRight` 的子 Button，本项目按其底图空档放置）。</summary>
         private Image _miniToggle;
@@ -185,7 +224,7 @@ namespace Diablo2.UI
         private Image _miniPanelBg;
 
         /// <summary>小面板 7 个按钮（展开/收起时一起显隐）。</summary>
-        private readonly Transform[] _miniButtons = new Transform[7];
+        private readonly Transform[] _miniButtons = new Transform[UiLayoutGame.MiniButtonCount];
 
         /// <summary>小面板是否展开（原版靠箭头按钮 `ShowNavigationalBar` 切换；原版默认**收起**）。</summary>
         private bool _miniOpen;
@@ -265,6 +304,8 @@ namespace Diablo2.UI
             UiBar.Forget(_lifeFill);
             UiBar.Forget(_manaFill);
             UiBar.Forget(_expFill);
+            _groundLabels?.Destroy();       // ★ impl-I-input：名牌层随 HUD 一起拆（节点不跨局残留）
+            _groundLabels = null;
             UiLog.Info("HUD 已关闭");
         }
 
@@ -365,12 +406,21 @@ namespace Diablo2.UI
             // 原版 `HealthLabel`/`ManaLabel`：**球内**子节点、铺满球宽、高 8px、y 偏 +4、居中；
             // 文本格式照原版自己的写法「Life: 123/123」（见 ControlPanel.prefab 的 m_Text）。
             // 挂在球容器**之内**、且在填充/高光之后 ⇒ 数字画在球的最上层（与 prefab 子节点顺序一致）。
+            //
+            // ★ 片 font-scale（用户报「文字太小」的第 2 层根因；V6 报告 §4-② 的 6 处之一）：
+            //   原来这两条**没给 fontSize**（默认 0 = 按原版 px 1:1 画 ⇒ chi 格只有 ~16 画布px，
+            //   是本画布应有字号的 16/28.8 ≈ 55%）⇒ 球内数字明显偏小。
+            //   字号**唯一出处** = `UiLayoutGame.FontPx16`（原版行距 16 × K 1.8 = **28.8**，取整 28；
+            //   见 `UiLayoutGame` 的「全 UI 字号唯一出处」一节）；⛔ 本文件不另写字号字面量。
+            //   判据：`uicheck` 的 FontScaleCheck（本处 9th 实参 = `(int)UiLayoutGame.FontPx16`）。
             _lifeText = D2Label.Create(lifeHolder, "LifeText", "Life: 0/0", D2Text.D2Font.Font16,
                 TextAnchor.MiddleCenter, new Color(0.98f, 0.93f, 0.90f, 1f),
-                UiLayoutGame.OrbLabelSize, new Vector2(0f, UiLayoutGame.OrbLabelOffsetY));
+                UiLayoutGame.OrbLabelSize, new Vector2(0f, UiLayoutGame.OrbLabelOffsetY),
+                (int)UiLayoutGame.FontPx16);
             _manaText = D2Label.Create(manaHolder, "ManaText", "Mana: 0/0", D2Text.D2Font.Font16,
                 TextAnchor.MiddleCenter, new Color(0.86f, 0.91f, 0.99f, 1f),
-                UiLayoutGame.OrbLabelSize, new Vector2(0f, UiLayoutGame.OrbLabelOffsetY));
+                UiLayoutGame.OrbLabelSize, new Vector2(0f, UiLayoutGame.OrbLabelOffsetY),
+                (int)UiLayoutGame.FontPx16);
 
             if (_lifeText == null || _manaText == null)
                 UiLog.WarnOnce("hud.orblabel", "球内数字标签未建出来（D2Label.Create 返回 null）⇒ 球上没有数字");
@@ -439,8 +489,45 @@ namespace Diablo2.UI
         {
             // 原版 `ControlPanel.prefab` 的 `LeftSkill`/`RightSkill` 各有一个子标签，**文本就是 "L" / "R"**
             // （实测 prefab 的 m_Text: 'L' 与 m_Text: R）——不是"Attack"，上一轮写成 L/R 是对的。
-            BuildSkillSlot("LeftSkill", LeftSkillPos, "L", ResPaths.SkillIconAttack);
-            BuildSkillSlot("RightSkill", RightSkillPos, "R", ResPaths.SkillIconAttack);
+            // ★ impl-I-input：两格的 Image 要留着 ⇒ 收到 `Events.SkillButtonsChanged` 时换图标。
+            _leftSkillIcon = BuildSkillSlot("LeftSkill", LeftSkillPos, "L", ResPaths.SkillIconAttack);
+            _rightSkillIcon = BuildSkillSlot("RightSkill", RightSkillPos, "R", ResPaths.SkillIconAttack);
+        }
+
+        /// <summary>
+        /// 左右键技能格换图标（原版：两个技能格显示**当前绑定的技能**的图标；未绑 = 普通攻击图标）。
+        /// 收方 = `Events.SkillButtonsChanged`（★ impl-I-input，审计 R4）。
+        /// </summary>
+        private void ApplySkillButtons(SkillButtonsArgs args)
+        {
+            SkillButtons = args;
+            if (args == null) return;
+
+            ApplySkillSlotIcon(_leftSkillIcon, args.leftId);
+            ApplySkillSlotIcon(_rightSkillIcon, args.rightId);
+
+            UiLog.Info($"[HUD] 左右键技能格已更新：左={args.leftName}({args.leftId}) 右={args.rightName}({args.rightId})"
+                + "（图标来自原版 skill 图标表；两格无文字位置，故原版亦只用图标表达）");
+        }
+
+        /// <summary>把某技能格的图标换成该技能的图标；id &lt; 0（或取不到图标）⇒ 回退普通攻击图标。</summary>
+        private static void ApplySkillSlotIcon(Image slot, int skillId)
+        {
+            if (slot == null) return;
+
+            var path = skillId >= 0 ? D2Icon.SkillIconPath(skillId, false) : null;
+            if (string.IsNullOrEmpty(path))
+            {
+                // 非预期但可解释：未绑定（-1）或该技能取不到原版图标 ⇒ 回退普通攻击图标（原版默认值）
+                if (skillId >= 0)
+                {
+                    UiLog.WarnOnce("hud.skillicon." + skillId,
+                        $"技能 #{skillId} 取不到原版图标（配表缺行 / 资源缺）⇒ 技能格回退普通攻击图标");
+                }
+                path = ResPaths.SkillIconAttack;
+            }
+
+            UiArt.SetSprite(slot, path);
         }
 
         /// <summary>
@@ -454,8 +541,9 @@ namespace Diablo2.UI
         /// 与本项目 `Def/GameKeyAlias.cs` 的 `KeySkillSlot1..6` 同口径）。
         /// </para>
         /// <para>
-        /// ⚠️ 「哪一格装哪个技能」由技能系统（未接线）决定 ⇒ 本轮**图标层留空**（1 级未学技能，原版也是空的），
-        /// 点击只打日志 + Toast，不发任何事件（**不许臆造消息/事件名**）。
+        /// ★ impl-I-input（审计 R4）：「哪一格装哪个技能」= **已学技能顺序**的第 i 个（`OnSkillTreeChanged`
+        /// 按 `Def.SkillTreeArgs.skills` + `learnedLevels` 贴图标）；点击第 i 格 = 按 `F(i+1)`，
+        /// 发 `Events.SkillSlotAssignRequest`（发给技能模块去绑左右键技能格）。
         /// </para>
         /// </summary>
         private void BuildSkillBar()
@@ -475,8 +563,10 @@ namespace Diablo2.UI
                 button.targetGraphic = slot;
                 button.onClick.AddListener(() =>
                 {
-                    UiLog.Info($"技能栏第 {index + 1} 格（F{index + 1}）被点击 ⇒ 技能栏选中链路未接线，只打日志");
-                    Game.UI.Toast($"技能栏 {index + 1}（F{index + 1}）未接线");
+                    // ★ impl-I-input：点第 i 格 = 按 F(i+1)（原版口径：技能栏格与 F 键同源）
+                    UiLog.Info($"技能栏第 {index + 1} 格（F{index + 1}）被点击 ⇒ 发 {Events.SkillSlotAssignRequest}"
+                        + $"（槽号 {index + 1}）");
+                    Game.Event.Emit(Events.SkillSlotAssignRequest, index + 1);
                 });
 
                 AddHotkeyLabel(slot.transform, "F" + (i + 1), "SkillBar" + i);
@@ -487,20 +577,24 @@ namespace Diablo2.UI
         /// 技能格 = 图标层（原版节点自己的 Image）+ 热键标签（原版 `SkillSlot.prefab` 的 `HotkeyLabel`：
         /// 相对格子铺满、sizeDelta(−2,3)、偏移 (2,3)、pivot 左上）。
         /// </summary>
-        private void BuildSkillSlot(string name, Vector2 pos, string hotkey, string iconPath)
+        private Image BuildSkillSlot(string name, Vector2 pos, string hotkey, string iconPath)
         {
             var slot = UiArt.Panel(transform, name, SkillSlotSize, pos, Color.white, true);
             UiArt.SetSprite(slot, iconPath);
             AddHotkeyLabel(slot.transform, hotkey, name);
+            return slot;
         }
 
         /// <summary>给技能格加原版样式的热键标签（左上角、暖黄色）。</summary>
         private static void AddHotkeyLabel(Transform slot, string hotkey, string owner)
         {
+            // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 热键字只有应有的 ~55%）。
+            //   字号唯一出处 = `UiLayoutGame.FontPx16`。
             var label = D2Label.Create(slot, "HotkeyLabel", hotkey, D2Text.D2Font.Font16,
                 TextAnchor.UpperLeft, new Color(1f, 0.92f, 0.70f, 1f),
                 SkillSlotSize + UiLayoutGame.SkillLabelSizeDelta,
-                UiLayoutGame.SkillLabelPos - UiLayoutGame.SkillLabelSizeDelta * 0.5f);
+                UiLayoutGame.SkillLabelPos - UiLayoutGame.SkillLabelSizeDelta * 0.5f,
+                (int)UiLayoutGame.FontPx16);
             ApplyPrefabLabelRect(label);
             if (label == null) UiLog.WarnOnce("hud.slot.hotkey." + owner, $"{owner} 的热键标签未建出来");
         }
@@ -546,8 +640,10 @@ namespace Diablo2.UI
 
                 _beltCells[i] = cell;
                 _beltIcons[i] = icon;
+                // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 腰带数量只有应有的 ~55%）。
                 _beltTexts[i] = D2Label.Create(cell.transform, "Count", string.Empty, D2Text.D2Font.Font16,
-                    TextAnchor.LowerRight, new Color(1f, 0.92f, 0.70f, 1f), size, Vector2.zero);
+                    TextAnchor.LowerRight, new Color(1f, 0.92f, 0.70f, 1f), size, Vector2.zero,
+                    (int)UiLayoutGame.FontPx16);
             }
         }
 
@@ -558,24 +654,31 @@ namespace Diablo2.UI
                 Color.white, false);
             UiArt.SetSprite(_miniPanelBg, ResPaths.D2UiPanel + "minipanel");
 
-            // 原版帧序（`ControlPanel.prefab` 实测）：Char=0 / Inventory=2 / Skilltree=4 /
-            // Automap=8 / MessageLog=10 / QuestLog=12 / Menu=14
-            AddMiniButton(0, 0, nameof(CharacterPanel), "人物属性（C）");
-            AddMiniButton(1, 2, nameof(InventoryPanel), "背包（I）");
-            AddMiniButton(2, 4, nameof(SkillTreePanel), "技能树（T）");
-            AddMiniButton(3, 8, nameof(MiniMapPanel), "自动地图（Tab）");
-            AddMiniButton(4, 10, null, "消息记录（原版有此屏，本项目未实装）");
-            AddMiniButton(5, 12, nameof(QuestLogPanel), "任务日志（Q）");
-            AddMiniButton(6, 14, PanelNamePause, "游戏菜单（Esc）");
+            // ★★ U3 更正（用户 2026-09-23 报「下面的栏 100% 不是原版」「找不到入口只能按 c」）：
+            //   ① **按钮数 7 → 8**（依据见 `UiLayoutGame.MiniButtonCount`：`minipanelbtn.DC6` 16 帧
+            //      = 8 对 + `string.tbl` 的 8 条 `minipanel*` tooltip）。原版那一排（按原版 tooltip 名）
+            //      = 人物 / 物品 / 技能樹 / 隊伍畫面 / 自動地圖 / 訊息記錄 / 任務記錄 / 遊戲選單。
+            //   ② **默认展开**。上一轮按 Diablerie `ControlPanel.prefab` 的 `ImageMinipanel m_IsActive=0`
+            //      默认收起，并且把唯一的开合箭头也 `SetActive(false)` ⇒ **鼠标入口 0 个**（只剩键盘），
+            //      用户报的「找不到入口」即此。原版控制面板上这一排**就在画面里**（`string.tbl` 的
+            //      `StrHelp17迷你面板（開啟人物的物品欄，以及其他畫面）` 是它的 tooltip）⇒ 默认展开。
+            //   帧对（每钮 = 常态 `2i` / 按下 `2i+1`，见 `AddMiniButton` 下的 `ApplyMiniButtonPressFrame`）：
+            //      i=0 人物 2/3 · i=1 物品 4/5 · i=2 技能樹 6/7 · i=3 隊伍畫面 8/9 ·
+            //      i=4 自動地圖 10/11 · i=5 訊息記錄 12/13 · i=6 任務記錄 14/15 · i=7 遊戲選單 16/17
+            //      ⚠️ `ControlPanel.prefab` 记的是 0/2/4/8/10/12/14（跳过 6）—— 那是"漏了第 4 个按钮"
+            //      之后**把后面的整体前移一档**得到的错序；本表按 DC6 帧对的自然顺序重排。
+            AddMiniButton(0, 0, nameof(CharacterPanel), "人物（C）");
+            AddMiniButton(1, 2, nameof(InventoryPanel), "物品（I）");
+            AddMiniButton(2, 4, nameof(SkillTreePanel), "技能樹（T）");
+            AddMiniButton(3, 6, null, "隊伍畫面（原版有此屏，本项目未实装）");
+            AddMiniButton(4, 8, nameof(MiniMapPanel), "自動地圖（Tab）");
+            AddMiniButton(5, 10, null, "訊息記錄（原版有此屏，本项目未实装）");
+            AddMiniButton(6, 12, nameof(QuestLogPanel), "任務記錄（Q）");
+            AddMiniButton(7, 14, PanelNamePause, "遊戲選單（Esc）");
 
-            // ★ 1:1 轮：**默认收起**（原版 `ControlPanel.prefab` 的 `ImageMinipanel` 就是 `m_IsActive=0`）。
-            //   上一轮为"入口可达"默认展开 ⇒ 7 个按钮 + 底板正好盖在**技能栏 6 格**上（两者 art y 带
-            //   完全重合：minipanel 47..73 = 格带 47..73），Play 截图里表现为"HUD 上多出一排压在
-            //   技能格上的按钮" —— 这正是用户说的「hud 和原版布局完全不一样」。
-            //   入口可达由**键盘**（I/C/T/Q/Tab/Esc，见 `OnUpdate`）+ 控制面板箭头按钮保证，与原版一致。
-            SetMiniPanelOpen(false);
-            UiLog.Info("小面板：默认收起（= 原版 `ImageMinipanel` 的 m_IsActive=0）；"
-                       + "控制面板上的箭头按钮展开/收起，键盘 I/C/T/Q/Tab/Esc 同样可达各面板");
+            SetMiniPanelOpen(true);
+            UiLog.Info($"迷你面板：默认**展开**（8 键，原版 `minipanelbtn.DC6` 的 8 对帧对齐）；"
+                       + $"键盘 I/C/T/Q/Tab/Esc 同样可达（本次修复：此前 7 键且默认隐藏 ⇒ 鼠标无入口）");
         }
 
         /// <summary>小面板「菜单」按钮的目标：暂停请求（不是面板名，走 `Events.PauseRequest`）。</summary>
@@ -655,8 +758,8 @@ namespace Diablo2.UI
             var size = new Vector2(MiniButtonSize, MiniButtonSize);
             var pos = new Vector2(MiniButtonX[slot], MiniPanelY);
             var img = UiArt.Panel(transform, "MiniBtn" + slot, size, pos, Color.white, true);
-            // 原版两张帧（常态 __NN / 按下 __NN+1，见 ControlPanel.prefab 的 m_SpriteState）
-            UiArt.SetSprite(img, ResPaths.D2UiPanel + "minipanelbtn__00__" + frame.ToString("00"));
+            // 原版两张帧（常态 NN / 按下 NN+1，见 ControlPanel.prefab 的 m_SpriteState）
+            UiArt.SetSprite(img, UiArt.MiniPanelBtnFrame(frame));
             _miniButtons[slot] = img.transform;
 
             var button = img.gameObject.AddComponent<Button>();
@@ -682,14 +785,14 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 按下帧：原版 7 个按钮的 `m_SpriteState.m_PressedSprite` 就是同一张图的**下一帧**
-        /// （__00→按下 __01、__02→__03、…、__14→__15，见 `ControlPanel.prefab`）。
+        /// （0→按下 1、2→3、…、14→15，见 `ControlPanel.prefab`）。
         /// </summary>
         private static void ApplyMiniButtonPressFrame(Image img, int frame)
         {
             var button = img.GetComponent<Button>();
             if (button == null) return;
 
-            var pressedPath = ResPaths.D2UiPanel + "minipanelbtn__00__" + (frame + 1).ToString("00");
+            var pressedPath = UiArt.MiniPanelBtnFrame(frame + 1);
             Game.Res.LoadAsset<Sprite>(pressedPath, sp =>
             {
                 if (img == null || button == null) return;
@@ -723,11 +826,14 @@ namespace Diablo2.UI
             });
         }
 
+        /// <summary>
+        /// 跑/走按钮的常态帧（帧名 = `UiArt.RunButtonRunFrame` / `UiArt.RunButtonWalkFrame`；
+        /// 为什么取第 2 帧 / 第 0 帧、以及为什么不用 `Diablerie` 副本，见 `UI/UiArt.cs` 的
+        /// 「原版小图标帧」一节）。
+        /// </summary>
         private void ApplyRunButton()
         {
-            UiArt.SetSprite(_runButton, ResPaths.D2UiPanel + (_running
-                ? "runbutton_run_NotPressed"
-                : "runbutton_walk_NotPressed"));
+            UiArt.SetSprite(_runButton, _running ? UiArt.RunButtonRunFrame : UiArt.RunButtonWalkFrame);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -823,6 +929,9 @@ namespace Diablo2.UI
             Game.Event.On<NpcDialogArgs>(Events.DialogOpen, OnDialogOpen);
             Game.Event.On<ShopOpenArgs>(Events.ShopOpen, OnShopOpen);
             Game.Event.On(Events.PlayerDied, OnPlayerDied);
+            // ★ impl-I-input（审计 R1/R4/R5）：左右键技能格绑定快照 + 地面物品名牌（都是 Def 载荷）
+            Game.Event.On<SkillButtonsArgs>(Events.SkillButtonsChanged, OnSkillButtonsChanged);
+            Game.Event.On<GroundItemLabelsArgs>(Events.GroundItemLabelsChanged, OnGroundItemLabels);
         }
 
         private void Unsubscribe()
@@ -845,6 +954,8 @@ namespace Diablo2.UI
             Game.Event.Off<NpcDialogArgs>(Events.DialogOpen, OnDialogOpen);
             Game.Event.Off<ShopOpenArgs>(Events.ShopOpen, OnShopOpen);
             Game.Event.Off(Events.PlayerDied, OnPlayerDied);
+            Game.Event.Off<SkillButtonsArgs>(Events.SkillButtonsChanged, OnSkillButtonsChanged);
+            Game.Event.Off<GroundItemLabelsArgs>(Events.GroundItemLabelsChanged, OnGroundItemLabels);
         }
 
         private void OnStageEntered()
@@ -929,6 +1040,93 @@ namespace Diablo2.UI
                 return;
             }
             _tree = args;
+            ApplySkillBarIcons(args);      // ★ impl-I-input（审计 R4）：技能栏 6 格贴"已学技能"的图标
+        }
+
+        /// <summary>
+        /// 技能栏 6 格贴图（★ impl-I-input，审计 R4）：第 i 格 = 本职业**已学技能顺序**的第 i 个
+        /// （顺序 = `Def.SkillTreeArgs.skills` 的顺序 = 技能树 tree→reqLevel→id）。
+        /// 已学数不足 6 ⇒ 多出来的格保持空（原版 1 级时技能栏也是空的）。
+        /// </summary>
+        private void ApplySkillBarIcons(SkillTreeArgs tree)
+        {
+            if (tree == null || tree.skills == null) return;
+
+            var learned = new List<int>();
+            for (var i = 0; i < tree.skills.Count; i++)
+            {
+                var def = tree.skills[i];
+                if (def == null) continue;
+                var lv = i < tree.learnedLevels.Count ? tree.learnedLevels[i] : 0;
+                if (lv <= 0) continue;
+                learned.Add(def.id);
+            }
+
+            for (var i = 0; i < _skillBarIcons.Length; i++)
+            {
+                var icon = _skillBarIcons[i];
+                if (icon == null) continue;
+
+                if (i >= learned.Count)
+                {
+                    icon.gameObject.SetActive(false);
+                    continue;
+                }
+
+                var path = D2Icon.SkillIconPath(learned[i], false);
+                if (string.IsNullOrEmpty(path))
+                {
+                    // 非预期分支：已学但取不到原版图标（配表缺行 / 资源缺）⇒ 该格留空
+                    UiLog.WarnOnce("hud.baricon." + learned[i],
+                        $"技能栏 {i + 1} 格：技能 #{learned[i]} 已学但取不到原版图标 ⇒ 该格留空");
+                    icon.gameObject.SetActive(false);
+                    continue;
+                }
+
+                UiArt.SetSprite(icon, path);
+                icon.gameObject.SetActive(true);
+            }
+
+            UiLog.Info($"[HUD] 技能栏按已学技能刷新：已学 {learned.Count} 个 ⇒ " +
+                       $"{Mathf.Min(learned.Count, _skillBarIcons.Length)} 格有图标（F1~F6 = 技能栏 1~6 格）");
+        }
+
+        /// <summary>
+        /// 左右键技能格图标刷新（`Events.SkillButtonsChanged` 的收方；★ impl-I-input，审计 R4）。
+        /// </summary>
+        private void OnSkillButtonsChanged(SkillButtonsArgs args)
+        {
+            ApplySkillButtons(args);
+        }
+
+        /// <summary>
+        /// 地面物品名牌（`Events.GroundItemLabelsChanged` 的收方；★ impl-I-input，审计 R5）。
+        /// 名牌层**按需创建**（第一次收到非空载荷时建），避免"没人开道具时白建一层节点"。
+        /// </summary>
+        private void OnGroundItemLabels(GroundItemLabelsArgs args)
+        {
+            GroundItemLabels = args;
+
+            if (args == null || args.labels == null || args.labels.Count == 0)
+            {
+                _groundLabels?.Clear();
+                return;
+            }
+
+            if (_groundLabels == null)
+            {
+                // `Root`（`UIPanel` 的根 GameObject）优先；拿不到就退回本组件的 transform。
+                var parent = Root != null ? Root.GetComponent<RectTransform>() : transform as RectTransform;
+                if (parent == null)
+                {
+                    UiLog.WarnOnce("groundlabel.noroot", "HUD 根节点不是 RectTransform ⇒ 地面物品名牌层无法创建");
+                    return;
+                }
+                _groundLabels = new GroundItemLabelView(parent);
+                UiLog.Info("[HUD] 地面物品名牌层已创建（挂在 HUD 下，随 HUD 生命周期）");
+            }
+
+            _groundLabels.Apply(args);
         }
 
         /// <summary>缓存任务快照：打开任务日志时带上它，避免刚打开是空面板。</summary>

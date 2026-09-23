@@ -414,6 +414,20 @@ namespace CombatCheck
 
         public void Heal(int amount) { Life = Math.Min(MaxLife, Life + amount); }
         public void RestoreMana(int amount) { Mana = Math.Max(0, Math.Min(MaxMana, Mana + amount)); }
+
+        /// <summary>
+        /// ★ w7 契约新增（`IPlayerModule.TrySpendMana`）的替身实现：与真实 `PlayerModule` **同语义** ——
+        /// 成功扣减返回 true；`amount ≤ 0` 或法力不足返回 false 且**不扣**。
+        /// （此前 SkillModule 用 `RestoreMana(-cost)` 扣蓝，本替身对负数**放行** ⇒ 离线断言"扣蓝生效"
+        ///  通过、而实机真实实现把负数钳掉 ⇒ 这个替身与真实实现的语义差正是本项目漏掉该 bug 的原因。）
+        /// </summary>
+        public bool TrySpendMana(int amount)
+        {
+            if (amount <= 0 || Mana < amount) return false;
+            Mana -= amount;
+            return true;
+        }
+
         public void RestoreStamina(int amount) { Stamina = Math.Max(0, Math.Min(MaxStamina, Stamina + amount)); }
 
         public void AddExp(int amount)
@@ -511,9 +525,15 @@ namespace CombatCheck
         public readonly List<string> DropLootCalls = new List<string>();
         public readonly List<Vector2Int> DropGrids = new List<Vector2Int>();
 
+        /// <summary>
+        /// ★ 片 N：本宿主用 —— 让断言能摆出「徒手 vs 装备武器」两组
+        /// （`CombatModule.GetWeaponDamage` 读的就是它）。默认空 = 徒手。
+        /// </summary>
+        public readonly List<ItemStack> EquipmentOverride = new List<ItemStack>();
+
         public int Gold => 100;
         public IReadOnlyList<InventorySlot> Inventory => new List<InventorySlot>();
-        public IReadOnlyList<ItemStack> Equipment => new List<ItemStack>();
+        public IReadOnlyList<ItemStack> Equipment => EquipmentOverride;
         public IReadOnlyList<ItemStack> Belt => new List<ItemStack>();
         public IReadOnlyList<KeyValuePair<int, ItemStack>> GroundItems => new List<KeyValuePair<int, ItemStack>>();
         public bool IsFull => false;
@@ -532,6 +552,13 @@ namespace CombatCheck
         public bool Pickup(int groundItemId) => false;
         public bool PickupNearest(Vector2Int grid, float maxRange) => false;
         public bool AddToInventory(ItemStack item) => false;
+        /// <summary>换格（契约成员 `IItemModule.MoveItem`，2026-09-23 新增）。
+        /// 本宿主只判战斗链路 ⇒ 替身不动格子、给可定位拒绝原因（不返回"成功"以免掩盖调用方假设）。</summary>
+        public bool MoveItem(int fromAnchor, int toAnchor, out string failReason)
+        {
+            failReason = $"RecordingItem 替身不支持换格（from={fromAnchor} to={toAnchor}）";
+            return false;
+        }
         public bool RemoveFromInventory(int anchorIndex) => false;
         public bool EquipFromInventory(int anchorIndex) => false;
         public bool Unequip(ItemSlot slot, int slotIndex) => false;

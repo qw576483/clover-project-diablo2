@@ -114,8 +114,47 @@ namespace Diablo2.Module
         /// <summary>每格滚轮改变的正交尺寸。</summary>
         public const float ZoomStepPerNotch = 0.5f;
 
-        /// <summary>跟随平滑时间常数（秒）：`1 - exp(-dt/tau)` 的指数平滑（与引擎 `ThirdPersonCamera` 同风格）。</summary>
-        public const float FollowSmoothTime = 0.12f;
+        /// <summary>
+        /// 跟随阻尼时间常数（秒）—— **临界阻尼**（`CloverEngine.CameraMath.SmoothDamp`，带速度状态）。
+        ///
+        /// <para>★ 本片（用户：「镜头移动的很抖，不平滑」）从 **0.12 改到 0.02**，换掉原「纯指数滞后」。
+        /// 为什么是 0.02，两条都要写清（⛔ 不许写"看起来合理"）：</para>
+        /// <list type="number">
+        /// <item><b>为什么能消除"换向摆幅"（主因）</b>：临界阻尼的稳态滞后有解析上界
+        /// <c>≤ 目标速度 × smoothTime</c>（连续二阶方程 <c>y''+2ωy'+ω²y=ω²x</c>、<c>ω=2/smoothTime</c>
+        /// 的稳态解 <c>y = v·t − v·smoothTime</c>；Unity 的离散实现实测更小，为解析值的 0.577 倍
+        /// —— 两处都断言在 `tools/probes/hosts/playercheck`）。
+        /// 而 A* 走 8 向锯齿（每 1~2 格换向）⇒ 滞后矢量随行进方向每帧转 45° ⇒ 相机相对玩家的**横向**
+        /// 偏移峰峰值 ≈ <c>2 × 速度 × smoothTime × sin45°</c>：
+        /// 旧值 0.12 ⇒ 2×3.0×0.12×0.707 = **0.51 格**（1 格 = 144 屏幕像素 @1080p/orthoSize 3.75 ⇒ **73 px**，肉眼必见摆动）；
+        /// 新值 0.02 ⇒ 解析上界 2×3.0×0.02×0.707 = **0.085 格**（12 px），而本机**离线配对实测**
+        /// （playercheck c8，同一段锯齿路径只换相机口径）旧 0.51 格 → 新 **0.0148 格**（≈2 px）⇒ 降到 3%。</item>
+        /// <item><b>为什么不是 0（完全刚性）</b>：0.02 s = 1.2 帧 @60fps，仍能吸收**单帧 dt 尖峰**
+        /// （帧节奏虽被 `Core/FramePacing` 钉在 60/无 vSync，但仍会有偶发长帧；刚性跟随会把长帧直接
+        /// 变成一次画面跳跃）。0.02 的代价是 3.0×0.02 = 0.06 格 ≈ 8.6 px 的稳态偏移（滞回方向朝行进方向），
+        /// 这比 0.12 的 0.36 格 ≈ 52 px 小一个量级。</item>
+        /// </list>
+        /// <para>⚠️ **滞后量的原版出处缺失**：原版参考工程（`原版资源/参考工程_Diablerie`）本机只有
+        /// `d2lod1.10txt` 数据表，**没有** `Engine/CameraController.cs`（该文件路径在本仓不存在，已全盘查过）
+        /// ⇒ 无法证明"原版相机有无跟随滞后"。故本值按用户明说的「消除抖动」目标取，**并已在回报里登记该缺口**。</para>
+        /// </summary>
+        public const float FollowSmoothTime = 0.02f;
+
+        /// <summary>
+        /// 「8 向锯齿路径上，相机与玩家的相对偏移**横向**摆幅」的验收上界（格）。
+        /// <para>量法（与 `tools/probes/drivers/camjitter_metrics.py` 逐字一致）：取每帧玩家位移方向 `u` 的
+        /// 正交方向 `perp`，摆幅 = `max(r·perp) - min(r·perp)`，`r` = 玩家世界坐标 − 相机世界坐标。</para>
+        /// <para>**来历（两个数都要写清）**：
+        /// ① **解析上界**（对任意路径成立，故用它可以判别的路径）：摆幅 ≈ `2 × 速度 × smoothTime × sin45°`
+        /// = 2 × 3.0 × 0.02 × 0.7071 = **0.085 格** ⇒ 阈值取 0.09（留 ~6% 余量）；
+        /// ② **本机实测**（`tools/probes/hosts/playercheck` c7，Town 地图固定种子、同一段 8 向锯齿路径）：
+        /// **0.0148 格**（只有解析上界的 17%）。
+        /// 旧口径（τ=0.12 纯指数滞后）同式 = 0.51 格，且 c8 的**配对实测**给出旧口径的真实值
+        /// ⇒ 本阈值能把旧口径判红（0.51 ≫ 0.09）。</para>
+        /// <para>⚠️ 本行的 Play 侧采集被**他人在飞的编译错误**阻塞（详见 `.ai-tmp/test/report-camera.md`），
+        /// 上列实测值来自**离线同源量法**（同一把尺：c7 的横向分量定义与 `camjitter_metrics.py` 逐字一致）。</para>
+        /// </summary>
+        public const float ZigZagLateralSwingMax = 0.09f;
 
         /// <summary>镜头震动的角频率（rad/s，纯三角函数偏移，不用随机数 ⇒ 可复现）。</summary>
         public const float ShakeAngularSpeed = 42f;
@@ -142,6 +181,7 @@ namespace Diablo2.Module
         private bool _hasFocus;
         private Vector3 _focus;                // 关注点世界坐标（z=0 平面）
         private Vector3 _pos;                  // 跟随位置（已含边界钳制）
+        private Vector3 _camVelocity;          // 临界阻尼跟随的**速度状态**（跨帧保留；见 FollowSmoothTime 注释）
         private Vector2 _panOffset;            // 边缘滚动累积位移
         private bool _snapPending;
         private float _ortho = DefaultOrthographicSize;
@@ -303,11 +343,15 @@ namespace Diablo2.Module
                 if (_snapPending)
                 {
                     _pos = want;
+                    _camVelocity = Vector3.zero;     // 吸附 ⇒ 速度状态一起清（否则下一帧平滑会带上旧速度冲一下）
                     _snapPending = false;
                 }
                 else if (dt > 0f)
                 {
-                    _pos = SmoothTowards(_pos, want, dt, FollowSmoothTime);
+                    // ★ 临界阻尼跟随（带速度状态）：换向时速度连续 ⇒ 不再"滞后矢量转 45°"。
+                    //   纯指数滞后（本行原先的 SmoothTowards）已删；实现只在引擎
+                    //   `CloverEngine.CameraMath.SmoothDamp`（⛔ 项目侧不留第二份）。
+                    _pos = CameraMath.SmoothDamp(_pos, want, ref _camVelocity, FollowSmoothTime, dt);
                 }
 
                 ClampToMapBounds();
@@ -330,6 +374,7 @@ namespace Diablo2.Module
             _hasFocus = false;
             _focus = Vector3.zero;
             _pos = Vector3.zero;
+            _camVelocity = Vector3.zero;          // 速度状态一起复位（否则下一局第一次平滑会带着上一局的速度）
             _panOffset = Vector2.zero;
             _snapPending = false;
             _shakeAmp = _shakeDur = _shakeT = 0f;
@@ -427,17 +472,10 @@ namespace Diablo2.Module
             return new Vector3(focus.x, focus.y, cameraZ);
         }
 
-        /// <summary>
-        /// 纯函数：指数平滑（`1 - exp(-dt/tau)`；与引擎 `ThirdPersonCamera` 的收敛风格一致）。
-        /// `tau &lt;= 0` 时直接吸附；`dt &lt;= 0` 时保持不动。
-        /// </summary>
-        public static Vector3 SmoothTowards(Vector3 current, Vector3 want, float dt, float tau)
-        {
-            if (tau <= 0f) return want;
-            if (dt <= 0f) return current;
-            var k = 1f - Mathf.Exp(-dt / tau);
-            return Vector3.Lerp(current, want, k);
-        }
+        // ⛔ 本类原有 `public static Vector3 SmoothTowards(...)`（纯指数滞后，`k=1-exp(-dt/tau)`+Lerp）
+        //   已**整条删除** —— 它下沉为引擎 `CloverEngine.CameraMath.Follow(Vector3,Vector3,float,float)`
+        //   （逐字同公式，见该件注释）。跟随实际走的是临界阻尼
+        //   `CloverEngine.CameraMath.SmoothDamp(...)`。项目侧**不再持有任何平滑实现**。
 
         /// <summary>
         /// 纯函数：把焦点夹进「地图包围盒 - 半屏」范围内（视野比地图大时居中）。
@@ -820,7 +858,11 @@ namespace Diablo2.Module
             if (_cam == null) return;                 // 拿不到 aspect ⇒ 不做半屏换算
 
             // 走纯函数（与 `tools/playercheck` §11 的取景断言**同一条实现**，避免测试和线上两套算法）
-            _pos = CameraPosForFocus(_pos, map.Width, map.Height, _ortho, _cam.aspect, _pos.z);
+            var clamped = CameraPosForFocus(_pos, map.Width, map.Height, _ortho, _cam.aspect, _pos.z);
+            // 被地图边界真的夹住 ⇒ 清速度状态（反积分卷绕）：否则临界阻尼会继续朝"地图外的目标"积分，
+            // 等目标回到图内时相机已经攒下一段速度、会冲一下。未被夹住时 clamped 与 _pos 相等（零开销）。
+            if (Vector3.SqrMagnitude(clamped - _pos) > 0f) _camVelocity = Vector3.zero;
+            _pos = clamped;
         }
 
         /// <summary>可选滚轮缩放（`EnableZoom` 打开时才读轴；仍走 `Game.Input`）。</summary>

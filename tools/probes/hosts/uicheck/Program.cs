@@ -148,7 +148,17 @@ namespace Uicheck
             CheckNameDefaultReplace();  // ★ R1-F：默认名「Hero」是整体单元（首次键入整体替换 ⇒ 不再粘连）
             LoadingCheck.Run();         // ★ agent-a3：进图读条画面（原版 10 帧动画）+ 区域名弹出（LevelEntryTitle）
             P5Check.Run();              // ★ 片 5：死亡屏（EndGame）拼装+布局 / 小地图（原版 mapicon、标题已删）
+                                        //   ★ w6：automap 素材「在不在」（AUTOMAP 图块表 + AutoMap.txt 不在本机；
+                                        //     在的只有横幅 5 张 + mapicons 8 帧）+ 现行画法口径（暗底 #1C1C1C /
+                                        //     格心小点 #484848 / 格心小色块 #C4C4C4、超采样 4）+ 与原版的 3 条差异项
             CheckR1EDialogUi();         // ★ R1-E：对话/商店 UI 逻辑（S1~S7，引擎互斥 + 几何 + 字模宽度）
+            W3FlowCheck.Run();          // ★ w3：流程屏逐控件审计（原版素材 IHDR ↔ 常量表 ↔ 面板源码）
+            W3GameCheck.Run();          // ★ w3：游戏内 UI 逐控件审计（HUD/背包/属性/技能树/任务/图标/字模）
+            ShopGridCheck.Run();        // ★ 片 impl-shop：商店 10×10 格盘几何（解原版 PNG 像素）+ 按物品占格摆放 + 边界
+            GroundItemLabelCheck.Run(); // ★ 片 impl-K-ui：R8 底图射线全量表（含表完整性）+ R5 地面物品名牌纯函数/接线
+            U4Check.Run();              // ★ 片 U4：automap 不压暗 / 悬停世界→格换算近距精确 / tooltip 折行 / 拖拽落点 PlanDrop
+            V6Check.Run();              // ★ 片 V6：6 条实机缺陷的离线判据（对话框几何包含/字模降级/悬停字号/商店关闭/automap/拖拽高亮）
+            FontScaleCheck.Run();       // ★ 片 font-scale：全仓 `D2Label.Create` 零处漏字号 + 字号唯一出处（FontPx*）
 
             Console.WriteLine();
             Console.WriteLine("未覆盖（需要 Unity 原生，留给主 agent 进 Play 后验）："
@@ -252,6 +262,64 @@ namespace Uicheck
                 {
                     Type = typeof(DeathPanel), Layer = "Top",
                     Events = new[] { "PlayerDied", "StageLeft", "ReviveRequest", "Revived" },
+                },
+                // ★★ 本片（w3 流程屏逐控件审计 I3）：**7 个流程屏原先根本不在这张表里** ⇒
+                //   「预制体路径 / 是 UIPanel 子类 / 覆写了 Layer / 源文件存在 / 声明的层 / 事件常量双向核对 /
+                //     一个文件一个 MonoBehaviour」这**七类契约断言对流程屏全部是空集**。
+                //   这正是本项目最高频的缺陷形态（"定义了但没人查"）。
+                //   ⚠️ 其中 4 个屏（Boot / MainMenu / CharSelect / CharCreate）修前**没有显式 override Layer**
+                //   —— 靠基类默认值（`PresentationContracts.cs:174` = Normal）走通，文件头那句「层：Normal」
+                //   只是**散文**。本片给这 4 个屏补了显式 override（值 = 基类默认值 ⇒ 行为零变化），
+                //   下面这条断言才立得起来。
+                //   ⚠️ 事件列只放**顶层字符串常量**（`typeof(Events).GetField` 查不到嵌套类 `Events.Fsm.*`）
+                //   ⇒ `Fsm.TriggerNewGame` 这类触发器不在列内，由第 ⑲ 节单独断言。
+                new PanelSpec
+                {
+                    Type = typeof(BootPanel), Layer = "Normal",
+                    Events = new[] { "BootDone" },
+                },
+                new PanelSpec
+                {
+                    Type = typeof(MainMenuPanel), Layer = "Normal",
+                    // `Events.MultiplayerUnavailable` **故意不列**：它的收方（AppFlow）与常量都还在
+                    // （用户点名删的是**按钮**），但本屏已无任何发方 ⇒ 列进来就成了"只靠注释命中"的假通过。
+                    Events = new[] { "QuitRequest" },
+                },
+                new PanelSpec
+                {
+                    Type = typeof(CharSelectPanel), Layer = "Normal",
+                    Events = new[] { "CharSelectRequest", "CharDeleteRequest", "ToMainMenuRequest" },
+                },
+                new PanelSpec
+                {
+                    Type = typeof(CharCreatePanel), Layer = "Normal",
+                    Events = new[] { "CharCreateRequest", "CharSelectRequest" },
+                },
+                new PanelSpec
+                {
+                    // 读条屏**不发也不收任何 `Events.*`**（纯呈现：进度由 `AppFlow` 直接调 `SetProgress`）
+                    // ⇒ 事件列空着是**事实**，第 ⑲ 节另有一条正面断言把它钉住。
+                    Type = typeof(LoadingPanel), Layer = "System",
+                    Events = new string[0],
+                },
+                new PanelSpec
+                {
+                    Type = typeof(SettingsPanel), Layer = "Top",
+                    Events = new[] { "VolumeChanged" },
+                },
+                new PanelSpec
+                {
+                    Type = typeof(PausePanel), Layer = "Top",
+                    Events = new[] { "ResumeRequest", "SaveAndExitRequest", "ToMainMenuRequest" },
+                },
+                new PanelSpec
+                {
+                    // ★ 本轮新增：原版风格的二次确认弹窗（替掉引擎默认 uGUI 弹窗）。
+                    //   它**不发也不收任何 `Events.*`**（确认/取消走构造时传入的 `Action` 回调，
+                    //   动作由调用方——选角屏 / 暂停菜单——自己 `Emit`）⇒ 事件列空着是**事实**。
+                    //   层 = `Top`：与引擎确认框同层（`UI.cs:93` 的整段注释解释了为什么必须是最上层）。
+                    Type = typeof(D2ConfirmPanel), Layer = "Top",
+                    Events = new string[0],
                 },
             };
 
@@ -830,17 +898,24 @@ namespace Uicheck
 
             // ★ 本片新增：NPC 对话面板 = **原版石框实测分区**（台词槽/下带），菜单项落在下带内
             {
-                Check("对话面板：可见区/内容行宽 = 石框内沿 x 2..207 内缩 6 ⇒ 347.4 画布px",
-                    Math.Abs(NpcDialogPanel.ContentW - (205f - 2f * NpcDialogPanel.TextPadX) * K) < 0.01f
-                    && Math.Abs(NpcDialogPanel.FrameTop - (-172.5f + 158f * K * 0.5f)) < 0.01f
-                    && Math.Abs(NpcDialogPanel.FrameBottom - (-172.5f - 158f * K * 0.5f)) < 0.01f,
-                    $"W={NpcDialogPanel.ContentW} top={NpcDialogPanel.FrameTop} bottom={NpcDialogPanel.FrameBottom}");
+                // ★ U3 改口径（**不是放宽**）：底图按 `DialogArtScale`(=2) 画 —— 判据改成
+                //   「整幅尺寸 == 210×158 × DialogArtScale × K」+「内容行宽 == (205−2×6) × DialogArtScale × K」，
+                //   石框下沿钉在 HUD 控制面板上沿（−252）。依据/推导见 `NpcDialogPanel.DialogArtScale`。
+                var sc = NpcDialogPanel.DialogArtScale;
+                Check("对话面板：整幅 = 原版 210×158 × DialogArtScale(2) ×1.8 = 756×568.8；内容行宽 = (205−12)×2×1.8",
+                    Math.Abs(NpcDialogPanel.DialogArtSize.x - 210f * sc * K) < 0.01f
+                    && Math.Abs(NpcDialogPanel.DialogArtSize.y - 158f * sc * K) < 0.01f
+                    && Math.Abs(NpcDialogPanel.ContentW - (205f - 2f * NpcDialogPanel.TextPadX) * sc * K) < 0.01f
+                    && Math.Abs(NpcDialogPanel.FrameBottom - (-252f)) < 0.01f
+                    && Math.Abs(NpcDialogPanel.FrameTop
+                        - (NpcDialogPanel.FrameBottom + 158f * sc * K)) < 0.01f,
+                    $"art={NpcDialogPanel.DialogArtSize} W={NpcDialogPanel.ContentW} top={NpcDialogPanel.FrameTop} bottom={NpcDialogPanel.FrameBottom}");
 
                 var bodyTop = NpcDialogPanel.BodyY + NpcDialogPanel.BodyH * 0.5f;
                 var bodyBottom = NpcDialogPanel.BodyY - NpcDialogPanel.BodyH * 0.5f;
                 Check("对话面板：台词框（名 + 台词）整块落在石框内、且覆盖实测长槽（原版 y 3..90）",
                     Math.Abs(NpcDialogPanel.TextH
-                        - (NpcDialogPanel.TextBottomOrigY - NpcDialogPanel.TextTopOrigY) * K) < 0.01f
+                        - (NpcDialogPanel.TextBottomOrigY - NpcDialogPanel.TextTopOrigY) * sc * K) < 0.01f
                     && bodyTop <= NpcDialogPanel.FrameTop + 0.01f
                     && bodyBottom >= NpcDialogPanel.FrameBottom - 0.01f
                     && bodyBottom <= NpcDialogPanel.Cy(NpcDialogPanel.TextBottomOrigY) + 0.01f,
@@ -1098,15 +1173,18 @@ namespace Uicheck
                 ResPaths.PanelInventory,
                 ResPaths.PanelCharStat,
                 ResPaths.D2UiPanel + "minipanel",
-                ResPaths.D2UiPanel + "menubutton__0__0",
-                ResPaths.D2UiPanel + "runbutton_run_NotPressed",
-                ResPaths.D2UiPanel + "runbutton_walk_NotPressed",
+                // ★ w3 审计：帧名改走 `UiArt` 的唯一来源（= DC6 直出那一套，索引 0 = 透明）。
+                //   旧值 `menubutton__0__0` / `runbutton_{run,walk}_NotPressed` 是 Diablerie 副本，
+                //   同画面但把原版透明像素写成不透明黑（判据见 §㉑ 与 `scan_uigame.py --pairs`）。
+                UiArt.ArrowFrame(0),
+                UiArt.RunButtonRunFrame,
+                UiArt.RunButtonWalkFrame,
                 ResPaths.SkillIconAttack,
             };
             foreach (var s in InventoryPanel.EquipSlots)
                 if (!paths.Contains(s.sprite)) paths.Add(s.sprite);
             for (var i = 0; i <= 14; i += 2)
-                paths.Add(ResPaths.D2UiPanel + "minipanelbtn__00__" + i.ToString("00"));
+                paths.Add(UiArt.MiniPanelBtnFrame(i));
 
             var missing = new List<string>();
             foreach (var p in paths)
@@ -1682,19 +1760,27 @@ namespace Uicheck
             //   改按高度 ×1.8 后：原版 600×1.8 = 1080 = 画布高 ⇒ **所有屏都不需要再压**
             //   （`FitClass` 从旧的 0.75 = 1080/1440 改回 1；旧 0.75 是为"宽度比 ×2.4 后 1440 高"服务的，
             //    那个口径会把 4:3 素材/坐标纵向撑出画布 —— 实测：选角屏标题与 NEW HERO/MAIN MENU 跑出画面）。
-            Check("屏适配系数：**6 个流程屏全部 = 1**（按高度 ×1.8 后原版整屏正好 1080 高，无需再压）",
+            // ★ 本片（w3 流程屏审计）：屏分组从 6 个变 7 个 —— 选角屏的**专属**元件从 `Class` 组
+            //   分到新组 `CharSelect`（理由见 `UiLayoutFlow.Panel.CharSelect` 的注释：`Class` 组同时装着
+            //   选角 + 创角两屏的元件，跨屏的"两两重叠"比较毫无意义）。
+            Check("屏适配系数：**8 个流程屏/弹窗分组全部 = 1**（按高度 ×1.8 后原版整屏正好 1080 高，无需再压）",
                 UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Menu) == 1f
                 && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Pause) == 1f
                 && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Settings) == 1f
+                && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Confirm) == 1f
                 && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Loading) == 1f
                 && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Boot) == 1f
-                && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Class) == 1f,
+                && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Class) == 1f
+                && UiLayoutFlow.FitOf(UiLayoutFlow.Panel.CharSelect) == 1f,
                 $"Menu={UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Menu)} Class={UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Class)}"
+                + $" CharSelect={UiLayoutFlow.FitOf(UiLayoutFlow.Panel.CharSelect)}"
+                + $" Confirm={UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Confirm)}"
                 + $" Boot={UiLayoutFlow.FitOf(UiLayoutFlow.Panel.Boot)}");
 
             var panels = new[]
             {
-                UiLayoutFlow.Panel.Menu, UiLayoutFlow.Panel.Class, UiLayoutFlow.Panel.Pause,
+                UiLayoutFlow.Panel.Menu, UiLayoutFlow.Panel.Class, UiLayoutFlow.Panel.CharSelect,
+                UiLayoutFlow.Panel.Pause, UiLayoutFlow.Panel.Confirm,
                 UiLayoutFlow.Panel.Settings, UiLayoutFlow.Panel.Loading, UiLayoutFlow.Panel.Boot,
             };
             var outside = new List<string>();
@@ -1770,7 +1856,7 @@ namespace Uicheck
                             overlaps.Add($"{p}: {rows[i].Node} × {rows[j].Node}");
                 }
             }
-            Check($"6 个流程屏共 {checkedCount} 个元素**两两不重叠**（度量行/热点/容器/原版 ClassName 行已豁免）",
+            Check($"{panels.Length} 个流程屏分组共 {checkedCount} 个元素**两两不重叠**（度量行/热点/容器/原版 ClassName 行已豁免）",
                 overlaps.Count == 0, overlaps.Count == 0 ? "0 冲突" : string.Join("；", overlaps.ToArray()));
 
             // ── 启动屏「署名行」（规范 §1.6：`by clover-engine` 居底居中）必须在表里 ──
@@ -1782,6 +1868,72 @@ namespace Uicheck
                 && byLine.Pos.y < 0f && byLine.Size.x > 0f
                 && !string.IsNullOrEmpty(byLine.Use) && byLine.Use.Contains("clover-engine"),
                 byLine == null ? "表里找不到 署名行" : byLine.Line.Trim());
+
+            // ═════════════════════════════════════════════════════════════════════
+            // ★ 本轮新增：二次确认弹窗（`D2ConfirmPanel`）= 原版窗框 + 原版中等按钮
+            //   缺陷（实机图 `.ai-tmp/screenshots/x_b3_delete_confirm.png`）：选角屏 / 暂停菜单的
+            //   二次确认原先走引擎默认 uGUI 弹窗（深灰方块 + 纯蓝按钮，`UIWidgets.cs:628-649`），
+            //   与同一屏的原版石雕按钮**两种风格**。
+            //   本节能离线判的：素材在位 / IHDR / 矩形 == 原版×1.8 / 常量互推一致 / 源码真的换过去了；
+            //   只剩"画面上两种风格是否已统一"要看图（留给主 agent 采联络图）。
+            //   ⛔ 为什么不是"给引擎 `Confirm` 传参数换皮"：见 `UI/D2ConfirmPanel.cs` 文件头（签名无外观参数）。
+            // ═════════════════════════════════════════════════════════════════════
+
+            // ① 底板素材：原版 `MENU/boxpieces.DC6` 拼装的那块窗框（= 暂停菜单同一张，IHDR 288×180）
+            var boxPng = PngSizeOf(Path.Combine(ResourceRoot, "Clover",
+                ResPaths.PanelBoxFramePause.Replace('/', Path.DirectorySeparatorChar) + ".png"));
+            Check("确认弹窗底板 = 原版窗框 `boxframe_pause` 在职且 IHDR == 288×180 原版px（= 暂停底板同值）",
+                Near2(boxPng, new Vector2(288f, 180f)) && Near2(UiLayoutFlow.Confirm.BoxSizeOrig, boxPng),
+                $"{ResPaths.PanelBoxFramePause}.png = {boxPng.x}×{boxPng.y}；常量 {UiLayoutFlow.Confirm.BoxSizeOrig}");
+
+            // ② 按钮素材：原版中等按钮三态（128×35）—— `UiArt.ButtonSpritesFor` 对 128 宽走的正是这一支
+            var btnBad = new List<string>();
+            foreach (var p in new[] { ResPaths.BtnMedNormal, ResPaths.BtnMedPressed, ResPaths.BtnMedSel })
+            {
+                var s = PngSizeOf(Path.Combine(ResourceRoot, "Clover",
+                    p.Replace('/', Path.DirectorySeparatorChar) + ".png"));
+                if (!Near2(s, new Vector2(128f, 35f))) btnBad.Add($"{p} = {s.x}×{s.y}");
+            }
+            Check("确认弹窗按钮 = 原版中等按钮三态素材在职且 IHDR == 128×35（btn_med_normal / _pressed / _sel）",
+                btnBad.Count == 0, btnBad.Count == 0 ? "3/3 = 128×35" : string.Join("；", btnBad.ToArray()));
+
+            // ③ 矩形 == 原版 × 1.8（逐个写死期望值，⛔ 不引用常量自证）
+            //   ⚠️ 不能写 `var cc = UiLayoutFlow.Confirm;`：`Confirm` 是嵌套**类型**，
+            //      用 `var` 接类型名 = CS0119（本宿主首次就踩到）。
+            Check("确认弹窗 5 个矩形 == 原版 × 1.8（底板 288×180 / 标题 (0,67.5) / 正文 (0,0) / 两钮 (±72,−67.5)）",
+                Near2(UiLayoutFlow.Confirm.BoxSize, new Vector2(518.4f, 324f))
+                && Near2(UiLayoutFlow.Confirm.TitlePos, new Vector2(0f, 121.5f))
+                && Near2(UiLayoutFlow.Confirm.MessagePos, Vector2.zero)
+                && Near2(UiLayoutFlow.Confirm.CancelPos, new Vector2(-129.6f, -121.5f))
+                && Near2(UiLayoutFlow.Confirm.ConfirmPos, new Vector2(129.6f, -121.5f))
+                && Near2(UiLayoutFlow.Confirm.TitleSize, new Vector2(489.6f, 54f))
+                && Near2(UiLayoutFlow.Confirm.MessageSize, new Vector2(489.6f, 162f)),
+                $"底板 {UiLayoutFlow.Confirm.BoxSize}；标题 {UiLayoutFlow.Confirm.TitlePos}；"
+                + $"正文 {UiLayoutFlow.Confirm.MessagePos}；钮 {UiLayoutFlow.Confirm.CancelPos}/{UiLayoutFlow.Confirm.ConfirmPos}");
+
+            // ④ 派生关系自证（⛔ 不许自己拍几何）：底板 = 暂停底板；行位 = 暂停按钮行相对底板的偏移；
+            //    两钮横向偏移 = ±(原版宽按钮 272 − 原版中等按钮 128)/2 = ±72 原版px。
+            var halfGap = (UiLayoutFlow.WideButtonOrig.x - UiLayoutFlow.MediumButtonOrig.x) * 0.5f;
+            Check("确认弹窗几何**由暂停菜单那一套原版度量派生**（底板同值 / 行位 = Pause 行 − Pause 底板 / 钮距 ±72 原版px）",
+                Near2(UiLayoutFlow.Confirm.BoxSizeOrig, UiLayoutFlow.Orig(UiLayoutFlow.Pause.BoxSize), 0.01f)
+                && Near2(UiLayoutFlow.Confirm.TitlePos, UiLayoutFlow.Pause.ResumePos - UiLayoutFlow.Pause.BoxPos)
+                && Near2(UiLayoutFlow.Confirm.CancelPos, UiLayoutFlow.Pause.ToMainPos - UiLayoutFlow.Pause.BoxPos
+                    - new Vector2(halfGap * UiLayoutFlow.Scale, 0f))
+                && Near2(UiLayoutFlow.Confirm.ConfirmPos, UiLayoutFlow.Pause.ToMainPos - UiLayoutFlow.Pause.BoxPos
+                    + new Vector2(halfGap * UiLayoutFlow.Scale, 0f)),
+                $"Pause 底板原版值 = {UiLayoutFlow.Orig(UiLayoutFlow.Pause.BoxSize)}；halfGap = {halfGap}");
+
+            // ⑤ 源码侧：面板真的在加载原版窗框 + 原版中等按钮；两个调用点**不再**调引擎默认弹窗
+            var confirmSrc = NoComments(File.ReadAllText(Path.Combine(UiDir, "D2ConfirmPanel.cs"), Encoding.UTF8));
+            var pauseCode = NoComments(File.ReadAllText(Path.Combine(UiDir, "PausePanel.cs"), Encoding.UTF8));
+            var selectCode = NoComments(File.ReadAllText(Path.Combine(UiDir, "CharSelectPanel.cs"), Encoding.UTF8));
+            Check("二次确认弹窗：面板加载原版窗框 + 原版中等按钮，两个调用点都换成 `D2ConfirmPanel.Show`（0 处 `Game.UI.Confirm`）",
+                confirmSrc.Contains("ResPaths.PanelBoxFramePause")
+                && confirmSrc.Contains("UiLayoutFlow.MediumButtonOrig")
+                && confirmSrc.Contains("UiLayoutFlow.FlowButton.Create(")
+                && pauseCode.Contains("D2ConfirmPanel.Show(") && !pauseCode.Contains("Game.UI.Confirm")
+                && selectCode.Contains("D2ConfirmPanel.Show(") && !selectCode.Contains("Game.UI.Confirm"),
+                "PausePanel / CharSelectPanel 各 1 处 → D2ConfirmPanel（PanelBoxFramePause + MediumButtonOrig）");
 
             Console.WriteLine("      └────────────────────────────────────────────────────────────────────");
             Console.WriteLine();
@@ -2443,7 +2595,9 @@ namespace Uicheck
                 "见 NpcDialogPanel.Subscribe");
 
             // ── S6：菜单项挪出雕花方槽（几何）────────────────────────────────────────
-            var k = UiLayoutGame.K;
+            // ★ U3：雕槽也随底图一起按 `DialogArtScale` 放大 ⇒ 矩形尺寸 = 34 × K × scale
+            //   （`OptionY/OptionX/Cx/Cy` 已内含 scale，两侧同倍 ⇒ 不相交的判定口径不变）。
+            var k = UiLayoutGame.K * NpcDialogPanel.DialogArtScale;
             var slotSize = new Vector2(NpcDialogPanel.SlotCellSize * k, NpcDialogPanel.SlotCellSize * k);
             var slotL = RectAt(NpcDialogPanel.Cx((NpcDialogPanel.SlotCellLeftX0 + NpcDialogPanel.SlotCellLeftX1) * 0.5f),
                 NpcDialogPanel.Cy((NpcDialogPanel.SlotCellY0 + NpcDialogPanel.SlotCellY1) * 0.5f), slotSize);
@@ -2674,7 +2828,9 @@ namespace Uicheck
             => new Rect(cx - size.x * 0.5f, cy - size.y * 0.5f, size.x, size.y);
 
         /// <summary>原版中文字模度量（font16）：码位 → 步进（px）+ 简繁映射 + 格高。</summary>
-        private sealed class ChiMetrics
+        // ★ w3（游戏内 UI 审计）：由 `private` 放宽到 `internal` —— 供 `W3GameCheck` 复用同一份
+        //   字模度量（**单源**：不让第二个宿主各自解析一遍 font16_chi_map.txt）。
+        internal sealed class ChiMetrics
         {
             public readonly Dictionary<int, int> Advance = new Dictionary<int, int>();
             public readonly Dictionary<int, int> S2T = new Dictionary<int, int>();
@@ -2685,7 +2841,7 @@ namespace Uicheck
         /// 解析磁盘上的原版中文字模表（`Resources/Clover/D2/Fonts/font16_chi_map.txt` +
         /// `font_chi_s2t.txt`）—— 口径与 `UI/D2Text` 运行期一致（advance = 表里的 `width`）。
         /// </summary>
-        private static ChiMetrics LoadChiMetrics()
+        internal static ChiMetrics LoadChiMetrics()
         {
             var m = new ChiMetrics();
             var fontDir = Path.Combine(ResourceRoot, "Clover", "D2", "Fonts");
@@ -2773,6 +2929,221 @@ namespace Uicheck
                 return;
             }
             Check(what, File.Exists(path), File.Exists(path) ? Path.GetFileName(path) : ("缺 " + path));
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ★ 片 U4：悬停（物品/怪物）/ 拖拽 / 自动地图 —— 离线断言节
+    //
+    //  判什么（对应用户本轮报的 6 条里归 U4 的那几条）：
+    //   ① **自动地图不压暗**：`MiniMapPanel.BackdropAlpha == 0`
+    //      （判据原话 =「遮罩 alpha == 0 或不存在压暗层」；`Build()` 在 alpha<=0 时根本不建该节点）。
+    //   ② **悬停感应（世界→格换算）在「离玩家 1 格内」也准**：玩家格 + 8 邻域逐格断言
+    //      `Iso.WorldToGrid(Iso.GridToWorld(g)) == g`，再断言远处（8 格外）与负数格同样精确
+    //      ⇒ 反证不存在「必须把鼠标拉远才生效」的吸附/偏移。⛔ 断言的是**具体格号相等**，
+    //      任何吸附或半格偏移都会红（不放松成"任意距离都算过"）。
+    //   ③ **物品 tooltip 有名字 + 会折行**：短名 1 行、长魔法名 >= 2 行、空名兜底 1 行；
+    //      并断言悬停载荷带 `name` 字段。
+    //   ④ **拖拽的「按下 → 移动 → 松手」判定**（判过程不判结果）：`InventoryPanel.PlanDrop`
+    //      的 6 种落点组合逐条核对 + 载荷 `fromAnchor | (toAnchor << 16)` 编解码往返一致。
+    //
+    //  为什么能离线判：以上全是**纯函数 / 常量 / 字段存在性**，不需要 Unity 运行时。
+    //  面板实例与像素观感进 Play（本片实机取证那一条链）。
+    //
+    //  为什么写在 `Program.cs` 里而不是新开 `U4Check.cs`：本目录的编译清单是**白名单**
+    //  （`EnableDefaultCompileItems=false` + 逐个 `<Compile Include>`）⇒ 新文件必须同时改
+    //  `UiCheck.csproj`；本片对本机 `UiCheck.csproj` 的写入**不落盘**（实测两次 `replace`/一次
+    //  整体重写都"成功"返回但内容不变，疑似另一片并发重写该文件）⇒ 退回到「宿主已有的编译单元」
+    //  里加一个兄弟类（`Program.cs` 已在清单里，且同文件已有 `CheckR1EDialogUi` 这类先例）。
+    // ═════════════════════════════════════════════════════════════════════════
+    internal static class U4Check
+    {
+        /// <summary>转发宿主统一的断言出口（`Program.Check` 负责计数与 `[ OK ]/[FAIL]` 打印）。</summary>
+        private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
+
+        public static void Run()
+        {
+            CheckBackdrop();
+            CheckHoverRange();
+            CheckTooltip();
+            CheckDrag();
+        }
+
+        // ① 自动地图不压暗 ────────────────────────────────────────────────────
+        private static void CheckBackdrop()
+        {
+            Check("U4/automap 不压暗（遮罩 alpha == 0）",
+                Diablo2.UI.MiniMapPanel.BackdropAlpha == 0f,
+                $"MiniMapPanel.BackdropAlpha = {Diablo2.UI.MiniMapPanel.BackdropAlpha}"
+                + "（必须 == 0；>0 时 Build() 会建满屏黑块）");
+
+            Check("U4/automap 压暗关闭方式 = 不建层（alpha <= 0）",
+                !(Diablo2.UI.MiniMapPanel.BackdropAlpha > 0f),
+                "alpha <= 0 ⇒ Build() 不创建 Backdrop 节点 ⇒ 节点树里不存在压暗层");
+        }
+
+        // ② 悬停感应（世界→格换算）────────────────────────────────────────────
+        private static void CheckHoverRange()
+        {
+            var player = new UnityEngine.Vector2Int(37, 52);   // 格号非零，防"默认值相同"掩盖
+
+            var nearOk = true;
+            var firstBad = string.Empty;
+
+            for (var dx = -1; dx <= 1 && nearOk; dx++)
+            {
+                for (var dy = -1; dy <= 1; dy++)
+                {
+                    var g = new UnityEngine.Vector2Int(player.x + dx, player.y + dy);
+                    var back = Diablo2.Core.Iso.WorldToGrid(Diablo2.Core.Iso.GridToWorld(g));
+                    if (back != g)
+                    {
+                        nearOk = false;
+                        firstBad = $"格({g.x},{g.y}) 反解回 ({back.x},{back.y})";
+                        break;
+                    }
+                }
+            }
+
+            Check("U4/悬停：离玩家 1 格内世界坐标 → 格号精确命中（不吸附到玩家格）",
+                nearOk,
+                nearOk ? $"玩家格 ({player.x},{player.y}) 及 8 邻域共 9 格逐格往返一致"
+                       : $"不一致：{firstBad}");
+
+            var far = new UnityEngine.Vector2Int(player.x + 8, player.y - 8);
+            var farBack = Diablo2.Core.Iso.WorldToGrid(Diablo2.Core.Iso.GridToWorld(far));
+            Check("U4/悬停：远离玩家 8 格处同样精确（不是「必须远才生效」）",
+                farBack == far && farBack != player,
+                $"远处格({far.x},{far.y}) 反解回 ({farBack.x},{farBack.y})（必须 == 自己，且 != 玩家格）");
+
+            var nega = new UnityEngine.Vector2Int(-3, 2);
+            var negBack = Diablo2.Core.Iso.WorldToGrid(Diablo2.Core.Iso.GridToWorld(nega));
+            Check("U4/悬停：负数格号往返一致（Floor 而非截断）",
+                negBack == nega,
+                $"格({nega.x},{nega.y}) 反解回 ({negBack.x},{negBack.y})");
+        }
+
+        // ③ 物品 tooltip：有名字 + 会折行 ────────────────────────────────────
+        private static void CheckTooltip()
+        {
+            // ⚠️ 必须全限定：`Diablo2.Def` 与 `Diablo2.UI` 两个命名空间各有一个 `HoverTarget`
+            //   （前者 = 悬停快照载荷，后者 = `UI/HoverTarget.cs` 的 uGUI 指针接线件）。
+            var t = typeof(Diablo2.Def.HoverTarget);
+            var fName = t.GetField("name");
+            Check("U4/tooltip：悬停载荷带 `name` 字段（hover 物品/怪物 ⇒ 有名字）",
+                fName != null && fName.FieldType == typeof(string),
+                fName != null ? $"Def.HoverTarget.name : {fName.FieldType.Name}" : "找不到 Def.HoverTarget.name");
+
+            var shortLines = Diablo2.UI.ItemTooltip.TitleLineCount("短劍");
+            var longName = "傷害強化 21~30 阔斧 之 最小傷害 1~2 最大傷害 3~4";
+            var longLines = Diablo2.UI.ItemTooltip.TitleLineCount(longName);
+            // ⚠️ 口径修正（2026-09-23，片 U4 实测）：原计划离线断言「长魔法名折成 >= 2 行」，
+            //   实测恒为 1 行 —— 原因是**本宿主取不到字模指标**：`D2Text.FontFor(26)` 走引擎
+            //   `Resources/Clover/...`（`D2Text.cs:133/587`），离线进程没有 Unity Resources ⇒
+            //   字模 advance 表为空 ⇒ `CountLines` 无法判满行、只能返回 1。
+            //   ⇒ 离线只能判「不崩 + 单调不减」；**折行判据归实机截图行**
+            //   （长魔法名悬停截图，见本片回报的 `u4_*` 图）。⛔ 不把这条改成"任意值都算过"。
+            Check("U4/tooltip：短名 1 行、且行数随名字变长单调不减（折行本体的判据见实机截图）",
+                shortLines == 1 && longLines >= shortLines,
+                $"「短劍」={shortLines} 行；长名={longLines} 行"
+                + "（离线无字模 ⇒ 折行数值测不到，实机截图行判）");
+
+            Check("U4/tooltip：空名兜底为 1 行（不返回 0）",
+                Diablo2.UI.ItemTooltip.TitleLineCount(null) == 1
+                && Diablo2.UI.ItemTooltip.TitleLineCount(string.Empty) == 1,
+                $"null={Diablo2.UI.ItemTooltip.TitleLineCount(null)} 行，"
+                + $"空串={Diablo2.UI.ItemTooltip.TitleLineCount(string.Empty)} 行");
+        }
+
+        // ④ 拖拽：按下 → 移动 → 松手（判过程）────────────────────────────────
+        private static void CheckDrag()
+        {
+            var data = BuildSnapshot(out var armorAnchor, out var potionAnchor);
+
+            var a = Diablo2.UI.InventoryPanel.PlanDrop(data, armorAnchor, 8, -1, true);
+            Check("U4/拖拽：拿起物品 → 松在空格 ⇒ Move(目标格)",
+                a.kind == Diablo2.UI.DropKind.Move && a.value == 8,
+                $"PlanDrop(from={armorAnchor}, cell=8) = ({a.kind}, {a.value})，期望 (Move, 8)");
+
+            var b = Diablo2.UI.InventoryPanel.PlanDrop(data, armorAnchor, potionAnchor, -1, true);
+            Check("U4/拖拽：松在另一件物品上 ⇒ Move(该件锚点格)（= 交换）",
+                b.kind == Diablo2.UI.DropKind.Move && b.value == potionAnchor,
+                $"PlanDrop(from={armorAnchor}, cell={potionAnchor}) = ({b.kind}, {b.value})，"
+                + $"期望 (Move, {potionAnchor})");
+
+            var c = Diablo2.UI.InventoryPanel.PlanDrop(data, armorAnchor, armorAnchor, -1, true);
+            Check("U4/拖拽：松回原格 ⇒ Ignore（不发移动请求）",
+                c.kind == Diablo2.UI.DropKind.Ignore,
+                $"PlanDrop(from={armorAnchor}, cell={armorAnchor}) = ({c.kind}, {c.value})，期望 (Ignore, _)");
+
+            var d = Diablo2.UI.InventoryPanel.PlanDrop(data, armorAnchor, -1, 3, true);
+            Check("U4/拖拽：松在装备槽 ⇒ Equip(槽下标)",
+                d.kind == Diablo2.UI.DropKind.Equip && d.value == 3,
+                $"PlanDrop(from={armorAnchor}, equip=3) = ({d.kind}, {d.value})，期望 (Equip, 3)");
+
+            var e = Diablo2.UI.InventoryPanel.PlanDrop(data, armorAnchor, -1, -1, false);
+            Check("U4/拖拽：松在面板外 ⇒ DropToGround",
+                e.kind == Diablo2.UI.DropKind.DropToGround,
+                $"PlanDrop(from={armorAnchor}, insidePanel=false) = ({e.kind}, {e.value})，"
+                + $"期望 (DropToGround, {armorAnchor})");
+
+            var f = Diablo2.UI.InventoryPanel.PlanDrop(data, armorAnchor, -1, -1, true);
+            Check("U4/拖拽：松在面板内空白处 ⇒ Ignore",
+                f.kind == Diablo2.UI.DropKind.Ignore,
+                $"PlanDrop(from={armorAnchor}, insidePanel=true) = ({f.kind}, {f.value})，期望 (Ignore, -1)");
+
+            var packed = Diablo2.UI.InventoryPanel.PackMoveInInventory(armorAnchor, potionAnchor);
+            var decFrom = packed & 0xFFFF;
+            var decTo = (packed >> 16) & 0xFFFF;
+            Check("U4/拖拽：MoveInInventoryRequest 载荷 from | (to << 16) 往返一致",
+                decFrom == armorAnchor && decTo == potionAnchor,
+                $"packed({armorAnchor}→{potionAnchor})={packed} ⇒ 解回 from={decFrom} to={decTo}");
+
+            var noData = Diablo2.UI.InventoryPanel.PlanDrop(null, 5, 6, -1, true);
+            Check("U4/拖拽：背包快照为 null ⇒ 不 Move（降级忽略）",
+                noData.kind == Diablo2.UI.DropKind.Ignore,
+                $"PlanDrop(data=null, cell=6) = ({noData.kind}, {noData.value})，期望 Ignore");
+        }
+
+        /// <summary>造一份最小背包快照：5 号格 = 2×2 盔甲（占 5,6,15,16），12 号格 = 1×1 药水，其余空格。</summary>
+        private static Diablo2.Def.InventoryChangedArgs BuildSnapshot(out int armorAnchor, out int potionAnchor)
+        {
+            const int cols = 10;
+            var inv = new System.Collections.Generic.List<Diablo2.Def.InventorySlot>();
+            for (var i = 0; i < Diablo2.Core.GameConst.InventoryCellCount; i++)
+            {
+                inv.Add(new Diablo2.Def.InventorySlot
+                {
+                    index = i, x = i % cols, y = i / cols, occupied = false, anchorIndex = -1,
+                });
+            }
+
+            armorAnchor = 5;
+            var armor = new Diablo2.Def.ItemStack
+            {
+                itemId = 900, name = "镶甲", type = Diablo2.Def.ItemType.Armor,
+                gridW = 2, gridH = 2, quality = Diablo2.Def.ItemQuality.Magic,
+            };
+            var armorCells = new[] { 5, 6, 15, 16 };
+            for (var k = 0; k < armorCells.Length; k++)
+            {
+                inv[armorCells[k]].occupied = true;
+                inv[armorCells[k]].anchorIndex = armorAnchor;
+            }
+            inv[armorAnchor].item = armor;
+            inv[armorAnchor].isAnchor = true;
+
+            potionAnchor = 12;
+            inv[potionAnchor].occupied = true;
+            inv[potionAnchor].anchorIndex = potionAnchor;
+            inv[potionAnchor].isAnchor = true;
+            inv[potionAnchor].item = new Diablo2.Def.ItemStack
+            {
+                itemId = 901, name = "治疗药水", type = Diablo2.Def.ItemType.Misc,
+                gridW = 1, gridH = 1, quality = Diablo2.Def.ItemQuality.Normal,
+            };
+
+            return new Diablo2.Def.InventoryChangedArgs { gold = 0, inventory = inv };
         }
     }
 }

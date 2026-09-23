@@ -16,6 +16,9 @@
 //     ⇒ 本面板**不使用任何定时器**（若将来要用，必须 `AfterUnscaled/EveryUnscaled`，`constraints.md` #2）。
 //   · ESC 再按一次 = 继续（Flow 在 Pause 站点的 onTick 处理，timeScale=0 下也能响应）。
 //   · 「保存并退出」「回主菜单」都由 Flow 处理（Flow 负责存档与清场）。
+//   · ★ 本轮：「回主菜单」的二次确认 = `D2ConfirmPanel`（原版 `boxpieces` 窗框 + 原版中等按钮）
+//     —— 原先调引擎 `Game.UI.Confirm`，画出来是引擎默认 uGUI（深灰方块 + 纯蓝按钮），
+//     与同一屏的原版石雕按钮**两种风格**（实机图 `.ai-tmp/screenshots/x_b3_delete_confirm.png`）。
 // ⛔ 不引用任何业务模块。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -63,6 +66,17 @@ namespace Diablo2.UI
             // 屏适配容器（暂停菜单复用主菜单按钮列 ⇒ 内容都在原版 |y| ≤ 225 内 ⇒ 系数 = 1）
             var screen = UiLayoutFlow.FitRoot(transform, UiLayoutFlow.FitMenu);
 
+            // ★ w5：底板 = **原版 `MENU/boxpieces.DC6` 拼装的窗框**（288×180 原版px，×1.8 定尺
+            //   ⇒ 与素材 1:1，不拉伸）+ 一层框内深色底。
+            //   口径/出处见 `tools/d2codec/assemble_boxpieces.py` 与 `UiLayoutFlow.BoxFrame`；
+            //   **尺寸不是拍的**：= 4 个菜单按钮的外接框 + 2×框厚后吸附 12 拼装网格
+            //   （推导逐条写在 `UiLayoutFlow.Pause.BoxSize` 的注释里）。
+            //   ⛔ 先前这一屏**没有底板**（4 个按钮直接浮在整屏遮罩上）—— 按 skill §0.1 ② 那是没做完。
+            UiArt.Panel(screen, "Box", UiLayoutFlow.Pause.BoxSize, UiLayoutFlow.Pause.BoxPos,
+                UiArt.PanelBg, true);
+            UiArt.Art(screen, "BoxFrame", ResPaths.PanelBoxFramePause,
+                UiLayoutFlow.Pause.BoxSize, UiLayoutFlow.Pause.BoxPos);
+
             // 4 个按钮 = 原版主菜单那 4 个槽位的精确几何（272×35、x=0、节奏 45 原版px）
             UiLayoutFlow.FlowButton.Create(screen, "Resume", Text.Resume,
                 UiLayoutFlow.WideButtonOrig, UiLayoutFlow.Pause.ResumePos,
@@ -78,7 +92,9 @@ namespace Diablo2.UI
 
             UiLayoutFlow.FlowButton.Create(screen, "ToMain", Text.ToMain,
                 UiLayoutFlow.WideButtonOrig, UiLayoutFlow.Pause.ToMainPos,
-                () => Game.UI.Confirm("回主菜单", "回主菜单将放弃未保存的进度，确定继续？", () =>
+                // ★ 本轮改：二次确认从引擎默认 uGUI 弹窗（`Game.UI.Confirm`）换成
+                //   **原版窗框 + 原版中等按钮**的 `D2ConfirmPanel`（理由与口径见该文件头）。
+                () => D2ConfirmPanel.Show("回主菜单", "回主菜单将放弃未保存的进度，确定继续？", () =>
                 {
                     Log.Info("Ui", "暂停菜单：已确认回主菜单");
                     Game.Event.Emit(Events.ToMainMenuRequest);

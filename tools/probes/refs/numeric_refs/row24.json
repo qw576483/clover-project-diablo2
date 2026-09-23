@@ -1,0 +1,389 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 24,
+  "spec_md_line": 119,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "技能点",
+  "method": "每级 +1，任务 +1",
+  "criterion": "学技能消耗 1 点；日志与面板一致",
+  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row24.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {
+      ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
+        777,
+        778,
+        779,
+        780,
+        781,
+        782,
+        783,
+        784,
+        785,
+        786,
+        787,
+        788
+      ],
+      ".ai-tmp/screenshots/w1_host_fullcheck.txt": [
+        702,
+        705
+      ]
+    },
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
+        "[a21 产物]",
+        "[Skill] ResetForClass：职业=Amazon",
+        "剩余技能点: 0",
+        "[a22 读图] a22_11_skilltree.png",
+        "[离线] tools/probes/hosts/uicheck",
+        "[Skill] CanLearn(魔法箭#1)：技能点不足",
+        "[Skill] Learn：魔法箭#1 → 等级 1/20",
+        "[ OK ] Learn 成功且扣 1 点技能点"
+      ],
+      ".ai-tmp/screenshots/w1_host_fullcheck.txt": [
+        "[a21 产物]",
+        "[Skill] ResetForClass：职业=Amazon",
+        "剩余技能点: 0",
+        "[a22 读图] a22_11_skilltree.png",
+        "[离线] tools/probes/hosts/uicheck",
+        "技能点 0 → 1"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 136482,
+      "sha256": "0b348bb03d16b96051825188372bfd328c768e94d2beed1e05120c3072848c5e",
+      "mtime": "2026-09-21 14:30:35",
+      "lines": 1119,
+      "ok_lines": 132,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。"
+      ],
+      "matched_lines_total": 6,
+      "checks_written": 16,
+      "checks_truncated": false
+    },
+    {
+      "path": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 94703,
+      "sha256": "8be53879f14f30accacfb288a33e1060fdbb8d7e30eae99861b566dd9fad80e5",
+      "mtime": "2026-09-21 14:30:44",
+      "lines": 767,
+      "ok_lines": 64,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "=== 自检全部通过 ==="
+      ],
+      "matched_lines_total": 5,
+      "checks_written": 8,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "================ CombatCheck 开始 ================",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 735,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Skill] ResetForClass：职业=Amazon（1）技能 30 个（系分布 1/2/3 = 10/10/10），已学 0 个，左键=-1 右键=-1",
+      "numbers": [
+        "1",
+        "30",
+        "1",
+        "2",
+        "3",
+        "10",
+        "10",
+        "10",
+        "0",
+        "-1",
+        "-1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 775,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Skill] ResetForClass：职业=Amazon（1）技能 30 个（系分布 1/2/3 = 10/10/10），已学 0 个，左键=-1 右键=-1",
+      "numbers": [
+        "1",
+        "30",
+        "1",
+        "2",
+        "3",
+        "10",
+        "10",
+        "10",
+        "0",
+        "-1",
+        "-1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 777,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Skill] CanLearn(魔法箭#1)：技能点不足（需要 1，当前 0）⇒ false",
+      "numbers": [
+        "1",
+        "1",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 778,
+      "selected_by": "anchor",
+      "text": "[ OK ] 技能点 = 0 时 CanLearn = false（点数不足）   (见日志的拒绝原因)",
+      "numbers": [
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 779,
+      "selected_by": "anchor",
+      "text": "[ OK ] 技能点 = 1 时 CanLearn = true   (true)",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 780,
+      "selected_by": "anchor",
+      "text": "[INFO ] [Skill] Learn：魔法箭#1 → 等级 1/20（消耗技能点 1，剩余 0）",
+      "numbers": [
+        "1",
+        "1",
+        "20",
+        "1",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 781,
+      "selected_by": "anchor",
+      "text": "Learn(魔法箭#1) → True；等级 1；剩余技能点 0",
+      "numbers": [
+        "1",
+        "1",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 782,
+      "selected_by": "anchor",
+      "text": "[ OK ] Learn 成功且扣 1 点技能点   (level=1 points=0)",
+      "numbers": [
+        "1",
+        "1",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 783,
+      "selected_by": "anchor",
+      "text": "[ OK ] 已学等级反映到 BuildTree.learnedLevels   (1)",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 784,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Skill] CanLearn(魔法箭#1)：技能点不足（需要 1，当前 0）⇒ false",
+      "numbers": [
+        "1",
+        "1",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 785,
+      "selected_by": "anchor",
+      "text": "[ OK ] 技能点用尽后再学同一技能 = false   (false)",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 786,
+      "selected_by": "anchor",
+      "text": "[WARN ] [Skill] CanLearn(爆裂箭#11)：前置技能「火焰箭」等级 0 < 1 ⇒ false",
+      "numbers": [
+        "11",
+        "0",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 787,
+      "selected_by": "anchor",
+      "text": "[ OK ] 前置未学/不足时 CanLearn = false（爆裂箭 需要前置 #2）×1 级）   (前置等级 0)",
+      "numbers": [
+        "2",
+        "1",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 788,
+      "selected_by": "anchor",
+      "text": "[INFO ] [Skill] Learn：火焰箭#2 → 等级 1/20（消耗技能点 1，剩余 9）",
+      "numbers": [
+        "2",
+        "1",
+        "20",
+        "1",
+        "9"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_combatcheck.txt",
+      "line": 1118,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后看图验收）：① 精灵/贴图实际渲染与像素位置；② 飘字可见性与配色；③ 头顶血条的世界位置与遮挡；④ 8 方向走路动画的观感；⑤ 相机下的排序叠压。",
+      "numbers": [
+        "8"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "╔══════════════════════════════════════════════════════════════════╗",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 72,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Skill] ResetForClass：职业=Amazon（1）技能 30 个（系分布 1/2/3 = 10/10/10），已学 0 个，左键=-1 右键=-1",
+      "numbers": [
+        "1",
+        "30",
+        "1",
+        "2",
+        "3",
+        "10",
+        "10",
+        "10",
+        "0",
+        "-1",
+        "-1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 86,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Skill] ResetForClass：职业=Amazon（1）技能 30 个（系分布 1/2/3 = 10/10/10），已学 0 个，左键=-1 右键=-1",
+      "numbers": [
+        "1",
+        "30",
+        "1",
+        "2",
+        "3",
+        "10",
+        "10",
+        "10",
+        "0",
+        "-1",
+        "-1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 702,
+      "selected_by": "anchor",
+      "text": "[INFO ] [Player] 技能点 1（本次 +1）",
+      "numbers": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 705,
+      "selected_by": "anchor",
+      "text": "[ OK ] 交付成功：state=Done、rewardClaimed=true、技能点恰好 +1   （state=Done 技能点 0 → 1；QuestCompleted 事件=1；等级=1（清怪途中已升级））",
+      "numbers": [
+        "1",
+        "0",
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 723,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Skill] ResetForClass：职业=Amazon（1）技能 30 个（系分布 1/2/3 = 10/10/10），已学 0 个，左键=-1 右键=-1",
+      "numbers": [
+        "1",
+        "30",
+        "1",
+        "2",
+        "3",
+        "10",
+        "10",
+        "10",
+        "0",
+        "-1",
+        "-1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 731,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Skill] ResetForClass：职业=Amazon（1）技能 30 个（系分布 1/2/3 = 10/10/10），已学 0 个，左键=-1 右键=-1",
+      "numbers": [
+        "1",
+        "30",
+        "1",
+        "2",
+        "3",
+        "10",
+        "10",
+        "10",
+        "0",
+        "-1",
+        "-1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_fullcheck.txt",
+      "line": 766,
+      "selected_by": "file-summary-tail",
+      "text": "=== 自检全部通过 ===",
+      "numbers": []
+    }
+  ]
+}

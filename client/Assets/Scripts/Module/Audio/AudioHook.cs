@@ -26,9 +26,10 @@
 //   —— 命中/未命中/受击/死亡/施法/怪物攻击/萨满复活已经由 `DamagePipeline` / `MonsterModule` /
 //      `SkillModule` **直连** `ctx.Audio.SfxAt(SfxKeys.…)` 发出（见 `AudioModule.cs` 头部说明）。
 //
-// 脚步节流数学：间隔 = `TilesPerFootstep / GameConst.PlayerWalkSpeed`（常量来源 `Core/GameConst`，不写裸数值）。
-//   本机 `PlayerWalkSpeed = 6 格/秒`，每 2 格一步 ⇒ 0.333s 一步（≈ 3 步/秒，与原版走/跑节奏同量级）。
-//   时间由 `AudioModule.Tick(dt)` 推进（`AppContext.Tick` 每帧转发），**不碰任何 Unity 原生时钟**。
+// ★ 片 Y（R3）：脚步口径 = **每 `TilesPerFootstep` 格一声**（`TilesPerFootstep` 是项目既有常量 =
+//   原版"每步覆盖约 2 格"），由 `Events.PlayerGridChanged` 的**格增量**累计（`OnPlayerGridChanged`）。
+//   `TilesPerFootstep / GameConst.PlayerWalkSpeed` 只是"跑步时的等效间隔"（`FootstepIntervalSeconds`，
+//   保留给离线判据引用式），生产不再按时间推进 —— 原因见 `Tick` 的注释（帧级标志导致永不触发）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -50,14 +51,14 @@ namespace Diablo2.Module.Audio
         /// <summary>是否已订阅（`Attach` 幂等；`Detach` 后可再次 `Attach`）。</summary>
         private bool _subscribed;
 
-        /// <summary>本帧内是否发生过格变化（脚步节流用；每个 `Tick` 末尾清掉）。</summary>
-        private bool _movedSinceTick;
+        /// <summary>是否已经有"上一次格"（首次格变化只记位、不计距离 —— ⛔ 否则进图落位会被当成一大步）。</summary>
+        private bool _hasLastGrid;
 
-        /// <summary>最近一次格变化的位置（脚步声用它的世界坐标）。</summary>
+        /// <summary>最近一次格变化的位置（脚步声用它的世界坐标，也用来算本次走了几格）。</summary>
         private Vector2Int _lastGrid;
 
-        /// <summary>距上一步累积的时间。</summary>
-        private float _stepAccum;
+        /// <summary>距上一步累积的**格数**（★ 片 Y：改成"按距离"累计，见 <see cref="OnPlayerGridChanged"/>）。</summary>
+        private float _stepTiles;
 
         /// <summary>
         /// 当前区域。由 `Events.AreaChanged` 更新 —— **不读 `AppContext.Map`**（少一处模块耦合）：
@@ -76,7 +77,11 @@ namespace Diablo2.Module.Audio
             _audio = audio;
         }
 
-        /// <summary>脚步间隔（秒）= 每步格数 / 走速（`GameConst.PlayerWalkSpeed`）。</summary>
+        /// <summary>
+        /// 跑步时的**等效**脚步间隔（秒）= 每步格数 / 跑速（`GameConst.PlayerWalkSpeed`）。
+        /// <para>★ 片 Y（R3）：这**不是**生产的触发条件（生产按格数累计，见 <see cref="Tick"/>）——
+        /// 它只是"按跑速走完一步要多久"的换算，留给离线判据当引用值（走路更慢 ⇒ 实际间隔更长）。</para>
+        /// </summary>
         public static float FootstepIntervalSeconds => TilesPerFootstep / GameConst.PlayerWalkSpeed;
 
         // ═════════════════════════════════════════════════════════════════════
@@ -165,45 +170,72 @@ namespace Diablo2.Module.Audio
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 每帧推进脚步节流。**只有本帧发生过格变化才累积时间** ⇒ 静止永远不出脚步（硬要求 ③）。
+        /// ★ 片 Y（R3）：脚步累计改在 <see cref="OnPlayerGridChanged"/> 里**按走过的格数**做 ⇒
+        /// 本方法只剩"给外部 Tick 链一个位置"（不再按时间累加）。
+        /// <para>⛔ 修前为什么永远不响（运行时实测 `footstep` 播放 0 次）：旧实现
+        /// `if (_movedSinceTick) { _stepAccum += dt; … } else { _stepAccum = 0f; }`，
+        /// 而 `_movedSinceTick` 由格变化事件置位、**每个 Tick 末尾清零** ⇒ 每换一格只有**那一帧**
+        /// 能累加（≈0.017s），下一帧立刻清零 ⇒ 永远到不了阈值 0.667s ⇒ 数学上不可能触发。</para>
+        /// <para>⛔ 不用"本帧是否在动"这种需要**自创超时**的判据：格变化事件本身就是唯一的移动信号，
+        /// 按它累计**格数**既天然满足"站着不动不响"，也比时间口径更贴原版（原版一步覆盖固定格数，
+        /// 与走/跑速度无关 ⇒ 修前"走路步频是跑步的 2 倍"的附带缺陷一并消失）。</para>
         /// </summary>
         public void Tick(float dt)
         {
-            if (_movedSinceTick)
-            {
-                _stepAccum += dt;
-                if (_stepAccum >= FootstepIntervalSeconds)
-                {
-                    _stepAccum = 0f;
-                    var w = Iso.GridToWorld(_lastGrid);
-                    _audio.SfxAt(SfxRegistry.Footstep, w.x, w.y, w.z);
-                }
-            }
-            else
-            {
-                // 静止：清零，避免"站了一会儿刚起步就立刻响一声"。
-                _stepAccum = 0f;
-            }
-
-            _movedSinceTick = false;
+            // 目前无需按帧推进：脚步在格变化事件里按**距离**累计（见 OnPlayerGridChanged）。
+            // 保留本方法是因为 `AudioModule.Tick(dt)` 是既有转发链，删掉会改变模块 Tick 接口形状。
         }
 
         /// <summary>清掉移动节流状态（进图/传送落位、离场复位用：那一次格变化不算脚步）。</summary>
         public void ResetMotion()
         {
-            _movedSinceTick = false;
-            _stepAccum = 0f;
+            _hasLastGrid = false;      // 下一次格变化只记位、不计距离（否则落位跨度会被当成一大步）
+            _stepTiles = 0f;
         }
 
         // ═════════════════════════════════════════════════════════════════════
         // 事件处理（具名私有方法 = 能被 Off 掉）
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>格变化（`IPlayerModule.Tick` 里 `_motor.Grid` 变了才发）⇒ 本帧"在动"。</summary>
+        /// <summary>
+        /// 格变化（`IPlayerModule.Tick` 里 `_motor.Grid` 变了才发）⇒ **按走过的格数累计脚步**（★ 片 Y / R3）。
+        /// <para>口径：累计格数达到 <see cref="TilesPerFootstep"/>（= 原版"每步覆盖约 2 格"，项目现值）
+        /// 就发一声，并把阈值从累计值里扣掉（保留余量 ⇒ 连续移动不丢相位、不攒着连响）。</para>
+        /// <para>⛔ 不按时间累加的理由见 <see cref="Tick"/>：帧级"本帧是否在动"标志会导致每换一格
+        /// 只有一帧能累加 ⇒ 永远到不了阈值（实测 `footstep` 0 次）。按距离则天然"站着不动不响"，
+        /// 且与原版一致（一步覆盖固定格数，与走/跑速度无关）。</para>
+        /// </summary>
         private void OnPlayerGridChanged(Vector2Int grid)
         {
+            if (!_hasLastGrid)
+            {
+                // 首次 / 刚进图或传送后：只记位，不计距离（否则落位跨度会被当成一大步 ⇒ 立刻乱响）
+                _hasLastGrid = true;
+                _lastGrid = grid;
+                return;
+            }
+
+            var dx = grid.x - _lastGrid.x;
+            var dy = grid.y - _lastGrid.y;
+            var step = (float)Math.Sqrt(dx * dx + dy * dy);
             _lastGrid = grid;
-            _movedSinceTick = true;
+            if (step <= 0f) return;
+
+            _stepTiles += step;
+            if (_stepTiles < TilesPerFootstep) return;
+
+            _stepTiles -= TilesPerFootstep;
+            // 异常大跨度（正常每格 1；出现 >1 步的跳变说明有非移动路径改格）⇒ 清掉余量，
+            // 不让它变成"下一步紧接着再响一声"（非预期分支留痕在 AudioLog）。
+            if (_stepTiles > TilesPerFootstep)
+            {
+                AudioLog.Info($"[脚步] 格变化跨了 {step:0.##} 格（> 每步 {TilesPerFootstep} 格）⇒ 余量清零；" +
+                              "本 Tick 只发一声（若频繁出现，说明有非移动路径在改玩家格）");
+                _stepTiles = 0f;
+            }
+
+            var w = Iso.GridToWorld(_lastGrid);
+            _audio.SfxAt(SfxRegistry.Footstep, w.x, w.y, w.z);
         }
 
         /// <summary>拾取（金币走另一键，原版两种"叮"是不同的）。</summary>

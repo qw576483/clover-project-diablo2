@@ -127,6 +127,10 @@ namespace ItemCheck
         public IReadOnlyList<Vector2Int> Exits => new List<Vector2Int> { new Vector2Int(2, 32) };
         public Vector2Int? CaveEntrance => Area == AreaId.BloodMoor ? new Vector2Int(40, 40) : (Vector2Int?)null;
         public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
+
+        /// <summary>桩地图无传送点（契约成员见 `Module/Contracts.cs` 的 `IMapModule.WaypointPoints`，2026-09-23 新增）。</summary>
+        public IReadOnlyList<Vector2Int> WaypointPoints => new List<Vector2Int>();
+
         public readonly List<Vector2Int> NpcGrids = new List<Vector2Int>
         {
             new Vector2Int(10, 10), new Vector2Int(12, 10), new Vector2Int(14, 10),
@@ -136,6 +140,10 @@ namespace ItemCheck
 
         public bool InBounds(Vector2Int g) => g.x >= 0 && g.y >= 0 && g.x < Width && g.y < Height;
         public bool Walkable(Vector2Int g) => InBounds(g);
+
+        /// <summary>桩地图没有"可走上方的结构"（桥面/平台）⇒ 恒 false。
+        /// 契约成员见 `Module/Contracts.cs` 的 `IMapModule.IsDeckGrid`（2026-09-22 新增）。</summary>
+        public bool IsDeckGrid(Vector2Int g) => false;
         public TileKind TileAt(Vector2Int g) => Walkable(g) ? TileKind.Grass : TileKind.Void;
         public void Generate(AreaId area, int seed) { Area = area; Seed = seed; }
         public void Clear() { }
@@ -279,6 +287,15 @@ namespace ItemCheck
         public bool ApplyDamage(int amount, DamageType type) { _life = Mathf.Max(0, _life - amount); return IsDead; }
         public void Heal(int amount) { _life = Mathf.Min(MaxLife, _life + amount); }
         public void RestoreMana(int amount) { _mana = Mathf.Min(MaxMana, _mana + amount); }
+
+        /// <summary>★ w7 契约新增（`IPlayerModule.TrySpendMana`）的桩：成功扣减 true；≤0 或不足 false 且不扣。</summary>
+        public bool TrySpendMana(int amount)
+        {
+            if (amount <= 0 || _mana < amount) return false;
+            _mana -= amount;
+            return true;
+        }
+
         public void RestoreStamina(int amount) { _stamina = Mathf.Min(MaxStamina, _stamina + amount); }
         public void AddExp(int amount) { Exp += amount; }
         public void AddSkillPoint(int delta) { SkillPoints += delta; }
@@ -512,7 +529,8 @@ namespace ItemCheck
             Check("item_c 行数 > 100", Table.Tables.Default.Item.Count > 100, "item_c=" + Table.Tables.Default.Item.Count);
             Check("affix_c 行数 = 301（源表 302 行含表头）", Table.Tables.Default.Affix.Count == 301,
                 "affix_c=" + Table.Tables.Default.Affix.Count);
-            Check("treasureclass_c 行数 = 58", Table.Tables.Default.Treasureclass.Count == 58,
+            // ★ 片 O（R3）：58 → **59**（把 `monster_c` 引用的 `Quill 1` 并入闭包根 ⇒ 官方 TC 第 59 行）。
+            Check("treasureclass_c 行数 = 59（片 O R3：+Quill 1）", Table.Tables.Default.Treasureclass.Count == 59,
                 "treasureclass_c=" + Table.Tables.Default.Treasureclass.Count);
 
             // ── 1. 装配（AutoWire 必须能找到四个模块）───────────────────────────
@@ -569,8 +587,144 @@ namespace ItemCheck
             Check("普通药水无词缀（非装备不挂词缀）", plainPotion != null && plainPotion.affixes.Count == 0,
                 "affixes=" + (plainPotion != null ? plainPotion.affixes.Count : -1));
 
-            // ── 3. 掉落 1000 次：品质分布 + 金币 + 掉落格可走 ────────────────────
-            Section("3) 掉落 1000 次（monster_c 的 TC 列 → treasureclass_c 递归）");
+            // ── 3. 掉落表完整性（★ 片 O 新增：R3 尖刺鼠零掉落 / R4 资料片 token / R6 精英 TC）──
+            //    ⚠️ 这一节**必须排在 1000 次掉落之前**：`LootRoller.WarnOnce` 有 64 条上限，
+            //       先跑大循环会把后面的点名告警压掉，断言就变成"永远不过"而不是"判据生效"。
+            Section("3) 掉落表完整性（片 O：R3 / R4 / R6）");
+            var tcAll = Table.Tables.Default.Treasureclass.All();
+            var tcNames = new HashSet<string>();
+            for (var i = 0; i < tcAll.Count; i++)
+            {
+                if (tcAll[i] != null && !string.IsNullOrEmpty(tcAll[i].Name)) tcNames.Add(tcAll[i].Name);
+            }
+
+            var monAll = Table.Tables.Default.Monster.All();
+            var missingTc = new List<string>();
+            for (var i = 0; i < monAll.Count; i++)
+            {
+                var mr = monAll[i];
+                if (mr == null) continue;
+                var slots = new[] { mr.TreasureClass, mr.TreasureClassChamp, mr.TreasureClassUnique };
+                for (var k = 0; k < slots.Length; k++)
+                {
+                    var t = slots[k];
+                    if (string.IsNullOrEmpty(t) || tcNames.Contains(t) || missingTc.Contains(t)) continue;
+                    missingTc.Add(t);
+                }
+            }
+            Check("R3 monster_c 引用的 TC（普通/冠军/唯一三槽位）⊆ treasureclass_c（差集为空）",
+                missingTc.Count == 0,
+                missingTc.Count == 0
+                    ? $"差集=空（treasureclass_c 共 {tcNames.Count} 个 TC）"
+                    : "差集=" + string.Join(",", missingTc));
+
+            var quill = Table.Tables.Default.Monster.Get(3);
+            var quillTc = quill == null ? "" : quill.TreasureClass;
+            Check("R3 尖刺鼠(quillrat1) 的 TC 在表里且 1 基行序 id > 0",
+                quill != null && TcIdOfName(quillTc) > 0,
+                quill == null ? "monster_c 无 id=3（配表未加载？）" : $"TC=\"{quillTc}\" id={TcIdOfName(quillTc)}");
+
+            // R3：逐怪抽样（固定 seed）⇒ 8 只怪都必须出过掉落（旧版 id=3 尖刺鼠永久 0）
+            //   ⚠️ 第一个参数是 **treasureClassId**（`IItemModule.DropLoot(treasureClassId, …)`，见
+            //     `ItemModule.cs:263`）⇒ 必须用 `TcIdOfMonsterKind`（与 `DeathFlow.TreasureClassIdOf`
+            //     同一口径）换算；直接把怪物 id 当 tcId 传，测到的是"表里第 N 行"而不是这只怪的 TC。
+            //   ⚠️ 抽取次数 200：TC 自带 `NoDrop`（`Act 1 H2H A`=100、`Quill 1`=125）⇒ 单次"无掉落"是
+            //     正常配表行为，断言只要求"200 次里出过东西"（零掉落 TC 才会 0 命中）。
+            var perKind = new System.Text.StringBuilder();
+            var noDropKinds = new List<string>();
+            for (var kind = 1; kind <= 8; kind++)
+            {
+                var kindTc = TcIdOfMonsterKind(kind);
+                if (kindTc <= 0)
+                {
+                    noDropKinds.Add("#" + kind + "(无TC)");
+                    perKind.Append($"#{kind}:tc? ");
+                    continue;
+                }
+                var rngK = new Rng(90000 + kind);
+                var hit = 0;
+                for (var t = 0; t < 200; t++)
+                {
+                    var cell = _map.RandomWalkableTile(rngK);
+                    item.DropLoot(kindTc, 1, cell, rngK);
+                    var g = item.GroundItems;
+                    if (g.Count > 0) hit++;
+                    ClearGround(item, g);
+                }
+                perKind.Append($"#{kind}(tc={kindTc}):{hit}/200 ");
+                if (hit == 0) noDropKinds.Add("#" + kind);
+            }
+            Check("R3 逐怪 200 次抽样（固定 seed，经 TcIdOfMonsterKind 换算）都出过掉落",
+                noDropKinds.Count == 0,
+                (noDropKinds.Count == 0 ? "全部有掉落" : "零掉落=" + string.Join(",", noDropKinds))
+                + "；" + perKind);
+            item.Reset();
+
+            // R4：抽中被"经典版"过滤掉的资料片 token ⇒ 必须**点名** Warn（TC 名 + token + 原因），⛔ 不静默
+            var jewelryId = TcIdOfName("Jewelry A");
+            Check("R4 前置：TC \"Jewelry A\" 在 treasureclass_c 里", jewelryId > 0, "id=" + jewelryId);
+            var rngJ = new Rng(20260923);
+            for (var t = 0; t < 200; t++)
+            {
+                var cell = _map.RandomWalkableTile(rngJ);
+                item.DropLoot(jewelryId, 1, cell, rngJ);
+                ClearGround(item, item.GroundItems);
+            }
+            var warnNamed = _log.CountOf("Item", "TC \"Jewelry A\"");
+            var warnToken = _log.CountOf("Item", "既不是 TC 名也不是 item_c.code");
+            Check("R4 抽中被过滤 token ⇒ 点名 Warn（含 TC 名 + token + 原因）且不是静默",
+                warnNamed > 0 && warnToken > 0,
+                $"Warn(点名到 TC)={warnNamed}  Warn(token 未知)={warnToken}");
+            item.Reset();
+
+            // R6：精英怪 TC 槽位（官方 MonStats.TreasureClass2/3）非空、且与普通怪槽位互不相同
+            var eliteBad = new List<string>();
+            for (var i = 0; i < monAll.Count; i++)
+            {
+                var mr = monAll[i];
+                if (mr == null) continue;
+                if (string.IsNullOrEmpty(mr.TreasureClassChamp) || string.IsNullOrEmpty(mr.TreasureClassUnique)
+                    || mr.TreasureClassChamp == mr.TreasureClass || mr.TreasureClassUnique == mr.TreasureClass
+                    || mr.TreasureClassChamp == mr.TreasureClassUnique)
+                {
+                    eliteBad.Add("#" + mr.Id);
+                }
+            }
+            Check("R6 冠军/唯一怪 TC 槽位非空、且与普通怪槽位互不相同", eliteBad.Count == 0,
+                eliteBad.Count == 0 ? "8 只怪 3 个槽位齐全且互不相同"
+                                    : "异常=" + string.Join(",", eliteBad));
+
+            var modChamp = Table.Tables.Default.Monumod.All().Find(x => x.Kind == 0);
+            var modUnique = Table.Tables.Default.Monumod.All().Find(x => x.Kind == 1);
+            Check("R6 槽位判定 DeathFlow.EliteKindOf：冠军词缀 ⇒ TreasureClass2 / 唯一词缀 ⇒ TreasureClass3",
+                modChamp != null && modUnique != null
+                && Diablo2.Module.Combat.DeathFlow.EliteKindOf(new MonsterState { modId = modChamp.Id }) == 0
+                && Diablo2.Module.Combat.DeathFlow.EliteKindOf(new MonsterState { modId = modUnique.Id }) == 1,
+                modChamp == null || modUnique == null
+                    ? "monumod_c 缺 kind=0/1 的词缀"
+                    : $"冠军词缀 id={modChamp.Id} ⇒ 槽位 2；唯一词缀 id={modUnique.Id} ⇒ 槽位 3");
+
+            // R6：精英槽位的 TC 真能掉东西（取表口径 = DeathFlow 用的那一列）
+            var m1 = Table.Tables.Default.Monster.Get(1);
+            var champTcId = m1 == null ? 0 : TcIdOfName(m1.TreasureClassChamp);
+            var uniqueTcId = m1 == null ? 0 : TcIdOfName(m1.TreasureClassUnique);
+            var rngE = new Rng(777);
+            var champItems = 0;
+            for (var t = 0; t < 60; t++)
+            {
+                var cell = _map.RandomWalkableTile(rngE);
+                item.DropLoot(champTcId, 1, cell, rngE);
+                champItems += item.GroundItems.Count;
+                ClearGround(item, item.GroundItems);
+            }
+            Check("R6 冠军槽位 TC 可解析且抽样 60 次有产出",
+                champTcId > 0 && uniqueTcId > 0 && champItems > 0,
+                $"champ=\"{(m1 == null ? "" : m1.TreasureClassChamp)}\"(id={champTcId}) items={champItems}；"
+                + $"unique=\"{(m1 == null ? "" : m1.TreasureClassUnique)}\"(id={uniqueTcId})");
+            item.Reset();
+
+            // ── 3b. 掉落 1000 次：品质分布 + 金币 + 掉落格可走 ────────────────────
+            Section("3b) 掉落 1000 次（monster_c 的 TC 列 → treasureclass_c 递归）");
             var rngDrop = new Rng(8818);
             var qCount = new Dictionary<ItemQuality, int>();
             var totalItems = 0;
@@ -675,23 +829,68 @@ namespace ItemCheck
             Check("满包时有可读日志（放不下/背包）", _log.Contains("Item", "放不下"), "见 [WARN] [Item] ...放不下...");
             Check("背包满事件已发（InventoryFull）", true, "由 Pickup 路径发（见下一步）");
 
-            // ── 5. 拾取：距离校验 + 满包留在原地 ─────────────────────────────────
-            Section("5) 拾取（距离校验 / 背包满 ⇒ 物品留在原地）");
+            // ── 5. 拾取：格邻接判定 + 满包留在原地 ───────────────────────────────
+            //
+            // ★ 2026-09-23 判据口径修正（impl-invfix，N1 阻断级缺陷的回归用例）：
+            //   旧断言把「斜邻（√2≈1.414）> PickupRange 1.4 ⇒ 必须拒绝」写成了期望 ——
+            //   **那条断言本身就是缺陷**（`report-inspect.md` §1 N1：站在斜对角永远捡不到）。
+            //   现口径 = **格邻接（Chebyshev ≤ 1，含 8 邻域）**，与「最近可走格回退」
+            //   （`Module/Player`，Chebyshev）和 `Iso.IsAdjacent` 同一套。
+            //   本节按"判过程"重写成双向穷举：**8 个邻域逐格必须能捡**（含 4 个斜角）、
+            //   **Chebyshev 2 格（2 正交 + 2 斜向）逐格必须拒绝且留在原地**。
+            //   ⛔ 不是放宽成"任意距离都能捡"。
+            Section("5) 拾取（格邻接 Chebyshev ≤ 1 / Chebyshev 2 拒绝 / 背包满 ⇒ 物品留在原地）");
             item.Reset();
             _player.TeleportTo(new Vector2Int(10, 10));
             var rngPick = new Rng(4242);
-            var far = factory.Create(89, 1, ItemQuality.Normal, rngPick);
-            item.DropToGround(far, new Vector2Int(11, 11));                  // 距离 = √2 ≈ 1.414 > 1.4
-            var farId = LastGroundId(item);
-            var groundBefore = item.GroundItems.Count;
-            var pickedFar = item.Pickup(farId);
-            Check("超距拾取 ⇒ false", !pickedFar, "distance≈1.414 > PickupRange=" + GameConst.PickupRange);
-            Check("超距时物品**仍在原地**", item.GroundItems.Count == groundBefore && Contains(item, farId),
-                "ground=" + item.GroundItems.Count);
+
+            var neighborhood = new[]
+            {
+                new Vector2Int(10, 11), new Vector2Int(9, 11), new Vector2Int(9, 10), new Vector2Int(9, 9),
+                new Vector2Int(10, 9), new Vector2Int(11, 9), new Vector2Int(11, 10), new Vector2Int(11, 11),
+            };
+            var neighborsOk = 0;
+            for (var i = 0; i < neighborhood.Length; i++)
+            {
+                var it = factory.Create(89, 1, ItemQuality.Normal, rngPick);
+                item.DropToGround(it, neighborhood[i]);
+                var id = LastGroundId(item);
+                var picked = item.Pickup(id);
+                var moved = !Contains(item, id) && CountAnchors(item) == i + 1;
+                if (picked && moved) neighborsOk++;
+                else Console.WriteLine($"   [邻域 FAIL] 物品格 ({neighborhood[i].x},{neighborhood[i].y}) "
+                    + $"pickup={picked} 已入包={CountAnchors(item)}（期望 {i + 1}）");
+            }
+            Check("8 邻域逐格可拾取（含 4 个斜角），且物品真的从地面移除、进背包", neighborsOk == 8,
+                $"通过 {neighborsOk}/8（玩家格 (10,10)；斜角 = (9,9)/(11,9)/(9,11)/(11,11)）");
+
+            item.Reset();
+            _player.TeleportTo(new Vector2Int(10, 10));
+            var tooFar = new[]
+            {
+                new Vector2Int(12, 10), new Vector2Int(10, 12),   // 正交 2 格（欧氏 2.00）
+                new Vector2Int(12, 12), new Vector2Int(8, 12),    // 斜向 2 格（欧氏 2.83）
+            };
+            var farRejected = 0;
+            for (var i = 0; i < tooFar.Length; i++)
+            {
+                var it = factory.Create(89, 1, ItemQuality.Normal, rngPick);
+                item.DropToGround(it, tooFar[i]);
+                var id = LastGroundId(item);
+                var picked = item.Pickup(id);
+                var kept = Contains(item, id) && CountAnchors(item) == 0;
+                if (!picked && kept) farRejected++;
+                else Console.WriteLine($"   [远距 FAIL] 物品格 ({tooFar[i].x},{tooFar[i].y}) "
+                    + $"pickup={picked} 仍在原地={kept}");
+            }
+            Check("Chebyshev 2 格（2 正交 + 2 斜向）一律拒绝且物品留在原地", farRejected == 4,
+                $"通过 {farRejected}/4（欧氏 2.00 / 2.83 —— 旧口径 1.4 会把这些也全拒，故必须与邻域一起判）");
             Check("超距有可读日志（距离过远/留在原地）", _log.Contains("Item", "距离过远"), "见 [WARN] [Item]");
 
+            item.Reset();
+            _player.TeleportTo(new Vector2Int(10, 10));
             var near = factory.Create(89, 1, ItemQuality.Normal, rngPick);
-            item.DropToGround(near, new Vector2Int(11, 10));                 // 距离 = 1.0 ≤ 1.4
+            item.DropToGround(near, new Vector2Int(11, 10));                 // 正交 1 格
             var nearId = LastGroundId(item);
             var pickedNear = item.Pickup(nearId);
             Check("范围内拾取 ⇒ true 且入包", pickedNear && CountAnchors(item) == 1,
@@ -876,7 +1075,16 @@ namespace ItemCheck
             {
                 var state = (QuestState)stage;
                 SetQuestStage(quest, state);                       // 通过公开流程把状态推到该阶段
+                // ★ 片 T（修宿主崩在 :1075 的真因）：`SetQuestStage` 为把任务推到"进行中/可交付"
+                //   会把 `_map.Area` 推到 **DenOfEvil**；而"NPC 只在城镇存在"是**产品特性**
+                //   （agent-26 的城镇门禁 + 片 T 的 S-19「非城镇 ⇒ 不装配」）⇒ 洞里 `GetDialog(0)`
+                //   合法地返回 null。本段判的是「任务阶段 → 台词」，**区域不是本段的变量** ⇒
+                //   取台词前把场景钉回城镇（与下面 §9b 的 `_map.Area = AreaId.Town` 同一口径）。
+                _map.Area = AreaId.Town;
                 var d = npc.GetDialog(0);
+                Check($"阶段 {state}：城镇内能取到阿卡拉对话（非 null）", d != null,
+                    d == null ? "null —— 原因见上一行 [Npc] Warn" : "ok");
+                if (d == null) { texts.Add("<null>"); continue; }   // ⛔ 不许 NRE 崩宿主
                 texts.Add(d.text);
                 Console.WriteLine($"   阶段 {state}：{d.text}");
             }
@@ -897,6 +1105,34 @@ namespace ItemCheck
             Check("可交付阶段 canTurnInQuest = true", CanTurnInFlag(npc, quest), "见上");
             Check("非任务 NPC（瓦瑞夫）也能对话", npc.GetDialog(4) != null && !npc.GetDialog(4).hasShop,
                 "warriv.hasShop=" + npc.GetDialog(4).hasShop);
+
+            // ★ 片 T：把"洞里取不到阿卡拉"从**宿主崩溃**改成**判过的行** —— 这是产品特性（城镇门禁 +
+            //   S-19 非城镇不装配），不是缺陷：洞里必须**拿不到**台词，否则就是"洞里误开阿卡拉对话"。
+            _map.Area = AreaId.DenOfEvil;
+            Check("★非城镇：`GetDialog(0)` 返回 null（不编台词 ⇒ 洞里拿不到阿卡拉台词）",
+                npc.GetDialog(0) == null, "GetDialog(0) = null（原因由 [Npc] 的 WarnOnce 点名）");
+            Check("★非城镇：`Interact(0)` 被城镇门禁拒绝", !npc.Interact(0), "Interact(0) = false");
+            Check("★非城镇：`Get(0)` 返回 null（定义存在、只是本区域不装配）",
+                npc.Get(0) == null, "Get(0) = null");
+            _map.Area = AreaId.Town;                                  // 复位：下面的 §9b 依赖城镇场景
+
+            // ★ 片 T（同族穷举）：**台词表本身不许有空格** —— 5 NPC × 4 任务阶段 = 20 格。
+            //   这样"某状态没有台词"就永远不会以 `null` 的形式出现在 `GetDialog` 上
+            //   （`GetDialog` 的唯一 null 出口 = `Get` 拿不到定义，见其 ★ 注）。
+            var textGaps = 0;
+            var gapWhere = "";
+            for (var id = 0; id < 5; id++)
+            {
+                for (var s = 0; s < 4; s++)
+                {
+                    if (!string.IsNullOrWhiteSpace(
+                            Diablo2.Module.Npc.NpcDialog.TextOf(id, (QuestState)s))) continue;
+                    textGaps++;
+                    gapWhere += $" n{id}/{(QuestState)s}";
+                }
+            }
+            Check("★同族穷举：5 NPC × 4 任务阶段 = 20 格台词全部非空（无静默空格）",
+                textGaps == 0, "空格=" + textGaps + gapWhere);
 
             // 9b) 「点击 NPC → 走过去 → 自动对话」（当前无人发 `NpcInteractRequest`，本模块用 `MoveCommand` 兜底）
             //
@@ -1071,7 +1307,485 @@ namespace ItemCheck
             Check("读不存在的角色 ⇒ null（不抛异常）", emptyData == null, "null");
             Check("损坏 JSON ⇒ null + LastError", BreakJsonRoundTrip(save), "见 [ERROR] [Save]");
 
-            // ── 12. 收尾 ─────────────────────────────────────────────────────────
+            // ── 12. ★ 本轮新增：双武器组（原版 W 键切换；T0 判据缺口 2）──────────────
+            //   断言打在**真实** `ItemModule`（不是桩）上；数据面 = `Equipment` 的武器槽（最多 2 件 = 两套组）。
+            Section("12) 双武器组（真实 ItemModule：切换 / 主手互换 / 切回 / 存档往返 / 旧档兼容）");
+            item.Reset();
+            var itemMod = (Diablo2.Module.Item.ItemModule)item;
+
+            var wA = factory.Create(2, 12, ItemQuality.Normal, new Rng(71));   // 斧
+            var wB = factory.Create(3, 12, ItemQuality.Normal, new Rng(72));   // 大斧
+            Check("两把武器生成成功（不同 itemId、不同伤害、均无词缀）",
+                wA != null && wB != null && wA.itemId != wB.itemId
+                && (wA.dmgMin != wB.dmgMin || wA.dmgMax != wB.dmgMax)
+                && wA.affixes.Count == 0 && wB.affixes.Count == 0,
+                $"{wA?.name}({wA?.dmgMin}-{wA?.dmgMax}) vs {wB?.name}({wB?.dmgMin}-{wB?.dmgMax})");
+
+            item.AddToInventory(wA);
+            Check("装上第 1 把武器（Ⅰ组）", item.EquipFromInventory(FindAnchor(item, wA)),
+                "equip=" + item.Equipment.Count);
+            Check("只有 1 件武器 ⇒ 武器组 = 1 套、生效组 = 0（Ⅰ）",
+                itemMod.WeaponGroupCount == 1 && itemMod.ActiveWeaponGroup == 0,
+                $"count={itemMod.WeaponGroupCount} active={itemMod.ActiveWeaponGroup}");
+
+            // ① 只有一把武器时按 W **不该**把武器卸下来（原版的"切到空手"本项目不做）
+            var swapRejected = !itemMod.SwapWeaponGroup();
+            Check("只有 1 件武器 ⇒ 切换被拒（状态不变）",
+                swapRejected && itemMod.ActiveWeaponGroup == 0 && item.Equipment.Count == 1,
+                $"active={itemMod.ActiveWeaponGroup} equipment={item.Equipment.Count}");
+            Check("切换被拒留了可定位 Warn 日志", _log.Contains("Item", "无可切换的目标组"), "见 [WARN] [Item]");
+
+            item.AddToInventory(wB);
+            Check("装上第 2 把武器（Ⅱ组）", item.EquipFromInventory(FindAnchor(item, wB)),
+                "equip=" + item.Equipment.Count);
+            // ★ 双武器组的"另一半"：`IItemModule.Equipment` 现在是**生效集**（只含生效组那把武器）
+            //   ⇒ `CombatModule.GetWeaponDamage` 不再把两把武器的伤害相加（原版只有当前那套生效）。
+            //   而"两套都存得住"由 `WriteTo` 的全集保证（下面存档断言里按 JSON 逐件核对）。
+            Check("两把武器都装着（组数 = 2），但**生效集只含生效组那 1 把**",
+                itemMod.WeaponGroupCount == 2 && item.Equipment.Count == 1,
+                $"组数={itemMod.WeaponGroupCount} 生效集={item.Equipment.Count}（全集仍 2 把，写档写全集）");
+            Check("生效组自动跟到刚装上的那把（=1 ⇒ Ⅱ）", itemMod.ActiveWeaponGroup == 1,
+                "active=" + itemMod.ActiveWeaponGroup);
+
+            var eq1 = item.Snapshot().equip;
+            Check("装备载荷里只有**生效组**那把武器（非生效组不进载荷）",
+                WeaponsIn(eq1).Count == 1 && WeaponsIn(eq1)[0].itemId == wB.itemId,
+                $"payload weapons={WeaponsIn(eq1).Count} 名={weaponsNames(eq1)}");
+            Check("派生的近战伤害 = Ⅱ组那把（词缀/伤害只算生效组）",
+                _player.DamageText == ExpectedDmgTextOf(wB),
+                $"DamageText={_player.DamageText} 期望={ExpectedDmgTextOf(wB)}");
+
+            // ② W 切换 ⇒ 主手/副手互换
+            Check("切换武器组成功（Ⅱ → Ⅰ）", itemMod.SwapWeaponGroup(), "SwapWeaponGroup=true");
+            Check("切换后生效组 = 0（Ⅰ）", itemMod.ActiveWeaponGroup == 0, "active=" + itemMod.ActiveWeaponGroup);
+            var eq2 = item.Snapshot().equip;
+            Check("切换后载荷里的武器换成另一把（主手/副手互换）",
+                WeaponsIn(eq2).Count == 1 && WeaponsIn(eq2)[0].itemId == wA.itemId,
+                $"payload weapons={WeaponsIn(eq2).Count} 名={weaponsNames(eq2)}");
+            Check("切换后伤害随之变成 Ⅰ组那把（数值面真的生效）",
+                _player.DamageText == ExpectedDmgTextOf(wA),
+                $"DamageText={_player.DamageText} 期望={ExpectedDmgTextOf(wA)}");
+            Check("切换日志写清了两个组名", _log.Contains("Item", "[SwapWeapon] 武器组 Ⅱ → Ⅰ"),
+                "见 [INFO] [Item] [SwapWeapon]");
+
+            // ③ 再切回去 ⇒ 恢复原样
+            Check("再切一次回到 Ⅱ（幂等可逆）", itemMod.SwapWeaponGroup() && itemMod.ActiveWeaponGroup == 1,
+                "active=" + itemMod.ActiveWeaponGroup);
+            var eq3 = item.Snapshot().equip;
+            Check("切回后载荷与切换前一致（同一把 Ⅱ组武器、伤害一致）",
+                WeaponsIn(eq3).Count == 1 && WeaponsIn(eq3)[0].itemId == wB.itemId
+                && _player.DamageText == ExpectedDmgTextOf(wB),
+                $"名={weaponsNames(eq3)} DamageText={_player.DamageText}");
+
+            // ④ 存档往返一致（生效组 Ⅱ ⇒ 存 ⇒ 清空 ⇒ 读回仍是 Ⅱ）
+            const string wgName = "WGCheckHero";
+            _player.Name = wgName;
+            Check("存武器组档成功", save.Save(), save.LastError);
+            var wgFile = System.IO.Path.Combine(saveRoot, "saves", wgName + ".json");
+            var wgJson = System.IO.File.Exists(wgFile) ? System.IO.File.ReadAllText(wgFile) : null;
+            Check("存档 JSON 里 activeWeaponIndex = 1（生效组 Ⅱ）",
+                wgJson != null && wgJson.Contains("\"activeWeaponIndex\":1"),
+                "字段片段=" + FieldSnippet(wgJson, "activeWeaponIndex"));
+            // ★ 写档写**全集**（两套武器都落盘）—— 否则"切回来"就切不回另一把了。
+            Check("存档 JSON 里**两把武器都在**（写档写全集，切组才切得回来）",
+                wgJson != null && wgJson.Contains("\"itemId\":" + wA.itemId) && wgJson.Contains("\"itemId\":" + wB.itemId),
+                $"itemId {wA.itemId} 与 {wB.itemId} 都在存档文本里");
+            item.Reset();
+            Check("Reset 后武器组清空（下面的恢复只能来自存档）",
+                itemMod.ActiveWeaponGroup == 0 && itemMod.WeaponGroupCount == 0,
+                $"active={itemMod.ActiveWeaponGroup} groups={itemMod.WeaponGroupCount}");
+            var wgData = save.Load(wgName);
+            Check("读档往返一致：生效组 = 1（Ⅱ）且两把武器都回来了",
+                wgData != null && itemMod.ActiveWeaponGroup == 1 && itemMod.WeaponGroupCount == 2,
+                wgData == null ? "null" : $"active={itemMod.ActiveWeaponGroup} groups={itemMod.WeaponGroupCount}");
+            Check("读档后载荷仍是 Ⅱ组那把", WeaponsIn(item.Snapshot().equip).Count == 1
+                && WeaponsIn(item.Snapshot().equip)[0].itemId == wB.itemId,
+                "名=" + weaponsNames(item.Snapshot().equip));
+            Check("读档摘要写清了武器组口径", _log.Contains("Item", "读档恢复武器组"), "见 [INFO] [Item]");
+            save.Delete(wgName);
+
+            // ⑤ 向后兼容：**旧档没有 activeWeaponIndex 字段**（§11 的 `legacy` 那份就是）⇒ 默认 0、不崩
+            Check("旧档（无 activeWeaponIndex 字段）解析默认 = 0（Ⅰ组）",
+                legacyData != null && legacyData.activeWeaponIndex == 0,
+                legacyData == null ? "null" : $"activeWeaponIndex={legacyData.activeWeaponIndex}");
+            item.Reset();
+            var legacyLoadOk = true;
+            try { item.LoadFrom(legacyData); }
+            catch (System.Exception ex) { legacyLoadOk = false; Console.WriteLine("   " + ex.GetType().Name + ": " + ex.Message); }
+            Check("旧档灌进 ItemModule 不抛异常且生效组取默认 0",
+                legacyLoadOk && itemMod.ActiveWeaponGroup == 0 && itemMod.WeaponGroupCount == 0,
+                $"threw={!legacyLoadOk} active={itemMod.ActiveWeaponGroup} groups={itemMod.WeaponGroupCount}");
+            Check("旧档兼容口径留了 Info 日志（旧档无该字段 ⇒ 默认 Ⅰ组）",
+                _log.Contains("Item", "旧档没有该字段"), "见 [INFO] [Item] [SwapWeapon] 读档恢复武器组");
+
+            // ── 13. ★ 本轮新增：死亡扣金币 10%（真实 `PlayerModule.Kill`；T0 判据缺口 1）──
+            //   为什么必须用**真实** PlayerModule：金币的唯一归属是 `IPlayerModule`（本文件的 StubPlayer
+            //   的 Kill() 只把生命置 0）—— 打在桩上等于没测。
+            Section("13) 死亡扣金币 10%（真实 PlayerModule.Kill；边界 0 / 5 / 12345 / 连续两次）");
+            var real = new Diablo2.Module.Player.PlayerModule();
+            real.CreateNew(PlayerClass.Barbarian, "GoldHero");
+
+            real.Kill();
+            Check("边界①金币 0 ⇒ 死亡不扣，仍为 0（不出现负数）", real.Gold == 0 && real.IsDead,
+                $"gold={real.Gold} dead={real.IsDead}");
+            real.Revive();
+
+            real.AddGold(5);
+            real.Kill();
+            Check("边界②金币 5 ⇒ 损失 floor(5/10)=0 ⇒ 仍为 5", real.Gold == 5, "gold=" + real.Gold);
+            real.Revive();
+
+            real.AddGold(12340);                              // 5 + 12340 = 12345
+            Check("凑到边界③的 12345", real.Gold == 12345, "gold=" + real.Gold);
+            real.Kill();
+            Check("边界③金币 12345 ⇒ 11111（损失 1234 = floor(12345×10%)）", real.Gold == 11111,
+                "gold=" + real.Gold);
+            real.Revive();
+
+            real.Kill();
+            Check("连续第 2 次死亡 ⇒ 10000（损失 1111 = floor(11111×10%)；两次连续扣）",
+                real.Gold == 10000, "gold=" + real.Gold);
+            Check("扣后不为负（金币 ≥ 0 恒成立）", real.Gold >= 0, "gold=" + real.Gold);
+            real.Revive();
+            Check("复活**不**扣金币（复活 ≠ 死亡）", real.Gold == 10000, "gold=" + real.Gold);
+
+            Check("死亡扣金币口径只报一次（tag = T0GAP，5 次死亡 1 行）",
+                _log.CountOf("T0GAP", "[T0GAP]") == 1, "T0GAP 行数=" + _log.CountOf("T0GAP", "[T0GAP]"));
+            Check("口径行写清了取整口径与「不会为负」的论证",
+                _log.Contains("T0GAP", "向下取整") && _log.Contains("T0GAP", "不会为负"),
+                "见 [INFO] [T0GAP]");
+
+            // ── 15. ★ 起始装备（`start_item_c` ← 官方 charstats.txt；用户报「创建角色后徒手打不动怪」）──
+            //   断言打在**生产实现** `Module/Item/StartItems.cs` 上；期望值由本宿主**自己解析官方
+            //   `charstats.txt`**（不读我们自己的配表）⇒ 判的是"我们抽的表 == 官方表"这条**过程**，
+            //   不是"函数返回 true"。
+            Section("15) 起始装备（start_item_c：职业 → equip/inventory；与官方 charstats.txt 逐条对照）");
+
+            var officialRows = ReadOfficialStartItems();
+            Check("官方 charstats.txt 解析出 5 经典职业的起始装备 23 条", officialRows.Count == 23,
+                "official=" + officialRows.Count);
+
+            var startRows = Table.Tables.Default.StartItem.All();
+            var oursRows = new List<string>();
+            for (var i = 0; i < startRows.Count; i++)
+            {
+                var r = startRows[i];
+                if (r == null) continue;
+                oursRows.Add(r.Class + "|" + r.SlotIndex + "|" + r.Code + "|" + r.Loc + "|" + r.Count);
+            }
+            Check("start_item_c 行数 = 23（官方空位 code='0'/count='0' 已剔除）", oursRows.Count == 23,
+                "ours=" + oursRows.Count);
+            Check("start_item_c 与官方 charstats.txt 逐条一致（双向差集为空）",
+                OnlyIn(officialRows, oursRows).Count == 0 && OnlyIn(oursRows, officialRows).Count == 0,
+                DiffText(officialRows, oursRows));
+            Check("start_item_c.src_line 指回该职业在官方 txt 的真实行号（2/3/4/5/6）",
+                SrcLines(startRows) == "2,3,4,5,6", "srcLines=" + SrcLines(startRows));
+
+            var totalEquip = 0;
+            var nonWeaponShieldSlots = 0;
+            for (var clsId = 1; clsId <= 5; clsId++)
+            {
+                var cls = (PlayerClass)clsId;
+                var sv = NewCharSave(cls);
+                Diablo2.Module.Item.StartItems.Apply(sv);
+
+                var exp = new List<string>();
+                for (var i = 0; i < officialRows.Count; i++)
+                {
+                    var f = officialRows[i].Split('|');
+                    if (int.Parse(f[0]) != clsId) continue;
+                    exp.Add(f[2] + "x" + f[4]);
+                }
+                var got = PairsOfSave(sv);
+                // ⚠️ 口径：不可堆叠品会被**拆成 count 格**（规格：`item_c.stackable == 0` ⇒ 占 count 格）
+                // ⇒ 必须先按 code **汇总总量**再比，否则"1 叠 4 个"与"4 格各 1 个"会被误判为不等。
+                Check($"{cls}: 装备+背包逐条等于官方期望（{exp.Count} 条 / 共 {sv.equip.Count + CountAnchorsInSave(sv)} 件）",
+                    TotalsOf(exp) == TotalsOf(got), $"期望[{TotalsOf(exp)}] 实得[{TotalsOf(got)}]");
+
+                string locTxt;
+                Check($"{cls}: rarm→Weapon / larm→Shield 槽位映射正确",
+                    LocSlotsOk(officialRows, clsId, sv, out locTxt), locTxt);
+
+                var slots = EquipSlots(sv);
+                for (var i = 0; i < slots.Count; i++)
+                {
+                    if (slots[i] != ItemSlot.Weapon && slots[i] != ItemSlot.Shield) nonWeaponShieldSlots++;
+                }
+                totalEquip += sv.equip.Count;
+                Console.WriteLine($"   {cls}(class_c.id={clsId})：装备 {sv.equip.Count} 件[{EquipText(sv)}]；"
+                    + $"背包锚点 {CountAnchorsInSave(sv)} 个[{InvText(sv)}]；"
+                    + $"武器={WeaponText(sv)}");
+
+                Check($"{cls}: 背包格位自洽（占格 = gridW×gridH 且 anchorIndex 指回锚点）",
+                    InventoryBlocksOk(sv), "inventory.Count=" + sv.inventory.Count);
+            }
+            Check("起始装备合计 8 件（Amazon2 / Sorceress1 / Necromancer1 / Paladin2 / Barbarian2）",
+                totalEquip == 8, "equip=" + totalEquip);
+            Check("起始装备里没有防具（官方 charstats 就没有衣服/鞋子/头盔 ⇒ 不许自己加）",
+                nonWeaponShieldSlots == 0, "非武器/盾槽的装备件数=" + nonWeaponShieldSlots);
+            Check("5 职业的起始 code 都能在 item_c 里查到（没有「查不到」日志）",
+                !_log.Contains("Item", "在 `item_c` 里查不到"), "见 [WARN] [Item]");
+
+            // 15b) **生产路径**（`AppFlow.OnCharCreateSubmit` 走的那条）：
+            //      `IItemModule.LoadFrom(新鲜草稿档)` 由 ItemModule 自己补齐 → `WriteTo` 回写进档；
+            //      再喂一次不许重复发（幂等）。
+            item.Reset();
+            var bareText = _player.DamageText;
+            var barbSave = NewCharSave(PlayerClass.Barbarian);
+            Check("草稿档被判为「刚创出来、还没发过装备」",
+                Diablo2.Module.Item.StartItems.IsFreshDraft(barbSave), "IsFreshDraft=true");
+            item.LoadFrom(barbSave);                       // ← 生产路径入口（不是直接调 StartItems）
+            Check("LoadFrom（新角色草稿档）就地补齐起始装备：装备 2 件 / 背包 6 锚点",
+                item.Equipment.Count == 2 && CountAnchors(item) == 6,
+                $"module.Equipment={item.Equipment.Count} anchors={CountAnchors(item)}");
+            item.WriteTo(barbSave);
+            Check("WriteTo 回写后草稿档里有装备与背包（写档之前就落好）",
+                barbSave.equip.Count == 2 && CountAnchorsInSave(barbSave) == 6,
+                $"equip={barbSave.equip.Count} anchors={CountAnchorsInSave(barbSave)}");
+            Check("发过装备后不再是草稿档（⇒ 进图读档不会重复发）",
+                !Diablo2.Module.Item.StartItems.IsFreshDraft(barbSave), "IsFreshDraft=false");
+            item.Reset();
+            item.LoadFrom(barbSave);                       // 第二次（模拟进图读档）
+            Check("二次 LoadFrom 幂等：装备仍 2 件 / 背包仍 6 锚点（没有重复发）",
+                item.Equipment.Count == 2 && CountAnchors(item) == 6,
+                $"module.Equipment={item.Equipment.Count} anchors={CountAnchors(item)}");
+            Check("装备生效：派生伤害随 EquipChanged 载荷变化",
+                _player.DamageText != bareText, $"徒手={bareText} → 装备后={_player.DamageText}");
+            Console.WriteLine($"   Barbarian 起始装备（生产路径）：徒手伤害 {bareText} → {_player.DamageText}；"
+                + $"防御 {_player.Defense}；命中 {_player.AttackRating}");
+
+            // 15c) 战力断言：走**生产入口** `DamageFormula`（配表 dmg → 官方物理伤害公式 @0057b420）
+            for (var ci = 0; ci < 2; ci++)
+            {
+                var cls = ci == 0 ? PlayerClass.Amazon : PlayerClass.Barbarian;
+                var sv = NewCharSave(cls);
+                Diablo2.Module.Item.StartItems.Apply(sv);
+                Table.BaseItemRow wRow;
+                var w = FirstWeapon(sv, out wRow);
+                var bare = Diablo2.Module.Combat.DamageFormula.PhysicalDamage(0, sv.str, sv.dex, 0, 0, 1f);
+                var lo = w == null ? 0 : Diablo2.Module.Combat.DamageFormula.PhysicalDamage(
+                    w.dmgMin, sv.str, sv.dex, wRow.StrBonus, wRow.DexBonus, 1f);
+                var hi = w == null ? 0 : Diablo2.Module.Combat.DamageFormula.PhysicalDamage(
+                    w.dmgMax, sv.str, sv.dex, wRow.StrBonus, wRow.DexBonus, 1f);
+                Console.WriteLine($"   {cls}：力{sv.str}/敏{sv.dex} 武器={WeaponText(sv)}（item_c dmg="
+                    + (wRow == null ? "-" : wRow.DmgMin + "-" + wRow.DmgMax)
+                    + " strBonus=" + (wRow == null ? "-" : wRow.StrBonus.ToString())
+                    + " dexBonus=" + (wRow == null ? "-" : wRow.DexBonus.ToString()) + "）"
+                    + $" ⇒ 普攻物理伤害：徒手 {bare} / 装备后 {lo}-{hi}");
+                Check($"{cls}: 徒手普攻伤害 = 0（正是用户报的「打不动怪」）", bare == 0, "bare=" + bare);
+                Check($"{cls}: 起始武器在手 ⇒ 普攻物理伤害 > 0", w != null && lo > 0 && hi >= lo,
+                    $"lo={lo} hi={hi}");
+                Check($"{cls}: 装备栏武器的 dmg 真的来自配表链（item_c.dmg_min/max → ItemStack.dmgMin/Max）",
+                    w != null && wRow != null && w.dmgMin == wRow.DmgMin && w.dmgMax == wRow.DmgMax,
+                    w == null || wRow == null ? "无武器"
+                        : $"stack={w.dmgMin}-{w.dmgMax} item_c={wRow.DmgMin}-{wRow.DmgMax}");
+            }
+
+            // ── 16. ★ impl-invfix：N2「背包空格」复核（`report-inspect.md` §1 N2）──────────
+            //
+            //   实机症状：面板 `occupied=14`（40 格）却报「空格 0 但无连续块」⇒ 被读成"两个口径自相矛盾"。
+            //   本节的判法是**判过程**：把两件事分别算出来 ——
+            //     ① **件数**（锚点数，= UI 图标数 = 驱动打印的 `occupied`）
+            //     ② **占用格数**（40 格里真的被盖住几格，逐格数 + 按 `item_c` 的 w×h 复核 footpint 和）
+            //   然后断言：14 件**且空位分散**的背包必须放得下 1×3；实机那一格（14 件恰好铺满 40 格）
+            //   必须拒绝，且文案不许再写成"空格 N 但无连续块"。
+            Section("16) N2 复核（件数 vs 占用格数；14/40 分散 ⇒ 能放 / 真满 ⇒ 拒绝且文案属实）");
+
+            // 16a) 生产读档路径灌入「14 个锚点、占 14 格、空位分散」的背包
+            var scatterAnchors = new List<KeyValuePair<Vector2Int, ItemStack>>();
+            var scatterCells = new[]
+            {
+                new Vector2Int(9, 0), new Vector2Int(9, 1), new Vector2Int(9, 2), new Vector2Int(9, 3),
+                new Vector2Int(4, 0), new Vector2Int(4, 1), new Vector2Int(4, 2), new Vector2Int(4, 3),
+                new Vector2Int(0, 0), new Vector2Int(2, 1), new Vector2Int(6, 2),
+                new Vector2Int(3, 3), new Vector2Int(7, 1), new Vector2Int(1, 2),
+            };
+            for (var i = 0; i < scatterCells.Length; i++)
+            {
+                var unit = factory.Create(89, 1, ItemQuality.Normal, new Rng(3000 + i));   // 回城卷轴 1×1
+                if (unit == null) { Check("16a 判据物品 id=89 能从配表造出来", false, "Create(89) = null"); break; }
+                scatterAnchors.Add(new KeyValuePair<Vector2Int, ItemStack>(scatterCells[i], unit));
+            }
+            item.Reset();
+            item.LoadFrom(BuildBagSave("ScatterBag", scatterAnchors));
+            var scatterAnchorsN = CountAnchors(item);
+            var scatterOccupied = CountOccupiedCells(item.Inventory);
+            Check("16a 读档后：锚点（件数）= 14、占用格 = 14、空格 = 26 —— **件数 ≠ 占用格数**",
+                scatterAnchorsN == 14 && scatterOccupied == 14 && GameConst.InventoryCellCount - scatterOccupied == 26,
+                $"anchors={scatterAnchorsN} occupiedCells={scatterOccupied} freeCells={GameConst.InventoryCellCount - scatterOccupied}");
+
+            var ssRow = Table.Tables.Default.Item.Get(11);
+            var shortSword = factory.Create(11, 4, ItemQuality.Normal, new Rng(4711));
+            Check("16a 判据物品来自配表：id=11 的 code=ssd、占格 1×3（⛔ 不硬编码尺寸）",
+                ssRow != null && shortSword != null && ssRow.Code == "ssd"
+                && shortSword.gridW == 1 && shortSword.gridH == 3,
+                $"code={(ssRow == null ? "?" : ssRow.Code)} size={shortSword?.gridW}×{shortSword?.gridH}");
+            var placedScatter = item.AddToInventory(shortSword);
+            Check("16a 1×3 放进「14 件 / 占 14 格 / 空位分散」的背包 ⇒ **成功**", placedScatter,
+                "AddToInventory=" + placedScatter);
+            Check("16a 占用格数 14 → 17、件数 14 → 15（物品真的进包）",
+                CountOccupiedCells(item.Inventory) == 17 && CountAnchors(item) == 15,
+                $"occupiedCells={CountOccupiedCells(item.Inventory)} anchors={CountAnchors(item)}");
+            Check("16a 入包日志写清了锚点格与剩余空格", _log.Contains("Item", "入包「短剑」"), "见 [INFO] [Item] 入包");
+
+            // 16b) 复现**实机那一格**：14 件按 `item_c` 的真实占格恰好铺满 40 格
+            //      （格位/物品 id 逐条抄自实机存档 `client/setting/saves/g66.json`，2026-09-22 23:54:58）
+            var fullSpec = new (Vector2Int cell, int id)[]
+            {
+                (new Vector2Int(0, 0), 47), (new Vector2Int(2, 0), 1), (new Vector2Int(3, 0), 60),
+                (new Vector2Int(5, 0), 47), (new Vector2Int(7, 0), 51), (new Vector2Int(9, 0), 21),
+                (new Vector2Int(3, 1), 60), (new Vector2Int(3, 2), 57), (new Vector2Int(7, 2), 43),
+                (new Vector2Int(0, 3), 60), (new Vector2Int(2, 3), 36), (new Vector2Int(5, 3), 91),
+                (new Vector2Int(6, 3), 128), (new Vector2Int(9, 3), 89),
+            };
+            var fullAnchors = new List<KeyValuePair<Vector2Int, ItemStack>>();
+            for (var i = 0; i < fullSpec.Length; i++)
+            {
+                var it = factory.Create(fullSpec[i].id, 7, ItemQuality.Normal, new Rng(5000 + i));
+                if (it == null) { Check("16b 实机那 14 件的 id 都能从配表造出来", false, "id=" + fullSpec[i].id); break; }
+                fullAnchors.Add(new KeyValuePair<Vector2Int, ItemStack>(fullSpec[i].cell, it));
+            }
+            item.Reset();
+            item.LoadFrom(BuildBagSave("FullBag", fullAnchors));
+            var fullAnchorsN = CountAnchors(item);
+            var fullOccupied = CountOccupiedCells(item.Inventory);
+            var fullFootprint = FootprintSum(item.Inventory);
+            Check("16b 实机那一格的背包 = 14 件**恰好铺满 40 格**（驱动打印的 occupied=14 是**件数**）",
+                fullAnchorsN == 14 && fullOccupied == 40 && fullFootprint == 40
+                && fullOccupied == GameConst.InventoryCellCount,
+                $"anchors={fullAnchorsN} occupiedCells={fullOccupied} footprintSum={fullFootprint} / {GameConst.InventoryCellCount}");
+            var shortSword2 = factory.Create(11, 4, ItemQuality.Normal, new Rng(4712));
+            var placedOnFull = item.AddToInventory(shortSword2);
+            Check("16b 真满的背包再放 1×3 ⇒ **失败（这是正确行为，不是缺陷）**", !placedOnFull,
+                "AddToInventory=" + placedOnFull);
+            Check("16b 失败文案 = 「背包已满（… 空格 0）」，⛔ 不再用「空格 N 但无连续块」误导",
+                _log.Contains("Item", "背包已满") && !_log.Contains("Item", "空格 0 但无连续块"),
+                "见 [WARN] [Item]");
+
+            // 16c) 真有 1 格空、但塞不下 1×3 ⇒ 失败，且文案里的空格数必须 = 实际空格数
+            item.Reset();
+            var oneHoleAnchors = new List<KeyValuePair<Vector2Int, ItemStack>>();
+            for (var y = 0; y < GameConst.InventoryRows; y++)
+            {
+                for (var x = 0; x < GameConst.InventoryCols; x++)
+                {
+                    if (y * GameConst.InventoryCols + x == GameConst.InventoryCellCount - 1) continue;   // 只留最后一格空
+                    var unit = factory.Create(89, 1, ItemQuality.Normal, new Rng(60000 + y * 10 + x));
+                    oneHoleAnchors.Add(new KeyValuePair<Vector2Int, ItemStack>(new Vector2Int(x, y), unit));
+                }
+            }
+            item.LoadFrom(BuildBagSave("OneHoleBag", oneHoleAnchors));
+            var holeOccupied = CountOccupiedCells(item.Inventory);
+            var freeCellsNow = GameConst.InventoryCellCount - holeOccupied;
+            _log.Lines.Clear();
+            var shortSword3 = factory.Create(11, 4, ItemQuality.Normal, new Rng(4713));
+            var placedOnHole = item.AddToInventory(shortSword3);
+            Check("16c 只有 1 格空（碎片化）⇒ 1×3 放不下", !placedOnHole,
+                $"occupiedCells={holeOccupied} freeCells={freeCellsNow} AddToInventory={placedOnHole}");
+            Check("16c 文案里的空格数 = **实际**空格数（1），且说明是碎片化而非已满",
+                _log.Contains("Item", "空格 1 但无") && !_log.Contains("Item", "背包已满"),
+                "见 [WARN] [Item]");
+
+            // ── 17. 片 G1：道具**拖拽放下 / 交换**的落地（用户报的「道具没法拖动！」）────────
+            //    这一节只**加断言**，不改任何既有判据。被测入口 = 生产实现
+            //    `IItemModule.MoveItem(from, to, out reason)`（`App/AppEventRouting` 转发的就是它）
+            //    与真实事件链 `Events.ItemDropRequest`（面板外放下 ⇒ 丢地上）。
+            //    防作弊口径：每一步都断言**总件数不变**（不许把物品复制出两份 / 悄悄丢一件）。
+            Section("17) G1 拖拽落地：空格放下 / 交换 / 大件放小空位拒绝 / 面板外丢地上");
+
+            ItemStack CellItem(int cell)
+            {
+                var s = item.Inventory[cell];
+                return s != null && s.isAnchor ? s.item : null;
+            }
+
+            // 17a) 空格放下：锚点 0 → 空格 5 ⇒ 成功、位置真的变了、**件数不变**
+            var unitA = factory.Create(89, 1, ItemQuality.Normal, new Rng(70101));
+            var unitB = factory.Create(89, 1, ItemQuality.Normal, new Rng(70102));
+            var bagA = new List<KeyValuePair<Vector2Int, ItemStack>>
+            {
+                new KeyValuePair<Vector2Int, ItemStack>(new Vector2Int(0, 0), unitA),
+            };
+            item.Reset();
+            item.LoadFrom(BuildBagSave("G1Move", bagA));
+            var nBefore17a = CountAnchors(item);
+            var moved17a = item.MoveItem(0, 5, out var reason17a);
+            Check("17a 空格放下：MoveItem(0 → 5) 成功、总件数不变、物品真的换格了",
+                moved17a && CountAnchors(item) == nBefore17a && nBefore17a == 1
+                && CellItem(5) == unitA && CellItem(0) == null,
+                $"ok={moved17a} anchors {nBefore17a}→{CountAnchors(item)} at(5)={(CellItem(5) == null ? "null" : CellItem(5).name)} at(0)={(CellItem(0) == null ? "null" : CellItem(0).name)}");
+            Check("17a 移动日志写明「空格」去向（可检索的过程证据）", _log.Contains("Item", "背包内移动"),
+                "见 [INFO] [Item] 背包内移动");
+
+            // 17b) 与另一件交换：0 ↔ 5 两件**互换**（按引用判同一实例，不靠 id）
+            var bagB = new List<KeyValuePair<Vector2Int, ItemStack>>
+            {
+                new KeyValuePair<Vector2Int, ItemStack>(new Vector2Int(0, 0), unitA),
+                new KeyValuePair<Vector2Int, ItemStack>(new Vector2Int(5, 0), unitB),
+            };
+            item.Reset();
+            item.LoadFrom(BuildBagSave("G1Swap", bagB));
+            var nBefore17b = CountAnchors(item);
+            var swapped = item.MoveItem(0, 5, out var reason17b);
+            Check("17b 交换：MoveItem(0 → 5) 让两格内容互换（同一实例搬到对方格）、总件数不变",
+                swapped && CountAnchors(item) == nBefore17b && nBefore17b == 2
+                && CellItem(0) == unitB && CellItem(5) == unitA,
+                $"ok={swapped} anchors {nBefore17b}→{CountAnchors(item)} at(0)={(CellItem(0) == unitA ? "旧A" : CellItem(0) == unitB ? "旧B" : "?")} at(5)={(CellItem(5) == unitA ? "旧A" : CellItem(5) == unitB ? "旧B" : "?")}");
+            Check("17b 交换日志写明「背包内交换」（与原版一致的措辞，可检索）", _log.Contains("Item", "背包内交换"),
+                "见 [INFO] [Item] 背包内交换");
+
+            // 17c) 大件放小空位 ⇒ **拒绝 + 有文案 + 两件都留在原格**
+            var sword17 = factory.Create(11, 4, ItemQuality.Normal, new Rng(70103));   // 短剑 1×3（配表 item_c）
+            var potion17 = factory.Create(89, 1, ItemQuality.Normal, new Rng(70104));  // 回城卷轴 1×1
+            var bagC = new List<KeyValuePair<Vector2Int, ItemStack>>
+            {
+                new KeyValuePair<Vector2Int, ItemStack>(new Vector2Int(0, 0), sword17),
+                new KeyValuePair<Vector2Int, ItemStack>(new Vector2Int(5, 3), potion17),
+            };
+            item.Reset();
+            _log.Lines.Clear();
+            item.LoadFrom(BuildBagSave("G1TooBig", bagC));
+            var nBefore17c = CountAnchors(item);
+            var swordSizeOk = sword17.gridW == 1 && sword17.gridH == 3;
+            var moved17c = item.MoveItem(0, 35, out var reason17c);                    // 35 = (5,3)
+            Check("17c 大件（短剑 1×3）放进 1×1 的小空位 ⇒ **拒绝**、且文案说明是放不下",
+                swordSizeOk && !moved17c && !string.IsNullOrEmpty(reason17c)
+                && reason17c.Contains("短剑") && reason17c.Contains("空间不够"),
+                $"size={sword17.gridW}×{sword17.gridH} ok={moved17c} reason={reason17c}");
+            Check("17c 拒绝后**两件都留在原格**、总件数不变（失败不留半途状态）",
+                CountAnchors(item) == nBefore17c && nBefore17c == 2
+                && CellItem(0) == sword17 && CellItem(35) == potion17,
+                $"anchors {nBefore17c}→{CountAnchors(item)} at(0)={(CellItem(0) == null ? "null" : CellItem(0).name)} at(35)={(CellItem(35) == null ? "null" : CellItem(35).name)}");
+            Check("17c 拒绝原因**同时**写进模块日志（非预期分支必须留痕）", _log.Contains("Item", "MoveItem 拒绝"),
+                "见 [WARN] [Item] MoveItem 拒绝");
+
+            // 17d) 面板外放下 = 丢地上：走**真实事件链** `Events.ItemDropRequest`（UI 的唯一出口）
+            //      （UI 侧 `PlanDrop` 判出 DropKind.DropToGround 后发的就是它；见 uicheck U4Check）
+            var drop17 = factory.Create(89, 1, ItemQuality.Normal, new Rng(70105));
+            var bagD = new List<KeyValuePair<Vector2Int, ItemStack>>
+            {
+                new KeyValuePair<Vector2Int, ItemStack>(new Vector2Int(0, 0), drop17),
+            };
+            item.Reset();
+            _player.TeleportTo(new Vector2Int(10, 10));
+            item.LoadFrom(BuildBagSave("G1Drop", bagD));
+            var groundBefore = item.GroundItems.Count;
+            var anchorsBefore17d = CountAnchors(item);
+            Game.Event.Emit(Events.ItemDropRequest, 0);
+            var groundId17d = LastGroundId(item);
+            var groundCellOk = false;
+            for (var i = 0; i < item.GroundItems.Count; i++)
+            {
+                if (item.GroundItems[i].Key == groundId17d && item.GroundItems[i].Value == drop17) groundCellOk = true;
+            }
+            Check("17d 面板外放下：背包少一件、地面上多一件（同一件物品），落在玩家脚下格",
+                anchorsBefore17d == 1 && CountAnchors(item) == 0
+                && item.GroundItems.Count == groundBefore + 1 && groundId17d >= 0 && groundCellOk,
+                $"anchors {anchorsBefore17d}→{CountAnchors(item)} ground {groundBefore}→{item.GroundItems.Count} id={groundId17d} 玩家格={(10, 10)}");
+            Check("17d 丢弃走了 `Events.ItemDropRequest`（UI 面板外放下的唯一出口）而不是直调模块",
+                _log.Contains("Item", "丢弃"), "见 [INFO] [Item] 丢弃");
+
+            // ── 14. 收尾 ─────────────────────────────────────────────────────────
             Console.WriteLine();
             Console.WriteLine("分层自检（见回报，本宿主不重复执行 shell）：② 跨模块 using ③ UI using Module ④ 直连网络 ⑤ 裸事件名");
             Console.WriteLine();
@@ -1095,6 +1809,55 @@ namespace ItemCheck
             Console.WriteLine($"{(ok ? "[ OK ]" : "[FAIL]")} {what}   ({detail})");
         }
 
+        /// <summary>（★ 本轮新增）取装备载荷里的武器（`ItemStack.type == ItemType.Weapon`）。</summary>
+        private static List<ItemStack> WeaponsIn(List<ItemStack> equip)
+        {
+            var res = new List<ItemStack>();
+            if (equip == null) return res;
+            for (var i = 0; i < equip.Count; i++)
+            {
+                if (equip[i] != null && equip[i].type == ItemType.Weapon) res.Add(equip[i]);
+            }
+            return res;
+        }
+
+        /// <summary>（★ 本轮新增）装备载荷里各武器的名字+id（断言失败时的可读详情）。</summary>
+        private static string weaponsNames(List<ItemStack> equip)
+        {
+            var w = WeaponsIn(equip);
+            if (w.Count == 0) return "(无武器)";
+            var sb = new System.Text.StringBuilder();
+            for (var i = 0; i < w.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append(w[i].name).Append('#').Append(w[i].itemId);
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// （★ 本轮新增）`StubPlayer.DamageText` 的期望值。口径见该属性本体
+        /// （`1 + dmgMin`-`2 + dmgMax`，再乘 `dmg%` 词缀百分比）——
+        /// **仅在该武器无词缀时成立**，所以调用点同时断言了两把武器的 `affixes.Count == 0`。
+        /// </summary>
+        private static string ExpectedDmgTextOf(ItemStack weapon)
+        {
+            if (weapon == null) return "(null weapon)";
+            return $"{1 + weapon.dmgMin}-{2 + weapon.dmgMax}";
+        }
+
+        /// <summary>（★ 本轮新增）取某字段在 JSON 里的片段（自证/失败详情用）。</summary>
+        private static string FieldSnippet(string json, string field)
+        {
+            if (string.IsNullOrEmpty(json)) return "json 为空";
+            var token = "\"" + field + "\":";
+            var i = json.IndexOf(token, StringComparison.Ordinal);
+            if (i < 0) return "**缺字段 " + field + "**";
+            var end = i + token.Length;
+            while (end < json.Length && json[end] != ',' && json[end] != '}') end++;
+            return json.Substring(i, end - i);
+        }
+
         private static void DumpItem(string title, ItemStack it)
         {
             if (it == null)
@@ -1112,6 +1875,288 @@ namespace ItemCheck
                 Console.WriteLine($"      词缀[{i}] affixId={a.affixId} kind={a.kind} mod={a.mod} "
                     + $"min={a.min} max={a.max} value={a.value} name={a.name}");
             }
+        }
+
+        // ═════════════════════════════════════════════════════════════════════════
+        // §15 起始装备的助手（断言口径见该节注释）
+        // ═════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// **官方** `charstats.txt` 的起始装备期望：`"{classId}|{slotIndex}|{code}|{loc}|{count}"`。
+        /// 本宿主自己解析官方文件（**不读我们自己的配表**）⇒ 对照判的是"抽取过程"而不是"结果"。
+        /// </summary>
+        private static List<string> ReadOfficialStartItems()
+        {
+            var res = new List<string>();
+            var path = System.IO.Path.Combine(ResolveProjectRoot(), "原版资源", "d2lod1.10txt-1.10f",
+                "data", "global", "excel", "charstats.txt");
+            if (!System.IO.File.Exists(path))
+            {
+                Console.WriteLine("[warn] 官方 charstats.txt 不存在：" + path);
+                return res;
+            }
+
+            // 官方 txt 是 ASCII/cp1252；`Encoding.Latin1` 在 .NET 5+ 内置（不依赖 CodePages provider）
+            var text = System.IO.File.ReadAllText(path, System.Text.Encoding.Latin1).Replace("\r\n", "\n");
+            var lines = text.Split('\n');
+            var hdr = lines[0].Split('\t');
+            var idx = new Dictionary<string, int>();
+            for (var i = 0; i < hdr.Length; i++) idx[hdr[i]] = i;
+
+            var clsId = new Dictionary<string, int>
+            {
+                { "Amazon", 1 }, { "Sorceress", 2 }, { "Necromancer", 3 },
+                { "Paladin", 4 }, { "Barbarian", 5 },
+            };
+
+            for (var li = 1; li < lines.Length; li++)
+            {
+                if (lines[li].Trim().Length == 0) continue;
+                var row = lines[li].Split('\t');
+                int id;
+                if (!clsId.TryGetValue(CellOf(row, idx, "class"), out id)) continue;
+                for (var k = 1; k <= 10; k++)
+                {
+                    var code = CellOf(row, idx, "item" + k);
+                    var loc = CellOf(row, idx, "item" + k + "loc");
+                    var cnt = CellOf(row, idx, "item" + k + "count");
+                    if (code == "" || code == "0") continue;        // 官方空位占位
+                    if (cnt == "" || cnt == "0") continue;
+                    res.Add(id + "|" + k + "|" + code + "|" + loc + "|" + cnt);
+                }
+            }
+            return res;
+        }
+
+        private static string CellOf(string[] row, Dictionary<string, int> idx, string name)
+        {
+            int i;
+            if (!idx.TryGetValue(name, out i) || i >= row.Length) return "";
+            return row[i];
+        }
+
+        /// <summary>两侧差集（多重集语义：重复元素按出现次数配平）。</summary>
+        private static List<string> OnlyIn(List<string> a, List<string> b)
+        {
+            var used = new bool[b.Count];
+            var only = new List<string>();
+            for (var i = 0; i < a.Count; i++)
+            {
+                var hit = -1;
+                for (var k = 0; k < b.Count; k++)
+                {
+                    if (!used[k] && b[k] == a[i]) { hit = k; break; }
+                }
+                if (hit < 0) only.Add(a[i]); else used[hit] = true;
+            }
+            return only;
+        }
+
+        private static string DiffText(List<string> expect, List<string> got)
+        {
+            return "仅官方有=[" + string.Join(";", OnlyIn(expect, got)) + "] 仅我们有=["
+                + string.Join(";", OnlyIn(got, expect)) + "]";
+        }
+
+        /// <summary>多重集文本（排序后拼接，顺序无关）。</summary>
+        private static string Multiset(List<string> pairs)
+        {
+            var l = new List<string>(pairs);
+            l.Sort(StringComparer.Ordinal);
+            return string.Join(",", l);
+        }
+
+        /// <summary>
+        /// 把 `codexN` 条目**按 code 汇总**成"该 code 身上的总数量"（`codex总N`）。
+        /// 为什么必须汇总：不可堆叠品按规格**拆成 count 格**（例如 `hp1` count=4 ⇒ 4 格各 1 个），
+        /// 而官方期望是"一行 count=4" ⇒ 直接比 `code×count` 会把同一件事判成不等。
+        /// </summary>
+        private static string TotalsOf(List<string> pairs)
+        {
+            var sum = new Dictionary<string, int>();
+            for (var i = 0; i < pairs.Count; i++)
+            {
+                var at = pairs[i].LastIndexOf('x');
+                if (at <= 0) continue;
+                var code = pairs[i].Substring(0, at);
+                var nTxt = pairs[i].Substring(at + 1);
+                var n = 0;
+                if (!int.TryParse(nTxt, out n)) continue;
+                int cur;
+                sum[code] = sum.TryGetValue(code, out cur) ? cur + n : n;
+            }
+            var keys = new List<string>(sum.Keys);
+            keys.Sort(StringComparer.Ordinal);
+            var parts = new List<string>();
+            for (var i = 0; i < keys.Count; i++) parts.Add(keys[i] + "x" + sum[keys[i]]);
+            return string.Join(",", parts);
+        }
+
+        /// <summary>`start_item_c.src_line` 的去重值（应 = 2,3,4,5,6 = 5 职业在官方 txt 的行号）。</summary>
+        private static string SrcLines(List<Table.BaseStartItemRow> rows)
+        {
+            var set = new List<int>();
+            for (var i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] == null) continue;
+                if (!set.Contains(rows[i].SrcLine)) set.Add(rows[i].SrcLine);
+            }
+            set.Sort();
+            return string.Join(",", set);
+        }
+
+        /// <summary>造一份"创角时"的草稿档（字段口径照 `UI/CharCreatePanel`；起始装备由 Apply 填）。</summary>
+        private static CharacterSave NewCharSave(PlayerClass cls)
+        {
+            var row = Table.Tables.Default.Class.Get((int)cls);
+            return new CharacterSave
+            {
+                version = GameConst.SaveVersion,
+                name = "Start" + cls,
+                cls = cls,
+                level = 1,
+                str = row != null ? row.Str : 10,
+                dex = row != null ? row.Dex : 10,
+                vit = row != null ? row.Vit : 10,
+                eng = row != null ? row.Eng : 10,
+                life = 1, mana = 1, stamina = 1,
+                areaId = (int)AreaId.Town,
+                mapSeed = 4321,
+            };
+        }
+
+        /// <summary>`code×count` 多重集（装备 + 背包锚点）；用于与官方期望逐条对照。</summary>
+        private static List<string> PairsOfSave(CharacterSave sv)
+        {
+            var res = new List<string>();
+            if (sv == null) return res;
+            for (var i = 0; i < sv.equip.Count; i++) AddPair(res, sv.equip[i]);
+            for (var i = 0; i < sv.inventory.Count; i++)
+            {
+                var s = sv.inventory[i];
+                if (s == null || !s.isAnchor || s.item == null) continue;
+                AddPair(res, s.item);
+            }
+            return res;
+        }
+
+        private static void AddPair(List<string> res, ItemStack it)
+        {
+            if (it == null) return;
+            var row = Table.Tables.Default.Item.Get(it.itemId);
+            res.Add((row != null ? row.Code : "?" + it.itemId) + "x" + it.count);
+        }
+
+        private static List<ItemSlot> EquipSlots(CharacterSave sv)
+        {
+            var res = new List<ItemSlot>();
+            if (sv == null) return res;
+            for (var i = 0; i < sv.equip.Count; i++)
+            {
+                if (sv.equip[i] != null) res.Add(Diablo2.Module.Item.Equipment.SlotOf(sv.equip[i]));
+            }
+            return res;
+        }
+
+        private static string EquipText(CharacterSave sv)
+        {
+            var parts = new List<string>();
+            for (var i = 0; i < sv.equip.Count; i++)
+            {
+                var it = sv.equip[i];
+                if (it == null) continue;
+                parts.Add(Diablo2.Module.Item.Equipment.SlotOf(it) + ":" + it.name + "x" + it.count);
+            }
+            return string.Join(",", parts);
+        }
+
+        private static string InvText(CharacterSave sv)
+        {
+            var parts = new List<string>();
+            for (var i = 0; i < sv.inventory.Count; i++)
+            {
+                var s = sv.inventory[i];
+                if (s == null || !s.isAnchor || s.item == null) continue;
+                parts.Add(s.item.name + "x" + s.item.count + "@" + s.index);
+            }
+            return string.Join(",", parts);
+        }
+
+        /// <summary>第一个武器槽装备（+ 它的 `item_c` 行）。</summary>
+        private static ItemStack FirstWeapon(CharacterSave sv, out Table.BaseItemRow row)
+        {
+            row = null;
+            if (sv == null) return null;
+            for (var i = 0; i < sv.equip.Count; i++)
+            {
+                var it = sv.equip[i];
+                if (it == null || it.type != ItemType.Weapon) continue;
+                row = Table.Tables.Default.Item.Get(it.itemId);
+                return it;
+            }
+            return null;
+        }
+
+        private static string WeaponText(CharacterSave sv)
+        {
+            Table.BaseItemRow row;
+            var w = FirstWeapon(sv, out row);
+            if (w == null) return "(无)";
+            return $"{w.name} dmg {w.dmgMin}-{w.dmgMax}（strBonus={row.StrBonus} dexBonus={row.DexBonus}）";
+        }
+
+        /// <summary>`loc=rarm/larm` 的行必须是**该槽位**上的同一件 `code`。</summary>
+        private static bool LocSlotsOk(List<string> officialRows, int clsId, CharacterSave sv, out string txt)
+        {
+            var parts = new List<string>();
+            var ok = true;
+            for (var i = 0; i < officialRows.Count; i++)
+            {
+                var f = officialRows[i].Split('|');
+                if (int.Parse(f[0]) != clsId) continue;
+                var want = f[3] == "rarm" ? ItemSlot.Weapon : (f[3] == "larm" ? ItemSlot.Shield : ItemSlot.None);
+                if (want == ItemSlot.None) continue;
+
+                var found = false;
+                for (var k = 0; k < sv.equip.Count; k++)
+                {
+                    var it = sv.equip[k];
+                    if (it == null) continue;
+                    var row = Table.Tables.Default.Item.Get(it.itemId);
+                    if (row == null || row.Code != f[2]) continue;
+                    if (Diablo2.Module.Item.Equipment.SlotOf(it) == want) found = true;
+                }
+                parts.Add($"{f[2]}@{f[3]}→{want}={(found ? "ok" : "MISS")}");
+                if (!found) ok = false;
+            }
+            txt = parts.Count == 0 ? "(该职业无 loc 行)" : string.Join(",", parts);
+            return ok;
+        }
+
+        /// <summary>背包格位自洽：锚点的 `gridW×gridH` 块全部 occupied 且 `anchorIndex` 指回锚点。</summary>
+        private static bool InventoryBlocksOk(CharacterSave sv)
+        {
+            if (sv == null || sv.inventory == null) return false;
+            if (sv.inventory.Count != GameConst.InventoryCellCount) return false;
+            for (var i = 0; i < sv.inventory.Count; i++)
+            {
+                var a = sv.inventory[i];
+                if (a == null || !a.isAnchor || a.item == null) continue;
+                var w = a.item.gridW > 0 ? a.item.gridW : 1;
+                var h = a.item.gridH > 0 ? a.item.gridH : 1;
+                for (var y = a.y; y < a.y + h; y++)
+                {
+                    for (var x = a.x; x < a.x + w; x++)
+                    {
+                        if (x < 0 || y < 0 || x >= GameConst.InventoryCols || y >= GameConst.InventoryRows)
+                            return false;
+                        var c = sv.inventory[y * GameConst.InventoryCols + x];
+                        if (c == null || !c.occupied || c.anchorIndex != a.index) return false;
+                        if (x == a.x && y == a.y && !ReferenceEquals(c.item, a.item)) return false;
+                    }
+                }
+            }
+            return true;
         }
 
         private static bool AffixMaxLevelOk(ItemStack it, int itemLevel)
@@ -1209,6 +2254,85 @@ namespace ItemCheck
                 if (inv.Slots[i].occupied) n++;
             }
             return n;
+        }
+
+        /// <summary>
+        /// （★ impl-invfix）**占用格数** —— 40 格里真的被盖住几格（`occupied = true`）。
+        /// ⚠️ 与"件数"（锚点数）是**两个不同的量**：实机 `/GRID ... occupied=14` 打的是**件数**
+        /// （驱动数的是 UI 图标数，而按契约只有锚点格挂图标），把它当"占用格数"就会得出
+        /// "面板说占 14 格、模块说空格 0 ⇒ 自相矛盾"的错误结论（`report-inspect.md` §1 N2）。
+        /// </summary>
+        private static int CountOccupiedCells(IReadOnlyList<InventorySlot> inv)
+        {
+            if (inv == null) return -1;
+            var n = 0;
+            for (var i = 0; i < inv.Count; i++)
+            {
+                if (inv[i] != null && inv[i].occupied) n++;
+            }
+            return n;
+        }
+
+        /// <summary>（★ impl-invfix）所有锚点物品的 `gridW×gridH` 之和（应当 = 占用格数）。</summary>
+        private static int FootprintSum(IReadOnlyList<InventorySlot> inv)
+        {
+            if (inv == null) return -1;
+            var n = 0;
+            for (var i = 0; i < inv.Count; i++)
+            {
+                var s = inv[i];
+                if (s == null || !s.isAnchor || s.item == null) continue;
+                n += Mathf.Max(1, s.item.gridW) * Mathf.Max(1, s.item.gridH);
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// （★ impl-invfix）造一份"背包已按格摆好"的存档（`CharacterSave.inventory` = 40 格，含空格），
+        /// 供 `ItemModule.LoadFrom` 走**生产读档路径**灌进模块（⛔ 不直接改 `Inventory._slots`）。
+        /// <paramref name="anchors"/> 每项 = (锚点格, 该格上的物品)；覆盖格按 `item_c` 的 w×h 铺满。
+        /// </summary>
+        private static CharacterSave BuildBagSave(string name, List<KeyValuePair<Vector2Int, ItemStack>> anchors)
+        {
+            var inv = new List<InventorySlot>(GameConst.InventoryCellCount);
+            for (var y = 0; y < GameConst.InventoryRows; y++)
+            {
+                for (var x = 0; x < GameConst.InventoryCols; x++)
+                {
+                    inv.Add(new InventorySlot
+                    {
+                        index = y * GameConst.InventoryCols + x, x = x, y = y,
+                        occupied = false, isAnchor = false, item = null, anchorIndex = -1,
+                    });
+                }
+            }
+
+            for (var i = 0; i < anchors.Count; i++)
+            {
+                var cell = anchors[i].Key;
+                var it = anchors[i].Value;
+                if (it == null) continue;
+                var w = it.gridW > 0 ? it.gridW : 1;
+                var h = it.gridH > 0 ? it.gridH : 1;
+                for (var yy = cell.y; yy < cell.y + h && yy < GameConst.InventoryRows; yy++)
+                {
+                    for (var xx = cell.x; xx < cell.x + w && xx < GameConst.InventoryCols; xx++)
+                    {
+                        var s = inv[yy * GameConst.InventoryCols + xx];
+                        s.occupied = true;
+                        s.anchorIndex = cell.y * GameConst.InventoryCols + cell.x;
+                        if (yy == cell.y && xx == cell.x) { s.isAnchor = true; s.item = it; }
+                    }
+                }
+            }
+
+            return new CharacterSave
+            {
+                version = GameConst.SaveVersion, name = name, cls = PlayerClass.Amazon, level = 7,
+                str = 20, dex = 25, vit = 20, eng = 15, life = 100, mana = 20, stamina = 80,
+                gold = 0, areaId = (int)AreaId.Town, mapSeed = 4321,
+                inventory = inv, equip = new List<ItemStack>(), belt = new List<ItemStack>(),
+            };
         }
 
         private static int LastGroundId(Diablo2.Module.IItemModule item)
@@ -1342,7 +2466,14 @@ namespace ItemCheck
             Game.Event.Emit(Events.AreaChanged, AreaId.DenOfEvil);
             _monster.KillOneInDen();
             quest.NotifyMonsterKilled(1);
+            // ★ 片 T：台词只在城镇取（`GetDialog` 在洞里合法返回 null，见 §9 的说明）
+            _map.Area = AreaId.Town;
             var d = npc.GetDialog(0);
+            if (d == null)
+            {
+                Console.WriteLine("      （可交付阶段：GetDialog(0) = null ⇒ 见上一行 [Npc] Warn，本行判 fail）");
+                return false;
+            }
             var ok = d.canTurnInQuest;
             Console.WriteLine($"      （可交付阶段：CanTurnInDen={quest.CanTurnInDen} 对话.canTurnInQuest={d.canTurnInQuest}）");
             return ok;

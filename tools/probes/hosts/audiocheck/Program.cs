@@ -225,6 +225,12 @@ namespace AudioCheck
             Section("素材到位自检（登记表的每个键 → 磁盘上的 .wav）");
             AssetChecks();
 
+            Section("素材溯源自检（① Sounds.txt 行 / ② 与 d2sfx.mpq 原字节 sha256 / ③ 调用点 / ④ 缺文件分支）");
+            ProvenanceChecks();
+
+            Section("BGM 溯源自检（① 三区映射对回 Sounds.txt 行 / ② 与 d2music.mpq 原字节 sha256 / ③ 调用点 / ④ 场景切换真换曲）");
+            BgmProvenanceChecks();
+
             // ③ 场景一：素材"已到位"（探测恒 true）→ 触发点覆盖 / 脚步 / 静止 / BGM
             AudioLog.ResetForTest();
             var probeOk = new FakeProbe(true);
@@ -238,6 +244,13 @@ namespace AudioCheck
 
             Section("BGM 切区域");
             BgmChecks(bus, sound, audio);
+
+            // ★ 片 C4：接收侧节流闸门 + 发送侧出口闩锁（两条新判据；⛔ 上面各节的判据一条未改）
+            Section("片 C4 · 出口触发闩锁（发送侧去重：同一出口/接缝只在进入时发一次）");
+            ExitLatchChecks();
+
+            Section("片 C4 · 音效键最小间隔节流（接收侧防御：同一键 100ms 内第二次请求被丢弃 + 有 Warn）");
+            SfxThrottleChecks(sound, audio, logger);
 
             Section("事件订阅 / 注销");
             SubscriptionChecks(bus, audio);
@@ -477,41 +490,157 @@ namespace AudioCheck
                 Math.Abs(interval - 2f / GameConst.PlayerWalkSpeed) < 1e-6,
                 $"{interval:0.000}s = 2 格 / {GameConst.PlayerWalkSpeed} 格每秒");
 
+            // ★ 片 Y（R3）：脚步口径 = **按走过的格数**累计（每步格数由常量算出，⛔ 不写死 2）——
+            //   修前是"只在格变化那一帧按 dt 累加、其余帧清零" ⇒ 每换一格只累加 ≈1 帧时间
+            //   ⇒ 数学上永远到不了阈值 ⇒ 实机 `footstep` 播放 0 次（审计 D 的 R3）。
+            //   ⛔ 这里不再按"模拟 N 秒"断言（那是旧口径），改成按**走过的格数**断言。
+            var tilesPerStep = AudioHook.FootstepIntervalSeconds * GameConst.PlayerWalkSpeed;   // = 每步格数
             sound.Clear();
-            var frames = (int)Math.Round(2f / dt);           // 2 秒
-            for (var i = 0; i < frames; i++)
+            bus.Emit(Events.PlayerGridChanged, new Vector2Int(0, 0));      // 首帧：只记位，不计距离
+            const int walkTiles = 60;
+            for (var i = 1; i <= walkTiles; i++)
             {
-                bus.Emit(Events.PlayerGridChanged, new Vector2Int(i % 20, (i / 20) % 20));
+                bus.Emit(Events.PlayerGridChanged, new Vector2Int(i, 0));
                 audio.Tick(dt);
             }
             var steps = sound.Count3D(SfxRegistry.Footstep);
-
-            // ★ 片 2b：期望次数**由常量推出**（⛔ 不再写死 0.35 / 固定区间 [5,7]）——
-            //   旧的 `2f / 0.35f` 与 [5,7] 是照着"每步 2 格 ÷ 旧走速 6 格每秒 = 0.333s"手算的，
-            //   走速按原版改成 3.0 格/秒后间隔变 0.667s ⇒ 旧区间会误红。
-            //   口径：2 秒内 ≈ 2/interval 次；±1 的余量 = 逐帧（60fps）离散步进 + 起步相位的量化误差。
-            var expect = 2f / interval;
-            var lo = (int)Math.Floor(expect) - 1;
-            var hi = (int)Math.Ceiling(expect) + 1;
-            Check($"模拟移动 2 秒 → 脚步次数 = 2/间隔（={expect:0.0}，±1 帧量化）",
-                steps >= lo && steps <= hi,
-                $"实测 {steps} 次（间隔 {interval:0.000}s = 每步 2 格 / {GameConst.PlayerWalkSpeed} 格每秒 ⇒ 理论 {expect:0.0} 次，容许 [{lo},{hi}]）");
+            var expect = (int)Math.Floor(walkTiles / tilesPerStep);
+            Check($"走过 {walkTiles} 格 ⇒ 脚步 {expect} 次（每步 {tilesPerStep:0.##} 格，由常量算出）",
+                steps == expect,
+                $"实测 {steps} 次（每步格数 = 间隔 {interval:0.000}s × 走速 {GameConst.PlayerWalkSpeed} = {tilesPerStep:0.##} 格）");
             Check("脚步是**位置音**（走 SfxAt → 3D 通道）",
                 sound.Sfx3D.Count == steps && sound.Sfx2D.Count == 0,
                 $"3D={sound.Sfx3D.Count} 2D={sound.Sfx2D.Count}");
 
+            // ★ 帧率无关：再走同样 60 格、但帧长取 0（极端低帧率）⇒ 步数必须**一样**
+            //   （口径是"走过的格数"，不是"每帧累加 dt" —— 修前正是后者导致永远触发不了）
+            sound.Clear();
+            for (var i = walkTiles + 1; i <= walkTiles * 2; i++)
+            {
+                bus.Emit(Events.PlayerGridChanged, new Vector2Int(i, 0));
+                audio.Tick(0f);                              // dt = 0：完全不给时间，只给距离
+            }
+            Check("步数只由走过的格数决定（⛔ 不是「每帧加 dt」）：dt=0 再走 60 格 ⇒ 仍同样步数",
+                sound.Count3D(SfxRegistry.Footstep) == steps,
+                $"dt=0 ⇒ {sound.Count3D(SfxRegistry.Footstep)} 次 vs 基准 {steps} 次");
+
             // 静止：不移动 → 0 次脚步
             sound.Clear();
-            for (var i = 0; i < frames; i++) audio.Tick(dt);
+            for (var i = 0; i < 120; i++) audio.Tick(dt);
             Check("静止不发声：不移动 2 秒 → 脚步 0 次", sound.Count3D(SfxRegistry.Footstep) == 0,
                 "实测 " + sound.Count3D(SfxRegistry.Footstep) + " 次");
 
-            // 停一下再走：不应"刚起步就响"（静止时清零累积）
+            // 停一下再走：不应"刚起步就响"（走不到一整步就不出声；上一步余量为 0）
             sound.Clear();
-            bus.Emit(Events.PlayerGridChanged, new Vector2Int(1, 1));
+            bus.Emit(Events.PlayerGridChanged, new Vector2Int(walkTiles * 2 + 1, 0));  // 与上一格相邻 = 只走 1 格
             audio.Tick(dt);
-            Check("刚起步不到 1 步的时间间隔内不出脚步（静止时累积已清零）",
+            Check("刚起步只走 1 格（< 每步格数）⇒ 不出脚步",
                 sound.Count3D(SfxRegistry.Footstep) == 0, "实测 " + sound.Count3D(SfxRegistry.Footstep) + " 次");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ 片 C4：出口触发闩锁（发送侧去重）—— 判据的唯一出处 = `Module/Map/ExitLatch`
+        //   用的是**生产同一个类型**（`PlayerModule.CheckExit` 调的就是它），不是宿主里另写一份模拟。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void ExitLatchChecks()
+        {
+            var latch = new Diablo2.Module.Map.ExitLatch();
+            var cell = new Vector2Int(55, 10);
+
+            // ① 站在同一出口格上连续 60 帧（60 次判定）⇒ 只发 1 次
+            var fired = 0;
+            for (var i = 0; i < 60; i++) if (latch.ShouldEmit(true, cell)) fired++;
+            Check("同一出口格连续 60 帧 ⇒ 只发 1 次 ExitEntered（旧口径也是 1 次，这条防回归）",
+                fired == 1, $"60 帧判定 ⇒ 发出 {fired} 次");
+
+            // ② 沿出口列/东边接缝**逐格挪动**（每帧一个新格，从未离开出口区）⇒ 仍只 1 次
+            //    （旧口径 `_lastExitGrid` 在这里会每格各发一次 = 同一族缺陷）
+            fired = 0;
+            for (var y = 11; y <= 70; y++) if (latch.ShouldEmit(true, new Vector2Int(55, y))) fired++;
+            Check("沿出口/接缝逐格走 60 格（每帧换格，始终在出口区）⇒ 仍只 1 次（旧口径会发 60 次）",
+                fired == 0, $"逐格 60 次判定 ⇒ 又发出 {fired} 次（首格那次已在上一项里发掉）");
+
+            // ③ 离开出口格 ⇒ 重新武装 ⇒ 再进入可再发 1 次（⛔ 不许把出口"闩死"导致角色卡住）
+            var left = latch.ShouldEmit(false, new Vector2Int(54, 10));
+            fired = 0;
+            for (var i = 0; i < 3; i++) if (latch.ShouldEmit(true, cell)) fired++;
+            Check("离开出口格后重新武装 ⇒ 再进可再发 1 次（出口仍能真的触发切换）",
+                !left && fired == 1, $"离开时发 {left} 次、回来后发 {fired} 次");
+
+            // ④ 进图落位 / 传送 / 复活 / 复位 ⇒ Reset() 重新武装
+            latch.Reset();
+            Check("Reset()（落位/传送/复活）后重新武装 ⇒ 下一次进入可再发",
+                latch.ShouldEmit(true, cell), "Reset 后再进 ⇒ 发 1 次");
+
+            // ⑤ 判定是"进入出口区"这件事，而不是"格子等于上次的格子"：换到**另一个**出口格也不算重新进入
+            latch.Reset();
+            var a = latch.ShouldEmit(true, new Vector2Int(0, 0));
+            var b = latch.ShouldEmit(true, new Vector2Int(79, 40));
+            Check("连踩两个不同出口格（中间没离开出口区）⇒ 只发 1 次（与「记住上一格」口径的区别）",
+                a && !b, $"第一格={a}、第二格={b}");
+            Check("LastTriggerGrid 记的是触发时那一格（排障用）",
+                latch.LastTriggerGrid == new Vector2Int(0, 0), "LastTriggerGrid=" + latch.LastTriggerGrid);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ 片 C4：接收侧节流（`SfxThrottle`，闸门挂在 `AudioModule` 的唯一播放出口上）
+        //   时钟由宿主注入（纯 .NET 进程读不到 Unity 时钟）⇒ 逐毫秒可控、可复现。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void SfxThrottleChecks(RecSound sound, AudioModule audio, CountingLogger logger)
+        {
+            AudioLog.ResetForTest();
+            SfxThrottle.ResetForTest();
+            logger.Clear();
+
+            var t = 1.0f;                                   // 非 0 ⇒ 闸门生效（0 = 时间源不可用 = 惰性）
+            SfxThrottle.Clock = () => t;
+            var key = SfxRegistry.Portal;                   // 真实键名（L3 实测被刷屏的那个键）
+
+            sound.Clear();
+            audio.Sfx(key);                                 // t=1.000 ⇒ 放行（首次）
+            t = 1.005f; audio.Sfx(key);                      // 距上次 5ms ⇒ 丢弃
+            t = 1.050f; audio.Sfx(key);                      // 距上次 50ms ⇒ 丢弃
+            var played = Count(sound.Sfx2D, key);
+            Check("同一键在 5ms / 50ms 内的第二、三次请求被节流（3 次请求 ⇒ 只起播 1 次）",
+                played == 1, $"1000ms→放行、1005ms→丢、1050ms→丢，实起播 {played} 次");
+            Check("被节流时留下 Warn（tag=Audio，每键 1 条）",
+                AudioLog.ThrottledWarnCount == 1 && logger.CountWarn("Audio", "重复过快") == 1,
+                $"ThrottledWarnCount={AudioLog.ThrottledWarnCount} 日志条数={logger.CountWarn("Audio", "重复过快")}");
+            Check("丢弃计数 = 2（闸门真的拦了 2 次）",
+                SfxThrottle.DropCount == 2, "DropCount=" + SfxThrottle.DropCount);
+
+            t = 1.100f; audio.Sfx(key);                      // 距上次 100ms = 最小间隔 ⇒ 放行
+            Check("间隔达到最小间隔（100ms）后恢复起播",
+                Count(sound.Sfx2D, key) == 2, "实起播 " + Count(sound.Sfx2D, key) + " 次");
+
+            // 节流是**每键**的：同一时刻别的键不受影响（否则会把打击/受击音效一起吞掉）
+            t = 1.110f;
+            audio.Sfx(SfxRegistry.Hit);
+            audio.Sfx(SfxRegistry.Miss);
+            Check("节流按**键**分账：同一时刻 hit / miss 照播（不会被 portal 的窗口连坐）",
+                Count(sound.Sfx2D, SfxRegistry.Hit) == 1 && Count(sound.Sfx2D, SfxRegistry.Miss) == 1,
+                $"hit={Count(sound.Sfx2D, SfxRegistry.Hit)} miss={Count(sound.Sfx2D, SfxRegistry.Miss)}");
+            Check("节流告警不刷屏：3 个键只有 1 个键被节流过 ⇒ 仍只有 1 条 Warn",
+                logger.CountWarn("Audio", "重复过快") == 1, "条数=" + logger.CountWarn("Audio", "重复过快"));
+
+            // 时间源不可用（离线宿主默认情形 / 引擎时钟读不到）⇒ 闸门**惰性**，绝不吞音效
+            SfxThrottle.Clock = () => 0f;
+            sound.Clear();
+            audio.Sfx(key); audio.Sfx(key); audio.Sfx(key);
+            Check("时间源不可用（now=0）⇒ 闸门不生效、一次都不丢（宁可漏节流，不许吞正常音效）",
+                Count(sound.Sfx2D, key) == 3, "实起播 " + Count(sound.Sfx2D, key) + " 次");
+
+            SfxThrottle.ResetForTest();                      // 恢复默认（宿主里 = 惰性）⇒ 不影响后续各节
+            AudioLog.ResetForTest();
+            logger.Clear();
+        }
+
+        /// <summary>统计录音里某个键出现次数（本片 C4 新增的小工具）。</summary>
+        private static int Count(List<string> played, string key)
+        {
+            var n = 0;
+            foreach (var k in played) if (k == key) n++;
+            return n;
         }
 
         /// <summary>BGM 切区域：Town → BloodMoor → DenOfEvil ⇒ 三首不同。</summary>
@@ -611,6 +740,512 @@ namespace AudioCheck
         private static void Section(string title)
         {
             Console.WriteLine("── " + title + " ──");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 素材溯源（本片新增）：台账 = tools/probes/mpq/sfx-provenance.tsv
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// `tools/probes/mpq/sfx-provenance.tsv` 的一行（由 `sfx_provenance.py` 用**真实 `d2sfx.mpq`** 生成）。
+        /// 列：key / sound / sounds_line / mpq_entry / src_bytes / src_sha256 / clip_bytes / clip_sha256 / match
+        /// </summary>
+        private sealed class ProvRow
+        {
+            public string Key, Sound, Entry, SrcSha, ClipSha;
+            public int SoundsLine;
+            public long SrcBytes, ClipBytes;
+        }
+
+        /// <summary>
+        /// ① 每个键对回 `Sounds.txt` 的**行号**（mpq 不在盘时只验台账自洽；在盘时逐行复算）。
+        /// ② 工程侧每个 clip 与 **`d2sfx.mpq` 里的原字节** sha256 相同（mpq 不在盘时对**入仓 sha256** 复算）。
+        /// ③ 每个键都有**活的**调用点（`文件:行` 能打开、且那一行真的引用了该键）—— 不是空实现。
+        /// ④ 缺文件分支存在且会 Warn（源码文本 + §"缺文件只报一次"的行为断言两重）。
+        /// </summary>
+        private static void ProvenanceChecks()
+        {
+            var repo = ResolveRepoRoot();
+            Check("找得到仓库根（含 client/Assets 与 tools/probes）", repo != null, repo ?? "未找到");
+            if (repo == null) return;
+
+            var prov = Path.Combine(repo, "tools", "probes", "mpq", "sfx-provenance.tsv");
+            Check("入仓的溯源台账在盘（tools/probes/mpq/sfx-provenance.tsv）", File.Exists(prov), prov);
+            if (!File.Exists(prov)) return;
+
+            var rows = new List<ProvRow>();
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            var dup = new List<string>();
+            foreach (var ln in File.ReadAllLines(prov))
+            {
+                if (ln.Length == 0 || ln[0] == '#') continue;
+                var f = ln.Split('\t');
+                if (f.Length < 9) continue;
+                var r = new ProvRow
+                {
+                    Key = f[0], Sound = f[1], Entry = f[3], SrcSha = f[5], ClipSha = f[7],
+                    SoundsLine = int.TryParse(f[2], out var n) ? n : 0,
+                    SrcBytes = long.TryParse(f[4], out var sb) ? sb : -1,
+                    ClipBytes = long.TryParse(f[6], out var cb) ? cb : -1,
+                };
+                if (!keys.Add(r.Key)) dup.Add(r.Key);
+                rows.Add(r);
+            }
+
+            Check("台账行数 == 24（登记表的 24 个 SFX 键，一个不多一个不少）", rows.Count == 24, "rows=" + rows.Count);
+            Check("台账键无重复", dup.Count == 0, dup.Count == 0 ? "unique=" + keys.Count : "dup=" + string.Join(",", dup));
+            Check("台账覆盖登记表的**全部** SFX 键（无遗漏）",
+                keys.SetEquals(new HashSet<string>(SfxRegistry.AllSfxKeys, StringComparer.Ordinal)),
+                "台账=" + keys.Count + " 登记表=" + SfxRegistry.AllSfxKeys.Count);
+
+            // ── ① 台账自洽 + （在盘时）逐行复算 Sounds.txt ─────────────────────
+            var badLine = new List<string>();
+            var badEntry = new List<string>();
+            foreach (var r in rows)
+            {
+                if (r.SoundsLine <= 0 || r.Sound.Length == 0) badLine.Add(r.Key);
+                if (!r.Entry.StartsWith(@"data\global\sfx\", StringComparison.OrdinalIgnoreCase)) badEntry.Add(r.Key);
+            }
+            Check("① 每行都带 Sounds.txt 行号（>0）与原版 sound 名", badLine.Count == 0, badLine.Count == 0 ? "24/24" : "缺=" + string.Join(",", badLine));
+            Check("① 每行的 mpq 内路径都在 data\\global\\sfx\\ 下", badEntry.Count == 0, badEntry.Count == 0 ? "24/24" : "越界=" + string.Join(",", badEntry));
+
+            var sounds = Path.Combine(repo, "原版资源", "d2raw", "data", "global", "excel", "Sounds.txt");
+            if (File.Exists(sounds))
+            {
+                var text = File.ReadAllText(sounds).Replace("\r\n", "\n").Split('\n');
+                var mism = new List<string>();
+                foreach (var r in rows)
+                {
+                    if (r.SoundsLine <= 0 || r.SoundsLine > text.Length) { mism.Add(r.Key + "(行越界)"); continue; }
+                    var f = text[r.SoundsLine - 1].Split('\t');
+                    var wantFile = r.Entry.Substring(@"data\global\sfx\".Length);
+                    if (f.Length < 3 || f[0].Trim() != r.Sound
+                        || !string.Equals(f[2].Trim().Replace("/", "\\"), wantFile, StringComparison.OrdinalIgnoreCase))
+                        mism.Add(r.Key + "(@line" + r.SoundsLine + ")");
+                }
+                Check("① 逐行复算 Sounds.txt：sound 名 + FileName 与台账**逐字一致**（24 行）",
+                    mism.Count == 0, mism.Count == 0 ? "Sounds.txt 24/24 命中（行号即出处）" : "不一致=" + string.Join(",", mism));
+                Console.WriteLine("    ── 抽样（前 5 行：键 → Sounds.txt 行 → 原版文件）──");
+                for (var i = 0; i < Math.Min(5, rows.Count); i++)
+                    Console.WriteLine($"      {rows[i].Key,-16} Sounds.txt:{rows[i].SoundsLine,-5} {rows[i].Sound,-26} {rows[i].Entry}");
+            }
+            else
+            {
+                Console.WriteLine("    (Sounds.txt 不在盘 —— 只验台账自洽；深比对由 sfx_provenance.py 在 mpq 侧做)");
+            }
+
+            // ── ② 逐字节 sha256（工程侧 clip vs 台账里的原版 sha256）────────────
+            var root = ResolveSoundRoot();
+            var shaBad = new List<string>();
+            long total = 0;
+            foreach (var r in rows)
+            {
+                var clip = root == null ? null : Path.Combine(root, "SFX", r.Key + ".wav");
+                if (clip == null || !File.Exists(clip)) { shaBad.Add(r.Key + "(缺文件)"); continue; }
+                var bytes = new FileInfo(clip).Length;
+                total += bytes;
+                var sha = Sha256Hex(clip);
+                if (bytes != r.SrcBytes || !string.Equals(sha, r.SrcSha, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(sha, r.ClipSha, StringComparison.OrdinalIgnoreCase))
+                    shaBad.Add(r.Key);
+            }
+            Check("② 每个 clip 与 `d2sfx.mpq` 原字节**逐字节相同**（字节数 + sha256 双重）",
+                shaBad.Count == 0, shaBad.Count == 0 ? $"24/24 一致，共 {total} 字节" : "不一致=" + string.Join(",", shaBad));
+
+            var mpq = Path.Combine(repo, "原版资源", "_mpq_incoming", "d2sfx.mpq");
+            var vlog = Path.Combine(repo, ".ai-tmp", "test", "sfx-verify.log");
+            if (File.Exists(mpq))
+            {
+                var text = File.Exists(vlog) ? File.ReadAllText(vlog) : "";
+                Check("② mpq 在盘 ⇒ 真包深比对须已跑且 PASS（.ai-tmp/test/sfx-verify.log: RESULT=PASS 24/24）",
+                    text.Contains("RESULT=PASS") && text.Contains("sfx_sha256_match=24/24"),
+                    File.Exists(vlog) ? "见 " + vlog : "缺 " + vlog + "（先跑 tools/probes/mpq/sfx_provenance.py）");
+            }
+            else
+            {
+                Console.WriteLine("    (d2sfx.mpq 不在盘 —— ② 退化为对入仓 sha256 复算；台账由 mpq 侧生成，见脚本头)");
+            }
+
+            // ── ③ 调用点（活的 file:line）──────────────────────────────────────
+            var mapTsv = Path.Combine(repo, ".ai-tmp", "test", "sfx-map.tsv");
+            var trigBad = new List<string>();
+            var trigCount = 0;
+            foreach (var ln in File.ReadAllLines(prov))
+            {
+                if (ln.Length == 0 || ln[0] == '#') continue;
+                var f = ln.Split('\t');
+                if (f.Length < 9) continue;
+                var key = f[0];
+                var sites = TriggersFor(repo, key);
+                if (sites.Count == 0) { trigBad.Add(key + "(无调用点)"); continue; }
+                trigCount += sites.Count;
+                foreach (var s in sites)
+                {
+                    if (!SiteIsLive(repo, s, key)) trigBad.Add(key + "@" + s);
+                }
+            }
+            Check("③ 每个键都有**活的**调用点（`文件:行` 在盘 + 那一行真的引用了该键）",
+                trigBad.Count == 0 && trigCount >= 24,
+                trigBad.Count == 0 ? $"{rows.Count} 键 / {trigCount} 个调用点全部可解析" : "坏=" + string.Join(",", trigBad));
+            Console.WriteLine("    (人类可读映射表：.ai-tmp/test/sfx-map.tsv —— 事件 → sound 名 → Sounds.txt 行 → mpq 路径 → 调用点)");
+
+            // ── ④ 缺文件分支存在且 Warn ───────────────────────────────────────
+            var logCs = Path.Combine(repo, "client", "Assets", "Scripts", "Module", "Audio", "AudioLog.cs");
+            var modCs = Path.Combine(repo, "client", "Assets", "Scripts", "Module", "Audio", "AudioModule.cs");
+            var logTxt = File.Exists(logCs) ? File.ReadAllText(logCs) : "";
+            var modTxt = File.Exists(modCs) ? File.ReadAllText(modCs) : "";
+            Check("④ 缺文件分支存在（`AudioModule` 命中 `_missingSfx` 即短路返回，不再调引擎）",
+                modTxt.Contains("_missingSfx.Contains(key)") && modTxt.Contains("AudioLog.MissingSfx("),
+                "见 Module/Audio/AudioModule.cs");
+            Check("④ 缺文件分支**会 Warn**（`AudioLog.MissingSfx` 体内调 `Log.Warn`，不是 `Debug.Log`）",
+                logTxt.Contains("public static void MissingSfx(") && logTxt.Contains("Log.Warn(Tag,")
+                && !logTxt.Contains("Debug.Log"),
+                "见 Module/Audio/AudioLog.cs（行为断言另见本节上方「缺文件只报一次（硬要求 ④）」）");
+
+            if (File.Exists(mapTsv))
+                Console.WriteLine($"    sfx-map.tsv 行数 = {File.ReadAllLines(mapTsv).Length - 1}（含注释 1 行）");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // BGM 溯源（本片新增）：台账 = tools/probes/mpq/bgm-provenance.tsv
+        // 台账由 `tools/probes/mpq/bgm_provenance.py` 用**真实 D2music.mpq** 生成（345,223,076 B）。
+        // ⛔ mpq 未取回时该文件不存在 ⇒ ② 是**未判定**（红），⛔ 不许当绿（见 bgm_provenance.py 的 PENDING）。
+        // ═════════════════════════════════════════════════════════════════════
+
+        private static void BgmProvenanceChecks()
+        {
+            var repo = ResolveRepoRoot();
+            Check("BGM：找得到仓库根", repo != null, repo ?? "未找到");
+            if (repo == null) return;
+
+            var prov = Path.Combine(repo, "tools", "probes", "mpq", "bgm-provenance.tsv");
+            Check("BGM 入仓溯源台账在盘（tools/probes/mpq/bgm-provenance.tsv）", File.Exists(prov),
+                File.Exists(prov) ? prov
+                : prov + " 不在盘 ⇒ 原版 D2music.mpq 还没取回/深比对还没跑（跑 tools/probes/mpq/bgm_provenance.py）");
+            if (!File.Exists(prov)) return;
+
+            var rows = new List<ProvRow>();
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            var dup = new List<string>();
+            foreach (var ln in File.ReadAllLines(prov))
+            {
+                if (ln.Length == 0 || ln[0] == '#') continue;
+                var f = ln.Split('\t');
+                if (f.Length < 9) continue;
+                var r = new ProvRow
+                {
+                    Key = f[0], Sound = f[1], Entry = f[3], SrcSha = f[5], ClipSha = f[7],
+                    SoundsLine = int.TryParse(f[2], out var n) ? n : 0,
+                    SrcBytes = long.TryParse(f[4], out var sb) ? sb : -1,
+                    ClipBytes = long.TryParse(f[6], out var cb) ? cb : -1,
+                };
+                if (!keys.Add(r.Key)) dup.Add(r.Key);
+                rows.Add(r);
+            }
+
+            Check("BGM 台账行数 == 3（登记表的 3 个 BGM 键，一个不多一个不少）", rows.Count == 3, "rows=" + rows.Count);
+            Check("BGM 台账键无重复", dup.Count == 0, dup.Count == 0 ? "unique=" + keys.Count : "dup=" + string.Join(",", dup));
+            Check("BGM 台账覆盖登记表的**全部** BGM 键（无遗漏）",
+                keys.SetEquals(new HashSet<string>(SfxRegistry.AllBgmKeys, StringComparer.Ordinal)),
+                "台账=" + keys.Count + " 登记表=" + SfxRegistry.AllBgmKeys.Count);
+
+            // ── ① 三区映射：场景 → 原版 sound 名 → Sounds.txt 行 ────────────────
+            var badLine = new List<string>();
+            var badEntry = new List<string>();
+            foreach (var r in rows)
+            {
+                if (r.SoundsLine <= 0 || r.Sound.Length == 0) badLine.Add(r.Key);
+                if (!r.Entry.StartsWith(@"data\global\music\", StringComparison.OrdinalIgnoreCase)) badEntry.Add(r.Key);
+            }
+            Check("① BGM 每行都带 Sounds.txt 行号（>0）与原版 sound 名", badLine.Count == 0,
+                badLine.Count == 0 ? "3/3" : "缺=" + string.Join(",", badLine));
+            Check("① BGM 每行的 mpq 内路径都在 data\\global\\music\\ 下", badEntry.Count == 0,
+                badEntry.Count == 0 ? "3/3" : "越界=" + string.Join(",", badEntry));
+
+            var sounds = Path.Combine(repo, "原版资源", "d2raw", "data", "global", "excel", "Sounds.txt");
+            if (File.Exists(sounds))
+            {
+                var text = File.ReadAllText(sounds).Replace("\r\n", "\n").Split('\n');
+                var mism = new List<string>();
+                foreach (var r in rows)
+                {
+                    if (r.SoundsLine <= 0 || r.SoundsLine > text.Length) { mism.Add(r.Key + "(行越界)"); continue; }
+                    var f = text[r.SoundsLine - 1].Split('\t');
+                    var wantFile = r.Entry.Substring(@"data\global\music\".Length);
+                    if (f.Length < 3 || f[0].Trim() != r.Sound
+                        || !string.Equals(f[2].Trim().Replace("/", "\\"), wantFile, StringComparison.OrdinalIgnoreCase))
+                        mism.Add(r.Key + "(@line" + r.SoundsLine + ")");
+                }
+                Check("① BGM 逐行复算 Sounds.txt：sound 名 + FileName 与台账**逐字一致**（3 行）",
+                    mism.Count == 0, mism.Count == 0 ? "Sounds.txt 3/3 命中（行号即出处）" : "不一致=" + string.Join(",", mism));
+                foreach (var r in rows)
+                    Console.WriteLine($"      BGM  {r.Key,-12} Sounds.txt:{r.SoundsLine,-5} {r.Sound,-20} {r.Entry}");
+            }
+            else
+            {
+                Console.WriteLine("    (Sounds.txt 不在盘 —— 只验台账自洽；深比对由 bgm_provenance.py 在 mpq 侧做)");
+            }
+
+            // ── ② 逐字节 sha256（工程侧 BGM clip vs 台账里的原版 sha256）───────
+            var root = ResolveSoundRoot();
+            var shaBad = new List<string>();
+            long total = 0;
+            foreach (var r in rows)
+            {
+                var clip = root == null ? null : Path.Combine(root, "BGM", r.Key + ".wav");
+                if (clip == null || !File.Exists(clip)) { shaBad.Add(r.Key + "(缺文件)"); continue; }
+                var bytes = new FileInfo(clip).Length;
+                total += bytes;
+                var sha = Sha256Hex(clip);
+                if (bytes != r.SrcBytes || !string.Equals(sha, r.SrcSha, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(sha, r.ClipSha, StringComparison.OrdinalIgnoreCase))
+                    shaBad.Add(r.Key);
+            }
+            Check("② 每个 BGM clip 与 `d2music.mpq` 原字节**逐字节相同**（字节数 + sha256 双重）",
+                shaBad.Count == 0, shaBad.Count == 0 ? $"3/3 一致，共 {total} 字节" : "不一致=" + string.Join(",", shaBad));
+
+            var mpq = Path.Combine(repo, "原版资源", "_mpq_incoming", "D2music.mpq");
+            var vlog = Path.Combine(repo, ".ai-tmp", "test", "bgm-verify.log");
+            if (File.Exists(mpq))
+            {
+                var vtext = File.Exists(vlog) ? File.ReadAllText(vlog) : "";
+                Check("② D2music.mpq 在盘 ⇒ 真包深比对须已跑且 PASS（.ai-tmp/test/bgm-verify.log: RESULT=PASS 3/3）",
+                    vtext.Contains("RESULT=PASS") && vtext.Contains("bgm_sha256_match=3/3"),
+                    File.Exists(vlog) ? "见 " + vlog : "缺 " + vlog + "（先跑 tools/probes/mpq/bgm_provenance.py）");
+            }
+            else
+            {
+                Console.WriteLine("    (D2music.mpq 不在盘 —— ② 退化为对入仓 sha256 复算)");
+            }
+
+            // ── ③ 调用点（活的 file:line）──────────────────────────────────────
+            var trigBad = new List<string>();
+            var trigCount = 0;
+            foreach (var r in rows)
+            {
+                var sites = BgmSitesFor(repo, r.Key);
+                if (sites.Count == 0) { trigBad.Add(r.Key + "(无调用点)"); continue; }
+                trigCount += sites.Count;
+                foreach (var s in sites)
+                {
+                    if (!BgmSiteIsLive(repo, s, r.Key)) trigBad.Add(r.Key + "@" + s);
+                }
+            }
+            Check("③ 每个 BGM 键都有**活的**调用点（`文件:行` 在盘 + 那一行真的引用了该键）",
+                trigBad.Count == 0 && trigCount >= 3,
+                trigBad.Count == 0 ? $"{rows.Count} 键 / {trigCount} 个调用点全部可解析" : "坏=" + string.Join(",", trigBad));
+            Console.WriteLine("    (人类可读映射表：.ai-tmp/test/bgm-map.tsv —— 场景 → sound 名 → Sounds.txt 行 → mpq 路径 → 调用点)");
+
+            // ── ④ 场景切换真的换曲（离线回读：本地图 → 引擎收到的键名）────────
+            var mapBad = new List<string>();
+            var got = new List<string>();
+            foreach (var area in new[] { Diablo2.Def.AreaId.Town, Diablo2.Def.AreaId.BloodMoor, Diablo2.Def.AreaId.DenOfEvil })
+            {
+                var k = SfxRegistry.BgmKeyOf(area);
+                got.Add(area + "=" + (k ?? "(null)"));
+                if (k == null || !keys.Contains(k)) mapBad.Add(area + "->" + (k ?? "(null)"));
+            }
+            Check("④ 三个区域的 区域→键 映射与台账键集合**一一对应**（无一区域映射到未登记键）",
+                mapBad.Count == 0, string.Join(" ", got));
+            Check("④ 三区**互不相同**（换区即换曲，不是同一首顶着）",
+                got.Count == 3 && new HashSet<string>(new[] {
+                    SfxRegistry.BgmKeyOf(Diablo2.Def.AreaId.Town),
+                    SfxRegistry.BgmKeyOf(Diablo2.Def.AreaId.BloodMoor),
+                    SfxRegistry.BgmKeyOf(Diablo2.Def.AreaId.DenOfEvil) }).Count == 3,
+                string.Join(" ", got));
+            Console.WriteLine("    (④ 的**运行期**回读另见本节上方「BGM 切区域」：三次 AreaChanged → 引擎收到 town→bloodmoor→denofevil)");
+        }
+
+        /// <summary>BGM 键 → 区域枚举名（判 `case AreaId.X: return BgmY;` 用）。</summary>
+        private static string BgmAreaCaseOf(string key)
+        {
+            switch (key)
+            {
+                case "town": return "AreaId.Town";
+                case "bloodmoor": return "AreaId.BloodMoor";
+                case "denofevil": return "AreaId.DenOfEvil";
+                default: return null;
+            }
+        }
+
+        /// <summary>BGM 键 → `SfxRegistry` 里的常量名。</summary>
+        private static string BgmIdentOf(string key)
+        {
+            switch (key)
+            {
+                case "town": return "BgmTown";
+                case "bloodmoor": return "BgmBloodMoor";
+                case "denofevil": return "BgmDenOfEvil";
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// BGM 键的**活调用点**（与 `bgm_provenance.py::scan_triggers` 同口径）：
+        /// ① `SfxRegistry.cs` 的 `case AreaId.&lt;X&gt;: return &lt;Ident&gt;;`（区域→键 的唯一映射点）；
+        /// ② `AudioHook.cs` 的 `PlayAreaBgm()` / `SfxRegistry.BgmKeyOf(` / `_audio.Bgm(key)`（消费链）。
+        /// ⛔ 整行注释不算引用。
+        /// </summary>
+        private static List<string> BgmSitesFor(string repo, string key)
+        {
+            var ident = BgmIdentOf(key);
+            var areaCase = BgmAreaCaseOf(key);
+            if (ident == null || areaCase == null) return new List<string>();
+            var res = new List<string>();
+            var reg = Path.Combine(repo, "client", "Assets", "Scripts", "Module", "Audio", "SfxRegistry.cs");
+            if (File.Exists(reg))
+            {
+                var lines = File.ReadAllText(reg).Replace("\r\n", "\n").Split('\n');
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    if (IsComment(lines[i])) continue;
+                    if (lines[i].Contains("case " + areaCase + ":") && lines[i].Contains("return " + ident + ";"))
+                        res.Add(Rel(repo, reg) + ":" + (i + 1));
+                }
+            }
+            var hook = Path.Combine(repo, "client", "Assets", "Scripts", "Module", "Audio", "AudioHook.cs");
+            if (File.Exists(hook))
+            {
+                var lines = File.ReadAllText(hook).Replace("\r\n", "\n").Split('\n');
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    if (IsComment(lines[i])) continue;
+                    var l = lines[i];
+                    if (l.Contains("PlayAreaBgm()") || l.Contains("SfxRegistry.BgmKeyOf(") || l.Contains("_audio.Bgm(key)"))
+                        res.Add(Rel(repo, hook) + ":" + (i + 1));
+                }
+            }
+            return res;
+        }
+
+        private static bool BgmSiteIsLive(string repo, string site, string key)
+        {
+            var i = site.LastIndexOf(':');
+            if (i <= 1) return false;
+            var path = Path.Combine(repo, site.Substring(0, i).Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(path)) return false;
+            if (!int.TryParse(site.Substring(i + 1), out var n) || n <= 0) return false;
+            var lines = File.ReadAllText(path).Replace("\r\n", "\n").Split('\n');
+            if (n > lines.Length) return false;
+            var line = lines[n - 1];
+            if (IsComment(line)) return false;
+            var ident = BgmIdentOf(key);
+            var areaCase = BgmAreaCaseOf(key);
+            if (line.Contains(ident) || line.Contains(areaCase)) return true;
+            return line.Contains("PlayAreaBgm()") || line.Contains("SfxRegistry.BgmKeyOf(") || line.Contains("_audio.Bgm(key)");
+        }
+
+        private static bool IsComment(string line)
+        {
+            var s = line.TrimStart();
+            return s.StartsWith("//", StringComparison.Ordinal) || s.StartsWith("*", StringComparison.Ordinal);
+        }
+
+        /// <summary>台账里 `# key ...` 之外每行的 key → 用 C# 侧读源码找调用点（与 sfx_provenance.py 同口径）。</summary>
+        private static List<string> TriggersFor(string repo, string key)
+        {
+            var ident = IdentOf(key);
+            if (ident == null) return new List<string>();
+            var scripts = Path.Combine(repo, "client", "Assets", "Scripts");
+            var outList = new List<string>();
+            var indirect = key.StartsWith("cast_", StringComparison.Ordinal) && key != "cast";
+            foreach (var f in Directory.GetFiles(scripts, "*.cs", SearchOption.AllDirectories))
+            {
+                var name = Path.GetFileName(f);
+                if (name == "SfxRegistry.cs") continue;
+                if (name == "SfxKeys.cs" && !indirect) continue;
+                var lines = File.ReadAllText(f).Replace("\r\n", "\n").Split('\n');
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    var s = lines[i].TrimStart();
+                    if (s.StartsWith("//", StringComparison.Ordinal) || s.StartsWith("*", StringComparison.Ordinal)) continue;
+                    var hit = indirect
+                        ? (name == "SfxKeys.cs" && lines[i].Contains("return " + ident + ";")) || lines[i].Contains("CastOf(")
+                        : lines[i].Contains("SfxKeys." + ident) || lines[i].Contains("SfxRegistry." + ident);
+                    if (hit) outList.Add(Rel(repo, f) + ":" + (i + 1));
+                }
+            }
+            return outList;
+        }
+
+        private static bool SiteIsLive(string repo, string site, string key)
+        {
+            var i = site.LastIndexOf(':');
+            if (i <= 1) return false;
+            var path = Path.Combine(repo, site.Substring(0, i).Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(path)) return false;
+            var n = 0;
+            if (!int.TryParse(site.Substring(i + 1), out n) || n <= 0) return false;
+            var lines = File.ReadAllText(path).Replace("\r\n", "\n").Split('\n');
+            if (n > lines.Length) return false;
+            var ident = IdentOf(key);
+            var line = lines[n - 1];
+            if (ident == null) return false;
+            return line.Contains(ident) || (key.StartsWith("cast_", StringComparison.Ordinal) && line.Contains("CastOf("));
+        }
+
+        private static string IdentOf(string key)
+        {
+            switch (key)
+            {
+                case "hit": return "Hit";
+                case "miss": return "Miss";
+                case "player_hurt": return "PlayerHurt";
+                case "player_die": return "PlayerDie";
+                case "player_revive": return "PlayerRevive";
+                case "monster_die": return "MonsterDie";
+                case "monster_attack": return "MonsterAttack";
+                case "monster_revive": return "MonsterRevive";
+                case "cast": return "Cast";
+                case "cast_fire": return "CastFire";
+                case "cast_cold": return "CastCold";
+                case "cast_lightning": return "CastLightning";
+                case "cast_poison": return "CastPoison";
+                case "level_up": return "LevelUp";
+                case "footstep": return "Footstep";
+                case "item_pickup": return "ItemPickup";
+                case "gold_pickup": return "GoldPickup";
+                case "item_use": return "ItemUse";
+                case "ui_click": return "UiClick";
+                case "dialog_open": return "DialogOpen";
+                case "shop_open": return "ShopOpen";
+                case "portal": return "Portal";
+                case "area_enter": return "AreaEnter";
+                case "quest_complete": return "QuestComplete";
+                default: return null;
+            }
+        }
+
+        private static string Rel(string root, string full)
+        {
+            var r = new Uri(root.EndsWith("\\", StringComparison.Ordinal) ? root : root + "\\");
+            return Uri.UnescapeDataString(r.MakeRelativeUri(new Uri(full)).ToString()).Replace('\\', '/');
+        }
+
+        private static string Sha256Hex(string path)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            using (var fs = File.OpenRead(path))
+            {
+                var h = sha.ComputeHash(fs);
+                var sb = new System.Text.StringBuilder(h.Length * 2);
+                foreach (var b in h) sb.Append(b.ToString("x2"));
+                return sb.ToString();
+            }
+        }
+
+        /// <summary>从当前目录向上找同时含 `client/Assets` 与 `tools/probes` 的仓库根。</summary>
+        private static string ResolveRepoRoot()
+        {
+            var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+            while (dir != null)
+            {
+                if (Directory.Exists(Path.Combine(dir.FullName, "client", "Assets"))
+                    && Directory.Exists(Path.Combine(dir.FullName, "tools", "probes")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            return null;
         }
 
         private static void Check(string what, bool ok, string detail)

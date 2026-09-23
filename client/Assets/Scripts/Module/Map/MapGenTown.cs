@@ -41,6 +41,35 @@ namespace Diablo2.Module.Map
     /// <summary>罗格营地固定布局生成器（数据来自原版 DS1，见文件头）。</summary>
     public static class MapGenTown
     {
+    /// <summary>
+    /// 罗格营地的**传送点交互锚点**（关卡格 = 原版 DS1 的预设单位坐标换算而来的**关卡坐标**）。
+    /// <para>
+    /// ★ 片 g1-resume 新增（修用户报的「传送点没效果」；验收表 S-40）。出处逐条：
+    /// </para>
+    /// <list type="number">
+    /// <item>`Levels.txt`「Act 1 - Town」的 `Waypoint` 列 = **0**（= 本关有传送点，编号 0；
+    ///   同列 255 = 没有传送点，见同表 `Act 1 - Wilderness 1` / `Act 1 - Cave 1`）。
+    ///   这是"本关有传送点"的**表级依据**。</item>
+    /// <item>`Objects.txt` Id=**119** = `Name=Waypoint` / `Token=wp` / `SizeX=SizeY=5`
+    ///   （5 子格 = 1 格；子格 = 格 × 5，见 `tools/d2codec/export_town_layout.py` 文件头 ③-a）
+    ///   ⇒ 传送点物件**占 1 格**、可选中（`Selectable0/2=1`）。</item>
+    /// <item>**位置** = 原版四块城镇块（`LpPrest.txt`「Act 1 - Town 1」的
+    ///   `TownN1/E1/S1/W1.ds1`）里那个 **kind=2 预设单位**。四块是同一座营地按不同原点导出的
+    ///   （对齐口径见 `MapGenTownLayout` 文件头），把该单位按生成器同一套变换
+    ///   （`level = local + WIN - offs`）折算成关卡坐标后**四块完全重合** = (31,26)：
+    ///   <c>TownW1 本地(14,21)+（17,5) / TownN1(28,10)+(3,16) / TownE1(32,16)+(-1,10) / TownS1(28,27)+(3,-1)</c>
+    ///   —— 四块给出同一个关卡格 ⇒ 它是**关卡级的标记单位**（不是某一块的装饰）。</item>
+    /// </list>
+    /// <para>
+    /// ⚠️ **已登记的差异（未决项，见本轮报告）**：该预设单位在 `Objects.txt` 里的行名是
+    /// `not used`（Id=110 / Token=n5）—— 这是原版美术在 DS1 里留的**占位单位**，引擎在运行时
+    /// 用 Id=119 的 Waypoint 替换它；而**世界里的传送点本体艺术**（`data/global/objects/wp/*.dc6`）
+    /// 本工程没有解包（`原版资源/d2dc6` 里只有物品图标 `invwpl/invwps.DC6`）。
+    /// 因此本片**只用它做交互锚点**，不新增任何自创贴图；视觉差异已登记到报告里等主 agent 裁决。
+    /// </para>
+    /// </summary>
+    public static readonly Vector2Int Waypoint = new Vector2Int(31, 26);
+
         /// <summary>生成罗格营地（**固定布局**，同 seed 与不同 seed 结果都一样）。</summary>
         public static void Generate(GridMap map, Rng rng)
         {
@@ -84,6 +113,12 @@ namespace Diablo2.Module.Map
             //     "原版这格没铺/没物件" 的格）。取不到键的格留空串 = 原版那格不画。
             map.BeginTileOverrides();
             var noGround = 0;
+            // 桥面登记对账（数值证据，见 `DeckTiles` / `GridMap.SetTiles`）：
+            //   deckTiles = 布局里地面键取自 deck 类包（`moor_bridge`）的格数（**含栏杆行的地面**）；
+            //   deckMarked = 其中真正登记成 deck 的格数（= 可走的桥面格）。
+            // 判据：桥面行存在（deckTiles > 0）却一格都没登记上 ⇒ **非预期**，必须 Warn（不静默）。
+            var deckTiles = 0;
+            var deckMarked = 0;
 
             var counts = new int[128];
             for (var y = 0; y < h; y++)
@@ -107,7 +142,28 @@ namespace Diablo2.Module.Map
                     string gk = null, ok = null;
                     if (!MapGenTownLayout.TryGetTiles(x, y, out gk, out ok)) { noGround++; gk = ""; ok = ""; }
                     map.SetTiles(x, y, gk ?? "", ok ?? "");
+
+                    // 桥面（deck）登记：判据 = 地面键取自 deck 类包 **且本格可走**（口径唯一出处 = DeckTiles）。
+                    // 这座桥的 4 行里只有两行可走（`Rows` 的 'd'）⇒ 桥面 = 2 行 × 10 列；
+                    // 另两行（'s' 栏杆行）地面同图集但不可走，**不算**桥面。
+                    if (DeckTiles.IsDeckGroundKey(gk))
+                    {
+                        deckTiles++;
+                        if (map.IsDeck(new Vector2Int(x, y))) deckMarked++;
+                    }
                 }
+            }
+
+            if (deckTiles > 0 && deckMarked == 0)
+            {
+                MapLog.Warn($"MapGenTown: 布局里有 {deckTiles} 格「deck 类包（{MapGenTownLayout.Packs[0]}）地砖」" +
+                            "（桥面 + 栏杆行的地面），但**一格都没登记成 deck**（可走性判据变了？）" +
+                            "⇒ 站在桥上的实体不会抬排序档，「人从桥下走」会复现（IsDeckGrid 全 false）");
+            }
+            else if (deckTiles > 0)
+            {
+                MapLog.Info($"MapGenTown: deck（桥面）登记 {deckMarked} 格；布局里 deck 类包地砖共 {deckTiles} 格" +
+                            $"（差额 {deckTiles - deckMarked} = 栏杆行的地面：同图集但不可走 ⇒ 不算桥面）");
             }
             if (noGround > 0)
             {
@@ -115,13 +171,34 @@ namespace Diablo2.Module.Map
                             "几格在原版里没有瓦片，渲染层不会画任何东西");
             }
 
+            // ★ 片 M3 说明（为什么这里**不**动 `map.Exits`）：
+            //   原版城镇关卡的**东边界列与野外第 0 列是同一条「共享边列」**（出处
+            //   `libd2/.../drlg/outdoors/OutRoom.zig:271`；本仓库 `tools/d2codec/export_town_layout.py`
+            //   文件头 line 98-106 已逐条复核）⇒ 原版「过桥向东 = 进入野外」。
+            //   但这条接缝**不写进 `map.Exits`**：`mapcheck` §10 的既有判据「城镇出口恰 3 格
+            //   （= 围栏西侧 `warp.dt1` 的 3 格缺口）」是**已冻结的判据**，⛔ 不许为了新功能放宽它
+            //   （片 M3 约束 = 只加断言、别改判据）。⇒ 接缝改在**触发侧**判定，判据唯一出处 =
+            //   `Module/Map/MapSeam.IsTownEastSeam`（纯函数；`mapcheck §24` 与 `movecheck §9` 都已断言）。
+
             // ② 出生点 / NPC 站位：由生成器在原版布局上算好（出生点 8 邻全可走；NPC 全在可达区）
             map.SpawnPoint = MapGenTownLayout.Spawn;
             for (var i = 0; i < MapGenTownLayout.Npcs.Length; i++) map.NpcPoints.Add(MapGenTownLayout.Npcs[i]);
 
-            // 必须可达：出城口 + 全部 NPC
+            // ★ 片 g1-resume：传送点交互锚点（出处见 `MapGenTown.Waypoint` 的注释）。
+            //   ⛔ 不新增任何贴图：原版世界里那座传送台的本体艺术本工程未解包（见该常量的注释）。
+            //   硬要求：锚点必须**可走且在围栏内**（否则玩家走不到 / 点不到）——不合格就点名报错，
+            //   而不是静默地登记一个点不到的位置。
+            map.WaypointPoints.Add(Waypoint);
+            if (!map.Walkable(Waypoint))
+            {
+                MapLog.Error($"MapGenTown: 传送点锚点 {Waypoint} 不可走（原版布局表被改过？）" +
+                             "⇒ 玩家走不到，传送面板点不开。请复核 MapGenTown.Waypoint 的出处");
+            }
+
+            // 必须可达：出城口 + 全部 NPC + 传送点
             map.RequiredReachable.AddRange(map.Exits);
             map.RequiredReachable.AddRange(map.NpcPoints);
+            map.RequiredReachable.AddRange(map.WaypointPoints);
 
             // 不变量：可达 == 可走（营地是围栏围起来的，正常不会填到任何格；填到了说明有死地）
             map.FillUnreachablePockets(map.SpawnPoint, TileKind.Wall);
@@ -169,7 +246,10 @@ namespace Diablo2.Module.Map
                 case 'w': return TileKind.Wall;    // 兼容别名（旧生成物用过）
                 case 't': return TileKind.Tree;
                 case 's': return TileKind.Rock;    // 营地内的石矮墙（原版 wall 层的 stonewall.dt1）
-                case 'r': return TileKind.Rock;    // 水（河/水塘，原版 river.dt1）—— 不可涉水
+                // ★ 片 L / R12：水 = **独立 `TileKind.Water`**（原版 river.dt1 的水面）。
+                //   此前与水边的石头同归 `Rock` ⇒ 光标 / 小地图 / tooltip 无法把"水"与"石头"分开。
+                //   ⛔ 不许把水改成可走（原版不可涉水）：可走性仍是 `false`（`TileKindInfo.IsWalkable`）。
+                case 'r': return TileKind.Water;   // 水（河/水塘，原版 river.dt1）—— 不可涉水
                 case 'x': return TileKind.Exit;
                 // ★ 片 4：'v' = 原版**四块都没有瓦片**的格（实测只有西北角 3×10 一块）。
                 //    原版那几格什么都不画、也没有 walk 标志 ⇒ 不画 + 不可走（= TileKind.Void）。

@@ -50,7 +50,12 @@ namespace Diablo2.Module.Map
         /// **出处（原版自己的规则表，不是本项目定的）**：`原版资源/d2raw/data/global/excel/Levels.txt`
         /// 「Act 1 - Wilderness 1」（LevelName = Blood Moor）的 `SizeX = 80` / `SizeY = 80`、
         /// `DrlgType = 3`（户外随机）；块边长 8 = `LvlPrest.txt`「Act 1 - Wild Border *」的 `SizeX`。
-        /// 本片实测复核留档：`python .ai-tmp/test/probe_levels.py`（输出见回报）。
+        /// ⛔ **复核入口（本行只记事实，不再指向已删脚本）**：早期那句 `python .ai-tmp/test/probe_levels.py`
+        /// 是**已删的一次性脚本、不可复跑**（全仓 `probe_levels*` = **0 命中**）—— 不要再把它当可复跑入口。
+        /// **现行在盘判据** = `.ai-tmp/screenshots/w1_host_mapcheck.txt`（= `tools/probes/hosts/mapcheck` 的完整
+        /// 输出，末行「MapCheck 结束：全部通过」）：上面两条出处（`原版资源/d2raw/data/global/excel/Levels.txt`
+        /// 「Act 1 - Wilderness 1」的 `SizeX/SizeY = 80/80`、`LvlPrest.txt`「Act 1 - Wild Border *」块边长 8）
+        /// 由它逐条复核；尺寸断言见 `tools/probes/hosts/mapcheck` 的 80×80 段。
         /// </para>
         /// <para>
         /// ⛔ **本轮之前**这里是 `rng.Next(6, 11)` ⇒ 每次开局随机 **48~80**（比原版小最多 40%）

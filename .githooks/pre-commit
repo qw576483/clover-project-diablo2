@@ -1,0 +1,74 @@
+#!/bin/sh
+# =============================================================================
+# .githooks/pre-commit  --  clover-project-diablo2 mandatory verify gate
+#
+# WHY THIS EXISTS (SKILL.md 0.5 meta-rule): a rule that "must always hold" is
+# only guaranteed once it is a gate. tools/verify.ps1 is that single check;
+# this hook makes it unavoidable at commit time. Install it with:
+#     powershell -NoProfile -ExecutionPolicy Bypass -File tools/hooks/install.ps1
+# Full doc: tools/hooks/README.md
+#
+# Behaviour:
+#   * runs tools/verify.ps1 (the single gate) before every commit
+#   * any FAIL -> prints the failing item names and BLOCKS the commit
+#   * HUMAN-ONLY lines and registered allowed-differences never block
+#     (verify.ps1 decides that itself and only exits non-zero on real FAIL)
+#
+# ESCAPE HATCH (emergency use ONLY): set SKIP_VERIFY_GATE=1 to bypass the gate.
+#   An escape-hatch use REQUIRES appending a "# bypass:" line to
+#   .ai-tmp/test/dispatch-log.tsv  (who / when / why). Misuse is a violation:
+#   the whole point of the gate is that nobody gets to skip it silently.
+# =============================================================================
+set -u
+
+if [ "${SKIP_VERIFY_GATE:-}" = "1" ]; then
+    echo "[pre-commit] SKIP_VERIFY_GATE=1 -> verify gate BYPASSED (emergency hatch)."
+    echo "[pre-commit] You MUST append a '# bypass:' line to .ai-tmp/test/dispatch-log.tsv"
+    exit 0
+fi
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+    echo "[pre-commit] BLOCKED: not inside a git work tree." >&2
+    exit 1
+}
+cd "$root" || { echo "[pre-commit] BLOCKED: cannot cd to $root" >&2; exit 1; }
+
+verify="tools/verify.ps1"
+if [ ! -f "$verify" ]; then
+    echo "[pre-commit] BLOCKED: $verify not found (the single gate is missing)." >&2
+    exit 1
+fi
+
+# Git for Windows ships sh; call Windows PowerShell explicitly.
+if command -v powershell >/dev/null 2>&1; then
+    ps_cmd="powershell"
+elif command -v pwsh >/dev/null 2>&1; then
+    ps_cmd="pwsh"
+else
+    echo "[pre-commit] BLOCKED: neither 'powershell' nor 'pwsh' found on PATH." >&2
+    echo "[pre-commit] Repair PowerShell, or bypass with SKIP_VERIFY_GATE=1 and" >&2
+    echo "[pre-commit] log a '# bypass:' line in .ai-tmp/test/dispatch-log.tsv." >&2
+    exit 1
+fi
+
+echo "[pre-commit] running: $ps_cmd -NoProfile -ExecutionPolicy Bypass -File $verify"
+out=$("$ps_cmd" -NoProfile -ExecutionPolicy Bypass -File "$verify" 2>&1)
+rc=$?
+printf '%s\n' "$out"
+
+if [ "$rc" -ne 0 ]; then
+    echo "" >&2
+    echo "[pre-commit] ================================================" >&2
+    echo "[pre-commit] BLOCKED: tools/verify.ps1 reported FAIL (exit $rc)." >&2
+    echo "[pre-commit] failing item(s):" >&2
+    printf '%s\n' "$out" | grep '^FAIL' | while IFS= read -r line; do
+        echo "[pre-commit]   $line" >&2
+    done
+    echo "[pre-commit] fix the FAIL item(s) above, then commit again." >&2
+    echo "[pre-commit] emergency bypass: SKIP_VERIFY_GATE=1 git commit ..." >&2
+    echo "[pre-commit] ================================================" >&2
+    exit 1
+fi
+
+echo "[pre-commit] tools/verify.ps1 PASS -> commit allowed."
+exit 0

@@ -13,6 +13,19 @@
 //   （落位 = 页签带与 10×10 格区之间的底图空白带，依据与核算见 `UI/UiLayoutGame.cs` §商店 的 S5 注释）。
 //   ⚠️ 本面板的**层仍是 `Popup`**，这是 R1-E 的 S1 要的（对话条降到 Normal 让位给商店遮罩，
 //      商店必须在遮罩**之上**才点得动；依据见 `UI/NpcDialogPanel.cs` 文件头的 S1）。
+//
+// ★ 片 impl-shop（2026-09-22，修用户报「商店商品占的格子不对」）：
+//   ① **1 件 = 1 格 → 按物品自身占格**：商品/可卖物品用 `ShopEntry.gridW/gridH`
+//      （= 配表 `item_c.grid_w/grid_h`，与背包同源）铺成 w×h 的块，**行优先**摆进原版 10×10 格盘
+//      （口径照 `Module/Item/Inventory.TryPlace` :94-107；尺寸/偏移照 `UI/InventoryPanel.ItemIconRect`
+//      :260-276 —— 图标块左上角与锚点格左上角重合，`preserveAspect` 不压不拉）。
+//   ② 摆放算法与"放不下"的处置 = **纯函数** `FindAnchorCell` / `ClaimBlock` / `ComputeLayout`
+//      （离线宿主 `tools/probes/hosts/uicheck/ShopGridCheck.cs` 逐格断言：锚点格 / 占用集 / 边界）。
+//   ③ 点击映射改读**占用表** `_owner[]`（⚠️ 大件跨多格 ⇒ 格号 ≠ 商品下标；旧的
+//      `index → stock[index]` 等号映射会把隔壁那件买/卖出去）。
+//   ④ 几何**未动**：10×10 格线是原版底图 `buysell_back.png` 自己画的（实测竖线 14+29k ×11、
+//      横线 62+29k ×11，与 `UiLayoutGame` 的 `ShopGridOrigin/ShopCell/ShopCols/Rows` 逐值相等），
+//      `BuildGrid` 仍只建"命中区 + 图标层 + 数量"。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -40,13 +53,17 @@ namespace Diablo2.UI
         private bool _sellMode;
 
         /// <summary>一格 = 命中区 + 图标层 + 数量 + 价格。</summary>
+        /// <para>
+        /// ★ 片 impl-shop：原来的 `Slot`（"当前占用的下标"）**已删除** —— 大件跨多格后
+        /// "格号 == 商品下标"这个等号不再成立，占用关系改由面板的**占用表** `_owner[]` 承载
+        /// （见 <see cref="ComputeLayout"/> 与 <see cref="OnCellClick"/>）。
+        /// </para>
         private sealed class Cell
         {
             public Image Hit;
             public Image Icon;
             public D2Label Count;
             public D2Label Price;
-            public int Slot = -1;            // 当前占用的下标（-1 = 空）
         }
 
         /// <summary>
@@ -57,6 +74,17 @@ namespace Diablo2.UI
         ///   ⇒ Image 画成**一块白方块**（用户报「商店没商品图标」）。现统一走 `D2Icon` 的唯一口径。
         /// </summary>
         private readonly string[] _iconPath = new string[CellCount];
+
+        /// <summary>
+        /// **占用表**（片 impl-shop 新增）：`_owner[格] = 当前页条目下标`（−1 = 空）。
+        /// <para>
+        /// 为什么必须有它：物品按自身占格摆放后，一件 2×3 的商品会跨 6 格 ⇒ "格号" 与 "商品下标"
+        /// **不再是同一个数**。点击某一格 = 要买/卖"占着那一格的那件" ⇒ 只能查这张表
+        /// （旧实现的 `index → stock[index]` 等号映射会把隔壁那件卖出去）。
+        /// </para>
+        /// <para>线性下标 = `row * ShopCols + col`（行优先，与 `UiLayoutGame.ShopCellCenter` 同口径）。</para>
+        /// </summary>
+        private readonly int[] _owner = new int[CellCount];
 
         private bool _built;
         private bool _subscribed;
@@ -119,19 +147,25 @@ namespace Diablo2.UI
         /// <para>
         /// 落位 = 页签带与 10×10 格区之间那段**底图空白带**（原版 y ≈ 29..62）；
         /// 为什么只有这里能放、以及两行不相交的核算，见 `UI/UiLayoutGame.cs` §商店 的 S5 注释
-        /// 与 `uicheck` 的 ④-2 断言。字模/字号口径与 `_gold` 完全一致（`D2Text.D2Font.Font16`，
-        /// 不传 fontSize ⇒ 原生档，与同面板的 `_gold` / 格内数量同一套，⛔ 不在这里另立字号）。
+        /// 与 `uicheck` 的 ④-2 断言。字模/字号口径与 `_gold` 完全一致（`D2Text.D2Font.Font16` +
+        /// `UiLayoutGame.FontPx16`，与同面板的 `_gold` / 格内数量同一套，⛔ 不在这里另立字号）。
         /// </para>
+        /// <para>★ 片 font-scale：**原来两行都没给 fontSize**（默认 0 = 按原版 px 1:1 画 ⇒ 只有应有的
+        /// ~55%，正是用户报「文字太小」的 6 处之一 —— V5 也注过"字号偏小"）。现补
+        /// `(int)UiLayoutGame.FontPx16`（唯一出处）。框 `ShopInfoLineSize` 已是画布单位（288×1.8 × 25），
+        /// 两行中心相距 30 ⇒ 字高 28 时两行之间仍余 2px，不与页签带/格区相交。</para>
         /// </summary>
         private void BuildTitleLines()
         {
             _title = D2Label.Create(transform, "ShopTitle", string.Empty, D2Text.D2Font.Font16,
                 TextAnchor.MiddleCenter, UiArt.TitleColor,
-                UiLayoutGame.ShopInfoLineSize, UiLayoutGame.ShopTitlePos);
+                UiLayoutGame.ShopInfoLineSize, UiLayoutGame.ShopTitlePos,
+                (int)UiLayoutGame.FontPx16);
 
             _hint = D2Label.Create(transform, "ShopHint", string.Empty, D2Text.D2Font.Font16,
                 TextAnchor.MiddleCenter, UiArt.TextColor,
-                UiLayoutGame.ShopInfoLineSize, UiLayoutGame.ShopHintPos);
+                UiLayoutGame.ShopInfoLineSize, UiLayoutGame.ShopHintPos,
+                (int)UiLayoutGame.FontPx16);
 
             if (_title == null || _hint == null)
             {
@@ -171,12 +205,15 @@ namespace Diablo2.UI
                 icon.preserveAspect = true;
                 icon.gameObject.SetActive(false);
                 var cell = new Cell { Hit = hit, Icon = icon };
+                _owner[i] = -1;                 // 占用表初值（Build 早于第一次 Rebuild 时也可用）
                 var index = i;
                 var btn = hit.gameObject.AddComponent<Button>();
                 btn.targetGraphic = hit;
                 btn.onClick.AddListener(() => OnCellClick(index));
+                // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 格内数量只有应有的 ~55%）。
                 cell.Count = D2Label.Create(hit.transform, "Count", string.Empty, D2Text.D2Font.Font16,
-                    TextAnchor.LowerRight, new Color(1f, 0.92f, 0.70f, 1f), size, Vector2.zero);
+                    TextAnchor.LowerRight, new Color(1f, 0.92f, 0.70f, 1f), size, Vector2.zero,
+                    (int)UiLayoutGame.FontPx16);
                 _cells.Add(cell);
             }
         }
@@ -202,9 +239,12 @@ namespace Diablo2.UI
         /// </summary>
         private void BuildBottomBar()
         {
+            // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 金币数只有应有的 ~55%）。
+            //   框 `ShopInfoBarSize` = 原版 183×20 ×1.8 = 329.4×36 画布px ⇒ 字高 28 放得下。
             _gold = D2Label.Create(transform, "Gold", string.Empty, D2Text.D2Font.Font16,
                 TextAnchor.MiddleLeft, new Color(0.95f, 0.87f, 0.60f, 1f),
-                UiLayoutGame.ShopInfoBarSize, UiLayoutGame.ShopInfoBarPos);
+                UiLayoutGame.ShopInfoBarSize, UiLayoutGame.ShopInfoBarPos,
+                (int)UiLayoutGame.FontPx16);
 
             var btnSize = new Vector2(UiLayoutGame.ShopBottomSlotSize, UiLayoutGame.ShopBottomSlotSize);
             _repairButton = UiArt.SquareButton(transform, "RepairAll", "修理", btnSize,
@@ -293,14 +333,23 @@ namespace Diablo2.UI
             for (var i = 0; i < _cells.Count; i++)
             {
                 var c = _cells[i];
-                c.Slot = -1;
+                _owner[i] = -1;                                  // 占用表清零（大件跨的每一格都要放）
                 if (i < _iconPath.Length) _iconPath[i] = null;   // 缓存一起清 ⇒ 重开面板会重新发起加载
                 if (c.Icon != null)
                 {
                     c.Icon.sprite = null;
+                    // ★ 图标块**复位成 1 格**：上一页的大件把锚点格的图标层撑成 w×h，
+                    //   不复位的话清空后仍留着大 rect（换页/换 NPC 时会出现"残块"）。
+                    c.Icon.rectTransform.sizeDelta = new Vector2(CellSize, CellSize);
+                    c.Icon.rectTransform.anchoredPosition = Vector2.zero;
                     c.Icon.gameObject.SetActive(false);
                 }
-                c.Count?.SetText(string.Empty);
+                if (c.Count != null)
+                {
+                    // 数量标签同理复位（大件的数量被移到整块右下角过）
+                    c.Count.Root.anchoredPosition = Vector2.zero;
+                    c.Count.SetText(string.Empty);
+                }
             }
         }
 
@@ -346,56 +395,266 @@ namespace Diablo2.UI
             D2Icon.ApplyItemIcon(c.Icon, _iconPath, index, item);
         }
 
-        /// <summary>买入页：NPC 的商品按行优先铺满 10×10 格。</summary>
-        private void ApplyStock(List<ShopEntry> stock)
-        {
-            var n = stock?.Count ?? 0;
-            if (n > CellCount)
-                UiLog.Warn($"商品共 {n} 条 > 面板 {CellCount} 格 ⇒ 只显示前 {CellCount} 条（分页未接线）");
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ 片 impl-shop：**按物品自身占格**的摆放（纯函数；离线宿主逐格断言）
+        //   口径与出处：
+        //     · 行优先 / 左上锚点 / 整块在界内且未被占 ⇒ 照 `Module/Item/Inventory.TryPlace`
+        //       （:94-107）与 `CanPlaceBlock`（:231-244）；
+        //     · 图标块尺寸与偏移 ⇒ 照 `UI/InventoryPanel.ItemIconRect`（:260-276）：
+        //       size = (w×CellSize, h×CellSize)、offset = ((w−1)·CellSize/2, −(h−1)·CellSize/2)
+        //       （等价于"图标块左上角与锚点格左上角重合"：2×3 的大盾就跨 2 列 3 行）。
+        //   ⛔ 下面这些函数是**纯函数**（只碰传入的数组 + `UiLayoutGame` 常量，不碰 Unity 对象）
+        //     ⇒ 秒级离线可判（`tools/probes/hosts/uicheck/ShopGridCheck.cs`）。
+        // ═════════════════════════════════════════════════════════════════════
 
-            for (var i = 0; i < n && i < CellCount; i++)
+        /// <summary>一次「按占格摆放」的结果（纯数据；面板与离线宿主共用）。</summary>
+        public sealed class ShopLayout
+        {
+            /// <summary>逐件的**锚点格线性下标**（−1 = 放不下 ⇒ 该件不显示）；下标 = 条目下标。</summary>
+            public int[] Anchor;
+
+            /// <summary>**占用表**：`Owner[格] = 条目下标`（−1 = 空）；长度恒 = <see cref="CellCount"/>。</summary>
+            public int[] Owner;
+
+            /// <summary>真的摆下的件数。</summary>
+            public int Placed;
+
+            /// <summary>放不下（已被点名 Warn）的件数。</summary>
+            public int Overflow;
+        }
+
+        /// <summary>某件物品的图标块尺寸（= `w×CellSize, h×CellSize`）。`w/h ≤ 0` ⇒ 按 1 算。</summary>
+        public static Vector2 IconSize(int w, int h)
+            => new Vector2((w > 0 ? w : 1) * CellSize, (h > 0 ? h : 1) * CellSize);
+
+        /// <summary>
+        /// 图标块**相对锚点格中心**的偏移（= `((w−1)·CellSize/2, −(h−1)·CellSize/2)`）——
+        /// 效果是图标块左上角与锚点格左上角重合（口径同 `UI/InventoryPanel.ItemIconRect`）。
+        /// </summary>
+        public static Vector2 IconOffset(int w, int h)
+            => new Vector2((w > 0 ? w : 1) - 1f, -((h > 0 ? h : 1) - 1f)) * (CellSize * 0.5f);
+
+        /// <summary>`col/row` 处能否放下 `w×h` 的块（越界 / 与已占格重叠 ⇒ false）。</summary>
+        public static bool CanPlaceBlock(int[] occupant, int col, int row, int w, int h)
+        {
+            if (occupant == null || col < 0 || row < 0) return false;
+            if (w < 1 || h < 1) return false;
+            if (col + w > UiLayoutGame.ShopCols || row + h > UiLayoutGame.ShopRows) return false;
+
+            for (var r = row; r < row + h; r++)
+            {
+                for (var c = col; c < col + w; c++)
+                {
+                    if (occupant[r * UiLayoutGame.ShopCols + c] >= 0) return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// **行优先**找第一个能容下 `w×h` 的锚点格（线性下标）；放不下返回 **−1**（不改动任何格）。
+        /// 比格区还大（`w &gt; ShopCols || h &gt; ShopRows`）⇒ 直接 −1（必然放不下）。
+        /// </summary>
+        public static int FindAnchorCell(int[] occupant, int w, int h)
+        {
+            if (occupant == null || w < 1 || h < 1) return -1;
+            if (w > UiLayoutGame.ShopCols || h > UiLayoutGame.ShopRows) return -1;
+
+            for (var row = 0; row < UiLayoutGame.ShopRows; row++)
+            {
+                for (var col = 0; col < UiLayoutGame.ShopCols; col++)
+                {
+                    if (!CanPlaceBlock(occupant, col, row, w, h)) continue;
+                    return row * UiLayoutGame.ShopCols + col;
+                }
+            }
+            return -1;
+        }
+
+        /// <summary>把 `anchorCell` 起 `w×h` 的块记到占用表（`owner` = 条目下标）。</summary>
+        public static void ClaimBlock(int[] occupant, int anchorCell, int w, int h, int owner)
+        {
+            if (occupant == null || anchorCell < 0 || anchorCell >= occupant.Length) return;
+            var col = anchorCell % UiLayoutGame.ShopCols;
+            var row = anchorCell / UiLayoutGame.ShopCols;
+            for (var r = row; r < row + h && r < UiLayoutGame.ShopRows; r++)
+            {
+                for (var c = col; c < col + w && c < UiLayoutGame.ShopCols; c++)
+                {
+                    occupant[r * UiLayoutGame.ShopCols + c] = owner;
+                }
+            }
+        }
+
+        /// <summary>已占格数（占用表里 ≥ 0 的格数）。</summary>
+        public static int UsedCells(int[] occupant)
+        {
+            if (occupant == null) return 0;
+            var n = 0;
+            for (var i = 0; i < occupant.Length; i++)
+            {
+                if (occupant[i] >= 0) n++;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// 买入页：把 NPC 的商品**按自身占格**行优先摆进 10×10。
+        /// 放不下的**点名 Warn** 且**不覆盖**已摆好的货（⛔ 不静默丢弃）。
+        /// </summary>
+        public static ShopLayout ComputeLayout(IReadOnlyList<ShopEntry> stock)
+        {
+            var res = NewLayout(stock?.Count ?? 0);
+            for (var i = 0; i < res.Anchor.Length; i++)
             {
                 var e = stock[i];
-                if (e == null) { UiLog.Warn($"商品列表第 {i} 条为 null ⇒ 跳过"); continue; }
-                var c = _cells[i];
-                c.Slot = i;
-                SetCellIcon(i, c, new ItemStack { itemId = e.itemId, quality = e.quality });
-                c.Count?.SetText(e.count < 0 ? "∞" : (e.count > 1 ? e.count.ToString() : string.Empty));
+                if (e == null)
+                {
+                    UiLog.Warn($"商品列表第 {i} 条为 null ⇒ 跳过（不占格）");
+                    continue;
+                }
+                ClaimOrWarn(res, i, e.gridW, e.gridH, $"商品第 {i} 件「{e.name}」");
             }
+            return res;
         }
 
-        /// <summary>卖出页：背包锚点格物品按行优先铺满 10×10 格。</summary>
-        private void ApplyPlayerItems(List<InventorySlot> items)
+        /// <summary>卖出页：背包锚点格物品**按自身占格**行优先摆进 10×10（同买入页口径）。</summary>
+        public static ShopLayout ComputeLayout(IReadOnlyList<InventorySlot> items)
         {
-            var n = items?.Count ?? 0;
-            for (var i = 0; i < n && i < CellCount; i++)
+            var res = NewLayout(items?.Count ?? 0);
+            for (var i = 0; i < res.Anchor.Length; i++)
             {
                 var slot = items[i];
-                if (slot?.item == null) { UiLog.Warn($"可卖物品第 {i} 条为空 ⇒ 跳过"); continue; }
-                var c = _cells[i];
-                c.Slot = i;
-                SetCellIcon(i, c, slot.item);
-                c.Count?.SetText(slot.item.count > 1 ? slot.item.count.ToString() : string.Empty);
+                if (slot?.item == null)
+                {
+                    UiLog.Warn($"可卖物品第 {i} 条为空 ⇒ 跳过（不占格）");
+                    continue;
+                }
+                ClaimOrWarn(res, i, slot.item.gridW, slot.item.gridH, $"可卖物品第 {i} 件「{slot.item.name}」");
             }
+            return res;
         }
 
-        private void OnCellClick(int index)
+        private static ShopLayout NewLayout(int count)
         {
-            if (_shop == null || index < 0 || index >= _cells.Count) return;
-            var c = _cells[index];
-            if (c.Slot < 0) return;
+            var res = new ShopLayout { Anchor = new int[count], Owner = new int[CellCount] };
+            for (var i = 0; i < res.Anchor.Length; i++) res.Anchor[i] = -1;
+            for (var i = 0; i < res.Owner.Length; i++) res.Owner[i] = -1;
+            return res;
+        }
+
+        /// <summary>摆一件：放得下 ⇒ 记占用表并返回锚点格；放不下 ⇒ 点名 Warn + 计数（该件不显示）。</summary>
+        private static void ClaimOrWarn(ShopLayout res, int index, int gridW, int gridH, string what)
+        {
+            var w = gridW > 0 ? gridW : 1;
+            var h = gridH > 0 ? gridH : 1;
+            var cell = FindAnchorCell(res.Owner, w, h);
+            if (cell < 0)
+            {
+                res.Overflow++;
+                UiLog.Warn($"{what}（{w}×{h}）放不下 ⇒ 该件不显示"
+                    + $"（已占 {UsedCells(res.Owner)}/{CellCount} 格；分页未接线，⛔ 不覆盖已摆好的货）");
+                return;
+            }
+            ClaimBlock(res.Owner, cell, w, h, index);
+            res.Anchor[index] = cell;
+            res.Placed++;
+        }
+
+        /// <summary>
+        /// 把一件已定位的物品画到锚点格上：图标层 = `w×h` 格大小、左上角对齐锚点格；
+        /// 数量标签挪到整块的右下角（`TextAnchor.LowerRight` 不动 ⇒ 只挪框，字号/字模口径不变）。
+        /// </summary>
+        private void PlaceItemVisual(int anchorCell, int w, int h, ItemStack item, string countText)
+        {
+            if (anchorCell < 0 || anchorCell >= _cells.Count) return;
+            var c = _cells[anchorCell];
+
+            if (c.Icon != null)
+            {
+                c.Icon.rectTransform.sizeDelta = IconSize(w, h);
+                c.Icon.rectTransform.anchoredPosition = IconOffset(w, h);
+            }
+            if (c.Count != null)
+            {
+                c.Count.Root.anchoredPosition = new Vector2((w - 1) * CellSize, -(h - 1) * CellSize);
+                c.Count.SetText(countText);
+            }
+            SetCellIcon(anchorCell, c, item);
+        }
+
+        /// <summary>把一次摆放写成一条运行时可抄的**数值日志**（锚点格 + 已占格数 + 放不下的件数）。</summary>
+        private static void LogLayout(string page, int total, ShopLayout layout)
+        {
+            var sb = new System.Text.StringBuilder();
+            for (var i = 0; i < layout.Anchor.Length; i++)
+            {
+                var cell = layout.Anchor[i];
+                if (cell < 0) continue;
+                sb.Append(" 第").Append(i).Append("件@格(")
+                  .Append(cell % UiLayoutGame.ShopCols).Append(',')
+                  .Append(cell / UiLayoutGame.ShopCols).Append(')');
+            }
+            UiLog.Info($"商店{page}页占格摆放：{layout.Placed}/{total} 件已摆（占 "
+                + $"{UsedCells(layout.Owner)}/{CellCount} 格，{layout.Overflow} 件放不下）" + sb);
+        }
+
+        /// <summary>买入页：NPC 的商品**按自身占格**铺进 10×10（行优先、左上锚点、两两不重叠）。</summary>
+        private void ApplyStock(List<ShopEntry> stock)
+        {
+            var layout = ComputeLayout(stock);
+            for (var i = 0; i < _owner.Length; i++) _owner[i] = layout.Owner[i];
+
+            for (var i = 0; i < layout.Anchor.Length; i++)
+            {
+                var cell = layout.Anchor[i];
+                if (cell < 0) continue;
+                var e = stock[i];
+                PlaceItemVisual(cell, e.gridW > 0 ? e.gridW : 1, e.gridH > 0 ? e.gridH : 1,
+                    new ItemStack { itemId = e.itemId, quality = e.quality },
+                    e.count < 0 ? "∞" : (e.count > 1 ? e.count.ToString() : string.Empty));
+            }
+            LogLayout("买入", stock?.Count ?? 0, layout);
+        }
+
+        /// <summary>卖出页：背包锚点格物品**按自身占格**铺进 10×10（同买入页口径）。</summary>
+        private void ApplyPlayerItems(List<InventorySlot> items)
+        {
+            var layout = ComputeLayout(items);
+            for (var i = 0; i < _owner.Length; i++) _owner[i] = layout.Owner[i];
+
+            for (var i = 0; i < layout.Anchor.Length; i++)
+            {
+                var cell = layout.Anchor[i];
+                if (cell < 0) continue;
+                var item = items[i].item;
+                PlaceItemVisual(cell, item.gridW > 0 ? item.gridW : 1, item.gridH > 0 ? item.gridH : 1,
+                    item, item.count > 1 ? item.count.ToString() : string.Empty);
+            }
+            LogLayout("卖出", items?.Count ?? 0, layout);
+        }
+
+        private void OnCellClick(int cellIndex)
+        {
+            if (_shop == null || cellIndex < 0 || cellIndex >= _owner.Length) return;
+
+            // ★ 片 impl-shop：命中 = **占着这一格的那件**（查占用表）；
+            //   ⛔ 不再用 `index → stock[index]` 的等号映射 —— 大件跨多格后，格号 ≠ 商品下标，
+            //   旧映射点大件右侧/下方的格会把**隔壁那件**买/卖出去。
+            var itemIndex = _owner[cellIndex];
+            if (itemIndex < 0) return;
 
             if (!_sellMode)
             {
                 var stock = _shop.stock;
-                if (stock == null || index >= stock.Count) return;
-                OnBuy(stock[index]);
+                if (stock == null || itemIndex >= stock.Count) return;
+                OnBuy(stock[itemIndex]);
                 return;
             }
 
             var items = _shop.playerItems;
-            if (items == null || index >= items.Count) return;
-            var slot = items[index];
+            if (items == null || itemIndex >= items.Count) return;
+            var slot = items[itemIndex];
             OnSell(slot.isAnchor ? slot.index : slot.anchorIndex, slot.item);
         }
 

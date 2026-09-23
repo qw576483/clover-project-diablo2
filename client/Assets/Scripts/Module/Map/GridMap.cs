@@ -42,6 +42,16 @@ namespace Diablo2.Module.Map
         private string[] _objectKeys;
         private bool _tileOverrides;
 
+        // ── 逐格「deck（可走上方的结构：桥面/平台/甲板）」标记 ───────────────────
+        // 为什么要它（2026-09-22，用户实测「营地出门的桥，还是从桥下走」）：
+        //   等距排序值 = `(gx+gy)*SortOrderStep + SortOrderBase + 层偏移`（`Core/GameConst.cs`）。
+        //   桥面格的正南一格**恰好是桥的栏杆物件**，而栏杆图形自本格底边向上长 ≈2 格
+        //   ⇒ 站在桥面上的实体按普通实体档 `4D+102` 排，必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住
+        //   （确定性必然）。视图层据此对"站在 deck 上的实体"改用 `GameConst.LayerOffsetDeckEntity`。
+        // 登记口径（⛔ 数据驱动，不按坐标硬编码）：该格的**地面瓦片键取自 deck 类包**（`DeckTiles`）
+        //   **且该格可走** —— 栏杆行的地面铺的是同一份桥面图集，但那些格不可走，不算桥面。
+        private bool[] _deck;
+
         private bool _countsDirty = true;
         private int _blockedCount;
         private int _walkableCount;
@@ -86,6 +96,12 @@ namespace Diablo2.Module.Map
         /// <summary>怪物刷新点（洞穴生成时产出；城镇/野外为空）。</summary>
         public readonly List<Vector2Int> MonsterSpawns = new List<Vector2Int>();
 
+        /// <summary>
+        /// 传送点交互锚点（★ 片 g1-resume；见 `IMapModule.WaypointPoints` 的口径）。
+        /// 目前只有罗格营地有 1 个；其余区域为空列表。
+        /// </summary>
+        public readonly List<Vector2Int> WaypointPoints = new List<Vector2Int>();
+
         /// <summary>连通性自检必须可达的格（生成器填：出口 + 洞穴入口 + 所有房间中心 + 刷怪点）。</summary>
         public readonly List<Vector2Int> RequiredReachable = new List<Vector2Int>();
 
@@ -127,10 +143,12 @@ namespace Diablo2.Module.Map
             _groundKeys = null;
             _objectKeys = null;
             _tileOverrides = false;
+            _deck = new bool[Width * Height];       // 换图必须**重新分配**（否则上一张图的桥面标记会残留）
 
             Exits.Clear();
             NpcPoints.Clear();
             MonsterSpawns.Clear();
+            WaypointPoints.Clear();
             RequiredReachable.Clear();
             CaveEntrance = null;
             SpawnPoint = new Vector2Int(Width / 2, Height / 2);
@@ -151,6 +169,7 @@ namespace Diablo2.Module.Map
             Exits.Clear();
             NpcPoints.Clear();
             MonsterSpawns.Clear();
+            WaypointPoints.Clear();
             RequiredReachable.Clear();
             _walkableCells.Clear();
             _blockedCount = 0;
@@ -159,6 +178,7 @@ namespace Diablo2.Module.Map
             _groundKeys = null;
             _objectKeys = null;
             _tileOverrides = false;
+            _deck = null;                           // deck 标记随之作废（`IsDeck` 对 null 表一律 false）
             CaveEntrance = null;
             SpawnPoint = Vector2Int.zero;
         }
@@ -245,6 +265,15 @@ namespace Diablo2.Module.Map
             var i = y * Width + x;
             _groundKeys[i] = groundKey;
             _objectKeys[i] = objectKey;
+
+            // deck 登记（**唯一判据见 `DeckTiles`**）：地面键取自 deck 类包 **且本格可走** ⇒ 桥面。
+            // 为什么挂在 SetTiles 上：这是三个生成器（城镇/野外/洞穴）写地面键的**唯一入口**
+            // ⇒ 一处判据覆盖全部铺图路径，不必在每个生成器里各排一遍（那种写法必然漏）。
+            // `else` 分支：同一格被改铺成非 deck 地砖时必须**撤销**标记（幂等，不残留）。
+            if (_deck != null)
+            {
+                _deck[i] = DeckTiles.IsDeckGroundKey(groundKey) && TileKindInfo.IsWalkable(_tiles[x, y]);
+            }
         }
 
         /// <summary>
@@ -261,6 +290,42 @@ namespace Diablo2.Module.Map
             groundKey = _groundKeys[i] ?? "";
             objectKey = _objectKeys[i] ?? "";
             return true;
+        }
+
+        // ── deck（可走上方的结构：桥面/平台/甲板；见 `_deck` 字段注释）────────────────
+
+        /// <summary>
+        /// 标记该格为 **deck**（站在上面的实体在视图层会抬一档排序）。
+        /// <para>⚠️ 正常路径**不需要**显式调它：`SetTiles` 已按「地面键取自 deck 类包 + 本格可走」
+        /// 自动登记；本方法供自证/特例使用。</para>
+        /// </summary>
+        public void MarkDeck(int x, int y)
+        {
+            if (_deck == null)
+            {
+                MapLog.WarnThrottled("map.deck.noarr", "MarkDeck: deck 表未分配（地图未 Reset？），忽略本次标记");
+                return;
+            }
+            if (!InBounds(x, y))
+            {
+                MapLog.WarnThrottled("map.deck.oob", $"MarkDeck: ({x},{y}) 在图外（图 {Width}x{Height}），忽略");
+                return;
+            }
+            _deck[y * Width + x] = true;
+        }
+
+        /// <summary>标记该格为 deck（见 <see cref="MarkDeck(int,int)"/>）。</summary>
+        public void MarkDeck(Vector2Int g) => MarkDeck(g.x, g.y);
+
+        /// <summary>
+        /// 该格是否是 deck（可走上方的结构）。图外 / 未生成 / 未启用 ⇒ false
+        /// —— 与 <see cref="Walkable"/> 的越界口径一致（`IMapModule.IsDeckGrid` 的实现来源）。
+        /// </summary>
+        public bool IsDeck(Vector2Int g)
+        {
+            if (_deck == null) return false;
+            if (!InBounds(g)) return false;
+            return _deck[g.y * Width + g.x];
         }
 
         /// <summary>整图填充。</summary>
@@ -653,6 +718,9 @@ namespace Diablo2.Module.Map
                 case TileKind.CaveWall:
                 case TileKind.Exit:
                 case TileKind.TownFloor:
+                // ★ 片 L / R12：新登记的 `TileKind.Water` 必须在这里也登记一次 ——
+                //   否则逐格扫描会把它当"未登记的 TileKind"打 Warn（假告警）。
+                case TileKind.Water:
                     return true;
                 default:
                     return false;

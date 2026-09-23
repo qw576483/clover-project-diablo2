@@ -48,6 +48,12 @@ namespace Diablo2.Module.Npc
         private readonly List<ShopEntry> _entries = new List<ShopEntry>();
         private readonly List<ItemStack> _items = new List<ItemStack>();
 
+        /// <summary>
+        /// 「只报一次」标记（同一家店同类问题说一遍就够）：货物占格 `gridW/gridH` 非正
+        /// （配表 `item_c.grid_w/grid_h` 缺值/为 0）⇒ 收敛到 1×1 并点名（见 <see cref="AddEntry"/>）。
+        /// </summary>
+        private bool _warnedBadGrid;
+
         /// <summary>本次构建用的 NPC（重开店时用于判断货物是否还是同一家）。</summary>
         public int BuiltNpcId { get; private set; } = (int)NpcId.None;
 
@@ -67,6 +73,7 @@ namespace Diablo2.Module.Npc
         {
             _entries.Clear();
             _items.Clear();
+            _warnedBadGrid = false;
             BuiltNpcId = npc != null ? npc.id : (int)NpcId.None;
             BuiltSeed = mapSeed;
 
@@ -200,12 +207,35 @@ namespace Diablo2.Module.Npc
         private void AddEntry(ItemStack st, int count, int playerGold)
         {
             var idx = _entries.Count;
+
+            // ★ 片 impl-shop：把**物品自身占格**一起带进 `ShopEntry`（原版口径：大盾 2×3、法杖 1×4，
+            //   与背包同规则 —— 见 `Module/Contracts.cs` 的 `ShopEntry.gridW/gridH` 注释）。
+            //   旧实现只拷 itemId/name/quality/price/count ⇒ 面板侧 `gridW/gridH` 取默认 1×1
+            //   ⇒ 只能"1 件 = 1 格"（用户报「商店商品占的格子不对」）。
+            //   尺寸的唯一来源 = `ItemFactory` 从配表 `item_c.grid_w/grid_h` 填进 `ItemStack` 的那一份
+            //   （本模块**不另算**；消耗品见 `MakeConsumable` 的同源赋值）。
+            var gw = st.gridW > 0 ? st.gridW : 1;
+            var gh = st.gridH > 0 ? st.gridH : 1;
+            if (st.gridW <= 0 || st.gridH <= 0)
+            {
+                // 非预期分支（配表缺列/为 0）：收敛到 1×1 并点名，⛔ 不静默（只报一次，避免刷屏）
+                if (!_warnedBadGrid)
+                {
+                    _warnedBadGrid = true;
+                    Log.Warn("Npc", $"商店货物占格非正 ⇒ 收敛到 1×1：「{st.name}」"
+                        + $"(itemId={st.itemId}, gridW={st.gridW}, gridH={st.gridH})；"
+                        + "请核对配表 item_c.grid_w/grid_h（同一家店同类问题只报一次）");
+                }
+            }
+
             _entries.Add(new ShopEntry
             {
                 index = idx,
                 itemId = st.itemId,
                 name = st.name,
                 quality = st.quality,
+                gridW = gw,
+                gridH = gh,
                 price = st.price,
                 count = count,
                 affordable = playerGold >= st.price,

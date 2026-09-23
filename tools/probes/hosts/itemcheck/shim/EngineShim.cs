@@ -261,7 +261,13 @@ namespace CloverEngine
         MouseLeft, MouseRight, MouseMiddle
     }
 
-    /// <summary>`Runtime/Core/Input.cs:66`（子集）。</summary>
+    /// <summary>
+    /// `Runtime/Core/Input.cs:66`（子集）。
+    /// <para>★ 本轮（T0 判据缺口 1）新增 `GetMouseButtonUp` / `MouseDelta` / `GetAxis` 三个成员：
+    /// 本宿主现在把 `Module/Input/InputReader.cs` 编进来（为了用**真实** `PlayerModule` 断言死亡扣金币），
+    /// 而 `InputReader.Poll` 要用到它们。签名逐条抄自 `playercheck/shim/EngineShim.cs:190-203`
+    /// （那里早就编 `Module/Input`）—— 两处必须一致。</para>
+    /// </summary>
     public interface IInputManager
     {
         bool Available { get; }
@@ -271,7 +277,10 @@ namespace CloverEngine
         bool GetKeyUp(GameKey key);
         bool GetMouseButton(int button);
         bool GetMouseButtonDown(int button);
+        bool GetMouseButtonUp(int button);
         Vector3 MousePosition { get; }
+        Vector2 MouseDelta { get; }
+        float GetAxis(string axis, bool raw = false);
     }
 
     // ── 引导类 ──────────────────────────────────────────────────────────────

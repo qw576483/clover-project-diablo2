@@ -37,6 +37,7 @@
 | `IAppFlow` | `AppFlow` | `Module/Flow/AppFlow.cs` | 流程编排（面板 + 场景 + 状态机） |
 | `IMapModule` | `MapModule` | `Module/Map/MapModule.cs` | 格子地图 / 随机生成 / 可走 / A* / 等距投影 |
 | `IPlayerModule` | `PlayerModule` | `Module/Player/PlayerModule.cs` | 主角属性、位置、移动 |
+| ↳ **本轮契约新增** `IPlayerModule.TrySpendMana(int amount)` | `Module/Player/PlayerModule.cs` | 声明 `Module/Contracts.cs:1077` / 实现 `Module/Player/PlayerModule.cs:979` | **扣蓝（技能消耗）的唯一入口**：成功扣减返回 true；`amount ≤ 0` 或法力不足 ⇒ **false 且不改值**。⛔ **不改 `RestoreMana` 既有语义**（它对非正数仍"忽略"—— 正是这个钳制造成过「施法不扣法力」）。消费方 = `Module/Skill/SkillModule.cs`：先 `player.Mana < cost` 校验（Warn）→ `TrySpendMana(cost)` → 再施放（`SkillModule.cs:279-283 / :312-313 / SpendMana:756`） |
 | `ICombatModule` | `CombatModule` | `Module/Combat/CombatModule.cs` | 伤害/命中/抗性/死亡/复活 |
 | `IMonsterModule` | `MonsterModule` | `Module/Monster/MonsterModule.cs` | 怪物 AI 与精英词缀 |
 | `ISkillModule` | `SkillModule` | `Module/Skill/SkillModule.cs` | 技能树/学习/施放/投射物 |
@@ -68,6 +69,7 @@
 | `ShopPanel` | `UI/ShopPanel.cs` | Popup | 买卖与修理 |
 | `PausePanel` | `UI/PausePanel.cs` | Top | 继续/选项/保存退出/回主菜单 |
 | `DeathPanel` | `UI/DeathPanel.cs` | Top | 死亡与复活 |
+| `D2ConfirmPanel` | `UI/D2ConfirmPanel.cs` | **Top** | **二次确认弹窗（2026-09-21 新增）**：底板 = 原版 `MENU/boxpieces.DC6` 拼装窗框（`boxframe_pause` 288×180）+ **原版中等按钮三态**；**替掉**引擎默认 uGUI 弹窗（`Game.UI.Confirm` ⇒ 深灰方块 + 纯蓝按钮）。通话口 = `D2ConfirmPanel.Show(title, message, onConfirm, onCancel)`（同时只显示一个，后到排队）；调用点 = `UI/CharSelectPanel.cs:211`（删除角色）/ `UI/PausePanel.cs:97`（回主菜单）。几何组 = `UI/UiLayoutFlow.Confirm`；预制体由 `Assets/Editor/ProjectBuilder.cs` 生成（面板清单 **16 → 17**）。判据 = `uicheck`（Confirm 组两两不重叠 + 落在 1080 画布内）+ 实机 `x_contact.index.tsv` 格 `B3-confirm` |
 
 ## 核心常量与路径
 
@@ -87,6 +89,14 @@
 | ↳ **R1-E 新增** `NpcDialogPanel` 选项列常量 | `UI/NpcDialogPanel.cs` | `Layer => UILayer.Normal`；`OptionW = 66f`（**原版px** = 两雕花方槽之间净宽 72 **内缩 3**）、`OptionSize`（= `OptionW × K`, 高 25.5）、`OptionX = Cx((SlotCellLeftX1 67 + SlotCellRightX0 139) / 2)`（两雕槽中点 = **原版 x 103**；底图横向中线 105 ⇒ 差 3.6 画布px）、`OptionStep = 28.5f`（**行距**）、`OptionOrigY(i)`（行心换算回原版 y，对账/断言用）。判据 `uicheck` 第 ⑬ 节 S6；登记 **E37**（取代原 E17 的"选项与正文同列 / 行宽 334.8"） |
 | ↳ **R1-E 新增** `UiLayoutGame` 商店标题/提示两行 | `UI/UiLayoutGame.cs` | `ShopTabBottomY = ShopTabY - ShopTabSize.y * 0.5f`、`ShopGridTopY = ShopGridOrigin.y`、`ShopInfoLineSize = (288 × K, ShopInfoLineH)`、`ShopTitlePos` / `ShopHintPos`（y = **页签带底沿 ↔ 格区顶沿**空带中点 **±15**，x 居中）。实机落位 `titleScreen=960,861` / `hintScreen=960,831`；登记 **E34**（原版页名是运行时文字、本机无串表出处） |
 | ↳ **R1-E 新增** `InputReader` 的 UI 命中判定 | `Module/Input/InputReader.cs` | `PointerOverUi`（属性，`Func<bool>`；默认源 = `UiPointerProbe.PointerOverUi` —— 走反射取引擎/Unity 的 UI 命中判定，取不到 ⇒ 按"不在 UI 上"降级并 Warn 一次）、纯函数 `UiEatsIntent(bool pressed, bool pointerOverUi) => pressed && pointerOverUi`。**用途**：指针压在 UI 上时该次按下**不算**地面移动意图（= R1-E 的 S2；实机 `moveCmdDelta=0 gridChanged=0`） |
+| ↳ **本轮新增** `UI/CursorView`（光标视图） | `UI/CursorView.cs` | **游戏内鼠标光标的唯一消费方**（此前 `ResPaths.Cursor` **0 引用**、`Events.CursorChanged` **0 订阅**）。`[RuntimeInitializeOnLoadMethod(AfterSceneLoad)]` 建 **`DontDestroyOnLoad` 独立画布**（`sortingOrder = 1` > 引擎常驻画布 0）；订阅 `Events.CursorChanged`（形态）+ `StageEntered`/`StageLeft`（接管时机）；**只在游戏内接管**（菜单保留系统光标），**贴图没到位就不隐藏系统光标**。常量 = `UiLayoutGame.CursorArtPx / CursorSize / CursorHotspotPivot / CursorKindCount`。⛔ 不自画缺口的 4 个光标（逐态 Warn）；判据 `uicheck` W3GameCheck 光标 5 条 |
+| ↳ **本轮新增** `Module/View/ViewAnimState`（动作选择**纯函数**） | `Module/View/ViewAnimState.cs` | 无 Unity 依赖 ⇒ 可离线逐帧驱动（`tools/probes/hosts/animcheck`）。`SelectPlayer(isDead, hitAnimPlaying, castTimerActive, attackTimerActive, moving, running)` 优先级 **Death > Hit > Cast > Attack > (Run\|Walk) > Idle**；`SelectMonster(alive, hitStun, attacking, moved)` = **Death > Hit > Attack > (Walk\|Idle)**；`IsHitHolding(playing, frameCount, finished)` = 受击保持条件（受击动画没播完**且不止一帧**；⛔ 不引入新时长常量） |
+| ↳ **本轮定稿** `SpriteFrames.LoopOf` 口径 | `Module/View/SpriteFrames.cs:166-169` | **只有 `Idle` / `Walk` / `Run` 循环**（旧口径 `anim != Death` 把 attack/death 也当循环 ⇒ death 永不停、attack 播完不静默）。配合 `ViewModule` 在 `OnSkillCast:875` / `OnPlayerAttacked:905` / `PlayHit:528` 各补一次 `Anim.Replay()`（连续出手/施法/受击才不会沿用上一次剩余帧） |
+| ↳ **本轮新增** `UI/MiniMapPanel` 小地图**新画法常量** | `UI/MiniMapPanel.cs` | `SuperSample = 4`（`:111`；1 纹理px = 1/4 格）+ `FloorDotPx`（`:113`）+ `PaintSquare`（`:383`）⇒ 每格只画 1/4/9 个纹理px（占格 **6.25% / 25% / 56.25%**，`FilterMode.Point`）。⛔ 不再是"每格整格实心矩形"的**大色块棋盘**；三色派生自原版 automap 横幅素材实测量。判据 `uicheck` ⑯ 节 |
+| ↳ **本轮新增** `UiLayoutFlow.Confirm`（几何组） | `UI/UiLayoutFlow.cs:1131-1179` | 二次确认弹窗的 5 个矩形（窗框 / 标题 / 正文 / 取消 / 确认），底板 = `Pause.BoxSize` 同一块原版窗框（**288×180** 原版px = 24×15 个 12px 格）；`ConfirmPos`/`CancelPos` = 原版 (±72,−67.5) ×K。全进 `UiLayoutFlow.Table`（`Panel.Confirm`），由既有两条断言覆盖（落在 1080 画布内 / 两两不重叠）。`MatchKind` = `FitMenu` |
+| ↳ **本轮新增** `UI/UiLayoutGame` 装备槽**素材侧数据** | `UI/UiLayoutGame.cs:520-560` | 每槽 = 「本槽图形外接框」+「整幅 IHDR」两张实测表（12 槽）；配 `UI/InventoryPanel` 的「裁剪框（外接框 ×K）+ 整幅贴图（IHDR ×K，1:1 不缩放）」口径 ⇒ ⛔ 不再把整幅塞进 prefab 节点矩形（旧版非等比拉伸 `inv_armor` 差 **35.2%**）。判据 `uicheck` W3GameCheck |
+| ↳ **本轮定稿** `UI/UiLayoutGame.SkillPanelSize` 的**两概念拆分** | `UI/UiLayoutGame.cs:702-722` | ① **素材帧尺寸** = DC6 16 帧循环 256×256 / 64×256 / 256×176 / 64×176；② **拼装后整页矩形** = **320×432**（`Panel/skltree_*_back_{0..3}.png`）。**底图判据只走 ②**（`UI/D2Icon.SkillTreeBackPath`，`D2/UI/Panel/` 前缀）；⛔ **不许**用 `ResPaths.SkillTreeBack`（逐帧目录）当底图 |
+| ↳ **本轮新增** `Core/ResPaths` 窗框常量 | `Core/ResPaths.cs:578-582` | `PanelBoxFrameSettings` = `D2/UI/Panel/boxframe_settings`（**432×348** 原版px）/ `PanelBoxFramePause` = `.../boxframe_pause`（**288×180**）—— 原版 `MENU/boxpieces.DC6` 拼装，1:1 不拉伸。消费方 = `SettingsPanel.cs:298` / `PausePanel.cs:77` / `D2ConfirmPanel.cs:257` |
 
 ## 配表登记
 
@@ -115,6 +125,11 @@
 | `AStar.Find(map, from, to)` | **引擎** `Runtime/Core/AStar.cs` | 返回路径点（格） |
 | `UIFactory.Stretch/CreateCentered/CreateText/CreateButton` | 引擎 | **代码搭 UI 一律用它**，禁止自写锚点工具 |
 | `WorldHpBar.Create/SetHp` | 引擎 | 世界空间头顶血条 |
+| `ViewAnimState.SelectPlayer/SelectMonster/IsHitHolding` | `Module/View/ViewAnimState.cs` | **这一帧该播哪个动作**（纯函数，离线可驱动；`ViewModule` 只喂状态） |
+| `SpriteFrames.LoopOf(anim)` | `Module/View/SpriteFrames.cs` | 该动作是否**循环**（只有 Idle/Walk/Run 为 true） |
+| `D2ConfirmPanel.Show(title, message, onConfirm, onCancel)` | `UI/D2ConfirmPanel.cs` | **原版风格二次确认弹窗**（替 `Game.UI.Confirm`；同时只显示一个，后到排队） |
+| `animcheck`（**离线自检宿主**） | `tools/probes/hosts/animcheck/`（`dotnet run`） | 片 W5 动画 1:1 自证：§1 生成物×manifest · §2 8向×N帧文件 · §3 帧键三方一致 · **§4 `LoopOf` 口径** · **§5 `ViewAnimState` 优先级真值表** · **§6 真 `SpriteAnimator` 逐帧推进**（walk 循环 / attack 播完回 idle / hit 播完回 idle / death 停末帧） |
+| `uicheck`（**离线自检宿主**） | `tools/probes/hosts/uicheck/`（`W3FlowCheck.cs` = 流程屏 / `W3GameCheck.cs` = 游戏内） | 逐项审计的**机械判据**：声明==素材 IHDR、矩形==原版×1.8、宽高比==素材原生、非等比 0 例外；光标 5 条；boxpieces 偏移/接缝自证；装备槽 12 槽；技能树两概念；小地图三比值；选角屏槽位语义 |
 
 ## 资源目录
 

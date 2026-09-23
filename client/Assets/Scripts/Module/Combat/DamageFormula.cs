@@ -226,10 +226,32 @@ namespace Diablo2.Module.Combat
                 skillMultiplier = 1f;
             }
 
+            return PhysicalDamageEd(weaponRoll, str, dex, strBonus, dexBonus,
+                                    Mathf.RoundToInt((skillMultiplier - 1f) * 100f));
+        }
+
+        /// <summary>
+        /// ★ 片 N：官方物理伤害的**整数 ED% 入口** —— 与 `PhysicalDamage` 是**同一份公式**，
+        /// 只把"技能 ED%"从"倍率浮点（必须 &gt; 0）"换成**有符号整数百分比**。
+        /// <para>
+        /// 为什么必须有它：官方 `skills.txt` 存在**负 ED%** —— `Whirlwind` 的
+        /// `calc1='ln12'` / `*calc1 desc='damage%'` / `Param1=-50`（1 级 = **-50%** 武器伤害，
+        /// 每级 +8%；出处：官方 `skills.txt` 的 `Whirlwind` 行，本项目打表落在
+        /// `skill_c.dmg_pct_base=-50 / dmg_pct_per_lvl=8`）。
+        /// 旧入口对 `skillMultiplier ≤ 0` 会 Warn 后**按 1 算** ⇒ 会把 `-50%` 变成 `+0%`
+        /// （审计 R12）。负 ED 必须走本入口。
+        /// </para>
+        /// <para>公式与截断口径与 `PhysicalDamage` 完全一致
+        /// （`DAMAGE_CalculatePhysicalDamage @0057b420`；`D2ApplyPercent` 截断）。</para>
+        /// </summary>
+        /// <param name="skillEdPct">技能伤害加成%（官方 `calc1` 折算；**可为负**）。</param>
+        public static int PhysicalDamageEd(int weaponRoll, int str, int dex, int strBonus, int dexBonus,
+                                           int skillEdPct)
+        {
+            if (weaponRoll <= 0) return 0;
+
             // 官方：dmg_pct = str*StrBonus/100 + dex*DexBonus/100 + 技能 ED%（**每项各自整数截断**）
-            var dmgPct = str * strBonus / 100 + dex * dexBonus / 100;
-            var skillPct = Mathf.RoundToInt((skillMultiplier - 1f) * 100f);
-            dmgPct += skillPct;
+            var dmgPct = str * strBonus / 100 + dex * dexBonus / 100 + skillEdPct;
 
             // 官方：out = base + base*dmg_pct/100（D2ApplyPercent ⇒ 截断）
             var result = weaponRoll + weaponRoll * dmgPct / 100;

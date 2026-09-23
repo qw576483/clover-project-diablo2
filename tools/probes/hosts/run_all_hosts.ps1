@@ -1,6 +1,11 @@
 ﻿# 回归全部离线自检宿主（agent-05 用）：dotnet run 每个 tools/<name>check，输出末行结论
 $root = Split-Path -Parent $PSScriptRoot
-$hosts = @('corecheck','mapcheck','dircheck','playercheck','combatcheck','itemcheck','audiocheck','uicheck','flowcheck','fullcheck','buildcheck')
+# auto-discovered (2026-09-23 gate-close-X): the old hard-coded list held 12 entries while
+# tools/probes/hosts/ carries 14 .csproj -- movecheck / savecheck were therefore never run
+# by the one-click entry at all.  Discovery by csproj kills that class of omission for good.
+$hosts = @(Get-ChildItem $PSScriptRoot -Directory -ErrorAction SilentlyContinue |
+           Where-Object { Test-Path (Join-Path $_.FullName ($_.Name + '.csproj')) } |
+           ForEach-Object { $_.Name } | Sort-Object)
 $fail = 0
 foreach ($h in $hosts) {
     $dir = Join-Path $PSScriptRoot $h

@@ -72,6 +72,9 @@ namespace Diablo2.Module.Map
         /// <inheritdoc />
         public IReadOnlyList<Vector2Int> MonsterSpawns { get { return _grid.MonsterSpawns; } }
 
+        /// <inheritdoc />
+        public IReadOnlyList<Vector2Int> WaypointPoints { get { return _grid.WaypointPoints; } }
+
         // ═════════════════════════════════════════════════════════════════════
         // IMapModule：查询
         // ═════════════════════════════════════════════════════════════════════
@@ -84,6 +87,15 @@ namespace Diablo2.Module.Map
 
         /// <inheritdoc />
         public TileKind TileAt(Vector2Int g) { return _grid.TileAt(g); }
+
+        /// <summary>
+        /// 「该格是否是可走上方的结构（桥面/平台）」—— 契约见 `Module/Contracts.cs` 的
+        /// `IMapModule.IsDeckGrid`（2026-09-22 为修「营地出门的桥，还是从桥下走」新增）。
+        /// <para>实现 = **从 `GridMap` 转发**（登记口径 = 该格地面瓦片键取自 deck 类包 `moor_bridge`
+        /// **且该格可走**，见 `DeckTiles` / `GridMap.SetTiles` 的登记点；⛔ 视图层不猜几何）。
+        /// 图外 / 未生成 / 未登记 ⇒ false。</para>
+        /// </summary>
+        public bool IsDeckGrid(Vector2Int g) { return _grid.IsDeck(g); }
 
         /// <inheritdoc />
         public List<Vector2Int> FindPath(Vector2Int from, Vector2Int to)
@@ -352,6 +364,13 @@ namespace Diablo2.Module.Map
         public bool TryGetTileKeys(int x, int y, out string groundKey, out string objectKey)
             => _grid.TryGetTiles(x, y, out groundKey, out objectKey);
 
+        /// <summary>
+        /// 自证：本模块持有的 `GridMap`（**非契约方法**，`IMapModule` 上没有）。
+        /// <para>用途 = 离线自检宿主能拿**生产同一份**格数据去复算 `MapView.PlanCell`（T0FIX-H 的
+        /// "逐格判定同源 / 不露空"断言必须跑在真实地图上，而不是宿主自己再生成一张）；⛔ 业务代码不要用它。</para>
+        /// </summary>
+        public GridMap Grid { get { return _grid; } }
+
         /// <summary>自证：全图「可走格」的连通片数（>1 = 存在走不到的孤立区）。**非契约方法**。</summary>
         public int CountWalkableComponents()
         {
@@ -409,6 +428,44 @@ namespace Diablo2.Module.Map
                 for (var x = 0; x < _grid.Width; x++) args.tiles.Add(CodeOf(_grid.Get(x, y)));
             }
 
+            // ★ 逐格 **原版 automap Cel**（`AutoMapCel.generated.cs` = 原版 `AutoMap.txt` + `MaxiMap.dc6`
+            //   + ACT1 调色板 + 原版 DS1 的解析产物；口径见 `MinimapArgs.cels` 的 `# contract:` 注释）：
+            //   按该格的**原版瓦片键**（`GridMap.TryGetTiles`，罗格营地/洞穴/野外三个生成器都逐格登记）
+            //   查表。查不到键 ⇒ `-1`（原版这一格不画 automap）。
+            //   ⚠️ 非预期分支：本图**没有**逐格瓦片覆盖（生成失败的保底布局 `BuildFallback`）⇒ 整幅
+            //      查不到 Cel，自动地图会是空的 —— 留一次 Warn（不静默），并在回报里点名。
+            var celOk = 0;
+            for (var y = 0; y < _grid.Height; y++)
+            {
+                for (var x = 0; x < _grid.Width; x++)
+                {
+                    short g = -1, o = -1;
+                    string gk, ok;
+                    if (_grid.TryGetTiles(x, y, out gk, out ok))
+                    {
+                        g = AutoMapCel.Cel((int)_grid.Area, false, gk);
+                        // ★ 片 L / R12：`Objects/moor_river/028` 是**原版平色水墙瓦片**，它在
+                        //   `AutoMapCel` 的物件表里和石墙（`moor_stonewall/*`）映射到**同一个 Cel 60**
+                        //   ⇒ 水格在小地图上看着就是石头，这正是 R12 报的"小地图分不出水与石头"。
+                        //   判据与主视图 R1-B **完全同一条**（`MapView.IsPaletteCycledFlatWallOverlay`）：
+                        //   它不是墙、是水面，水面已由 floor 层的水 Cel 呈现 ⇒ 物件层在这个 Cel 上**不叠**。
+                        //   ⛔ 只影响小地图画不画这一张物件；`TileKind` / 可走性 / 逐格键一个字不动。
+                        o = MapView.IsPaletteCycledFlatWallOverlay(gk, ok)
+                            ? AutoMapCel.None
+                            : AutoMapCel.Cel((int)_grid.Area, true, ok);
+                        if (g >= 0) celOk++;
+                    }
+                    args.cels.Add(g);
+                    args.celsOver.Add(o);
+                }
+            }
+            if (celOk == 0)
+            {
+                MapLog.WarnOnce("minimap.no.cel",
+                    $"BuildMinimap: area={_grid.Area} 整幅一格 automap Cel 都没有（逐格原版瓦片键缺失？" +
+                    "保底布局不走逐格覆盖）⇒ 自动地图只有玩家点与标记，没有地图图形");
+            }
+
             for (var i = 0; i < _grid.Exits.Count; i++) AddMarker(args, _grid.Exits[i], MinimapArgs.TileExit);
             for (var i = 0; i < _grid.NpcPoints.Count; i++) AddMarker(args, _grid.NpcPoints[i], MinimapArgs.TileInteractable);
 
@@ -429,6 +486,11 @@ namespace Diablo2.Module.Map
             if (kind == TileKind.Void) return MinimapArgs.TileVoid;
             if (kind == TileKind.Exit) return MinimapArgs.TileExit;
             // 注意：NPC 点会在 BuildMinimap 里被 marker 单独标出（面板画在交互层）
+            // ★ 片 L / R12：`TileKind.Water` **显式登记**为阻挡（水不可涉水）—— 它落到 `TileBlocking`
+            //   是**判定出来的**，不是"忘了登记掉到 default"。
+            //   ⚠️ 真正的"水 / 石头可区分"发生在 `BuildMinimap` 的物件 Cel 那一层（见那里的 ★ 注释）：
+            //      面板画的是**原版逐格 automap Cel**，本数组只用于日志计数，不参与画面。
+            if (kind == TileKind.Water) return MinimapArgs.TileBlocking;
             return TileKindInfo.IsWalkable(kind) ? MinimapArgs.TileWalkable : MinimapArgs.TileBlocking;
         }
 

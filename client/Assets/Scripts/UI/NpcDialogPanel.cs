@@ -104,24 +104,47 @@ namespace Diablo2.UI
     public class NpcDialogPanel : UIPanel
     {
         /// <summary>
-        /// 对话条**命中区**尺寸（透明板，只吃点击、不画像素；比底图略宽，保证点到石框边上也不穿透到 HUD）。
+        /// ★★ U3（2026-09-23，用户报「文字框太小了，我记得原版也不是这样的」）：
+        /// **原版对话框底图是按 2× 画的** ⇒ 本工程画布尺寸 = `210×158 × DialogArtScale × K`
+        /// = **756 × 568.8**（旧值 378×284.4 只有原版的一半）。
+        /// <para>
+        /// 判据（可复核，逐条给出）：在用户给的原版截图（阿卡拉那一屏）里量同一张图上**两个**原版图元
+        /// 占屏宽的比例 —— ①「NPC 語音」标题条（`LOCAL/UI/chi/npcspeech.dc6` 原生 **95×34**）≈ 屏宽 **21.7%**；
+        /// ② 对话框底图（原生 210 宽）≈ 屏宽 **52%**。原版 800×600 下 95 与 210 的 1× 占比分别是
+        /// 11.9% / 26.3% —— **实测都是它的 ≈1.9 倍** ⇒ 这一屏的两个图元都按 **2×** 画
+        /// （两图元的**相对**比例 95/210 = 0.452 与实测 0.42 吻合 ⇒ 不是拉伸失真，是同倍放大）。
+        /// ③ 正文行高 ≈ 屏宽 2.0% ⇒ 800 下 ≈16px = **原版 font16 的 1× 行距** ⇒ **字不放大、框放大**
+        /// （所以原版看过去是"大字框、小正文字"）。
+        /// </para>
+        /// <para>⚠️ 这是**量化推断**（原版没有该屏的坐标表，`参考工程_Diablerie` 本机只有 txt、无 prefab）
+        /// ⇒ ★ 登记为「用户可一眼纠正」的一条：若原版实际是 1×，把 <see cref="DialogArtScale"/> 改回 1 即可，
+        /// 其余所有换算都挂在它上面（不会有第二处需要改）。</para>
         /// </summary>
-        public static readonly Vector2 FrameSize = new Vector2(615f, 187.5f);
+        public const float DialogArtScale = 2f;
+
+        /// <summary>原版对话框底图尺寸（210×158 × <see cref="DialogArtScale"/>(2) × 1.8 = **756×568.8**）。</summary>
+        public static readonly Vector2 DialogArtSize = new Vector2(
+            210f * DialogArtScale * UiLayoutGame.K,
+            158f * DialogArtScale * UiLayoutGame.K);
 
         /// <summary>
-        /// 原版对话框底图尺寸（`MENU/dialogbackground.DC6` 210×158 → ×1.8 = **378×284.4**）。
-        /// 用**原版像素 1:1**摆放，不拉伸（该图无同质中段，拉伸会失真）。
+        /// 石框**下沿**画布 y = HUD 控制面板的**上沿**
+        /// （控制面板底图 948×160 ×1.8 = 1706.4×288 贴画布底边 ⇒ 上沿 = −540 + 288 = **−252**）
+        /// ⇒ 对话框坐在 HUD 正上方的一块大理石上（原版观感；旧值把框心放在 −172.5 且框小一半）。
         /// </summary>
-        public static readonly Vector2 DialogArtSize = new Vector2(210f * 1.8f, 158f * 1.8f);
+        public const float FrameBottom = -252f;
 
-        /// <summary>对话条中心 y（屏幕下方，原版对话条也在下方；×1.8 口径）。</summary>
-        public const float FrameY = -172.5f;
+        /// <summary>石框中心 y。</summary>
+        public static readonly float FrameY = FrameBottom + DialogArtSize.y * 0.5f;
 
         /// <summary>石框可见区**顶沿**画布 y（= 中心 + 半高）。</summary>
         public static readonly float FrameTop = FrameY + DialogArtSize.y * 0.5f;
 
-        /// <summary>石框可见区**底沿**画布 y。</summary>
-        public static readonly float FrameBottom = FrameY - DialogArtSize.y * 0.5f;
+        /// <summary>
+        /// 对话条**命中区**尺寸（透明板，只吃点击、不画像素；比底图四周各宽 30 画布px，
+        /// 保证点到石框边上也不穿透到 HUD）—— ★ U3 起随底图一起按 <see cref="DialogArtScale"/> 放大。
+        /// </summary>
+        public static readonly Vector2 FrameSize = new Vector2(DialogArtSize.x + 60f, DialogArtSize.y + 60f);
 
         // ═════════════════════════════════════════════════════════════════════
         // 底图实测分区（原版px，**相对底图左上角**；逐像素扫描口径见文件头）
@@ -150,11 +173,14 @@ namespace Diablo2.UI
         /// <summary>底图横向中心对应的**原版 x**（210/2 = 105）：画布 x =（原版 x − 105）× K。</summary>
         public const float ArtCenterX = 105f;
 
-        /// <summary>原版 x → 画布 x。</summary>
-        public static float Cx(float origX) => (origX - ArtCenterX) * UiLayoutGame.K;
+        /// <summary>原版 x → 画布 x（含 <see cref="DialogArtScale"/>：底图按 2× 画 ⇒ 原版px ×2 ×K）。</summary>
+        public static float Cx(float origX) => (origX - ArtCenterX) * UiLayoutGame.K * DialogArtScale;
 
-        /// <summary>原版 y（从底图顶沿往下量）→ 画布 y（uGUI 向上为正）。</summary>
-        public static float Cy(float origY) => FrameTop - origY * UiLayoutGame.K;
+        /// <summary>原版 y（从底图顶沿往下量）→ 画布 y（uGUI 向上为正；同样含 <see cref="DialogArtScale"/>）。</summary>
+        public static float Cy(float origY) => FrameTop - origY * UiLayoutGame.K * DialogArtScale;
+
+        /// <summary>原版px（长度）→ 画布px（含 <see cref="DialogArtScale"/>）。</summary>
+        public static float L(float origLen) => origLen * UiLayoutGame.K * DialogArtScale;
 
         // ═════════════════════════════════════════════════════════════════════
         // 文本区：原版上带 + 中带（合起来 = 石框内"金框长槽"及其上方的大理石面）
@@ -171,26 +197,30 @@ namespace Diablo2.UI
         /// <summary>文本区底沿（原版 y 90 = 长槽净内下沿）。</summary>
         public const float TextBottomOrigY = 90f;
 
-        /// <summary>文本区总高（画布px）=(90−3)×1.8 = 156.6。</summary>
-        public static readonly float TextH = (TextBottomOrigY - TextTopOrigY) * UiLayoutGame.K;
+        /// <summary>文本区总高（画布px）=(90−3)×1.8×2 = **313.2**。</summary>
+        public static readonly float TextH = L(TextBottomOrigY - TextTopOrigY);
 
         /// <summary>内容左右留白（原版px）：石框内沿 x 2..207 各内缩 6。</summary>
         public const float TextPadX = 6f;
 
-        /// <summary>内容行宽（画布px）=(205 − 2×6)×1.8 = 347.4。</summary>
-        public static readonly float ContentW = (205f - 2f * TextPadX) * UiLayoutGame.K;
+        /// <summary>内容行宽（画布px）=(205 − 2×6)×1.8×2 = **694.8**（按 2× 底图）。</summary>
+        public static readonly float ContentW = L(205f - 2f * TextPadX);
 
         /// <summary>内容中心 x（画布px，= 原版 x 102.5）。</summary>
         public static readonly float ContentCx = Cx((2f + TextPadX + 205f - TextPadX) * 0.5f);
 
-        /// <summary>名字行高（画布px）。</summary>
-        public const float NameH = 20f;
+        /// <summary>名字行高（画布px）= 20 原版px ×2 = **40**（够 28.8 行距的名字行）。</summary>
+        public static readonly float NameH = L(20f);
 
-        /// <summary>名字行字号（画布px）。</summary>
-        public const int NameFont = 16;
+        /// <summary>名字行字号（画布px）= 原版 **font16** 的原生档 = <see cref="UiLayoutGame.FontPx16"/> = **28.8**。</summary>
+        public const int NameFont = 28;      // = (int)UiLayoutGame.FontPx16（const 不能调静态方法 ⇒ 见 uicheck 断言）
 
-        /// <summary>台词字号（画布px）⇒ 行距 = 14 画布px（`D2Text` 口径），最长一屏 8~9 行 = 112~126 ≤ 132.6。</summary>
-        public const int BodyFont = 12;
+        /// <summary>
+        /// 台词字号（画布px）= 原版 **font16** 的原生档 = <see cref="UiLayoutGame.FontPx16"/> = **28.8**
+        /// （旧值 12 只有原版的 42% —— 用户报「字也小」的根因）。
+        /// 行距 = 字号 ⇒ 文本区 313.2 可容 **10 行**（最长一条台词折行 8~9 行 ⇒ 放得下）。
+        /// </summary>
+        public const int BodyFont = 28;      // = (int)UiLayoutGame.FontPx16
 
         /// <summary>名字行中心 y。</summary>
         public static readonly float NameY = Cy(TextTopOrigY) - NameH * 0.5f;
@@ -215,8 +245,8 @@ namespace Diablo2.UI
         /// </summary>
         public const float OptionW = 66f;
 
-        /// <summary>菜单项尺寸（宽 = 中央列 66 原版px；高 25.5 画布px）。</summary>
-        public static readonly Vector2 OptionSize = new Vector2(OptionW * UiLayoutGame.K, 25.5f);
+        /// <summary>菜单项尺寸（宽 = 中央列 66 原版px ×2；高 25.5 画布px ×2 = 51 ⇒ 装得下 28.8 行距的文字）。</summary>
+        public static readonly Vector2 OptionSize = new Vector2(L(OptionW), 25.5f * DialogArtScale);
 
         /// <summary>
         /// 菜单项列的**中心 x**（画布px）= 两雕槽之间的中点（原版 x (67+139)/2 = 103）。
@@ -224,8 +254,8 @@ namespace Diablo2.UI
         /// </summary>
         public static readonly float OptionX = Cx((SlotCellLeftX1 + SlotCellRightX0) * 0.5f);
 
-        /// <summary>菜单项行距（画布px）：高 25.5 + 3 的呼吸位。</summary>
-        public const float OptionStep = 28.5f;
+        /// <summary>菜单项行距（画布px）：高 25.5 + 3 的呼吸位，再 × <see cref="DialogArtScale"/> = **57**。</summary>
+        public static readonly float OptionStep = 28.5f * DialogArtScale;
 
         /// <summary>本面板最多显示几个菜单项（再多会越过石框底沿）。</summary>
         public const int MaxOptions = 3;
@@ -234,7 +264,7 @@ namespace Diablo2.UI
         public static float OptionY(int i)
         {
             var k = i < 0 ? 0 : (i >= MaxOptions ? MaxOptions - 1 : i);
-            return Cy(LowerBandY0) - 14.25f - k * OptionStep;
+            return Cy(LowerBandY0) - 14.25f * DialogArtScale - k * OptionStep;
         }
 
         private bool _built;
@@ -361,8 +391,9 @@ namespace Diablo2.UI
             // 标题条 = 原版**中文**位图（`data/local/ui/chi/npcspeech.dc6` 95×34，位图实测逐字「NPC 語音」）；
             // 外框 = 原版尺寸 ×1.8 = 171×61.2，整条落在石框**上方**（底沿贴 FrameTop）。
             // ⚠️ 原版**没有这条的坐标出处**（石框里没有标题槽）⇒ 登记 `策划/验收表.md` 的 E17（BLOCKED 部分）。
+            // ★ U3：标题条同样按 `DialogArtScale`（截图实测它也是 ~1.9×，与石框同倍 ⇒ 两者相对比例不变）。
             UiArt.Banner(transform, "SpeechBanner", ResPaths.Banner("npcspeech_0"),
-                new Vector2(95f * 1.8f, 34f * 1.8f), new Vector2(0f, FrameTop + 34f * 1.8f * 0.5f));
+                new Vector2(L(95f), L(34f)), new Vector2(0f, FrameTop + L(34f) * 0.5f));
 
             _speaker = UiArt.Label(transform, "Speaker", string.Empty, NameFont, TextAnchor.MiddleCenter,
                 UiArt.TitleColor, new Vector2(ContentW, NameH), new Vector2(ContentCx, NameY));
@@ -383,7 +414,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>第 <paramref name="i"/> 个菜单项行心换算回**原版 y**（从底图顶沿往下量；对账/断言用）。</summary>
-        public static float OptionOrigY(int i) => (FrameTop - OptionY(i)) / UiLayoutGame.K;
+        public static float OptionOrigY(int i) => (FrameTop - OptionY(i)) / (UiLayoutGame.K * DialogArtScale);
 
         // ═════════════════════════════════════════════════════════════════════
         // 刷新
@@ -453,8 +484,15 @@ namespace Diablo2.UI
                         + "（本项目最多 3 项：关闭 / 任务动作 / 商店入口）");
                 }
                 // ★ S6：列中心是 `OptionX`（两雕槽之间的中央列），**不是** `ContentCx`（内容行宽会压进雕槽）
-                var button = UiArt.Button(transform, "Option" + i, string.Empty, OptionSize,
-                    new Vector2(OptionX, OptionY(i)), null);
+                //
+                // ★ U3：`UiArt.Button(size, …)` 的 `size` 被用来**选底图帧**，而阈值是**原版px**
+                //   （`UiArt.WideButtonMinWidth = 200`；`UiLayoutFlow.FlowButton.Create` 也是这么用的：
+                //   先按原版尺寸建、再 `sizeDelta = Px(origSize)` 放大）。框放大到 2× 后
+                //   `OptionSize.x = 237.6` 会被**误判成宽按钮**（272×35 的前端菜单按钮）⇒ 这里照同一做法
+                //   传**原版px**（66×25.5 ⇒ 中等按钮），随后再把矩形放大成 <see cref="OptionSize"/>。
+                var button = UiArt.Button(transform, "Option" + i, string.Empty,
+                    new Vector2(OptionW, 25.5f), new Vector2(OptionX, OptionY(i)), null);
+                if (button != null) button.rectTransform.sizeDelta = OptionSize;
                 _optionButtons.Add(button);
                 _optionLabels.Add(UiArt.ButtonLabel(button));
             }

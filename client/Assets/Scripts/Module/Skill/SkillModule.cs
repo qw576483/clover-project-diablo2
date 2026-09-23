@@ -13,9 +13,10 @@
 //
 // 与其他模块的边界：
 //   · 伤害结算**不在这里**：走 `Module/Combat` 的 `DamagePipeline`（抗性只减一次 + 三件套只有一份实现）。
-//   · 扣法力走 `IPlayerModule.RestoreMana(-cost)`：契约（冻结）里**没有**"扣蓝"入口，
-//     只有 `RestoreMana(int amount)`；负数语义即"扣"。（若实现方对负数做了钳制，本模块会
-//     在扣蓝后**校验并报 Error**，不会静默 —— 见 `SpendMana`。）
+//   · 扣法力走 `IPlayerModule.TrySpendMana(cost)`（★ w7 主 agent 授权的契约新增）：
+//     此前契约里只有 `RestoreMana(int amount)`（且实现对非正数一律**忽略**）⇒ 用
+//     `RestoreMana(-cost)` 扣蓝会被静默钳掉（实测「施法不扣法力」）。现在消耗走独立入口；
+//     顺序固定为 **校验法力足够（Warn，不是 Error）→ 扣蓝 → 再施放**；见 `SpendMana`。
 //   · 技能树面板布局（行列）由本模块算好放进 `SkillDef.slotRow/slotCol`（`skill_c` 没有该列）。
 //
 // ⛔ 单机：不碰引擎的网络类门面（`Game` 的 Net / Sync / Http 等，全为 null）。
@@ -67,6 +68,14 @@ namespace Diablo2.Module.Skill
         private CharacterSave _save;
         private Rng _rng;
 
+        /// <summary>
+        /// `Events.SkillSlotAssignRequest` 是否已订阅（**幂等**；★ impl-I-input，审计 R4）。
+        /// <para>为什么不在构造函数里订阅：本模块由 `AppContext.AutoWire` 在**很早**的时刻创建，
+        /// 那一刻 `Game.Event` 可能还没挂上（构造时订阅会静默丢订阅）⇒ 改为首个
+        /// `ResetForClass`（= 创角/读档进图，必然发生在任何游戏内按键之前）时补订阅。</para>
+        /// </summary>
+        private bool _slotSubscribed;
+
         // ═════════════════════════════════════════════════════════════════════
         // ISkillModule：只读状态
         // ═════════════════════════════════════════════════════════════════════
@@ -112,6 +121,7 @@ namespace Diablo2.Module.Skill
         /// <inheritdoc />
         public void ResetForClass(PlayerClass cls, CharacterSave save)
         {
+            EnsureSubscribed();     // ★ impl-I-input：F1~F8 技能槽绑定意图的订阅点（幂等）
             _cls = cls;
             _save = save;
 
@@ -143,6 +153,7 @@ namespace Diablo2.Module.Skill
                           $"已学 {_levels.Count} 个，左键={_buttons[0]} 右键={_buttons[1]}");
 
             RaiseTreeChanged();
+            RaiseButtonsChanged();      // ★ impl-I-input：读档后把左右键绑定推给 HUD（重启后 HUD 也一致）
         }
 
         /// <inheritdoc />
@@ -186,6 +197,7 @@ namespace Diablo2.Module.Skill
 
             SkillLog.Info($"SelectSkill：当前右键技能 = {Describe(skillId)}");
             if (Game.Event != null) Game.Event.Emit(Events.SkillSelected, skillId);
+            RaiseButtonsChanged();      // ★ impl-I-input：HUD 的左右技能格换图
         }
 
         /// <inheritdoc />
@@ -204,6 +216,110 @@ namespace Diablo2.Module.Skill
 
             SkillLog.Info($"AssignToButton：{(button == 0 ? "左键" : "右键")} = {Describe(skillId)}");
             if (button == 1 && Game.Event != null) Game.Event.Emit(Events.SkillSelected, skillId);
+            RaiseButtonsChanged();      // ★ impl-I-input：HUD 的左右技能格换图
+        }
+
+        /// <summary>
+        /// 订阅 `Events.SkillSlotAssignRequest`（原版 `F1`~`F8` 技能槽绑定意图；★ impl-I-input，审计 R4）。
+        /// 幂等；`Game.Event` 还没挂上时**不置位**（下次 `ResetForClass` 再试）。
+        /// </summary>
+        private void EnsureSubscribed()
+        {
+            if (_slotSubscribed || Game.Event == null) return;
+            Game.Event.On<int>(Events.SkillSlotAssignRequest, OnSkillSlotAssignRequest);
+            _slotSubscribed = true;
+            SkillLog.Info($"已订阅 {Events.SkillSlotAssignRequest}（F1~F4 绑左键 / F5~F8 绑右键，按已学技能顺序）");
+        }
+
+        /// <summary>
+        /// `F1`~`F8` → 把「当前职业**已学**且可主动施放」的第 N 个技能绑到左/右键技能格。
+        /// <para>槽号口径（单一来源 = `Def/GameKeyAlias.cs`）：`SkillSlotIsLeftHand(slot)` 决定左右、
+        /// `SkillSlotIndex(slot)` 决定"已学技能表"0 基下标。落档走既有 `CharacterSave.buttonSkills`
+        /// （`AssignToButton` → `MirrorButtonsToSave`，格式不变）。</para>
+        /// <para>非预期分支（都留日志）：槽号越界、本职业已学（可主动施放）技能数 ≤ 下标、
+        /// 技能模块还没 `ResetForClass`（未选角色 ⇒ 没有已学技能表）。</para>
+        /// </summary>
+        private void OnSkillSlotAssignRequest(int slot)
+        {
+            var button = GameKeyAlias.SkillSlotIsLeftHand(slot) ? 0 : 1;
+            var index = GameKeyAlias.SkillSlotIndex(slot);
+            var hand = button == 0 ? "左键" : "右键";
+
+            if (index < 0)
+            {
+                SkillLog.WarnThrottled("slot.oob",
+                    $"技能槽绑定：槽号 {slot} 越界（合法 1..{GameKeyAlias.SkillSlotCount}）⇒ 忽略本次按键");
+                return;
+            }
+
+            var learned = LearnedCastable();
+            if (learned.Count == 0)
+            {
+                SkillLog.WarnThrottled("slot.nolearned",
+                    $"技能槽绑定：F{slot}（{hand}，第 {index + 1} 个）按下，但本职业还没有已学且可主动施放的技能" +
+                    $"（职业={_cls}，已学 {_levels.Count} 个）⇒ 不改变绑定；先去技能树学一个技能");
+                return;
+            }
+
+            if (index >= learned.Count)
+            {
+                SkillLog.WarnThrottled("slot.shortlist",
+                    $"技能槽绑定：F{slot}（{hand}，第 {index + 1} 个）按下，但本职业已学且可主动施放的技能只有 " +
+                    $"{learned.Count} 个（< {index + 1}）⇒ 不改变绑定（可用槽位 F1~F{learned.Count}）");
+                return;
+            }
+
+            var def = learned[index];
+            SkillLog.Info($"技能槽绑定：F{slot} ⇒ {hand}技能格 = {Describe(def.id)}" +
+                          $"（已学可施放列表第 {index + 1}/{learned.Count} 个，顺序 = 技能树 tree→reqLevel→id）");
+            AssignToButton(button, def.id);
+        }
+
+        /// <summary>
+        /// 当前职业**已学（等级 &gt; 0）且可主动施放（非被动）**的技能，顺序 = `_available` 的顺序
+        /// （即技能树 tree → reqLevel → id）。
+        /// <para>为什么排除被动：契约的 `AssignToButton` 自己会拒（`ValidateSelectable` 判 `passive`）⇒
+        /// 这里先滤掉，免得"第 N 个"里混进绑不上的技能、让 F 键看起来时灵时不灵。</para>
+        /// </summary>
+        private List<SkillDef> LearnedCastable()
+        {
+            var list = new List<SkillDef>();
+            for (var i = 0; i < _available.Count; i++)
+            {
+                var def = _available[i];
+                if (def == null) continue;
+                if (GetLevel(def.id) <= 0) continue;
+                if (IsPassive(def.id)) continue;
+                list.Add(def);
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// 广播左右键技能格绑定快照（`Events.SkillButtonsChanged`，载荷 `Def.SkillButtonsArgs`）。
+        /// 收方 = `UI/HudPanel`（换 `LeftSkill` / `RightSkill` 两格的图标）。
+        /// </summary>
+        private void RaiseButtonsChanged()
+        {
+            if (Game.Event == null) return;
+
+            var args = new SkillButtonsArgs
+            {
+                leftId = _buttons[0],
+                rightId = _buttons[1],
+                leftName = NameOf(_buttons[0]),
+                rightName = NameOf(_buttons[1]),
+            };
+            Game.Event.Emit(Events.SkillButtonsChanged, args);
+            SkillLog.Info($"左右键技能格快照：左={args.leftName}({args.leftId}) 右={args.rightName}({args.rightId})");
+        }
+
+        /// <summary>技能显示名（-1 = 普通攻击；未载入的 id 原样回显）。</summary>
+        private string NameOf(int skillId)
+        {
+            if (skillId == -1) return "普通攻击";
+            var def = FindDef(skillId);
+            return def != null ? def.name : "#" + skillId;
         }
 
         /// <inheritdoc />
@@ -332,7 +448,23 @@ namespace Diablo2.Module.Skill
 
             // ── 效果 ──
             Combat.DamageFormula.SkillDamageRange(row, level, out var dmgMin, out var dmgMax);
-            var hasDamage = dmgMax > 0;
+
+            // ★ 片 N（修审计 R1：21 个武器伤害类技能"零效果"）：官方 `skills.txt` 列 219 `SrcDam`
+            //   非空 = **武器伤害类**攻击技能（Bash/Smite/Zeal/Sacrifice/...）。它们的
+            //   `MinDam/MaxDam/EMin/EMax` 官方**本来就是空**（伤害 = 武器伤害 × `calc1` 的 damage%）
+            //   ⇒ `dmgMin/dmgMax` 会是 0，但**绝不是**"辅助/增益技能"。
+            //   ⚠️ 本片只接「官方伤害列全空、完全靠武器出伤害」的行（`dmgMax<=0`）：
+            //      像「火焰箭」这类 `SrcDam` 也非空、但**另有元素伤害**的行维持原路径
+            //      （原版 = 武器伤害 + 元素，本项目只结算元素 ⇒ 已登记，不在此处静默改口径）。
+            var weaponOnly = row.SrcDam > 0 && dmgMax <= 0;
+            if (row.SrcDam > 0 && dmgMax > 0)
+            {
+                SkillLog.WarnOnce("cast.weapon.tail." + skillId,
+                    $"TryCast：{def.name}#{skillId} 官方 SrcDam={row.SrcDam}（武器伤害转移 " +
+                    $"{row.SrcDam}/128）**另有**自身元素伤害 ⇒ 本次仍只结算元素部分，" +
+                    "武器伤害部分未叠加（原版 = 两者相加；本项目未建模双通道，已登记）");
+            }
+            var hasDamage = dmgMax > 0 || weaponOnly;
 
             var missileCode = row.Missile;
             if (def.target == SkillTarget.Ground && !string.IsNullOrEmpty(missileCode))
@@ -343,10 +475,33 @@ namespace Diablo2.Module.Skill
 
             if (!hasDamage)
             {
-                // 纯辅助/增益技能（如「温暖」「内视」）：本项目不建模增益数值 —— 明确说出来，不假装生效
+                // ★ 片 N：走到这里的**必须**是"真正的辅助/增益/诅咒/召唤"技能 ——
+                //   判据（三选一都不成立）= 官方该行①无伤害值（`dmgMax<=0`）、
+                //   ②非武器伤害源（`SrcDam==0`）、③无投射物（`Missile` 为空）。
+                //   ⛔ 武器伤害类技能（`SrcDam>0`）已被上面的 `weaponOnly` 接走，不会再落到这里。
                 SkillLog.WarnOnce("cast.nobuff",
-                    $"TryCast：{def.name}#{skillId} 没有伤害且无投射物（辅助/增益类）⇒ 当前只消耗法力+进冷却，" +
-                    "增益数值未建模（已登记未决：需要 `SkillCalc.txt` 的加成列）");
+                    $"TryCast：{def.name}#{skillId} 没有伤害、非武器伤害源、无投射物（辅助/增益/召唤/诅咒类）" +
+                    "⇒ 当前只消耗法力+进冷却，增益数值未建模（已登记未决：需要 `SkillCalc.txt` 的加成列）");
+                return true;
+            }
+
+            // ── ★ 片 N：武器伤害类技能 ⇒ 走 `DamageFormula` 的物理伤害**生产入口**结算 ──
+            //    （⛔ 不新写公式；武器区间与加成系数复用普攻那一处 `CombatModule.GetWeaponDamage`）
+            if (weaponOnly)
+            {
+                var targetW = targetMonsterId >= 0
+                    ? targetMonsterId
+                    : FindMonsterNear(targetGrid, SkillTuning.EnemySearchRadius);
+                if (targetW < 0)
+                {
+                    SkillLog.WarnThrottled("cast.weapon.losttarget",
+                        $"TryCast：{def.name}#{skillId} 武器伤害结算时目标已消失 ⇒ 只扣蓝进冷却");
+                    return true;
+                }
+
+                var rawW = RollWeaponSkillDamage(row, def, level, player, out var detail);
+                SkillLog.Info($"[Skill] 武器伤害结算：{def.name}#{skillId}（等级 {level}）{detail} ⇒ raw={rawW}");
+                ResolveOnMonster(targetW, rawW, def.dmgType, skillId, def.name, "武器伤害");
                 return true;
             }
 
@@ -484,12 +639,16 @@ namespace Diablo2.Module.Skill
 
         /// <summary>
         /// 目标类型推断（`skill_c` 没有 target 列 ⇒ **本项目新增**的映射，规则写在这里唯一一处）：
-        /// 被动 → None；有投射物 → Ground（指向地面飞出）；有伤害 → Enemy；其余 → Self（辅助/增益）。
+        /// 被动 → None；有投射物 → Ground（指向地面飞出）；**武器伤害类（官方 SrcDam≠0）或有伤害 → Enemy**；
+        /// 其余 → Self（辅助/增益）。
+        /// <para>★ 片 N：新增 `SrcDam > 0` 一条 —— 官方 `SrcDam` 非空的技能（如「重击」Bash）自身伤害列为空，
+        /// 只看 `DmgMin/DmgMax` 会把它误判成 `Self`（辅助/增益）⇒ 施放时零效果（审计 R1）。</para>
         /// </summary>
         private static SkillTarget TargetOf(Table.BaseSkillRow row)
         {
             if (row.Passive != 0) return SkillTarget.None;
             if (!string.IsNullOrEmpty(row.Missile)) return SkillTarget.Ground;
+            if (row.SrcDam > 0) return SkillTarget.Enemy;
             if (row.DmgMin > 0 || row.DmgMax > 0) return SkillTarget.Enemy;
             return SkillTarget.Self;
         }
@@ -569,7 +728,7 @@ namespace Diablo2.Module.Skill
                           $"伤害={dmgMin}-{dmgMax} {def.dmgType} 来源={(missile != null ? missile.Name + "(missile_c)" : "兜底")}");
         }
 
-        /// <summary>推进全部投射物：飞行 → 命中判定 → 消散。</summary>
+        /// <summary>推进全部投射物：飞行 → **地形逐格步进** → 命中判定 → 消散。</summary>
         private void TickProjectiles(float dt)
         {
             if (_projectiles.Count == 0) return;
@@ -584,8 +743,33 @@ namespace Diablo2.Module.Skill
                     continue;
                 }
 
+                var from = p.pos;
                 p.Step(dt);
                 ProjectileView.Sync(p);
+
+                // ── 地形碰撞（★ 审计 B 红行 R3：原版投射物撞墙/障碍即消散，不穿墙）──
+                //    ⚠️ 必须**排在命中怪物之前**：一帧跨多格（高速 / 卡帧后的 dt）时端点会越过墙，
+                //    若先判怪物就会判成"命中墙后那只怪"= 隔墙射杀。逐格步进见 `TrySweepTerrain`。
+                if (TrySweepTerrain(from, p.pos, out var blockedCell, out var blockedKind, out var stopAt))
+                {
+                    var flown = p.pos;
+                    p.pos = stopAt;                                  // 截停在进入阻挡格之前（表现点）
+                    p.traveled = Mathf.Max(0f, p.traveled - Vector2.Distance(stopAt, flown));
+                    ProjectileView.Sync(p);
+
+                    // 贴墙站着的怪先算命中（否则这次判定会被墙"吃掉"）
+                    var wallHitId = FindHitMonster(p);
+                    if (wallHitId >= 0)
+                    {
+                        ResolveHit(p, wallHitId);
+                        RetireProjectile(p, i);
+                        continue;
+                    }
+
+                    ResolveTerrainHit(p, blockedCell, blockedKind);
+                    RetireProjectile(p, i);
+                    continue;
+                }
 
                 var hitId = FindHitMonster(p);
                 if (hitId >= 0)
@@ -602,6 +786,169 @@ namespace Diablo2.Module.Skill
                     RetireProjectile(p, i);
                 }
             }
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 投射物 × 地形（★ 审计 B 红行 R3）
+        //
+        // 原版：投射物撞上墙体/障碍即**消散**，不穿墙、不隔墙射杀。此前 `Projectile.Step` 只做距离
+        // 积分、`TickProjectiles` 只判怪物+射程 ⇒ 隔墙 / 隔栅栏 / 隔水 / 隔树都能射杀（审计 B §3 R3）。
+        // ⛔ 沿用项目**已有**的地形查询（`IMapModule.TileAt` + 契约方的 `TileKind`），**不新造一份地形**。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 投射物逐格采样的步长（格）。**必须 &lt; 1**：采样只在"格号变化"时判一次，步长越大越可能
+        /// 整格跳过（高速投射物一帧跨多格）⇒ 取 1/4 格，保证任意线段都不会跳过一整格。
+        /// </summary>
+        private const float TerrainSampleStep = 0.25f;
+
+        /// <summary>
+        /// **该地形是否阻挡投射物** —— 逐类裁决的**唯一出处**（`internal` 供 `tools/combatcheck` 逐类断言）。
+        ///
+        /// <para><b>裁决表</b>（判据 = 该地形在本项目的**几何/占格语义**，见 `MapGenTown` /
+        /// `MapGenWilderness` / `MapGenCave` 的铺图点；⛔ 不是"随手把 Walkable 抄一遍"）：</para>
+        /// <list type="table">
+        /// <item><description><c>Grass / Dirt / Road / CaveFloor / TownFloor / Exit</c> = **可穿** —
+        /// 全是**可穿的地面层**（= `TileKindInfo.IsGroundLayer` 的 6 个**非水**值；`Water` 虽然也是
+        /// 地面层（原版 `river.dt1` 的水面画在 floor 层，见片 L 的 R12），但它**占满整格** ⇒ 本表单列判
+        /// **阻挡**，故"可穿集合"与 `IsGroundLayer` **不再同集合**），投射物贴地飞过；桥面（deck）也是
+        /// `Dirt` + deck 登记 ⇒ 桥上射出的投射物照常飞。</description></item>
+        /// <item><description><c>Void</c> = **阻挡** — 图外 / 未生成，没有可飞的空间。</description></item>
+        /// <item><description><c>Wall</c> = **阻挡** — 帐篷 / 摊位 / 货车 / 野外建筑墙
+        /// （`MapGenTown.cs` <c>'o'</c>；`MapGenWilderness.cs` <c>'W'</c>）。</description></item>
+        /// <item><description><c>CaveWall</c> = **阻挡** — 洞穴岩壁（`MapGenCave*`）。</description></item>
+        /// <item><description><c>Tree</c> = **阻挡** — 树干占格（`MapGenTown.cs` <c>'t'</c>；
+        /// `MapGenWilderness.cs` <c>'T'</c>）。原版树干挡投射物。</description></item>
+        /// <item><description><c>Fence</c> = **阻挡** — 栅栏（`MapGenTown.cs` <c>'f'</c>；
+        /// `MapGenWilderness.cs` <c>'F'</c>）。本项目栅栏**占满整格且不可走**（不是"半格矮物"）
+        /// ⇒ 按实体障碍处理。</description></item>
+        /// <item><description><c>Rock</c> = **阻挡** — 石头矮墙 / **桥栏杆**（<c>'s'</c>）/ 崖壁 / 碎石 /
+        /// 杂物；它们都是**占据整格的实体障碍**（桥栏杆正是 R2 里能盖住桥上实体的那个遮挡物）
+        /// ⇒ 一律阻挡。</description></item>
+        /// <item><description><c>Water</c> = **阻挡**（★ 2026-09-23 片 L 把水从 `Rock` 拆成独立值 `12` 后
+        /// **回来重判的结论**，见 `Def/Enums.cs:115-134`）—— 裁决依据 = ① 水格在本项目模型里是
+        /// **占满整格、不可走**的地形（`TileKindInfo.IsWalkable` = false），② 项目对 `TileKind`
+        /// **只有一个"可走性"轴**（`TileKindInfo` 没有"仅挡行走、不挡弹道"这种数据位），③ 拆值**前**
+        /// 水就是 `Rock` ⇒ 判"挡"**保持行为不变**（零回归）。
+        /// ⚠️ **仍待参考物裁决**：原版 `ds1` 的碰撞位里 `BlockWalk` 与 `BlockMissile` 是**两个位**，
+        /// 若原版水格只置 `BlockWalk`，则投射物应当**飞过水面** ⇒ 那时改**本表一行** +
+        /// `combatcheck §15.1` 一行即可（两处都有断言/闸门守着）。**本片不拍板原版语义。**</description></item>
+        /// </list>
+        /// <para>⛔ **不许在别处再写一份判等表**；本表当前与 `TileKindInfo.IsWalkable` **同集**，
+        /// 但语义不同（这里是"挡不挡投射物"）⇒ `combatcheck §15.1` 有"**每个枚举值都必须有显式裁决**"
+        /// 的闸门：新增 `TileKind` 却忘了裁决，会当场变红（2026-09-23 实测：片 L 新增 `Water` 时，
+        /// 本闸门**确实当场变红**并逼出上面那条重判）。</para>
+        /// </summary>
+        internal static bool BlocksProjectile(TileKind kind)
+        {
+            switch (kind)
+            {
+                // ── 地面层：可穿 ──
+                case TileKind.Grass:
+                case TileKind.Dirt:
+                case TileKind.Road:
+                case TileKind.CaveFloor:
+                case TileKind.TownFloor:
+                case TileKind.Exit:
+                    return false;
+
+                // ── 实体障碍 / 图外：阻挡 ──
+                case TileKind.Void:
+                case TileKind.Rock:
+                case TileKind.Tree:
+                case TileKind.Fence:
+                case TileKind.Wall:
+                case TileKind.CaveWall:
+                case TileKind.Water:      // 拆值后回来重判（判据见上面 XML：占整格 + 不可走 + 零回归）
+                    return true;
+
+                default:
+                    // 新增 TileKind 却忘了登记裁决：按"阻挡"处理（安全侧），并留痕（不静默）
+                    SkillLog.WarnOnce("proj.terrain.unknownkind",
+                        $"BlocksProjectile：TileKind {(int)kind} 未登记裁决 ⇒ 按'阻挡投射物'处理" +
+                        "（新增地形时请回来更新本表 + combatcheck 的逐类断言）");
+                    return true;
+            }
+        }
+
+        /// <summary>该地形能否被投射物穿过（= <see cref="BlocksProjectile"/> 取反；自证入口）。</summary>
+        internal static bool PassableForProjectile(TileKind kind) => !BlocksProjectile(kind);
+
+        /// <summary>
+        /// 逐格步进扫 `from → to` 这段位移：返回**第一个阻挡格**及其地形类型，并用
+        /// <paramref name="stopAt"/> 给出投射物应停的位置（= 进入该格之前最后一个可穿越的采样点；
+        /// 线段起点本身就在阻挡格里时 = <paramref name="from"/>）。
+        /// <para>为什么扫整段而不是只判端点：一帧跨多格（高速投射物 / 卡帧后的 dt）时只判端点会穿墙。</para>
+        /// <para>拿不到地图 / 地图未生成 ⇒ 本帧**不做**地形阻挡并留一次 Warn（不静默；离线宿主里
+        /// `IMapModule` 未接入时这是正常分支）。</para>
+        /// </summary>
+        private static bool TrySweepTerrain(Vector2 from, Vector2 to, out Vector2Int blockedCell,
+            out TileKind blockedKind, out Vector2 stopAt)
+        {
+            blockedCell = default(Vector2Int);
+            blockedKind = TileKind.Void;
+            stopAt = from;
+
+            var d = to - from;
+            var dist = d.magnitude;
+            if (dist <= 0f) return false;
+
+            var map = AppContext.I != null ? AppContext.I.Map : null;
+            if (map == null)
+            {
+                SkillLog.WarnOnce("proj.terrain.nomap",
+                    "投射物地形碰撞：IMapModule 未接入（AppContext.Map == null）⇒ 本帧不做地形阻挡" +
+                    "（撞墙会穿过去；离线自检宿主属正常）");
+                return false;
+            }
+            if (!map.IsGenerated)
+            {
+                SkillLog.WarnOnce("proj.terrain.nogen",
+                    "投射物地形碰撞：地图未生成（IsGenerated == false）⇒ 本帧不做地形阻挡");
+                return false;
+            }
+
+            var steps = Mathf.CeilToInt(dist / TerrainSampleStep);
+            var lastCell = new Vector2Int(int.MinValue, int.MinValue);
+            for (var i = 1; i <= steps; i++)
+            {
+                var pt = from + d * ((float)i / steps);
+                var g = new Vector2Int(Mathf.FloorToInt(pt.x), Mathf.FloorToInt(pt.y));
+                if (g == lastCell) continue;                 // 同一格只判一次
+                lastCell = g;
+
+                var kind = map.TileAt(g);
+                if (BlocksProjectile(kind))
+                {
+                    blockedCell = g;
+                    blockedKind = kind;
+                    return true;
+                }
+                stopAt = pt;                                 // 该格可穿 ⇒ 记录"最后安全位置"
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 投射物撞上不可穿越地形 ⇒ **消散**。
+        /// 表现 = 复用在已有命中音效（`SfxKeys.Hit`）+ 日志留痕，⛔ **不新增任何特效资源**
+        /// （`client/Resources/**` 不许动）。
+        /// </summary>
+        private static void ResolveTerrainHit(Projectile p, Vector2Int cell, TileKind kind)
+        {
+            p.hitTerrain = true;
+            p.terrainCell = cell;
+            p.terrainKind = kind;
+            p.alive = false;
+
+            var w = Projectile.WorldOf(p.pos);
+            var ctx = AppContext.I;
+            var audio = ctx != null ? ctx.Audio : null;
+            if (audio != null) audio.SfxAt(Combat.SfxKeys.Hit, w.x, w.y, w.z);
+
+            SkillLog.Info($"[Skill] 投射物 #{p.id}（{p.skillName}#{p.skillId}）撞上地形 {kind} " +
+                          $"格 ({cell.x},{cell.y}) ⇒ 命中地形消散（不穿墙）：飞了 {p.traveled:0.00} 格；" +
+                          $"轨迹 {p.TrailText()}");
         }
 
         /// <summary>把投射物从在飞列表里摘掉，并销毁它的表现节点。</summary>
@@ -747,22 +1094,21 @@ namespace Diablo2.Module.Skill
         }
 
         /// <summary>
-        /// 扣法力。**契约里没有"扣蓝"入口**（`IPlayerModule` 只有 `RestoreMana`）
-        /// ⇒ 用负数语义扣；扣完**校验**，没扣掉就报 `Error`（不静默）。
+        /// 扣法力。走契约的**消耗**入口 `IPlayerModule.TrySpendMana(cost)`
+        /// （★ w7 主 agent 授权的契约新增；此前只有 `RestoreMana`，负数被钳 ⇒ 施法不扣法力）。
+        /// 调用方（<see cref="TryCast"/>）已先做过「法力足够」的 Warn 校验；
+        /// 这里若仍失败，说明校验与真实扣减不一致（不应发生）⇒ 记一条 **Warn**（不是 Error）并放弃施放。
         /// </summary>
         private bool SpendMana(IPlayerModule player, int cost, string skillName)
         {
-            if (cost <= 0) return true;
+            if (cost <= 0) return true;      // 0 消耗技能：不调用契约入口
 
             var before = player.Mana;
-            player.RestoreMana(-cost);
-            var after = player.Mana;
-
-            if (after >= before)
+            if (!player.TrySpendMana(cost))
             {
-                SkillLog.ErrorOnce("cast.manaspend.failed",
-                    $"TryCast({skillName}): 扣法力未生效（{before} → {after}，期望 -{cost}）—— " +
-                    "`IPlayerModule.RestoreMana` 可能对负数做了钳制；契约缺少「扣蓝」入口（已回报主 agent，需补契约）");
+                SkillLog.WarnThrottled("cast.manaspend.failed",
+                    $"TryCast({skillName}): 扣法力失败（当前 {before}，需要 -{cost}）⇒ 本次施放放弃；" +
+                    "`IPlayerModule.TrySpendMana` 返回 false（法力不足或消耗 ≤ 0）");
                 return false;
             }
             return true;
@@ -803,6 +1149,67 @@ namespace Diablo2.Module.Skill
             if (max == 0) return 0;
             if (max == min) return min;
             return SkillRng().Next(min, max + 1);
+        }
+
+        /// <summary>
+        /// ★ 片 N：**武器伤害类技能**（官方 `skills.txt` 列 219 `SrcDam ≠ 0`）的一次伤害结算：
+        /// `武器伤害 × SrcDam/128 × (1 + 官方 calc1 伤害倍率%)`，**走 `DamageFormula` 的既有生产入口**
+        /// （⛔ 不新写公式；武器区间与 `str/dex` 加成系数复用普攻那一处的 `CombatModule.GetWeaponDamage`）。
+        /// <para>出处三处：① `SrcDam` —— D2 数据指南定义 *"percentage modifier for how much weapon damage
+        /// is transferred to the skill's damage (Out of 128)"*（⇒ 分母 128，**不是位标志**）；
+        /// ② 技能倍率 —— 官方 `calc1` + `*calc1 desc`，打表已解析成
+        /// `skill_c.dmg_pct_base/per_lvl/parsed`（见 `tools/table-convert/convert.py::_damage_pct_of`）；
+        /// ③ 武器数值 —— `item_c.dmg_min/dmg_max/str_bonus/dex_bonus`（官方 `Weapons.txt`）。</para>
+        /// <para>非预期分支**都留日志**（⛔ 不静默退化）：
+        /// ① `DmgPctParsed=0`（官方 `calc1` 不是 `ln12/ln34` 前导，例如 `skill('Bash'.blvl)*par8`）
+        /// ⇒ 技能倍率按 **0%** 结算并 WarnOnce；
+        /// ② 结算为 0（武器区间为 0 / 倍率把伤害压到 0，例如 `Whirlwind` 1 级的 `-50%`）⇒ WarnThrottled；
+        /// ③ 徒手 ⇒ `GetWeaponDamage` 内部已 Warn（官方空手 1~2 + 近战加成口径 100/0）。</para>
+        /// </summary>
+        private int RollWeaponSkillDamage(Table.BaseSkillRow row, SkillDef def, int level,
+            IPlayerModule player, out string detail)
+        {
+            Combat.CombatModule.GetWeaponDamage(AppContext.I, out var wMin, out var wMax,
+                out var strBonus, out var dexBonus);
+            var roll = Combat.DamageFormula.RollWeaponDamage(wMin, wMax, SkillRng());
+
+            // 官方 SrcDam：分母 128 的"武器伤害转移比"（128 = 100%）。官方实测取值域 = {32,48,96,128}。
+            var srcDam = row.SrcDam;
+            if (srcDam < 0) srcDam = 0;
+            if (srcDam > 128)
+            {
+                SkillLog.WarnOnce("cast.weapon.srcdam." + row.Id,
+                    $"RollWeaponSkillDamage：{def.name}#{row.Id} 的 src_dam={srcDam} 超出官方分母 128 ⇒ 按 128 计");
+                srcDam = 128;
+            }
+            var transferred = srcDam >= 128 ? roll : roll * srcDam / 128;
+
+            // 技能 ED%：打表已静态解析的 ln12/ln34（**可为负** —— Whirlwind 1 级 -50%）
+            var edPct = 0;
+            if (row.DmgPctParsed != 0)
+            {
+                edPct = row.DmgPctBase + row.DmgPctPerLvl * (level - 1);
+            }
+            else
+            {
+                SkillLog.WarnOnce("cast.weapon.pctraw." + row.Id,
+                    $"RollWeaponSkillDamage：{def.name}#{row.Id} 官方 calc1=\"{row.DmgPctCalc}\"（desc=\"{row.DmgPctDesc}\"）" +
+                    "无法静态解析（非 ln12/ln34 前导）⇒ 技能倍率按 0% 结算，只算武器伤害本身（已登记）");
+            }
+
+            var raw = Combat.DamageFormula.PhysicalDamageEd(transferred, player.Str, player.Dex,
+                strBonus, dexBonus, edPct);
+
+            detail = $"武器 {wMin}-{wMax}（str/dex bonus {strBonus}/{dexBonus}）掷={roll} " +
+                     $"×SrcDam {srcDam}/128 ⇒ {transferred}；力量={player.Str} 敏捷={player.Dex} " +
+                     $"技能倍率={edPct}%";
+            if (raw <= 0)
+            {
+                SkillLog.WarnThrottled("cast.weapon.zero",
+                    $"RollWeaponSkillDamage：{def.name}#{row.Id} 结算为 0（{detail}）" +
+                    " ⇒ 武器区间为 0 / 倍率把伤害压到 0（已登记）");
+            }
+            return raw;
         }
 
         // ═════════════════════════════════════════════════════════════════════

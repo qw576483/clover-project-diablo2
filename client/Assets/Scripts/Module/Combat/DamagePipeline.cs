@@ -111,8 +111,12 @@ namespace Diablo2.Module.Combat
             else CombatLog.WarnOnce("pipe.view.missing",
                 "DamagePipeline: IViewModule 未接入（AppContext.View == null）⇒ 命中飘字/受击表现缺失（其余不受影响）");
 
-            // 受击表现（闪白 + Hit 动画）
-            if (view != null) view.PlayHit(target.id);
+            // 受击表现（闪白 + Hit 动画）—— ★ 片 Y（R1）：**击杀时不许再播 Hit**。
+            //   理由：`monster.ApplyDamage` 内部已走 `MonsterModule.Die` ⇒ `IViewModule.PlayDeath`
+            //   （死亡表现的唯一归属）；若这里再调 `PlayHit`，**同一次调用栈稍后**就会把死亡动作
+            //   覆盖成受击动作 ⇒ 尸体停在受击末帧、`Death` 一次都没上屏（审计 D 的 R1，
+            //   运行时 ViewAnim 观测集里没有 Death）。非击杀才播受击。
+            if (view != null && !killed) view.PlayHit(target.id);
 
             // ② 音效钩子（IAudioModule 可空）
             var audio = ctx.Audio;
@@ -171,7 +175,10 @@ namespace Diablo2.Module.Combat
                 // 玩家飘字抬高一点，别糊在角色身上
                 view.ShowFloatingText(w.x, w.y + 1.1f, w.z, amount.ToString(),
                     died ? ColorCrit : ColorPlayerHit);
-                view.PlayHit(GameConst.PlayerEntityId);
+                // ★ 片 Y（R1 同类穷举）：**致死的那一下不播受击动作** —— 死亡表现归
+                //   `ViewModule.TickPlayer` 的死亡档（Death > Hit 的优先级链）；这里再播 Hit
+                //   会让死亡那一帧先出受击姿态（与怪物那条同源：击杀后不该再切非死亡动作）。
+                if (!died) view.PlayHit(GameConst.PlayerEntityId);
             }
 
             var audio = ctx.Audio;

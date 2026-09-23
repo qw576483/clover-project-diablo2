@@ -59,7 +59,7 @@ EMPTY = '------'
 #   逐块统计四边「边界可走格集合」，95 块在每条边上**只有两种取值**：
 #     · 关闭：只有角格（如 N 边 = `(0,)`）
 #     · 打开：角格 + 一段**连续 7 格**（N/S = x∈[9,15]；W/E = y∈[11,17]）
-#   复跑命令：`python .ai-tmp/test/lanes.py`（一次性脚本，输出 2×2 种签名计数）。
+#   ⛔ 复跑：原一次性脚本 `.ai-tmp/test/lanes.py`（输出 2×2 种签名计数）**已删、在盘无替代** ⇒ 不再可复跑（本文件本体亦 `BLOCKED`：需 `原版资源/d2dc6 + d2raw`，本机缺席）；**现行在盘判据** = 宿主 `tools/probes/hosts/mapcheck` §9 的实读 `.ai-tmp/screenshots/w1_host_mapcheck.txt:1673/:1676/:1678`（登记行 `策划/验收表.md:519`）。
 #   ⇒ 所以「开口」= 这段连续 7 格**全部可走**；相邻两块只要同为"打开"就必然对齐。
 LANE = {
     'N': [(x, 0) for x in range(9, 16)],
@@ -147,10 +147,10 @@ def cell_passable(tile):
         `ApplyTileCollisions`：`flagIndex` 从 0 递增遍历 **25 个 subtile**，
         `passable = (tile.flags[flagIndex] & (Walk|PlayerWalk)) == 0`
         ⇒ **标志置位 = 该 subtile 不可走**（`Walk=1` / `PlayerWalk=8`）。
-      · 自洽检验（本文件同目录的 `.ai-tmp/test/flagtest.py` 可复跑）：
-        对 `CAVES/cave{方向}.ds1` 15 个块，用**中心 subtile** 判定算出的可走掩码
-        碰到的边与**文件名声明的开口方向**逐一吻合（`caveNS`→N/S、`caveNSEW`→四条边…）；
-        若改成「任一 subtile 可走」（旧口径）则 `caveN` 会多出 W 边、`caveSE` 多出 N 边（错）。
+      · 自洽检验（⛔ 原一次性脚本 `.ai-tmp/test/flagtest.py` **已删**、无在盘同物；**在盘替代** = `tools/d2codec/verify_walk_flags.py` 判据①「开口方向自洽」，
+        **现状 = 需原版包，本机 `BLOCKED（缺 原版资源/d2dc6 + 原版资源/d2raw）`** ⇒ 本机跑不了）：
+        对 `CAVES/cave{方向}.ds1` 15 个块，用**中心 subtile** 判定算出的可走掩码碰到的边与**文件名声明
+        的开口方向**逐一吻合（`caveNS`→N/S、`caveNSEW`→四条边…）；若改成「任一 subtile 可走」（旧口径）则 `caveN` 会多出 W 边、`caveSE` 多出 N 边（错）。
       · 为什么取"中心"而不是"全部 25 个"：本项目一格 = 一个 ds1 格 = 一个寻路节点，
         节点代表的是**角色站在格子中心**那个位置 ⇒ 中心 subtile 决定该节点能不能站。
     """

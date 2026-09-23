@@ -1,0 +1,734 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 54,
+  "spec_md_line": 1149,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "存档·损坏档",
+  "method": "损坏档与「档不存在」应可判别且失败有用户可见反馈",
+  "criterion": "savecheck 三情况断言 + `AppFlow.OnLoadDone` 复用 `D2ConfirmPanel`",
+  "conclusion": "通过（片 Q 已修）  ｜类别：数值类",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {},
+    "unscoped_anchors": [],
+    "snippets": {}
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/test/q-savecheck-run3.txt",
+      "state": "on-disk",
+      "encoding": "utf-16",
+      "bytes": 35174,
+      "sha256": "934e5483aa14ad762d9def284a9aa4e3d076eae83b79e0bfdaf307e0d48dfab0",
+      "mtime": "2026-09-23 08:02:39",
+      "lines": 239,
+      "ok_lines": 85,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "SAVECHECK_SUMMARY FAIL=0"
+      ],
+      "matched_lines_total": 0,
+      "checks_written": 60,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "╔══════════════════════════════════════════════════════════════════╗",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 2,
+      "selected_by": "numeric-line",
+      "text": "║  SaveCheck：引擎 FileSlotStore（A6）离线自检 + 改前手法对照      ║",
+      "numbers": [
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 4,
+      "selected_by": "numeric-line",
+      "text": "工作目录（一次性产物，只在这里）：C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 7,
+      "selected_by": "numeric-line",
+      "text": "▶ 1. 引擎新增 `CloverEngine.FileSlotStore` 的公开面（逐条对齐任务书 §3 契约）",
+      "numbers": [
+        "1",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 18,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 公开成员 = 契约的 8 项（放行 1 条已登记漂移：LastCorruptPath 的公开 setter）   （",
+      "numbers": [
+        "8",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 22,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] ★ 已登记漂移清单未扩大（除 LastCorruptPath 的 setter **变体**外无其它公开面变化；条数不变）   （实测条数=8 / 契约条数=8 / 漂移命中=1（`{ get }`→`{ get set }` 是同一条成员的变体，不改变条数））",
+      "numbers": [
+        "8",
+        "8",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 26,
+      "selected_by": "numeric-line",
+      "text": "▶ 2. 改前手法取证：项目存档的原子写/损坏留档**在引擎 `Setting` 里**（实测，不是读源码下结论）",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 28,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 改前手法①：`Setting.Save()` 落盘 `settings.json` 且**无 `.tmp` 残留**（= 先写 .tmp → File.Replace）   （C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\setting-demo\\settings.json）",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 29,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 改前手法②：新实例（等价新进程）读回同一份键值   （[\"Demo\"]）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 30,
+      "selected_by": "numeric-line",
+      "text": "[ERROR] [Setting] Load 失败（json 损坏）：expected '\"' at 1；已保留副本 'C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\setting-demo\\settings.json.corrupt'，配置回退默认值 | FormatException: expected '\"' at 1",
+      "numbers": [
+        "1",
+        "2",
+        "2",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 31,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 改前手法③：`settings.json` 损坏 ⇒ **不抛** + 回退默认值 + 整份文件留档 `.corrupt`   （留档=C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\setting-demo\\settings.json.corrupt；粒度 = **整份文件**（新类 `FileSlotStore` 是**单槽**粒度 ⇒ 不是同一层，见回报对照表））",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 32,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Setting] 设置目录不可用（'<>:|?*'）：文件名、目录名或卷标语法不正确。 : 'C:\\Work\\Server\\f-v2\\clover-project-diablo2\\tools\\probes\\hosts\\savecheck\\<>:|?*'.；本次运行退化为内存存储，配置不会持久化",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 33,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 改前手法④：目录非法 ⇒ 不抛、退化为内存（新类 `FileSlotStore` 的处置不同：写返回 false + error）   （Setting.Get(x)=1）",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 37,
+      "selected_by": "numeric-line",
+      "text": "▶ 3. 项目真实存档（**只读**：只读取，从不写）：A6 起 = `<SettingDir>/saves/<角色名>.json` + `char/index` 顺序索引",
+      "numbers": [
+        "3",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 39,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 引擎设置文件在位（`char/index` 在它里面）   （C:\\Work\\Server\\f-v2\\clover-project-diablo2\\client\\setting\\settings.json）",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 40,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 槽位目录在位（A6 口径：一角色一文件）   （C:\\Work\\Server\\f-v2\\clover-project-diablo2\\client\\setting\\saves）",
+      "numbers": [
+        "6",
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 41,
+      "selected_by": "numeric-line",
+      "text": "`char/index` 原样 = [\"g66\",\"HeroAma9x\",\"HeroAma65x\",\"W2203527\",\"W2204727\",\"X110407\",\"X110535\",\"X111323\",\"X112202\",\"Ama40x\",\"Ama31x\",\"X115039\",\"X120121\",\"Ama49x\",\"X151637\",\"Ama02x\",\"X160853\",\"X162012\",\"X181513\",\"Hero\",\"X235316\",\"X001049\",\"X001243\"]",
+      "numbers": [
+        "66",
+        "9",
+        "65",
+        "2203527",
+        "2204727",
+        "110407",
+        "110535",
+        "111323",
+        "112202",
+        "40",
+        "31",
+        "115039",
+        "120121",
+        "49",
+        "151637",
+        "02",
+        "160853",
+        "162012",
+        "181513",
+        "235316",
+        "001049",
+        "001243"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 42,
+      "selected_by": "numeric-line",
+      "text": "真实槽位（按 char/index 顺序）= g66(8709B) HeroAma9x(373B) HeroAma65x(373B) W2203527(371B) W2204727(372B) X110407(369B) X110535(370B) X111323(371B) X112202(369B) Ama40x(369B) Ama31x(369B) X115039(369B) X120121(371B) Ama49x(370B) X151637(371B) Ama02x(369B) X160853(370B) X162012(370B) X181513(392B) Hero(391B) X235316(5780B) X001049(5780B) X001243(5781B)",
+      "numbers": [
+        "66",
+        "8709",
+        "9",
+        "373",
+        "65",
+        "373",
+        "2203527",
+        "371",
+        "2204727",
+        "372",
+        "110407",
+        "369",
+        "110535",
+        "370",
+        "111323",
+        "371",
+        "112202",
+        "369",
+        "40",
+        "369",
+        "31",
+        "369",
+        "115039",
+        "369",
+        "120121",
+        "371",
+        "49",
+        "370",
+        "151637",
+        "371",
+        "02",
+        "369",
+        "160853",
+        "370",
+        "162012",
+        "370",
+        "181513",
+        "392",
+        "391",
+        "235316",
+        "5780",
+        "001049",
+        "5780",
+        "001243",
+        "5781"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 43,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 真实存档可读：索引里每个角色都有 `saves/<名>.json`、且内容能解析成 CharacterSave   （索引 23 个 / 槽位文件 23 个 / 可解析 23 个）",
+      "numbers": [
+        "23",
+        "23",
+        "23"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 44,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 槽位目录里没有**索引外的孤儿档**（`char/index` 与 `saves/*.json` 一一对应）   （0 个孤儿）",
+      "numbers": [
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 45,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] ⇒ 现行存档口径 = 引擎 `FileSlotStore` 的 `<SettingDir>/saves/<角色名>.json`（一角色一文件），创建顺序在 `Game.Setting` 的 `char/index`（**A6 已落地**；`char/{名}` 旧键写法已作废）   （出处：`Module/Save/SaveModule.cs:4-7`（槽位目录 `saves` / 全部走引擎 FileSlotStore）+ `Module/Save/SaveJson.cs:5`（旧键已作废）；本步骤原本按 A6 之前的旧键口径断言 ⇒ 曾误报 FAIL（已按现状更正，判据只增不减））",
+      "numbers": [
+        "6",
+        "4",
+        "-7",
+        "5",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 49,
+      "selected_by": "numeric-line",
+      "text": "▶ 4. `List()` 口径实测：项目 = 插入序（`char/index`）；引擎新类 = 字典序（契约要求「排序稳定」）",
+      "numbers": [
+        "4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 51,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 项目口径：`char/index` 保序 ⇒ `SaveModule.List()` = **插入序**（zeta,alpha,mid）   （zeta,alpha,mid）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 53,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 引擎新类：`List()` = **字典序**（alpha,mid,zeta）—— 与项目插入序**不同**   （alpha,mid,zeta）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 54,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] ⇒ 结论：把 `SaveModule.List()` 直接转发给 `FileSlotStore.List()` 会**改变选角列表顺序**（行为不等价）   （上两条即证据（选角屏 `CharSelectPanel` 按 `List()` 顺序出行））",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 58,
+      "selected_by": "numeric-line",
+      "text": "▶ 5. `FileSlotStore` 基本行为：写/存在性/读/枚举/删除 + 原子写无残留",
+      "numbers": [
+        "5"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 60,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] `Dir` 原样可读   （C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\slots）",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 61,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] `LastCorruptPath` 初始为 null（尚未留档）   （(null)）",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 62,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] `Exists`：没写过的键 ⇒ false",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 63,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] `Write` 首次（目标不存在 ⇒ 走「删除+改名」兜底）成功",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 64,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 一槽一文件：`<dir>/a.json` 真的存在   （C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\slots\\a.json）",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 65,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] `Exists`：写过的键 ⇒ true",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 67,
+      "selected_by": "numeric-line",
+      "text": "[ OK ] `Read` 回原文   （{\"k\":1}）",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 74,
+      "selected_by": "numeric-line",
+      "text": "[ OK ] 成功路径不打日志（引擎惯例：成功不刷屏）   （[FileSlotStore] 日志行数=0）",
+      "numbers": [
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 78,
+      "selected_by": "numeric-line",
+      "text": "▶ 6. **真实存档载荷**过槽位存储：逐字段 0 差异 + `Write(Parse(json)) == json` 逐字节",
+      "numbers": [
+        "6",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 80,
+      "selected_by": "numeric-line",
+      "text": "JSON 长度=4747 字节；槽位路径=C:\\Work\\Server\\f-v2\\clover-project-diablo2\\.ai-tmp\\test\\savecheck\\payload\\ProbeHero.json",
+      "numbers": [
+        "4747",
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 82,
+      "selected_by": "numeric-line",
+      "text": "[ OK ] 读回文本与写入文本**逐字节相同**   （写入=4747B / 读回=4747B）",
+      "numbers": [
+        "4747",
+        "4747"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 84,
+      "selected_by": "numeric-line",
+      "text": "=  activeWeaponIndex: 前=0 / 后=0",
+      "numbers": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 85,
+      "selected_by": "numeric-line",
+      "text": "=  areaId: 前=0 / 后=0",
+      "numbers": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 86,
+      "selected_by": "numeric-line",
+      "text": "=  belt: 前=[ItemStack{affixes=[];count=3;defMax=0;defMin=0;dmgMax=0;dmgMin=0;durability=0;gridH=1;gridW=1;isGold=False;isQuestItem=…(共252字符) / 后=[ItemStack{affixes=[];count=3;defMax=0;defMin=0;dmgMax=0;dmgMin=0;durability=0;gridH=1;gridW=1;isGold=False;isQuestItem=…(共252字符)",
+      "numbers": [
+        "3",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "1",
+        "1",
+        "252",
+        "3",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "1",
+        "1",
+        "252"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 87,
+      "selected_by": "numeric-line",
+      "text": "=  buttonSkills: 前=[1,7] / 后=[1,7]",
+      "numbers": [
+        "1",
+        "7",
+        "1",
+        "7"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 89,
+      "selected_by": "numeric-line",
+      "text": "=  dex: 前=25 / 后=25",
+      "numbers": [
+        "25",
+        "25"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 90,
+      "selected_by": "numeric-line",
+      "text": "=  eng: 前=15 / 后=15",
+      "numbers": [
+        "15",
+        "15"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 91,
+      "selected_by": "numeric-line",
+      "text": "=  equip: 前=[ItemStack{affixes=[];count=1;defMax=0;defMin=0;dmgMax=0;dmgMin=0;durability=0;gridH=1;gridW=1;isGold=False;isQuestItem=…(共235字符) / 后=[ItemStack{affixes=[];count=1;defMax=0;defMin=0;dmgMax=0;dmgMin=0;durability=0;gridH=1;gridW=1;isGold=False;isQuestItem=…(共235字符)",
+      "numbers": [
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "1",
+        "1",
+        "235",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "1",
+        "1",
+        "235"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 92,
+      "selected_by": "numeric-line",
+      "text": "=  exp: 前=123456789 / 后=123456789",
+      "numbers": [
+        "123456789",
+        "123456789"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 93,
+      "selected_by": "numeric-line",
+      "text": "=  gold: 前=4321 / 后=4321",
+      "numbers": [
+        "4321",
+        "4321"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 94,
+      "selected_by": "numeric-line",
+      "text": "=  gridX: 前=10 / 后=10",
+      "numbers": [
+        "10",
+        "10"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 95,
+      "selected_by": "numeric-line",
+      "text": "=  gridY: 前=8 / 后=8",
+      "numbers": [
+        "8",
+        "8"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 96,
+      "selected_by": "numeric-line",
+      "text": "=  inventory: 前=[InventorySlot{anchorIndex=0;index=0;isAnchor=True;item=ItemStack{affixes=[];count=1;defMax=0;defMin=0;dmgMax=0;dmgMin=0…(共3701字符) / 后=[InventorySlot{anchorIndex=0;index=0;isAnchor=True;item=ItemStack{affixes=[];count=1;defMax=0;defMin=0;dmgMax=0;dmgMin=0…(共3701字符)",
+      "numbers": [
+        "0",
+        "0",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "3701",
+        "0",
+        "0",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "3701"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 97,
+      "selected_by": "numeric-line",
+      "text": "=  level: 前=7 / 后=7",
+      "numbers": [
+        "7",
+        "7"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 98,
+      "selected_by": "numeric-line",
+      "text": "=  life: 前=88 / 后=88",
+      "numbers": [
+        "88",
+        "88"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 99,
+      "selected_by": "numeric-line",
+      "text": "=  mana: 前=33 / 后=33",
+      "numbers": [
+        "33",
+        "33"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 100,
+      "selected_by": "numeric-line",
+      "text": "=  mapSeed: 前=20260919 / 后=20260919",
+      "numbers": [
+        "20260919",
+        "20260919"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 102,
+      "selected_by": "numeric-line",
+      "text": "=  playedSeconds: 前=12.5 / 后=12.5",
+      "numbers": [
+        "12.5",
+        "12.5"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 103,
+      "selected_by": "numeric-line",
+      "text": "=  quests: 前=[QuestStateDto{name=\"邪恶洞穴\";objective=\"殺死所有盤踞在洞穴中的怪物。\";progress=5;questId=1;required=13;rewardClaimed=False;state=QuestSt…(共136字符) / 后=[QuestStateDto{name=\"邪恶洞穴\";objective=\"殺死所有盤踞在洞穴中的怪物。\";progress=5;questId=1;required=13;rewardClaimed=False;state=QuestSt…(共136字符)",
+      "numbers": [
+        "5",
+        "1",
+        "13",
+        "136",
+        "5",
+        "1",
+        "13",
+        "136"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 104,
+      "selected_by": "numeric-line",
+      "text": "=  savedAtTicks: 前=638912345670000000 / 后=638912345670000000",
+      "numbers": [
+        "638912345670000000",
+        "638912345670000000"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 105,
+      "selected_by": "numeric-line",
+      "text": "=  skillIds: 前=[1,7] / 后=[1,7]",
+      "numbers": [
+        "1",
+        "7",
+        "1",
+        "7"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 106,
+      "selected_by": "numeric-line",
+      "text": "=  skillLevels: 前=[2,1] / 后=[2,1]",
+      "numbers": [
+        "2",
+        "1",
+        "2",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 107,
+      "selected_by": "numeric-line",
+      "text": "=  skillPoints: 前=3 / 后=3",
+      "numbers": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/q-savecheck-run3.txt",
+      "line": 238,
+      "selected_by": "file-summary-tail",
+      "text": "SAVECHECK_SUMMARY FAIL=0",
+      "numbers": [
+        "0"
+      ]
+    }
+  ]
+}

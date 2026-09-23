@@ -37,6 +37,17 @@ namespace Diablo2.UI
         /// <summary>最短停留时间（秒）——避免启动瞬间的按键把启动屏直接跳过去。</summary>
         private const float MinShowSeconds = 0.6f;
 
+        /// <summary>
+        /// 层：<see cref="UILayer.Normal"/>（= 文件头「层：Normal」）。
+        /// <para>★ 本片（w3 流程屏逐控件审计）**显式声明**：基类 `UIPanel.Layer` 的默认值**就是** Normal
+        /// （`clover-client-unity-engine/Runtime/Core/PresentationContracts.cs:174`
+        /// `public virtual UILayer Layer => UILayer.Normal;`）⇒ 本行**行为零变化**。
+        /// 加它的唯一理由：把「本屏在 Normal 层」从文件头的一句**散文**变成 `uicheck` 的 `PanelSpec`
+        /// 能断言的**契约** —— 修前 4 个流程屏（Boot/MainMenu/CharSelect/CharCreate）连
+        /// 「覆写了 Layer」这条都查不出来（它们根本不在 PanelSpec 表里，见 `uicheck` §⑲）。</para>
+        /// </summary>
+        public override UILayer Layer => UILayer.Normal;
+
         // ── 布局（本项目新增：本工程 1920×1080 口径，无原版值；见文件头说明）────────
         //   ⚠️ 这些数**同时登记在 `UiLayoutFlow` 的对照表**（`Panel.Boot`）里，
         //   由 `uicheck` 断言"×1.8 口径下全部落在 1920×1080 画布内"（|y| ≤ 540、|x| ≤ 960）。
@@ -150,11 +161,15 @@ namespace Diablo2.UI
             //   用户据此判定"首界面没有 by clover-engine"（原话见 `UiLayoutFlow.Brand` 的注释）。
             //   §1.6 的判据本身就是「**实机截图里可读**」⇒ 提到 font24 档（43 画布px）+ 色 (0.78,0.76,0.72)，
             //   位置 (0,-462) 与框宽 900 不变（框高 36→54，见 `Brand.ByLineOrigSize` 的推导）。
+            //   ★ 2026 品牌署名轮：`forceChi: true` —— **原版拉丁字模不分大小写**，`by clover-engine`
+            //   经 `font24` 会画成 `BY CLOVER-ENGINE`（实测：`font24_98`＝小号 B、`font24_121`＝小号 Y，
+            //   且 g/p/q/y 无降部）。逐字小写只有原版 `font24_chi` 能画（实测 97＝真 a、121＝带降部 y）
+            //   ⇒ 这一行走 chi 档。字号/颜色/位置/节点名**一个数没动**（仍是 font24 档 43 画布px）。
             UiArt.Label(screen, "ByLine",
                 UiLayoutFlow.Brand.ByLineText,
                 UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font24), TextAnchor.MiddleCenter,
                 UiLayoutFlow.Brand.ByLineColor, UiLayoutFlow.Brand.ByLineSize,
-                UiLayoutFlow.Brand.ByLinePos);
+                UiLayoutFlow.Brand.ByLinePos, forceChi: true);
 
             UiArt.Label(screen, "Copyright",
                 "原版素材版权归 Blizzard North / Blizzard Entertainment（非商用）",

@@ -298,6 +298,15 @@ namespace CloverEngine
     /// <summary>`Runtime/Core/Game.cs:107`（门面替身；字段名/类型与引擎一致）。</summary>
     public static class Game
     {
+        /// <summary>
+        /// `Runtime/Core/Game.cs:341`：`public static GameConfig Config { get; private set; }`，由
+        /// <see cref="Launch"/> 在 `:370` 赋值（`Config = config;`）。
+        /// ★ 本宿主新增（片 Q 的三情况断言要用 `Game.Config.SettingDir` 定位槽位目录 ——
+        /// `Module/Save/SaveModule.cs` 的 `Store` 就是从它拼 `<SettingDir>/saves/`）；
+        /// 真实引擎本就有这一项，故补进替身不算放宽契约。
+        /// </summary>
+        public static GameConfig Config { get; private set; }
+
         public static ILogger Logger = new ConsoleLogger();
         public static IEventBus Event = new ConsoleEventBus();
         public static IFsm Fsm;
@@ -312,7 +321,7 @@ namespace CloverEngine
         public static IInputManager Input;
         public static bool IsRunning;
 
-        public static void Launch(GameConfig config) { IsRunning = true; }
+        public static void Launch(GameConfig config) { Config = config; IsRunning = true; }
         public static void Tick(float dt) { }
         public static void Shutdown() { IsRunning = false; }
     }

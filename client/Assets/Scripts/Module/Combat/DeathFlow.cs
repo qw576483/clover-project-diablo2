@@ -160,8 +160,9 @@ namespace Diablo2.Module.Combat
         }
 
         /// <summary>
-        /// 掉落触发：`monster_c.treasure_class`（官方 `TreasureClass1`）→ `treasureclass_c` →
-        /// `IItemModule.DropLoot(tcId, level, grid, rng)`。
+        /// 掉落触发：`monster_c.treasure_class`（官方 `TreasureClass1`；**精英怪改用**
+        /// `treasure_class_champ`/`treasure_class_unique`，即官方 `TreasureClass2/3` —— 见 R6）
+        /// → `treasureclass_c` → `IItemModule.DropLoot(tcId, level, grid, rng)`。
         /// <para>
         /// ⚠️ **跨模块约定（需主 agent 冻结）**：`IItemModule.DropLoot` 的第 1 个参数是 `int treasureClassId`，
         /// 而 `treasureclass_c` 的主键是 **string**（TC 名）⇒「int 从哪来」契约未定义。
@@ -180,6 +181,35 @@ namespace Diablo2.Module.Combat
             }
 
             var tcName = row.TreasureClass;
+
+            // ★ 片 O（R6）：精英怪的 TC 槽位。
+            //   出处（官方 1.10f `MonStats.txt`，本项目 8 只怪逐行核过）：官方有 4 个 TC 槽位
+            //   `TreasureClass1..4`，实测取值 = 1 普通 / 2 **冠军怪** / 3 **唯一（精英）怪** / 4 空；
+            //   且 `TreasureClassEx.txt` 里**没有任何** TC 把 `Act 1 Champ/Unique A` 当 Item 引用
+            //   ⇒ 选槽发生在引擎侧，必须由"这只怪是什么"决定，不能沿用普通怪的 `TreasureClass1`
+            //   （旧行为：`Act 1 Champ/Unique/Super*` 9 个 TC 全是死数据）。
+            if (state.isChampion)
+            {
+                var eliteKind = EliteKindOf(state);
+                var eliteTc = eliteKind == 1 ? row.TreasureClassUnique : row.TreasureClassChamp;
+                if (!string.IsNullOrEmpty(eliteTc))
+                {
+                    CombatLog.Info($"DeathFlow: m#{state.id} 是{(eliteKind == 1 ? "唯一（精英）" : "冠军")}怪" +
+                                   $"（词缀 {state.modName} id={state.modId}）⇒ 掉落改用官方 " +
+                                   $"{(eliteKind == 1 ? "TreasureClass3" : "TreasureClass2")}「{eliteTc}」" +
+                                   $"（普通怪槽位 TreasureClass1「{row.TreasureClass}」不适用）");
+                    tcName = eliteTc;
+                }
+                else
+                {
+                    // 非预期分支：官方 1.10f 里这 8 只怪两列都有值 ⇒ 走到这里说明换了源表。点名，不静默。
+                    CombatLog.WarnThrottled("death.tc.elite.empty",
+                        $"DeathFlow: m#{state.id} {row.Name} 是精英怪，但 monster_c 的 " +
+                        $"{(eliteKind == 1 ? "treasure_class_unique" : "treasure_class_champ")} 为空 " +
+                        $"⇒ 沿用普通怪 TC「{row.TreasureClass}」（精英掉落与普通怪一致）");
+                }
+            }
+
             if (string.IsNullOrEmpty(tcName))
             {
                 CombatLog.WarnThrottled("death.tc.empty",
@@ -219,6 +249,33 @@ namespace Diablo2.Module.Combat
             CombatLog.Info($"[击杀链] 掉落触发：TC=\"{tcName}\"(id={tcId}) 等级={state.level} 格=({grid.x},{grid.y})" +
                            $" rng={rng.Seed}");
             item.DropLoot(tcId, state.level, grid, rng);
+        }
+
+        /// <summary>
+        /// 精英怪的种类（决定用哪个 TC 槽位）：读 `monumod_c.kind`（0 = 冠军怪 / 1 = 唯一（精英）怪）。
+        /// <para>
+        /// 口径出处：与 `MonsterSpawner.PickEliteMod(rng, kind)` 的 `kind` 是**同一条配表列**
+        /// （`MonsterSpawner.cs:202` 的 `kind = p % 2`、`:517` 的 `row.Kind == kind`）。
+        /// 取不到词缀行 ⇒ 返回 0（冠军槽位）并 WarnOnce：⛔ 不静默、也不许瞎猜一个槽位。
+        /// </para>
+        /// </summary>
+        public static int EliteKindOf(MonsterState state)
+        {
+            if (state == null || state.modId <= 0)
+            {
+                CombatLog.WarnOnce("death.tc.elite.nomod",
+                    "DeathFlow.EliteKindOf: 精英怪没有 modId（monumod_c 未加载 / 词缀未登记？）" +
+                    "⇒ 按冠军槽位 treasure_class_champ 处理");
+                return 0;
+            }
+
+            var mod = Table.Tables.Default.Monumod.Get(state.modId);
+            if (mod != null) return mod.Kind;
+
+            CombatLog.WarnOnce("death.tc.elite.badmod",
+                $"DeathFlow.EliteKindOf: monumod_c 里找不到 id={state.modId}（配表与存档不一致？）" +
+                "⇒ 按冠军槽位 treasure_class_champ 处理");
+            return 0;
         }
 
         /// <summary>

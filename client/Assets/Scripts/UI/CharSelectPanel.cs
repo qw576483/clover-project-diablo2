@@ -18,7 +18,9 @@
 //   经 `UiLayoutFlow.ClassText.Description`；无高亮项时留空 = 原版 `UpdateUi` 给 `string.Empty`）。
 //   · 角色数据**只能**由 Flow 通过 `OnOpen(param)` 传入（`Args.entries`）——
 //     面板不持有存档模块、不读文件（`constraints.md` #7）。
-//   · 删除用引擎 `Game.UI.Confirm` 二次确认。
+//   · ★ 本轮：删除的二次确认 = `D2ConfirmPanel`（原版 `boxpieces` 窗框 + 原版中等按钮）——
+//     原先调引擎 `Game.UI.Confirm`，画出来是引擎默认 uGUI（深灰方块 + 纯蓝按钮），
+//     与本屏的原版石雕按钮**两种风格**（实机图 `.ai-tmp/screenshots/x_b3_delete_confirm.png`）。
 // 入口：MainMenu 的「单人游戏 / 继续」；出口：进入 → Loading（Flow 驱动）、
 //       新建 → CharCreate、返回 → 主菜单。
 // ⛔ 不引用任何业务模块。
@@ -76,6 +78,14 @@ namespace Diablo2.UI
         private readonly List<UiLayoutFlow.FlowLabel> _rowLabels = new List<UiLayoutFlow.FlowLabel>();
         private bool _built;
 
+        /// <summary>
+        /// 层：<see cref="UILayer.Normal"/>（= 文件头「层：Normal」）。
+        /// <para>★ 本片（w3 流程屏逐控件审计）**显式声明**：基类默认值就是 Normal
+        /// （`PresentationContracts.cs:174`）⇒ **行为零变化**；加它是为了让它成为 `uicheck`
+        /// `PanelSpec` 能断言的契约（修前本屏不在 PanelSpec 表里）。</para>
+        /// </summary>
+        public override UILayer Layer => UILayer.Normal;
+
         /// <inheritdoc/>
         public override void OnOpen(object param)
         {
@@ -116,11 +126,11 @@ namespace Diablo2.UI
 
             var shown = Mathf.Min(entries.Count, UiLayoutFlow.Select.MaxRows);
 
-            // 行中心 y（相对容器中心）：首行 = 容器顶边内侧；步进 = 原版行节奏 45 原版px → ×1.8 = 81
-            var rowH = UiArt.MenuButtonMediumSize.y * UiLayoutFlow.Scale;   // 35 原版px ×1.8 = 63
-            var startY = (UiLayoutFlow.Select.ListSize.y - rowH) * 0.5f;    // = (580.5-63)/2 = 258.75
-            var step = UiLayoutFlow.RowStep;                                // = 81
-
+            // 行中心 y（相对容器中心）：首行顶边 = 容器顶边内侧 ⇒ 首行中心 = (容器高 − 行高)/2；
+            //   步进 = 原版行节奏 45 原版px → ×1.8 = 81。
+            //   ★ 本片（w3 流程屏审计）把这套公式**收进 `UiLayoutFlow.Select.RowY(row)`**：
+            //   对照表（`UiLayoutFlow.Table`）登记角色行时调的是**同一个函数** ⇒
+            //   面板画在哪、离线断言的就是哪，不可能各算一套（修前公式只活在面板里，进不了对照表）。
             for (var i = 0; i < shown; i++)
             {
                 var e = entries[i];
@@ -130,7 +140,7 @@ namespace Diablo2.UI
                     continue;
                 }
 
-                BuildRow(i, e, startY - i * step);
+                BuildRow(i, e, UiLayoutFlow.Select.RowY(i));
             }
 
             if (shown > 0) Highlight(entries[0]);
@@ -156,15 +166,16 @@ namespace Diablo2.UI
         /// <summary>一行：透明行热点（点选）+ 名字 / 职业 / 等级 + ENTER / DELETE（原版中等按钮）。</summary>
         private void BuildRow(int index, Entry e, float y)
         {
-            // 行矩形 = 容器宽 × 原版按钮高 35 原版px（×1.8 = 63），中心 y = 传入值
-            var rowOrigSize = new Vector2(UiLayoutFlow.Orig(UiLayoutFlow.Select.ListSize.x), 35f);
-            var row = UIFactory.CreateCentered($"Row{index}", _listRoot, UiLayoutFlow.Px(rowOrigSize),
-                new Vector2(0f, y));
+            // 行矩形 = 容器宽 × 原版按钮高 35 原版px（×1.8 = 63），中心 y = 传入值。
+            //   ★ 本片：尺寸改走 `UiLayoutFlow.Select.RowSize`（与对照表登记的行矩形**同一个来源**）。
+            var rowSize = UiLayoutFlow.Select.RowSize;
+            var row = UIFactory.CreateCentered($"Row{index}", _listRoot, rowSize, new Vector2(0f, y));
 
             // ① 行热点（**先建** ⇒ 层级最低，压不住行内按钮）：点击 = 选中该角色（等价原版"点职业热点"）
             var name = e.name;
             var entry = e;
-            UiLayoutFlow.Hotspot(row, "RowHotspot", rowOrigSize, Vector2.zero, () => Highlight(entry));
+            UiLayoutFlow.Hotspot(row, "RowHotspot", UiLayoutFlow.Orig(rowSize), Vector2.zero,
+                () => Highlight(entry));
 
             // ② 名字（中文 ⇒ 默认字体）
             _rowLabels.Add(UiLayoutFlow.FlowLabel.Create(row, "Name", e.name, D2Text.D2Font.Font24,
@@ -191,10 +202,13 @@ namespace Diablo2.UI
                 });
 
             UiLayoutFlow.FlowButton.Create(row, "Delete", Text.Delete, UiLayoutFlow.MediumButtonOrig,
-                UiLayoutFlow.Select.RowDeletePos, () =>
+                UiLayoutFlow.Select.RowDeletePos,                 () =>
                 {
-                    // 二次确认（引擎通用件；同时只显示一个，后到的排队）
-                    Game.UI.Confirm("删除角色", $"确定删除角色「{name}」？该操作不可撤销。", () =>
+                    // 二次确认（★ 本轮：原版窗框 + 原版中等按钮的 `D2ConfirmPanel`；
+                    //   原先调引擎通用件 `Game.UI.Confirm`，画出来是引擎默认 uGUI —— 深灰方块 +
+                    //   两颗纯蓝按钮，与本屏的原版石雕按钮**两种风格**，不是 1:1。
+                    //   同时只显示一个，后到的排队：语义与引擎确认框一致，见 `D2ConfirmPanel` 文件头）
+                    D2ConfirmPanel.Show("删除角色", $"确定删除角色「{name}」？该操作不可撤销。", () =>
                     {
                         Log.Info("Ui", $"角色选择屏：已确认删除「{name}」");
                         Game.Event.Emit(Events.CharDeleteRequest, name);
@@ -275,12 +289,27 @@ namespace Diablo2.UI
             _listRoot = UIFactory.CreateCentered("List", screen, UiLayoutFlow.Select.ListSize,
                 UiLayoutFlow.Select.ListPos);
 
-            // 底部两个按钮 = 原版 `ExitButton` / `OkButton` 的精确矩形（原版中等按钮）
-            UiLayoutFlow.FlowButton.Create(screen, "Create", Text.NewHero, UiLayoutFlow.MediumButtonOrig,
-                UiLayoutFlow.ClassMenu.ExitPos, () => Game.Event.Emit(Events.Fsm.TriggerNeedCreate));
-
+            // 底部两个按钮 = 原版 `ExitButton` / `OkButton` 的精确矩形（原版中等按钮）。
+            // ★★ 本片（w3 流程屏审计 I1）**修：两个动作原先占反了槽** —— 现按**原版槽位语义**归位：
+            //   · `ExitButton` 槽（原版 `ClassSelectMenu.prefab` 的 (-300,-250)，屏**左下**）
+            //     = 原版 `m_Text = "EXIT"` ⇒ **"离开本屏"** 类动作 ⇒ 本项目 = `MAIN MENU`；
+            //   · `OkButton`   槽（原版 (300,-250)，屏**右下**）
+            //     = 原版 `m_Text = "OK"`   ⇒ **"确认 / 推进"** 类动作 ⇒ 本项目 = `NEW HERO`。
+            //   修前的状态（`Create` 占 Exit 槽、`Back` 占 Ok 槽）有两条独立问题：
+            //     ① 与原版 `ExitButton`/`OkButton` 的语义**相反**（左下那颗不是"离开"）；
+            //     ② 与本工程**创角屏自相矛盾** —— `CharCreatePanel` 是 BACK 在 Exit 槽、OK 在 Ok 槽
+            //        ⇒ 从选角屏点进创角屏时，左下角那颗按钮从"新建"变成"返回"（**位置语义中途翻转**），
+            //        而这两屏用的是**同一套原版几何**。修后两屏一致：**左下永远是"离开/返回"、
+            //        右下永远是"确认/推进"**。
+            //   ⚠️ 坐标 / 尺寸 / 底图帧**一个数都没动**（仍走 `ClassMenu.ExitPos` / `ClassMenu.OkPos`
+            //   + `MediumButtonOrig`）—— 只把**动作与文案**归到原版对应的槽上；
+            //   节点名也跟着动作走（`Back` 在左、`Create` 在右），避免"名字与动作对不上"的二次误导。
+            //   `uicheck` 第 ⑲ 节把这条钉死（Exit 槽必须是 `ToMainMenuRequest`、Ok 槽必须是 `TriggerNeedCreate`）。
             UiLayoutFlow.FlowButton.Create(screen, "Back", Text.Back, UiLayoutFlow.MediumButtonOrig,
-                UiLayoutFlow.ClassMenu.OkPos, () => Game.Event.Emit(Events.ToMainMenuRequest));
+                UiLayoutFlow.ClassMenu.ExitPos, () => Game.Event.Emit(Events.ToMainMenuRequest));
+
+            UiLayoutFlow.FlowButton.Create(screen, "Create", Text.NewHero, UiLayoutFlow.MediumButtonOrig,
+                UiLayoutFlow.ClassMenu.OkPos, () => Game.Event.Emit(Events.Fsm.TriggerNeedCreate));
 
             UiLayoutFlow.LogTable(nameof(CharSelectPanel));
         }

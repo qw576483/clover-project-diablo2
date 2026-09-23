@@ -1,0 +1,271 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 5,
+  "spec_md_line": 100,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "5 个职业",
+  "method": "初始属性取官方 `charstats.txt`",
+  "criterion": "读 5 职业初始四维与日志比对",
+  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row05.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:38",
+  "selectors": {
+    "line_anchors": {
+      ".ai-tmp/screenshots/w1_host_playercheck.txt": [
+        32
+      ]
+    },
+    "unscoped_anchors": [],
+    "snippets": {
+      ".ai-tmp/screenshots/w1_host_playercheck.txt": [
+        "[a21 产物] log_a21_r1.txt:74486",
+        "[Player] [Load] Hero 职业=Amazon 等级=1 经验=0/500 力20/敏25/体20/精15 生命=60/60 法力=22/22 耐力=20/20 防御=6 AR=95",
+        "[离线] tools/probes/hosts/playercheck",
+        "Step1_FiveClasses",
+        "class_c",
+        "Assets/StreamingAssets/Table/Class.tsv",
+        "str/dex/vit/eng",
+        "[INFO ] [Player] [Create] Check"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 101627,
+      "sha256": "8c7adb7b705b42f43ec719e88b690c7d426bb8fc015ceac4dbd4ac7d05ed8372",
+      "mtime": "2026-09-21 14:30:52",
+      "lines": 873,
+      "ok_lines": 204,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "③ 跟随相机的「手感」（是否抖）与像素级画面。"
+      ],
+      "matched_lines_total": 9,
+      "checks_written": 11,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "================ PlayerCheck：主角/相机/输入 离线自检 ================",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 7,
+      "selected_by": "snippet",
+      "text": "[ OK ] class_c 5 个职业可读   (class1=亚马逊 class5=野蛮人)",
+      "numbers": [
+        "5",
+        "1",
+        "5"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 32,
+      "selected_by": "anchor",
+      "text": "▶ 1. 五职业 1 级 MaxLife/MaxMana/MaxStamina ↔ class_c 计算值逐一相等",
+      "numbers": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 35,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Create] Check1 职业=Amazon(1) 等级 1 力20/敏25/体20/精15 生命=60/60 法力=22/22 耐力=20/20 防御=6 AR=95 可分配属性点=5 经验 0/500（升级阈值来自 experience_c）",
+      "numbers": [
+        "1",
+        "1",
+        "1",
+        "20",
+        "25",
+        "20",
+        "15",
+        "60",
+        "60",
+        "22",
+        "22",
+        "20",
+        "20",
+        "6",
+        "95",
+        "5",
+        "0",
+        "500"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 38,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Create] Check2 职业=Sorceress(2) 等级 1 力10/敏25/体10/精35 生命=20/20 法力=70/70 耐力=10/10 防御=6 AR=75 可分配属性点=5 经验 0/500（升级阈值来自 experience_c）",
+      "numbers": [
+        "2",
+        "2",
+        "1",
+        "10",
+        "25",
+        "10",
+        "35",
+        "20",
+        "20",
+        "70",
+        "70",
+        "10",
+        "10",
+        "6",
+        "75",
+        "5",
+        "0",
+        "500"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 41,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Create] Check3 职业=Necromancer(3) 等级 1 力15/敏25/体15/精25 生命=30/30 法力=50/50 耐力=15/15 防御=6 AR=80 可分配属性点=5 经验 0/500（升级阈值来自 experience_c）",
+      "numbers": [
+        "3",
+        "3",
+        "1",
+        "15",
+        "25",
+        "15",
+        "25",
+        "30",
+        "30",
+        "50",
+        "50",
+        "15",
+        "15",
+        "6",
+        "80",
+        "5",
+        "0",
+        "500"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 44,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Create] Check4 职业=Paladin(4) 等级 1 力25/敏20/体25/精15 生命=75/75 法力=22/22 耐力=25/25 防御=5 AR=85 可分配属性点=5 经验 0/500（升级阈值来自 experience_c）",
+      "numbers": [
+        "4",
+        "4",
+        "1",
+        "25",
+        "20",
+        "25",
+        "15",
+        "75",
+        "75",
+        "22",
+        "22",
+        "25",
+        "25",
+        "5",
+        "85",
+        "5",
+        "0",
+        "500"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 47,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Create] Check5 职业=Barbarian(5) 等级 1 力30/敏20/体25/精10 生命=100/100 法力=10/10 耐力=25/25 防御=5 AR=85 可分配属性点=5 经验 0/500（升级阈值来自 experience_c）",
+      "numbers": [
+        "5",
+        "5",
+        "1",
+        "30",
+        "20",
+        "25",
+        "10",
+        "100",
+        "100",
+        "10",
+        "10",
+        "25",
+        "25",
+        "5",
+        "85",
+        "5",
+        "0",
+        "500"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 51,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Create] Check1 职业=Amazon(1) 等级 1 力20/敏25/体20/精15 生命=60/60 法力=22/22 耐力=20/20 防御=6 AR=95 可分配属性点=5 经验 0/500（升级阈值来自 experience_c）",
+      "numbers": [
+        "1",
+        "1",
+        "1",
+        "20",
+        "25",
+        "20",
+        "15",
+        "60",
+        "60",
+        "22",
+        "22",
+        "20",
+        "20",
+        "6",
+        "95",
+        "5",
+        "0",
+        "500"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 94,
+      "selected_by": "snippet",
+      "text": "[INFO ] [Player] [Create] Check 职业=Amazon(1) 等级 1 力20/敏25/体20/精15 生命=60/60 法力=22/22 耐力=20/20 防御=6 AR=95 可分配属性点=5 经验 0/500（升级阈值来自 experience_c）",
+      "numbers": [
+        "1",
+        "1",
+        "20",
+        "25",
+        "20",
+        "15",
+        "60",
+        "60",
+        "22",
+        "22",
+        "20",
+        "20",
+        "6",
+        "95",
+        "5",
+        "0",
+        "500"
+      ]
+    },
+    {
+      "source": ".ai-tmp/screenshots/w1_host_playercheck.txt",
+      "line": 872,
+      "selected_by": "file-summary-tail",
+      "text": "③ 跟随相机的「手感」（是否抖）与像素级画面。",
+      "numbers": []
+    }
+  ]
+}

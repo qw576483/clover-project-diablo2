@@ -325,7 +325,7 @@ namespace Diablo2.UI
             }
 
             text.color = ButtonText;
-            text.fontSize = 20;
+            text.fontSize = (int)UiLayoutGame.FontPx16;
 
             // ★ 片 3：按钮文字（面板里是中文：复活 / 交易·修理 / 结束对话 …）也走原版字模。
             //   引擎 `UIFactory.CreateButton` 造出来的那个 Text 保留为**数据持有者**（font=null、enabled=false）。
@@ -485,6 +485,41 @@ namespace Diablo2.UI
                 ? ResPaths.FrameCountMenuButtonWide
                 : ResPaths.FrameCountMenuButtonMedium;
 
+        // ── ★ w3（游戏内 UI 审计）新增：原版**小图标帧**的唯一取法（DC6 直出那一套）────────
+        //  为什么需要这一节：原版这三张图在工程里各有**两套导出**（同一画面、alpha 不同）——
+        //    · `{name}_{i}.png`            = 本项目 `tools/d2codec/export_d2ui.py` 从原版
+        //      `data/global/ui/PANEL/{name}.DC6` 直出 ⇒ **调色板索引 0 = 透明**（= D2 的口径，
+        //      `tools/d2codec/dc6.py:frame_rgba` 的 `if idx == 0: continue`）；
+        //    · `menubutton__0__{i}.png` / `minipanelbtn__00__{ii}.png` /
+    //      `runbutton_{run,walk}_{NotPressed,Pressed}.png`
+    //                                  = 社区复刻工程 `Diablerie/Assets/Images/ControlPanel/`
+    //      的同名副本 ⇒ 实测**逐像素 RGB 完全相同**，但把原版那些透明像素写成了
+    //      **不透明黑 (0,0,0,255)**（menubutton 每帧 38 px、minipanelbtn 每帧 20 px）。
+    //  ⇒ 用副本 = 画面上多出黑点/黑线（原版那里是透出底图大理石）。
+    //  ★ w4：上列 20 个副本文件（`menubutton__0__*` / `minipanelbtn__00__*`）**已从磁盘删除**，
+    //    `Core/ResPaths.cs` 的 4 个 `PanelArrow*` 也已改指本节的 `menubutton_{0..3}` ⇒
+    //    本节的两个 helper 就是这些帧名的**唯一来源**。
+    //  判据（可复跑，留档在 `tools/probes/measure/scan_uigame.py --pairs`）：
+    //    20 对全部「同画面；alpha 差 N 像素（DC6=透明 / 副本=不透明黑）」；
+    //    `runbutton` 的描述名 ↔ 帧号由**逐像素同画面**自动配对得到（不许靠猜名字）：
+    //      walk_NotPressed→0、walk_Pressed→1、run_NotPressed→**2**、run_Pressed→3。
+    //  ⛔ 本节的常量只是**帧名**；贴图仍走 <see cref="SetSprite"/>（异步 + 缺图 Warn）。
+
+        /// <summary>
+        /// 原版 `PANEL/menubutton.DC6` 第 <paramref name="i"/> 帧（15×24；0/1 = 上箭头常态/按下、2/3 = 下箭头常态/按下）。
+        /// <para>用途：HUD 小面板开关箭头、人物属性面板的四维加点箭头（原版同一张图，两处共用这一个定义）。</para>
+        /// </summary>
+        public static string ArrowFrame(int i) => ResPaths.D2UiPanel + "menubutton_" + i;
+
+        /// <summary>原版 `PANEL/minipanelbtn.DC6` 第 <paramref name="i"/> 帧（20×20；偶数 = 常态、奇数 = 按下）。</summary>
+        public static string MiniPanelBtnFrame(int i) => ResPaths.D2UiPanel + "minipanelbtn_" + i;
+
+        /// <summary>原版 `PANEL/runbutton.DC6` 第 2 帧 = **跑**·常态（配对依据见本节注释）。</summary>
+        public const string RunButtonRunFrame = ResPaths.D2UiPanel + "runbutton_2";
+
+        /// <summary>原版 `PANEL/runbutton.DC6` 第 0 帧 = **走**·常态（配对依据见本节注释）。</summary>
+        public const string RunButtonWalkFrame = ResPaths.D2UiPanel + "runbutton_0";
+
         /// <summary>取按钮上的 Text（用于置灰/改文案）。</summary>
         public static Text ButtonLabel(Image button)
         {
@@ -533,8 +568,8 @@ namespace Diablo2.UI
             else
             {
                 text.color = ButtonText;
-                text.fontSize = 20;
-                D2TextMirror.Attach(text, D2Text.FontFor(20), null);
+                text.fontSize = (int)UiLayoutGame.FontPx16;
+                D2TextMirror.Attach(text, D2Text.FontFor((int)UiLayoutGame.FontPx16), null);
             }
 
             UiLog.Info("SquareButton 已建（底图由调用方贴）");
@@ -568,8 +603,8 @@ namespace Diablo2.UI
             else
             {
                 text.color = ButtonText;
-                text.fontSize = 20;
-                D2TextMirror.Attach(text, D2Text.FontFor(20), null);
+                text.fontSize = (int)UiLayoutGame.FontPx16;
+                D2TextMirror.Attach(text, D2Text.FontFor((int)UiLayoutGame.FontPx16), null);
             }
 
             if (frameCount <= 0)
@@ -648,8 +683,14 @@ namespace Diablo2.UI
         /// 面板照旧用 `_x.text / _x.color / _x.horizontalOverflow / _x.resizeTextForBestFit` 写它，
         /// 由镜像逐帧同步到字模（改动面最小、且**布局坐标一个都不动**）。</para>
         /// </summary>
+        /// <param name="forceChi">
+        /// true ⇒ 即使文案全是 ASCII 也走 chi（原版中文）字模。**只有品牌署名行用得到** ——
+        /// 原版拉丁字模 `font{16,24,30,42}` 不分大小写（97..122 是缩小号的同形大写、无降部），
+        /// `by clover-engine` 会被画成 `BY CLOVER-ENGINE`；`font{N}_chi` 的 ASCII 才是真小写。
+        /// 实测与出处见 `D2Text.D2Label._forceChi` 的注释。
+        /// </param>
         public static Text Label(Transform parent, string name, string content, int fontSize, TextAnchor anchor,
-            Color color, Vector2 size, Vector2 pos)
+            Color color, Vector2 size, Vector2 pos, bool forceChi = false)
         {
             var rt = UIFactory.CreateCentered(name, parent, size, pos);
             var text = rt.gameObject.AddComponent<Text>();
@@ -661,7 +702,7 @@ namespace Diablo2.UI
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.supportRichText = false;
-            D2TextMirror.Attach(text, D2Text.FontFor(fontSize), null);
+            D2TextMirror.Attach(text, D2Text.FontFor(fontSize), null, forceChi);
             return text;
         }
 

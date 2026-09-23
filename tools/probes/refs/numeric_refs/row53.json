@@ -1,0 +1,772 @@
+{
+  "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
+  "row": 53,
+  "spec_md_line": 1148,
+  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "category": "数值类",
+  "system": "掉落·TC 闭包",
+  "method": "尖刺鼠（`Quill 1`）及 8 怪三槽位 TC 应可解析且抽样有掉落",
+  "criterion": "itemcheck 断言：差集为空 + 逐怪 200 次抽样全有掉落",
+  "conclusion": "通过（片 O 已修）  ｜类别：数值类",
+  "generator": "tools/probes/refs/gen_numeric_refs.py",
+  "generated": "2026-09-23 14:31:39",
+  "selectors": {
+    "line_anchors": {},
+    "unscoped_anchors": [],
+    "snippets": {}
+  },
+  "sources": [
+    {
+      "path": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "state": "on-disk",
+      "encoding": "utf-16",
+      "bytes": 44436,
+      "sha256": "ff6f98b94d754786b1c67665d19032a73e2f3febb8294a7b5bfe0da558da518c",
+      "mtime": "2026-09-23 07:58:23",
+      "lines": 361,
+      "ok_lines": 222,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。"
+      ],
+      "matched_lines_total": 0,
+      "checks_written": 60,
+      "checks_truncated": false
+    }
+  ],
+  "checks": [
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "=== ItemCheck：物品 / 任务 / NPC / 存档 离线自检 ===",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 3,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 配表已加载（TableLoader，与 Bootstrap 同链路）   (dir=C:\\Work\\Server\\f-v2\\clover-project-diablo2\\client\\Assets\\Scripts\\Table\\Tsv)",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 4,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] item_c 行数 > 100   (item_c=137)",
+      "numbers": [
+        "100",
+        "137"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 5,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] affix_c 行数 = 301（源表 302 行含表头）   (affix_c=301)",
+      "numbers": [
+        "301",
+        "302",
+        "301"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 6,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] treasureclass_c 行数 = 59（片 O R3：+Quill 1）   (treasureclass_c=59)",
+      "numbers": [
+        "59",
+        "3",
+        "1",
+        "59"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 8,
+      "selected_by": "numeric-line",
+      "text": "── 1) AppContext.AutoWire 装配四个门面 ──",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 13,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] ItemModule 已自动装配   (Diablo2.Module.Item.ItemModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 14,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] QuestModule 已自动装配   (Diablo2.Module.Quest.QuestModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 15,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] NpcModule 已自动装配   (Diablo2.Module.Npc.NpcModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 16,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] SaveModule 已自动装配   (Diablo2.Module.Save.SaveModule)",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 17,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 装备实现类型都是 internal sealed（可反射创建）   (模块装配：Flow=NULL Map=ok Player=ok Combat=NULL Monster=ok Skill=ok Item=ok Quest=ok Npc=ok Camera=NULL View=NULL Audio=NULL Save=ok)",
+      "numbers": []
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 19,
+      "selected_by": "numeric-line",
+      "text": "── 2) 物品生成 / 品质 / 词缀（对 3 个样例打印完整属性行） ──",
+      "numbers": [
+        "2",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 20,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 魔法武器生成成功   (毒素抗性 5~10 斧 之 att-skill 5~3)",
+      "numbers": [
+        "5",
+        "10",
+        "5",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 21,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 魔法物品词缀数 1~2   (affixes=2)",
+      "numbers": [
+        "1",
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 22,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 词缀等级 ≤ 物品等级(12)   (affixLvl=[5,6] itemLevel=12)",
+      "numbers": [
+        "12",
+        "5",
+        "6",
+        "12"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 23,
+      "selected_by": "numeric-line",
+      "text": "样例① 魔法武器: 毒素抗性 5~10 斧 之 att-skill 5~3",
+      "numbers": [
+        "5",
+        "10",
+        "5",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 24,
+      "selected_by": "numeric-line",
+      "text": "id=2 type=Weapon quality=Magic size=2×3 lvlReq=0 strReq=32 dmg=4-11 def=0-0 price=403 dur=34/34",
+      "numbers": [
+        "2",
+        "2",
+        "3",
+        "0",
+        "32",
+        "4",
+        "-11",
+        "0",
+        "-0",
+        "403",
+        "34",
+        "34"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 25,
+      "selected_by": "numeric-line",
+      "text": "词缀[0] affixId=109 kind=Prefix mod=res-pois min=5 max=10 value=9 name=毒素抗性 5~10",
+      "numbers": [
+        "0",
+        "109",
+        "5",
+        "10",
+        "9",
+        "5",
+        "10"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 26,
+      "selected_by": "numeric-line",
+      "text": "词缀[1] affixId=252 kind=Suffix mod=att-skill min=3 max=5 value=5 name=att-skill 5~3",
+      "numbers": [
+        "1",
+        "252",
+        "3",
+        "5",
+        "5",
+        "5",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 27,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 稀有防具词缀数 2~4   (affixes=3)",
+      "numbers": [
+        "2",
+        "4",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 28,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 稀有防具词缀等级 ≤ 物品等级(12)   (affixLvl=[1,12,7] itemLevel=12)",
+      "numbers": [
+        "12",
+        "1",
+        "12",
+        "7",
+        "12"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 29,
+      "selected_by": "numeric-line",
+      "text": "样例② 稀有防具: 毒素抗性 5 火焰抗性 11~20 皮甲 之 hp 6~10",
+      "numbers": [
+        "5",
+        "11",
+        "20",
+        "6",
+        "10"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 30,
+      "selected_by": "numeric-line",
+      "text": "id=47 type=Armor quality=Rare size=2×3 lvlReq=0 strReq=15 dmg=0-0 def=14-17 price=481 dur=36/36",
+      "numbers": [
+        "47",
+        "2",
+        "3",
+        "0",
+        "15",
+        "0",
+        "-0",
+        "14",
+        "-17",
+        "481",
+        "36",
+        "36"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 31,
+      "selected_by": "numeric-line",
+      "text": "词缀[0] affixId=132 kind=Prefix mod=res-pois min=5 max=5 value=5 name=毒素抗性 5",
+      "numbers": [
+        "0",
+        "132",
+        "5",
+        "5",
+        "5",
+        "5"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 32,
+      "selected_by": "numeric-line",
+      "text": "词缀[1] affixId=96 kind=Prefix mod=res-fire min=11 max=20 value=13 name=火焰抗性 11~20",
+      "numbers": [
+        "1",
+        "96",
+        "11",
+        "20",
+        "13",
+        "11",
+        "20"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 33,
+      "selected_by": "numeric-line",
+      "text": "词缀[2] affixId=228 kind=Suffix mod=hp min=6 max=10 value=7 name=hp 6~10",
+      "numbers": [
+        "2",
+        "228",
+        "6",
+        "10",
+        "7",
+        "6",
+        "10"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 34,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 暗金物品词缀数 = 2   (affixes=2)",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 35,
+      "selected_by": "numeric-line",
+      "text": "样例③ 暗金法杖: dmg-pois 31 扭曲法杖 之 manasteal 4~5",
+      "numbers": [
+        "31",
+        "4",
+        "5"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 36,
+      "selected_by": "numeric-line",
+      "text": "id=29 type=Weapon quality=Unique size=1×4 lvlReq=0 strReq=0 dmg=4-12 def=0-0 price=766 dur=43/43",
+      "numbers": [
+        "29",
+        "1",
+        "4",
+        "0",
+        "0",
+        "4",
+        "-12",
+        "0",
+        "-0",
+        "766",
+        "43",
+        "43"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 37,
+      "selected_by": "numeric-line",
+      "text": "词缀[0] affixId=115 kind=Prefix mod=dmg-pois min=31 max=31 value=31 name=dmg-pois 31",
+      "numbers": [
+        "0",
+        "115",
+        "31",
+        "31",
+        "31",
+        "31"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 38,
+      "selected_by": "numeric-line",
+      "text": "词缀[1] affixId=239 kind=Suffix mod=manasteal min=4 max=5 value=4 name=manasteal 4~5",
+      "numbers": [
+        "1",
+        "239",
+        "4",
+        "5",
+        "4",
+        "4",
+        "5"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 39,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] 普通药水无词缀（非装备不挂词缀）   (affixes=0)",
+      "numbers": [
+        "0"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 41,
+      "selected_by": "numeric-line",
+      "text": "── 3) 掉落表完整性（片 O：R3 / R4 / R6） ──",
+      "numbers": [
+        "3",
+        "3",
+        "4",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 42,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] R3 monster_c 引用的 TC（普通/冠军/唯一三槽位）⊆ treasureclass_c（差集为空）   (差集=空（treasureclass_c 共 59 个 TC）)",
+      "numbers": [
+        "3",
+        "59"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 43,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] R3 尖刺鼠(quillrat1) 的 TC 在表里且 1 基行序 id > 0   (TC=\"Quill 1\" id=59)",
+      "numbers": [
+        "3",
+        "1",
+        "1",
+        "0",
+        "1",
+        "59"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 44,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"armo3\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 armo 池兜底",
+      "numbers": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 45,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"weap3\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 weap 池兜底",
+      "numbers": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 46,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：weap 池里有 2 行属于**资料片职业专属装备**（h2h/orb/pelt/phlm/ashd/head，本批经典版素材里没有它们的原版图标）⇒ 本次已剔除，不出现在掉落与商店里（见 `ItemIconAvailability`）",
+      "numbers": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 47,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"armo6\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 armo 池兜底",
+      "numbers": [
+        "6",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 48,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：armo 池里有 4 行属于**资料片职业专属装备**（h2h/orb/pelt/phlm/ashd/head，本批经典版素材里没有它们的原版图标）⇒ 本次已剔除，不出现在掉落与商店里（见 `ItemIconAvailability`）",
+      "numbers": [
+        "4",
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 49,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"weap6\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 weap 池兜底",
+      "numbers": [
+        "6",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 50,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] item_c 里找不到 code=\"cm1\" 的物品（掉落表引用了未导入的行）",
+      "numbers": [
+        "1"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 51,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"Jewelry A\" 的 token \"cm1\" 既不是 TC 名也不是 item_c.code ⇒ 本次抽取落空（该槽位权重 2）。原因 = 本项目按**经典版**范围导入：官方 `version>0`（资料片专属，如 `jew` / `cm1` / `cm2` / `cm3`）与 `code != normcode`（资料片品质）的行不进 item_c；被过滤的 code 由 `tools/table-convert/convert.py` 打表日志逐条列出（片 O R4 已显式登记） ⇒ 该权重**永久落空**，属已登记的数据差异，不是随机性",
+      "numbers": [
+        "1",
+        "2",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 52,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] item_c 里找不到 code=\"cm2\" 的物品（掉落表引用了未导入的行）",
+      "numbers": [
+        "2"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 53,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"Jewelry A\" 的 token \"cm2\" 既不是 TC 名也不是 item_c.code ⇒ 本次抽取落空（该槽位权重 2）。原因 = 本项目按**经典版**范围导入：官方 `version>0`（资料片专属，如 `jew` / `cm1` / `cm2` / `cm3`）与 `code != normcode`（资料片品质）的行不进 item_c；被过滤的 code 由 `tools/table-convert/convert.py` 打表日志逐条列出（片 O R4 已显式登记） ⇒ 该权重**永久落空**，属已登记的数据差异，不是随机性",
+      "numbers": [
+        "2",
+        "2",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 54,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] item_c 里找不到 code=\"cm3\" 的物品（掉落表引用了未导入的行）",
+      "numbers": [
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 55,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"Jewelry A\" 的 token \"cm3\" 既不是 TC 名也不是 item_c.code ⇒ 本次抽取落空（该槽位权重 2）。原因 = 本项目按**经典版**范围导入：官方 `version>0`（资料片专属，如 `jew` / `cm1` / `cm2` / `cm3`）与 `code != normcode`（资料片品质）的行不进 item_c；被过滤的 code 由 `tools/table-convert/convert.py` 打表日志逐条列出（片 O R4 已显式登记） ⇒ 该权重**永久落空**，属已登记的数据差异，不是随机性",
+      "numbers": [
+        "3",
+        "2",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 56,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] R3 逐怪 200 次抽样（固定 seed，经 TcIdOfMonsterKind 换算）都出过掉落   (全部有掉落；#1(tc=23):76/200 #2(tc=4):67/200 #3(tc=59):50/200 #4(tc=23):76/200 #5(tc=23):75/200 #6(tc=5):81/200 #7(tc=23):60/200 #8(tc=49):51/200 )",
+      "numbers": [
+        "3",
+        "200",
+        "1",
+        "23",
+        "76",
+        "200",
+        "2",
+        "4",
+        "67",
+        "200",
+        "3",
+        "59",
+        "50",
+        "200",
+        "4",
+        "23",
+        "76",
+        "200",
+        "5",
+        "23",
+        "75",
+        "200",
+        "6",
+        "5",
+        "81",
+        "200",
+        "7",
+        "23",
+        "60",
+        "200",
+        "8",
+        "49",
+        "51",
+        "200"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 57,
+      "selected_by": "fallback-verdict-line",
+      "text": "[ OK ] R4 前置：TC \"Jewelry A\" 在 treasureclass_c 里   (id=55)",
+      "numbers": [
+        "4",
+        "55"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 59,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"Jewelry A\" 的 token \"jew\" 既不是 TC 名也不是 item_c.code ⇒ 本次抽取落空（该槽位权重 2）。原因 = 本项目按**经典版**范围导入：官方 `version>0`（资料片专属，如 `jew` / `cm1` / `cm2` / `cm3`）与 `code != normcode`（资料片品质）的行不进 item_c；被过滤的 code 由 `tools/table-convert/convert.py` 打表日志逐条列出（片 O R4 已显式登记） ⇒ 该权重**永久落空**，属已登记的数据差异，不是随机性",
+      "numbers": [
+        "2",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 60,
+      "selected_by": "numeric-line",
+      "text": "[ OK ] R4 抽中被过滤 token ⇒ 点名 Warn（含 TC 名 + token + 原因）且不是静默   (Warn(点名到 TC)=4  Warn(token 未知)=4)",
+      "numbers": [
+        "4",
+        "4",
+        "4"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 61,
+      "selected_by": "numeric-line",
+      "text": "[ OK ] R6 冠军/唯一怪 TC 槽位非空、且与普通怪槽位互不相同   (8 只怪 3 个槽位齐全且互不相同)",
+      "numbers": [
+        "6",
+        "8",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 62,
+      "selected_by": "numeric-line",
+      "text": "[ OK ] R6 槽位判定 DeathFlow.EliteKindOf：冠军词缀 ⇒ TreasureClass2 / 唯一词缀 ⇒ TreasureClass3   (冠军词缀 id=6 ⇒ 槽位 2；唯一词缀 id=1 ⇒ 槽位 3)",
+      "numbers": [
+        "6",
+        "2",
+        "3",
+        "6",
+        "2",
+        "1",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 63,
+      "selected_by": "numeric-line",
+      "text": "[ OK ] R6 冠军槽位 TC 可解析且抽样 60 次有产出   (champ=\"Act 1 Champ A\"(id=7) items=202；unique=\"Act 1 Unique A\"(id=45))",
+      "numbers": [
+        "6",
+        "60",
+        "1",
+        "7",
+        "202",
+        "1",
+        "45"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 65,
+      "selected_by": "numeric-line",
+      "text": "── 3b) 掉落 1000 次（monster_c 的 TC 列 → treasureclass_c 递归） ──",
+      "numbers": [
+        "3",
+        "1000"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 66,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"bow3\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 3 从 bow 池兜底",
+      "numbers": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 67,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"bow6\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 6 从 bow 池兜底",
+      "numbers": [
+        "6",
+        "6"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 68,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"armo9\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 armo 池兜底",
+      "numbers": [
+        "9",
+        "9"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 69,
+      "selected_by": "numeric-line",
+      "text": "[WARN ] [Item] LootRoller：TC \"bow9\" 不在 treasureclass_c 里（配表导入范围）⇒ 按 item_c.item_level ≤ 9 从 bow 池兜底",
+      "numbers": [
+        "9",
+        "9"
+      ]
+    },
+    {
+      "source": ".ai-tmp/test/O-itemcheck-run2.txt",
+      "line": 360,
+      "selected_by": "file-summary-tail",
+      "text": "未覆盖（需 Unity 原生 / 真人操作）：面板像素布局、真实手感、Unity 原生序列化与 UnityEngine.Time。",
+      "numbers": []
+    }
+  ]
+}

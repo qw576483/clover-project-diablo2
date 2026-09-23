@@ -63,7 +63,8 @@ namespace Table
         public static readonly string[] TsvFiles =
         {
             "Affix.tsv", "Class.tsv", "Experience.tsv", "Item.tsv", "Level.tsv",
-            "Missile.tsv", "Monster.tsv", "Monumod.tsv", "Skill.tsv", "Treasureclass.tsv",
+            "Missile.tsv", "Monster.tsv", "Monumod.tsv", "Skill.tsv", "StartItem.tsv",
+            "Treasureclass.tsv",
         };
 
         /// <summary>最近一次成功加载所用目录；未加载过为 null（由引擎 <see cref="CloverTable.Dir"/> 转发）。</summary>
@@ -120,6 +121,7 @@ namespace Table
         public static BaseItemRow Item(int id) { return CloverTable.Get<BaseItemRow>("Item", id); }
         public static BaseAffixRow Affix(int id) { return CloverTable.Get<BaseAffixRow>("Affix", id); }
         public static BaseMonumodRow Monumod(int id) { return CloverTable.Get<BaseMonumodRow>("Monumod", id); }
+        public static BaseStartItemRow StartItem(int id) { return CloverTable.Get<BaseStartItemRow>("StartItem", id); }
         public static BaseTreasureclassRow Treasureclass(string name) { return CloverTable.Get<BaseTreasureclassRow>("Treasureclass", name); }
         public static BaseMissileRow Missile(int id) { return CloverTable.Get<BaseMissileRow>("Missile", id); }
     }

@@ -91,7 +91,13 @@ namespace Diablo2.UI
     {
         private const float Width = 320f;
         private const float Padding = 10f;
-        private const int TitleSize = 22;
+
+        /// <summary>
+        /// 标题字号（画布单位）—— ★ 片 K 由 `private` 放宽到 `internal`：地面物品名牌层
+        /// （`UI/GroundItemLabelView.cs`）**复用同一个常量**，保证"名牌字号 = tooltip 标题字号"
+        /// 只有一个真源（改动前该值是 `private`，另一处只能抄一个数字 ⇒ 会漂移）。
+        /// </summary>
+        internal const int TitleSize = 22;
         private const int BodySize = 18;
         private const float BodyLine = 22f;
 
@@ -157,7 +163,10 @@ namespace Diablo2.UI
 
         private void BuildTexts()
         {
-            _title = UIFactory.CreateText("Title", _root, string.Empty, TitleSize, TextAnchor.UpperCenter,
+            // ★ U4 修（用户报「描述框乱七八糟」）：标题原来用 `UpperCenter`、正文用 `UpperLeft`
+            //   ⇒ 名条居中而属性行左对齐，两段左边界不齐（实机 `x_f1_tooltip_q0.png` 可见）。
+            //   原版 tooltip 的名条与正文**同一条左边界**，故标题改 `UpperLeft`。
+            _title = UIFactory.CreateText("Title", _root, string.Empty, TitleSize, TextAnchor.UpperLeft,
                 UiArt.TextColor);
             // ★ 片 3：物品名（中文）走**原版字模**（`Text` 只作数据持有者，见 UiArt.Label 的注释）
             D2TextMirror.Attach(_title, D2Text.FontFor(TitleSize), null);
@@ -184,6 +193,14 @@ namespace Diablo2.UI
             bodyRt.offsetMax = new Vector2(-Padding, 0f);
             bodyRt.anchoredPosition = new Vector2(0f, -(Padding + TitleLine + GapUnderTitle));
             _body.raycastTarget = false;
+
+            // ★ U4 修（用户报「描述框乱七八糟 / 超出边界」）：正文原来是**默认折行 + 默认裁剪**
+            //   —— 行数一多（词缀/需求/售价齐上）超出框高就被截掉半行（看起来"文字被切"）。
+            //   这里显式：横向 Wrap（属性行长时折行）、纵向 Overflow（框高由 Show 按行数算，
+            //   但即使算少一格也不许把字裁掉）。标题同理已在上面设过
+            //   （`horizontalOverflow = Wrap` / `verticalOverflow = Overflow`）。
+            _body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _body.verticalOverflow = VerticalWrapMode.Overflow;
         }
 
         /// <summary>显示某件物品（名称配色见 <see cref="ItemQualityColor"/>）。</summary>
@@ -215,6 +232,11 @@ namespace Diablo2.UI
             var titleH = TitleLine * titleLines;
             _title.rectTransform.sizeDelta = new Vector2(_title.rectTransform.sizeDelta.x, titleH);
             _body.rectTransform.anchoredPosition = new Vector2(0f, -(Padding + titleH + GapUnderTitle));
+            // ★ U4 修（「描述框乱七八糟 / 超出边界」）：正文框高原来**从没按行数设过**
+            //   （一直是 `CreateText` 的默认高）⇒ 行数多时文字溢出/被裁。现在 = 行数 × 行高，
+            //   与下面 `_root` 的高度用**同一个来源**（不再有两套算法）。
+            _body.rectTransform.sizeDelta =
+                new Vector2(_body.rectTransform.sizeDelta.x, lines.Count * BodyLine);
 
             // 高度 = 标题（可能多行）+ 正文行数 × 行高 + 上下留白（单行标题时与改动前完全相同）
             var height = Padding * 2f + titleH + GapUnderTitle + lines.Count * BodyLine;
@@ -257,8 +279,13 @@ namespace Diablo2.UI
             }
 
             var rect = _canvas.rect;
-            var halfW = _root.sizeDelta.x;
-            var halfH = _root.sizeDelta.y;
+
+            // ★ U4 修（用户报「背包里道具描述框也乱七八糟」）：
+            //   旧代码里 `halfW/halfH` 取的是 `sizeDelta`（**整宽/整高**），却被当"半宽/半高"用
+            //   ⇒ 贴边回收判据提前了整整一半尺寸：指针一进画布右侧/下侧 320px 内就把框**翻到左侧/上方**
+            //   （看起来"框乱跳、挡住别的格"）。这里改成真正的半尺寸。
+            var halfW = _root.sizeDelta.x * 0.5f;
+            var halfH = _root.sizeDelta.y * 0.5f;
             var x = local.x + CursorOffsetX;
             var y = local.y + CursorOffsetY;
 
@@ -336,21 +363,10 @@ namespace Diablo2.UI
             return D2Text.CountLines(font, text, chi, availNative, true);
         }
 
-        /// <summary>单字占宽（字号单位）：全角 1 em、半角 0.5 em。</summary>
-        private static float CharAdvance(char c) => IsWide(c) ? TitleSize : TitleSize * 0.5f;
-
-        /// <summary>是否全角字（CJK / 全角标点 / 假名 / 韩文；与 `UIFactory.DefaultFont()` 的中文回退同一口径）。</summary>
-        private static bool IsWide(char c)
-        {
-            if (c < 0x1100) return false;
-            if (c >= 0x2E80 && c <= 0xA4CF) return true;      // CJK 部首 / 汉字 / 注音
-            if (c >= 0xAC00 && c <= 0xD7A3) return true;      // 韩文
-            if (c >= 0xF900 && c <= 0xFAFF) return true;      // CJK 兼容汉字
-            if (c >= 0xFE30 && c <= 0xFE6F) return true;      // CJK 兼容标点
-            if (c >= 0xFF00 && c <= 0xFF60) return true;      // 全角 ASCII
-            if (c >= 0xFFE0 && c <= 0xFFE6) return true;      // 全角符号
-            return false;
-        }
+        // ⚠️ w3 审计删除：`CharAdvance(char)` / `IsWide(char)` 两个私有静态方法**已无调用方**
+        //   —— 它们是"按字号估字宽"那一版的遗留（`TitleLineCount` 现在**问字模**：
+        //   `D2Text.CountLines` / `MeasureNative`，口径 = 原版 `.tbl` 的 `width` + 原版 `breakLine`，
+        //   见 `UI/D2Text.cs` 文件头）。留着估算式的字宽函数只会让人以为排版还在用它。
 
         // ── 文本行（数值全部来自 `Def.ItemStack`，不查表、不硬编码）────────────
         private static List<string> BuildLines(ItemStack item)

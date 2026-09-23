@@ -20,6 +20,7 @@
 
 using Diablo2.Core;
 using Diablo2.Def;
+using Diablo2.Module.View;
 using UnityEngine;
 
 namespace Diablo2.Module.Skill
@@ -46,8 +47,11 @@ namespace Diablo2.Module.Skill
                 var sr = go.AddComponent<SpriteRenderer>();
                 sr.sprite = ResolveSprite(p);
                 sr.color = ColorOf(p.type);
-                // 深度排序随格子变化（`constraints.md` #5）：与实体层同一基准
-                sr.sortingOrder = Iso.SortOrder(p.Grid, GameConst.LayerOffsetEntity);
+                // 深度排序随格子变化（`constraints.md` #5）：**与实体层同一口径** ——
+                // 走 `ViewModule.EntitySortOrder`（内含 deck / 桥面抬档），⛔ 不许自己写
+                // `Iso.SortOrder(g, LayerOffsetEntity)`：那正是审计 B 红行 R2 ——
+                // 桥面格上普通实体档 `4D+102` 必被正南一格栏杆 `4D+105` 盖住。
+                sr.sortingOrder = ViewModule.EntitySortOrder(p.Grid);
                 // 占位体不能有 Collider（否则相机探针会打到它，见 `docs/步骤文档.md` §3.4）
                 // —— SpriteRenderer 本身不生成 Collider，这里无需额外处理。
 
@@ -74,7 +78,8 @@ namespace Diablo2.Module.Skill
         {
             if (p == null || p.View == null) return;
             p.View.transform.position = Projectile.WorldOf(p.pos);
-            if (p.Renderer != null) p.Renderer.sortingOrder = Iso.SortOrder(p.Grid, GameConst.LayerOffsetEntity);
+            // 同 `TryCreate`：排序口径走 `ViewModule.EntitySortOrder`（含 deck 抬档），⛔ 不写裸实体档
+            if (p.Renderer != null) p.Renderer.sortingOrder = ViewModule.EntitySortOrder(p.Grid);
         }
 
         /// <summary>销毁表现节点。</summary>

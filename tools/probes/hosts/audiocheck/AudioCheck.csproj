@@ -54,6 +54,10 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Combat\SfxKeys.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Audio\*.cs" />
+    <!-- ★ 片 C4：出口触发闩锁（`Module/Map/ExitLatch`，纯值类型、无 Unity 运行时依赖）
+         —— "同一出口格连续 60 帧只发 1 次 ExitEntered" 这条判据的**唯一出处**，生产路径
+         `PlayerModule.CheckExit` 用的是同一个类型（⛔ 不是宿主里另写一份） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\ExitLatch.cs" />
   </ItemGroup>
 
   <ItemGroup>

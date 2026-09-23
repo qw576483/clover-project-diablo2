@@ -14,6 +14,7 @@ namespace Table
 		public BaseMonsterTable Monster = new BaseMonsterTable();
 		public BaseMonumodTable Monumod = new BaseMonumodTable();
 		public BaseSkillTable Skill = new BaseSkillTable();
+		public BaseStartItemTable StartItem = new BaseStartItemTable();
 		public BaseTreasureclassTable Treasureclass = new BaseTreasureclassTable();
 
 		// LoadAll 从 dir 加载全部 base 表（dir/<name>.tsv）。
@@ -28,6 +29,7 @@ namespace Table
 			Monster.Load(Path.Combine(dir, "Monster.tsv"));
 			Monumod.Load(Path.Combine(dir, "Monumod.tsv"));
 			Skill.Load(Path.Combine(dir, "Skill.tsv"));
+			StartItem.Load(Path.Combine(dir, "StartItem.tsv"));
 			Treasureclass.Load(Path.Combine(dir, "Treasureclass.tsv"));
 		}
 	}

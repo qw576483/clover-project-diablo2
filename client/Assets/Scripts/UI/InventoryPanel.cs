@@ -18,6 +18,12 @@
 //      **左上角与锚点格左上角重合**（2×4 的盔甲就跨 2 列 4 行）。见 `ItemIconRect`。
 //      格网本身 = 原版底图实测 pitch（29.2 / 29.25 原版px → ×1.8 = 52.56 / 52.65），
 //      与原版 `InventoryPanel.prefab` 的 10×4 一致（`GameConst.InventoryCols/Rows`）。
+//   ⑥ **★ w4：装备槽底图不再被拉变形**（用户报「装备格被拉变形」）。
+//      旧实现 = 把整幅 `inv_*.png` 塞进 prefab 节点矩形里，而原版这些贴图**四周有透明边**
+//      （`inv_armor.png` 64×128 里不透明内容只占 54×81）⇒ 横竖压缩比不同（84.4% vs 64.8%）；
+//      双槽拼图（`inv_helm_glove` / `inv_ring_amulet`）按"半宽"裁又会带出隔壁槽的图案。
+//      现口径 = **裁剪框（素材外接框 ×K）+ 整幅贴图（IHDR ×K，1:1 不缩放）**，
+//      实测常量在 `UiLayoutGame.InvEquipArt`（逐像素列投影求出的连通块），见 `BuildEquipFrame`。
 //
 // ★ 格子对齐：**格子必须和底图画出来的框重合**（这是肉眼判据），故格宽/格高取
 //   `inventory.png` 的**格线实测**（竖线 x=17,46,…,309 ⇒ 29.2；横线 y=252,281,310,339,369 ⇒ 29.25），
@@ -43,6 +49,24 @@ using UnityEngine.UI;
 
 namespace Diablo2.UI
 {
+    /// <summary>
+    /// 一次拖拽**落点判定**的结论（★ U4；由 <see cref="InventoryPanel.PlanDrop"/> 产出，纯函数、离线可断言）。
+    /// </summary>
+    internal enum DropKind
+    {
+        /// <summary>无效落点（原地 / 面板内空白）⇒ 不产生任何请求。</summary>
+        Ignore = 0,
+
+        /// <summary>落在装备槽上 ⇒ `Events.EquipToggleRequest`。</summary>
+        Equip = 1,
+
+        /// <summary>落在背包格上 ⇒ `Events.MoveInInventoryRequest`（<c>value</c> = 目标锚点格）。</summary>
+        Move = 2,
+
+        /// <summary>落在面板外 ⇒ `Events.ItemDropRequest`（丢到地面）。</summary>
+        DropToGround = 3,
+    }
+
     /// <summary>背包面板（10×4 格 + 装备栏 + 底部金币/关闭 + 拖放 + tooltip）。</summary>
     public class InventoryPanel : UIPanel, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
     {
@@ -71,6 +95,14 @@ namespace Diablo2.UI
         /// <summary>单格高（底图实测 29.25 → ×1.8 = 52.65）。</summary>
         public const float CellH = UiLayoutGame.InvCellH;
 
+        /// <summary>
+        /// 拖拽时**目标格高亮**的颜色（半透明白）。
+        /// <para>⛔ 这不是"自选外观"：原版拖拽时目标格是**亮起的框**（`InvMoveOverFx`/格高亮），
+        /// 而本机没有那一帧素材（登记 `client/资源欠缺清单.md`），故用半透明覆盖块替代；
+        /// 语义（"这里会落下"）与原版一致，**取色**为本项目选定并在此登记。</para>
+        /// </summary>
+        public static readonly Color DropHighlightColor = new Color(1f, 1f, 1f, 0.30f);
+
         /// <summary>格区左上角（面板中心坐标；底图 (17,252) ⇒ (-143, -36) → ×1.8）。</summary>
         public static readonly Vector2 GridOrigin = UiLayoutGame.InvGridOrigin;
 
@@ -98,7 +130,8 @@ namespace Diablo2.UI
             /// <summary>槽中心（**面板矩形中心**坐标，= 原版 prefab 的 `m_AnchoredPosition` → ×1.8）。</summary>
             public Vector2 center;
 
-            /// <summary>槽尺寸（= 原版 prefab 的 `m_SizeDelta` → ×1.8）。</summary>
+            /// <summary>槽尺寸（= 原版 prefab 的 `m_SizeDelta` → ×1.8）。**只是贴图/图标的排布框**，
+            /// **不是**裁剪框 —— 裁剪框用 <see cref="artSize"/>（素材实测，见 `UiLayoutGame.InvEquipArt`）。</summary>
             public Vector2 size;
 
             /// <summary>底图完整路径（`ResPaths.D2UiEquipSlot + 文件名`）。</summary>
@@ -106,11 +139,29 @@ namespace Diablo2.UI
 
             /// <summary>底图是否只取一半：0 = 整幅、1 = 左半、2 = 右半（`inv_helm_glove` / `inv_ring_amulet` 是双槽拼图）。</summary>
             public int half;
+
+            /// <summary>本槽图形在素材里的**不透明内容外接框尺寸**（**原版px**，逐像素实测；出处见 `UiLayoutGame.InvEquipArt`）。</summary>
+            public Vector2 artOrig;
+
+            /// <summary>裁剪框尺寸（画布）= <see cref="artOrig"/> × K。同时是**命中区**（tooltip / 拖放落点）。</summary>
+            public Vector2 artSize;
+
+            /// <summary>贴图**整幅**的原尺寸（画布）= 素材 IHDR × K（`inv_helm_glove` 等双槽图是两槽并排的整幅）。</summary>
+            public Vector2 sheetSize;
+
+            /// <summary>整幅贴图中心**相对裁剪框中心**的偏移（画布）：把"内容外接框"摆到裁剪框里（y 轴已翻到画布向上）。</summary>
+            public Vector2 sheetOffset;
         }
 
         /// <summary>
-        /// 10 个装备槽（矩形 = `InventoryPanel.prefab` 的节点实测值 → ×1.8 居中；节点名见注释）。
+        /// 10 个装备槽（**中心** = `InventoryPanel.prefab` 的节点实测值 → ×1.8 居中；节点名见注释）。
         /// 戒指两枚分别取 `rrin` / `lrin` 两个原版节点。
+        /// <para>
+        /// ★ w4：绘制几何（裁剪框 / 整幅贴图尺寸与偏移）**另有一张素材实测表**
+        /// <see cref="UiLayoutGame.InvEquipArt"/>（逐像素列投影求出的本槽图形外接框）。
+        /// 为什么必须分开：prefab 节点值 = **社区复刻工程**量的框（与素材实测相差 0～2 原版px），
+        /// 而"贴图该怎么摆才不被拉变形/不带出隔壁槽的图案"只能由**素材自己**回答。
+        /// </para>
         /// </summary>
         public static readonly EquipSlotDef[] EquipSlots =
         {
@@ -126,13 +177,28 @@ namespace Diablo2.UI
             FromOrig(ItemSlot.Boots,  0, "feet"),   // 靴子     53.9×55.3
         };
 
-        /// <summary>按原版节点名取几何（查不到 ⇒ 打 Warn 并退回零尺寸，不静默）。</summary>
+        /// <summary>
+        /// 按原版节点名取几何（查不到 ⇒ 打 Warn 并退回零尺寸，不静默）。
+        /// <para>
+        /// 位置/尺寸出自**两张表**，各管一段，别混：
+        ///   · `UiLayoutGame.InvEquipOrig`（社区复刻工程的 prefab 节点值）⇒ 槽**中心**（唯一位置出处）+ `size`；
+        ///   · `UiLayoutGame.InvEquipArt`（**素材逐像素实测**）⇒ 裁剪框 `artSize` 与整幅贴图 `sheetSize/sheetOffset`。
+        /// </para>
+        /// </summary>
         private static EquipSlotDef FromOrig(ItemSlot slot, int slotIndex, string node)
         {
             var src = UiLayoutGame.InvEquipOrig;
             for (var i = 0; i < src.Length; i++)
             {
                 if (src[i].node != node) continue;
+
+                var art = ArtOf(node);
+                if (art.artOrig.x <= 0f || art.artOrig.y <= 0f)
+                {
+                    UiLog.Warn($"装备槽「{slot}#{slotIndex}」的素材实测表里找不到「{node}」"
+                               + " ⇒ 该槽按零尺寸处理（请核对 UiLayoutGame.InvEquipArt）");
+                }
+
                 return new EquipSlotDef
                 {
                     slot = slot,
@@ -141,6 +207,10 @@ namespace Diablo2.UI
                     size = src[i].size * UiLayoutGame.K,
                     sprite = ResPaths.D2UiEquipSlot + src[i].file,
                     half = src[i].half,
+                    artOrig = art.artOrig,
+                    artSize = art.artOrig * UiLayoutGame.K,
+                    sheetSize = art.sheetSize,
+                    sheetOffset = art.sheetOffset,
                 };
             }
 
@@ -151,6 +221,34 @@ namespace Diablo2.UI
                 slot = slot, slotIndex = slotIndex,
                 sprite = ResPaths.D2UiEquipSlot + "inv_weapons",
             };
+        }
+
+        /// <summary>
+        /// 从 `UiLayoutGame.InvEquipArt`（素材逐像素实测）算出某槽的**绘制几何**：
+        /// 裁剪框（= 该槽图形外接框 ×K）、整幅贴图尺寸（= IHDR ×K）、以及
+        /// 「把外接框摆进裁剪框」所需的整幅偏移。全部由实测常量导出，本函数不含魔数。
+        /// </summary>
+        internal static (Vector2 artOrig, Vector2 sheetSize, Vector2 sheetOffset) ArtOf(string node)
+        {
+            var t = UiLayoutGame.InvEquipArt;
+            for (var i = 0; i < t.Length; i++)
+            {
+                if (t[i].node != node) continue;
+
+                var w = t[i].x1 - t[i].x0;
+                var h = t[i].y1 - t[i].y0;
+                // 外接框中心（图内坐标）
+                var cx = (t[i].x0 + t[i].x1) * 0.5f;
+                var cy = (t[i].y0 + t[i].y1) * 0.5f;
+                // 整幅中心相对外接框中心的偏移（x 同向；**y 要翻号**：图内 y 向下、画布 y 向上）
+                var dx = (t[i].sw * 0.5f - cx) * UiLayoutGame.K;
+                var dy = (t[i].sh * 0.5f - cy) * UiLayoutGame.K;
+                return (new Vector2(w, h),
+                        new Vector2(t[i].sw * UiLayoutGame.K, t[i].sh * UiLayoutGame.K),
+                        new Vector2(dx, -dy));
+            }
+
+            return (Vector2.zero, Vector2.zero, Vector2.zero);
         }
 
         /// <summary>
@@ -226,7 +324,16 @@ namespace Diablo2.UI
 
         private D2Label _goldText;
         private ItemTooltip _tooltip;
+        /// <summary>`OnDrag` 里"目标格"状态变化才报一次日志（见 <see cref="OnDrag"/>；-1 = 指针下无格）。</summary>
+        private int _loggedDropCell = int.MinValue;
+
         private Image _ghost;
+
+        /// <summary>
+        /// ★ U4：拖拽时**目标格高亮**（原版手感 = 拖影跟随鼠标 + 目标格高亮；见 `DragAndDrop` 注释）。
+        /// <c>null</c> / 未拖拽时不显示。
+        /// </summary>
+        private Image _dropHighlight;
         private int _dragAnchor = -1;
 
         // ═════════════════════════════════════════════════════════════════════
@@ -324,17 +431,27 @@ namespace Diablo2.UI
             if (_built) return;
             _built = true;
 
-            var bg = UiArt.Panel(transform, "InventoryBg", PanelSize, PanelPos, Color.white, false);
+            // ★ 片 K（R8）：底图**必须吃射线** —— 口径与 `ShopPanel.BuySellBg`（`raycastTarget=true`）一致。
+            //   为什么：本图是**面板矩形**（576×777.6，非满屏）⇒ 它是"面板本体"。
+            //   若不吃射线，点面板内部空白处时 `EventSystem.IsPointerOverGameObject()` 为 false
+            //   ⇒ `Module/Input/InputReader.UiEatsIntent(pressed:true, pointerOverUi:false)` 返回 false
+            //   ⇒ 这次点击被反投影成"点地面" ⇒ **角色会走向面板背后的地面**（原版语义：点面板空白不移动）。
+            //   面板**外**点地面照旧可走（本 Image 只覆盖面板矩形，不是满屏）。
+            var bg = UiArt.Panel(transform, "InventoryBg", PanelSize, PanelPos, Color.white, true);
             UiArt.SetSprite(bg, ResPaths.PanelInventory);
 
             BuildGrid();
             BuildEquipSlots();
             BuildBottomRow();
 
-            // 拖影（拖放时跟着鼠标）
+            // 拖影（拖放时跟着鼠标）+ 目标格高亮（原版手感：拖影跟随 + 目标格亮起）
             _ghost = UiArt.Panel(transform, "DragGhost", new Vector2(CellW, CellH), Vector2.zero,
                 new Color(1f, 1f, 1f, 0.65f), false);
             _ghost.gameObject.SetActive(false);
+
+            _dropHighlight = UiArt.Panel(transform, "DropHighlight", new Vector2(CellW, CellH), Vector2.zero,
+                DropHighlightColor, false);
+            _dropHighlight.gameObject.SetActive(false);
 
             _tooltip = ItemTooltip.Create(transform);
         }
@@ -358,48 +475,53 @@ namespace Diablo2.UI
                 icon.gameObject.SetActive(false);
                 _cellIcons[i] = icon;
 
+                // ★ 片 font-scale：补显式字号（原来默认 0 = 按原版 px 1:1 画 ⇒ 格上数量只有应有的
+                //   ~55%，用户报「文字太小」的 6 处之一）。字号唯一出处 = `UiLayoutGame.FontPx16`。
                 _cellCounts[i] = D2Label.Create(cell.transform, "Count", string.Empty, D2Text.D2Font.Font16,
-                    TextAnchor.LowerRight, UiArt.ButtonText, new Vector2(CellW, CellH), Vector2.zero);
+                    TextAnchor.LowerRight, UiArt.ButtonText, new Vector2(CellW, CellH), Vector2.zero,
+                    (int)UiLayoutGame.FontPx16);
             }
         }
 
         private void BuildEquipSlots()
         {
+            // ① 先建**全部裁剪框 + 底图**（贴图是异步回来的，与图标层无依赖）
+            for (var i = 0; i < EquipSlots.Length; i++)
+                _equipRects[i] = BuildEquipFrame(EquipSlots[i], i);
+
+            // ② 再建**全部图标层**（原版物品图），且**不挂在裁剪框里** ——
+            //    裁剪框会按素材外接框裁子节点，挂进去会让稍大的装备图标（如盔甲 2×3 格）
+            //    被切掉边。分两轮建 ⇒ 图标层一律画在底图之上，且没有任何裁剪。
             for (var i = 0; i < EquipSlots.Length; i++)
             {
-                var def = EquipSlots[i];
-                var frame = BuildEquipFrame(def, i);
-                _equipRects[i] = frame;
-
-                var icon = UiArt.Panel(frame, "Icon", def.size, Vector2.zero,
+                var icon = UiArt.Panel(transform, "EquipIcon" + i, EquipSlots[i].size, PanelPos + EquipSlots[i].center,
                     new Color(1f, 1f, 1f, 0.92f), false);
-                icon.gameObject.SetActive(false);       // 有装备时才有颜色
+                icon.gameObject.SetActive(false);       // 有装备时才有颜色（`D2Icon.ApplyItemIcon` 会置 preserveAspect）
                 _equipIcons[i] = icon;
             }
         }
 
-        /// <summary>装备槽底图：整幅直接用；双槽拼图（helm+glove / ring+amulet）用 `RectMask2D` 取半幅。</summary>
+        /// <summary>
+        /// 装备槽底图 = **裁剪框（素材外接框 ×K）+ 整幅贴图（IHDR ×K，1:1 不缩放）**。
+        /// <para>
+        /// 为什么必须这样（★ w4 修「装备格被拉变形」）：
+        ///   ① 原版 `inv_*.png` **四周有透明边**（`inv_armor.png` 64×128 里内容只占 54×81）；
+        ///      旧实现把整幅塞进内容大小的矩形 ⇒ 横竖压缩比不同（84.4% vs 64.8%）= 非等比拉伸；
+        ///   ② 双槽拼图（`inv_helm_glove` 128×64 / `inv_ring_amulet` 64×32）的两个图形
+        ///      **不在半宽处切开**（实测在 x 54/55 与 x 23/24 两列空列处分开）——
+        ///      按半宽裁会把隔壁槽的图案带进来 / 把自己切掉一块；
+        ///      现改成「裁剪框 = 本槽图形外接框」（实测常量见 `UiLayoutGame.InvEquipArt`）。
+        /// </para>
+        /// <para>位置：裁剪框中心 = prefab 节点中心（`def.center`）；整幅贴图按其外接框偏移摆进去。</para>
+        /// <para>命中区 = 裁剪框（<c>_equipRects[i]</c>）⇒ tooltip / 拖放落点都只覆盖画出来的那块图形。</para>
+        /// </summary>
         private RectTransform BuildEquipFrame(EquipSlotDef def, int index)
         {
-            var center = PanelPos + def.center;
-
-            if (def.half == 0)
-            {
-                var img = UiArt.Panel(transform, "Equip" + index, def.size, center, Color.white, false);
-                UiArt.SetSprite(img, def.sprite);
-                return img.rectTransform;
-            }
-
-            // 半幅：容器裁剪 + 整幅贴图左右偏移半宽（贴图本身不可切分，见 `资源欠缺清单.md` #0-1）
-            var holder = UIFactory.CreateCentered("Equip" + index, transform, def.size, center);
+            var holder = UIFactory.CreateCentered("Equip" + index, transform, def.artSize, PanelPos + def.center);
             holder.gameObject.AddComponent<RectMask2D>();
 
-            var full = UiArt.Panel(holder, "Full", new Vector2(def.size.x * 2f, def.size.y), Vector2.zero,
-                Color.white, false);
+            var full = UiArt.Panel(holder, "Art", def.sheetSize, def.sheetOffset, Color.white, false);
             UiArt.SetSprite(full, def.sprite);
-            // 取左半 ⇒ 整图右移半宽；取右半 ⇒ 左移半宽
-            full.rectTransform.anchoredPosition = new Vector2(
-                def.half == 1 ? def.size.x * 0.5f : -def.size.x * 0.5f, 0f);
             return holder;
         }
 
@@ -454,8 +576,9 @@ namespace Diablo2.UI
             gb.onClick.AddListener(() => UiLog.Info("点金币按钮 ⇒ 原版是「把钱丢地上」；本项目未接线（回报「未接线」）"));
 
             // ── 金币数字（原版 GoldText）：位图字体、居中 ──
+            // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 金币数只有应有的 ~55%）。
             _goldText = D2Label.Create(transform, "Gold", "0", D2Text.D2Font.Font16, TextAnchor.MiddleCenter,
-                UiArt.TitleColor, GoldTextSize, PanelPos + GoldTextPos);
+                UiArt.TitleColor, GoldTextSize, PanelPos + GoldTextPos, (int)UiLayoutGame.FontPx16);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -585,10 +708,18 @@ namespace Diablo2.UI
         {
             if (eventData == null) return;
 
-            var target = eventData.pointerPress;
-            if (target == null) return;
+            // ★ U4 根因修复（用户报「道具没法拖动」+「点装备格没反应」）：
+            //   旧实现用 `eventData.pointerPress` 找被点的格子，但 uGUI 把 `pointerPress` 填成
+            //   **收了 PointerDown 的那个 GameObject** —— 本面板把 `IPointerClickHandler` /
+            //   `IDragHandler` 实现在 **面板根**（`InventoryPanel` 组件挂在根节点）上，格子只是
+            //   子 `Image`（`Cell{N}`）⇒ `pointerPress` **恒 = 面板根**，而
+            //   `IndexOfCell(面板根)` 恒为 -1 ⇒ 左键装备 / 拖拽**永远进不去**（`OnBeginDrag`
+            //   打的是「从非背包格开始拖拽」那条 Info）。诊断见 `.ai-tmp/test/report-U4.md`。
+            //   改为与 `UpdateHover` / `CellAt` 完全同一套**屏幕点矩形命中**（同一真源，
+            //   离线宿主可逐格断言）⇒ 不再依赖 uGUI 的 `pointerPress` 语义。
+            var screen = eventData.position;
 
-            var cell = IndexOfCell(target);
+            var cell = CellAt(screen);
             if (cell >= 0)
             {
                 var anchor = AnchorOf(cell);
@@ -605,7 +736,7 @@ namespace Diablo2.UI
                 return;
             }
 
-            var equip = IndexOfEquip(target);
+            var equip = EquipAt(screen);
             if (equip >= 0 && (eventData.button == PointerEventData.InputButton.Right
                                || eventData.button == PointerEventData.InputButton.Left))
             {
@@ -622,11 +753,14 @@ namespace Diablo2.UI
             _dragAnchor = -1;
             if (eventData == null) return;
 
-            var cell = IndexOfCell(eventData.pointerPress);
+            // ★ U4：与 `OnPointerClick` 同一处根因 —— 不再用 `eventData.pointerPress`
+            //   （它恒 = 面板根，判别不出是哪个格），改用屏幕点矩形命中。
+            var cell = CellAt(eventData.position);
             if (cell < 0)
             {
                 // 只支持从背包格拖起（装备槽/腰带拖拽需要模块侧的移动接口，见回报「未接线」）
-                UiLog.Info("从非背包格开始拖拽 ⇒ 本次拖拽不生效（装备槽拖拽未接线）");
+                UiLog.Info($"从非背包格开始拖拽（屏幕点 {eventData.position}）⇒ 本次拖拽不生效"
+                           + "（装备槽拖拽需要 `IItemModule` 的移动接口，未接线）");
                 return;
             }
 
@@ -666,15 +800,48 @@ namespace Diablo2.UI
         public void OnDrag(PointerEventData eventData)
         {
             if (_dragAnchor < 0 || _ghost == null) return;
+
+            // 拖影跟随鼠标（原版：拖影贴在指针上）
             _ghost.rectTransform.position = Game.Input != null
                 ? new Vector3(Game.Input.MousePosition.x, Game.Input.MousePosition.y, 0f)
                 : _ghost.rectTransform.position;
+
+            // 目标格高亮（原版：指针下的背包格亮起，作为"松手会落到这里"的反馈）
+            if (_dropHighlight == null) return;
+            var screen = Game.Input != null
+                ? new Vector2(Game.Input.MousePosition.x, Game.Input.MousePosition.y)
+                : eventData.position;
+            var cell = CellAt(screen);
+            if (cell < 0)
+            {
+                // ★ V6：这条分支原来**静默**（实机只看到"目标格高亮没出现"，查不出是"没命中格"
+                //   还是"高亮没画出来"）⇒ 补一条**只在状态变化时**报点名的日志（非预期分支必须留痕，
+                //   且不逐帧刷屏）。判据：V6 的 Play 日志里 `[Ui] 拖拽目标格` / `拖拽指针下无格`。
+                if (_loggedDropCell != -1)
+                {
+                    _loggedDropCell = -1;
+                    UiLog.Warn($"拖拽中指针下没有背包格（屏幕点 {screen}）⇒ 目标格高亮关闭；"
+                        + "若玩家确实拖在格上，请查 `_cells` 矩形与画布换算（`RectTransformUtility`）");
+                }
+                _dropHighlight.gameObject.SetActive(false);
+                return;
+            }
+
+            if (_loggedDropCell != cell)
+            {
+                _loggedDropCell = cell;
+                UiLog.Info($"拖拽目标格 = {cell}（高亮已开，色 {DropHighlightColor}）");
+            }
+            _dropHighlight.rectTransform.sizeDelta = new Vector2(CellW, CellH);
+            _dropHighlight.rectTransform.anchoredPosition = CellCenter(cell);
+            _dropHighlight.gameObject.SetActive(true);
         }
 
         /// <inheritdoc/>
         public void OnEndDrag(PointerEventData eventData)
         {
             if (_ghost != null) _ghost.gameObject.SetActive(false);
+            if (_dropHighlight != null) _dropHighlight.gameObject.SetActive(false);
             if (_dragAnchor < 0) return;
 
             var anchor = _dragAnchor;
@@ -683,42 +850,70 @@ namespace Diablo2.UI
             var mouse = Game.Input != null ? Game.Input.MousePosition : Vector3.zero;
             var screen = new Vector2(mouse.x, mouse.y);
 
-            // ① 落在装备槽上 ⇒ 装备（`Events.EquipToggleRequest`）
-            for (var i = 0; i < _equipRects.Length; i++)
+            // ★ U4：落点判定收进**纯函数** `PlanDrop`（离线宿主可逐行断言"按下→移动→松手"
+            //   这一序列的判定结果；见 `tools/probes/hosts/uicheck`）。
+            var plan = PlanDrop(_data, anchor, CellAt(screen), EquipAt(screen), InsidePanel(screen));
+
+            switch (plan.kind)
             {
-                if (_equipRects[i] == null) continue;
-                if (!RectTransformUtility.RectangleContainsScreenPoint(_equipRects[i], screen, null)) continue;
+                case DropKind.Equip:
+                    UiLog.Info($"拖放：锚点格 {anchor} → 装备槽 {EquipSlots[plan.value].slot} ⇒ "
+                               + $"请求装备（`{Events.EquipToggleRequest}`）");
+                    Game.Event.Emit(Events.EquipToggleRequest, anchor);
+                    return;
 
-                UiLog.Info($"拖放：锚点格 {anchor} → 装备槽 {EquipSlots[i].slot} ⇒ 请求装备（`{Events.EquipToggleRequest}`）");
-                Game.Event.Emit(Events.EquipToggleRequest, anchor);
-                return;
+                case DropKind.Move:
+                    EmitMoveInInventoryRequest(anchor, plan.value);
+                    return;
+
+                case DropKind.DropToGround:
+                    EmitItemDropRequest(anchor);
+                    return;
+
+                case DropKind.Ignore:
+                    UiLog.Info(plan.value >= 0
+                        ? $"拖放：锚点格 {anchor} → 格 {plan.value}（落点锚点同源）⇒ 原地/无效 ⇒ 不请求移动"
+                        : $"拖放：锚点格 {anchor} → 面板内空白处 ⇒ 忽略");
+                    return;
+
+                default:
+                    UiLog.Warn($"拖放：未处理的落点判定 {plan.kind}（锚点格 {anchor}）⇒ 不产生任何请求");
+                    return;
             }
+        }
 
-            // ② 落在背包格上 ⇒ 请求在背包内移动/交换（`Events.MoveInInventoryRequest`）
-            var cell = CellAt(screen);
+        /// <summary>
+        /// **落点判定**（★ U4）：纯函数，判"按下 → 移动 → 松手"里的**落点**该做什么。
+        /// 判据口径（与原版一致）：装备槽 → 装备；背包格 → 背包内移动/交换（被占用则与该物品的锚点格互换）；
+        /// 面板外 → 丢地面；面板内空白 → 忽略。
+        /// <para>抽成静态纯函数的理由：拖拽的手感只能进 Play 看，但"落点判对没有"必须**离线可断言**
+        /// （宿主喂 `(data, fromAnchor, cell, equip, insidePanel)` 逐行核对，见 `uicheck`）。</para>
+        /// </summary>
+        /// <param name="data">背包快照（`null` = 还没有数据 ⇒ 只可能判出 DropToGround / Ignore）。</param>
+        /// <param name="fromAnchor">拖起的物品锚点格。</param>
+        /// <param name="cell">松手处的背包格下标（不在任何格上 = -1）。</param>
+        /// <param name="equip">松手处的装备槽下标（不在任何槽上 = -1）。</param>
+        /// <param name="insidePanel">松手处是否还在面板矩形内。</param>
+        internal static (DropKind kind, int value) PlanDrop(
+            InventoryChangedArgs data, int fromAnchor, int cell, int equip, bool insidePanel)
+        {
+            if (equip >= 0 && equip < EquipSlots.Length) return (DropKind.Equip, equip);
+
             if (cell >= 0)
             {
-                var to = DropAnchorOf(_data, cell);
-                if (to < 0 || to == anchor)
-                {
-                    UiLog.Info($"拖放：锚点格 {anchor} → 格 {cell}（落点锚点 {to}）⇒ 原地/无效 ⇒ 不请求移动");
-                    return;
-                }
-
-                EmitMoveInInventoryRequest(anchor, to);
-                return;
+                var to = DropAnchorOf(data, cell);
+                if (to < 0 || to == fromAnchor) return (DropKind.Ignore, cell);
+                return (DropKind.Move, to);
             }
 
-            // ③ 落在面板外 ⇒ 丢到地面
-            if (!RectTransformUtility.RectangleContainsScreenPoint((RectTransform)transform, screen, null))
-            {
-                EmitItemDropRequest(anchor);
-                return;
-            }
+            if (!insidePanel) return (DropKind.DropToGround, fromAnchor);
 
-            // ④ 面板内、但不在任何格上（贴图空白处）⇒ 忽略
-            UiLog.Info($"拖放：锚点格 {anchor} → 面板内空白处 ⇒ 忽略");
+            return (DropKind.Ignore, -1);
         }
+
+        /// <summary>松手处是否还在本面板矩形内（拖到面板外 = 原版的"丢到地面"）。</summary>
+        private bool InsidePanel(Vector2 screen)
+            => RectTransformUtility.RectangleContainsScreenPoint((RectTransform)transform, screen, null);
 
         /// <summary>悬停显示 tooltip（用矩形命中测试，不依赖子节点事件冒泡）。</summary>
         private void UpdateHover()
@@ -761,11 +956,18 @@ namespace Diablo2.UI
             _tooltip.Hide();
         }
 
-        private int IndexOfCell(GameObject go)
+        /// <summary>
+        /// 屏幕点命中的装备槽下标（未命中 = -1）。
+        /// <para>★ U4：与 <see cref="CellAt"/> 同一套屏幕点矩形命中 —— 取代原先
+        /// 「比 `eventData.pointerPress` 是不是某个格节点」的做法（那个做法恒不命中，见
+        /// <see cref="OnPointerClick"/> 的根因注释）。</para>
+        /// </summary>
+        private int EquipAt(Vector2 screen)
         {
-            if (go == null) return -1;
-            for (var i = 0; i < CellCount; i++)
-                if (_cells[i] != null && _cells[i].gameObject == go) return i;
+            for (var i = 0; i < _equipRects.Length; i++)
+                if (_equipRects[i] != null
+                    && RectTransformUtility.RectangleContainsScreenPoint(_equipRects[i], screen, null))
+                    return i;
             return -1;
         }
 
@@ -776,14 +978,6 @@ namespace Diablo2.UI
                 if (_cells[i] != null
                     && RectTransformUtility.RectangleContainsScreenPoint(_cells[i].rectTransform, screen, null))
                     return i;
-            return -1;
-        }
-
-        private int IndexOfEquip(GameObject go)
-        {
-            if (go == null) return -1;
-            for (var i = 0; i < EquipSlots.Length; i++)
-                if (_equipRects[i] != null && _equipRects[i].gameObject == go) return i;
             return -1;
         }
 
