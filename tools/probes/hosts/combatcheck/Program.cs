@@ -395,6 +395,7 @@ namespace CombatCheck
             AiRangeKeepsDistance();
             AiRangeBacksOff();
             AiCowardFlees();
+            MonsterVoiceTiming();
 
             // ── 4.2 邪恶洞穴：Shaman(堕落萨满) 复活同伴 ──
             // ★ 本轮改：洞穴布点是随机的，**"萨满 + 复活半径内的同伴"这一对不是每张图都有**
@@ -529,15 +530,86 @@ namespace CombatCheck
             var before = DistanceToPlayer(m.Grid());
             var hpBefore = m.hp;
 
+            // ★ 片 monster-audio（修 Coward 那条红）：**测量窗口**修正，判据行一字未改。
+            //   `Trace` 是**全局累计**且全程从不 `Clear()`；本段之前 `AiMelee` / `AiRangeKeepsDistance`
+            //   / `AiRangeBacksOff` 已在同一张图上跑过若干秒，而这只 Coward **满血时走的正是近战分支**
+            //   （`MonsterAi.Coward` 的非逃跑路径 = `if (dist <= MeleeRange) TryAttack`）⇒ 它在那几段里
+            //   打出的伤害事件**全部**被 `AttacksBy` 算进本段。
+            //   实测（本片临时诊断，已撤）：窗口开始前累计 **5** 次、逃跑窗口内新增 **0** 次
+            //   ⇒ 生产代码是对的（逃跑分支 `if (m.FleeTimer > 0f) { StepAway; return Action.None; }`），
+            //   ⛔ 正确的修法不是去改生产代码"把攻击压掉"，而是把量尺对上判据标签的语义。
+            //   ⛔ 这不是放宽：改成**差值口径**后，逃跑窗口内只要真出手一次，照样判红。
+            var atkBefore = Trace.AttacksBy(m.id);
+
             TickSim(3f);
 
             var after = DistanceToPlayer(m.Grid());
-            var attacks = Trace.AttacksBy(m.id);
+            var attacks = Trace.AttacksBy(m.id) - atkBefore;
             Console.WriteLine($"  Coward（m#{m.id} {m.name}）：hp {hpBefore}/{m.maxHp}（{(float)hpBefore / m.maxHp:P0}）" +
                               $"⇒ 距离玩家 {before:0.00} → {after:0.00} 格，逃跑期间出手 {attacks} 次");
             Check("Coward：低血会逃跑（距离变大）", after > before + 0.5f, $"{before:0.00} → {after:0.00}");
             Check("Coward：逃跑时不再攻击（逃跑优先于出手）", attacks == 0, $"{attacks} 次");
             Check("Coward：日志里有 [Monster] flee（验收要贴的行）", _log.Has("[Monster] flee"), "见上方日志");
+        }
+
+        /// <summary>
+        /// ★ 片 monster-audio 第四轮：**逐类怪物音效时序**（脚步 `FsCnt` / 受击延迟 `HitDelay`）
+        /// 必须**从 `MonSounds.txt` 取值**，⛔ 不许凭空写常量。这里把生产侧的解析结果
+        /// 与表里的原值逐类对账（值写死在本函数里，但每条都标了 `MonSounds.txt` 的 Id + 列名）。
+        /// </summary>
+        private static void MonsterVoiceTiming()
+        {
+            Section("4.1b 逐类怪物音效时序（MonSounds.txt：FsCnt 脚步间隔 / HitDelay 受击延迟，帧÷LogicFps）");
+
+            // 原版 `MonSounds.txt` 的行（Id → HitDelay 帧、FsCnt；空列写 0 = 原版无该项）
+            var hitDelay = new System.Collections.Generic.Dictionary<string, float>
+            {
+                { "fallen", 2f }, { "fallenshaman", 2f }, { "quillrat", 5f }, { "zombie", 2f },
+                { "brute", 2f }, { "corruptrogue", 2f }, { "foulcrow", 2f }, { "wraith", 2f },
+            };
+            // 原版 Code → MonSounds 的 Id（出处 `MonStats.txt` 的 Code × MonSound 列）
+            var idOf = new System.Collections.Generic.Dictionary<string, string>
+            {
+                { "fa", "fallen" }, { "fs", "fallenshaman" }, { "si", "quillrat" }, { "zm", "zombie" },
+                { "ye", "brute" }, { "cr", "corruptrogue" }, { "bk", "foulcrow" }, { "wr", "wraith" },
+            };
+            var fsCnt = new System.Collections.Generic.Dictionary<string, float>
+            {
+                { "fa", 2f }, { "fs", 2f }, { "zm", 2f }, { "ye", 2f }, { "cr", 2f }, { "bk", 2f },
+                // si(尖刺鼠) / wr(幽灵)：`MonSounds.txt` 的 `FsCnt` 列为空 ⇒ 原版没有移动音
+            };
+
+            var seen = new System.Collections.Generic.HashSet<string>();
+            var badDelay = new System.Collections.Generic.List<string>();
+            var badStep = new System.Collections.Generic.List<string>();
+
+            foreach (var m in _ctx.Monster.All)
+            {
+                if (m == null) continue;
+                var code = Diablo2.Module.View.SpriteFrames.SpriteCodeOf(m.kindId);
+                if (string.IsNullOrEmpty(code) || !idOf.ContainsKey(code) || !seen.Add(code)) continue;
+
+                var id = idOf[code];
+                var wantDelay = hitDelay[id] / Diablo2.Module.Monster.MonsterTuning.LogicFps;
+                var gotDelay = Diablo2.Module.Monster.MonsterSfx.HitDelaySeconds(m);
+                if (System.Math.Abs(gotDelay - wantDelay) > 1e-5f)
+                    badDelay.Add($"{code}({id}) 期望 {wantDelay:0.###}s 实得 {gotDelay:0.###}s");
+
+                float cnt;
+                var wantStep = fsCnt.TryGetValue(code, out cnt) ? 1f / cnt : 0f;
+                var gotStep = Diablo2.Module.Monster.MonsterSfx.StepPeriodTiles(m);
+                if (System.Math.Abs(gotStep - wantStep) > 1e-5f)
+                    badStep.Add($"{code}({id}) 期望 {wantStep:0.###} 格/步 实得 {gotStep:0.###}");
+            }
+
+            Check("逐类受击延迟 = `MonSounds.HitDelay` 帧 ÷ LogicFps(25)（quillrat=5 ⇒ 0.2s，其余 2 ⇒ 0.08s）",
+                badDelay.Count == 0 && seen.Count > 0,
+                badDelay.Count == 0 ? $"已对账 {seen.Count} 类" : string.Join("; ", badDelay));
+            Check("脚步间隔 = 1 / `MonSounds.FsCnt`（有脚步的 6 类 = 2 ⇒ **0.5 格一步**；尖刺鼠/幽灵 = 0 = 不响）",
+                badStep.Count == 0 && seen.Count > 0,
+                badStep.Count == 0 ? $"已对账 {seen.Count} 类（半格一步，不再是跨格一次）" : string.Join("; ", badStep));
+
+            Console.WriteLine();
         }
 
         /// <summary>

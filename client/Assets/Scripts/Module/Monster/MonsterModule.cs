@@ -256,7 +256,6 @@ namespace Diablo2.Module.Monster
                 }
 
                 var posBefore = m.Pos;
-                var gridBefore = new Vector2Int(m.State.gridX, m.State.gridY);
                 MonsterAi.Step(this, m, dt);
 
                 if (posBefore != m.Pos) m.ViewDirty = true;   // Vector2 的 != 是近似比较，够用
@@ -264,18 +263,33 @@ namespace Diablo2.Module.Monster
                 m.Sync();
 
                 // ★ 片 monster-audio：怪物**脚步**触发点（原版 `MonSounds.Footstep` /
-                //   `FootstepLayer`，`FsPrb=100` ⇒ 只要这一类有移动音就必播）。
-                //   口径 = **跨格**触发一次（与玩家脚步 `Events.PlayerGridChanged` 同源）；
-                //   ⚠ 原版 `FsCnt=2`（一个走路循环两步 = 半格一步）**未建模** ⇒ 已登记为简化项，
-                //   ⛔ 不许凭空写一个"半格"判据。原版没有移动音的类（尖刺鼠 / 幽灵）⇒ 一次都不响。
-                if (m.State.gridX != gridBefore.x || m.State.gridY != gridBefore.y)
+                //   `FootstepLayer`；`FsPrb=100` ⇒ 有移动音就必播，`FsOff=0` ⇒ 不偏移）。
+                //   口径 = **每走 `1/FsCnt` 格出一次**（`MonSsounds.FsCnt` 有脚步的 6 类全是 2
+                //   ⇒ **半格一步**，不是跨格一次）—— 判据是**累计位移**而不是"格号变了没"，
+                //   这样慢速怪也不会把一步拖成一格。
+                //   原版没有移动音的类（尖刺鼠 / 幽灵：`FsCnt` 列为空）⇒ 一次都不响。
+                var stepKey = MonsterSfx.StepOf(m.State);
+                var period = MonsterSfx.StepPeriodTiles(m.State);
+                if (stepKey != null && period > 0f)
                 {
-                    var stepKey = MonsterSfx.StepOf(m.State);
-                    if (stepKey != null)
+                    m.StepAccum += Vector2.Distance(posBefore, m.Pos);
+                    if (m.StepAccum >= period)
                     {
-                        var audio = AppContext.I != null ? AppContext.I.Audio : null;
-                        if (audio != null)
-                            audio.SfxAt(stepKey, m.State.worldX, m.State.worldY, m.State.worldZ);
+                        m.StepAccum -= period;
+                        if (m.StepAccum < 0f) m.StepAccum = 0f;      // 别让误差堆积成"抢跑"
+                        PlayMonsterSfx(m, stepKey);
+                    }
+                }
+
+                // ★ 片 monster-audio：延迟排期的**怪物自身受击音**到点起播。
+                if (m.PendingHitSfx != null)
+                {
+                    m.PendingHitSfxTimer -= dt;
+                    if (m.PendingHitSfxTimer <= 0f)
+                    {
+                        PlayMonsterSfx(m, m.PendingHitSfx);
+                        m.PendingHitSfx = null;
+                        m.PendingHitSfxTimer = 0f;
                     }
                 }
 
@@ -345,6 +359,25 @@ namespace Diablo2.Module.Monster
                             $"⇒ 实扣={final}，hp {hpBefore}/{m.State.maxHp} → {m.State.hp}/{m.State.maxHp}");
 
             if (Game.Event != null) Game.Event.Emit(Events.MonsterChanged, m.State);
+
+            // ★ 片 monster-audio：怪物**自身受击音**（原版 `MonSounds.HitSound`）由本模块排期，
+            //   延迟 = 原版 `HitDelay` **帧** ÷ `MonsterTuning.LogicFps`（出处见 `MonsterSfx.Timing`）。
+            //   撞击音（`Combat.SfxKeys.Hit`）在 `DamagePipeline` 里**同帧**响，两音按原版错开。
+            //   ⛔ 击杀那一下不排：`DamagePipeline` 播的是**死亡音**，受击音不该再叠一次。
+            if (m.State.hp > 0)
+            {
+                var ownHit = MonsterSfx.HitOf(m.State);
+                if (ownHit != null)
+                {
+                    var delay = MonsterSfx.HitDelaySeconds(m.State);
+                    if (delay <= 0f) PlayMonsterSfx(m, ownHit);
+                    else
+                    {
+                        m.PendingHitSfx = ownHit;
+                        m.PendingHitSfxTimer = delay;
+                    }
+                }
+            }
 
             if (m.State.hp <= 0) Die(m);
         }
@@ -490,6 +523,20 @@ namespace Diablo2.Module.Monster
         internal int NextMonsterId()
         {
             return _nextId++;
+        }
+
+        /// <summary>
+        /// 起播一条怪物音效（受击 / 脚步 / 死亡同走这里；`IAudioModule` 可空 ⇒ 跳过）。
+        /// <para>为什么收成一个出口：`AudioModule` 侧已有**同键节流**（`Module/Audio/SfxThrottle.cs`），
+        ///   这里只负责"到点就请求一次"，不做去重（去重归接收侧）。</para>
+        /// </summary>
+        private static void PlayMonsterSfx(MonsterRuntime m, string key)
+        {
+            if (m == null || string.IsNullOrEmpty(key)) return;
+            var ctx = AppContext.I;
+            var audio = ctx != null ? ctx.Audio : null;
+            if (audio == null) return;
+            audio.SfxAt(key, m.State.worldX, m.State.worldY, m.State.worldZ);
         }
 
         /// <summary>怪物出手：把命中/伤害结算交给 `ICombatModule`（**本模块不自己算命中**）。</summary>

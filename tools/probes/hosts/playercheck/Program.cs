@@ -1262,7 +1262,10 @@ namespace PlayerCheck
                     CameraRig.MapWorldBounds(cs.W, cs.H, out var mbMin, out var mbMax);
                     var halfW = CameraRig.DefaultOrthographicSize * aspect;
                     var halfH = CameraRig.DefaultOrthographicSize;
-                    var clamped = CameraRig.ClampFocus(new Vector2(focusWorld.x, focusWorld.y), mbMin, mbMax, halfW, halfH);
+                    // ★ camera-clamp 片（2026-09-23）：`needClamp` 改用**生产夹制**
+                    //   `CameraBounds.ClampFocusGrid`（格空间）——旧口径用世界 AABB 的 `ClampFocus`，
+                    //   会与生产"两套算法"（AABB 说没夹、生产说夹了 ⇒ 分支选错、断言判的是另一件事）。
+                    var clamped = CameraBounds.ClampFocusGrid(new Vector2(focusWorld.x, focusWorld.y), cs.W, cs.H, halfW, halfH);
                     var needClamp = Math.Abs(clamped.x - focusWorld.x) > 1e-5f || Math.Abs(clamped.y - focusWorld.y) > 1e-5f;
 
                     var vp = CameraRig.WorldToViewport(focusWorld, camPos, CameraRig.DefaultOrthographicSize, aspect);

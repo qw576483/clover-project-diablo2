@@ -133,10 +133,9 @@ namespace Diablo2.Module.Combat
                 }
                 else
                 {
+                    // 只播**撞击音**；怪物自身受击音（`MonSounds.HitSound`）由
+                    // `MonsterModule.ApplyDamage` 按原版 `HitDelay` 帧排期后播（错开，见那边注释）。
                     audio.SfxAt(SfxKeys.Hit, target.worldX, target.worldY, target.worldZ);
-                    var ownHit = Monster.MonsterSfx.HitOf(target);
-                    if (ownHit != null)
-                        audio.SfxAt(ownHit, target.worldX, target.worldY, target.worldZ);
                 }
             }
 

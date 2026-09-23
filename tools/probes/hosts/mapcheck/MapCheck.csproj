@@ -60,6 +60,11 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <!-- ★ camera-clamp 片（2026-09-23）：§29 的缺陷判据**直接调生产** `CameraBounds.ClampFocusGrid`
+         （⛔ 不再在探针里镜像 6 行公式 —— 镜像会让"生产改了、探针照旧"变成假闸门）。
+         本件是**纯数学**（只用 `Core/Iso` + `UnityEngine`），不牵 `Game`/`AppContext`
+         ⇒ 单独链进来不会把整棵模块树拖进本宿主。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Camera\CameraBounds.cs" />
   </ItemGroup>
 
   <ItemGroup>

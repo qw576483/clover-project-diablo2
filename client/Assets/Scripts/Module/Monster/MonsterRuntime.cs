@@ -95,6 +95,20 @@ namespace Diablo2.Module.Monster
         /// <summary>受击硬直剩余秒数。</summary>
         public float HitStunTimer;
 
+        /// <summary>
+        /// 脚步：从上次出脚步声起**已走的距离（格）**。
+        /// 出处 = 原版 `MonSounds.FsCnt`（一个走路循环几步 ⇒ 每 `1/FsCnt` 格一步）。
+        /// </summary>
+        public float StepAccum;
+
+        /// <summary>待播的**怪物自身受击音**键（`MonSounds.HitSound`；null = 没有）。</summary>
+        public string PendingHitSfx;
+
+        /// <summary>
+        /// 待播受击音的剩余延迟（秒）= 原版 `MonSounds.HitDelay` **帧** ÷ `MonsterTuning.LogicFps`。
+        /// </summary>
+        public float PendingHitSfxTimer;
+
         /// <summary>攻击动画标记剩余秒数（写回 `State.attacking`）。</summary>
         public float AttackAnimTimer;
 

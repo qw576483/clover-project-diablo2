@@ -3972,23 +3972,38 @@ internal static class MapCheckProgram
         var fracObs = OffMapFraction(camObs, halfW, halfH, mw, mh);
         Console.WriteLine($"  实测机位 {camObs} 的可见矩形里『地图外』占比 = {fracObs * 100f:0.#}%");
 
-        // ④ 生产 ClampFocus 的放行区间（CameraRig.cs:484-495 的实现，⛔ 6 行镜像，出处见注释）
-        var spanTooWide = (max.x - min.x) > halfW * 2f;
-        var loX = spanTooWide ? min.x + halfW : (min.x + max.x) * 0.5f;
-        var hiX = spanTooWide ? max.x - halfW : loX;
-        var spanTooHigh = (max.y - min.y) > halfH * 2f;
-        var loY = spanTooHigh ? min.y + halfH : (min.y + max.y) * 0.5f;
-        var hiY = spanTooHigh ? max.y - halfH : loY;
-        var insideAabb = camObs.x >= loX && camObs.x <= hiX && camObs.y >= loY && camObs.y <= hiY;
-        Defect(insideAabb && fracObs > 0.35f,
-            $"生产 AABB 夹制**放行**该机位（焦点 {camObs.x:0.#}/{camObs.y:0.#} 在 [{loX:0.#},{hiX:0.#}]×[{loY:0.#},{hiY:0.#}] 内）" +
-            $" ⇒ 夹制后仍有 {fracObs * 100f:0.#}% 屏幕是地图外虚空（chunk-ctl 观测的『MISSING=0 却连续黑区』）");
+        // ④ 生产的放行区间 —— **直接调生产** `CameraBounds.ClampFocusGrid`
+        //    （camera-clamp 片：原先这里是「CameraRig.cs:484-495 的 6 行镜像」，镜像的坏处是
+        //     生产改了而探针照旧 ⇒ 判据永远停在旧行为上。改成调生产后，**判据 = 生产行为本身**。
+        //     判据本体一字未改：仍是「生产夹制放行该机位 ⇒ 夹制后仍有 X% 屏幕是图外虚空」。）
+        var prod = CameraBounds.ClampFocusGrid(new Vector2(camObs.x, camObs.y), mw, mh, halfW, halfH);
+        var prodMoved = Mathf.Abs(prod.x - camObs.x) > 0.01f || Mathf.Abs(prod.y - camObs.y) > 0.01f;
+        var fracProd = OffMapFraction(new Vector3(prod.x, prod.y, -10f), halfW, halfH, mw, mh);
+        Console.WriteLine($"  生产格空间夹制后机位 = ({prod.x:0.##},{prod.y:0.##})（Δ=({prod.x - camObs.x:0.##}," +
+                          $"{prod.y - camObs.y:0.##})），同口径地图外占比 = {fracProd * 100f:0.#}%");
+        // ⚠️ 极性说明（camera-clamp 片，⛔ 判据本体一字未改，只修 `Defect` 的**传参极性**）：
+        //    `Defect(ok, …)` 的语义是 **ok = 判据通过**（fail-to-pass：修好 ⇒ 变 true ⇒ ✅CLEARED）。
+        //    前片传的是"缺陷成立条件"（`insideAabb && fracObs > 0.35f`）：修好之后"放行"为 false
+        //    ⇒ 那个表达式恒 false ⇒ 判据**永远清不掉**（且阈值 0.35 与实测 31.3% 也不匹配）。
+        //    本片改成"修好后成立"的那一面：生产夹制**移动了**该机位 且 同口径虚空占比 = 0。
+        //    （退化校验：若把生产改回旧 AABB 夹制 ⇒ prodMoved=false ⇒ 本项立刻回 ❌DEFECT-REPRO。）
+        Defect(prodMoved && fracProd == 0f,
+            $"生产夹制**不再放行**该机位（{nameof(CameraBounds)}.{nameof(CameraBounds.ClampFocusGrid)} 把机位 " +
+            $"({camObs.x:0.#},{camObs.y:0.#}) 移到 ({prod.x:0.#},{prod.y:0.#})，" +
+            $"Δ=({prod.x - camObs.x:0.##},{prod.y - camObs.y:0.##})）" +
+            $" ⇒ 修前该机位有 {fracObs * 100f:0.#}% 屏幕是地图外虚空（chunk-ctl 观测的『MISSING=0 却连续黑区』），" +
+            $"修后同口径 = {fracProd * 100f:0.#}%");
+        Check(fracProd == 0f,
+            $"★ 生产：格空间夹制后该落点的『地图外』占比 = {fracProd * 100f:0.#}%（= 0 ⇒ 走的是生产实现，不是旧 AABB）");
 
         // ⑤ 规格：改成**格空间**夹制（可见格范围 ⊆ 地图），同一机位下占比必须归 0
         var spec = GridSpaceClamp(camObs, halfW, halfH, mw, mh);
         var fracSpec = OffMapFraction(spec, halfW, halfH, mw, mh);
         Console.WriteLine($"  格空间夹制（规格）后机位 = ({spec.x:0.##},{spec.y:0.##})，同口径地图外占比 = {fracSpec * 100f:0.#}%");
         Check(fracSpec == 0f, "★ 规格：格空间夹制后可见格范围 ⊆ 地图（地图外占比 = 0）");
+        // ★ camera-clamp 片追加：生产实现必须与规格函数**同一个数**（判"生产"不判"另一套算法"）
+        Check(Mathf.Abs(prod.x - spec.x) < 1e-3f && Mathf.Abs(prod.y - spec.y) < 1e-3f,
+            $"★ 生产 == 规格：同一落点机位差 ({prod.x - spec.x:0.####},{prod.y - spec.y:0.####})（> 1e-3 ⇒ 生产走的不是格空间夹制）");
         Defect(Mathf.Abs(spec.x - camObs.x) > 0.01f || Mathf.Abs(spec.y - camObs.y) > 0.01f,
             $"规格 vs 现状：同一落点下格空间夹制必须移动机位（现状 Δ=({spec.x - camObs.x:0.##},{spec.y - camObs.y:0.##})）" +
             " ⇒ 修 `CameraRig.MapWorldBounds/ClampFocus`（⛔ 不是 `MapView`）");
@@ -3997,6 +4012,10 @@ internal static class MapCheckProgram
         var mid = Iso.GridToWorld(40, 40);
         var midCam = new Vector3(mid.x, mid.y, -10f);
         Check(OffMapFraction(midCam, halfW, halfH, mw, mh) == 0f, "图心机位（格 40,40）可见矩形全部在图内（对照组，两种夹制等价）");
+        // ★ camera-clamp 片追加（回归哨兵）：图心机位必须**不被夹制**（夹制只在贴边处生效）
+        var prodMid = CameraBounds.ClampFocusGrid(new Vector2(mid.x, mid.y), mw, mh, halfW, halfH);
+        Check(Mathf.Abs(prodMid.x - mid.x) < 1e-4f && Mathf.Abs(prodMid.y - mid.y) < 1e-4f,
+            $"★ 生产：图心机位 ({mid.x:0.##},{mid.y:0.##}) 不被夹制（中间地带零回归）⇒ 实际 ({prodMid.x:0.##},{prodMid.y:0.##})");
         Console.WriteLine();
     }
 

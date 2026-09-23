@@ -60,6 +60,68 @@ namespace Diablo2.Module.Monster
                                 Combat.SfxKeys.MonsterDieWr, null } },
             };
 
+        // ═════════════════════════════════════════════════════════════════════
+        // 原版时序（★ 片 monster-audio 第四轮）：逐条取自 `MonSounds.txt` 的对应列，
+        //   ⛔ **没有一个数是凭空写的**。
+        //
+        //   列 → 含义（原版 `MonSounds.txt` 表头逐字）：
+        //     `HitDelay` = 受击音**延迟多少帧**才响（fallenshaman/zombie/brute/corruptrogue/
+        //                  foulcrow/wraith = 2，quillrat = 5，fallen = 2）；
+        //     `DeaDelay` = 死亡音延迟帧数（除 quillrat=4 外全为 1）；
+        //     `FsCnt`    = **一个走路循环有几次脚步** ⇒ 每走 `1/FsCnt` 格一步（有脚步的 6 类全为 2
+        //                  ⇒ **半格一步**；quillrat / wraith 该列为空 = 原版没有移动音）；
+        //     `FsOff`/`FsPrb` = 偏移与触发概率（6 类都是 0 / 100 ⇒ 不掷随机、不偏移）。
+        //
+        //   帧 → 秒的换算口径 = **÷ `MonsterTuning.LogicFps`（25）**：
+        //     出处 `Module/Monster/MonsterTuning.cs` 里「官方出处是动画帧数…**÷ 25**」那条注释，
+        //     以及 `OfficialAiDelayFrames / LogicFps` 的既有写法（同一个 25）。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>下标：0=`HitDelay`（帧） 1=`FsCnt`（一个走路循环几步；0 = 原版无移动音）。</summary>
+        private static readonly System.Collections.Generic.Dictionary<string, float[]> Timing =
+            new System.Collections.Generic.Dictionary<string, float[]>(
+                System.StringComparer.OrdinalIgnoreCase)
+            {
+                { "fa", new[] { 2f, 2f } },   // fallen:      HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
+                { "fs", new[] { 2f, 2f } },   // fallenshaman:HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
+                { "si", new[] { 5f, 0f } },   // quillrat:    HitDelay=5（FsCnt 空 = 无移动音）
+                { "zm", new[] { 2f, 2f } },   // zombie:      HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
+                { "ye", new[] { 2f, 2f } },   // brute:       HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
+                { "cr", new[] { 2f, 2f } },   // corruptrogue:HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
+                { "bk", new[] { 2f, 2f } },   // foulcrow:    HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
+                { "wr", new[] { 2f, 0f } },   // wraith:      HitDelay=2（FsCnt 空 = 无移动音）
+            };
+
+        /// <summary>
+        /// 该怪物**自身受击音**相对撞击音的延迟（秒）= `MonSounds.HitDelay` 帧 ÷ `LogicFps`。
+        /// 未登记 / 原版该列为 0 ⇒ 返回 0（同帧响）。
+        /// </summary>
+        public static float HitDelaySeconds(MonsterState s)
+        {
+            var row = TimingRow(s);
+            return row == null ? 0f : row[0] / MonsterTuning.LogicFps;
+        }
+
+        /// <summary>
+        /// 该怪物**每走多少格出一次脚步** = `1 / MonSounds.FsCnt`（6 类都是 2 ⇒ 0.5 格一步）。
+        /// 原版无移动音（`FsCnt` 为空）⇒ 返回 0（调用方不出声，⛔ 不许拿别的类凑）。
+        /// </summary>
+        public static float StepPeriodTiles(MonsterState s)
+        {
+            var row = TimingRow(s);
+            if (row == null || row[1] <= 0f) return 0f;
+            return 1f / row[1];
+        }
+
+        private static float[] TimingRow(MonsterState s)
+        {
+            if (s == null) return null;
+            var code = View.SpriteFrames.SpriteCodeOf(s.kindId);
+            if (string.IsNullOrEmpty(code)) return null;
+            float[] row;
+            return ByCode.ContainsKey(code) && Timing.TryGetValue(code, out row) ? row : null;
+        }
+
         /// <summary>该怪物的**受击**音键（原版 `MonSounds.HitSound`）；未登记返回 null。</summary>
         public static string HitOf(MonsterState s) { return Pick(s, 0, "hit"); }
 

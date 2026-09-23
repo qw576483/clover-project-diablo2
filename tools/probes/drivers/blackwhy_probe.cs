@@ -285,5 +285,55 @@ namespace BWy
             }
             return "[" + sb + "]";
         }
+
+        // ── BWy.Api.Edge("<gx>,<gy>") ──────────────────────────────────────────
+        // black-why2：把**玩家**挪到指定格 + 相机吸附过去 —— 用来在**贴边那一点**
+        // （实测黑窗现场 = 血腥荒野 (1,20)）复现/验证「相机夹制后还露不露地图外虚空」。
+        // 只读探针里唯一一处"写"：它只是传送（等价于玩家走过去），不改任何产品代码。
+        internal static string Edge(string arg)
+        {
+            var parts = (arg ?? "").Split(',');
+            int gx, gy;
+            if (parts.Length < 2 || !int.TryParse(parts[0].Trim(), out gx) || !int.TryParse(parts[1].Trim(), out gy))
+            {
+                Debug.Log("[BWY] EDGE-BAD-ARG " + arg + "（期望 \"<gx>,<gy>\"）");
+                return "EDGE-BAD-ARG";
+            }
+
+            var gridT = FindType("UnityEngine.Vector2Int");
+            var grid = gridT != null ? Activator.CreateInstance(gridT, gx, gy) : null;
+            var player = CtxMember("Player");
+            var cam = CtxMember("Camera");
+
+            var sb = new StringBuilder();
+            sb.Append("EDGE-SET grid=(").Append(gx).Append(',').Append(gy).Append(") ");
+
+            if (player != null && grid != null)
+            {
+                var m = player.GetType().GetMethod("TeleportTo",
+                    BindingFlags.Public | BindingFlags.Instance, null, new[] { gridT }, null);
+                if (m != null) { m.Invoke(player, new[] { grid }); sb.Append("player=ok "); }
+                else sb.Append("player=NO-TeleportTo ");
+            }
+            else sb.Append("player=null ");
+
+            if (cam != null && grid != null)
+            {
+                var ms = cam.GetType().GetMethod("SetTargetGrid",
+                    BindingFlags.Public | BindingFlags.Instance, null, new[] { gridT }, null);
+                if (ms != null) { ms.Invoke(cam, new[] { grid }); sb.Append("cam.target=ok "); }
+                else sb.Append("cam=NO-SetTargetGrid ");
+
+                var mp = cam.GetType().GetMethod("SnapToTarget",
+                    BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+                if (mp != null) { mp.Invoke(cam, null); sb.Append("cam.snap=ok"); }
+                else sb.Append("cam=NO-SnapToTarget");
+            }
+            else sb.Append("cam=null");
+
+            var line = "BWY-EDGE " + sb;
+            Debug.Log("[BWY] " + line);
+            return line;
+        }
     }
 }

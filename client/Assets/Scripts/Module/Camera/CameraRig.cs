@@ -500,60 +500,9 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// ★ black-why2：纯函数 —— **格空间**夹制：把机位夹到「**可见格矩形 ⊆ 地图**」的最小位移。
-        /// <para>**为什么必须有这一层**（用户症状「一大片是黑的」的根因，实测/实机互证 31.3% / 34.0%）：
-        /// 等距地图在**世界**里是一个**菱形**，而 <see cref="MapWorldBounds"/> 取的是这个菱形的
-        /// **轴对齐包围盒**（80×80 地图 ⇒ 158×79 世界单位）；<see cref="ClampFocus"/> 只把机位夹进
-        /// 「AABB − 半屏」，而屏幕矩形本身是**轴对齐**的 ⇒ 机位虽在 AABB 内、**屏幕四角仍大量落在菱形
-        ///（= 地图）之外** ⇒ 那些区域没有任何地图数据 ⇒ 那一大片就是黑的（离线现算 31.3%，实机像素 34.0%）。</para>
-        /// <para>做法：用生产 `Iso.WorldToGridContinuous` **现算**可见格包围盒，把它整体推进地图矩形；
-        /// `Iso` 是线性变换 ⇒ 「格位移 → 世界位移」就是两条基向量（`GridToWorld(1,0)` / `GridToWorld(0,1)`
-        /// 相对原点），多迭代几轮收敛（相邻两边同时越界时逐轮收紧）。⛔ 不写任何裸数字。</para>
-        /// <para>⚠️ **位移上限 = 半屏（`halfW` / `halfH`）**：机位相对焦点最多偏移半屏，再多**玩家就出画了**
-        /// —— 那是既有判据（`tools/playercheck` §11.9「被钳制 ⇒ 焦点仍在视口内」）钉死的硬约束，
-        /// ⛔ 本函数不许把它顶掉。为什么必须有这个上限：地图**角**上（同时越两条边）要让
-        /// 「可见格范围 ⊆ 地图」需要把机位推 ~7 格（> 半屏 3.75）⇒ 与"玩家必须在画面内"**数学上不可兼得**；
-        /// 此时按「先保玩家可见、再把虚空推到最少」处置（角落仍会余少量虚空，这是几何必然，不是缺陷）。</para>
-        /// <para>与 <see cref="ClampFocus"/> 的关系：**先 AABB（视野比地图大时居中 + 「只在地图内滚动」），
-        /// 再格空间（不许露出图外虚空）** —— 后者更严，前者保留原有的居中语义。</para>
-        /// <para>出处：**本类既有注释自己写的规格**（本次是让实现符合它，⛔ 不是新发明语义）——
-        /// <see cref="ClampFocus"/> 的摘要「原版相机只在地图范围内滚动」；离线规格与判据见
-        /// `tools/probes/hosts/mapcheck` §29（同形实现 `GridSpaceClamp`，同落点 Δ=(+5.58,−2.79)）。</para>
-        /// </summary>
-        public static Vector2 ClampFocusToGrid(Vector2 focus, int mapWidth, int mapHeight, float halfW, float halfH)
-        {
-            if (mapWidth <= 0 || mapHeight <= 0) return focus;
-            if (halfW <= 0f || halfH <= 0f) return focus;
-
-            // `Iso` 是线性变换 ⇒ 两条基向量即「格位移 → 世界位移」的（常量）雅可比。
-            var origin = Iso.GridToWorld(0, 0);
-            var stepX = Iso.GridToWorld(1, 0) - origin;      // +1 格 x
-            var stepY = Iso.GridToWorld(0, 1) - origin;      // +1 格 y
-
-            var shiftX = 0f;
-            var shiftY = 0f;
-            for (var pass = 0; pass < 8; pass++)
-            {
-                float loX, hiX, loY, hiY;
-                VisibleGridRect(focus.x + shiftX, focus.y + shiftY, halfW, halfH, out loX, out hiX, out loY, out hiY);
-                if (loX >= 0f && hiX <= mapWidth - 1 && loY >= 0f && hiY <= mapHeight - 1) break;
-
-                // 越了哪边就往回推多少格（两侧同时越界时只推一侧，下一轮再收紧另一侧）
-                var needX = loX < 0f ? -loX : (hiX > mapWidth - 1 ? mapWidth - 1 - hiX : 0f);
-                var needY = loY < 0f ? -loY : (hiY > mapHeight - 1 ? mapHeight - 1 - hiY : 0f);
-                shiftX += stepX.x * needX + stepY.x * needY;
-                shiftY += stepX.y * needX + stepY.y * needY;
-
-                // 上限 = 半屏：再多焦点（玩家）就出画了（见 XML 注释里的 ⚠️ 段）。
-                if (shiftX > halfW) shiftX = halfW; else if (shiftX < -halfW) shiftX = -halfW;
-                if (shiftY > halfH) shiftY = halfH; else if (shiftY < -halfH) shiftY = -halfH;
-                if (Mathf.Abs(shiftX) >= halfW - 1e-6f && Mathf.Abs(shiftY) >= halfH - 1e-6f) break;
-            }
-            return new Vector2(focus.x + shiftX, focus.y + shiftY);
-        }
-
-        /// <summary>
         /// 纯函数：机位（世界）→ **可见格**包围盒（生产 `Iso.WorldToGridContinuous` 现算）。
+        /// <para>用途：`tools/playercheck` §11.10「贴边不露虚空」用它**直接量**生产机位的越界格数
+        /// （⛔ 不在宿主里再镜像一份几何 —— 镜像 = 改了生产也不变红的假闸门）。</para>
         /// <para>`Iso` 是线性变换 ⇒ 矩形映射后的极值必在四个角上 ⇒ 只看四角即可（不必逐像素采样）。</para>
         /// </summary>
         public static void VisibleGridRect(float camX, float camY, float halfW, float halfH,
@@ -592,12 +541,10 @@ namespace Diablo2.Module
         {
             // ★ 格空间夹制（⛔ 不是世界 AABB）：把「可见格矩形」夹进 [0..W-1]×[0..H-1]。
             //   实现只在 `CameraBounds.ClampFocusGrid`（同一份 = 离线宿主 `mapcheck` §29 断言的那份）。
+            // ⛔ 只走**一份**夹制实现（本片与 camera-clamp 片撞车过一次，两份叠加 = 夹两次 + 口径可能打架）。
+            //   「主角可见优先」那条硬约束已在 `CameraBounds.ClampFocusGrid` 内部处理（见该文件头「一条硬约束」段）。
             var f = CameraBounds.ClampFocusGrid(new Vector2(focus.x, focus.y), mapWidth, mapHeight,
                 orthoSize * aspect, orthoSize);
-            // ★ black-why2：再夹一层**格空间** —— AABB 夹制只保证机位在菱形的包围盒里，
-            //   而屏幕是轴对齐矩形 ⇒ 四角仍可能落在菱形（= 地图）之外 ⇒ 那片没有地图数据 = 黑的。
-            //   本行是「用户症状：一大片是黑的」的修点（规格与离线判据见 mapcheck §29）。
-            f = ClampFocusToGrid(f, mapWidth, mapHeight, orthoSize * aspect, orthoSize);
             var p = DesiredPosition(new Vector3(f.x, f.y, focus.z), cameraZ);
             p.z = cameraZ;                        // 焦点 z 不参与（世界是 z=0 的 XY 平面）
             return p;
