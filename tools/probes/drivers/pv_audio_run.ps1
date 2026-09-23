@@ -218,20 +218,62 @@ if ($snapLine) {
 }
 $ids = $ids | Select-Object -Unique
 Say ('MONSTER-IDS ' + ($ids -join ',') + ' count=' + $ids.Count)
+
+# A round is worthless without monsters (23:14 produced exactly that: count=0 => zero evidence).
+# One retry, then we report honestly instead of pretending it ran.
+if ($ids.Count -eq 0) {
+    for ($r = 0; $r -lt 3 -and $ids.Count -eq 0; $r++) {
+        Say ('RETRY-SNAP round=' + ($r + 1))
+        Start-Sleep -Seconds 6
+        Run-Step $pvcs 'PVA.Api.Snap' '' | Out-Null
+        for ($k = 0; $k -lt 8; $k++) { Read-New; if ((Lines-With '\[PVA\] SNAP').Count -gt 0) { break }; Start-Sleep -Seconds 1 }
+        $snapLine = @(Lines-With '\[PVA\] SNAP') | Select-Object -Last 1
+        $ids = @()
+        if ($snapLine) {
+            foreach ($mm in ([regex]::Matches($snapLine, '(\d+):\d+:[^:,\[\]]+:\d+/\d+'))) { $ids += $mm.Groups[1].Value }
+        }
+        $ids = $ids | Select-Object -Unique
+        Say ('RETRY-RESULT count=' + $ids.Count)
+    }
+}
+
+# Team-lead round 2 (2026-09-23): the last attempt used ApplyDamage(id,3) on a 3-hp monster, so it
+# died INSTANTLY and there was no "hurt but alive" window => monster_hit_* never had a chance to play.
+# => pick the TANKIEST alive monster (largest maxHp) and damage it with 1, so it survives.
+$tankId = ''
+$tankMax = -1
+foreach ($m in ([regex]::Matches($snapLine, '(\d+):\d+:[^:,\[\]]+:\d+/(\d+)'))) {
+    $mx = [int]$m.Groups[2].Value
+    if ($mx -gt $tankMax) { $tankMax = $mx; $tankId = $m.Groups[1].Value }
+}
+Say ('TANK id=' + $tankId + ' maxHp=' + $tankMax)
 if ($ids.Count -eq 0) { Say 'ABORT no live monsters in view -> finish with what we have' }
 $allIds = ($ids -join '|')
 
 # ---- phase 1: HIT (expect the generic impact sound + the monster own gethit sound) ----
 if ($ids.Count -gt 0) {
-    Run-Step $pvcs 'PVA.Api.Mark' 'hit' | Out-Null
+    # ---- phase 1: HURT BUT DO NOT KILL (round 2) -------------------------------------
+    # (a) start recording that monster's ANIMATION FRAMES first (the E28 "only 3 frames" question)
+    $hurtId = if ($tankId.Length -gt 0) { $tankId } else { $ids[0] }
+    Run-Step $pvcs 'PVA.Api.Mark' 'hurt' | Out-Null
+    Run-Step $pvcs 'PVA.Api.Watch' ($hurtId + '|8') | Out-Null
+
     $near = Run-Step $pvcs 'PVA.Api.Nearest' ''
     $nearId = ''
     if ($near -match 'id=(\d+)') { $nearId = $Matches[1] }
-    Say ('NEAREST ' + $near + ' id=' + $nearId)
-    # the REAL click-to-attack entry, four times with a real gap (the same way the held left
-    # button is emitted every frame).  This is what drives DamagePipeline, unlike ApplyDamage.
-    for ($a = 0; $a -lt 4; $a++) { Run-Step $pvcs 'PVA.Api.Attack' $nearId | Out-Null; Start-Sleep -Seconds 1 }
+    Say ('NEAREST ' + $near + ' id=' + $nearId + ' hurtId=' + $hurtId)
+    # (b) the REAL click-to-attack entry, twice (the way the held left button is emitted every
+    #     frame).  This is what reaches DamagePipeline, unlike ApplyDamage.
+    if ($nearId.Length -gt 0) { for ($a = 0; $a -lt 2; $a++) { Run-Step $pvcs 'PVA.Api.Attack' $nearId | Out-Null; Start-Sleep -Seconds 1 } }
     Start-Sleep -Seconds 2
+    Run-Step $pvcs 'PVA.Api.Since' '' | Out-Null
+
+    # (c) guarantee a NON-LETHAL damage tick on the tankiest monster (amount 1), which is the
+    #     "hit but alive" window the previous round never had.
+    Run-Step $pvcs 'PVA.Api.Mark' 'hurt2' | Out-Null
+    Run-Step $pvcs 'PVA.Api.Watch' ($hurtId + '|8') | Out-Null
+    Run-Step $pvcs 'PVA.Api.Hit' ($hurtId + '|1') | Out-Null
+    Start-Sleep -Seconds 3
     Run-Step $pvcs 'PVA.Api.Since' '' | Out-Null
     Run-Step $pvcs 'PVA.Api.Shot' (($raw -replace '\\', '/') + '/pv_audio_1_hit.png') | Out-Null
     Start-Sleep -Seconds 2

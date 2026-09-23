@@ -82,6 +82,10 @@ internal static class MapCheckProgram
         Run(Step29_CameraClampMapEdge);
         // ── ★ 片 black-why2（2026-09-23）：进区落点的边界余量（只加断言）─────────
         Run(Step30_EntryLandingMargin);
+        // ── ★ 片 map-border（2026-09-23）：「可走区铺到地图最外圈」根治（只加断言）────────
+        Run(Step31_WalkableBorderRing);
+        // ── ★ 片 map-border2（2026-09-23）：城镇豁免 §31 的**实测证据**（贴边可走格清单）──────
+        Run(Step32_TownBorderWalkableInventory);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -4072,6 +4076,235 @@ internal static class MapCheckProgram
             Console.WriteLine($"      反证：修前落点 ({gate.x + 1},{gate.y}) 的同口径地图外占比 = {oldFrac * 100f:0.#}%" +
                 "（> 0 = 那一帧必然露出左上那块笔直的黑三角）");
         }
+        Console.WriteLine();
+    }
+
+    // ── ★ 片 map-border（2026-09-23）：**可走区**离地图四边界 ≥ N 格 ────────────
+    //    为什么这条判据能同时判住以前互相打架的两条（camera-follow 片结论）：
+    //      · 「零虚空」要求机位离边界 ≥ 7.083 格（可见格包围盒半跨 = halfW/(2·HalfW) + halfH/(2·HalfH)）；
+    //      · 「玩家跟随」要求机位 == 玩家。
+    //    ⇒ 二者同时成立 ⟺ **玩家（可走格）离边界 ≥ 7.083 格**。本步就判这一件事。
+    //    只加断言：⛔ 不动 §0~§30 的任何一行、⛔ 不放宽任何既有断言。
+    private static void Step31_WalkableBorderRing()
+    {
+        Section($"31. ★ map-border：所有可走格距四边界 ≥ N 格（N={GridMap.BorderRingCells}）" +
+                " + 贴边机位零虚空 + 跟随偏移 p50 ≤ 半格");
+
+        var n = GridMap.BorderRingCells;
+        Console.WriteLine($"  N = {n}  ← 原版 `LvlPrest.txt`「Act 1 - Wild Border *」SizeX=SizeY=8" +
+                          "（`Levels.txt`「Act 1 - Wilderness 1」SizeX=SizeY=80 ⇒ 10×10 块，最外一圈 = 边界环）；" +
+                          "亦 > 相机实测可见格半跨 7.083 格（ortho=3.75 / 1920×1080）");
+
+        const float ortho = 3.75f;                  // 实测
+        const float aspect = 1920f / 1080f;         // 实测
+        var halfW = ortho * aspect;
+        var halfH = ortho;
+
+        var seeds = new[] { 20250916, 222, 1001, 777001 };
+        var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+
+        foreach (var area in areas)
+        {
+            // ★ 片 map-border2：**城镇豁免 §31**（主 agent 2026-09-23 裁决 = 选项 A）。
+            //   为什么豁免（两条，互相独立）：
+            //   ① **边界语义不同**：§31 的「可走区离四边界 ≥ N」是照原版**野外**的边界块口径定的
+            //      （`LvlPrest.txt`「Act 1 - Wild Border *」= 8 格崖壁/树线块，本身不可走）。
+            //      城镇是原版 `Levels.txt`「Act 1 - Town」的**整关 56×40**，营地**围栏那一行
+            //      就是关卡的最后一行** ⇒ 原版城镇的边界本来就是**建筑/围栏**，不是地形边界块
+            //      ⇒ 把野外语义套到城镇上属**判据适用范围错**，不是城镇有缺陷。
+            //   ② **与既有冻结判据 §24 数学互斥**：§24「关卡东边界列（x=Width-1）上存在可走桥面格」
+            //      （原版木桥东端 = 与野外的共享边列）要求 x=Width-1 可走，而该列距东边界恒 = 0
+            //      ⇒ 任何城镇地图都同时满足不了 §31 与 §24；改 §24 属**改契约**。
+            //   ⛔ 本分支**不是**放宽阈值 / 改永真 / 删断言：城镇的实测值仍逐项现算并**打印留痕**
+            //      （最贴边可走格 / 距离 / p50 / 地图外占比 / 机位偏移），只是不计入 `_failures`，
+            //      并且**每一行都打 `⤵ SKIP`**（不静默跳过）。
+            //   差异登记：`策划/差异登记.tsv`（D2-MAP-BORDER-TOWN-EXEMPT）；实测清单见 §32。
+            var skip31 = area == AreaId.Town;
+
+            foreach (var seed in seeds)
+            {
+                var map = NewMap();
+                map.Generate(area, seed);
+                var w = map.Width;
+                var h = map.Height;
+
+                // ① 扫全图：最贴边的可走格 + 全部可走格的**相机跟随偏移**（格）
+                var worst = int.MaxValue;
+                var worstCell = new Vector2Int(-1, -1);
+                var walkCount = 0;
+                var offsets = new List<float>();
+
+                for (var y = 0; y < h; y++)
+                {
+                    for (var x = 0; x < w; x++)
+                    {
+                        var g = new Vector2Int(x, y);
+                        if (!map.Walkable(g)) continue;
+                        walkCount++;
+
+                        var d = Mathf.Min(Mathf.Min(x, w - 1 - x), Mathf.Min(y, h - 1 - y));
+                        if (d < worst) { worst = d; worstCell = g; }
+
+                        var wp = Iso.GridToWorld(x, y);
+                        var clamped = CameraBounds.ClampFocusGrid(new Vector2(wp.x, wp.y), w, h, halfW, halfH);
+                        var cg = Iso.WorldToGridContinuous(new Vector3(clamped.x, clamped.y, 0f));
+                        var ox = Mathf.Abs(cg.x - x);
+                        var oy = Mathf.Abs(cg.y - y);
+                        offsets.Add(Mathf.Max(ox, oy));
+                    }
+                }
+
+                // ② 跟随偏移 p50（**每一个可走格**都算，不是抽样）
+                offsets.Sort();
+                var p50 = offsets.Count == 0 ? float.NaN : offsets[offsets.Count / 2];
+                var pMax = offsets.Count == 0 ? float.NaN : offsets[offsets.Count - 1];
+
+                // ③ 最贴边那格：**可见格 ⊆ 地图**（零虚空），且**机位 == 玩家**（没被顶到画面角上）
+                //    ⚠️ 量测一律照算（城镇也要打留痕），只是**计不计入 `_failures`** 由 `skip31` 决定
+                var frac = 0f;
+                var moved = false;
+                var cc = Vector2.zero;
+                var wc = Vector2.zero;
+                if (worstCell.x >= 0)
+                {
+                    wc = Iso.GridToWorld(worstCell.x, worstCell.y);
+                    frac = OffMapFraction(new Vector3(wc.x, wc.y, -10f), halfW, halfH, w, h);
+                    cc = CameraBounds.ClampFocusGrid(new Vector2(wc.x, wc.y), w, h, halfW, halfH);
+                    moved = Mathf.Abs(cc.x - wc.x) > 1e-3f || Mathf.Abs(cc.y - wc.y) > 1e-3f;
+                }
+
+                if (skip31)
+                {
+                    // 城镇：不计判据，但**数值全部打印**（留痕；⛔ 不是静默跳过）
+                    Console.WriteLine($"    ⤵ SKIP §31 {area} seed={seed}：原版城镇边界 = 营地围栏，" +
+                                      "非地形边界块（出处 `Levels.txt`「Act 1 - Town」56×40 整关，" +
+                                      "营地围栏那行 = 关卡最后一行）");
+                    Console.WriteLine($"       留痕（不计判据）：最贴边可走格 {worstCell} 距四边界 {worst} 格" +
+                                      $"（可走格共 {walkCount}）；跟随偏移 p50 = {p50:0.###} / pMax = {pMax:0.###}；" +
+                                      $"最贴边处地图外占比 = {frac * 100f:0.#}%；机位偏移 Δ=({cc.x - wc.x:0.###},{cc.y - wc.y:0.###})" +
+                                      $"（贴边可走格清单见 §32）");
+                    continue;
+                }
+
+                Check(worst >= n,
+                    $"{area} seed={seed}（{w}x{h}）：最贴边的可走格 {worstCell} 距四边界 {worst} 格 ≥ {n}" +
+                    $"（可走格共 {walkCount} 格；{worst} < {n} ⇒ 玩家走得到虚空边）");
+
+                Check(offsets.Count > 0 && p50 <= 0.5f,
+                    $"{area} seed={seed}：站在任意可走格时相机跟随偏移 p50 = {p50:0.###} 格 ≤ 半格" +
+                    $"（最大 {pMax:0.###} 格，样本 {offsets.Count} 个可走格）");
+
+                if (worstCell.x < 0) continue;
+                Check(frac == 0f,
+                    $"{area} seed={seed}：最贴边可走格 {worstCell} 处可见矩形『地图外』占比 = {frac * 100f:0.#}%（= 0 ⇒ 零虚空）");
+                Check(!moved,
+                    $"{area} seed={seed}：最贴边可走格 {worstCell} 处机位**不需要**为躲虚空而偏移（Δ=({cc.x - wc.x:0.###},{cc.y - wc.y:0.###})）");
+            }
+        }
+        Console.WriteLine();
+    }
+
+    // ── ★ 片 map-border2：城镇**贴边可走格清单**（豁免 §31 的实测证据，主 agent 要求）─────
+    //   为什么要它：裁决 A 的前提是"城镇里玩家实际走不到的贴边格 / 走到了也不露虚空"，
+    //   这必须用**坐标 + 地形 + 从出生点可达**三件套钉住，⛔ 不许拿"§31 绿了"当证据。
+    //   本步只打印 + 断言"清单非空"（清单本身是证据，不是判据）。
+    private static void Step32_TownBorderWalkableInventory()
+    {
+        Section("32. ★ map-border2：城镇贴边可走格清单（地形 + 可达性 + 该处地图外占比）");
+
+        const float ortho = 3.75f;
+        const float aspect = 1920f / 1080f;
+        var halfW = ortho * aspect;
+        var halfH = ortho;
+
+        var map = NewMap();
+        map.Generate(AreaId.Town, 20250916);
+        var w = map.Width;
+        var h = map.Height;
+
+        // ① 按"距边界 d"分组统计可走格（d = 0..8）
+        var byDist = new int[16];
+        var touching = new List<Vector2Int>();
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var g = new Vector2Int(x, y);
+                if (!map.Walkable(g)) continue;
+                var d = Mathf.Min(Mathf.Min(x, w - 1 - x), Mathf.Min(y, h - 1 - y));
+                if (d < byDist.Length) byDist[d]++;
+                if (d == 0) touching.Add(g);
+            }
+        }
+
+        var hist = new List<string>();
+        for (var d = 0; d <= 8; d++) hist.Add($"d={d}:{byDist[d]}");
+        Console.WriteLine($"  城镇 {w}x{h} 可走格按「距四边界最近距离」分布：{string.Join(" ", hist)}");
+        Console.WriteLine($"  距边界 = 0（**贴边**）的可走格共 {touching.Count} 格");
+
+        // ② 逐格：地形 / 原版瓦片键 / 从出生点是否可达 / 该处视口『地图外』占比
+        var reachable = 0;
+        var printed = 0;
+        foreach (var g in touching)
+        {
+            var path = map.FindPath(map.SpawnPoint, g);
+            if (path != null) reachable++;
+            if (printed >= 12) continue;                  // 打印前 12 格（清单全量在下面的汇总里）
+            printed++;
+            map.TryGetTileKeys(g.x, g.y, out var gk, out var ok);
+            var wp = Iso.GridToWorld(g.x, g.y);
+            var frac = OffMapFraction(new Vector3(wp.x, wp.y, -10f), halfW, halfH, w, h);
+            Console.WriteLine($"    贴边格 {g}：kind={map.TileAt(g)} 地面键='{gk}' 物件键='{ok}' " +
+                              $"从出生点可达={(path != null)} 该处地图外占比={frac * 100f:0.#}%");
+        }
+        Console.WriteLine($"  贴边可走格中**从出生点走得到**的 = {reachable}/{touching.Count}");
+
+        Check(touching.Count > 0, $"城镇确实存在贴边（d=0）可走格 {touching.Count} 格" +
+                                 "（⇒ 城镇**不满足** §31 的 ≥8；本步只记录，判据豁免见 §31 的 SKIP 分支）");
+        Check(reachable > 0, $"其中从出生点**走得到**的 = {reachable} 格" +
+                            "（> 0 ⇒ 豁免的前提必须靠主 agent 复核：玩家真能站到贴边格）");
+
+        // ③ ★ 主 agent 裁决第 3 条要的那个数：**过了生产相机夹制之后，屏幕上还有没有地图外虚空**。
+        //    为什么要单独算这一档：`CameraBounds.ClampFocusGrid` 在地图**角格**处有回退
+        //    ——`CameraBounds.cs:31`「角格处无解 ⇒ **让位给主角可见**（地图角落那点虚空
+        //    由地图边界块[遮住]）」＋ `:115` 的 Warn。野外/洞穴有边界块兜住那点虚空，
+        //    城镇**没有**边界块（围栏就是关卡边界）⇒ 回退一旦触发，屏幕上就真露虚空。
+        //    ⚠️ 口径：夹制**位移为 0** 的格 = 可见格矩形本来就 ⊆ 地图 ⇒ 占比恒 0（不必 160×160 采样）；
+        //       只有位移 ≠ 0 的格才需要现算。本段**只打印不做判据**（判据见 §31 的 SKIP 分支）。
+        var prodCells = 0;
+        var prodVoidCells = 0;
+        var prodVoidInsideCamp = 0;
+        var prodVoidOutsideCamp = 0;
+        var worstProdFrac = 0f;
+        var worstProdCell = new Vector2Int(-1, -1);
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var g = new Vector2Int(x, y);
+                if (!map.Walkable(g)) continue;
+                prodCells++;
+                var wp = Iso.GridToWorld(x, y);
+                var cp = CameraBounds.ClampFocusGrid(new Vector2(wp.x, wp.y), w, h, halfW, halfH);
+                if (Mathf.Abs(cp.x - wp.x) < 1e-4f && Mathf.Abs(cp.y - wp.y) < 1e-4f) continue;
+                var f = OffMapFraction(new Vector3(cp.x, cp.y, -10f), halfW, halfH, w, h);
+                if (f > 0f)
+                {
+                    prodVoidCells++;
+                    // 拆账：营地**内框**（x(17,47) × y(16,39)，同 §10 的口径）vs 营地外
+                    // ⇒ 主 agent 若选「封城镇贴边可走格」，可修的部分只有**营地外**那一半。
+                    if (x > 17 && x < 47 && y > 16 && y < 39) prodVoidInsideCamp++;
+                    else prodVoidOutsideCamp++;
+                }
+                if (f > worstProdFrac) { worstProdFrac = f; worstProdCell = g; }
+            }
+        }
+        Console.WriteLine($"  ★ 拆账：其中**营地内框**里 {prodVoidInsideCamp} 格 / **营地外** {prodVoidOutsideCamp} 格" +
+                          "（营地外那些可以封成围栏/树；营地内框那些要封就得裁原版营地本体 ⇒ 另立裁决）");
+        Console.WriteLine($"  ★ 生产机位夹制**之后**屏幕上仍有地图外虚空的可走格 = {prodVoidCells}/{prodCells} 格" +
+                          $"（最大占比 {worstProdFrac * 100f:0.#}% @ {worstProdCell}）；" +
+                          "= 0 ⇒ 夹制兜住了（玩家只是被顶离画面中心）；> 0 ⇒ 画面上真露虚空" +
+                          "（此时 §31 的豁免就必须换成「把城镇的贴边可走格封成围栏/建筑」，见报告 §3）");
         Console.WriteLine();
     }
 

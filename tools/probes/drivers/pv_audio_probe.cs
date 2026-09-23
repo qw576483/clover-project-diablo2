@@ -106,6 +106,13 @@ namespace PVA
         internal static IMonsterModule Monsters() { return CtxMember("Monster") as IMonsterModule; }
         internal static IMapModule Map() { return CtxMember("Map") as IMapModule; }
         internal static IPlayerModule Player() { return CtxMember("Player") as IPlayerModule; }
+        internal static IViewModule View() { return CtxMember("View") as IViewModule; }
+
+        /// <summary>Rect to string with integers (a sprite frame is identified by name + rect).</summary>
+        internal static string RectStr(UnityEngine.Rect r)
+        {
+            return ((int)r.x) + "," + ((int)r.y) + "," + ((int)r.width) + "," + ((int)r.height);
+        }
 
         internal static string F(float v) { return v.ToString("0.00", CultureInfo.InvariantCulture); }
     }
@@ -155,6 +162,63 @@ namespace PVA
             {
                 _nextBeat = Time.unscaledTime + 2f;
                 Probe.Log("LISTEN alive frame=" + Time.frameCount + " sources=" + _prev.Count + " plays=" + Probe.Plays.Count);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Per-frame sampler of ONE monster's render node: records every change of
+    /// (sprite name, sprite rect) -- i.e. the animation FRAME sequence actually shown.
+    /// `IViewModule.GetView(entityId)` returns the view GameObject; the sprite lives on it or a child
+    /// (the same recipe camjitter_drive.cs uses for the player node, but through the public contract).
+    /// Samples are LOGGED per change (not kept in memory) because every `run_script` call compiles
+    /// this file into its own assembly and would see an empty static list.
+    /// </summary>
+    public class FrameSampler : MonoBehaviour
+    {
+        internal int Id = -1;
+        internal float StopAt;
+
+        private string _sprite = string.Empty;
+        private string _rect = string.Empty;
+        private int _frames;
+        private int _changes;
+
+        private void Update()
+        {
+            try
+            {
+                var view = Probe.View();
+                var go = view != null ? view.GetView(Id) : null;
+                if (go == null) return;
+                var sr = go.GetComponentInChildren<SpriteRenderer>(true);
+                if (sr == null) return;
+
+                _frames++;
+                var sp = sr.sprite;
+                var name = sp != null ? sp.name : "(none)";
+                var rect = sp != null ? Probe.RectStr(sp.rect) : "0,0,0,0";
+                if (name != _sprite || rect != _rect)
+                {
+                    _changes++;
+                    Probe.Log("HITFRAME id=" + Id + " frame=" + Time.frameCount
+                              + " t=" + Probe.F(Time.unscaledTime)
+                              + " sprite=" + name + " rect=(" + rect + ") changes=" + _changes
+                              + " animFramesSoFar=" + _changes);
+                    _sprite = name;
+                    _rect = rect;
+                }
+
+                if (Time.unscaledTime >= StopAt)
+                {
+                    Probe.Log("WATCH-END id=" + Id + " sampledFrames=" + _frames + " spriteChanges=" + _changes);
+                    enabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Probe.Warn("FRAME-SAMPLE-FAIL " + ex.GetType().Name + ": " + ex.Message);
+                enabled = false;
             }
         }
     }
@@ -253,6 +317,24 @@ namespace PVA
                       + " alive=" + (now != null ? (now.alive ? 1 : 0) : -1)
                       + " frame=" + Time.frameCount);
             return "HIT-OK hp=" + (now != null ? now.hp : -1) + " alive=" + (now != null ? (now.alive ? 1 : 0) : -1);
+        }
+
+        /// <summary>spec = "&lt;monsterId&gt;|&lt;seconds&gt;": start sampling that monster's sprite frames for N seconds.</summary>
+        public static string Watch(string spec)
+        {
+            var parts = (spec ?? string.Empty).Split('|');
+            if (parts.Length < 2) { Probe.Warn("WATCH bad spec=" + spec); return "ERR-spec"; }
+            int id; float secs;
+            if (!int.TryParse(parts[0], out id) || !float.TryParse(parts[1], out secs))
+            { Probe.Warn("WATCH bad numbers=" + spec); return "ERR-num"; }
+
+            var go = new GameObject("PVAudioFrameSampler");
+            UnityEngine.Object.DontDestroyOnLoad(go);
+            var fs = go.AddComponent<FrameSampler>();
+            fs.Id = id;
+            fs.StopAt = Time.unscaledTime + secs;
+            Probe.Log("WATCH-START id=" + id + " seconds=" + Probe.F(secs) + " frame=" + Time.frameCount);
+            return "WATCH-OK id=" + id + " secs=" + secs;
         }
 
         /// <summary>The alive monster closest to the player (Chebyshev grid distance). Read-only.</summary>
