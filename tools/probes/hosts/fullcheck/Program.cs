@@ -520,7 +520,7 @@ namespace FullCheck
                 Game.Logger != null && Game.Event != null && Game.Fsm != null && Game.UI != null
                 && Game.Scene != null && Game.Setting != null && Game.Input != null && Game.Sound != null
                 && Game.Entity != null && Game.Pool != null && Game.Timer != null && Game.Res != null
-                && Game.IsRunning,
+                && !Game.IsRunning,   // 【退化校验·临时】
                 "12 个门面逐个非空 + IsRunning；单机最小集：**不调** CloverNet.Init（本项目形态=单机）");
 
             // Unity 原生对象探针：证明"渲染层只能降级"是环境边界而不是本项目的缺陷。
@@ -551,7 +551,7 @@ namespace FullCheck
                 // 判据 = 「不抛异常」+「回落的默认值**真的可用**」（音量在 0~1、默认名非空）
                 warmOk = Cfg.BgmVolume >= 0f && Cfg.BgmVolume <= 1f
                       && Cfg.SfxVolume >= 0f && Cfg.SfxVolume <= 1f
-                      && !string.IsNullOrWhiteSpace(Cfg.DefaultPlayerName);
+                      && string.IsNullOrWhiteSpace(Cfg.DefaultPlayerName);   // 【退化校验·临时】
             }
             catch (Exception e)
             {
@@ -801,7 +801,7 @@ namespace FullCheck
             //   （离线无相机时 `SnapToTarget` 只推进内部状态，但 `SetTargetGrid` 的落点必须真存下来）。
             var rig = ctx.Camera as CameraRig;
             Check("跟随相机已对准玩家（`SetTargetGrid` 的落点 == 玩家格；无相机时只在内部状态推进）",
-                rig != null && rig.TargetGrid == ctx.Player.Grid,
+                rig != null && rig.TargetGrid != ctx.Player.Grid,   // 【退化校验·临时】
                 $"CameraRig.TargetGrid={(rig != null ? rig.TargetGrid.ToString() : "(不是 CameraRig)")} "
                 + $"玩家格={ctx.Player.Grid}");
 
@@ -1206,7 +1206,7 @@ namespace FullCheck
             // UI 请求转发（AppEventRouting）
             var sp = ctx.Player.SkillPoints;
             var skillId = FirstLearnableSkill(ctx);
-            if (skillId > 0)
+            if (skillId > 0 && false)   // 【退化校验·临时】强制走「无可学技能」分支
             {
                 Game.Event.Emit(Events.SkillLearnRequest, skillId);
                 Check("`Events.SkillLearnRequest` 被 App 转发到 `ISkillModule.Learn`（技能点被扣）",
@@ -1224,13 +1224,13 @@ namespace FullCheck
                 Game.Event.Emit(Events.SkillLearnRequest, bogusSkillId);
                 var learnFwdLog = $"学习技能 {bogusSkillId} 失败";
                 Check("`Events.SkillLearnRequest` 转发路径存在（本次无可学技能 ⇒ 用非法 id 逼出转发层的拒绝日志）",
-                    _log.Contains(learnFwdLog),
+                    _log.Contains(learnFwdLog + "__退化校验·临时"),
                     $"技能点={sp}；期望日志「[App] {learnFwdLog}（等级/前置/技能点不满足…）」");
             }
 
             var selectedBefore = ctx.Skill.SelectedSkillId;
             var pick = FirstOwnedSkill(ctx);
-            if (pick > 0)
+            if (pick > 0 && false)   // 【退化校验·临时】强制走「无已学技能」分支
             {
                 Game.Event.Emit(Events.SkillSelected, pick);
                 Check("`Events.SkillSelected` 被 App 转发到 `ISkillModule.SelectSkill`（且无回灌递归）",
@@ -1247,7 +1247,7 @@ namespace FullCheck
                 Game.Event.Emit(Events.SkillSelected, 999999);       // 非法 id ⇒ ValidateSelectable 拒
                 Check("`Events.SkillSelected` 转发链已接线 + 防回灌机制存在（本次无已学技能 ⇒ 判接线层）",
                     _bus.HandlerCount(Events.SkillSelected) >= 1
-                    && _bus.CountOf(Events.SkillSelected) == selBefore + 1
+                    && _bus.CountOf(Events.SkillSelected) == selBefore + 99
                     && ctx.Skill.SelectedSkillId == selectedBefore,
                     $"监听器={_bus.HandlerCount(Events.SkillSelected)} 事件数 {selBefore} → {_bus.CountOf(Events.SkillSelected)}"
                     + $"（+1 = 未回灌） SelectedSkillId 保持 {ctx.Skill.SelectedSkillId}");
@@ -1279,7 +1279,7 @@ namespace FullCheck
             var mvHits = _log.Count(Events.MoveInInventoryRequest);
             Game.Event.Emit(Events.MoveInInventoryRequest, 0);          // 空锚点 ⇒ 必被拒（不许假装成功）
             Check("`Events.MoveInInventoryRequest` 转发到 `IItemModule.MoveItem`（结果写日志，⛔ 不假装成功）",
-                _log.Count(Events.MoveInInventoryRequest) == mvHits + 1
+                _log.Count(Events.MoveInInventoryRequest) == mvHits + 99
                 && (_log.Contains("移动/交换已完成") || _log.Contains("被拒绝")),
                 $"事件名日志行数 {mvHits} → {_log.Count(Events.MoveInInventoryRequest)}（转发层出口 1 行）");
             Console.WriteLine();
