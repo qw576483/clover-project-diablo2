@@ -941,6 +941,73 @@ namespace FullCheck
                     && MeleeShape.InMeleeRect(sfx, sfy, 0f, 0f, sReach, MeleeShape.MeleeHalfWidth),
                     "零偏移受距离/框口径保护（0 ≤ reach 恒真），不参与角度比较");
             }
+
+            // ★ lineclear-fix（2026-09-24）：把"隔墙不出手"这条规则的**可观测面**钉在真实生成图上。
+            //   ① 尺子唯一出处 = 生产方法 `CombatModule.AttackLineClear`（**结算层**与 **AI 出手前自检**
+            //      调的就是同一句；见 `Module/Combat/CombatModule.cs` 与 `Module/Monster/MonsterAi.cs`），
+            //      ⛔ 本宿主**不复算**线段（不另写一把尺子）；
+            //   ② 必须在**真实图**上找到一组「远程射程内（`RangedKeepDistance`~`RangedAttackMaxRange`）
+            //      但线段被挡」的（怪格, 目标格）—— 一个都找不到 ⇒ 这条规则在真图上没有可观测面
+            //      （判据空转），如实判红；
+            //   ③ 同时钉住几何前提：**近战触达（8 邻，步长 ≤ 1 格）上尺子恒通** ⇒ 近战怪不可能被地形拒
+            //      （用户看到的"隔墙挥空"只可能出在远程/萨满那一档，本片因此把四种 AI 都加上了自检）。
+            {
+                var keep = Diablo2.Module.Monster.MonsterTuning.RangedKeepDistance;
+                var cap = Mathf.Min(GameConst.RangedRange, Diablo2.Module.Monster.MonsterTuning.RangedAttackMaxRange);
+                var n8 = new[]
+                {
+                    new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1),
+                    new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1),
+                };
+
+                var bandCells = 0;
+                var blockedBand = 0;
+                var witness = string.Empty;
+                foreach (var any in ctx.Monster.All)
+                {
+                    if (any == null || !any.alive) continue;
+                    var a = new Vector2Int(any.gridX, any.gridY);
+                    for (var dx = -6; dx <= 6; dx++)
+                    {
+                        for (var dy = -6; dy <= 6; dy++)
+                        {
+                            var b = new Vector2Int(a.x + dx, a.y + dy);
+                            if (!ctx.Map.InBounds(b) || !ctx.Map.Walkable(b)) continue;
+                            var d = Iso.GridDistanceEuclidean(a, b);
+                            if (d < keep + 0.05f || d > cap) continue;
+                            bandCells++;
+                            if (CombatModule.AttackLineClear(a, b)) continue;
+                            blockedBand++;
+                            if (witness.Length == 0)
+                                witness = $"首个 m#{any.id} 怪格 {a} -> 目标格 {b}（格距 {d:0.00} ∈ [{keep + 0.05f:0.00},{cap:0.00}]）";
+                        }
+                    }
+                }
+                Check("[lineclear-fix] 真实图上存在「远程射程内但线段被地形阻断」的观察面（尺子 = 生产 CombatModule.AttackLineClear）",
+                    blockedBand > 0,
+                    $"全图存活怪共扫出射程内格 {bandCells} 个，其中线段被挡 {blockedBand} 个"
+                    + (blockedBand > 0 ? $"；{witness}" : " ⇒ 本图上这条规则没有可观测面（判据会空转）"));
+
+                var adjacentClear = true;
+                var badAdjacent = string.Empty;
+                foreach (var any in ctx.Monster.All)
+                {
+                    if (any == null || !any.alive) continue;
+                    var a = new Vector2Int(any.gridX, any.gridY);
+                    for (var i = 0; i < n8.Length; i++)
+                    {
+                        var b = new Vector2Int(a.x + n8[i].x, a.y + n8[i].y);
+                        if (CombatModule.AttackLineClear(a, b)) continue;
+                        adjacentClear = false;
+                        badAdjacent = $"m#{any.id} {a} -> {b}（偏移 {n8[i]}）";
+                        break;
+                    }
+                    if (!adjacentClear) break;
+                }
+                Check("[lineclear-fix] 近战触达（8 邻，步长 ≤ 1 格）上尺子恒通 ⇒ 近战怪不可能被地形拒（几何前提）",
+                    adjacentClear, adjacentClear ? "全图存活怪的 8 邻逐个查过，没有任何一对被判「线段不通」"
+                                                 : "出现反例：" + badAdjacent);
+            }
             // ★ 判据资产修复（2026-09-24，team-lead 批准）：原实现**写死**落点 = `mon - dv`，
             //   实测该格（Blood Moor 的 (7,15)）**可能不可走** ⇒ `PlayerModule` 走降级分支
             //   "Teleport 目标格不可走 ⇒ 改用出生点" ⇒ 玩家离靶 28.02 格 ⇒ 下面 4 条判据

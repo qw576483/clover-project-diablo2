@@ -2792,7 +2792,7 @@ namespace CombatCheck
         /// </summary>
         private static void Step20_MeleeLineBlocked()
         {
-            Section("20. ★ lineclear-fix：线段被地形阻断时近战怪**不许出手**（隔墙挥空）");
+            Section("20. ★ lineclear-fix：线段被地形阻断时怪**不许出手**（隔墙挥空）");
 
             var n8 = new[]
             {
@@ -2800,14 +2800,37 @@ namespace CombatCheck
                 new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1),
             };
 
+            // ── 20.0 几何前提：先把"哪一档出手才可能被地形拒"量清楚 ────────────────
+            //   `MeleeShape.LineClear` 是 Bresenham（**除两端点外**每一格都要可走）：
+            //   · 步长 ≤ 1 格（8 邻）⇒ 循环第一步就落在终点 ⇒ **没有中间格** ⇒ 恒通
+            //     （用"全不可走"的地形委托也打不通）。近战触及 `GameConst.MeleeRange` = 1.60 ⇒ 只可能落在
+            //     8 邻 ⇒ **近战出手永远不可能被地形拒**（所以用户看到的"隔墙挥空"不可能出在近战身上）。
+            //   · 步长 ≥ 2 格（远程上限 `RangedAttackMaxRange` = 5.0 ⇒ 2~5 格）⇒ 有中间格 ⇒ 可被拒。
+            //   ⛔ 本条只**量事实**，不改任何判据。
+            var probeWall = new Func<Vector2Int, bool>(g => false);
+            var adjacentAlwaysClear = true;
+            for (var i = 0; i < n8.Length; i++)
+            {
+                var bn = new Vector2Int(10 + n8[i].x, 10 + n8[i].y);
+                if (!MeleeShape.LineClear(probeWall, new Vector2Int(10, 10), bn)) adjacentAlwaysClear = false;
+            }
+            Check("20.0 几何前提：8 邻（步长 ≤ 1 格）上 `LineClear` **无中间格** ⇒ 恒通（近战触及只可能落在这里）",
+                adjacentAlwaysClear, "8 个偏移逐个用 `g => false` 的地形委托试过，结果全部 true");
+            Check("20.0 几何前提：2 格正交（步长 ≥ 2）= 有中间格 ⇒ 可被地形拒（远程 2~5 格这一档）",
+                !MeleeShape.LineClear(probeWall, new Vector2Int(10, 10), new Vector2Int(12, 10)),
+                "from(10,10) → to(12,10)，(11,10) 不可走 ⇒ false");
+
             PrepareMap(AreaId.BloodMoor, 20250924);
             _ctx.Monster.SpawnArea(AreaId.BloodMoor);
 
             MonsterState target = null;
             var spot = Vector2Int.zero;
 
-            // 找「够得着（格距 ≤ MeleeRange）但看不见（LineClear 不通）」的一组（怪, 玩家格）。
-            // 野外找不到就换地牢（角落更多）；两处都找不到 ⇒ 用例失败并如实报（⛔ 不许静默跳过）。
+            // 找「**射程内**（格距 ∈ [`RangedKeepDistance`, `RangedAttackDistanceCap`]）但**线段被挡**」的一组
+            // （怪, 玩家格）。下界取 `RangedKeepDistance` 是为了让怪落在"出手那一支"而不是"后撤那一支"
+            // （`MonsterAi.Ranged` 在**连续**距离 < `RangedKeepDistance` 时先 `StepAway`、后撤期间不射击）。
+            var lo = MonsterTuning.RangedKeepDistance + 0.05f;
+            var hi = Mathf.Min(GameConst.RangedRange, MonsterTuning.RangedAttackMaxRange);
             var areas = new[] { AreaId.BloodMoor, AreaId.DenOfEvil };
             for (var ai = 0; ai < areas.Length && target == null; ai++)
             {
@@ -2819,28 +2842,33 @@ namespace CombatCheck
 
                 foreach (var cand in _ctx.Monster.All)
                 {
-                    if (cand == null || !cand.alive || cand.ai != MonsterAI.Melee) continue;
+                    if (cand == null || !cand.alive) continue;
+                    if (cand.ai != MonsterAI.Range && cand.ai != MonsterAI.Shaman) continue;
                     var a = cand.Grid();
-                    for (var i = 0; i < n8.Length; i++)
+                    for (var dx = -6; dx <= 6 && target == null; dx++)
                     {
-                        var b = new Vector2Int(a.x + n8[i].x, a.y + n8[i].y);
-                        if (!_ctx.Map.InBounds(b) || !_ctx.Map.Walkable(b)) continue;
-                        if (Iso.GridDistanceEuclidean(a, b) > GameConst.MeleeRange) continue;   // 必须"够得着"
-                        if (CombatModule.AttackLineClear(a, b)) continue;                       // 必须"看不见"
-                        target = cand;
-                        spot = b;
-                        break;
+                        for (var dy = -6; dy <= 6; dy++)
+                        {
+                            var b = new Vector2Int(a.x + dx, a.y + dy);
+                            if (!_ctx.Map.InBounds(b) || !_ctx.Map.Walkable(b)) continue;
+                            var d = Iso.GridDistanceEuclidean(a, b);
+                            if (d < lo || d > hi) continue;                       // 必须落在"出手那一支"
+                            if (CombatModule.AttackLineClear(a, b)) continue;     // 必须"看不见"
+                            target = cand;
+                            spot = b;
+                            break;
+                        }
                     }
                     if (target != null) break;
                 }
             }
 
-            Check("找到「近战怪 + 够得着但线段被地形阻断的玩家格」这一组用例", target != null,
+            Check("找到「远程怪 + 射程内但线段被地形阻断的玩家格」这一组用例", target != null,
                 target != null
                     ? $"m#{target.id} {target.name}（{target.ai}）格 {target.Grid()} ← 玩家格 {spot}"
-                      + $"（格距 {Iso.GridDistanceEuclidean(target.Grid(), spot):0.00} ≤ {GameConst.MeleeRange:0.00}，"
+                      + $"（格距 {Iso.GridDistanceEuclidean(target.Grid(), spot):0.00} ∈ [{lo:0.00},{hi:0.00}]，"
                       + $"LineClear={CombatModule.AttackLineClear(target.Grid(), spot)}）"
-                    : "BloodMoor / DenOfEvil 两个区域都没找到这种角（⛔ 不是跳过，是本用例无法构造）");
+                    : "BloodMoor / DenOfEvil 两个区域都没找到「射程内 + 线段被挡」的组合（⛔ 不是跳过，是本用例无法构造）");
             if (target == null) return;
 
             _player.SetGrid(spot, Iso.DirectionTo(spot, target.Grid()));
@@ -2896,21 +2924,27 @@ namespace CombatCheck
             Check("用例真的进入了仇恨（不是「怪没发现玩家」导致的空转）",
                 _log.Has(aggroNeedle + target.id), $"日志含 \"{aggroNeedle}{target.id}\"");
 
-            // ── 通畅对照（防"把正常攻击也一起掐掉"）──────────────────────────────
+            // ── 通畅对照（防"把正常攻击也一起掐掉"）：**同距离档**、只是把墙换成通路 ──
             var a2 = target.Grid();
             var open = Vector2Int.zero;
             var foundOpen = false;
-            for (var i = 0; i < n8.Length && !foundOpen; i++)
+            for (var dx = -6; dx <= 6 && !foundOpen; dx++)
             {
-                var b = new Vector2Int(a2.x + n8[i].x, a2.y + n8[i].y);
-                if (!_ctx.Map.InBounds(b) || !_ctx.Map.Walkable(b)) continue;
-                if (Iso.GridDistanceEuclidean(a2, b) > GameConst.MeleeRange) continue;
-                if (!CombatModule.AttackLineClear(a2, b)) continue;
-                open = b;
-                foundOpen = true;
+                for (var dy = -6; dy <= 6; dy++)
+                {
+                    var b = new Vector2Int(a2.x + dx, a2.y + dy);
+                    if (!_ctx.Map.InBounds(b) || !_ctx.Map.Walkable(b)) continue;
+                    var d = Iso.GridDistanceEuclidean(a2, b);
+                    if (d < lo || d > hi) continue;
+                    if (!CombatModule.AttackLineClear(a2, b)) continue;
+                    open = b;
+                    foundOpen = true;
+                    break;
+                }
             }
-            Check("对照用例：找到「够得着 **且** 线段通畅」的玩家格", foundOpen,
-                foundOpen ? $"怪格 {a2} ← 玩家格 {open}" : $"怪格 {a2} 的 8 邻里没有够得着且通畅的可走格");
+            Check("对照用例：找到「射程内 **且** 线段通畅」的玩家格", foundOpen,
+                foundOpen ? $"怪格 {a2} ← 玩家格 {open}（格距 {Iso.GridDistanceEuclidean(a2, open):0.00} ∈ [{lo:0.00},{hi:0.00}]）"
+                          : $"怪格 {a2} 周围 [{lo:0.00},{hi:0.00}] 档里没有线段通畅的可走格");
             if (!foundOpen) return;
 
             _player.SetGrid(open, Iso.DirectionTo(open, a2));
@@ -2921,6 +2955,35 @@ namespace CombatCheck
                 + $"{MonsterTuning.AttackIntervalSeconds * 2f:0.00}s 内出手 {swingsOpen} 次");
             Check("★ 对照：线段通畅时同一只怪**会**正常出手（防把正常攻击一起掐掉）",
                 swingsOpen > 0, $"出手 {swingsOpen} 次（阈值 = > 0）");
+
+            // ── 20.3 近战对照：新增的线段自检**不许**把近战正常出手掐掉 ──────────────
+            //   （20.0 已量出近战触达距离上 `LineClear` 恒通 ⇒ 新自检对近战恒为 true）
+            var melee = PickMonster(x => x.ai == MonsterAI.Melee && x.alive);
+            Check("20.3 近战对照：有活着的近战怪", melee != null, melee != null ? $"m#{melee.id} {melee.name}" : "none");
+            if (melee == null) return;
+
+            var mg = melee.Grid();
+            var adj = Vector2Int.zero;
+            var foundAdj = false;
+            for (var i = 0; i < n8.Length && !foundAdj; i++)
+            {
+                var b = new Vector2Int(mg.x + n8[i].x, mg.y + n8[i].y);
+                if (!_ctx.Map.InBounds(b) || !_ctx.Map.Walkable(b)) continue;
+                adj = b;
+                foundAdj = true;
+            }
+            Check("20.3 近战对照：怪旁边有可走格给玩家站", foundAdj, foundAdj ? $"怪格 {mg} ← 玩家格 {adj}" : $"怪格 {mg}");
+            if (!foundAdj) return;
+
+            _player.SetGrid(adj, Iso.DirectionTo(adj, mg));
+            var meleeKey = MonsterSfx.AttackOf(melee) ?? SfxKeys.MonsterAttack;
+            var meleeSfx0 = SfxCount(meleeKey);
+            TickSim(MonsterTuning.AttackIntervalSeconds * 2f);
+            var meleeSwings = SfxCount(meleeKey) - meleeSfx0;
+            Console.WriteLine($"  近战对照（贴身、无墙）：玩家格 {adj}，怪在窗口 "
+                + $"{MonsterTuning.AttackIntervalSeconds * 2f:0.00}s 内出手 {meleeSwings} 次");
+            Check("★ 20.3 对照：近战贴身（线段必通）**照常出手** —— 新自检没有把近战掐掉",
+                meleeSwings > 0, $"出手 {meleeSwings} 次（阈值 = > 0）");
             Console.WriteLine();
         }
 

@@ -319,6 +319,24 @@ namespace Diablo2.Module.Combat
         }
 
         /// <summary>
+        /// **「这次出手的线段是否通畅」的唯一口径** —— 结算层（本文件 `RequestMonsterAttack`）与
+        /// **发起方**（`Diablo2.Module.Monster.MonsterAi` 出手前自检）共用同一句。
+        /// <para>
+        /// ★ 片 lineclear-fix 的根因：本句以前只在结算层用 ⇒ 线段被判不通时**只打了一条日志**
+        /// （`monatk.blocked`），发起方拿不到任何返回值/事件 ⇒ `MonsterAi.TryAttack` 照常
+        /// 置出手动画 + 播出手音效 + 每 `AttackIntervalSeconds` 再发起一次，**每次都被拒** ⇒
+        /// 用户看到的「怪物隔墙反复挥空」。把同一把尺子暴露给发起方后，AI 在**发起前**就能
+        /// 自检 ⇒ 不再发出注定被拒的请求（原版语义：够不着就不挥，绕路或停手）。
+        /// </para>
+        /// <para>
+        /// ⛔ 判据本身（`MeleeShape.LineClear`）一字未放宽 —— 只是把它从"只有结算层知道"
+        /// 变成"两侧同一句"。
+        /// </para>
+        /// </summary>
+        internal static bool AttackLineClear(Vector2Int from, Vector2Int to)
+            => MeleeShape.LineClear(WalkableProbe, from, to);
+
+        /// <summary>
         /// 把 `IMapModule.Walkable` 适配成 `MeleeShape.LineClear` 需要的委托。
         /// ⛔ 拿不到地图（未接入 / 未生成）⇒ 一律 true = **放行**（不把"没地图"变成"打不到"，由调用方留痕）。
         /// </summary>
@@ -426,8 +444,9 @@ namespace Diablo2.Module.Combat
             }
 
             // ★ C3：**线段不得被不可走地形阻断**（隔墙 / 隔水 / 跨河不许打到 —— 与玩家侧同一把尺子）。
-            //   形状函数唯一出处 = `Module/Combat/MeleeShape.LineClear`。
-            if (!MeleeShape.LineClear(WalkableProbe, monsterGrid, player.Grid))
+            //   形状函数唯一出处 = `Module/Combat/MeleeShape.LineClear`；本句的**唯一出口** = `AttackLineClear`，
+            //   发起方（`MonsterAi`）出手前也调它 ⇒ 拒绝结果不会再"只留在日志里"（★ 片 lineclear-fix）。
+            if (!AttackLineClear(monsterGrid, player.Grid))
             {
                 CombatLog.WarnThrottled("monatk.blocked",
                     $"RequestMonsterAttack: m#{monsterId}（{state.ai}）与玩家的线段被不可走地形阻断" +

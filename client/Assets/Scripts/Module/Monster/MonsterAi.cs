@@ -211,10 +211,48 @@ namespace Diablo2.Module.Monster
         private static float RangedAttackDistanceCap
             => Mathf.Min(GameConst.RangedRange, MonsterTuning.RangedAttackMaxRange);
 
+        /// <summary>
+        /// **出手前自检：本次攻击的线段是否通畅** —— 与结算层**同一把尺子**。
+        /// <para>
+        /// 尺子本体 = `Diablo2.Module.Combat.CombatModule.AttackLineClear`（内部就是
+        /// `MeleeShape.LineClear` + 同一份 `WalkableProbe`），⛔ 本文件**不另写一份**判定。
+        /// 跨模块只取这一句纯判定、不 `using` 对方的具体类型（与 `SkillModule` 取
+        /// `Combat.DamagePipeline` 同一写法，见 `DamagePipeline.cs` 文件头）。
+        /// </para>
+        /// <para>
+        /// ★ 片 lineclear-fix 的缺陷（前片 `melee-ai-why` §7 登记③，用户可见"怪物隔墙反复挥空"）：
+        /// 结算层 `RequestMonsterAttack` 判"线段被不可走地形阻断"时**只打日志就 return**，
+        /// 而 `TryAttack` 在**发起前**已经把出手动画 / 出手音效 / 出手计时器都写好了
+        /// （`m.AttackTimer` / `m.AttackAnimTimer` / `m.ViewDirty`，见 `TryAttack`）⇒
+        /// 怪每 `AttackIntervalSeconds` 挥一次空、且**永远不知道**自己被拒（死循环）。
+        /// 现在出手前先用同一把尺子自检：不通 ⇒ **不发起**，改走"绕路"（原版近战怪够不着时
+        /// 不会原地挥空）。
+        /// </para>
+        /// <para>
+        /// ⛔ 这不是"把 `LineClear` 放宽"（那是让怪穿墙打人，与原版语义相反）：判据一字未动，
+        /// 只是把"结算层的拒绝"提前到"发起前"，两侧仍然同一句。
+        /// </para>
+        /// <para>
+        /// **原版口径（出处）**：`原版资源/d2lod1.10txt-1.10f/data/global/excel/MonAi.txt` 的 AI 指令序列里，
+        /// **"出手"之前的第一个指令一律是"接近"** —— 第 5 行 `Zombie` = `approach? | aware dist | | att1/att2?`、
+        /// 第 4 行 `Skeleton` = `approach? | stall time | attack? | att1/att2?`、
+        /// 第 8 行 `Fallen` = `cmd:attack? | | attack? | att1/att2?`
+        /// （怪 → AI 名的映射在 `MonStats.txt` 的 AI 列）。序列里**没有**"隔着障碍发起攻击"这一支 ⇒
+        /// "线段被地形阻断时**不发起**、继续接近（绕路）"与原版指令序列一致。
+        /// </para>
+        /// </summary>
+        private static bool AttackLineClear(MonsterModule owner, MonsterRuntime m)
+            => Diablo2.Module.Combat.CombatModule.AttackLineClear(m.Grid, owner.PlayerGrid);
+
         /// <summary>① 近战：贴上去打。</summary>
         private static Action Melee(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
         {
-            if (AttackDistance(owner, m) <= GameConst.MeleeRange) return TryAttack(owner, m);
+            if (AttackDistance(owner, m) <= GameConst.MeleeRange)
+            {
+                // ★ 片 lineclear-fix：够得着还不够 —— **线段必须通畅**（与结算层同一把尺子）。
+                //   隔墙/隔水时不发起（否则每次都在结算层被拒 = 挥空），落到下面**绕路**那一支。
+                if (AttackLineClear(owner, m)) return TryAttack(owner, m);
+            }
 
             var goal = owner.PlayerGrid;
             if (!TryPathTo(owner, m, goal)) return Action.None;
@@ -229,14 +267,20 @@ namespace Diablo2.Module.Monster
             {
                 if (StepAway(owner, m, playerCenter, dt)) return Action.None;
                 // 退无可退（角落里）：只能就地射击，而不是站着不动被白打
-                return TryAttack(owner, m);
+                // ★ 片 lineclear-fix：**仍要过线段那一关**（与结算层同一把尺子）——
+                //   被墙挡住时"就地射击"同样会被结算层拒 ⇒ 不发起（原版怪物不隔墙放枪）。
+                if (AttackLineClear(owner, m)) return TryAttack(owner, m);
+                return Action.None;
             }
 
             // ★ 片 melee-ai-why：靠近的上限改成**结算层实际放行的距离**（`RangedAttackDistanceCap`，
             //   与 `CombatModule.cs:418-420` 同式）。旧写法用 `GameConst.RangedRange`(8) ⇒ 怪在
             //   5 < 格距 ≤ 8 时会"反复请求出手 → 每次被结算层以 `> 射程 5.00` 拒绝，又因为
             //   自己那条不满足靠近条件而**永远不靠近**" ⇒ 站着不动、一枪不发的死区。
-            if (AttackDistance(owner, m) > RangedAttackDistanceCap)
+            // ★ 片 lineclear-fix：**同一族**的第二个死区 —— 格距已在射程内但**线段被地形挡住**
+            //   （隔墙/隔水）时，旧写法照常 `TryAttack` ⇒ 每次被结算层拒、又永不移动（站着放空枪）。
+            //   现在"够不着 **或** 看不见"一律走**靠近**那一支（挪到有视线的格子）。
+            if (AttackDistance(owner, m) > RangedAttackDistanceCap || !AttackLineClear(owner, m))
             {
                 if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
                 m.Advance(owner.SpeedOf(m), dt);
@@ -263,7 +307,8 @@ namespace Diablo2.Module.Monster
                 return Action.None;
 
             // ★ 片 melee-ai-why：同 ② 远程 —— 靠近上限对齐结算层（`RangedAttackDistanceCap`）。
-            if (AttackDistance(owner, m) > RangedAttackDistanceCap)
+            // ★ 片 lineclear-fix：同 ② —— "够不着 **或** 看不见"一律靠近（别隔墙放法术）。
+            if (AttackDistance(owner, m) > RangedAttackDistanceCap || !AttackLineClear(owner, m))
             {
                 if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
                 m.Advance(owner.SpeedOf(m), dt);
@@ -296,7 +341,9 @@ namespace Diablo2.Module.Monster
             }
 
             // ★ 片 melee-ai-why：非逃跑路径 = "等同近战" ⇒ 出手判定必须与 ① 同一把尺子。
-            if (AttackDistance(owner, m) <= GameConst.MeleeRange) return TryAttack(owner, m);
+            // ★ 片 lineclear-fix：同 ① —— 线段不通不发起（落到下面的绕路支）。
+            if (AttackDistance(owner, m) <= GameConst.MeleeRange && AttackLineClear(owner, m))
+                return TryAttack(owner, m);
 
             if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
             m.Advance(owner.SpeedOf(m), dt);
