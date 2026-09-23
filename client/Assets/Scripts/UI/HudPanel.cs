@@ -413,11 +413,15 @@ namespace Diablo2.UI
             //   字号**唯一出处** = `UiLayoutGame.FontPx16`（原版行距 16 × K 1.8 = **28.8**，取整 28；
             //   见 `UiLayoutGame` 的「全 UI 字号唯一出处」一节）；⛔ 本文件不另写字号字面量。
             //   判据：`uicheck` 的 FontScaleCheck（本处 9th 实参 = `(int)UiLayoutGame.FontPx16`）。
-            _lifeText = D2Label.Create(lifeHolder, "LifeText", "Life: 0/0", D2Text.D2Font.Font16,
+            // ★ 2026-09-23「用户基准图」轮：文案改**中文**（原版实机基线图里就是
+            //   「生命: 776/879」「法力: 335/335」——中文版口径；旧值是英文 "Life:"/"Mana:"，
+            //   是自创文案，1:1 硬标准下不允许）。字号/位置/外框见 `UiLayoutGame.OrbLabelSize`
+            //   与 `OrbLabelOffsetY`（都按基线图逐像素重定过）。
+            _lifeText = D2Label.Create(lifeHolder, "LifeText", "生命: 0/0", D2Text.D2Font.Font16,
                 TextAnchor.MiddleCenter, new Color(0.98f, 0.93f, 0.90f, 1f),
                 UiLayoutGame.OrbLabelSize, new Vector2(0f, UiLayoutGame.OrbLabelOffsetY),
                 (int)UiLayoutGame.FontPx16);
-            _manaText = D2Label.Create(manaHolder, "ManaText", "Mana: 0/0", D2Text.D2Font.Font16,
+            _manaText = D2Label.Create(manaHolder, "ManaText", "法力: 0/0", D2Text.D2Font.Font16,
                 TextAnchor.MiddleCenter, new Color(0.86f, 0.91f, 0.99f, 1f),
                 UiLayoutGame.OrbLabelSize, new Vector2(0f, UiLayoutGame.OrbLabelOffsetY),
                 (int)UiLayoutGame.FontPx16);
@@ -810,12 +814,19 @@ namespace Diablo2.UI
         {
             _runButton = UiArt.Panel(transform, "RunButton", RunButtonSize, RunButtonPos, Color.white, true);
             ApplyRunButton();
-            // ★ 本轮（E7 收口）：原版该按钮的父容器 `ImageExpBarLeft` 在 `ControlPanel.prefab` 里
-            //   `m_IsActive: 0`、参考工程 `Scenes/Game.unity` 对它们**没有 active 覆盖**
-            //   ⇒ **原版 HUD 上看不到这个按钮**。按 §0「A 没有 ⇒ 不加」**按原版默认态隐藏**
-            //   （节点与键盘入口保留，⛔ 不发明替代入口）。跑/走切换仍可用原版的 `R` 键。
+            // ⛔ **保持隐藏**（hud-redo2 试过打开，**量过之后又关回去**——理由必须留痕）：
+            //   用户基线实机图（`策划/基线图/原版_实机_UI基准_20260923.png`）**确实画着这个"跑/走小人"**，
+            //   但**在我们这套素材上它无处可放**：
+            //     · 实测 `ControlPanel.png`：格带凹槽占 art y 87..115、经验条轨道占 art y 129..133
+            //       ⇒ 两者之间只有 **14 行**，而按钮高 **20 行** ⇒ 任何 y 都必然压住格带或压住经验条；
+            //     · 按 prefab 的 x（art 330..346）+ "空白条" y（art 行 124.7 ⇒ 占 114.7..134.7）
+            //       ⇒ 会盖住经验条最左 **16×4 原版px**（= 28.8×7.2 画布px）；
+            //     · 实机图里那个小人**在经验条左边、与经验条同一行**——而那颗经验条在我们素材上
+            //       左端在 art x 221（早于左键技能格 230），实机图那套面板的版面与 948×160 素材
+            //       **不是同一套**（见回报 B-3 的量化证明）⇒ **抄不到一个"有出处"的坐标**。
+            //   ⇒ 按 §0「写不出出处的量不许进工程」**保持隐藏**（节点与 `R` 键入口都在，
+            //     ⛔ 不发明替代坐标），并把「是否要为它改素材/改版面」交主 agent 裁决。
             _runButton.gameObject.SetActive(false);
-
             var button = _runButton.gameObject.AddComponent<Button>();
             button.targetGraphic = _runButton;
             button.onClick.AddListener(() =>
@@ -865,9 +876,10 @@ namespace Diablo2.UI
             UiBar.SetRatio(_manaFill, maxMana > 0 ? (float)mana / maxMana : 0f);
             UiBar.SetRatio(_expFill, ExpRatio(stats));
 
-            // 文本格式照原版 `HealthLabel`/`ManaLabel` 的 m_Text（"Life: 123/123"）
-            _lifeText?.SetText($"Life: {life}/{maxLife}");
-            _manaText?.SetText($"Mana: {mana}/{maxMana}");
+            // 文本格式照**原版实机基线图**（中文版）：`生命: 123/123` / `法力: 123/123`
+            // —— 出处 `策划/基线图/原版_实机_UI基准_20260923.png`（左下/右下球上文字逐像素可读）。
+            _lifeText?.SetText($"生命: {life}/{maxLife}");
+            _manaText?.SetText($"法力: {mana}/{maxMana}");
 
             ApplyBeltAndGold(stats);
         }

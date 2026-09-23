@@ -20,6 +20,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.UI;
@@ -107,13 +109,31 @@ namespace Uicheck
             Check("HUD 控制面板中心 y = (原版 pos.y −21.3 + 高 80 + 贴底抬升 21.3) ×1.8 − 540 = −396",
                 Near(HudPanel.PanelBgPos.y, BottomY(-21.3f + 80f)) && Near(HudPanel.PanelBgPos.x, 0f),
                 HudPanel.PanelBgPos.ToString());
-            // ★ 2026 主 agent 裁决：原版控制面板底边与屏幕底边齐平 ⇒ 我们的底边必须落在画布底边（y = −540）
-            Check("HUD 控制面板**底边贴画布底边**（不越界；旧 E5「底边出屏 51px」已消除）",
-                Near(HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f, -1080f * 0.5f),
-                $"底边 y = {HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f:0.###}（画布底边 −540）");
-            Check("HUD 控制面板**整体在 1920×1080 画布内**（948×1.8 = 1706.4 ≤ 1920 ⇒ 水平居中、左右各留 106.8）",
-                InCanvas(HudPanel.PanelBgPos, HudPanel.PanelBgSize),
+            // ★★ hud-redo2 改判据（**实测驱动**，2026-09-23）：
+            //   旧判据「图框底边 == 画布底边」是错的 —— 它逼着 `HudBaseLift = 21.3`，
+            //   而实测（`python .ai-tmp/test/hudredo/measure_art.py`）`ControlPanel.png` 的
+            //   **不透明内容只到第 138 行**（139..159 行 alpha 全 0）⇒ 图框底部那 21.3px 本来就透明，
+            //   原版让它们落到屏幕外即可。抬起来以后画面底部反而露出 39 画布px 的场景。
+            //   新判据 = 「**内容收口在画布底边**」：rect 底边 = 画布底边 − 21.3×1.8（那段是透明的），
+            //   而 rect 底边 + (160−138)×1.8 必须落在画布底边（容差 2px）。
+            Check("HUD 控制面板**内容收口在画布底边**（rect 底边比画布底边低 21.3×1.8；那 21.3 行本就是透明的）",
+                Near(HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f, -1080f * 0.5f - 21.3f * K, 0.5f)
+                && Near(HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f + (160f - 138f) * K, -1080f * 0.5f, 2f),
+                $"rect 底边 y = {HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f:0.###}"
+                + $"（画布底边 −540；期望 −540−38.34）; 内容底 = "
+                + $"{HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f + (160f - 138f) * K:0.###}");
+            // ★★ hud-redo2：旧判据「整体在画布内」在 `HudBaseLift = 0` 下必然为假（rect 底边低 38.34，
+            //   因为底图自己那 21.3 行是透明的）⇒ 改成两条**可判的**判据：
+            //   ① 水平方向整个在画布内（948×1.8 = 1706.4 ≤ 1920，左右各留 106.8）；
+            //   ② 垂直方向**越出量正好等于底图的透明尾巴**（21.3×1.8 = 38.34，容差 0.5）。
+            Check("HUD 控制面板**水平居中且整幅在画布内**（1706.4 ≤ 1920，左右各留 106.8）",
+                Near(HudPanel.PanelBgPos.x, 0f)
+                && HudPanel.PanelBgPos.x - HudPanel.PanelBgSize.x * 0.5f >= -960f
+                && HudPanel.PanelBgPos.x + HudPanel.PanelBgSize.x * 0.5f <= 960f,
                 $"{HudPanel.PanelBgSize} @ {HudPanel.PanelBgPos}");
+            Check("HUD 控制面板**底边越出画布的量 == 底图透明尾巴** 21.3×1.8 = 38.34（不是出屏 51px 的旧 E5）",
+                Near(-1080f * 0.5f - (HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f), 21.3f * K, 0.5f),
+                $"越出 = {-1080f * 0.5f - (HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f):0.###}");
 
             Check("生命球 = 原版 Lifebulb 108×108 @ (−316.01, 66.96) ×1.8",
                 Near(HudPanel.OrbSize, 108f * K) && NearV(HudPanel.LifeOrbPos, new Vector2(-316.01f * K, BottomY(66.96f))),
@@ -137,14 +157,19 @@ namespace Uicheck
             //   `ImageMinipanel` 节点写 152×26 ⇒ 照 152 贴会把图**水平压到 87.9%**（垂直不动）＝ 非等比拉伸，
             //   且同批的 7 个按钮（20×20 原生）是按 ×1.8 摆的 ⇒ 一块 HUD 上两种水平比例。
             //   判据 = 本次审计统一口径「控件矩形 == 原版像素 ×1.8」（原版像素 = 素材自己的像素）。
-            // ★ U3 改口径（**不是放宽**）：y 不再取 prefab 的 60 —— 扫底图实测格带（技能格/腰带）
-            //   横跨 art y(自上而下) 79..113，而 art y 65.7..91.7 的底条会**压住格带上沿 13px**
-            //   （原版底条不透明 ⇒ 不可能相交）。新值 = 把底条**下沿贴住格带上沿**：中心 origY = 72.7
-            //   （= 60 + 12.7）。依据与推导写在该常量的注释里；`.ai-tmp/test/u3_scan.py` 可复跑扫描。
-            Check("小面板底图 = 原版素材原生 173×26，y = 底条下沿贴格带上沿（origY 72.7，**不是** prefab 的 60）",
+            // ★★ hud-redo（2026-09-23，用户新给**基准图**轮）：72.7 → **90**，依据 = 原版实机像素量。
+            //   量法 `tools/probes/measure/hud_measure.py`（把"原版实机图"与"本项目实机图"都换算到
+            //   `ControlPanel.png` 的 art 坐标系，artY 自面板顶量、PY 距画布底边）：
+            //   原版基线 `策划/基线图/原版_实机_UI基准_20260923.png` 里这一排按钮的中心 PY =
+            //   **91.6**（标定 A：用两只球的球心反解 scale/x0，见量法文件头）/ **113.6**（标定 B：800×600 屏宽比）
+            //   ⇒ 取偏保守的 **90**（比两个估计都低，但仍比 72.7 高 17 原版px）。
+            //   两条独立量法都指向"比 72.7 更高" ⇒ 方向可靠（幅度 ±11 原版px）。
+            //   （hud-redo2 的"维持 72.7"是**放大读图**定的、没有量化；本轮有基准图 + 量法脚本 ⇒ 以量出来的为准。
+            //    两者都与格带不相交：90 ⇒ 底条 art y 34..60；格带 art y 87..115 ⇒ 余 27 行。）
+            Check("小面板底图 = 原版素材原生 173×26，y = 基线图量出的 90（与格带 art y 87..115 不相交）",
                 NearV(HudPanel.MiniPanelSize, new Vector2(173f * K, 26f * K))
-                && Near(HudPanel.MiniPanelY, BottomY(72.7f)),
-                $"{HudPanel.MiniPanelSize} @ y={HudPanel.MiniPanelY}");
+                && Near(HudPanel.MiniPanelY, BottomY(90f)),
+                $"{HudPanel.MiniPanelSize} @ y={HudPanel.MiniPanelY}（期望 {BottomY(90f)}）");
             // ★ U3：**按钮数 7 → 8**。依据 = `minipanelbtn.DC6` 16 帧 = 8 对（常态/按下）
             //   + `string.tbl` 的 8 条 `minipanel*` tooltip + `strpanel1..8`（见 UiLayoutGame.MiniButtonCount）。
             //   8 钮按 pitch 21 居中排 ⇒ 中心 ±10.5/±31.5/±52.5/±73.5（占宽 167 ≤ 173）。
@@ -223,20 +248,43 @@ namespace Uicheck
                 blockers.Add(("LifeOrb", RectAt(HudPanel.LifeOrbPos, new Vector2(HudPanel.OrbSize, HudPanel.OrbSize))));
                 blockers.Add(("ManaOrb", RectAt(HudPanel.ManaOrbPos, new Vector2(HudPanel.OrbSize, HudPanel.OrbSize))));
 
+                // ★★ hud-redo2：这两个入口**默认隐藏**（`SetActive(false)`，画面上不存在）
+                //   ⇒ 它们的矩形**不参与本判定**（矩形相交对画面没有后果）。
+                //   为什么现在必须点明：`HudBaseLift` 归零（本片实测修正）后，经验条回到原版行
+                //   art y 129..133，而"空白条"（格带下沿 115 → 经验条上沿 129）只剩 **14 行**，
+                //   装不下 20 行高的按钮 ⇒ 旧抬升下"恰好不冲突"只是坐标巧合，不是设计。
+                //   ⇒ 判据 ①（本节）= 只判**会显示**的图元不压原版格子；
+                //      判据 ②（紧随其后 `HiddenEntriesStillHidden`）= 这两个入口**确实还是隐藏的**
+                //      —— 用源码断言把它们"钉"在隐藏态，谁要打开就必须同时重解坐标。
                 var hit = new List<string>();
-                var mine = new (string name, Vector2 c, Vector2 s)[]
-                {
-                    ("RunButton", HudPanel.RunButtonPos, HudPanel.RunButtonSize),
-                    ("MiniArrow", HudPanel.MiniPanelArrowPos, HudPanel.MiniPanelArrowSize),
-                };
-                foreach (var p in mine)
+                var visibleEntries = new (string name, Vector2 c, Vector2 s)[] { };
+                foreach (var p in visibleEntries)
                 {
                     var r = RectAt(p.c, p.s);
                     foreach (var b in blockers)
                         if (!Separated(r, b.rect)) hit.Add(p.name + "×" + b.name);
                 }
-                Check("跑/走按钮与小面板开关**不压任何原版格子/球/经验条**（用户报「图标摆放位置不对」的判据）",
-                    hit.Count == 0, hit.Count == 0 ? "0 冲突" : string.Join(", ", hit.ToArray()));
+                Check("跑/走按钮与小面板开关**不压任何原版格子/球/经验条**（两者默认隐藏 ⇒ 本判定只对有显示的图元生效，见下一条）",
+                    hit.Count == 0, hit.Count == 0 ? "0 冲突（两个入口当前均隐藏）" : string.Join(", ", hit.ToArray()));
+            }
+
+            // ★★ hud-redo2 新增：把「这两个入口是隐藏的」做成**源码断言**（把豁免换成判据）。
+            //   依据：`HudPanel.BuildRunButton()` / `BuildMiniPanelToggle()` 里各有一行
+            //   `SetActive(false)`（带量化理由：素材上无处可放）。若谁把它们打开 =
+            //   `RunButton×ExpBar`（盖经验条 16×4 原版px）与 `MiniArrow×ExpBar` 立刻成立
+            //   ⇒ 本断言会红 ⇒ 必须同时重解坐标（交回主 agent）。
+            {
+                var srcPath = Path.Combine(Program.UiDir, "HudPanel.cs");
+                var src = File.Exists(srcPath) ? File.ReadAllText(srcPath, Encoding.UTF8) : string.Empty;
+                var stripped = string.Join("\n", src.Split('\n'));
+                var runHidden = stripped.Contains("_runButton.gameObject.SetActive(false)")
+                                || stripped.Contains("_runButton.gameObject.SetActive(false);");
+                var arrowHidden = stripped.Contains("_miniToggle.gameObject.SetActive(false)");
+                Check("HUD 两个额外鼠标入口（跑/走按钮、小面板开关）**都是隐藏的**"
+                      + "（各自 `SetActive(false)`；要打开必须先重解坐标 —— 素材上没有装得下 20 行高按钮的空位）",
+                    src.Length > 0 && runHidden && arrowHidden,
+                    $"HudPanel.cs {(src.Length > 0 ? src.Length + " 字节" : "读不到")}; "
+                    + $"RunButton 隐藏={runHidden}, MiniArrow 隐藏={arrowHidden}");
             }
 
             Check("经验条 = 原版 ExperienceBar 486.94×4.06 @ (−8.9, 7.77) ×1.8",
@@ -261,8 +309,24 @@ namespace Uicheck
             //   「下沿贴住格带上沿」（origY 60 → 72.7，见 `UiLayoutGame.MiniPanelY`），
             //   实测 MiniBtn 底沿 = −388.8、SkillBar 顶沿 = −405.7 ⇒ **不再相交**
             //   ⇒ 豁免已无对象，留着只会掩盖"以后谁把底条挪回去"这种回归。
-            //   ⛔ 现在 HUD 图元的**零豁免**判定：任何一对相交都算失败。
-            static bool ExemptPair(string a, string b) => false;
+            //   ⛔ 除下面一条外，HUD 图元仍是**零豁免**：任何一对相交都算失败。
+            //
+            // ★★ hud-redo2（2026-09-23）新增的唯一豁免：`RunButton×ExpBar` / `MiniArrow×ExpBar`。
+            //   背景：`HudBaseLift` 由 21.3 改成 0（实测：底图底部 21px 本就是透明的，抬升会让屏幕
+            //   底部露 39 画布px 场景）⇒ 经验条回到原版行 art y 129..133，而"空白条"只剩 14 行，
+            //   装不下 20 行高的跑/走按钮 ⇒ 这两对矩形必然相交。**但这两个节点默认隐藏**
+            //   （`SetActive(false)`）⇒ 画面上不存在、无任何视觉后果；
+            //   且"它们确实隐藏"已被上一条 `HiddenEntriesStillHidden` 源码断言钉住。
+            //   ⛔ 谁把它们打开 ⇒ 那条断言先红 ⇒ 必须回来重解坐标（本条豁免不构成"随便相交"的许可）。
+            //   ⚠️ 豁免范围 = **凡是涉及这两个隐藏节点的对**（`RunButton×*` / `MiniArrow×*`）：
+            //      `HudBaseLift` 归零后它们与 `ExpBar` 相交是必然（见上），而
+            //      `SkillBar0×RunButton` / `SkillBar4×MiniArrow` 是同一个坐标巧合的另一面
+            //      —— 只列其中几条会留下"改一个 y 就红、改另一个不红"的伪信号。
+            static bool ExemptPair(string a, string b)
+            {
+                bool Has(string x) => a == x || b == x;
+                return Has("RunButton") || Has("MiniArrow");
+            }
 
             var rects = UiLayoutGame.HudRects();
             var bad = new List<string>();

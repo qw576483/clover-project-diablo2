@@ -63,10 +63,32 @@ namespace Diablo2.UI
         public const float K = 1.8f;
 
         /// <summary>
-        /// HUD 的**贴底抬升**（原版 px）：原版 `ControlPanel` 底边比画布底边低 21.3px（原版被裁），
-        /// 本项目按「控制面板底边与屏幕底边齐平」把整组 HUD 抬这么多 ⇒ 底边不再出屏（旧 E5）。
+        /// HUD 的**贴底抬升**（原版 px）—— ★★ hud-redo2 实测修正：**必须是 0**。
+        /// <para>
+        /// **为什么原来是 21.3（错的）**：原版 `Background` 是 `pivot(0.5,0) + pos.y = −21.3`
+        /// ⇒ **图框底边**比原版画布底边低 21.3px。旧口径把这 21.3 当成"出屏误差"，把整组 HUD 抬起来
+        /// 让**图框底边**贴住画布底边。
+        /// </para>
+        /// <para>
+        /// **实测否定了它**（复跑 `python .ai-tmp/test/hudredo/measure_art.py`）：
+        /// `ControlPanel.png`（948×160）的**不透明内容只到第 138 行**（第 139..159 行 alpha 全 0，
+        /// 即图框**底部 21px 本来就是透明的**）。原版屏幕上"图框底边比画布底边低 21.3"这件事，
+        /// 结果就是**那 21.3 行透明像素落到屏幕外**——画面内容**正好在屏幕底边收口**。
+        /// 旧口径把整组 HUD 抬高 21.3 原版px（= 38.34 画布px）⇒ 透明尾巴被抬进画面，
+        /// **屏幕最底 39 画布px 露出游戏世界**，且 HUD 每个元素都比原版高 38.34 画布px。
+        /// </para>
+        /// <para>
+        /// **取证**（本机可复跑）：① 底图内容行实测 `opaque bbox y = 6..138`；
+        /// ② 用底图当模板在实机截图里定位（`python .ai-tmp/test/hudredo/locate_panel.py`，
+        ///   `meanAbsDiff = 8.83`、`dx = 0`）⇒ 面板落在 `y = 792..1079`、**第 138 行落在屏幕 y 1040**
+        ///   ⇒ 底部 39px 是场景，与「原版内容 599.3/600 = 99.9%」不符。
+        /// </para>
+        /// <para>
+        /// ⇒ **恒为 0**（保留该常量是为了让 <see cref="BottomY"/> 的实现与注释可追溯；
+        /// 若要恢复旧行为，改这里一个数即可，**但会重新引入 39px 的底部露场景**）。
+        /// </para>
         /// </summary>
-        public const float HudBaseLift = 21.3f;
+        public const float HudBaseLift = 0f;
 
         // ═════════════════════════════════════════════════════════════════════
         // ★★ U3 新增：**原版字号（全 UI 的唯一出处）**
@@ -248,11 +270,30 @@ namespace Diablo2.UI
         /// <summary>法力球中心（原版 Manabulb pos(299.56, 66.96) → ×1.8 居中）。</summary>
         public static readonly Vector2 ManaOrbPos = new Vector2(299.56f * K, BottomY(66.96f));
 
-        /// <summary>球内数字标签尺寸（原版 HealthLabel/ManaLabel：铺满球、高 8px、y 偏 4）。</summary>
-        public static readonly Vector2 OrbLabelSize = Size(108f, 8f);
+        /// <summary>
+        /// 球上数字标签的**外框**（画布尺寸）= 130×16 原版px ×K。
+        /// <para>
+        /// ★ 口径修正（2026-09-23「用户基准图」轮，依据 = 原版实机基线图逐像素量）：
+        /// 旧值 `108×8`（prefab 的 `HealthLabel/ManaLabel` sizeDelta）——
+        /// 高度 8 原版px = **14.4 画布px**，而字号是 font16 = **28.8 画布px**
+        /// ⇒ 文本被外框纵向截掉一半（球上数字看起来"糊/小"的成因之一）。
+        /// 现值 = 字号自己的行高（16 原版px）+ 放得下「生命: 776/879」的宽度（130 原版px）。
+        /// </para>
+        /// </summary>
+        public static readonly Vector2 OrbLabelSize = Size(130f, 16f);
 
-        /// <summary>球内数字标签相对球心的 y 偏移（原版 pos.y = 4 → ×1.8）。</summary>
-        public const float OrbLabelOffsetY = 4f * K;
+        /// <summary>
+        /// 球上数字标签**相对球心**的 y 偏移（原版 px ×K）。
+        /// <para>
+        /// ★ 口径修正（2026-09-23）：旧值 `4`（prefab 的 `HealthLabel` pos.y=4）把字画在**球心**上；
+        /// 原版实机基线图 `策划/基线图/原版_实机_UI基准_20260923.png` 里这两个数字在**球心上方**
+        /// （球内偏上的球面处，见该图左下/右下）：
+        /// 逐像素量得「标签中心 − 球心」= **+24 ~ +50 原版px**（同一张图两种标定法的区间，
+        /// 量法 `tools/probes/measure/hud_measure.py`，两种标定的来历见该文件头）
+        /// ⇒ 取中值 **+38.7**。球心 PY=66.96 ⇒ 标签中心 PY ≈ 105.6，仍在球面之内（球顶 PY=120.96）。
+        /// </para>
+        /// </summary>
+        public const float OrbLabelOffsetY = 38.7f * K;
 
         /// <summary>技能格尺寸（原版 LeftSkill/RightSkill 的 m_SizeDelta = 33.495×35.12 → ×1.8）。</summary>
         public static readonly Vector2 SkillSlotSize = Size(33.495f, 35.12f);
@@ -327,21 +368,37 @@ namespace Diablo2.UI
         /// </summary>
         public static readonly Vector2 MiniPanelSize = Size(173f, 26f);
 
+        // ★ 2026-09-23 同一列上曾有两份互相矛盾的注释（hud-redo 的「基准图量出 90」与 hud-redo2 的
+        //   「放大读图维持 72.7」）⇒ 已按**量化优先**合并到下面那一份（`MiniPanelArtY` 的注释）。
+        //   hud-redo2 提供的**素材侧**唯一硬数据保留在此，供下一条 y 的判据使用：
+        //     `python .ai-tmp/test/hudredo/measure_art.py` 扫 `ControlPanel.png` ⇒
+        //     **格带凹槽（左右键技能格 / 6 格技能栏 / 4 格腰带）横跨 art y(自上而下) 87..115**，
+        //     经验条轨道占 art y 129..133 ⇒ 底条（高 26）**必须整体落在 87 以上**才不压格带。
+        //     （prefab 的 60 ⇒ art y 65.7..91.7，压进格带 87..91.7；U3 的 72.7 ⇒ art y 53..79，
+        //      已不压；现行 <see cref="MiniPanelArtY"/> = 90 ⇒ art y 34..60，也不压。）
+
         /// <summary>
-        /// 迷你面板底图中心 y（走贴底抬升）。
+        /// 迷你面板底条的**原版 y**（距画布底边的原版px）。
         /// <para>
-        /// ★★ U3 更正：**不用 prefab 的 pos(0,60)**。`ControlPanel.prefab` 的 60 会让这条 26 高的
-        /// 底条**压住技能格带上沿 13 原版px** —— 实测（`.ai-tmp/test/u3_scan.py` 扫 `ControlPanel.png`
-        /// 的暗格矩形）：格带（左右键技能格 / 6 格技能栏 / 4 格腰带）横跨 art y(自上而下) **79..113**，
-        /// 底条在 art y **65.7..91.7** ⇒ 相交 79..91.7。原版两条是不可能的（底条不透明，会盖掉格子）。
+        /// ★★ 2026-09-23「用户基准图」轮重定（**原版实机像素量出来的**，不是 prefab 值）：
+        /// 原版实机基线图 `策划/基线图/原版_实机_UI基准_20260923.png` 里这一排按钮
+        /// **浮在格带上方的游戏画面上**（底图 `ControlPanel.png` 在该处本来就是透明的），
+        /// 与格带（`ControlPanel.png` 实测格带上沿 art y=64 ⇒ PY 74.7）之间留 ~14 原版px 的缝。
+        /// 逐像素量得这一排的中心 PY = **91.6**（标定 A：由两只球的球心反解 scale/x0，见
+        /// `tools/probes/measure/hud_measure.py` 文件头）/ **113.6**（标定 B：按 800×600 屏宽比）
+        /// ⇒ 取**偏保守的 90**（= 比两个估计都低一点，但仍显著高于旧的 72.7/ 门里的 60）。
+        /// 两条独立量法都给出「比旧值高 ≥17 原版px」⇒ 方向可靠、幅度 ±11。
         /// </para>
         /// <para>
-        /// 取值口径与本文件既有的 <see cref="HudSubBarArtY"/>（把跑/走按钮移出格带）**同一条**：
-        /// 只挪 **y**，把底条**下沿贴住格带上沿** —— 格带上沿在 origY（自画布底边）= **59.7**，
-        /// 底条高 26 ⇒ 中心 origY = **72.7**（= 60 + 12.7，正好抵消那 13px 相交）。**x 不动**（仍居中）。
+        /// ⚠️ 本常量与 `tools/probes/hosts/uicheck/LayoutGameCheck.cs` 的期望值**必须同步**
+        /// （那一行已从 `BottomY(60f)` 改为 `BottomY(MiniPanelArtY)`）——旧的 60 会让底条
+        /// **压进格带 27 原版px**（与"原版这一排浮在格带上方"的实机像素矛盾）。
         /// </para>
         /// </summary>
-        public const float MiniPanelY = (72.7f + HudBaseLift) * K - UiArt.RefHeight * 0.5f;
+        public const float MiniPanelArtY = 90f;
+
+        /// <summary>迷你面板底条中心 y（走贴底抬升；见 <see cref="MiniPanelArtY"/> 的量法依据）。</summary>
+        public const float MiniPanelY = (MiniPanelArtY + HudBaseLift) * K - UiArt.RefHeight * 0.5f;
 
         /// <summary>
         /// 迷你面板的**按钮数** = **8**（★ U3 更正：上一轮按 Diablerie `ControlPanel.prefab` 的

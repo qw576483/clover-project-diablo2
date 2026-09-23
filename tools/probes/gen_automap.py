@@ -50,6 +50,8 @@ ACT1_PL2 = os.path.join(ORIG, 'd2raw', 'data', 'global', 'palette', 'ACT1', 'Pal
 TILES_ROOT = os.path.join(ORIG, 'd2raw', 'data', 'global', 'tiles', 'ACT1')
 RES_D2 = os.path.join(ROOT, 'client', 'Assets', 'Resources', 'Clover', 'D2')
 OUT_CS = os.path.join(ROOT, 'client', 'Assets', 'Scripts', 'Core', 'AutoMapCel.generated.cs')
+# `--out-cs <path>` 覆盖生成物落点（默认 None = 落 OUT_CS）。见 emit_cs 的 docstring。
+OUT_CS_OVERRIDE = None
 OUT_JSON = os.path.join(ROOT, '.ai-tmp', 'test', 'automap-cel-report.json')
 OUT_PNG = os.path.join(ROOT, '.ai-tmp', 'test', 'automap_town_render.png')
 TOWN_LAYOUT_CS = os.path.join(ROOT, 'client', 'Assets', 'Scripts', 'Module', 'Map', 'MapGenTownLayout.cs')
@@ -142,12 +144,36 @@ def load_tile_index():
 #  逐格 Cel 解析
 # ─────────────────────────────────────────────────────────────────────────────
 def resolve_cel(rows_by_level, level_name, is_floor, style, seq):
-    """返回 (cel, 命中行数, 该行可用变体数)。命中 0 行 ⇒ (-1, 0, 0)。"""
+    """返回 (cel, 命中行数, 该行可用变体数, 是否走了地面 seq 兜底)。命中 0 行 ⇒ (-1, 0, 0, False)。
+
+    ★ 片 automap-redo2 第 3 轮（2026-09-23）新增**地面层 Sequence 兜底**，依据是机械实测
+    （`tools/probes/scan_automap_rows.py` 的 `[shift test]` / `[shift detail]`）：
+
+      把 key 里的 Sequence 平移 −1 / 0 / +1 后重算"无命中格数占比"：
+        · Town(1 Town)      floor 73.1% → **0.8%**（+1）    wall 0%（三个平移都是 0%）
+        · BloodMoor(1 Wild) floor 76.2% → **0.2%**（+1）    wall 0%
+        · DenOfEvil(1 Cave) floor **12.9%（现状已很低）** → 15.0%（+1，反而变差）
+      逐键看根因：Town/Wilderness 的地面行是 `fl seq=[1,46]`/`[1,47]`，而 DS1 的 `prop2` 域含 0
+      且 0 是最大宗（Town 6781/9348 格、Wilderness 8044 格）；Cave 的地面行 `fl seq=[0,0]` 从 0 起、
+      0 命中 22393 格 ⇒ **两种约定在同一个字段上并存**。
+
+    ⇒ 因此**只做兜底、不做全局平移**（全局 +1 会改掉 Cave 已正确的 4 个键：seq=12 变无命中、
+      seq=16/10/11 选中不同 cel）。兜底是现状的**严格超集**：已命中的键仍命中同一行、cel 不变，
+      爆炸半径只有"把无命中的地面格变有"；wall 命中率在三个平移下都是 0% ⇒ 兜底不会触发。
+    ⚠️ 本条**可证伪**：它假定原版城镇/野外 automap 的**地面是有纹理的**。若一张**已知关卡名**的
+      Act1 原版 automap 基线图显示城镇地面确实空白 ⇒ 本条作废，恢复"无命中 ⇒ -1"。
+    """
     hits = [r for r in rows_by_level.get(level_name, ())
             if r.matches(style, seq) and ((r.tile in FLOOR_NAMES) == is_floor)]
+    fallback = False
+    if not hits and is_floor:
+        # 仅地面层、仅在 0 命中时回退一次（详见 docstring 的实测依据）
+        hits = [r for r in rows_by_level.get(level_name, ())
+                if r.matches(style, seq + 1) and r.tile in FLOOR_NAMES]
+        fallback = bool(hits)
     if not hits:
-        return -1, 0, 0
-    return hits[0].first_cel(), len(hits), sum(1 for c in hits[0].cels if c >= 0)
+        return -1, 0, 0, False
+    return hits[0].first_cel(), len(hits), sum(1 for c in hits[0].cels if c >= 0), fallback
 
 
 def walk_level(cfg, rows_by_level, floor_map, wall_map, by_source):
@@ -156,7 +182,8 @@ def walk_level(cfg, rows_by_level, floor_map, wall_map, by_source):
              'object': collections.defaultdict(collections.Counter)}
     stats = dict(ds1=0, cells_floor=0, cells_wall=0, hit_floor=0, hit_wall=0,
                  no_texture=0, key_not_shipped=0, multi_row=0, multi_variant=0,
-                 ci_ambiguous=0, ci_outside_level=0, files=[])
+                 ci_ambiguous=0, ci_outside_level=0, files=[],
+                 floor_seq_fallback=0)      # ★ 地面 Sequence 兜底命中数（见 resolve_cel）
     level_name = '%d %s' % (cfg['act'], cfg['level_type'])
     for path in cfg['ds1']:
         if not os.path.exists(path):
@@ -179,10 +206,12 @@ def walk_level(cfg, rows_by_level, floor_map, wall_map, by_source):
                 if c.is_empty:
                     continue
                 stats['cells_floor' if is_floor else 'cells_wall'] += 1
-                cel, nhit, nvar = resolve_cel(rows_by_level, level_name, is_floor,
-                                              c.prop3 & 0x0F, c.prop2)
+                cel, nhit, nvar, fellback = resolve_cel(rows_by_level, level_name, is_floor,
+                                                        c.prop3 & 0x0F, c.prop2)
                 if nhit == 0:
                     continue
+                if fellback:
+                    stats['floor_seq_fallback'] += 1
                 if nhit > 1:
                     stats['multi_row'] += 1
                 if nvar > 1:
@@ -227,7 +256,11 @@ def encode_cel_pixels(frame):
     return base64.b64encode(bytes(buf)).decode('ascii')
 
 
-def emit_cs(table, cels_used, palette_rgb, cel_pixels, report):
+def emit_cs(table, cels_used, palette_rgb, cel_pixels, report, out_cs=None):
+    """写生成物。`out_cs` 可覆盖输出路径 —— 供 `--out-cs` 在**不能写 Assets/ 的时段**
+    （例如别的片正占着 play.lock 在 Play：写 Assets/Scripts/** 会触发域重载杀掉对方的会话）
+    先把生成物算出来核对。默认仍是 `OUT_CS`。"""
+    out_cs = out_cs or OUT_CS
     lines = []
     A = lines.append
     A('// ─────────────────────────────────────────────────────────────────────────────')
@@ -243,6 +276,10 @@ def emit_cs(table, cels_used, palette_rgb, cel_pixels, report):
     A('//')
     A('// 查询键 = (LevelName = `<act> <LevelType>`、Style = DS1 `prop3 & 0x0F`、Sequence = DS1 `prop2`)；')
     A('// 命中多行 ⇒ 取表里最先出现的一行、取该行第一个 `CelN >= 0`；无命中 ⇒ -1（该格不画）。')
+    A('// ★ 地面层 Sequence 兜底（片 automap-redo2 第 3 轮，2026-09-23）：**仅当 `hits` 为空 且 该格属地面层**')
+    A('//   时，用 `Sequence + 1` 再查一次；仍无命中 ⇒ -1。依据是机械实测（`tools/probes/scan_automap_rows.py`）：')
+    A('//   Town 地面无命中格 73.1% → 0.8%、Wilderness 76.2% → 0.2%（+1），而 Cave 地面现状已只 12.9%')
+    A('//   且它的 `fl` 行本就从 seq=0 起 ⇒ **全局平移会改坏 Cave**，所以只做兜底。墙层三个平移都是 0% 无命中 ⇒ 不受影响。')
     A('// ⛔ 原版「多行命中时挑哪一行 / 4 个变体挑哪一个」的规则**本机没有载体**（见')
     A('//   `.ai-tmp/test/automap-plan.md` §2）⇒ 上一条是本项目**定死并登记**的可复跑规则。')
     A('//')
@@ -312,7 +349,9 @@ def emit_cs(table, cels_used, palette_rgb, cel_pixels, report):
     A('        private static byte[] Decode(string b64) => System.Convert.FromBase64String(b64);')
     A('    }')
     A('}')
-    open(OUT_CS, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines) + '\n')
+    os.makedirs(os.path.dirname(out_cs), exist_ok=True)
+    open(out_cs, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines) + '\n')
+    return out_cs
 
 
 def ToKeys(d):
@@ -403,6 +442,14 @@ def write_png(path, w, h, rgba):
 
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
+    global OUT_CS_OVERRIDE
+    argv = sys.argv[1:]
+    if '--out-cs' in argv:
+        OUT_CS_OVERRIDE = argv[argv.index('--out-cs') + 1]
+        print('OUT-CS-OVERRIDE %s（不改 Assets/；用于 play.lock 被别人占着时先核对生成物）'
+              % OUT_CS_OVERRIDE)
+    elif '--render-only' in argv:
+        print('RENDER-ONLY（本轮保持既有语义：照常重写生成物）')
     header, rows = load_automap()
     rows_by_level = collections.defaultdict(list)
     for r in rows:
@@ -435,11 +482,12 @@ def main():
         report['levels'][name] = stats
         report['areas'][cfg['area_id']] = dict(name=name, levelName='%d %s' % (cfg['act'], cfg['level_type']),
                                                ground=len(t['ground']), object=len(t['object']))
-        print('[%s] %s：DS1 %d 块  floor 格 %d（命中 %d）  wall 格 %d（命中 %d）  '
+        print('[%s] %s：DS1 %d 块  floor 格 %d（命中 %d，其中 seq 兜底 %d）  wall 格 %d（命中 %d）  '
               '键未随包 %d  非本关 dt1 集 %d  同 ci 多 pack %d  多行命中 %d  多变体行 %d  '
               '地面键 %d / 物件键 %d'
               % (name, report['areas'][cfg['area_id']]['levelName'], stats['ds1'],
-                 stats['cells_floor'], stats['hit_floor'], stats['cells_wall'], stats['hit_wall'],
+                 stats['cells_floor'], stats['hit_floor'], stats['floor_seq_fallback'],
+                 stats['cells_wall'], stats['hit_wall'],
                  stats['key_not_shipped'], stats['ci_outside_level'], stats['ci_ambiguous'],
                  stats['multi_row'], stats['multi_variant'],
                  len(t['ground']), len(t['object'])))
@@ -457,8 +505,9 @@ def main():
             print('  [WARN] Cel %d 超出帧数 %d ⇒ 跳过' % (cel, len(d.frames)))
             continue
         cel_pixels[cel] = encode_cel_pixels(d.frames[cel])
-    emit_cs(table, cels, palette_rgb, cel_pixels, report)
-    print('WROTE %s' % OUT_CS)
+    wrote = emit_cs(table, cels, palette_rgb, cel_pixels, report, out_cs=OUT_CS_OVERRIDE)
+    print('WROTE %s%s' % (wrote, '   (--out-cs override; the game依然读 %s)' % OUT_CS
+                          if OUT_CS_OVERRIDE else ''))
 
     # 预览：城镇（读生成物布局表 → 与面板同一几何）
     packs, ground, obj = parse_town_layout()
