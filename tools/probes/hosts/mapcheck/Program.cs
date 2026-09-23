@@ -89,6 +89,10 @@ internal static class MapCheckProgram
         // ── ★ 片 travel-black（2026-09-24）：传送落地整屏黑 —— 「换区后**首个可玩帧**的已建块 ⊇ 屏上可见块」
         //    只加断言，⛔ 不动既有步骤、⛔ 不放宽任何既有断言 ──────────────────────────────
         Run(Step33_LandingRangeCoversViewport);
+        // ── ★ 片 revive-chunk（2026-09-24）：**同区域内**大跨度落位（死亡重生 / TeleportTo）的落点预建
+        //    只加断言，⛔ 不动 §0~§33、⛔ 不放宽任何既有断言（与 §33 的"换区重铺"是两条不同路径）──────
+        Run(Step34_PrimeLandingTrigger);
+        Run(Step35_LargeShiftPrimeCoversViewport);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -1406,11 +1410,22 @@ internal static class MapCheckProgram
         Console.WriteLine($"  `_pendingChunks.Enqueue(`：RefreshVisibleChunks {CountIn(inRefresh, "_pendingChunks.Enqueue(")} / " +
                           $"DropFarPendingChunks {CountIn(inDropFar, "_pendingChunks.Enqueue(")} / 全文件 {CountIn(view, "_pendingChunks.Enqueue(")}；" +
                           $"`_retireChunks.Enqueue(`：EnqueueRetire {CountIn(inEnqRetire, "_retireChunks.Enqueue(")} / 全文件 {CountIn(view, "_retireChunks.Enqueue(")}");
-        Check(CountIn(view, "_pendingChunks.Enqueue(") == 2
+        //   ★ 2026-09-24（片 revive-chunk）：新增第三条入队点 = `PrimeLanding`（大跨度落位预建）。
+        //     它同样是**增量路径**（落点范围缺块入队，单帧预算一个字未改）⇒ 本断言**不放松**，
+        //     只是从"总数 2"改成"逐入队点指名 + 整图重铺三条路径体内**恒 0**"（原意一条不少）。
+        var inPrime = MethodBody(view, "public int PrimeLanding(");
+        var inStartRebuild = MethodBody(view, "private void StartRebuild(string why)");
+        Check(CountIn(view, "_pendingChunks.Enqueue(") == 3
               && CountIn(inRefresh, "_pendingChunks.Enqueue(") == 1
-              && CountIn(inDropFar, "_pendingChunks.Enqueue(") == 1,
-            "**待建块队列**的入队点仍恰 2 处，且都在增量路径体内（`RefreshVisibleChunks` 登记 1 + " +
-            "`DropFarPendingChunks` 撤远块后回填 1）—— 整图重铺**不再**往它里塞东西");
+              && CountIn(inDropFar, "_pendingChunks.Enqueue(") == 1
+              && CountIn(inPrime, "_pendingChunks.Enqueue(") == 1
+              && CountIn(rebuildBody, "_pendingChunks.Enqueue(") == 0
+              && CountIn(inStartRebuild, "_pendingChunks.Enqueue(") == 0
+              && CountIn(inImmediate, "_pendingChunks.Enqueue(") == 0,
+            "**待建块队列**的入队点恰 3 处且**逐处指名**，全部在增量路径体内（`RefreshVisibleChunks` 登记 1 + " +
+            "`DropFarPendingChunks` 撤远块后回填 1 + `PrimeLanding` 大跨度落位预建 1）—— " +
+            "整图重铺三条路径体内**恒 0 次**（`RebuildLayers` / `StartRebuild` / `RebuildImmediate`）" +
+            "⇒ 整图重铺**仍不**往它里塞东西");
         Check(CountIn(view, "_retireChunks.Enqueue(") == 1 && CountIn(inEnqRetire, "_retireChunks.Enqueue(") == 1
               && CountIn(inSwap, "EnqueueRetire(") == 3,
             "**回收队列**的入队点恰 1 处（`EnqueueRetire` 体内），且只被 `SwapToBuilt` 调 3 次" +
@@ -4283,6 +4298,153 @@ internal static class MapCheckProgram
         var by0 = cy * MapView.ChunkSize;
         var by1 = by0 + MapView.ChunkSize - 1;
         return bx0 <= x1 && bx1 >= x0 && by0 <= y1 && by1 >= y0;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ★ 片 revive-chunk（2026-09-24）：**大跨度落位预建**（死亡重生 / 传送）
+    //   只加断言：⛔ 不动 §0~§33 的任何一行、⛔ 不放宽任何既有断言。
+    //   ⚠️ 与 §33（travel-black）**不是同一条路径**：§33 判"**换区**那次整图重铺按落点算范围"
+    //      （走 `ShowArea` → `StartRebuild`）；本片判"**同区域内**一步大跨度位移（重生 / `TeleportTo`）
+    //      后被 `ReleaseFarChunks` 回收掉的块，当帧就回到待建队列"（⛔ 无 `ShowArea`、⛔ 不 `StartRebuild`）。
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// §34：「**该不该预建**」的判据（生产纯函数 <see cref="MapView.IsLargeShift"/>）+ **反例**。
+    /// <para>判据本体 = 玩家格坐标一步跨 ≥ <see cref="MapView.PrimeJumpCells"/>（= 2 块 = 32 格）
+    /// ⇒ 判为大跨度、触发预建；小跨度（走路 1~2 格）**绝不触发** ⇒ 防"每走一步就全量对账"的性能退化。</para>
+    /// </summary>
+    private static void Step34_PrimeLandingTrigger()
+    {
+        Section("34. ★ revive-chunk：大跨度位移才预建（反例：小跨度 ⛔ 不触发）");
+
+        Check(MapView.PrimeJumpCells == MapView.ChunkSize * 2,
+            $"触发阈值 = 2 块 = {MapView.PrimeJumpCells} 格（= ChunkSize({MapView.ChunkSize}) × 2，由生产常量现算）");
+
+        // 实机那两条链（`.ai-tmp/test/re_readings_re3.txt:289` / `:65`）：重生 = 同区域内一步跨几十格
+        var far = new Vector2Int(71, 8);
+        var spawn = new Vector2Int(9, 60);
+        Check(MapView.IsLargeShift(far, spawn),
+            $"实机（分块区重生）：血腥荒野 80x80 的 (71,8) → 出生点 (9,60)" +
+            $"（跨 {Shift(far, spawn)} 格）判为**大跨度** ⇒ 触发预建");
+        // 阈值**下侧**的实机边界：营地那次重生跨 24 格（< 2 块）⇒ 不判大跨度。
+        // 口径依据：保留带 = 相机块范围 ±1 块（≈ 4x3 块），24 格 ≈ 1.5 块 ⇒ 落点仍在保留带内 ⇒ 无洞可补；
+        // 且营地图 2240 格 ≤ 4096 ⇒ `_chunked=false`、从不回收块（实机 round3 营地 MISSING 恒 0）。
+        Check(!MapView.IsLargeShift(new Vector2Int(8, 20), new Vector2Int(32, 28)),
+            "实机（营地重生）：(8,20) → (32,28)（跨 24 格 < 2 块）**不**触发预建" +
+            "（小图不回收块、且落点仍在“相机块范围 ±1 块”的保留带内 ⇒ 本来就没有洞可补）");
+
+        // 反例①：连续走路 400 步（每步 1 格）—— 一次都不许触发
+        var walkHits = 0;
+        var g = new Vector2Int(0, 0);
+        for (var i = 0; i < 400; i++)
+        {
+            var next = i % 2 == 0 ? new Vector2Int(g.x + 1, g.y) : new Vector2Int(g.x, g.y + 1);
+            if (MapView.IsLargeShift(g, next)) walkHits++;
+            g = next;
+        }
+        Check(walkHits == 0,
+            $"反例①：连续走 400 步（每步 1 格）触发 **{walkHits}** 次（必须 0 次）" +
+            "⇒ 走路这条路径的开销与改前**逐帧相同**（没有任何“每走一步全量对账”）");
+
+        // 反例②：1~2 格的小位移（含对角）不触发
+        Check(!MapView.IsLargeShift(spawn, new Vector2Int(spawn.x + 1, spawn.y))
+              && !MapView.IsLargeShift(spawn, new Vector2Int(spawn.x, spawn.y + 2))
+              && !MapView.IsLargeShift(spawn, new Vector2Int(spawn.x + 1, spawn.y + 1)),
+            "反例②：1 格 / 2 格 / 对角 1 格的小位移**都不**触发预建");
+
+        // 阈值边界（Chebyshev 口径）
+        Check(!MapView.IsLargeShift(new Vector2Int(0, 0), new Vector2Int(MapView.PrimeJumpCells - 1, 0))
+              && MapView.IsLargeShift(new Vector2Int(0, 0), new Vector2Int(MapView.PrimeJumpCells, 0)),
+            $"阈值边界：跨 {MapView.PrimeJumpCells - 1} 格**不**触发、跨 {MapView.PrimeJumpCells} 格触发");
+    }
+
+    /// <summary>§34 打印用：两格的 Chebyshev 距离。</summary>
+    private static int Shift(Vector2Int a, Vector2Int b)
+    {
+        return Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
+    }
+
+    /// <summary>
+    /// §35：**分块区死亡重生后"当帧"的已建块 ⊇ 屏上可见块**（用实机数字复算）。
+    /// <para>实机读数（`.ai-tmp/test/re_readings_re3.txt:345-412`，改前 / 无预建）：</para>
+    /// <para>· `BP-AT-FAR`（传到最远格 (71,8) 后）builtGround=4、可见块范围 (3,0)-(4,1) —— 出生点周围 9 块
+    ///   **已被 `ReleaseFarChunks` 回收**；</para>
+    /// <para>· `BP-REVIVE-T0` 同帧 builtGround=4、可见仍是 (3,0)-(4,1) ⇒ `MISSING=0`（**假绿**：相机还没跟上）；</para>
+    /// <para>· `BP-REVIVE-T0.5` builtGround=8 / Pending=2 / 可见 (0,2)-(2,4) / `MISSING=2 [(2,3)(2,4)]`；</para>
+    /// <para>· `BP-REVIVE-T1.5` builtGround=10 / `MISSING=0`（自愈 ⇒ 窗口 ≈ 0.5~1 s）。</para>
+    /// <para>本步判"修法"（生产纯函数 <see cref="MapView.PrimeChunks"/>）：重生落点范围必须
+    /// **当帧全部进待建队列**，且该范围 ⊇ 屏上可见块范围；并给**反例**（不预建时 preBuilt 在落地视口上盖不满 0 块）
+    /// ⇒ 断言判"过程"，⛔ 不是改一个数字就能变绿。</para>
+    /// </summary>
+    private static void Step35_LargeShiftPrimeCoversViewport()
+    {
+        Section("35. ★ revive-chunk：分块区死亡重生后**当帧**的已建块 ⊇ 屏上可见块（实机数字复算）");
+
+        const int mapW = 80, mapH = 80;           // 血腥荒野 80x80（> BuildAllTileThreshold 4096 ⇒ 分块）
+        const int halfX = 15, halfY = 7;          // 1920x1080 视口半跨（格，同 §33 实测口径）
+        var far = new Vector2Int(71, 8);          // 实机 round3 传送到的"最远可走格"
+        var spawn = new Vector2Int(9, 60);        // 实机 round3 的出生点（= 重生落点）
+        var visibleMin = new Vector2Int(0, 2);
+        var visibleMax = new Vector2Int(2, 4);    // 实机 BP-REVIVE-T0.5 的可见块范围
+
+        // 前提：这次重生必须**确实被判为大跨度**（否则整套预建根本不会发生 ⇒ 下面几条断言全部作废）。
+        // ⚠️ 这一条同时是**退化校验**的把手：把 `IsLargeShift` 改成恒 false（= 关掉预建）⇒ §34 与 §35 一起变红。
+        Check(MapView.IsLargeShift(far, spawn),
+            $"前提：实机那次重生 {far} → {spawn} 被判为大跨度（跨 {Shift(far, spawn)} 格 ≥ PrimeJumpCells）" +
+            "⇒ 预建路径真的会被走到（退化校验：改 `IsLargeShift` 恒 false ⇒ §34/§35 同时变红）");
+
+        // ① 落点范围与"重生后屏上要的块"逐项相同（口径同一 → 才有资格叫"覆盖屏上可见块"）
+        Vector2Int pmin, pmax;
+        MapView.LandingRange(spawn.x, spawn.y, halfX, halfY, mapW, mapH, out pmin, out pmax);
+        Check(pmin == visibleMin && pmax == visibleMax,
+            $"重生落点 {spawn} 按**落点**算出的块范围 = ({pmin.x},{pmin.y})-({pmax.x},{pmax.y})，" +
+            $"与实机 `BP-REVIVE-T0.5` 的可见块范围 (0,2)-(2,4) **逐项相同**");
+
+        // ② 当帧该入队哪些块（生产纯函数；`MapView.PrimeLanding` 走的就是它）
+        var primed = new List<Vector2Int>();
+        MapView.PrimeChunks(spawn.x, spawn.y, halfX, halfY, mapW, mapH, primed);
+        var empty = new List<Vector2Int>();
+        Check(primed.Count > 0 && MapView.ChunkRangeCovered(primed, empty, pmin.x, pmin.y, pmax.x, pmax.y),
+            $"预建清单**当帧**含落点范围里每一块（{primed.Count} 块，`ChunkRangeCovered`=true）" +
+            "⇒ 重生那一刻 `PendingChunks` 就有货（改前实测 T0 是 **0**，只能等 0.25 s 登记周期 + 1 块/帧）");
+        Check(primed.Count == (pmax.x - pmin.x + 1) * (pmax.y - pmin.y + 1) && primed.Count < 25,
+            $"预建清单 = 落点范围 {(pmax.x - pmin.x + 1) * (pmax.y - pmin.y + 1)} 块" +
+            $"（⛔ 不是全图 5x5=25 块 ⇒ 不把“重生”变成“重进区域”的全量重铺）");
+
+        // ③ "当帧就有块"能兑现的依据：清单块数 ≤ 相机位到落点之前可用的帧预算（1 块/帧，⛔ 不动该常量）
+        var budget = MapView.MaxChunksPerFrame * (int)(0.5f * FramePacing.TargetFrameRate);
+        Check(primed.Count <= budget,
+            $"预建 {primed.Count} 块 ≤ 相机到位前的建块预算 {budget} 块" +
+            $"（{MapView.MaxChunksPerFrame} 块/帧 × 0.5s×{FramePacing.TargetFrameRate}fps，" +
+            "0.5s = 实机“屏上出现落点画面”的采样点）⇒ 落点画面出现那一帧已建满");
+
+        // ④ 覆盖关系：已建(远处残留 4 块) ∪ 当帧入队(落点 9 块) ⊇ 屏上可见块
+        var preBuilt = new List<Vector2Int>
+        {
+            new Vector2Int(3, 0), new Vector2Int(4, 0), new Vector2Int(3, 1), new Vector2Int(4, 1),
+        };   // 实机 BP-AT-FAR：builtGround=4 / 可见 (3,0)-(4,1)
+        var built = new List<Vector2Int>(preBuilt);
+        Check(MapView.ChunkRangeCovered(built, primed, pmin.x, pmin.y, pmax.x, pmax.y),
+            "**重生后当帧**：已建块(preBuilt 4) ∪ 当帧入队(primed 9) ⊇ 屏上可见块(9) ⇒ 无洞（这就是本片要的判据）");
+
+        // ⑤ 反例（退化校验）：**关掉预建**（primed 为空 = 改前的实际形态）⇒ 落地视口上缺 9 块
+        var missNoPrime = 0;
+        for (var cx = pmin.x; cx <= pmax.x; cx++)
+        {
+            for (var cy = pmin.y; cy <= pmax.y; cy++)
+            {
+                if (!preBuilt.Contains(new Vector2Int(cx, cy))) missNoPrime++;
+            }
+        }
+        Check(missNoPrime > 0,
+            $"反例（退化校验）：**不预建**时 preBuilt(4 块，全在远处 (3,0)-(4,1)) 在落地视口上缺 **{missNoPrime}** 块" +
+            " ⇒ §35 变红（= 实机 T+0.5s `MISSING=2`、T+1.5s 才自愈的那条窗口）");
+
+        // ⑥ 小图（罗格营地 56x40 = 2240 ≤ 4096 ⇒ 从不分块、从不回收）⇒ 预建必须**自退**
+        var townPrimed = new List<Vector2Int>();
+        MapView.PrimeChunks(32, 28, halfX, halfY, 56, 40, townPrimed);
+        Check(townPrimed.Count == 0,
+            "小图（营地 56x40，不分块）⇒ 预建清单为空（从不回收块 ⇒ 无需预建；⛔ 不做无谓对账/重铺）");
     }
 
     private static void Step32_TownBorderWalkableInventory()

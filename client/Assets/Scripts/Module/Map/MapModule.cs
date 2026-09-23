@@ -316,6 +316,7 @@ namespace Diablo2.Module.Map
             UnsubscribeExplore();
             if (_view != null) _view.Clear();
             _exploredDirty = true;        // ★ S2：渲染层的已探索位图已清 ⇒ 投影必须跟着作废
+            _hasLastPlayerGrid = false;   // ★ revive-chunk：退场 ⇒ "上一格"作废（下次进图第一格不算跳变）
             _grid.Clear();
             MapLog.Info("Clear: 地图数据 / 渲染 / 已探索记录全部清空（退出 Stage）");
         }
@@ -360,6 +361,8 @@ namespace Diablo2.Module.Map
             // ★ S2：`MapView.ShowArea` 在换区（或尺寸不符）时会按新图重建已探索位图
             //   ⇒ 投影缓存必须作废，否则 `ExploredCells` 会把上一张图的格报给自动地图。
             _exploredDirty = true;
+            // ★ revive-chunk：换区后**第一格**不算"大跨度跳变"（那次整图重铺由 travel-black 的落点口径负责）
+            _hasLastPlayerGrid = false;
         }
 
         /// <summary>战争迷雾开关（转 `MapView`；**非契约方法**，`IMapModule` 上没有）。</summary>
@@ -597,7 +600,27 @@ namespace Diablo2.Module.Map
         private void OnPlayerGridChanged(Vector2Int g)
         {
             if (_view == null) return;
+
+            // ★ revive-chunk（2026-09-24）：**大跨度位移**（Chebyshev ≥ 2 块）⇒ 落位**当帧**预建落点范围的块。
+            //   为什么需要：同区域内一步大跨度位移（死亡重生 `Revive` → `Teleport(SpawnPoint)`、
+            //   `IPlayerModule.TeleportTo`）**不走** `Generate`/`ShowArea`/`StartRebuild`，而落点周围的块
+            //   **早已被 `ReleaseFarChunks` 回收** ⇒ 实测 `T+0.5s MISSING=2`、`T+1.5s` 才自愈。
+            //   放在这里（而不是 `Revive()` 里）= **公共路径**：任何"玩家格坐标一步大跨度变化"都受益；
+            //   反例由 `MapView.IsLargeShift` 把住 —— 走路（1 格/步）**一次都不触发**（mapcheck §34）。
+            if (_hasLastPlayerGrid && MapView.IsLargeShift(_lastPlayerGrid, g))
+                _view.PrimeLanding(g, $"格跳变 {_lastPlayerGrid} -> {g}");
+            _lastPlayerGrid = g;
+            _hasLastPlayerGrid = true;
+
             if (_view.MarkExplored(g)) OnFirstExplored(g);
         }
+
+        /// <summary>
+        /// ★ revive-chunk：上一位玩家格 + 是否有效 —— 判"这一步是不是**大跨度位移**"用。
+        /// <para>`ShowArea`（换区：那次重铺由 travel-black 的落点口径负责）与 `Clear`（退场）都复位
+        /// ⇒ 换区后的**第一格**不算跳变（⛔ 否则会在换区重铺期间又插一次预建）。</para>
+        /// </summary>
+        private Vector2Int _lastPlayerGrid;
+        private bool _hasLastPlayerGrid;
     }
 }

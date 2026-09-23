@@ -143,6 +143,24 @@ namespace Diablo2.Module.Map
         public const int ChunkSize = 16;
 
         /// <summary>
+        /// ★ revive-chunk（2026-09-24）：玩家格坐标**一步跨多少格**就判为「大跨度位移」。
+        /// <para>算式（⛔ 不是魔数）：可见范围的外扩 / 回收的保留带都是 **1 块** = <see cref="ChunkSize"/> 格
+        /// ⇒ 跨 ≥ 2 块时，起始位置与落点之间隔着 ≥1 个整块的缓冲带，落点周围的块必然**不在**当前可见集里
+        /// ⇒ 必须立刻预建（见 <see cref="PrimeLanding"/>）。</para>
+        /// <para>反例（防误触）：走路每步 1 格 ⇒ 永远 &lt; 2 块 ⇒ 一次都不触发
+        /// （`tools/probes/hosts/mapcheck` §34 实测：连走 400 步触发 0 次）。</para>
+        /// </summary>
+        public const int PrimeJumpCells = ChunkSize * 2;
+
+        /// <summary>
+        /// ★ revive-chunk：大跨度落位后的**预建窗口**（秒）—— 窗口内落点范围的块不许被回收/丢弃，
+        /// 且窗口内若发生整图重铺则按**落点**算范围（与 travel-black 同口径）。
+        /// <para>取 1.0 s 的依据：实机缺块窗口 ≈0.5~1 s（`BP-REVIVE-T0.5` 缺 2 块、`T+1.5` 才自愈），
+        /// 且落点范围 ≤ 16 块 ÷ `MaxChunksPerFrame`(1 块/帧) ≈ 0.27 s @60fps 就泵完 ⇒ 1 s 足够覆盖。</para>
+        /// </summary>
+        public const float PrimeLandingWindow = 1.0f;
+
+        /// <summary>
         /// ★ T0FIX-A：**增量路径**每帧最多建几块（> 0）。
         /// <para>依据（⛔ 不是魔数，逐项都是生产常量）：`ComputeVisibleChunkRange` 外扩 1 块
         /// = <see cref="ChunkSize"/> 格余量，相机最快 <see cref="GameConst.PlayerWalkSpeed"/> 格/s
@@ -238,6 +256,20 @@ namespace Diablo2.Module.Map
         private bool _hasChunkRange;
         private Vector2Int _chunkMin;
         private Vector2Int _chunkMax;
+
+        // ── ★ revive-chunk（2026-09-24）：**大跨度落位预建**（死亡重生 / TeleportTo / 未来的位移技能）─
+        //   缺陷（实机逐帧量到，`.ai-tmp/test/re_readings_re3.txt:345-412`）：**同区域内**的一步大跨度位移
+        //   （`PlayerModule.Revive` → `Teleport(SpawnPoint)` / `IPlayerModule.TeleportTo`）**不走**
+        //   `Generate` / `ShowArea` / `StartRebuild`，而落点周围的块**早已被 `ReleaseFarChunks` 回收**
+        //   ⇒ 只能等 `ChunkRefreshInterval`(0.25 s) 的登记周期 + `MaxChunksPerFrame`(1 块/帧) 逐帧补：
+        //   实测 `builtGround 4 → 8 → 10`、`T+0.5s MISSING=2 [(2,3)(2,4)]`、`T+1.5s` 才自愈。
+        //   修法 = 落位**当帧**就把落点范围的缺块入队（`PrimeLanding`）⇒ 窗口从 ~1 s 压到 ~1 帧。
+        //   ⛔ 不动 `MaxChunksPerFrame` / `ChunkRefreshInterval`（拿性能换视觉）；⛔ 不走 `StartRebuild`。
+        private bool _primeActive;              // 预建窗口是否生效（窗口内 `PlanRange` 也按落点算）
+        private float _primeUntil;              // 预建窗口截止时刻（unscaledTime）
+        private Vector2Int _primeMin;           // 预建范围（落点，闭区间）
+        private Vector2Int _primeMax;
+        private int _primeQueued;               // 本次预建真正新入队的块数（自证）
 
         // ── ★ T0FIX-A：节点池 + 增量建块队列 ────────────────────────────────────
         /// <summary>节点池（唯一创建者；`Take` 冷分支才 `new GameObject`）。</summary>
@@ -509,6 +541,9 @@ namespace Diablo2.Module.Map
             _hasChunkRange = false;
             _hasLandingFocus = false;                    // ★ travel-black：退场时落点口径一并作废
             _areaReadyOwed = false;
+            _primeActive = false;                        // ★ revive-chunk：落位预建窗口一并作废
+            _primeUntil = float.NegativeInfinity;
+            _primeQueued = 0;
             _repaintRequested = false;
             _repaintFirstAt = -1f;                       // ★ R1-D：清掉待重铺时刻（否则旧时刻会立刻触发）
             _lastRepaintAt = float.NegativeInfinity;     // （`_repaintCoalesceLogged` 不复位：口径日志一局只报一次）
@@ -1304,6 +1339,148 @@ namespace Diablo2.Module.Map
             return v >= 0 ? v / d : -(((-v) + d - 1) / d);
         }
 
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ revive-chunk（2026-09-24）：**大跨度落位预建**（死亡重生 / TeleportTo / 位移技能）
+        //   口径与 travel-black 的 `LandingRange` 同一份（落点 + 视口格半跨），但**不重铺**：
+        //   只把落点范围里缺的块**当帧**入 `_pendingChunks`（跳过 0.25 s 登记等待），
+        //   真正的建块仍由 `PumpChunkBuild` 按既有 `MaxChunksPerFrame` 摊平
+        //   ⇒ 单帧尖峰口径**一字未改**（⛔ 不是"拿性能换视觉"）。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// ★ revive-chunk **纯函数**（离线可断言，`mapcheck` §34）：玩家格坐标一步 `<paramref name="from"/>`
+        /// → `<paramref name="to"/>` 是否算「大跨度位移」（Chebyshev 距离 ≥ <see cref="PrimeJumpCells"/>）。
+        /// <para>为什么用 Chebyshev：块是**轴对齐**的 ⇒ "斜着跨 30 格"与"横着跨 30 格"在块网格上跨的块数一样，
+        /// 用 <c>max(|dx|,|dy|)</c> 判"块网格上跳了几格"最直接。</para>
+        /// </summary>
+        public static bool IsLargeShift(Vector2Int from, Vector2Int to)
+        {
+            return Mathf.Max(Mathf.Abs(to.x - from.x), Mathf.Abs(to.y - from.y)) >= PrimeJumpCells;
+        }
+
+        /// <summary>
+        /// ★ revive-chunk **纯函数**（离线可断言，`mapcheck` §35）：落点 `focus` 处"落地那一刻"要看的块清单
+        /// = <see cref="LandingRange"/> + <see cref="PlannedChunks"/>（与整图重铺**同一口径**）。
+        /// <para>小图（<c>mapW*mapH ≤ BuildAllTileThreshold</c> ⇒ 不分块、**从不回收块**）⇒ 写空清单返回
+        /// （⛔ 不做无谓的全量对账 —— 那是把"重生"变成"重进区域"）。</para>
+        /// </summary>
+        public static void PrimeChunks(int focusX, int focusY, int halfX, int halfY, int mapW, int mapH,
+            List<Vector2Int> into)
+        {
+            if (into == null) return;
+            into.Clear();
+            if (mapW <= 0 || mapH <= 0) return;
+            if ((long)mapW * mapH <= BuildAllTileThreshold) return;      // 小图不分块 ⇒ 无需预建
+
+            Vector2Int min, max;
+            LandingRange(focusX, focusY, halfX, halfY, mapW, mapH, out min, out max);
+            var chunksX = (mapW + ChunkSize - 1) / ChunkSize;
+            var chunksY = (mapH + ChunkSize - 1) / ChunkSize;
+            PlannedChunks(true, min.x, min.y, max.x, max.y, chunksX, chunksY, into);
+        }
+
+        /// <summary>
+        /// ★ revive-chunk：**大跨度落位预建** —— 落位当帧把落点范围的缺块入队（⛔ 不建节点、⛔ 不重铺）。
+        /// <para>调用点 = `MapModule.OnPlayerGridChanged`（<see cref="IsLargeShift"/> 为真时）⇒ 覆盖**所有**
+        /// "玩家格坐标一步大跨度变化"的情形（死亡重生 / `IPlayerModule.TeleportTo` / 未来的位移技能），
+        /// ⛔ 不是给 `Revive()` 打的单点补丁。</para>
+        /// <para>返回 = 真正新入队的块数（0 = 无需预建：小图 / 未铺装 / 换区重铺进行中 / 落点范围的块都已就位）。
+        /// 非预期分支（拿不到相机跨度 / 层根被销毁 / 换区重铺进行中 / 小图）都有日志。</para>
+        /// </summary>
+        public int PrimeLanding(Vector2Int focus, string why)
+        {
+            if (_map == null || !_showing)
+            {
+                MapLog.Info($"[revive-chunk] 落位预建跳过：地图未铺装（focus={focus} why={why}）");
+                return 0;
+            }
+            if (!_chunked)
+            {
+                MapLog.Info($"[revive-chunk] 落位预建跳过：小图不分块（{_map.Width}x{_map.Height} ≤ " +
+                            $"{BuildAllTileThreshold}）⇒ 从不回收块、无缺块窗口（focus={focus} why={why}）");
+                return 0;
+            }
+            if (_hasLandingFocus)
+            {
+                // 换区重铺正在进行：`_landingFocus` 已被 `ShowArea` 占成新区域出生点，那条路径（travel-black）
+                // 本来就在按落点铺整图 ⇒ 这里绝不能改写它的口径。
+                MapLog.Info($"[revive-chunk] 落位预建跳过：换区重铺进行中（落点口径已被 ShowArea 占用，" +
+                            $"focus={focus} why={why}）");
+                return 0;
+            }
+            if (_groundRoot == null || _objectRoot == null || _overlayRoot == null)
+            {
+                MapLog.WarnThrottled("view.prime.nolayers",
+                    "PrimeLanding: 层根节点不存在（已随场景卸载）⇒ 本次不做落位预建");
+                return 0;
+            }
+
+            int hx, hy;
+            if (!ViewHalfExtentCells(out hx, out hy))
+            {
+                MapLog.Warn("[revive-chunk] 落位预建：拿不到相机视口跨度 ⇒ 按 0 格半跨算" +
+                            "（只预建落点所在块及其外扩 1 块，可能补不满落点画面）");
+                hx = 0; hy = 0;
+            }
+
+            var plan = new List<Vector2Int>();
+            PrimeChunks(focus.x, focus.y, hx, hy, _map.Width, _map.Height, plan);
+            if (plan.Count == 0) return 0;
+
+            var x0 = int.MaxValue;
+            var y0 = int.MaxValue;
+            var x1 = int.MinValue;
+            var y1 = int.MinValue;
+            var queued = 0;
+            for (var i = 0; i < plan.Count; i++)
+            {
+                var c = plan[i];
+                if (c.x < x0) x0 = c.x;
+                if (c.y < y0) y0 = c.y;
+                if (c.x > x1) x1 = c.x;
+                if (c.y > y1) y1 = c.y;
+                if (_groundChunks.ContainsKey(c)) continue;   // 已建好
+                if (_pendingChunks.Contains(c)) continue;     // 已在待建队列
+                _pendingChunks.Enqueue(c);
+                queued++;
+            }
+
+            _primeActive = true;
+            _primeUntil = Time.unscaledTime + PrimeLandingWindow;
+            _primeMin = new Vector2Int(x0, y0);
+            _primeMax = new Vector2Int(x1, y1);
+            _primeQueued = queued;
+            _landingFocus = focus;      // 窗口内 `PlanRange` 也按落点算（与 travel-black 同口径）
+
+            MapLog.Info($"[revive-chunk] 大跨度落位预建（{why}）：落点 {focus}、视口半跨 {hx}x{hy} 格 ⇒ " +
+                        $"范围块 ({x0},{y0})-({x1},{y1}) 共 {plan.Count} 块；**当帧**新入队 {queued} 块" +
+                        $"（已建 {_groundChunks.Count} / 待建 {_pendingChunks.Count}）；" +
+                        $"建块仍按 MaxChunksPerFrame={MaxChunksPerFrame} 摊平（⛔ 未调性能参数），" +
+                        $"预建窗口 {PrimeLandingWindow:0.##}s 内该范围的块不被回收/丢弃");
+            return queued;
+        }
+
+        /// <summary>
+        /// ★ revive-chunk：预建窗口收尾（`Update` 每帧一次）—— 到期即撤下"落点口径"，
+        /// 回收/丢弃恢复按相机算（⛔ 窗口不会无限期留着 ⇒ 不会长期多留块）。
+        /// </summary>
+        private void TickPrimeLanding()
+        {
+            if (!_primeActive) return;
+            if (Time.unscaledTime < _primeUntil) return;
+            _primeActive = false;
+            MapLog.Info($"[revive-chunk] 落点预建窗口结束（{PrimeLandingWindow:0.##}s）：入队 {_primeQueued} 块、" +
+                        $"已建 {_groundChunks.Count} / 待建 {_pendingChunks.Count}（回收口径恢复按相机算）");
+        }
+
+        /// <summary>★ revive-chunk：该块是否在**预建窗口**的落点范围内（窗口内不许被回收 / 从队列里撤掉）。</summary>
+        private bool InPrimeRange(Vector2Int c)
+        {
+            return _primeActive
+                   && c.x >= _primeMin.x && c.x <= _primeMax.x
+                   && c.y >= _primeMin.y && c.y <= _primeMax.y;
+        }
+
         /// <summary>
         /// 当前视口的**格半跨**（四角与屏幕中心的格坐标差的最大值；正交相机 ⇒ 与相机在哪无关，只与视口大小有关）。
         /// 返回 false = 拿不到相机（那时退回按相机算，并 Warn）。
@@ -1338,7 +1515,9 @@ namespace Diablo2.Module.Map
         {
             var min = Vector2Int.zero;
             var max = Vector2Int.zero;
-            if (_hasLandingFocus)
+            // ★ revive-chunk：预建窗口内（刚发生大跨度落位）也按**落点**算 —— 否则窗口里若来一次贴图驱动的
+            //   整图重铺，会按"还在半路上的相机"算范围（与 travel-black 同一形态的黑窗）。
+            if (_hasLandingFocus || _primeActive)
             {
                 int hx, hy;
                 if (ViewHalfExtentCells(out hx, out hy))
@@ -2295,6 +2474,7 @@ namespace Diablo2.Module.Map
             {
                 var c = _pendingChunks.Dequeue();
                 if (c.x >= keepX0 && c.x <= keepX1 && c.y >= keepY0 && c.y <= keepY1) keep.Add(c);
+                else if (InPrimeRange(c)) keep.Add(c);   // ★ revive-chunk：预建窗口内不撤落点范围的待建块
                 else dropped++;
             }
             for (var i = 0; i < keep.Count; i++) _pendingChunks.Enqueue(keep[i]);
@@ -2310,6 +2490,9 @@ namespace Diablo2.Module.Map
             {
                 var c = kv.Key;
                 if (c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1) continue;
+                // ★ revive-chunk：预建窗口内落到"落点范围"的块**保住** —— 此刻相机还停在旧处，
+                //   按它算出来的保留带不含落点 ⇒ 不保就会"刚建好又被回收"（预建白做 + 反复建/销毁）。
+                if (InPrimeRange(c)) continue;
                 if (drop == null) drop = new List<Vector2Int>();
                 drop.Add(c);
             }
@@ -2395,6 +2578,9 @@ namespace Diablo2.Module.Map
                 _nextChunkRefresh = Time.unscaledTime + ChunkRefreshInterval;
                 RefreshVisibleChunks();          // ★ T0FIX-A：只**登记**新进入范围的块（本帧不建）
             }
+
+            // ★ revive-chunk：落位预建窗口收尾（到期即撤下"落点口径"，回收恢复按相机算）
+            TickPrimeLanding();
 
             // ★ T0FIX-H：分帧重铺进行中 ⇒ 本帧只泵它（增量建块等它做完，避免两套铺装互相打架）
             if (_job != null)
