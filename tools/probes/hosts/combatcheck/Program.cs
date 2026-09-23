@@ -454,8 +454,11 @@ namespace CombatCheck
 
                 if (after < before - 1.0f && attacks > 0)
                 {
-                    Check("Melee：会靠近（距离显著减小）", true, $"{before:0.00} → {after:0.00}（m#{m.id}）");
-                    Check("Melee：进入近战范围后出手攻击", true, $"出手 {attacks} 次（m#{m.id}）");
+                    // ★ 片 assert-audit：原为硬编码 `true`（永真 ⇒ 等于没判）。改成**真的把量到的数比一遍**
+                    //   （值就是上面日志里的 before/after/attacks）⇒ 判据可失败，且与文案逐字对应。
+                    Check("Melee：会靠近（距离显著减小）", after < before - 1.0f,
+                        $"{before:0.00} → {after:0.00}（m#{m.id}；判据 = 减小 > 1.0 格）");
+                    Check("Melee：进入近战范围后出手攻击", attacks > 0, $"出手 {attacks} 次（m#{m.id}）");
                     return;
                 }
             }
@@ -1101,8 +1104,30 @@ namespace CombatCheck
             Check("已学技能镜像到存档 skillIds/skillLevels",
                 save2.skillIds.Count == save2.skillLevels.Count && save2.skillIds.Count > 0,
                 $"{save2.skillIds.Count} 条");
-            Check("被动技能不能绑到左右键（防御：AssignToButton 返回 -1 保持）",
-                true, "被动的拒绝路径见日志提示（本项目在 ValidateSelectable 里拒绝）");
+            // ★ 片 assert-audit：原为硬编码 `true` + 文案只说"拒绝路径见日志提示" ⇒ 等于没判。
+            //   改成**真的绑一次被动技能**：`AssignToButton` 内部 `ValidateSelectable` 判 `passive` 拒
+            //   ⇒ 原绑定必须**一字不变**，且拒绝日志必须出现（两处任缺 ⇒ 变红）。
+            Table.BaseSkillRow passiveRow = null;
+            foreach (var r in Table.Tables.Default.Skill.All())
+            {
+                if (r == null || r.Class != (int)PlayerClass.Amazon || r.Passive == 0) continue;
+                passiveRow = r;
+                break;
+            }
+            var bindBefore = _ctx.Skill.GetButtonSkill(1);
+            var passiveRejected = false;
+            if (passiveRow != null)
+            {
+                _ctx.Skill.AssignToButton(1, passiveRow.Id);
+                passiveRejected = _ctx.Skill.GetButtonSkill(1) == bindBefore
+                                  && _log.Count("被动技能不能绑定到左右键") >= 1;
+            }
+            Check("被动技能不能绑到左右键（防御：AssignToButton 保持原绑定 + 拒绝日志）",
+                passiveRow != null && passiveRejected,
+                passiveRow == null
+                    ? "skill_c 里没有 Amazon 的被动技能行 ⇒ 判不了（配表核对）"
+                    : $"被动 #{passiveRow.Id} {passiveRow.Name}：绑定保持 {bindBefore}；"
+                      + $"拒绝日志 {_log.Count("被动技能不能绑定到左右键")} 条");
             Console.WriteLine();
         }
 

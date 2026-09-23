@@ -468,9 +468,19 @@ namespace AudioCheck
             Check("进图未收到过 AreaChanged ⇒ 按 Town 起 BGM", sound.LastBgm() == SfxRegistry.BgmTown, sound.LastBgm());
 
             // 空载荷 / 空键：不得抛异常
-            bus.Emit(Events.ItemPicked, (ItemStack)null);
-            audio.Sfx("");
-            Check("空载荷 / 空键不抛异常（走了 Warn 降级分支）", true, "见上方 [Audio] 日志");
+            // ★ 片 assert-audit：原为硬编码 `true` ⇒ 等于没判。改成**真的判两件事**：
+            //   ① 抛没抛（异常会被下面 catch 记下）；② 空键是否真的走了 Warn 降级分支（日志里有那句）。
+            string emptyThrew = null;
+            try
+            {
+                bus.Emit(Events.ItemPicked, (ItemStack)null);
+                audio.Sfx("");
+            }
+            catch (Exception ex) { emptyThrew = ex.GetType().Name + ": " + ex.Message; }
+            var emptyKeyWarns = logger.CountWarn("Audio", "收到空音效键");
+            Check("空载荷 / 空键不抛异常（走了 Warn 降级分支）",
+                emptyThrew == null && emptyKeyWarns >= 1,
+                emptyThrew ?? $"Warn「收到空音效键 ⇒ 忽略」条数={emptyKeyWarns}（见上方 [Audio] 日志）");
 
             // 音量同步事件（设置面板改音量后 Audio 只同步、不重复落盘）
             var beforeSave = 0;

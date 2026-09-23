@@ -279,6 +279,10 @@ namespace FlowCheck
 
         private static int _fail;
 
+        /// <summary>★ 片 assert-audit：**离线判不了**的断言数（Unity ECall 边界等）。
+        /// 单独计数、**不计入** `_fail`、**也不计入**通过数 —— 判据是「没判的就看起来像没判的」。</summary>
+        private static int _skip;
+
         /// <summary>注入给 `Log.Clock` 的单调秒（见 Main 里 <c>Log.Clock = …</c>）。</summary>
         private static float _clockSeconds;
 
@@ -627,8 +631,22 @@ namespace FlowCheck
                 setting.Get<float>(GameConst.SettingKeyBgmVolume, 1f).ToString("0.00"));
 
             // ⑫ 退出
-            var quit = ctx.Flow.CurrentState;
-            Check("QuitGame 不抛异常（打包分支 Application.Quit 不执行）", true, "站点=" + quit);
+            // ★ 片 assert-audit：原为硬编码 `true`，且文案自称「打包分支 Application.Quit 不执行」——
+            //   但离线宿主**编的是 #else 分支**（没有 `UNITY_EDITOR` 宏）⇒ `Application.Quit()` 真会被走到，
+            //   而它是 Unity ECall（同 `new GameObject`：非 Unity 进程必抛 SecurityException）⇒ 见下方 SKIP。
+            //   能离线判的那一半**改成真判**：`QuitGame` 的第一件事是 `Game.Setting.Save()`（⛔ 不静默丢设置）。
+            var saveBefore = setting.SaveCount;
+            string quitBoundary = null;
+            try { ctx.Flow.QuitGame(); }
+            catch (Exception ex) { quitBoundary = ex.GetType().Name; }
+            Check("QuitGame：退出前先把设置落盘（`Game.Setting.Save()` 真的被调，⛔ 不静默丢设置）",
+                setting.SaveCount == saveBefore + 1,
+                $"SaveCount {saveBefore} → {setting.SaveCount}；站点={ctx.Flow.CurrentState}"
+                + (quitBoundary == null
+                    ? "（本机未触发 Unity ECall 边界）"
+                    : $"；退出动作止于 Unity ECall 边界（{quitBoundary}）⇒ 见下一条 SKIP"));
+            Skip("QuitGame 自身「不抛异常」（打包分支 `Application.Quit()` / 编辑器分支 `EditorApplication.isPlaying=false`）",
+                "两者都是 Unity ECall，离线进程**不可调用**（同 `new GameObject` 的 SecurityException）⇒ 本项离线判不了，只能进 Play 判");
 
             // ⑬ AppContext.AutoWire 的**机制自证**：各模块实现都是 `internal sealed class`
             //    （隐式 public ctor）。若 Activator 创建不了它，App 装配就会静默降级 —— 所以先证这一步。
@@ -656,6 +674,11 @@ namespace FlowCheck
                 + "③ `Game.Event` 的**真实**派发顺序（宿主 shim 已按引擎语义实现「后注册先执行」，但仍非引擎本体）。");
 
             Console.WriteLine();
+            if (_skip > 0)
+            {
+                Console.WriteLine($"（另有 {_skip} 项**离线判不了**的断言被显式跳过：见上方 [SKIP] 行；"
+                    + "⛔ 它们**不计入通过数**，也不伪装成失败 —— 复原办法 = 进 Play 判）");
+            }
             Console.WriteLine(_fail == 0 ? "=== 自检全部通过 ===" : $"=== 自检失败 {_fail} 项 ===");
             return _fail == 0 ? 0 : 1;
         }
@@ -705,6 +728,16 @@ namespace FlowCheck
         {
             if (!ok) _fail++;
             Console.WriteLine($"{(ok ? "[ OK ]" : "[FAIL]")} {what}   ({detail})");
+        }
+
+        /// <summary>
+        /// ★ 片 assert-audit：**显式跳过**（离线环境判不了的项）。与 `uicheck._skip` / `mapcheck.Defect` 同口径：
+        /// 单独打印 `[SKIP]` + 单独计数 ⇒ ⛔ 既不占"通过"计数、也不伪装成 FAIL。
+        /// </summary>
+        private static void Skip(string what, string why)
+        {
+            _skip++;
+            Console.WriteLine($"[SKIP] {what}   （{why}）");
         }
     }
 }

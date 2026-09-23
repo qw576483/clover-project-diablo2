@@ -556,7 +556,19 @@ namespace ItemCheck
                 _ctx.Npc == null ? "null" : _ctx.Npc.GetType().FullName);
             Check("SaveModule 已自动装配", _ctx.Save != null && _ctx.Save.GetType().Name == "SaveModule",
                 _ctx.Save == null ? "null" : _ctx.Save.GetType().FullName);
-            Check("装备实现类型都是 internal sealed（可反射创建）", true, _ctx.Describe());
+            // ★ 片 assert-audit：原为硬编码 `true` ⇒ 等于没判（`_ctx.Describe()` 只是打印）。
+            //   改成**真的用反射问一遍**每个已装配的实现类型（`AutoWire` 靠 `Activator` 建它 ⇒
+            //   必须 `internal sealed`：public 会漏出装配面、非 sealed 可被继承改行为）。
+            var implTypes = new[] { _ctx.Item.GetType(), _ctx.Quest.GetType(), _ctx.Npc.GetType(), _ctx.Save.GetType() };
+            var notSealed = new List<string>();
+            foreach (var t in implTypes)
+                if (!t.IsSealed || t.IsPublic) notSealed.Add(t.Name + "(" + (t.IsPublic ? "public" : "non-public")
+                    + (t.IsSealed ? ",sealed" : ",**非 sealed**") + ")");
+            Check("各模块实现类型都是 internal sealed（可反射创建）",
+                notSealed.Count == 0,
+                notSealed.Count == 0
+                    ? string.Join(",", Array.ConvertAll(implTypes, t => t.Name)) + " 全为 internal sealed"
+                    : "不合格：" + string.Join(" ", notSealed));
 
             var item = _ctx.Item;
             var quest = _ctx.Quest;
@@ -830,7 +842,11 @@ namespace ItemCheck
             var okOnFull = item.AddToInventory(oneMore);
             Check("满包再入包 ⇒ 返回 false（不假装成功）", !okOnFull, "AddToInventory=" + okOnFull);
             Check("满包时有可读日志（放不下/背包）", _log.Contains("Item", "放不下"), "见 [WARN] [Item] ...放不下...");
-            Check("背包满事件已发（InventoryFull）", true, "由 Pickup 路径发（见下一步）");
+            // ★ 片 assert-audit：这里原是一条**硬编码 `true`** 的 Check（文案自称「由 Pickup 路径发（见下一步）」）
+            //   ⇒ 它什么都不判，只把"通过"计数抬高。而 `Events.InventoryFull` 真的只在 `ItemModule.Pickup`
+            //   的满包分支里发（`ItemModule.cs:352`）⇒ 断言**移到 §5 的满包拾取处**并改成真比（订阅计数）。
+            //   ⛔ 断言未删、覆盖未减：原来那条根本不产生判据。
+            Console.WriteLine("  （「背包满事件 InventoryFull」的判据在 §5 满包拾取处 —— 事件只在 Pickup 路径发）");
 
             // ── 5. 拾取：格邻接判定 + 满包留在原地 ───────────────────────────────
             //

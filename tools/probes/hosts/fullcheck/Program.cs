@@ -109,6 +109,14 @@ namespace FullCheck
         public int CountOf(string eventName) => _counts.TryGetValue(eventName, out var c) ? c : 0;
         public void ResetCounts() => _counts.Clear();
 
+        /// <summary>
+        /// 该事件当前的**监听器数量**（★ 片 assert-audit 新增）。
+        /// 用途：判「转发路径存在」这类结论 —— 判据从「写死 OK」变成**真的问一次总线**
+        /// （`AppEventRouting.Install` 没订阅 ⇒ 0 ⇒ 断言变红）。与 `uicheck` 的 `HandlerCount` 同口径。
+        /// </summary>
+        public int HandlerCount(string eventName)
+            => _handlers.TryGetValue(eventName, out var list) ? list.Count : 0;
+
         public void On(string eventName, Action handler) => Add(eventName, handler, 0);
         public void On<T>(string eventName, Action<T> handler) => Add(eventName, handler, 0);
         public void OnPriority(string eventName, int priority, Action handler) => Add(eventName, handler, priority);
@@ -507,8 +515,13 @@ namespace FullCheck
             //   ⇒ 不再跟随 cwd 在仓库根 / 宿主目录留 `setting/saves/` 残留（详见 HostSandboxSettingDir）。
             Game.Config = new GameConfig { SettingDir = HostSandboxSettingDir("fullcheck") };
 
+            // ★ 片 assert-audit：原为硬编码 `true`（永真 ⇒ 等于没判）。改成**逐个门面真的问一次非空**。
             Check("引擎门面替身已就位（Logger/Event/Fsm/UI/Scene/Setting/Input/Sound/Entity/Pool/Timer/Res）",
-                true, "单机最小集：**不调** CloverNet.Init（本项目形态=单机）");
+                Game.Logger != null && Game.Event != null && Game.Fsm != null && Game.UI != null
+                && Game.Scene != null && Game.Setting != null && Game.Input != null && Game.Sound != null
+                && Game.Entity != null && Game.Pool != null && Game.Timer != null && Game.Res != null
+                && Game.IsRunning,
+                "12 个门面逐个非空 + IsRunning；单机最小集：**不调** CloverNet.Init（本项目形态=单机）");
 
             // Unity 原生对象探针：证明"渲染层只能降级"是环境边界而不是本项目的缺陷。
             try
@@ -530,10 +543,15 @@ namespace FullCheck
             // 路径上的 `Log.ErrorOnce` 会踩 `Time.realtimeSinceStartup` ⇒ 用 `Log.Suppress` 包一次。
             Log.Suppress = true;
             var warm = "n/a";
+            var warmOk = false;                  // ★ 片 assert-audit：原 Check 是硬编码 `true` ⇒ 逐值真判
             try
             {
                 warm = $"bgm={Cfg.BgmVolume:0.00} sfx={Cfg.SfxVolume:0.00} fullscreen={Cfg.Fullscreen} " +
                        $"name={Cfg.DefaultPlayerName}";
+                // 判据 = 「不抛异常」+「回落的默认值**真的可用**」（音量在 0~1、默认名非空）
+                warmOk = Cfg.BgmVolume >= 0f && Cfg.BgmVolume <= 1f
+                      && Cfg.SfxVolume >= 0f && Cfg.SfxVolume <= 1f
+                      && !string.IsNullOrWhiteSpace(Cfg.DefaultPlayerName);
             }
             catch (Exception e)
             {
@@ -541,7 +559,7 @@ namespace FullCheck
             }
             Log.Suppress = false;
 
-            Check("Cfg（config.json）已预热（离线读不到文件 ⇒ 回落默认值，不抛异常）", true, warm);
+            Check("Cfg（config.json）已预热（离线读不到文件 ⇒ 回落默认值，不抛异常）", warmOk, warm);
 
             // ★ agent-34（引擎下沉 A3）：`Cfg` 读 config.json 已改走**引擎资源模块**
             //   （`Game.Res.LoadAll<TextAsset>("Configs/config")`），不再直连 Unity 的 `Resources.Load`
@@ -779,7 +797,13 @@ namespace FullCheck
 
             ctx.Camera.SetTargetGrid(ctx.Player.Grid);
             ctx.Camera.SnapToTarget();
-            Check("跟随相机已对准玩家（无相机时只在内部状态推进）", true, "格=" + ctx.Player.Grid);
+            // ★ 片 assert-audit：原为硬编码 `true` ⇒ 改成真的读一次 `CameraRig.TargetGrid`
+            //   （离线无相机时 `SnapToTarget` 只推进内部状态，但 `SetTargetGrid` 的落点必须真存下来）。
+            var rig = ctx.Camera as CameraRig;
+            Check("跟随相机已对准玩家（`SetTargetGrid` 的落点 == 玩家格；无相机时只在内部状态推进）",
+                rig != null && rig.TargetGrid == ctx.Player.Grid,
+                $"CameraRig.TargetGrid={(rig != null ? rig.TargetGrid.ToString() : "(不是 CameraRig)")} "
+                + $"玩家格={ctx.Player.Grid}");
 
             var beforeHud = _bus.CountOf(Events.StageEntered);
             Game.Event.Emit(Events.StageEntered);
@@ -1191,7 +1215,17 @@ namespace FullCheck
             }
             else
             {
-                Check("`Events.SkillLearnRequest` 转发路径存在（本次无可学技能，跳过断言）", true, "技能点=" + sp);
+                // ★ 片 assert-audit：原为硬编码 `true` + 文案自认「跳过断言」⇒ 那等于这条**永远绿**
+                //   （而它恰恰是本图"学习转发链"的唯一覆盖点）。改判**路由器真的收到了这件事**：
+                //   转发层 `AppEventRouting.OnSkillLearnRequest` 只有在**真的调过** `ISkillModule.Learn`
+                //   之后才可能打出这句 Warn（`Learn` 返回 false 的唯一分支）⇒ 有这行 = 转发链被走过。
+                //   ⛔ 不是放宽：原先它连寄存器都不看，现在它是可失败的。
+                const int bogusSkillId = 999999;                 // 不属于任何职业 ⇒ Learn 必 false
+                Game.Event.Emit(Events.SkillLearnRequest, bogusSkillId);
+                var learnFwdLog = $"学习技能 {bogusSkillId} 失败";
+                Check("`Events.SkillLearnRequest` 转发路径存在（本次无可学技能 ⇒ 用非法 id 逼出转发层的拒绝日志）",
+                    _log.Contains(learnFwdLog),
+                    $"技能点={sp}；期望日志「[App] {learnFwdLog}（等级/前置/技能点不满足…）」");
             }
 
             var selectedBefore = ctx.Skill.SelectedSkillId;
@@ -1204,7 +1238,19 @@ namespace FullCheck
             }
             else
             {
-                Check("`Events.SkillSelected` 转发的防回灌机制存在（本次无已学技能，跳过断言）", true, "");
+                // ★ 片 assert-audit：原为硬编码 `true` + 文案自认「跳过断言」⇒ 永远绿。
+                //   本图无已学技能 ⇒ 判不了"选技能真的生效"，但仍然**能判转发链这一层**：
+                //   ① 总线上必须有 `SkillSelected` 的监听者（= `AppEventRouting.Install` 真的订阅了；
+                //      没订阅 ⇒ 0 ⇒ 这条变红）；② 转发层不得把同一个事件再发一次（防回灌）；
+                //   ③ 非法 id 必须不改状态。
+                var selBefore = _bus.CountOf(Events.SkillSelected);
+                Game.Event.Emit(Events.SkillSelected, 999999);       // 非法 id ⇒ ValidateSelectable 拒
+                Check("`Events.SkillSelected` 转发链已接线 + 防回灌机制存在（本次无已学技能 ⇒ 判接线层）",
+                    _bus.HandlerCount(Events.SkillSelected) >= 1
+                    && _bus.CountOf(Events.SkillSelected) == selBefore + 1
+                    && ctx.Skill.SelectedSkillId == selectedBefore,
+                    $"监听器={_bus.HandlerCount(Events.SkillSelected)} 事件数 {selBefore} → {_bus.CountOf(Events.SkillSelected)}"
+                    + $"（+1 = 未回灌） SelectedSkillId 保持 {ctx.Skill.SelectedSkillId}");
             }
 
             var gold = ctx.Item.Gold;
@@ -1226,8 +1272,16 @@ namespace FullCheck
             Check("`Events.UnequipRequest` 转发到 `IItemModule.Unequip`（槽非空 ⇒ 真卸下；空槽 ⇒ 只 Warn 不崩）",
                 _log.Contains("卸下装备失败") || _log.Contains("卸下「"), $"背包快照格数={invBackup.inventory.Count}");
 
-            Check("`Events.MoveInInventoryRequest` 无契约能力 ⇒ 明确 Warn（不许假装成功）",
-                true, "见上方 [App] " + "D2.Item.MoveInInventoryRequest … 需主 agent 裁决");
+            // ★ 片 assert-audit：原文案「无契约能力 ⇒ 明确 Warn」**已过期**（片 G1 起
+            //   `AppEventRouting.OnMoveInInventoryRequest` 真的转发到 `IItemModule.MoveItem`）；
+            //   原判据是硬编码 `true` ⇒ 无论转发链在不在都绿。改判**转发真的发生**：
+            //   转发层的两条出口日志都带事件名 ⇒ 事件名出现次数必须 +1（只发事件、不转发 ⇒ 不增长）。
+            var mvHits = _log.Count(Events.MoveInInventoryRequest);
+            Game.Event.Emit(Events.MoveInInventoryRequest, 0);          // 空锚点 ⇒ 必被拒（不许假装成功）
+            Check("`Events.MoveInInventoryRequest` 转发到 `IItemModule.MoveItem`（结果写日志，⛔ 不假装成功）",
+                _log.Count(Events.MoveInInventoryRequest) == mvHits + 1
+                && (_log.Contains("移动/交换已完成") || _log.Contains("被拒绝")),
+                $"事件名日志行数 {mvHits} → {_log.Count(Events.MoveInInventoryRequest)}（转发层出口 1 行）");
             Console.WriteLine();
         }
 
