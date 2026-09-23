@@ -49,6 +49,10 @@ namespace Diablo2.App
             // ★ 片 S2（2026-09-23）：传送点的「已去过区域」也是静态集合 ⇒ 同一局内必须一起复位，
             //   否则关了「域重载」时第二局一开局就带着上一局去过的地方（面板凭空多出目的地）。
             AppWaypoint.ResetStaticForNewPlaySession();
+            // ★ 片 save-progress：按区域累积的"已探索格"与待回灌数据同样是静态的 ⇒ 一并复位
+            //   （否则关了「域重载」时第二局一开局就带着上一局的 automap 记忆）。
+            AppProgress.ResetStaticForNewPlaySession();
+            AppProgress.ResetInstalledFlag();
         }
 
         /// <summary>接线（`Bootstrap` 在 `AppContext.AutoWire()` **之后**调一次；重复调用幂等）。</summary>
@@ -82,6 +86,10 @@ namespace Diablo2.App
             //   `Install`** ⇒ 点击/到达/面板/选目的地四条订阅一个都不存在，功能整条静默失效
             //   （类在、编译过、日志干净 —— 这正是最贵的一类失败）。唯一装配点就是这里。
             AppWaypoint.Install(ctx);         // 传送点：锚点交互 + 面板 + 选目的地 ⇒ 切区
+            // ★ 片 save-progress（2026-09-24）：进度类状态（传送点已激活列表 / 小地图已探索格）的
+            //   存盘收集与读档回灌 —— 修前这两块**从不落盘**（`SaveModule` 的收集链里没有它们）
+            //   ⇒ 读档后传送点全变未激活、automap 全空。
+            AppProgress.Install(ctx);
             bus.On(Events.StageEntered, OnStageEntered);
             bus.On(Events.StageLeft, OnStageLeft);
             AttachRoots(ctx);
@@ -160,6 +168,13 @@ namespace Diablo2.App
             var ctx = Ctx;
 
             AssertMapAndSpawn(ctx);
+
+            // ★ 片 save-progress（2026-09-24）：**先回灌"进度类状态"，再开 HUD / 广播快照** ——
+            //   回灌 = 把存档里的传送点已激活列表并进 `AppWaypoint`、把当前区域的已探索格下发地图
+            //   （`Events.MapExploredRestore` ⇒ 渲染层位图，权威口径）。此刻地图/玩家**都已装配完成**
+            //   （`AppFlow.FinishStageEntry` 保证 BuildStep 全跑完才发 StageEntered）⇒ 是唯一安全时机：
+            //   早于它（`LoadDone`）地图还没生成、晚于它 automap 可能已经被别的事件画过一遍。
+            AppProgress.RestoreForCurrentStage();
 
             // ★ 顺序要紧：**先开 HUD**（它的 `Awake` 才订阅那些事件），**再广播快照**；
             //   反过来则 HUD 收不到本次快照 ⇒ 第一次按 I/C/T/Q 打开的面板全是空的。

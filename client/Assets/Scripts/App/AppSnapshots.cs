@@ -23,10 +23,12 @@
 //   ⚠️ 本文件里**每一处** `Emit(Events.MapGenerated, …)` 都必须走 `EmitMapEcho()`，不许裸 Emit。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Collections.Generic;      // ★ 片 save-progress：已探索集合快照的载荷类型
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;      // `MinimapArgs`（`EmitMapEcho` 的入参类型）
 using Diablo2.UI;
+using UnityEngine;      // ★ 片 save-progress：`Vector2Int`（已探索格）
 
 namespace Diablo2.App
 {
@@ -55,6 +57,36 @@ namespace Diablo2.App
             {
                 EchoInFlight = false;
             }
+        }
+
+        /// <summary>
+        /// ★ 片 save-progress 新增（2026-09-24）：把**当前权威已探索集合**（`IMapModule.ExploredCells`）
+        /// 再播一次 `Events.MapExplored`。
+        /// <para>
+        /// 为什么必须有这一步：读档回灌（`App/AppProgress` → `Events.MapExploredRestore` → 渲染层位图）
+        /// 发生在**小地图面板存在之前** —— 面板是懒创建的（HUD 对它传 null，面板在 `OnOpen` 才订阅，
+        /// 见文件头 ⚠️），而 `Events.MapExplored` 是**增量**事件 ⇒ 面板收不到"读档带回来的那批格"，
+        /// 打开后只剩它自己的**半径 6 兜底**揭示（用户看到的就还是"地图没画出来"）。
+        /// </para>
+        /// <para>
+        /// 口径：本方法发的是"**当前权威集合**"，而收方（`MiniMapPanel.ApplyExplored`）语义是**并入（union）**
+        /// ⇒ 重播全量幂等（⛔ 收方不得把它当"清空/替换"）。顺序要紧：必须在 `EmitMapEcho`（面板据此
+        /// 重建 `_explored` 位图并复位 `_fromSource`）**之后**发，否则那一次重建会把刚并入的格冲掉。
+        /// </para>
+        /// </summary>
+        private static void EmitExploredSnapshot(string why)
+        {
+            var ctx = AppWiring.Ctx;
+            var bus = Game.Event;
+            if (ctx?.Map == null || bus == null) return;
+            if (!ctx.Map.IsGenerated) return;
+
+            var cells = ctx.Map.ExploredCells;
+            if (cells == null || cells.Count == 0) return;      // 没有已探索格：不发（正常工作路径）
+
+            bus.Emit<IReadOnlyCollection<Vector2Int>>(Events.MapExplored, cells);
+            Game.Logger.Info(Tag, $"已探索集合快照：{cells.Count} 格（{why}）⇒ "
+                + $"小地图面板按 union 并入（读档带回来的记忆因此能画出来）");
         }
 
         /// <summary>补发小地图快照的延迟（秒，走 `AfterUnscaled`）：0.05s = 下一帧，够面板走完 `OnOpen`。</summary>
@@ -124,6 +156,8 @@ namespace Diablo2.App
             {
                 if (ctx.Map.IsGenerated) { EmitMapEcho(ctx.Map.BuildMinimap()); n++; }
                 else Game.Logger.Warn(Tag, $"地图未生成 ⇒ 未广播 {Events.MapGenerated}（小地图将是空白）");
+                // ★ 片 save-progress：紧跟地图回声补一次"已探索集合"（顺序见 EmitExploredSnapshot 注释）
+                EmitExploredSnapshot("StageEntered 全量快照");
             }
             else AppWiring.Missing("IMapModule");
 
@@ -187,6 +221,7 @@ namespace Diablo2.App
                         break;
                     }
                     EmitMapEcho(ctx.Map.BuildMinimap());
+                    EmitExploredSnapshot("面板打开：MiniMapPanel");
                     ScheduleDeferredMapSnapshot();
                     break;
 
@@ -221,6 +256,9 @@ namespace Diablo2.App
             if (ctx?.Map == null || !ctx.Map.IsGenerated) return;
             EmitMapEcho(ctx.Map.BuildMinimap());
             Game.Logger.Info(Tag, $"小地图快照补发（下一帧）：刚打开的面板已订完 {Events.MapGenerated}，能收到");
+            // ★ 片 save-progress：面板此刻确实订完了（上一行刚证明）⇒ 紧接着把"已探索集合"补上 ——
+            //   顺序不能反：`ApplyMap` 会按新图重建 `_explored` 位图，先并格会被这次重建冲掉。
+            EmitExploredSnapshot("小地图面板下一帧补发");
         }
     }
 }

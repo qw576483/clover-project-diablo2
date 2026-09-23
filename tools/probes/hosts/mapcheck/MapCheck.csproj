@@ -34,6 +34,10 @@
 
     <!-- Diablo2 纯逻辑源码（与 Assets/Scripts 同一份文件，不复制） -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Def\Enums.cs" />
+    <!-- 鈽?片 save-progress（2026-09-24）：`Module/Contracts.cs:522` 新增 `List<ExploredAreaDto> exploredByArea`
+         ⇒ 编译清单必须带上 `Def/ExploredCodec.cs`（该类型定义处），否则 CS0246。
+         本行是把 mapcheck 的**显式列文件**口径对齐其余 10 个宿主的 `Def\*.cs` 通配口径。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\ExploredCodec.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Iso.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />

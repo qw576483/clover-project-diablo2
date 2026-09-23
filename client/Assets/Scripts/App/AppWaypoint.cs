@@ -83,6 +83,61 @@ namespace Diablo2.App
             _target = Vector2Int.zero;
         }
 
+        // ── 读档回灌 / 存盘收集（★ 片 save-progress 2026-09-24）────────────────
+
+        /// <summary>
+        /// 当前"已激活区域"的快照（**升序** int）—— 存档写侧用（`Events.SaveCollect` 的收方
+        /// `App/AppProgress` 调它，见 `Module/Save/SaveModule.CollectAppProgress`）。
+        /// <para>⛔ 只读快照：返回**新列表**，调用方改它不影响本集合。</para>
+        /// </summary>
+        internal static List<int> SnapshotVisited()
+        {
+            var res = new List<int>(Visited.Count);
+            foreach (var a in Visited) res.Add((int)a);
+            res.Sort();
+            return res;
+        }
+
+        /// <summary>
+        /// 读档回灌"已激活区域"（**并入 / 幂等**）。返回本次真正新增的区域数。
+        /// <para>
+        /// 缺口（修前）：`Visited` 是**进程内 static**、只由 `StageEntered`/`AreaChanged` 增
+        /// ⇒ 读档后它只含"本次会话进过的那一个区域" ⇒ 传送面板永远只认当前区域、其余目的地全灰
+        /// （玩家看到的就是原版字串「尚未啟動其他傳送點」，见 `BuildArgs`）。
+        /// </para>
+        /// <para>⛔ 兼容旧档：`areas == null` 或空集合 ⇒ 什么都不做（**不报错**：旧档没有该字段是正常情形）；
+        /// ⛔ 非法区域号（不在 `AreaId` 登记表里）⇒ 跳过 + Warn（⛔ 不把坏值塞进集合，否则面板会列出非法目的地）。</para>
+        /// </summary>
+        internal static int RestoreVisited(IEnumerable<int> areas)
+        {
+            if (areas == null) return 0;
+
+            var added = 0;
+            var skipped = 0;
+            foreach (var a in areas)
+            {
+                if (!System.Enum.IsDefined(typeof(AreaId), a))
+                {
+                    skipped++;
+                    continue;      // 坏值只计数，最后一条 Warn（避免坏档刷屏）
+                }
+                if (Visited.Add((AreaId)a)) added++;
+            }
+
+            if (skipped > 0)
+            {
+                Game.Logger.Warn(Tag, $"读档回灌传送点：{skipped} 个区域号不在 `AreaId` 登记表里 ⇒ 已跳过"
+                    + "（存档被手改过 / 版本不匹配？）");
+            }
+            if (added > 0 || (areas is ICollection<int> c && c.Count > 0))
+            {
+                // ⛔ 空集合（旧档）不打这条 —— 那是正常情形，打了会让人以为回灌失败
+                Game.Logger.Info(Tag, $"读档回灌传送点已激活列表：本次新增 {added} 个 ⇒ 共 {Visited.Count} 个"
+                    + $"［{string.Join(",", SnapshotVisited())}］（来源 = 存档 `visitedWaypoints`）");
+            }
+            return added;
+        }
+
         // ── 交互 ─────────────────────────────────────────────────────────────
 
         /// <summary>点了传送点那一格 ⇒ 记下"走过去"；点别处 ⇒ 撤销。</summary>

@@ -232,12 +232,13 @@ namespace TBlackDrv
                             + " player=" + Fmt(player.Grid) + "（第一拍：已生成 + 已登记重铺，玩家/相机未动）");
                     Shot("travelblack_" + Api.TagName + "_0_travel_start.png");
                 }
-                if (phase1 && !landed && player.Grid != preGrid)
+                if (phase1 && !landed && Api.AreaChangedAt >= 0f)
                 {
                     landed = true;
-                    _landAt = Time.realtimeSinceStartup;
+                    _landAt = Api.AreaChangedAt;
                     Api.Log("LANDED frame=" + Time.frameCount + " area=" + now + " player=" + Fmt(player.Grid)
-                            + "（第二拍：玩家落位 ⇒ 本帧就是「落地帧」）");
+                            + " camGrid见右（第二拍 = Events.AreaChanged ⇒ 本帧就是「落地帧」；"
+                            + "判据是那个事件，⛔ 不是「玩家格变了」——走到锚点那一格也会变）");
                 }
 
                 if (landed && !_shot0) { _shot0 = true; Shot("travelblack_" + Api.TagName + "_1_landed.png"); }

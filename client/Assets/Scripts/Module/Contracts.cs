@@ -490,6 +490,37 @@ namespace Diablo2.Def
         /// <summary>本局地图 seed（**必须存**：读档后同 seed 生成同一张图）。</summary>
         public int mapSeed;
 
+        /// <summary>
+        /// ★ 片 save-progress 新增（2026-09-24）：**已激活的传送点区域**（`(int)AreaId` 升序）。
+        /// <para>
+        /// 缺口（片 save-areaid《同族穷举表》第 9 行）：这个集合的唯一持有者是
+        /// `App/AppWaypoint.cs:47` 的**进程内 static** `Visited`（只由 `StageEntered` / `AreaChanged` 增），
+        /// **从不落盘** ⇒ 读档后传送面板永远只认"当前区域"，其余目的地全灰（用户报的「传送点没效果」的另一半）。
+        /// </para>
+        /// <para>
+        /// **向后兼容口径（硬要求，同 `activeWeaponIndex`）**：新加字段 ⇒ 旧档 JSON 里没有它
+        /// ⇒ `SaveJson.TryParse` 读缺字段时给**空列表**（不抛、读档照常成功）；
+        /// 空列表 = 「本档没有记录过已激活传送点」⇒ 面板显示原版字串「尚未啟動其他傳送點」。
+        /// ⛔ 不参与 `GameConst.SaveVersion`（新增带默认值的字段不改变旧档可读性）。
+        /// </para>
+        /// </summary>
+        public List<int> visitedWaypoints = new List<int>();
+
+        /// <summary>
+        /// ★ 片 save-progress 新增（2026-09-24）：**各区域"小地图已探索格"**（紧凑位图，见 `Def.ExploredCodec`）。
+        /// <para>
+        /// 缺口：已探索格的权威持有者是渲染层 `Module/Map/MapView._explored`（作用域 = 当前区域、本局内累积）
+        /// ⇒ 从不落盘 ⇒ 读档后 automap 的"记忆"全空。
+        /// </para>
+        /// <para>
+        /// **为什么是"每个区域一条"而不是一个合并集合**：格坐标是**区域局部**的
+        /// （`IMapModule.ExploredCells` 注释原文：「⛔ 跨区域合并成一个集合在语义上是错的」）
+        /// ⇒ 每条记录自带 `w/h` + 区域号（见 `ExploredAreaDto`）。
+        /// </para>
+        /// <para>旧档兼容同 <see cref="visitedWaypoints"/>：缺字段 ⇒ 空列表、不抛、读档成功。</para>
+        /// </summary>
+        public List<ExploredAreaDto> exploredByArea = new List<ExploredAreaDto>();
+
         /// <summary>已学技能 id（与 <see cref="skillLevels"/> 一一对应）。</summary>
         public List<int> skillIds = new List<int>();
 

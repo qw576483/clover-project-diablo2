@@ -134,6 +134,13 @@ namespace Diablo2.Core
         /// 接管后 `ExploredInjected == true`，面板**不再**自行揭示（接管前保留它自己的兜底口径）。
         /// </para>
         /// <para>口径 = 访问过即记忆、本局内累积、作用域为当前区域（详见 `IMapModule.ExploredCells`）。</para>
+        /// <para>
+        /// ★ 片 save-progress 补充（2026-09-24）：**本事件不止 Map 会发** —— `App/AppSnapshots.cs` 在
+        /// "面板打开前补发"（`MiniMapPanel` 那一条）时会把**当前权威集合**（`IMapModule.ExploredCells`）再播一次。
+        /// 为什么必须：小地图面板是**懒创建**的（HUD 对它传 null + 面板在 `OnOpen` 才订阅），读档回灌发生在
+        /// 面板存在之前 ⇒ 只靠增量事件它永远收不到"读档带回来的那批格"，automap 会退回"半径 6 兜底"口径。
+        /// 收方语义 = **并入（union）** ⇒ 重播全量是幂等的（⛔ 收方不得把本事件当"清空/替换"用）。
+        /// </para>
         /// </summary>
         public const string MapExplored = "D2.Map.Explored";
 
@@ -428,6 +435,47 @@ namespace Diablo2.Core
 
         /// <summary>读档完成（参数 <c>Def.CharacterSave</c>；null = 失败）。</summary>
         public const string LoadDone = "D2.Save.LoadDone";
+
+        /// <summary>
+        /// ★ 片 save-progress 新增（2026-09-24）：**收集"由 App 层持有"的进度类状态**（参数 = 正在被收集的
+        /// <c>Def.CharacterSave</c>，收方**直接往里填字段**）。
+        /// <para>
+        /// 为什么需要它（链条断在哪）：`Module/Save/SaveModule.Save()`（无参）在**新造**的 `CharacterSave` 上
+        /// 逐字段从 Live 收集（`Player.WriteTo` / `Item.WriteTo` / `Quest.WriteTo` / `WriteSkills` / Map 分支）；
+        /// 而「传送点已激活列表」（`App/AppWaypoint.Visited`）与「小地图已探索格」（渲染层 `MapView._explored`
+        /// 经 `IMapModule.ExploredCells`）的**持有者在 App / 渲染层**，模块侧拿不到
+        /// ⇒ 这两项**恒为默认值**（前片 `save-areaid` 的《同族穷举表》已点出，本片补上）。
+        /// </para>
+        /// <para>
+        /// 发方 = `Module/Save/SaveModule.Save()`（**与 `mapSeed`/`areaId` 同一个收集分支**，⛔ 不另开一条路）；
+        /// 收方 = `App/AppProgress.cs`（把 `AppWaypoint.Visited` 与"每区域已探索格"填进
+        /// `visitedWaypoints` / `exploredByArea`）。
+        /// </para>
+        /// <para>
+        /// ⛔ 语义边界：本事件**只填两个"App 层持有"的字段**，⛔ 不改其它字段（Player/Item/Quest/Skill
+        /// 的收集仍在 `SaveModule` 自己那几条写者里）；收方收到时 `data` 已基本填好，只负责补自己的两块。
+        /// 无订阅者（离线宿主 / App 未接线）⇒ `SaveModule` 留一条 Warn、这两个字段保持空集合**照常存档**。
+        /// </para>
+        /// </summary>
+        public const string SaveCollect = "D2.Save.Collect";
+
+        /// <summary>
+        /// ★ 片 save-progress 新增（2026-09-24）：**把已探索格批量回灌进地图**（参数
+        /// <see cref="System.Collections.Generic.IReadOnlyCollection{T}"/> 的 <c>Vector2Int</c>，格坐标 = 区域局部）。
+        /// <para>
+        /// 发方 = `App/AppProgress.cs`（读档进图 / 换区铺装完成后，用存档里的 `exploredByArea` 解出来的格）；
+        /// 收方 = `Module/Map/MapModule.cs`（把每格并进渲染层的已探索位图 —— 该位图是
+        /// `IMapModule.ExploredCells` 的唯一权威，见 `MapView.MarkExplored`）。
+        /// </para>
+        /// <para>
+        /// ⛔ **方向与 <see cref="MapExplored"/> 相反**（那条是 Map → 收方报"新增了哪几格"；本条是收方 → Map
+        /// 要求"把这批格记为已探索"）⇒ 不合并、不复用同一条常量。
+        /// 收方语义 = **并入（幂等）**：已经探索过的格**不重复计数**、也不重复发 `MapExplored`；
+        /// 只有真的新增了格才发**一条** `MapExplored`（载荷 = 本次新增的格）⇒ automap 侧照常按增量并入。
+        /// </para>
+        /// <para>载荷为空 / 渲染层未铺装 ⇒ 收方点名 Warn 并忽略（⛔ 不静默）。</para>
+        /// </summary>
+        public const string MapExploredRestore = "D2.Map.ExploredRestore";
 
         // ═════════════════════════════════════════════════════════════════════
         // 音频（Audio）—— 音效触发点由各模块 Emit，Audio 模块统一收

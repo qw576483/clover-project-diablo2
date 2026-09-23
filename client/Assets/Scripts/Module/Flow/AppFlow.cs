@@ -1599,9 +1599,18 @@ namespace Diablo2.Module.Flow
             ctx.Quest?.WriteTo(_selected);
             _selected.savedAtTicks = DateTime.UtcNow.Ticks;
 
+            // ★ save-areaid：把"保存那一刻的三方"打成一行，供存疑时逐项对照（数值类判据，不必截图）：
+            //   ① `_selected.areaId`（Flow 记的"玩家当时在哪"）；② 落盘 JSON 里的 `areaId`
+            //   （= `SaveModule` Live 收集出的那个对象，由它自己那行 `[Save] 收集完成 … 区域=` 给出）；
+            //   ③ 落盘文件 `saves/<名>.json` 原文（外部证据，从盘上读）。
+            //   为什么要把 ① 也打出来：修前 `_selected.areaId` 是对的、落盘的却是**另一个对象**
+            //   （`SaveModule.Save()` 在 :167 新造）⇒ 只打一处永远看不出"换了对象"这件事。
             if (ctx.Save.Save())
             {
-                Log.Info(FlowLog.Tag, $"已保存角色「{_selected.name}」（槽位 saves/{_selected.name}.json）");
+                Log.Info(FlowLog.Tag, $"已保存角色「{_selected.name}」（槽位 saves/{_selected.name}.json）："
+                    + $"保存那一刻 Flow 侧记录 = areaId={_selected.areaId} 位置=({_selected.gridX},{_selected.gridY})，"
+                    + $"_area={_area}（⛔ 这三项**不是**落盘对象，只是 Flow 的记账；"
+                    + $"真正落盘的 areaId 见上一行 [Save] 收集完成 的「区域=」）");
             }
             else
             {

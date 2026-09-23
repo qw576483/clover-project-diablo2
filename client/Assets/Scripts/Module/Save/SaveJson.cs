@@ -61,6 +61,12 @@ namespace Diablo2.Module.Save
             Field(sb, "gridX", s.gridX, true);
             Field(sb, "gridY", s.gridY, true);
             Field(sb, "mapSeed", s.mapSeed, true);
+            // ★ 片 save-progress 新增两个字段（写在 mapSeed 之后，与 `CharacterSave` 的字段顺序一致）：
+            //   旧档没有这两行 ⇒ 读侧取**空集合**（向后兼容，见 TryParse 与 `Def/ExploredCodec.cs` 头注）。
+            Key(sb, "visitedWaypoints", true);
+            WriteIntList(sb, s.visitedWaypoints);
+            Key(sb, "exploredByArea", true);
+            WriteExploredList(sb, s.exploredByArea);
 
             Key(sb, "skillIds", true);
             WriteIntList(sb, s.skillIds);
@@ -174,6 +180,36 @@ namespace Diablo2.Module.Save
                 {
                     if (i > 0) sb.Append(',');
                     sb.Append(list[i].ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            sb.Append(']');
+        }
+
+        /// <summary>
+        /// 序列化"每区域已探索格"（★ 片 save-progress）：`[{area,w,h,cells}...]`。
+        /// <para>`cells` = base64 位图（见 `Def/ExploredCodec`），⛔ 不是逐格坐标数组
+        /// （80×80 满图 6400 格 ⇒ 逐格写法会让存档膨胀到十几 KB；位图 ≈1 KB）。</para>
+        /// </summary>
+        private static void WriteExploredList(StringBuilder sb, List<ExploredAreaDto> list)
+        {
+            sb.Append('[');
+            if (list != null)
+            {
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var e = list[i];
+                    if (i > 0) sb.Append(',');
+                    if (e == null)
+                    {
+                        sb.Append("null");
+                        continue;
+                    }
+                    sb.Append('{');
+                    Field(sb, "area", e.area, false);
+                    Field(sb, "w", e.w, true);
+                    Field(sb, "h", e.h, true);
+                    Field(sb, "cells", e.cells, true);
+                    sb.Append('}');
                 }
             }
             sb.Append(']');
@@ -380,6 +416,10 @@ namespace Diablo2.Module.Save
             s.gridX = GetInt(dict, "gridX", 0);
             s.gridY = GetInt(dict, "gridY", 0);
             s.mapSeed = GetInt(dict, "mapSeed", 0);
+            // ★ 片 save-progress：**旧档没有这两项** ⇒ 取空集合（这是"缺字段仍可读且不崩"的落点，
+            //   与 `activeWeaponIndex` 那条同口径）。⛔ 本文件不因缺字段而让读档失败。
+            s.visitedWaypoints = GetIntList(dict, "visitedWaypoints");
+            s.exploredByArea = GetExploredList(dict, "exploredByArea");
             s.skillIds = GetIntList(dict, "skillIds");
             s.skillLevels = GetIntList(dict, "skillLevels");
             s.buttonSkills = GetIntList(dict, "buttonSkills");
@@ -505,9 +545,32 @@ namespace Diablo2.Module.Save
             return res;
         }
 
-        private static List<InventorySlot> GetSlotList(Dictionary<string, object> d, string key)
+        /// <summary>
+        /// 解析"每区域已探索格"（★ 片 save-progress）。**缺字段 / 坏元素一律跳过**（不抛）：
+        /// 旧档没有该键 ⇒ 空列表；某项缺 `w/h` 或 `cells` 非法 ⇒ 该项按"没有已探索记录"处理
+        /// （`ExploredCodec.Decode` 是容错入口，坏 base64 只回 0）。
+        /// </summary>
+        private static List<ExploredAreaDto> GetExploredList(Dictionary<string, object> d, string key)
         {
-            var res = new List<InventorySlot>();
+            var res = new List<ExploredAreaDto>();
+            var list = GetList(d, key);
+            for (var i = 0; i < list.Count; i++)
+            {
+                var o = list[i] as Dictionary<string, object>;
+                if (o == null) continue;
+                res.Add(new ExploredAreaDto
+                {
+                    area = GetInt(o, "area", -1),
+                    w = GetInt(o, "w", 0),
+                    h = GetInt(o, "h", 0),
+                    cells = GetString(o, "cells", null),
+                });
+            }
+            return res;
+        }
+
+        private static List<InventorySlot> GetSlotList(Dictionary<string, object> d, string key)
+        {            var res = new List<InventorySlot>();
             var list = GetList(d, key);
             for (var i = 0; i < list.Count; i++)
             {

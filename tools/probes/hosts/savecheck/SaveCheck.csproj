@@ -45,6 +45,12 @@
     <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
     <Compile Include="shim\EngineShim.cs" />
 
+    <!-- ★ 片 save-areaid 新增：契约桩（`IMapModule` / `IPlayerModule`）——
+         要离线跑通**无参** `SaveModule.Save()` 的 Live 收集链，`AppContext.Map/Player` 必须非 null。
+         桩按**真实现**写（`StubPlayer.WriteTo` 故意不写 areaId，同真 `PlayerModule.WriteTo:473`）；
+         ⛔ 它不是为了"让断言变绿"，而是为了"让断言**可能变红**"（见 Program.cs §13 与 HostFakes.cs 头注）。 -->
+    <Compile Include="shim\HostFakes.cs" />
+
     <!-- ★ 本片新增的引擎能力（被验证对象） -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
 

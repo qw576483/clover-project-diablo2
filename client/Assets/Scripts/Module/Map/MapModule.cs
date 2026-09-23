@@ -581,14 +581,67 @@ namespace Diablo2.Module.Map
                 return;
             }
             Game.Event.On<Vector2Int>(Events.PlayerGridChanged, OnPlayerGridChanged);
+            // ★ 片 save-progress（2026-09-24）：读档回灌"已探索格"的入口（发方 = `App/AppProgress`，
+            //   在进图装配完成 / 换区铺装完成后发，此刻 `ShowArea` 已跑过 ⇒ 位图已是本区域那张）。
+            Game.Event.On<IReadOnlyCollection<Vector2Int>>(Events.MapExploredRestore, OnExploredRestore);
             _exploreSubscribed = true;
         }
 
         private void UnsubscribeExplore()
         {
             if (!_exploreSubscribed) return;
-            if (Game.Event != null) Game.Event.Off<Vector2Int>(Events.PlayerGridChanged, OnPlayerGridChanged);
+            if (Game.Event != null)
+            {
+                Game.Event.Off<Vector2Int>(Events.PlayerGridChanged, OnPlayerGridChanged);
+                Game.Event.Off<IReadOnlyCollection<Vector2Int>>(Events.MapExploredRestore, OnExploredRestore);
+            }
             _exploreSubscribed = false;
+        }
+
+        /// <summary>
+        /// ★ 片 save-progress（2026-09-24）：把读档带回的"已探索格"**批量并入**渲染层位图
+        /// （收 `Events.MapExploredRestore`，见 `Core/Events.cs` 的常量注释）。
+        /// <para>
+        /// 为什么落在这里（而不是 App 层直接改渲染层）：已探索的**唯一权威**是 `MapView._explored`
+        /// （`IMapModule.ExploredCells` 只是它的投影）⇒ 回灌必须走这条同源路径，⛔ 否则会多出第二份状态。
+        /// </para>
+        /// <para>
+        /// 语义 = **并入（幂等）**：只有真的新增了格才发**一条** `Events.MapExplored`（载荷 = 本次新增格），
+        /// 让 automap 侧按既有增量口径并入；⛔ 不每格发一条（几千格会刷屏）。
+        /// </para>
+        /// </summary>
+        private void OnExploredRestore(IReadOnlyCollection<Vector2Int> cells)
+        {
+            if (_view == null)
+            {
+                // 非预期分支：回灌早于 ShowArea（正常由 App 层保证在装配完成后发）⇒ 点名留痕，不静默
+                MapLog.Warn($"回灌已探索：渲染层未铺装（ShowArea 未调用）⇒ 本次忽略，{cells?.Count ?? 0} 格未记住");
+                return;
+            }
+            if (cells == null || cells.Count == 0)
+            {
+                MapLog.Warn("回灌已探索：载荷为空 ⇒ 忽略（正常不该发空载荷）");
+                return;
+            }
+
+            var fresh = new List<Vector2Int>();
+            foreach (var c in cells)
+            {
+                if (_view.MarkExplored(c)) fresh.Add(c);
+            }
+
+            if (fresh.Count == 0)
+            {
+                MapLog.Info($"回灌已探索 {cells.Count} 格：全部已是已探索状态（幂等，无新增，不发 {Events.MapExplored}）");
+                return;
+            }
+
+            _exploredDirty = true;      // ★ S2：投影缓存必须跟着作废（否则 `ExploredCells` 少报这批格）
+            MapLog.Info($"回灌已探索 {cells.Count} 格 ⇒ 新增 {fresh.Count} 格（读档带回的地图记忆，"
+                + $"区域={_grid.Area}，共发 1 条 {Events.MapExplored}）");
+
+            if (Game.Event == null) return;   // 离线宿主：只记状态，不发事件（同 OnFirstExplored 口径）
+            Game.Event.Emit<IReadOnlyCollection<Vector2Int>>(Events.MapExplored, fresh);
         }
 
         /// <summary>

@@ -199,11 +199,21 @@ namespace Diablo2.Module.Save
                     + $" ⇒ 本次存档的 `areaId` 只能取默认值 {data.areaId}（= {AreaId.Town}），读档会落回营地");
             }
 
+            // ★ save-progress（2026-09-24）：**传送点已激活列表**（`App/AppWaypoint.Visited`）与
+            //   **小地图已探索格**（渲染层 `MapView._explored` 经 `IMapModule.ExploredCells`）的持有者
+            //   不在模块侧 ⇒ 与上面 `mapSeed`/`areaId` **同一个收集阶段**里，由 App 层往 `data` 里填
+            //   （`Events.SaveCollect`，收方 = `App/AppProgress.cs`；⛔ 不另开一条收集路径）。
+            //   修前这两项**恒为默认值**（空集合）⇒ 读档后传送点全变未激活、automap 全空
+            //   （前片 `save-areaid` 的《同族穷举表》第 9/10 行登记的缺口）。
+            CollectAppProgress(data);
+
             data.playedSeconds = _sessionBasePlayed + ElapsedSinceBase();
 
             Log.Info("Save", $"[Save] 收集完成：{data.name} 职业={data.cls} 等级={data.level} 金币={data.gold} "
                 + $"背包锚点={CountAnchors(data)} 装备={data.equip.Count} 技能={data.skillIds.Count} "
-                + $"区域={data.areaId} 位置=({data.gridX},{data.gridY}) seed={data.mapSeed}");
+                + $"区域={data.areaId} 位置=({data.gridX},{data.gridY}) seed={data.mapSeed} "
+                + $"传送点={data.visitedWaypoints.Count} 探索区={data.exploredByArea.Count} "
+                + $"{DescribeExplored(data)}");
             return Save(data);
         }
 
@@ -617,6 +627,51 @@ namespace Diablo2.Module.Save
                 var ctx = AppContext.I;
                 return ctx != null ? ctx.Map : null;
             }
+        }
+
+        /// <summary>
+        /// ★ 片 save-progress：把**由 App 层持有**的进度类状态收进本次存档（`Events.SaveCollect`）。
+        /// <list type="bullet">
+        /// <item>传送点已激活列表（`App/AppWaypoint.Visited`，进程内 static）；</item>
+        /// <item>小地图已探索格（渲染层 `MapView._explored`，按区域各一份）。</item>
+        /// </list>
+        /// <para>为什么走事件而不是直接调 App：① 保持**依赖方向**（本模块只认 `AppContext` 这个注册表，
+        /// 不认 App 的交互类）；② 离线宿主（`tools/probes/hosts/savecheck`）能**自己订阅**本事件
+        /// 来证明"收集接线成立"，从而让断言**可能变红**（收方不填 ⇒ 落盘就是空集合）。</para>
+        /// <para>⛔ 非预期分支必须留痕：无总线 / 无订阅者 / 收方抛异常 ⇒ Warn 并保持空集合
+        /// （**存档照常成功** —— 丢的是"进度记忆"，不是整份档）。</para>
+        /// </summary>
+        private void CollectAppProgress(CharacterSave data)
+        {
+            var bus = Game.Event;
+            if (bus == null)
+            {
+                Log.Warn("Save", $"[Save] Game.Event 未接入 ⇒ 未发 {Events.SaveCollect}"
+                    + "（传送点已激活列表 / 小地图已探索格本次落盘为空集合）");
+                return;
+            }
+            try
+            {
+                bus.Emit(Events.SaveCollect, data);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Save", $"[Save] {Events.SaveCollect} 的收方抛异常：{ex.GetType().Name}: {ex.Message}"
+                    + " ⇒ 这两个字段保持空集合（存档仍会成功）");
+            }
+        }
+
+        /// <summary>日志/断言用的可读摘要（例：`探索［area=1 80x80 612格］`）。</summary>
+        private static string DescribeExplored(CharacterSave data)
+        {
+            if (data.exploredByArea == null || data.exploredByArea.Count == 0) return "探索=无";
+            var sb = new System.Text.StringBuilder(64);
+            for (var i = 0; i < data.exploredByArea.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append("［").Append(ExploredCodec.Describe(data.exploredByArea[i])).Append('］');
+            }
+            return "探索=" + sb;
         }
 
         /// <summary>Player 之外的模块装配（Flow 只装 Player，所以这里必须补全）。</summary>

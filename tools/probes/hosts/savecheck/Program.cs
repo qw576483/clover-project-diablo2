@@ -169,6 +169,7 @@ namespace SaveCheck
             Run(Step11_FailurePaths);
             Run(Step12_LoadFailureClassification);
             Run(Step13_SavedAreaIdMatchesLiveArea);
+            Run(Step14_ProgressStateRoundTrip);
 
             Console.WriteLine();
             Console.WriteLine("──────────────────────────────────────────────────────────────────");
@@ -901,6 +902,225 @@ namespace SaveCheck
                 _log.Count(anchor) >= 1, "命中 " + _log.Count(anchor) + " 行");
 
             Console.WriteLine();
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 14. ★ 片 save-progress：进度类状态（传送点已激活列表 / 小地图已探索格）
+        //     必须**随档往返**，且**旧档缺这两个字段时读档不崩、取空集合**。
+        //     判据（任务书 §3.1/§3.2）：① 存→读→再存 幂等；② 旧档兼容；③ 退化 ⇒ 变红。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>本片新增的两个字段在旧档里的样子（**没有** `visitedWaypoints` / `exploredByArea`）。</summary>
+        private const string OldSaveWithoutProgress =
+            "{\"version\":1,\"name\":\"OldHero\",\"cls\":1,\"level\":3,\"exp\":10,\"str\":20,\"dex\":25," +
+            "\"vit\":20,\"eng\":15,\"life\":60,\"mana\":22,\"stamina\":20,\"statPoints\":0,\"skillPoints\":0," +
+            "\"gold\":123,\"activeWeaponIndex\":0,\"areaId\":1,\"gridX\":9,\"gridY\":60,\"mapSeed\":777," +
+            "\"skillIds\":[],\"skillLevels\":[],\"buttonSkills\":[-1,-1],\"inventory\":[],\"equip\":[]," +
+            "\"belt\":[],\"quests\":[],\"savedAtTicks\":0,\"playedSeconds\":12.5}";
+
+        private static void Step14_ProgressStateRoundTrip()
+        {
+            Section("14. ★ 片 save-progress：进度类状态（传送点已激活 / 小地图已探索）随档往返 + 旧档兼容");
+
+            var dir = Path.Combine(_work, "s14-progress");
+            FreshDir(dir);
+
+            Diablo2.App.AppContext.ResetStaticForNewPlaySession();
+            Game.Event = new ConsoleEventBus();
+            Game.Launch(new GameConfig { SettingDir = dir });
+            Game.Logger = _log;
+            Game.Setting = new Setting(dir);
+
+            var map = new StubMap { Area = AreaId.BloodMoor, Seed = 20260924 };   // 80x80（见 HostFakes）
+            var player = new StubPlayer { Name = "ProgressHero" };
+            player.TeleportTo(new UnityEngine.Vector2Int(9, 60));
+            var ctx = Diablo2.App.AppContext.Create();
+            ctx.Map = map;
+            ctx.Player = player;
+            var save = new SaveModule();
+            ctx.Save = save;
+
+            // ── 权威已探索集合（模拟渲染层投影）+ 存盘前"App 层"要填的两块 ──────────────
+            //    格索引口径 = `y * w + x`（w=80）；挑四个**不同行**的格，避免"只测了同一行"。
+            var liveCells = new List<UnityEngine.Vector2Int>
+            {
+                new UnityEngine.Vector2Int(0, 0),    // idx 0
+                new UnityEngine.Vector2Int(3, 0),    // idx 3
+                new UnityEngine.Vector2Int(1, 1),    // idx 81
+                new UnityEngine.Vector2Int(79, 79),  // idx 6399（右下角：查边界不越界）
+            };
+            map.ExploredForTest.AddRange(liveCells);
+            var liveIdx = new List<int> { 0, 3, 81, 6399 };
+
+            var visited = new List<int> { (int)AreaId.Town, (int)AreaId.BloodMoor };   // 0,1 升序
+            var collected = 0;
+            System.Action<CharacterSave> collect = d =>
+            {
+                collected++;
+                d.visitedWaypoints = new List<int>(visited);
+                d.exploredByArea = new List<ExploredAreaDto>
+                {
+                    new ExploredAreaDto
+                    {
+                        area = (int)AreaId.BloodMoor,
+                        w = 80, h = 80,
+                        cells = ExploredCodec.Encode(liveIdx, 80, 80),
+                    },
+                };
+            };
+            Game.Event.On<CharacterSave>(Events.SaveCollect, collect);
+
+            Check("前提：Live 状态就位（地图 80x80 + 权威已探索 4 格 + `Events.SaveCollect` 收方已接线）",
+                save.Ready && map.IsGenerated && map.Width == 80 && map.Height == 80 &&
+                map.ExploredCells.Count == 4 && collected == 0,
+                $"Ready={save.Ready} map={map.Width}x{map.Height} 权威已探索={map.ExploredCells.Count} 格");
+
+            var ok = save.Save();
+            Check("被验证入口就位：`SaveModule.Save()`（无参）返回 true（Live 收集 + 落盘都成功）",
+                ok, "LastError=\"" + save.LastError + "\"");
+
+            Check("★ 断言1（写侧·接线点）：`Save()` 的收集阶段**真的发了** `" + Events.SaveCollect + "`" +
+                  "（修前：SaveModule 里没有这一处 ⇒ 这两个字段恒为默认值）",
+                collected == 1, "收到 " + collected + " 次（期望 1）");
+
+            var slot = Path.Combine(Path.Combine(dir, "saves"), player.Name + ".json");
+            var text = File.Exists(slot) ? File.ReadAllText(slot) : null;
+            Console.WriteLine("      落盘槽位 = " + slot + "（存在=" + File.Exists(slot) +
+                "，大小=" + (text == null ? 0 : text.Length) + "B）");
+
+            var vw = Slice(text, "\"visitedWaypoints\":", ']');
+            var ea = Slice(text, "\"exploredByArea\":", ']');
+            Console.WriteLine("      落盘 visitedWaypoints = " + vw);
+            Console.WriteLine("      落盘 exploredByArea  = " + (ea == null ? "(缺)" :
+                (ea.Length > 160 ? ea.Substring(0, 160) + "…(" + ea.Length + "B)" : ea)));
+
+            Check("★ 断言2（写侧·内容）：落盘 JSON 的 `visitedWaypoints` 非空且 == 收集时的集合 [0,1]",
+                vw == "[0,1]", "实测 " + vw);
+
+            string perr;
+            var back = SaveJson.TryParse(text, out perr);
+            var backCells = new List<int>();
+            var backDecoded = back != null && back.exploredByArea != null && back.exploredByArea.Count == 1
+                ? ExploredCodec.Decode(back.exploredByArea[0], backCells) : 0;
+
+            Check("★ 断言3（读侧·内容）：解析回来 `visitedWaypoints` == [0,1] 且 `exploredByArea` 恰 1 条" +
+                  "（area=1 / 80x80 / 解出 4 格且索引与权威集合逐一相同）",
+                back != null && Lists.Equal(back.visitedWaypoints, visited) &&
+                back.exploredByArea != null && back.exploredByArea.Count == 1 &&
+                back.exploredByArea[0].area == (int)AreaId.BloodMoor &&
+                back.exploredByArea[0].w == 80 && back.exploredByArea[0].h == 80 &&
+                Lists.Equal(backCells, liveIdx),
+                back == null ? ("解析失败：" + perr) :
+                    ($"visited=[{string.Join(",", back.visitedWaypoints)}] 区域数={back.exploredByArea.Count}" +
+                     $" 解出 {backDecoded} 格 idx=[{string.Join(",", backCells)}] 期望=[{string.Join(",", liveIdx)}]"));
+
+            // ── 断言 4：**存 → 读 → 再存** 三态一致（幂等；防"只修了单向"）────────────
+            var again = back == null ? null : SaveJson.Write(back);
+            Check("★ 断言4（幂等·逐字节）：`Write(Parse(落盘原文)) == 落盘原文`（新字段参与其中）",
+                back != null && again == text,
+                back == null ? "(解析失败)" :
+                    ("原文=" + text.Length + "B / 再序列化=" + (again == null ? 0 : again.Length) + "B" +
+                     (again == text ? "" : "（不一致）")));
+
+            CharacterSave third = null;
+            if (again != null) { string e3; third = SaveJson.TryParse(again, out e3); }
+            var thirdCells = new List<int>();
+            var thirdDecoded = third != null && third.exploredByArea != null && third.exploredByArea.Count == 1
+                ? ExploredCodec.Decode(third.exploredByArea[0], thirdCells) : 0;
+            Check("★ 断言4b（幂等·字段三态）：`存 → 读 → 再存 → 再读` 的 `visitedWaypoints` / `exploredByArea`" +
+                  "**两项都不变**（第三次解析出的格集合仍 = 权威集合）",
+                third != null && Lists.Equal(third.visitedWaypoints, visited) &&
+                Lists.Equal(thirdCells, liveIdx) && thirdDecoded == liveIdx.Count,
+                third == null ? "(null)" :
+                    ($"三态 visited=[{string.Join(",", third.visitedWaypoints)}] 格=[{string.Join(",", thirdCells)}]" +
+                     $"（共 {thirdDecoded} 格）"));
+
+            // ── 断言 5：**旧档兼容**（缺这两个字段 ⇒ 不崩、取空集合、能正常读档）──────────
+            string oerr;
+            var oldData = SaveJson.TryParse(OldSaveWithoutProgress, out oerr);
+            Check("★ 断言5（旧档兼容·解析）：**不含新字段**的旧档 JSON ⇒ 解析成功（不抛）、" +
+                  "两个新字段都是**非 null 的空集合**（不是 null、也不报错）",
+                oldData != null && oldData.visitedWaypoints != null && oldData.visitedWaypoints.Count == 0 &&
+                oldData.exploredByArea != null && oldData.exploredByArea.Count == 0,
+                oldData == null ? ("解析失败：" + oerr) :
+                    ($"visited={(oldData.visitedWaypoints == null ? "null" : oldData.visitedWaypoints.Count.ToString())}" +
+                     $" explored={(oldData.exploredByArea == null ? "null" : oldData.exploredByArea.Count.ToString())}"));
+
+            // 让旧档真的进槽位，走**完整读档链**（SaveModule.Load）
+            var oldSlot = Path.Combine(Path.Combine(dir, "saves"), "OldHero.json");
+            File.WriteAllText(oldSlot, OldSaveWithoutProgress, new System.Text.UTF8Encoding(false));
+            CharacterSave oldLoaded = null;
+            var oldLoadOk = false;
+            try
+            {
+                oldLoaded = save.Load("OldHero");
+                oldLoadOk = oldLoaded != null;
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine("      ⚠️ Load 抛异常：" + ex.GetType().Name + ": " + ex.Message);
+            }
+            Check("★ 断言5b（旧档兼容·整条读档链）：`SaveModule.Load(\"OldHero\")` 读旧档**不崩**且成功，" +
+                  "两个新字段取空集合，其余字段照常读回（areaId=1 / gold=123 / 等级=3）",
+                oldLoadOk && oldLoaded.visitedWaypoints.Count == 0 && oldLoaded.exploredByArea.Count == 0 &&
+                oldLoaded.areaId == (int)AreaId.BloodMoor && oldLoaded.gold == 123 && oldLoaded.level == 3 &&
+                string.IsNullOrEmpty(save.LastError),
+                oldLoaded == null ? ("Load=null LastError=\"" + save.LastError + "\"") :
+                    ($"areaId={oldLoaded.areaId} gold={oldLoaded.gold} level={oldLoaded.level} " +
+                     $"visited={oldLoaded.visitedWaypoints.Count} explored={oldLoaded.exploredByArea.Count}"));
+
+            // ── 断言 6：坏 `cells` 串（手改档 / 未来格式变化）⇒ 当"没有已探索记录"，不抛 ─────
+            var brokenDto = new ExploredAreaDto { area = 1, w = 80, h = 80, cells = "!!!not-base64!!!" };
+            var brokenOut = new List<int>();
+            var brokenN = 0;
+            var threw = false;
+            try { brokenN = ExploredCodec.Decode(brokenDto, brokenOut); }
+            catch (System.Exception) { threw = true; }
+            Check("★ 断言6（坏值容错）：`cells` 不是合法 base64 ⇒ `Decode` 返回 0、输出为空、**不抛异常**" +
+                  "（读档最坏退化成「少记几格」，⛔ 不会整份档读不出来）",
+                !threw && brokenN == 0 && brokenOut.Count == 0,
+                "threw=" + threw + " n=" + brokenN + " out=" + brokenOut.Count);
+
+            // ── 断言 7（退化校验见另一份产物 `sp_savecheck_deg1.txt`）：收方不填 ⇒ 落盘为空 ────
+            //    这里**不断言**"收方不填会怎样"（那是退化跑的事），只把"当前是绿的"这一事实留痕。
+            Game.Event.Off<CharacterSave>(Events.SaveCollect, collect);
+            save.Save();
+            var degText = File.ReadAllText(slot);
+            Console.WriteLine("      退化对照（本宿主内即时做一次：收方已注销）⇒ visitedWaypoints = " +
+                Slice(degText, "\"visitedWaypoints\":", ']'));
+            Check("★ 断言7（判据本身可红）：收方注销后再存 ⇒ 落盘 `visitedWaypoints` 变回空 `[]`" +
+                  "（⇒ 断言2 的判据**确实测的是收集链**，不是「恒绿」）",
+                Slice(degText, "\"visitedWaypoints\":", ']') == "[]" &&
+                Slice(degText, "\"exploredByArea\":", ']') == "[]",
+                "visited=" + Slice(degText, "\"visitedWaypoints\":", ']') +
+                " explored=" + Slice(degText, "\"exploredByArea\":", ']'));
+
+            Console.WriteLine();
+        }
+
+        /// <summary>从 JSON 原文里抠出一个数组字段的**原文子串**（首尾含括号；找不到返回 "(缺)"）。</summary>
+        private static string Slice(string json, string key, char close)
+        {
+            if (json == null) return "(缺)";
+            var i = json.IndexOf(key, System.StringComparison.Ordinal);
+            if (i < 0) return "(缺)";
+            i += key.Length;
+            while (i < json.Length && json[i] == ' ') i++;
+            if (i >= json.Length || json[i] != '[') return "(格式异常)";
+            var j = json.IndexOf(close, i);
+            return j < 0 ? "(未闭合)" : json.Substring(i, j - i + 1);
+        }
+
+        /// <summary>列表逐项相等（`List<int>`；本文件判定用，不做集合语义）。</summary>
+        private static class Lists
+        {
+            public static bool Equal(List<int> a, List<int> b)
+            {
+                if (a == null || b == null) return a == b;
+                if (a.Count != b.Count) return false;
+                for (var i = 0; i < a.Count; i++) if (a[i] != b[i]) return false;
+                return true;
+            }
         }
 
         // ═════════════════════════════════════════════════════════════════════
