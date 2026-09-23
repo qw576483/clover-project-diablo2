@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # dialogoptions_run.ps1 -- dialog-options slice: ONE Play chain that re-captures
 # the NPC dialog tiles after the hover-plate fix (UiArt medium-button highlight).
 #
