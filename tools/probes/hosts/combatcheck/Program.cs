@@ -450,12 +450,35 @@ namespace CombatCheck
                 PlacePlayerAtDistance(m.Grid(), 5, 7.5f);   // 5 格起步、欧氏 ≤7.5 ⇒ 必在发现半径(8)内
                 var before = DistanceToPlayer(m.Grid());
 
-                TickSim(6f);
+                // ★ 片 melee-ai-why：窗口**由算式给出**（旧值 `6f` 是拍的 ⇒ 必然量不到出手，推导如下）
+                //   窗口 = ⌈闭合到出手距离所需秒数⌉ + 事件余量（= 2 × 出手间隔 1.10s = 2.20s，至少 2 次机会）
+                //   ① 闭合需求 = (起步欧氏距离 − 出手门槛) / 该怪的**格每秒**速度
+                //      · 出手门槛 = `GameConst.MeleeRange` = 1.60 格
+                //        出处 `Core/GameConst.cs:129`；生产侧同一把尺子 `MonsterAi.cs:193`
+                //        （`if (dist <= GameConst.MeleeRange) return TryAttack(...)`）
+                //      · 格每秒速度 = `monster_c.speed` × `MonsterTuning.SpeedToTilesPerSecond`
+                //        出处 **生产实现** `MonsterModule.SpeedOf`（`Module/Monster/MonsterModule.cs:531-536`）
+                //        × 0.2（`MonsterTuning.cs:120`，1 格 = 5 map 单位的换算）；下限钳 `MinMoveSpeed`
+                //      ⚠️ 日志里那只 `speed=1` 是**配表原值**（官方 `MonStats.Velocity`，单位 = map 单位/秒），
+                //         **不是格/秒** —— 僵尸 `Velocity`=1 ⇒ **0.20 格/秒**（`MonsterTuning.cs:117` 逐行注明）。
+                //   ② 僵尸实测代入：闭合需求 = (5.00 − 1.60) / 0.20 = **17.00s**；旧窗口 `6f` 只能走
+                //      0.20 × 6 = **1.20 格**（且 `Grid()` 是**格取整** ⇒ 日志显示成 Δ1.00 格，实测 5.00→4.00 吻合）
+                //      ⇒ 离出手还差 2.20 格 ⇒ **旧窗口下"出手"判据一次都不可能成立**（§5 现象的真因）
+                //   ⛔ 本改动只把**窗口**对上"到出手距离所需帧数"，判据行（`after < before - 1.0f` /
+                //      `attacks > 0`）**一字未改**，也**没有**放宽任何阈值。
+                var tileSpeed = TilesPerSecondOf(m);
+                var needSeconds = Mathf.Max(0f, (before - GameConst.MeleeRange) / tileSpeed);
+                var window = needSeconds + MonsterTuning.AttackIntervalSeconds * 2f;
+
+                TickSim(window);
 
                 var after = DistanceToPlayer(m.Grid());
                 var attacks = Trace.AttacksBy(m.id);
-                Console.WriteLine($"  Melee 候选 {tried}（m#{m.id} {m.name}，speed={SpeedOf(m)}）：" +
-                                  $"与玩家距离 {before:0.00} → {after:0.00} 格，该怪出手 {attacks} 次");
+                Console.WriteLine($"  Melee 候选 {tried}（m#{m.id} {m.name}，配表 speed={SpeedOf(m)}" +
+                                  $"（官方 MonStats.Velocity，map 单位/秒）= {tileSpeed:0.00} 格/秒）：" +
+                                  $"与玩家距离 {before:0.00} → {after:0.00} 格，该怪出手 {attacks} 次" +
+                                  $"（窗口 {window:0.00}s = 闭合 {needSeconds:0.00}s + 出手余量 " +
+                                  $"{MonsterTuning.AttackIntervalSeconds * 2f:0.00}s）");
 
                 if (after < before - 1.0f && attacks > 0)
                 {
@@ -493,7 +516,12 @@ namespace CombatCheck
             PlacePlayerAtDistance(m.Grid(), 4, MonsterTuning.RangedAttackMaxRange - 0.2f);
             var before = DistanceToPlayer(m.Grid());
 
-            TickSim(6f);
+            // ★ 片 melee-ai-why（同族穷举）：旧值 `6f` 同样是**拍的**（无算式出处）。
+            //   所需秒数 = **最坏情况下把距离拉回 `RangedKeepDistance` 的时间**：怪被摆到欧氏 ≤4.8 的环 4 上
+            //   （见上一条注释的出处），`MonsterAi.Ranged` 在格距 < `MonsterTuning.RangedKeepDistance`(4.0)
+            //   时先后撤、**后撤期间不射击** ⇒ 窗口必须覆盖"从 0 格撤到 4.0 格"这一段：
+            //   4.0 格 ÷ 该怪的格每秒速度（出处见 `TilesPerSecondOf`） + 出手余量。
+            TickSim(EventWindowSeconds(MonsterTuning.RangedKeepDistance / TilesPerSecondOf(m)));
 
             var after = DistanceToPlayer(m.Grid());
             var attacks = Trace.AttacksBy(m.id);
@@ -514,7 +542,9 @@ namespace CombatCheck
 
             PlacePlayerAtDistance(m.Grid(), 2, 4f);     // 贴到 2 格（欧氏 ≤4）⇒ 必触发后撤
             var before = DistanceToPlayer(m.Grid());
-            TickSim(4f);
+            // ★ 片 melee-ai-why（同族穷举）：旧值 `4f` 是**拍的**。所需秒数 = 判据要求的位移 ÷ 该怪的格每秒速度
+            //   （判据 = `after > before + 0.5f` ⇒ 0.5 格；速度算法同 `TilesPerSecondOf` 的出处注释）。
+            TickSim(EventWindowSeconds(0.5f / TilesPerSecondOf(m)));
             var after = DistanceToPlayer(m.Grid());
 
             Console.WriteLine($"  Range 后撤（m#{m.id} {m.name}）：玩家贴到 2 格 ⇒ 距离 {before:0.00} → {after:0.00} 格");
@@ -554,7 +584,11 @@ namespace CombatCheck
             //   ⛔ 这不是放宽：改成**差值口径**后，逃跑窗口内只要真出手一次，照样判红。
             var atkBefore = Trace.AttacksBy(m.id);
 
-            TickSim(3f);
+            // ★ 片 melee-ai-why（同族穷举）：旧值 `3f` 是**拍的**。所需秒数 = 判据要求的位移(0.5 格)
+            //   ÷ 该怪的格每秒速度（算法出处见 `TilesPerSecondOf`）；余量见 `EventWindowSeconds`。
+            //   代入堕落者（`fallen` Velocity=5 ⇒ 1.0 格/秒）= 0.5s + 2.2s = 2.7s
+            //   ⇒ 仍落在 `MonsterTuning.CowardFleeSeconds`(3.0s) 的一次逃跑期内（"逃跑窗口内出手"语义不变）。
+            TickSim(EventWindowSeconds(0.5f / TilesPerSecondOf(m)));
 
             var after = DistanceToPlayer(m.Grid());
             var attacks = Trace.AttacksBy(m.id) - atkBefore;
@@ -830,7 +864,10 @@ namespace CombatCheck
                 $"m#{companion.id} alive={companion.alive} corpseUsable={companion.corpseUsable}");
 
             PlacePlayerAtDistance(shaman.Grid(), 5, 7f);
-            TickSim(6f);
+            // ★ 片 melee-ai-why（同族穷举）：旧值 `6f` 是**拍的**。所需秒数 = 萨满的复活冷却
+            //   `MonsterTuning.ShamanReviveCooldownSeconds`（0.6s，= 官方 aidel 15 帧 ÷ 25fps，见其注释）
+            //   + 出手余量 ⇒ 覆盖"首个思考帧就复活"与"冷却后才复活"两种情形。
+            TickSim(EventWindowSeconds(MonsterTuning.ShamanReviveCooldownSeconds));
 
             Console.WriteLine($"  Shaman（m#{shaman.id} {shaman.name}）复活 m#{companion.id} {companion.name}：" +
                               $"alive={companion.alive} hp={companion.hp}/{companion.maxHp} corpseUsable={companion.corpseUsable}");
@@ -1974,6 +2011,16 @@ namespace CombatCheck
             _player.SetGrid(_ctx.Map.SpawnPoint);
         }
 
+        /// <summary>
+        /// 「等一个行为事件」的通用**窗口算式**：`所需秒数` + 事件余量（= 2 × `MonsterTuning.AttackIntervalSeconds`
+        /// = 2.20s，即至少给 2 次出手机会）。
+        /// <para>★ 片 melee-ai-why：本宿主原有多处"固定 N 帧"窗口是**拍的**（无算式出处），
+        /// 其中 `AiMelee` 的 `6f` 用了**足以证伪**的短窗口（慢怪 17s 才到出手距离 ⇒ 判据必然量不到出手）。
+        /// 统一改成"所需秒数（各调用点标明出处）+ 余量"，⛔ 判据本身不动、阈值不放宽。</para>
+        /// </summary>
+        private static float EventWindowSeconds(float requiredSeconds)
+            => requiredSeconds + MonsterTuning.AttackIntervalSeconds * 2f;
+
         private static void TickSim(float seconds)
         {
             var steps = (int)(seconds / Dt);
@@ -2207,10 +2254,28 @@ namespace CombatCheck
                 new Vector2(monsterGrid.x + 0.5f, monsterGrid.y + 0.5f));
         }
 
+        /// <summary>
+        /// 配表**原值** `monster_c.speed`（= 官方 `MonStats.Velocity`，单位 **map 单位/秒**，⛔ 不是格/秒）。
+        /// ⚠️ 打印时请标清量纲；要拿"格/秒"请用 <see cref="TilesPerSecondOf"/>。
+        /// </summary>
         private static float SpeedOf(MonsterState s)
         {
             var row = Table.Tables.Default.Monster.Get(s.kindId);
             return row != null ? row.Speed : 0f;
+        }
+
+        /// <summary>
+        /// 怪物的**实际移动速度（格/秒）** —— 与**生产实现** `MonsterModule.SpeedOf`
+        /// （`Module/Monster/MonsterModule.cs:531-536`）逐字同式：
+        /// `monster_c.speed × MonsterTuning.SpeedToTilesPerSecond`（0.2，1 格 = 5 map 单位，
+        /// 出处 `MonsterTuning.cs:120`），再被 `MonsterTuning.MinMoveSpeed`（0.2）钳下限。
+        /// <para>为什么必须按这个量纲算窗口：僵尸 `Velocity`=1 ⇒ **0.20 格/秒**
+        /// （`MonsterTuning.cs:117` 逐行注明），不是 1 格/秒。</para>
+        /// </summary>
+        private static float TilesPerSecondOf(MonsterState s)
+        {
+            var v = SpeedOf(s) * MonsterTuning.SpeedToTilesPerSecond;
+            return v < MonsterTuning.MinMoveSpeed ? MonsterTuning.MinMoveSpeed : v;
         }
 
         private static float MonsterKeepDistance()

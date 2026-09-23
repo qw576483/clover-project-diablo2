@@ -187,10 +187,34 @@ namespace Diablo2.Module.Monster
         // ① Melee / ② Range / ③ Shaman / ④ Coward
         // ═════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// **出手判定距离** —— 必须与**结算层同一把尺子**。
+        /// <para>
+        /// 结算侧 `CombatModule.RequestMonsterAttack`（`Module/Combat/CombatModule.cs:408-421`）用的是
+        /// `Iso.GridDistanceEuclidean(player.Grid, monsterGrid)`，即**格心到格心**；
+        /// 而 `MonsterRuntime.Pos` 是**连续**格坐标（`Advance` 会把它推进到两格之间）。
+        /// </para>
+        /// <para>
+        /// ★ 片 melee-ai-why 的缺陷根因（实测）：僵尸沿轴逼近，连续距离停在 **1.60**（= `GameConst.MeleeRange`）
+        /// 时所在格距玩家 **2 格**（`(8,58)` vs `(8,56)` ⇒ 格欧氏 **2.00**）⇒
+        /// AI 认为"已在射程内"⇒ `TryAttack` ⇒ 结算层判 `2.00 > 1.60` **拒绝**；
+        /// 而 AI 自己那条已满足，于是**永不再靠近**（死锁）⇒ 怪物一辈子打不到玩家。
+        /// </para>
+        /// <para>
+        /// ⇒ 出手判定统一改用 <see cref="AttackDistance"/>；移动/仇恨仍用连续距离（那是观感/感知量，不是契约量）。
+        /// </para>
+        /// </summary>
+        private static float AttackDistance(MonsterModule owner, MonsterRuntime m)
+            => Iso.GridDistanceEuclidean(owner.PlayerGrid, m.Grid);
+
+        /// <summary>远程/萨满的出手距离上限 —— 与 `CombatModule.cs:418-420` 逐字同式（近战不受影响）。</summary>
+        private static float RangedAttackDistanceCap
+            => Mathf.Min(GameConst.RangedRange, MonsterTuning.RangedAttackMaxRange);
+
         /// <summary>① 近战：贴上去打。</summary>
         private static Action Melee(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
         {
-            if (dist <= GameConst.MeleeRange) return TryAttack(owner, m);
+            if (AttackDistance(owner, m) <= GameConst.MeleeRange) return TryAttack(owner, m);
 
             var goal = owner.PlayerGrid;
             if (!TryPathTo(owner, m, goal)) return Action.None;
@@ -208,7 +232,11 @@ namespace Diablo2.Module.Monster
                 return TryAttack(owner, m);
             }
 
-            if (dist > GameConst.RangedRange)
+            // ★ 片 melee-ai-why：靠近的上限改成**结算层实际放行的距离**（`RangedAttackDistanceCap`，
+            //   与 `CombatModule.cs:418-420` 同式）。旧写法用 `GameConst.RangedRange`(8) ⇒ 怪在
+            //   5 < 格距 ≤ 8 时会"反复请求出手 → 每次被结算层以 `> 射程 5.00` 拒绝，又因为
+            //   自己那条不满足靠近条件而**永远不靠近**" ⇒ 站着不动、一枪不发的死区。
+            if (AttackDistance(owner, m) > RangedAttackDistanceCap)
             {
                 if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
                 m.Advance(owner.SpeedOf(m), dt);
@@ -234,7 +262,8 @@ namespace Diablo2.Module.Monster
             if (dist < MonsterTuning.RangedKeepDistance && StepAway(owner, m, playerCenter, dt))
                 return Action.None;
 
-            if (dist > GameConst.RangedRange)
+            // ★ 片 melee-ai-why：同 ② 远程 —— 靠近上限对齐结算层（`RangedAttackDistanceCap`）。
+            if (AttackDistance(owner, m) > RangedAttackDistanceCap)
             {
                 if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
                 m.Advance(owner.SpeedOf(m), dt);
@@ -244,7 +273,7 @@ namespace Diablo2.Module.Monster
             return TryAttack(owner, m);
         }
 
-        /// <summary>④ 逃跑型：低血逃跑（原版堕落者），否则等同近战。</summary>
+        /// <summary>④ 逃跑型：低血逃跑（原版堕落者），否则**等同近战**。</summary>
         private static Action Coward(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
         {
             if (m.FleeTimer > 0f)
@@ -266,7 +295,8 @@ namespace Diablo2.Module.Monster
                 return Action.None;
             }
 
-            if (dist <= GameConst.MeleeRange) return TryAttack(owner, m);
+            // ★ 片 melee-ai-why：非逃跑路径 = "等同近战" ⇒ 出手判定必须与 ① 同一把尺子。
+            if (AttackDistance(owner, m) <= GameConst.MeleeRange) return TryAttack(owner, m);
 
             if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
             m.Advance(owner.SpeedOf(m), dt);
