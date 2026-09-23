@@ -882,13 +882,37 @@ namespace FullCheck
 
             // ★ C3（用户本轮「你是圆形判断的打击范围」）之后近战有**形状**闸门：
             //   正面扇形 ±60° + 以朝向为轴的矩形走廊 + 线段不得被地形阻断；唯一出处
-            //   `Module/Combat/MeleeShape.cs`。该文件头写明「零距离（与攻击者同格）⇒ false」
-            //   ⇒ 旧驱动"把玩家落到怪同格"**不再是合法攻击姿态**（这不是缺陷，是形状口径的必然结果）。
-            //   改正：把玩家摆到**怪的正前方一格** —— 沿玩家当前朝向反推站位，使
-            //   `MonsterGrid == PlayerGrid + Iso.DirectionDelta(player.Dir)`（即怪正落在朝向轴上，
-            //   距离 1~√2 ≤ MeleeRange 1.6）。这正是真实玩法「点怪 → 走到怪身边 → 面向它出刀」的姿态；
-            //   断言本身（单次普攻必须掉血）一字未改。
+            //   `Module/Combat/MeleeShape.cs`。
+            //   ⚠️ 2026-09-23（片 `melee-samecell`）**更正**：该文件头原先写「零距离（与攻击者同格）
+            //   ⇒ false」—— 那是**错的**：原版近战触及是**距离 / 外接框**口径（`Weapons.txt` 第 20 列
+            //   `rangeadder` / `MonStats2.txt` 第 8 列 `MeleeRng`），`0 ≤ reach` 恒真 ⇒ **同格必命中**；
+            //   而实测（`.ai-tmp/test/report-audioverify2.md` §2.3）玩家沿 `MoveCommand` 就会走到怪格上，
+            //   旧口径下 40 次真实左键**全被拒** ⇒ 贴身永远打不到。该退化点已修（见文件头）。
+            //   本节因此**同时**覆盖两种姿态：正前方一格（既有，下面那条）与**同格**（新增，见下）。
             var dv = Iso.DirectionDelta(ctx.Player.Dir);
+
+            // ★ melee-samecell 的**纯函数**判据（与 `combatcheck` 第 18 节同一把尺子；⛔ 不改上一条断言）
+            {
+                float sfx, sfy;
+                var nv2 = Iso.DirectionDelta(Dir8.N);
+                var solvable = MeleeShape.ToUnit(nv2.x, nv2.y, out sfx, out sfy);
+                const float sReach = 1.6f;
+                Check("纯函数：正前方 1.5 格 ⇒ 命中",
+                    solvable && MeleeShape.InFrontCone(sfx, sfy, 0f, -1.5f, MeleeShape.FrontConeCos)
+                    && MeleeShape.InMeleeRect(sfx, sfy, 0f, -1.5f, sReach, MeleeShape.MeleeHalfWidth),
+                    "偏移 (0,-1.5)");
+                Check("纯函数：正侧方 1.5 格 ⇒ **不**命中（C3 定稿的\"扇形不是圆\"口径）",
+                    solvable && !MeleeShape.InFrontCone(sfx, sfy, 1.5f, 0f, MeleeShape.FrontConeCos)
+                    && !MeleeShape.InMeleeRect(sfx, sfy, 1.5f, 0f, sReach, MeleeShape.MeleeHalfWidth),
+                    "偏移 (1.5,0)：90° 侧方");
+                Check("纯函数：距离 > 攻击范围 ⇒ 不命中",
+                    solvable && !MeleeShape.InMeleeRect(sfx, sfy, 0f, -2.5f, sReach, MeleeShape.MeleeHalfWidth),
+                    "沿轴 2.5 > reach 1.60");
+                Check("纯函数：**同格（偏移 (0,0)）⇒ 命中**（★ melee-samecell）",
+                    solvable && MeleeShape.InFrontCone(sfx, sfy, 0f, 0f, MeleeShape.FrontConeCos)
+                    && MeleeShape.InMeleeRect(sfx, sfy, 0f, 0f, sReach, MeleeShape.MeleeHalfWidth),
+                    "零偏移受距离/框口径保护（0 ≤ reach 恒真），不参与角度比较");
+            }
             ctx.Player.TeleportTo(new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y));
             var hp0 = mon.hp;
             var dmg0 = _bus.CountOf(Events.DamageDealt);
@@ -903,6 +927,37 @@ namespace FullCheck
             Check("单次普攻产生伤害（DamageDealt 事件 + 目标掉血）",
                 _bus.CountOf(Events.DamageDealt) > dmg0 && (mon.hp < hp0 || !mon.alive),
                 $"hp {hp0} → {mon.hp}（alive={mon.alive}）；DamageDealt {dmg0} → {_bus.CountOf(Events.DamageDealt)}");
+
+            // ★ melee-samecell（2026-09-23 缺陷修复）**真实链路**的同格用例：
+            //   每次出手前把玩家挪到**怪所在那一格**（生产玩法里 `MoveCommand` 就会走到怪格上），
+            //   再走生产入口 `RequestAttack` ⇒ 必须掉血。⛔ 只**新增**断言；
+            //   跑完把站位**放回"怪的正前方一格"**（同一姿态口径）⇒ 下面击杀循环的既有判据条件不变。
+            {
+                var sameCellHit = false;
+                var sameCellAttempts = 0;
+                var lastOffset = "(n/a)";
+                int lastHp;
+                for (var i = 0; i < 8 && !sameCellHit; i++)
+                {
+                    if (!mon.alive) break;
+                    ctx.Player.TeleportTo(new Vector2Int(mon.gridX, mon.gridY));   // ← 同格
+                    lastOffset = $"({mon.gridX - ctx.Player.Grid.x},{mon.gridY - ctx.Player.Grid.y})";
+                    var hpBeforeIter = mon.hp;
+                    sameCellAttempts++;
+                    ctx.Combat.RequestAttack(mon.id);
+                    Ticks(ctx, 6, 0.1f);
+                    if (mon.hp < hpBeforeIter || !mon.alive) sameCellHit = true;
+                }
+                lastHp = mon.hp;
+
+                Check("同格（偏移 (0,0)）攻击必须结算（★ melee-samecell，真实链路）",
+                    sameCellHit,
+                    $"出手 {sameCellAttempts} 次、出手瞬间偏移 {lastOffset}；m#{mon.id} hp {hp0} → {lastHp}"
+                    + $"（alive={mon.alive}）；玩家朝向={ctx.Player.Dir}（零偏移下命中不依赖朝向）");
+
+                // 放回"怪的正前方一格"（与上面那条既有断言同一姿态口径）⇒ 击杀循环的条件一字未变
+                ctx.Player.TeleportTo(new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y));
+            }
 
             var alive0 = ctx.Monster.AliveCount;
             for (var i = 0; i < 60 && mon.alive; i++)

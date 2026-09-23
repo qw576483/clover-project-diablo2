@@ -466,7 +466,122 @@ namespace Uicheck
                 && invSrc.Contains("_dropHighlight.gameObject.SetActive(false)"),
                 "在 UI/InventoryPanel.cs OnEndDrag 内检索");
 
+            // ⑦ ★ btn-label-fix（2026-09-23，实机「目的地按钮上的字读不出来」）：**字色可读性**离线断言。
+            //   事故形态：`FlowButton` 的默认字色 = 原版 `WideButton.prefab` 的 #191919（0.098 近黑），
+            //   而本屏用的原版中等按钮底图是**深板岩灰** ⇒ 字与底图都暗，13px 中文密笔画糊成一块黑。
+            //   门槛口径（两条都可复算，⛔ 不是拍的数）：
+            //     ① 底板亮度 = `tools/probes/measure/btn_plate_luma.py` 对 `Menu/btn_med_normal.png`
+            //        内区（x 22..78% / y 25..75%，alpha>200）实测的**平均 sRGB 亮度** ⇒ 落 btn_plate_luma.tsv；
+            //     ② 门槛 = **WCAG 2.1 AA 正文**对比度 **4.5:1**（按钮字按原版 18px Bold 渲染，
+            //        18px < 大号文本阈值 18.66px ⇒ 取正文档，⛔ 不取宽松的 3:1）。
+            //   对照实测：改动前 `UiLayoutFlow.ButtonText`(0.098) = 2.79:1 ✗；
+            //             改动后 `UiArt.TitleColor`(0.95/0.87/0.60) = 4.70:1 ✓。
+            var plateTsv = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.tsv");
+            var platePy = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.py");
+            Check("传送点按钮字色：底板亮度实测表 btn_plate_luma.tsv 在位（量法脚本可原地复跑）",
+                File.Exists(plateTsv) && File.Exists(platePy),
+                File.Exists(plateTsv)
+                    ? Path.GetFileName(plateTsv) + " + " + Path.GetFileName(platePy)
+                    : "缺 " + plateTsv + "（恢复 = python tools/probes/measure/btn_plate_luma.py）");
+
+            var plateLuma = 0f;
+            if (File.Exists(plateTsv))
+            {
+                foreach (var line in File.ReadAllLines(plateTsv))
+                {
+                    if (line.Length == 0 || line[0] == '#') continue;
+                    var f = line.Split('\t');
+                    if (f.Length >= 2 && f[0].EndsWith("btn_med_normal.png"))
+                    {
+                        float.TryParse(f[1], System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out plateLuma);
+                        break;
+                    }
+                }
+            }
+
+            var wpColor = WaypointPanel.DestLabelColor;
+            var wpRatio = ContrastRatioSrgb(wpColor, plateLuma);
+            var oldRatio = ContrastRatioSrgb(UiLayoutFlow.ButtonText, plateLuma);
+            Check("传送点面板每颗目的地按钮的 glyph 颜色：对按钮底图的对比度 ≥ 4.5:1（WCAG 2.1 AA 正文）",
+                plateLuma > 0.01f && wpRatio >= 4.5f,
+                $"字色 {Describe(wpColor)} vs 底板亮度 {plateLuma:0.###} ⇒ {wpRatio:0.00}:1"
+                + $"（门槛 4.5:1；对照：改动前近黑 ButtonText = {oldRatio:0.00}:1 ✗）");
+            Check("传送点按钮字色 = 既有配色常量 UiArt.TitleColor（⛔ 不新造颜色）",
+                wpColor == UiArt.TitleColor, Describe(wpColor));
+
+            // 源码点计数（⚠️ 不是运行期颗数）：目的地那一处在 for 循环里**只写一次**（覆盖
+            // `MaxDests` 颗），加关闭钮一处 ⇒ 源码里应当**恰好 2 处** `FlowButton.Create(`，
+            // 且**每一处**都把 `DestLabelColor` 作为实参传进去（少传 = 那颗按钮又变回近黑）。
+            var flowCreateN = System.Text.RegularExpressions.Regex.Matches(wpSrc, @"FlowButton\.Create\(").Count;
+            var flowColorN = System.Text.RegularExpressions.Regex.Matches(wpSrc, @"DestLabelColor\)").Count;
+            Check("WaypointPanel：每处按钮构建都显式传可读字色（目的地循环 ×MaxDests="
+                + WaypointPanel.MaxDests + " + 关闭钮 = 2 处源码点）",
+                flowCreateN >= 2 && flowColorN == flowCreateN,
+                $"{flowColorN}/{flowCreateN} 处带 DestLabelColor");
+
+            // ⑧ ★ btn-label-fix：字模 uvRect 面积 == 图集单格面积（防「uv 取到空白/邻格 ⇒ 看着像黑块」）。
+            //   判据全是磁盘事实：`font16_chi_map.txt` 表头 COLS/CELL + 图集 PNG 的 IHDR（无图像库解密）。
+            var chiMap = Path.Combine(ResourceRoot, "Clover", "D2", "Fonts", "font16_chi_map.txt");
+            var chiAtlas = Path.Combine(ResourceRoot, "Clover", "D2", "Fonts", "font16_chi.png");
+            var cols = 0; var cellW = 0; var cellH = 0; var glyphN = 0; var maxCol = -1; var maxRow = -1;
+            if (File.Exists(chiMap))
+            {
+                foreach (var line in File.ReadAllLines(chiMap))
+                {
+                    if (line.Length == 0 || line[0] == '#') continue;
+                    var f = line.Split(' ');
+                    if (f[0] == "COLS" && f.Length >= 2) { int.TryParse(f[1], out cols); continue; }
+                    if (f[0] == "CELL" && f.Length >= 3)
+                    {
+                        int.TryParse(f[1], out cellW); int.TryParse(f[2], out cellH); continue;
+                    }
+                    if (f[0] == "COUNT" && f.Length >= 2) { int.TryParse(f[1], out glyphN); continue; }
+                    if (f.Length >= 5)
+                    {
+                        int mCol, mRow;
+                        if (int.TryParse(f[3], out mCol) && int.TryParse(f[4], out mRow))
+                        {
+                            if (mCol > maxCol) maxCol = mCol;
+                            if (mRow > maxRow) maxRow = mRow;
+                        }
+                    }
+                }
+            }
+            int aw = -1, ah = -1;
+            if (File.Exists(chiAtlas)) PngSize(chiAtlas, out aw, out ah);
+            Check("字模 uvRect 面积 == 图集单格面积（图集宽 = COLS×格宽、高按格高整分 ⇒ CellUv 每格恰取一格）",
+                cellW > 0 && cellH > 0 && cols > 0 && aw > 0 && ah > 0
+                && aw % cellW == 0 && ah % cellH == 0 && aw / cellW == cols,
+                $"图集 {aw}x{ah} / 格 {cellW}x{cellH} cols={cols}"
+                + (aw > 0 ? $"（uv 步长 {cellW / (float)aw:0.######} × {cellH / (float)ah:0.######}）" : ""));
+            Check("字模表每条的 (col,row) 都落在图集内 ⇒ uvRect 不越界、不取到图集外空白",
+                cellW > 0 && cols > 0 && maxCol >= 0 && maxCol < cols && (maxRow + 1) * cellH <= ah,
+                $"maxCol={maxCol} < cols={cols}；maxRow={maxRow} ⇒ 末行底边 {(maxRow + 1) * cellH} ≤ {ah}；表 COUNT={glyphN}");
+
             Console.WriteLine();
+        }
+
+        /// <summary>
+        /// WCAG 2.1 对比度 = (L_亮+0.05)/(L_暗+0.05)，L = 相对亮度 0.2126R+0.7152G+0.0722B
+        /// （每个 sRGB 分量先按 WCAG 2.1 §相对亮度 线性化）。
+        /// <paramref name="bgSrgbLuma"/> = 背景的 **sRGB 域**亮度（0..1，来自 `btn_plate_luma.tsv`）：
+        /// 原版石牌是中性灰 ⇒ 用该灰度反推线性亮度即可（不必逐通道）。
+        /// </summary>
+        private static float ContrastRatioSrgb(Color fg, float bgSrgbLuma)
+        {
+            var lf = Lin(fg.r) * 0.2126f + Lin(fg.g) * 0.7152f + Lin(fg.b) * 0.0722f;
+            var lb = Lin(bgSrgbLuma);
+            var hi = Math.Max(lf, lb);
+            var lo = Math.Min(lf, lb);
+            return (hi + 0.05f) / (lo + 0.05f);
+        }
+
+        /// <summary>sRGB 分量 → 线性（WCAG 2.1 / IEC 61966-2-1 的分段函数）。</summary>
+        private static float Lin(float c)
+        {
+            if (c <= 0f) return 0f;
+            return c <= 0.04045f ? c / 12.92f : MathF.Pow((c + 0.055f) / 1.055f, 2.4f);
         }
 
         /// <summary>读 PNG IHDR 宽高（uicheck 是无依赖控制台宿主，不引图像库）。</summary>

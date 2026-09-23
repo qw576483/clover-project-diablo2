@@ -357,6 +357,59 @@ namespace Diablo2.Module.Map
         /// <summary>矩形填充（向量版）。</summary>
         public void FillRect(Vector2Int origin, int w, int h, TileKind kind) => FillRect(origin.x, origin.y, w, h, kind);
 
+        /// <summary>
+        /// ★ 片 map-border：**边界环格数** —— 可走区离地图四边界的最小格数。
+        /// <para>出处（两条，互相印证）：</para>
+        /// <para>① **原版地形**：`原版资源/d2lod1.10txt-1.10f/data/global/excel/Levels.txt`
+        /// 「Act 1 - Wilderness 1」(= Blood Moor) `SizeX = SizeY = 80`；
+        /// `LvlPrest.txt`「Act 1 - Wild Border 1..12」`SizeX = SizeY = 8`
+        /// ⇒ 80 / 8 = **10×10 块**，最外一圈块（每边 8 格）= 原版的**边界环**
+        /// （Wild Border / Wild Cliff Border = 崖壁 + 树线，原版即不可走）。</para>
+        /// <para>② **相机几何**：`ortho = 3.75`、`1920×1080` ⇒ 半屏 halfW = 6.667 / halfH = 3.75，
+        /// `Iso.HalfW = 1` / `Iso.HalfH = 0.5` ⇒ 可见**格**包围盒半跨 =
+        /// `halfW/(2·HalfW) + halfH/(2·HalfH)` = 3.333 + 3.75 = **7.083 格**
+        /// （`camera-follow` 片实测，见 `.ai-tmp/test/report-camerafollow.md`）
+        /// ⇒ 机位离边界 ≥ 7.083 才能零虚空；取 **8** 刚好覆盖（8 &gt; 7.083）。</para>
+        /// </summary>
+        public const int BorderRingCells = 8;
+
+        /// <summary>
+        /// ★ 片 map-border：把**边界环**（距任一地图边 &lt; <paramref name="n"/> 格的所有格）里
+        /// 现在还可走的格封成**不可走地形**（`blockKind`：树 / 崖壁 / 石墙，⛔ 不是 `Void`）。
+        /// <para>为什么必须在地图侧封而不是在相机侧夹：相机侧夹制要求「机位离边界 ≥ 7.083 格」，
+        /// 而可走区一直铺到最外圈时玩家自己就能走到离边界 1 格处 ⇒ 两侧数学互斥
+        /// （`camera-follow` 片结论）。封住边界环后，可走区天然满足「机位 = 玩家 ⇒ 零虚空」。</para>
+        /// <para>⛔ **不缩小地图**：外圈格仍然铺着原版地面/物件瓦片（只是不可走），
+        /// 画面上是一圈树线/崖壁，⛔ 不是黑虚空。</para>
+        /// </summary>
+        /// <returns>被封掉的格数（= 0 属非预期分支，会留 Warn）。</returns>
+        public int SealBorderRing(int n, TileKind blockKind)
+        {
+            if (_tiles == null) { MapLog.Error("SealBorderRing: 地图未 Reset"); return 0; }
+            if (n <= 0) { MapLog.Warn($"SealBorderRing: n={n} 非法（必须 > 0），忽略"); return 0; }
+
+            var sealedCount = 0;
+            for (var y = 0; y < Height; y++)
+            {
+                for (var x = 0; x < Width; x++)
+                {
+                    var d = Mathf.Min(Mathf.Min(x, Width - 1 - x), Mathf.Min(y, Height - 1 - y));
+                    if (d >= n) continue;
+                    if (!Diablo2.Def.TileKindInfo.IsWalkable(_tiles[x, y])) continue;
+                    _tiles[x, y] = blockKind;
+                    sealedCount++;
+                }
+            }
+            _countsDirty = true;
+
+            if (sealedCount == 0)
+            {
+                MapLog.Warn($"SealBorderRing: 地图 {Width}x{Height} 的 {n} 格边界环里**一格可走的都没有**" +
+                            "（原版块已全部封死？还是被前面的步骤清过？）⇒ 本条属非预期分支，请复核生成顺序");
+            }
+            return sealedCount;
+        }
+
         /// <summary>画一条水平线（含两端）。</summary>
         public void LineH(int y, int xFrom, int xTo, TileKind kind)
         {

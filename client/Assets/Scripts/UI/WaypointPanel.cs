@@ -52,6 +52,17 @@ namespace Diablo2.UI
         public const string CloseText = "关闭";
 
         /// <summary>
+        /// 目的地按钮（含关闭钮）的**字色** = 既有配色常量 <see cref="UiArt.TitleColor"/>
+        /// （0.95/0.87/0.60，与本屏标题同色）。
+        /// <para>★ btn-label-fix（2026-09-23）**唯一**的颜色改动：默认字色
+        /// `UiLayoutFlow.ButtonText`（原版 `WideButton.prefab` 的 #191919）压在本屏用的原版中等按钮
+        /// 深板岩底图上只有 **2.79:1** 对比度（底板实测亮度 0.376，量法
+        /// `tools/probes/measure/btn_plate_luma.py`；WCAG 2.1 AA 正文门槛 4.5:1）⇒ 中文密笔画糊成黑块。
+        /// 本色 = **4.70:1** ✓。离线门禁 = `tools/probes/hosts/uicheck` 的 ①-b 字色对比度断言。</para>
+        /// </summary>
+        public static readonly Color DestLabelColor = UiArt.TitleColor;
+
+        /// <summary>
         /// 本面板能列出的**最多目的地数**。
         /// <para>
         /// 出处 = 本工程 Act I 只有 3 个区域（`AreaId`：Town / BloodMoor / DenOfEvil），
@@ -239,18 +250,31 @@ namespace Diablo2.UI
                 UiLayoutFlow.Px(new Vector2(0f, Layout.DestY(0))));
 
             // ⑦ 目的地按钮（最多 `MaxDests` 条；点一条 ⇒ `Events.WaypointTravelRequest`）
+            //
+            // ★ btn-label-fix（2026-09-23，用户/前片报「目的地按钮上的字读不出来」）：
+            //   字色**显式**传 `UiArt.TitleColor`（既有常量，0.95/0.87/0.60 —— 与本屏标题同一色）。
+            //   为什么不走 `FlowButton` 的默认字色：默认 = `UiLayoutFlow.ButtonText` = 原版
+            //   `WideButton.prefab` 的 #191919（0.098 近黑），那是给**浅色**石牌的；而本屏用的原版
+            //   中等按钮底图 `Menu/btn_med_normal.png` 是**深板岩灰**（内区实测平均 sRGB 亮度 0.376，
+            //   量法 `tools/probes/measure/btn_plate_luma.py`）⇒ 近黑压在它上面只有 **2.79:1**
+            //   （WCAG 2.1 AA 正文门槛 4.5:1）⇒ 13px 的中文密笔画糊成一块黑（实机 before 图
+            //   `.ai-tmp/screenshots/uifix4_z_before_btn1.png`）。换成 `UiArt.TitleColor` 后 = **4.70:1** ✓。
+            //   ⛔ 不改 `UiLayoutFlow.ButtonText` 本身（它被 `uicheck` 的「= #191919」那条断言钉着，
+            //   且拉丁按钮（Single/EXIT/OK…）细笔画压在上面仍可读）。
+            //   ⛔ 不新造颜色：这一路只用了既有配色常量（门禁 = `uicheck` ①-b 的字色对比度断言）。
             for (var i = 0; i < MaxDests; i++)
             {
                 var index = i;
                 var btn = UiLayoutFlow.FlowButton.Create(screen, "Dest" + i, string.Empty,
                     Layout.BtnSize, UiLayoutFlow.Px(new Vector2(0f, Layout.DestY(i))),
-                    () => Travel(index));
+                    () => Travel(index), D2Text.D2Font.Font16, DestLabelColor);
                 _rows.Add(btn);
             }
 
-            // ⑧ 关闭钮（原版中等按钮 + 原版字模标签）
+            // ⑧ 关闭钮（原版中等按钮 + 原版字模标签；同上，显式给可读字色）
             _close = UiLayoutFlow.FlowButton.Create(screen, "Close", CloseText,
-                Layout.BtnSize, UiLayoutFlow.Px(new Vector2(0f, Layout.CloseY)), OnCloseClicked);
+                Layout.BtnSize, UiLayoutFlow.Px(new Vector2(0f, Layout.CloseY)), OnCloseClicked,
+                D2Text.D2Font.Font16, DestLabelColor);
 
             UiLog.Info($"{nameof(WaypointPanel)} 已构建：窗框 {Layout.BoxSizeOrig.x:0.#}×{Layout.BoxSizeOrig.y:0.#} 原版px"
                 + $"（内容外接框派生）+ 原版中等按钮；行节奏 {Layout.RowStep:0.#}，最多 {MaxDests} 条目的地");

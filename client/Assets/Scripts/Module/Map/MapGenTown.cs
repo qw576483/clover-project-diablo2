@@ -30,6 +30,7 @@
 //    这样 `MapModule` 可以用同一段重试逻辑驱动三个区域）。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Collections.Generic;
 using System.Text;
 using CloverEngine;
 using Diablo2.Core;
@@ -171,6 +172,42 @@ namespace Diablo2.Module.Map
                             "几格在原版里没有瓦片，渲染层不会画任何东西");
             }
 
+            // ★ 片 map-border：**边界环封闭**（可走区离四边界 ≥ `GridMap.BorderRingCells` 格）。
+            //   出处同 `GridMap.BorderRingCells`：原版 `LvlPrest` 边界块边长 8 > 相机实测可见格半跨 7.083。
+            //   营地外圈的树线/围栏在原版就是不可走的边界 ⇒ 封掉它既不缩水也不露虚空。
+            // ⛔ 片 map-border2（接力片）结论：**城镇不能走 `SealBorderRing`** —— 实测证据（见
+            //   `.ai-tmp/test/report-mapborder2.md`）：
+            //   ① 城镇关卡 56×40 是**原版 `Levels.txt`「Act 1 - Town」的整关**（= 营地本体 39 列
+            //      + 出城口外 17 列，见本文件头片 4 注释），营地**围栏那一行就是关卡的最后一行**
+            //      ⇒ 营地内部格（如 NPC 基德 (22,33)）离边界只有 6 格、紧贴围栏的格只有 1 格；
+            //   ② 封 8 格边界环 ⇒ (22,33) 被埋成树 ⇒ 必需可达目标不可达 ⇒ 连通性自检失败 ⇒
+            //      `MapModule` 换 seed 重试（本图是**固定布局**，8 次全败）⇒ 落保底布局
+            //      ⇒ mapcheck §10/§14/§15/§24 等 **16 项既有判据连带变红**（实测：47 项失败）；
+            //   ③ 而 §31 要求的"所有可走格距边界 ≥ 8"与 §24 的**冻结判据**「关卡东边界列
+            //      （x=Width-1）上存在可走桥面格」（原版木桥东端 = 与野外的共享边列，玩家从那里
+            //      过桥进野外）在数学上互斥：x=Width-1 的可走格距边界恒 = 0。
+            //   ⇒ 本片**不改动城镇封环**，把冲突交主 agent 裁决（选项：① 城镇豁免 §31；
+            //     ② 城镇关卡扩为 56+2×8 × 40+2×8 并整体内移，同时 §24 / NPC 坐标 / 传送点
+            //     (31,26) / 河东岸 (54,27) / 西北角 30 格 Void 等**绝对坐标判据**一并改为
+            //     "布局坐标系"，那是契约级改动）。野外与洞穴两侧已封环（§31 全绿）。
+            // ★ 片 map-border2 第二轮（主 agent **二次裁决 2026-09-23：A′ 做 / A″ 保留差异**）：
+            //   A′：把**营地外**的边界带（距任一地图边 < `BorderRingCells` **且**位于营地内框之外
+            //       的可走格）封成**原版树线**（物件键取自布局表自身的 't' 格 = 原版 `town_trees` 瓦片；
+            //       ⛔ 不新增素材、⛔ 不用纯色块）。为什么只封营地外：
+            //       · 实测（`mapcheck §32`）"过了生产相机夹制仍露地图外"的 310 格里，**营地外 157 格**
+            //         是普通可行走草地（`TileKind.Grass` + `town_floor/028`）—— 原版 Rogue Encampment
+            //         外围不长这样 ⇒ 这 157 格属**生成缺陷**（玩家能从出生点一路走出去）；
+            //         封掉之后 `CameraBounds` 的角格回退（"让位给主角可见"，`CameraBounds.cs:31`）
+            //         才有东西可遮。
+            //       · **营地内框那 153 格**（贴围栏内沿）**不封**：封它就得裁原版营地本体
+            //         （会埋掉 NPC 基德 (22,33)），且 §24 的东边界接缝桥面格恒在 `x=Width-1`
+            //         ⇒ 保留为**已登记差异**（`策划/差异登记.tsv` E57）。
+            //   ⛔ 封环**必须跳过**这些格（否则连锁变红）：`map.Exits`（围栏西侧 3 格出城口）、
+            //      桥面/deck（§24 冻结判据：`x=Width-1` 上必须有可走桥面格）、
+            //      `RequiredReachable`（NPC / 传送点 / 出生点）。
+            // （A′ 的实际封环调用放在下面 `RequiredReachable` 填好之后 —— 封环要按
+            //   「必需可达目标」做保护，早调会看不到那份清单。）
+
             // ★ 片 M3 说明（为什么这里**不**动 `map.Exits`）：
             //   原版城镇关卡的**东边界列与野外第 0 列是同一条「共享边列」**（出处
             //   `libd2/.../drlg/outdoors/OutRoom.zig:271`；本仓库 `tools/d2codec/export_town_layout.py`
@@ -200,6 +237,25 @@ namespace Diablo2.Module.Map
             map.RequiredReachable.AddRange(map.NpcPoints);
             map.RequiredReachable.AddRange(map.WaypointPoints);
 
+            // ★ 片 map-border2 第二轮（主 agent **二次裁决 2026-09-23：A′ 做 / A″ 保留差异**）：
+            //   A′：把**营地外**的边界带（距任一地图边 < `BorderRingCells` **且**位于营地内框之外
+            //       的可走格）封成**原版树线**（物件键取自布局表自身的 't' 格 = 原版 `town_trees` 瓦片；
+            //       ⛔ 不新增素材、⛔ 不用纯色块、⛔ 不缩地图）。为什么只封营地外：
+            //       · 实测（`mapcheck §32`）"过了生产相机夹制仍露地图外"的 310 格里，**营地外 157 格**
+            //         是普通可行走草地（`TileKind.Grass` + `town_floor/028`）—— 原版 Rogue Encampment
+            //         外围不长这样 ⇒ 这 157 格属**生成缺陷**（玩家能从出生点一路走出去）；
+            //         封掉之后 `CameraBounds` 的角格回退（"让位给主角可见"，`CameraBounds.cs:31`）
+            //         才有东西可遮。
+            //       · **营地内框那 153 格**（贴围栏内沿）**不封**：封它就得裁原版营地本体
+            //         （会埋掉 NPC 基德 (22,33)），且 §24 的东边界接缝桥面格恒在 `x=Width-1`
+            //         ⇒ 属**已登记差异**（`策划/差异登记.tsv` E57）。
+            //   ⛔ 封环必须放过：`map.Exits`（围栏西侧 3 格出城口）、`map.IsDeck`（§24 要求
+            //      `x=Width-1` 上有可走桥面格）、`RequiredReachable`（NPC / 传送点 / 出生点）。
+            var sealedCells = SealOutOfCampBorderBand(map);
+            MapLog.Info($"MapGenTown: 边界环封闭 {sealedCells} 格（**仅营地外**；n={GridMap.BorderRingCells}，" +
+                        $"用原版 `town_trees` 瓦片 ⇒ 不新增素材）⇒ 营地外可走区离四边界恒 ≥ " +
+                        $"{GridMap.BorderRingCells} 格；营地内框（贴围栏内沿）不封 = 已登记差异 E57");
+
             // 不变量：可达 == 可走（营地是围栏围起来的，正常不会填到任何格；填到了说明有死地）
             map.FillUnreachablePockets(map.SpawnPoint, TileKind.Wall);
 
@@ -216,6 +272,90 @@ namespace Diablo2.Module.Map
                 MapLog.Warn($"MapGenTown: 出生点 {map.SpawnPoint} 的 3×3 邻域不是全可走" +
                             "（生成物被手改过？）—— MapModule 会换 seed 重试并最终落保底布局");
             }
+        }
+
+        /// <summary>
+        /// ★ 片 map-border2 第二轮（裁决 A′）：把**营地外**的边界带封成原版树线。
+        /// <para>封哪些格：可走 **且** 距任一地图边 &lt; <see cref="GridMap.BorderRingCells"/> **且**
+        /// **不在营地内框**（`x∈(17,47) × y∈(16,39)`，口径同 `mapcheck §10/§32` 的 campInterior）。</para>
+        /// <para>⛔ 跳过（否则连锁变红，见调用点注释）：`map.Exits` / `map.IsDeck`（§24）/
+        /// `map.RequiredReachable`（NPC / 传送点 / 出生点）。</para>
+        /// <para>地形 = <see cref="TileKind.Tree"/>；**物件键**取布局表自身 't' 格的**原版**物件键
+        /// （轮换），**地面键保持原样**（草地）⇒ 与原版树线格一个样子；⛔ 不新增素材、⛔ 不用纯色块。</para>
+        /// </summary>
+        /// <returns>实际封掉的格数。</returns>
+        private static int SealOutOfCampBorderBand(GridMap map)
+        {
+            var keys = ObjectKeysOf('t');
+            if (keys.Length == 0)
+            {
+                MapLog.Error("MapGenTown: 布局表里找不到任何 't'（树）格的原版物件键 ⇒ **边界带不封**" +
+                             "（用纯色块封就是用户报过的『占位图』前景 ⇒ 属非预期分支；请复核 " +
+                             "MapGenTownLayout / export_town_layout.py）");
+                return 0;
+            }
+
+            var n = GridMap.BorderRingCells;
+            var sealedCount = 0;
+            var keptProtected = 0;
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var d = Mathf.Min(Mathf.Min(x, map.Width - 1 - x), Mathf.Min(y, map.Height - 1 - y));
+                    if (d >= n) continue;
+                    var g = new Vector2Int(x, y);
+                    if (!map.Walkable(g)) continue;
+                    if (IsCampInterior(g)) continue;                  // A″：营地内框不封
+                    if (IsSealProtected(map, g)) { keptProtected++; continue; }
+
+                    map.TryGetTiles(x, y, out var ground, out _);     // 地面键原样（草地）
+                    map.Set(g, TileKind.Tree);
+                    map.SetTiles(x, y, ground ?? "", keys[(x * 7 + y) % keys.Length]);
+                    sealedCount++;
+                }
+            }
+
+            if (keptProtected > 0)
+            {
+                MapLog.Info($"MapGenTown: 边界带里有 {keptProtected} 格**受保护未封**（出城口 / 桥面 deck" +
+                            "（§24 要求 x=Width-1 有可走桥面格）/ NPC / 传送点 / 出生点）");
+            }
+            return sealedCount;
+        }
+
+        /// <summary>营地**内框**（围栏环以内；口径同 `mapcheck §10/§32` 的 campInterior）。</summary>
+        private static bool IsCampInterior(Vector2Int g) => g.x > 17 && g.x < 47 && g.y > 16 && g.y < 39;
+
+        /// <summary>封边界带时必须放过的格（放过原因见 <see cref="SealOutOfCampBorderBand"/>）。</summary>
+        private static bool IsSealProtected(GridMap map, Vector2Int g)
+        {
+            if (map.IsDeck(g)) return true;                 // 桥面：§24 要求 x=Width-1 上有可走桥面格
+            for (var i = 0; i < map.Exits.Count; i++)
+            {
+                if (map.Exits[i] == g) return true;         // 出城口 3 格（玩家从那里出门）
+            }
+            return map.IsRequiredTarget(g);                 // NPC / 传送点 / 出生点
+        }
+
+        /// <summary>布局表里字符 <paramref name="c"/> 的格引用到的**原版物件键**（去重，轮换用）。</summary>
+        private static string[] ObjectKeysOf(char c)
+        {
+            var set = new List<string>(4);
+            var rows = MapGenTownLayout.Rows;
+            for (var y = 0; y < rows.Length; y++)
+            {
+                var row = rows[y];
+                if (row == null) continue;
+                for (var x = 0; x < row.Length; x++)
+                {
+                    if (row[x] != c) continue;
+                    if (!MapGenTownLayout.TryGetTiles(x, y, out _, out var ok)) continue;
+                    if (string.IsNullOrEmpty(ok)) continue;
+                    if (!set.Contains(ok)) set.Add(ok);
+                }
+            }
+            return set.ToArray();
         }
 
         /// <summary>块清单拼成一个字符串（日志用）。</summary>

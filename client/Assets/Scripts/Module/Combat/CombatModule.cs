@@ -161,6 +161,10 @@ namespace Diablo2.Module.Combat
             //   新口径 = **正面扇形（±60°）+ 以朝向为轴的矩形走廊 + 线段不得被地形阻断**，三关都过才结算。
             //   形状函数唯一出处 = `Module/Combat/MeleeShape.cs`（纯函数，`combatcheck` 第 18 节逐例驱动）。
             //   ⛔ 不消耗冷却（不合格 = 没挥出去，与"超距"同一口径）：由 Player/Input 先转身/靠近。
+            //   ★ melee-samecell（2026-09-23）：**同格（偏移 0,0）必须命中** —— 原版近战触及是距离/框口径
+            //     （`Weapons.txt` rangeadder / `MonStats2.txt` MeleeRng），0 ≤ reach 恒真；而玩家沿
+            //     `MoveCommand` 会走到怪所在格（`report-audioverify2.md` §2.3 实测 40/40 被拒）
+            //     ⇒ 该退化点已在 `MeleeShape.InFrontCone` 补为"命中"，本处形状闸门随之放行。
             var shape = ShapeGate(player.Dir, player.Grid, monsterGrid, GameConst.MeleeRange);
             if (shape != null)
             {

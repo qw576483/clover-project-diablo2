@@ -141,6 +141,7 @@ namespace CombatCheck
             Run(Step15_ProjectileTerrainAndDeckSort);   // ★ 审计 B 红行 R2/R3（投射物）
             Run(Step17_WeaponDamageSkills);              // ★ 片 N：审计 R1/R2（武器伤害类技能）
             Run(Step18_AttackShape);                     // ★ C3：攻击判定形状（扇形/矩形/线段，不是圆）
+            Run(Step19_SameCellMeleeHit);                // ★ melee-samecell：同格攻击必须结算（真实链路）
             Run(Step12_UnwiredDegradation);
             Run(Step13_AutoWireContract);   // 放最后：它会新建一个 AppContext（真实游戏走的就是 AutoWire）
 
@@ -2537,6 +2538,86 @@ namespace CombatCheck
             Check("远程出手上限 > 近战范围（远程仍比近战远）",
                 MonsterTuning.RangedAttackMaxRange > GameConst.MeleeRange,
                 $"{MonsterTuning.RangedAttackMaxRange:0.00} > {GameConst.MeleeRange:0.00}");
+
+            // ⑧ ★ melee-samecell（2026-09-23 缺陷修复，新增断言；① ~ ⑦ 一字未改）：
+            //   **同格（偏移 (0,0)）⇒ 必命中**。
+            //   起因 = 实测 40 次真实左键**全部**被"判定形状拒绝（锥半角 60°）偏移=(0,0) 距离 0.00"
+            //   （`.ai-tmp/test/report-audioverify2.md` §2.3）：玩家沿 `MoveCommand` 会走到怪所在那一格，
+            //   而旧实现把零偏移判成"不在锥内" ⇒ **贴身永远打不到怪**（`hit` 音效也从未响过）。
+            //   原版口径 = 近战触及是**距离 / 外接框**比较，不是角度比较：
+            //     · `原版资源/d2lod1.10txt-1.10f/data/global/excel/Weapons.txt` 第 20 列 `rangeadder`
+            //       （Short Sword / Hand Axe = 空(=0)，War Staff = 1）⇒ 触及 = 1 + rangeadder **格**；
+            //     · 同目录 `MonStats2.txt` 第 8 列 `MeleeRng`（skeleton1 = 0）⇒ 同样是**格数**。
+            //   ⇒ `0 ≤ reach` 恒真（同格时两者外接框必然重叠）⇒ 同格必命中；
+            //   而角度锥是**本项目新增**的量化近似，不该在这个恒真的点上把攻击拒掉。
+            Check("同格（偏移 (0,0)）⇒ 在判定形状内（★ melee-samecell）",
+                MeleeShape.InFrontCone(fx, fy, 0f, 0f, MeleeShape.FrontConeCos)
+                && MeleeShape.InMeleeRect(fx, fy, 0f, 0f, reach, MeleeShape.MeleeHalfWidth)
+                && MeleeShape.LineClear(g => true, new Vector2Int(0, 0), new Vector2Int(0, 0)),
+                "偏移 (0,0)：锥内（零偏移特例）∧ 走廊内（沿轴 0 ∈ [0,1.60]、垂距 0 ≤ 1.20）"
+                + " ∧ 线段通（无中间格）");
+
+            // ⑨ ⑧ 是"只补退化点"的负向对照：正侧方 90° 仍必须被拒 ——
+            //   若这一条翻了，说明 ⑧ 的改法把扇形放宽成了圆形（⛔ C3 定稿口径不许推翻）。
+            Check("同格特例**没有**把扇形放宽：正侧方 1.5 格仍不命中（= ② 的修复后复核）",
+                !MeleeShape.InFrontCone(fx, fy, 1.5f, 0f, MeleeShape.FrontConeCos)
+                && !MeleeShape.InMeleeRect(fx, fy, 1.5f, 0f, reach, MeleeShape.MeleeHalfWidth),
+                $"锥内={MeleeShape.InFrontCone(fx, fy, 1.5f, 0f, MeleeShape.FrontConeCos)}"
+                + $" 走廊内={MeleeShape.InMeleeRect(fx, fy, 1.5f, 0f, reach, MeleeShape.MeleeHalfWidth)}");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 19. ★ melee-samecell：**真实链路**同格攻击（不是纯函数）
+        // ═════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// 缺陷复现/回归：把玩家摆到**怪所在的那一格**（真实玩法里 `MoveCommand` 就会走到怪格上），
+        /// 然后走**生产入口** `ICombatModule.RequestAttack` ⇒ 必须造成伤害，且日志里**不许**出现
+        /// "被**判定形状**拒绝"。
+        /// <para>
+        /// 为什么不能只靠第 18 节的纯函数断言：形状闸门是**接线**（`CombatModule.ShapeGate` 调
+        /// `MeleeShape`），纯函数绿 ≠ 生产路径绿。本节把"同格 ⇒ 结算"钉在真实调用链上。
+        /// </para>
+        /// </summary>
+        private static void Step19_SameCellMeleeHit()
+        {
+            Section("19. ★ melee-samecell：玩家与怪**同格**时 `RequestAttack` 必须结算（真实链路）");
+
+            PrepareMap(AreaId.BloodMoor, 20250916);
+            _ctx.Monster.SpawnArea(AreaId.BloodMoor);
+
+            var target = PickMonster(m => m.ai == MonsterAI.Melee);
+            Check("刷出了近战怪（同格用例的靶子）", target != null,
+                target != null ? $"m#{target.id} {target.name}" : "null");
+            if (target == null) return;
+
+            // 玩家**站到怪那一格**，朝向刻意取一个与"怪在我的哪一侧"无关的固定方向（`Dir8.S`）：
+            // 零偏移下"夹角"无定义，命中**不许**依赖朝向 —— 这正是本用例要钉的地方。
+            _player.SetGrid(target.Grid(), Dir8.S);
+            Check("玩家与靶子**同格**（偏移 (0,0)）",
+                _player.Grid == target.Grid(),
+                $"player=({_player.Grid.x},{_player.Grid.y}) monster=({target.Grid().x},{target.Grid().y})"
+                + $" 偏移=({target.Grid().x - _player.Grid.x},{target.Grid().y - _player.Grid.y})");
+
+            var shapeRejects = 0;
+            var hit = false;
+            for (var attempt = 0; attempt < 40 && !hit; attempt++)
+            {
+                var hp0 = target.hp;
+                var mark = _log.Lines.Count;
+                _ctx.Combat.RequestAttack(target.id);          // ← 生产入口（与左键点怪同一条路）
+                for (var i = mark; i < _log.Lines.Count; i++)
+                {
+                    if (_log.Lines[i].Contains("判定形状")) shapeRejects++;
+                }
+                if (target.hp < hp0 || !target.alive) hit = true;
+                _ctx.Combat.Tick(GameConst.PlayerAttackInterval + 0.01f);   // 清冷却再试
+            }
+
+            Check("同格攻击**从不**被判定形状拒绝", shapeRejects == 0,
+                $"被拒次数 {shapeRejects}（旧口径下每次都是 1 ⇒ 40 次全拒）");
+            Check("同格攻击造成了伤害（40 次内至少命中一次）", hit,
+                $"m#{target.id} hp={target.hp} alive={target.alive}");
+            Console.WriteLine();
         }
 
         private static void Section(string title)

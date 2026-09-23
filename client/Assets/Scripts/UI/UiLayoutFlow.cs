@@ -1861,12 +1861,33 @@ namespace Diablo2.UI
             /// <summary>点击回调（用于个别按钮的自定义行为，如二次确认）。</summary>
             public Button Button;
 
+            /// <summary>本颗按钮的**常态**文字色（默认 = <see cref="UiLayoutFlow.ButtonText"/>）。</summary>
+            public Color NormalText = ButtonText;
+
+            /// <summary>本颗按钮的**禁用态**文字色（默认 = <see cref="ButtonTextDisabled"/>）。</summary>
+            public Color DisabledText = ButtonTextDisabled;
+
             /// <summary>造一个原版几何按钮。</summary>
             /// <param name="origSize">**原版 px** 尺寸（宽 ≥ 272 = 宽按钮底图；128 = 中等按钮底图）。</param>
             /// <param name="pos">本工程 Canvas 单位的位置（= 原版坐标 ×1.8）。</param>
+            /// <param name="labelColor">
+            /// 覆盖**常态文字色**（null = 用 <see cref="ButtonText"/>，即原版 `WideButton.prefab` 的 #191919）。
+            /// <para>★ btn-label-fix（2026-09-23）加这个口子的原因（**量化过，不是口味**）：
+            /// 原版按钮**底图本身是深板岩灰**（`Menu/btn_med_normal.png` 内区实测平均 sRGB 亮度 **0.376**，
+            /// 量法 = `tools/probes/measure/btn_plate_luma.py`）⇒ #191919 压在它上面的对比度只有
+            /// **2.79:1**（WCAG 2.1 AA 正文要求 ≥ 4.5:1）——拉丁细笔画还能认，**13px 的中文密笔画就糊成一块黑**。
+            /// 所以：中文按钮（如传送点目的地）由调用方传一个**既有可读色常量**；拉丁按钮保持原版 #191919 不变
+            /// （⛔ 不动 `ButtonText` 本身 —— 它被 `uicheck` 的「按钮文字色 = #191919」那条断言钉着）。</para>
+            /// <para>禁用态 = 传入色的同色降 alpha（与既有 `ButtonTextDisabled` 的 0.45 同口径）。</para>
+            /// </param>
             public static FlowButton Create(Transform parent, string name, string text, Vector2 origSize,
-                Vector2 pos, Action onClick, D2Text.D2Font font = D2Text.D2Font.Font16)
+                Vector2 pos, Action onClick, D2Text.D2Font font = D2Text.D2Font.Font16,
+                Color? labelColor = null)
             {
+                var normalText = labelColor ?? ButtonText;
+                var disabledText = labelColor.HasValue
+                    ? new Color(normalText.r, normalText.g, normalText.b, ButtonTextDisabled.a)
+                    : ButtonTextDisabled;
                 var img = UiArt.Button(parent, name, string.Empty, origSize, pos, onClick);
                 if (img == null)
                 {
@@ -1892,11 +1913,13 @@ namespace Diablo2.UI
                 {
                     Image = img,
                     Button = img.GetComponent<Button>(),
+                    NormalText = normalText,
+                    DisabledText = disabledText,
                     // ★ 片 4b：按钮文字按**原版字号 18px** 渲染（`ButtonFontScale` = 18/16，
                     //   出处与实测核对写在该常量的注释里）—— 原版 `WideButton.prefab` /
                     //   `MediumButton.prefab` 的 `Text.m_FontSize = 18` 就是这条口径的来源。
                     Label = FlowLabel.Create(img.transform, "FlowLabel", text, font, TextAnchor.MiddleCenter,
-                        ButtonText, origSize, Vector2.zero, ButtonFontScale),
+                        normalText, origSize, Vector2.zero, ButtonFontScale),
                 };
 
                 if (button.Button == null)
@@ -1907,11 +1930,16 @@ namespace Diablo2.UI
                 return button;
             }
 
-            /// <summary>可用性（禁用 = 不可点 + 文字变灰；底图帧由 uGUI 的 `disabledSprite` 决定）。</summary>
+            /// <summary>
+            /// 可用性（禁用 = 不可点 + 文字变灰；底图帧由 uGUI 的 `disabledSprite` 决定）。
+            /// <para>⛔ 用**本颗按钮自己的**常态/禁用色（`Create` 传入的 `labelColor`），
+            /// 不许回落成全局 <see cref="ButtonText"/> —— 否则"先 SetEnabled(false) 再 SetEnabled(true)"
+            /// 会把调用方特意指定的可读色悄悄改回近黑。</para>
+            /// </summary>
             public void SetEnabled(bool on)
             {
                 if (Button != null) Button.interactable = on;
-                if (Label != null) Label.SetColor(on ? ButtonText : ButtonTextDisabled);
+                if (Label != null) Label.SetColor(on ? NormalText : DisabledText);
             }
 
             /// <summary>改文案。</summary>

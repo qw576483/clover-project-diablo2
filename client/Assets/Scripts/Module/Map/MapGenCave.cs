@@ -91,6 +91,15 @@ namespace Diablo2.Module.Map
         private static bool TryLayout(GridMap map, Rng rng, int slotsX, int slotsY)
         {
             var p = MapGenCaveLayout.PieceSize;
+            // ★ 片 map-border2：**边界环**（距任一地图边 < ring 格）必须是原版岩体，可走区不得触边
+            //   （否则玩家能走到离边界 1 格处，相机跟随必然露图外虚空 —— `camera-follow` 片结论）。
+            //   尺寸**不变**（= slots×25，`mapcheck §9` 冻结判据要求尺寸是原版块边长的整数倍），
+            //   做法 = 铺完块后把最外 `BorderRingCells` 格封成 `CaveWall`（见下方 `SealBorderRing`）：
+            //   · 语义上和原版一致 —— 原版洞穴关卡**到边界就是实心岩体**（DRLG 不会把可走地面
+            //     铺到关卡边界外；本项目的图 = 块的拼接，所以边界那几格要按岩体裁掉）；
+            //   · ⛔ 不是"黑虚空"：`PaintRockBorderBand` 会给环内每格真铺**原版岩体地面键**
+            //     （取自块库 'X' 格），画面上是一圈岩壁；环内可走格数另有硬自检兜底。
+            var ring = GridMap.BorderRingCells;
             var w = slotsX * p;
             var h = slotsY * p;
 
@@ -172,6 +181,25 @@ namespace Diablo2.Module.Map
                 }
             }
 
+            // ★ 片 map-border2：**边界环封成原版岩体**（可走区离四边界恒 ≥ ring 格）。
+            //   顺序很关键：必须在**挑洞口/出生点之前**封 —— 洞口口径是"块里 gx 最小的可走格"
+            //   （原版洞口就在块西缘），封环后那个最小列自然内移到环的内沿 ⇒ 洞口落在 x=ring，
+            //   不会像先前那样贴在图的最西列（那一列现在是岩体）。
+            var sealedCells = map.SealBorderRing(ring, TileKind.CaveWall);
+            MapLog.Info($"MapGenCave: 边界环封闭 {sealedCells} 格（n={ring} = 原版 `LvlPrest`" +
+                        "「Act 1 - Wild Border *」块边长 8 > 相机实测可见格半跨 7.083）" +
+                        $"⇒ 可走区离四边界恒 ≥ {ring} 格");
+
+            // 环内每格真铺**原版岩体地面键**（空白键 = MapView 什么都不画 = 纯黑虚空，必须避免）
+            var ringPainted = PaintRockBorderBand(map, ring);
+            var ringWalkable = CountWalkableInBorderRing(map, ring);
+            if (ringWalkable != 0)
+            {
+                MapLog.Error($"MapGenCave: 边界环里仍有 {ringWalkable} 格可走（应为 0）" +
+                             "⇒ 封环没生效，可走区会触边露虚空；本次拓扑作废");
+                return false;
+            }
+
             // ── ③ 出生点 / 出口 ──────────────────────────────────────────────
             var gate = PickGate(map, pieces[0, gateSlotY], 0, p);
             if (!gate.HasValue)
@@ -244,7 +272,8 @@ namespace Diablo2.Module.Map
 
             MapLog.Info($"MapGenCave: 邪恶洞穴生成完成（**原版洞穴块拼接** size={w}x{h} seed={rng.Seed} " +
                         $"块网格={slotsX}x{slotsY} 可走格={map.WalkableCount} 洞口槽=(0,{gateSlotY}) " +
-                        $"出生点={map.SpawnPoint} 出口={exit} 刷新点={map.MonsterSpawns.Count}）；" +
+                        $"出生点={map.SpawnPoint} 出口={exit} 刷新点={map.MonsterSpawns.Count} " +
+                        $"边界环岩体={ringPainted} 格/环内可走={ringWalkable} 格）；" +
                         $"用到的块：{DescribePieces(kinds)}");
             return true;
         }
@@ -302,6 +331,80 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
+        /// ★ 片 map-border2：给**边界环**（距任一地图边 &lt; <paramref name="ring"/> 格）铺**原版岩体瓦片键**。
+        /// <para>
+        /// 为什么必须铺键：洞穴**启用了逐格覆盖**（`BeginTileOverrides`），没写过键的格 = 空串
+        /// = `MapView` 什么都不画 = **纯黑**（那就是"黑虚空"，用户报的边界问题里最难看的一种）。
+        /// 键取自块库里 `'X'`（实心岩体）格的原版地面键（`MapGenCaveLayout.Alphabet`，
+        /// 出处 = 原版 `ACT1/CAVES/*.ds1` 的 floor 层），按格循环取用 ⇒ 画面上是一圈岩壁。
+        /// </para>
+        /// </summary>
+        /// <returns>铺到的环内格数。</returns>
+        private static int PaintRockBorderBand(GridMap map, int ring)
+        {
+            var grounds = RockGroundKeys();
+            if (grounds.Length == 0)
+            {
+                MapLog.Error("MapGenCave: 块库里找不到带原版地面键的实心岩体格（'X' 且 ground≠空）" +
+                             "⇒ 边界环会退化成纯黑（非预期，请复核 MapGenCaveLayout）");
+                return 0;
+            }
+
+            var painted = 0;
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var d = Mathf.Min(Mathf.Min(x, map.Width - 1 - x), Mathf.Min(y, map.Height - 1 - y));
+                    if (d >= ring) continue;
+                    // ⛔ 这里**只铺瓦片键**，不改地形：封环是 `SealBorderRing` 的唯一职责
+                    //   （见 `TryLayout`），本方法只负责"环内不出现黑虚空"。
+                    map.SetTiles(x, y, grounds[(x + y) % grounds.Length], "");
+                    painted++;
+                }
+            }
+            MapLog.Info($"MapGenCave: 边界环（n={ring}）铺原版岩体 {painted} 格" +
+                        $"（地面键取自块库 'X' 格，共 {grounds.Length} 种轮换）⇒ 可走区离四边界恒 ≥ {ring} 格");
+            return painted;
+        }
+
+        /// <summary>边界环里的可走格数（硬不变量：必须 = 0）。</summary>
+        private static int CountWalkableInBorderRing(GridMap map, int ring)
+        {
+            var n = 0;
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var d = Mathf.Min(Mathf.Min(x, map.Width - 1 - x), Mathf.Min(y, map.Height - 1 - y));
+                    if (d >= ring) continue;
+                    if (map.Walkable(new Vector2Int(x, y))) n++;
+                }
+            }
+            return n;
+        }
+
+        /// <summary>块库里 `'X'`（实心岩体）格用到的**原版地面键**（去重）。</summary>
+        private static string[] RockGroundKeys()
+        {
+            var set = new List<string>(8);
+            var pieces = MapGenCaveLayout.Pieces;
+            for (var i = 0; i < pieces.Length; i++)
+            {
+                var alpha = pieces[i].Alphabet;
+                for (var a = 0; a < alpha.Length; a++)
+                {
+                    var code = alpha[a];
+                    if (code.Length < 7 || code[0] != 'X') continue;
+                    var g = MapGenCaveLayout.Decode(code.Substring(1, 6));
+                    if (g.Length == 0) continue;
+                    if (!set.Contains(g)) set.Add(g);
+                }
+            }
+            return set.ToArray();
+        }
+
+        /// <summary>
         /// 挑一块能覆盖 <paramref name="needMask"/> 的原版块：
         /// 候选 = `DirMask ⊇ needMask`；在候选里优先**多余开口最少**的（多余开口会形成凹龛），
         /// 同档随机取一块（变体多样性）。
@@ -354,6 +457,8 @@ namespace Diablo2.Module.Map
             {
                 // 西边界那一列恰好没有 3×3 净空的格 ⇒ 退回"西边界可走格"，但**不挖洞**，
                 // 只把它的 3×3 是否净空交给调用方判（进出口都要能站人）。
+                // ★ 片 map-border2：封环后环的内沿那一列（x=ring）西侧是岩体 ⇒ 那里必然没有
+                //   3×3 净空的本格，走的正是这个兜底分支（洞口贴环内沿，玩家从东侧站上来）。
                 for (var y = 0; y < p; y++)
                 {
                     var g = new Vector2Int(minX, y);

@@ -187,8 +187,19 @@ namespace Diablo2.Module.Map
             var caveY = caveRow * pitch + pitch / 2;
             PaintRoad(map, rng, w, gateY, caveY);
 
-            var gate = new Vector2Int(0, gateY);
-            var cave = new Vector2Int(w - 1, caveY);
+            // ★ 片 map-border：**边界环封闭**（可走区离四边界 ≥ `GridMap.BorderRingCells` 格）。
+            //   原版语义：最外一圈 8 格块 = `LvlPrest`「Act 1 - Wild Border *」= 崖壁 + 树线，
+            //   **不可走**；本项目原来把周圈也标记为可走（"周圈能走通"）⇒ 玩家能走到离边界 1 格处，
+            //   相机怎么夹都会露虚空（`camera-follow` 片已证：零虚空要求机位离边界 ≥ 7.083 格）。
+            //   ⇒ 封住外圈（⛔ 不缩地图：外圈瓦片照旧铺，画面 = 一圈树线/崖壁，不是黑虚空）。
+            var sealedCells = map.SealBorderRing(GridMap.BorderRingCells, TileKind.Tree);
+            MapLog.Info($"MapGenWilderness: 边界环封闭 {sealedCells} 格" +
+                        $"（n={GridMap.BorderRingCells} = 原版 `LvlPrest`「Act 1 - Wild Border *」块边长 8，" +
+                        $"> 相机实测可见格半跨 7.083）⇒ 可走区离四边界恒 ≥ {GridMap.BorderRingCells} 格");
+
+            // ⑧ 出入口落在**边界环的内沿**（环本身不可走 ⇒ 门口不能再压在地图第 0 列 / 最后一列）
+            var gate = new Vector2Int(GridMap.BorderRingCells, gateY);
+            var cave = new Vector2Int(w - 1 - GridMap.BorderRingCells, caveY);
             map.Set(gate, TileKind.Exit);
             map.Set(cave, TileKind.Exit);
             map.Exits.Add(gate);
