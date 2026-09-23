@@ -54,11 +54,14 @@ namespace Diablo2.UI
         /// <summary>
         /// 目的地按钮（含关闭钮）的**字色** = 既有配色常量 <see cref="UiArt.TitleColor"/>
         /// （0.95/0.87/0.60，与本屏标题同色）。
-        /// <para>★ btn-label-fix（2026-09-23）**唯一**的颜色改动：默认字色
-        /// `UiLayoutFlow.ButtonText`（原版 `WideButton.prefab` 的 #191919）压在本屏用的原版中等按钮
-        /// 深板岩底图上只有 **2.79:1** 对比度（底板实测亮度 0.376，量法
-        /// `tools/probes/measure/btn_plate_luma.py`；WCAG 2.1 AA 正文门槛 4.5:1）⇒ 中文密笔画糊成黑块。
-        /// 本色 = **4.70:1** ✓。离线门禁 = `tools/probes/hosts/uicheck` 的 ①-b 字色对比度断言。</para>
+        /// <para>★ btn-label-fix（2026-09-23）：本屏用的原版中等按钮底图是**深板岩灰**（内区实测 mean sRGB
+        /// 0.376，量法 `tools/probes/measure/btn_plate_luma.py`）⇒ 当时的默认字色
+        /// `UiLayoutFlow.ButtonText`（照抄 `WideButton.prefab` 的 #191919）只有 **2.79:1**
+        /// （< WCAG 2.1 AA 正文门槛 4.5:1），中文密笔画糊成一块黑。本色 = **4.70:1** ✓。</para>
+        /// <para>★ 主 agent 裁决 ① 之后，**全局默认字色也已改成同一个可读值**（本屏这两处 `Create`
+        /// 仍**显式**传本色：面板自己声明自己的口径，便于本屏单独调整，也让"本屏 = 不可读色"这类
+        /// 回归被 uicheck 的面板级断言单独钉住）。离线门禁 = `tools/probes/hosts/uicheck`
+        /// （①-b 面板级字色对比度 + 流程屏"按钮 label 对比度 ≥ 4.5:1（逐屏列数）"）。</para>
         /// </summary>
         public static readonly Color DestLabelColor = UiArt.TitleColor;
 

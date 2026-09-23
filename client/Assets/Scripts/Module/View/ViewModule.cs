@@ -525,10 +525,42 @@ namespace Diablo2.Module.View
 
             v.IsGroundItem = true;
             v.Grid = grid;
+
+            // ★ 片 ground-item-icon：地面物品画**原版物品图**（= 背包里同一张，见 `GroundItemVisual`）。
+            //   改动前这里只建了一个按品质着色的 40×79 占位四边形，整条路径不加载任何物品图
+            //   ⇒ `Normal` 品质（= 白）时地上就是一块**浅灰矩形**（用户报的那块）。根因与修法
+            //   见 `GroundItemVisual.cs` 文件头；`ApplyFrame` 里那条 `IsGroundItem` 早退同批改掉。
+            var iconPath = GroundItemVisual.IconPathOf(item);
+            var iconAvailable = !string.IsNullOrEmpty(iconPath) && Game.Res != null && Game.Res.Exists(iconPath);
+            if (iconAvailable)
+            {
+                v.IconPath = iconPath;
+                v.BaseColor = GroundItemVisual.TintOf(quality);    // 品质浅色（Normal = 纯白 = 原版像素）
+                v.NeedsFrameRefresh = true;
+                // 贴图是**异步**取的 ⇒ 先不画任何东西（占位块 = 白方块，正是要消掉的那块灰矩形；
+                // 物品是短命的，宁可晚一两帧出现，也不闪一块灰的）。图到位后由 `ApplyGroundItemIcon` 贴上。
+                if (v.Renderer != null) v.Renderer.sprite = null;
+            }
+            else
+            {
+                // 非预期分支：这张原版图不在本批素材里（例：资料片职业专属装备，见
+                // `Module/Item/ItemIconAvailability`）/ 配表缺行 ⇒ **保留品质色块**：
+                // 它是"素材缺失"的可见信号（登记在 `client/资源欠缺清单.md`），不许静默变透明。
+                v.IconPath = null;
+                ViewLog.WarnOnce("grounditem.noicon",
+                    $"地面物品「{(item != null ? item.name : "?")}」(id={(item != null ? item.itemId : 0)}) "
+                    + $"取不到原版图（iconPath={(iconPath == null ? "null(配表缺行)" : iconPath)}，"
+                    + "Game.Res=" + (Game.Res == null ? "null" : "ok") + "）⇒ 该件用**品质色块**当占位"
+                    + "（口径同 D2Icon：缺图要看得见，已登记资源欠缺清单）");
+            }
+
             _groundItems[groundItemId] = v;
 
             ViewLog.Info($"地面物品视图：#{groundItemId}「{(item != null ? item.name : "?")}」品质={quality}" +
-                         $" 格=({grid.x},{grid.y}) 颜色={color}（原版按品质着色）");
+                         $" 格=({grid.x},{grid.y}) " +
+                         (iconAvailable
+                             ? $"图={iconPath}（原版物品图，同背包；色调={v.BaseColor}）"
+                             : $"图=缺失 ⇒ 品质色块 颜色={color}"));
         }
 
         /// <inheritdoc />
@@ -1440,7 +1472,16 @@ namespace Diablo2.Module.View
         /// </summary>
         private static void ApplyFrame(EntityView v)
         {
-            if (v == null || v.Renderer == null || v.IsGroundItem) return;
+            if (v == null || v.Renderer == null) return;
+
+            // ★ 片 ground-item-icon：地面物品走**静态原版图标**那一路（不是逐帧动画）。
+            //   改动前这里对 `IsGroundItem` 直接 `return` ⇒ 建视图时置的 `NeedsFrameRefresh`
+            //   被消费掉却什么都不做，地面物品一辈子停在纯色占位块上（静默失效）。
+            if (v.IsGroundItem)
+            {
+                ApplyGroundItemIcon(v);
+                return;
+            }
 
             var key = v.Anim.CurrentKey;
             var sprite = SpriteFrames.Resolve(key);
@@ -1467,6 +1508,42 @@ namespace Diablo2.Module.View
             v.UsingPlaceholder = false;
             v.Renderer.sprite = sprite;
             ApplyTint(v);
+        }
+
+        /// <summary>
+        /// ★ 片 ground-item-icon：地面物品的**静态原版图标**（`v.IconPath`）。
+        /// <para>为什么单独一路：地面物品没有逐帧动画（`Anim` 从没 `Play` 过），它只有"一张图"。
+        /// 图由 `SpriteFrames.Resolve` 取（该函数自带缓存 / 异步 / 失败退避自愈），
+        /// 尺寸与像素尺度由**导入设置**决定（`D2/Items/*.png`：PPU=64、pivot=中心 ⇒
+        /// 节点上再乘 `SpriteFrames.ArtScale`(0.8) 后 = 原版 80px/单位的**原始尺寸**，
+        /// 与 `Module/Map` 的地形同尺度，不会"地上一个巨大的图标"）。</para>
+        /// <para>⚠️ 图没到之前**什么都不画**（`sprite == null`）+ 每帧重试：
+        /// ① 不画占位块 —— 白/浅灰方块正是用户报的"地上一个灰矩形"；
+        /// ② 每帧重试是**唯一**的驱动（`TickOne` 只在 `NeedsFrameRefresh` 为真时调本方法，
+        ///    这里不把它置回 true 的话，第一帧没取到图就永远不会再取 = 静默消失）。</para>
+        /// </summary>
+        private static void ApplyGroundItemIcon(EntityView v)
+        {
+            if (v.Renderer == null) return;
+
+            if (string.IsNullOrEmpty(v.IconPath))
+            {
+                // 建视图时 `Game.Res.Exists` 已判定"这张原版图拿不到" ⇒ 品质色块（可见的缺失信号）
+                v.Renderer.sprite = SpriteFrames.Placeholder;
+                ApplyTint(v);
+                return;
+            }
+
+            var sprite = SpriteFrames.Resolve(v.IconPath);
+            if (sprite == null)
+            {
+                v.NeedsFrameRefresh = true;      // 异步未到位 ⇒ 下一帧再取（到位即自愈）
+                return;
+            }
+
+            v.UsingPlaceholder = false;
+            v.Renderer.sprite = sprite;
+            ApplyTint(v);                        // IsGroundItem ⇒ 用 BaseColor（品质浅色；Normal = 白）
         }
 
         /// <summary>按"是否占位 + 是否闪白 + 是否尸体"决定颜色。</summary>
@@ -1515,6 +1592,14 @@ namespace Diablo2.Module.View
             foreach (var kv in _entities)
             {
                 kv.Value.NeedsFrameRefresh = true;
+            }
+            // ★ 片 ground-item-icon：地面物品的**图标**也是异步到的 ⇒ 必须一起重铺。
+            //   漏掉它的后果：图标回调到达时没人通知地面视图（`ApplyGroundItemIcon` 只在
+            //   `NeedsFrameRefresh` 为真时才被调），而 `Resolve` 成功那一帧只是把
+            //   `_repaintRequested` 置起来 —— 全量重铺是它唯一的消费点。
+            foreach (var kv in _groundItems)
+            {
+                if (kv.Value != null) kv.Value.NeedsFrameRefresh = true;
             }
             foreach (var kv in _npcs)
             {

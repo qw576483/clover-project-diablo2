@@ -253,15 +253,26 @@ namespace Diablo2.UI
         public const float ButtonFontScale = 18f / 16f;
 
         /// <summary>
-        /// 按钮文字色 = 原版 `WideButton.prefab` 里 `Text.m_Color = (0.09803922,0.09803922,0.09803922)`
-        /// （暗色字压在浅灰石牌上 —— **照抄，不提亮不压暗**）。
+        /// 按钮文字色 = <see cref="UiArt.ButtonText"/>（**全项目按钮 label 的唯一字色常量**）。
+        /// <para>★ btn-label-fix（2026-09-23，主 agent 裁决 ①）：**废掉**了这里原先照抄的 `#191919`
+        /// （原值出处 = 参考工程 `Prefabs/Menu/WideButton.prefab` 的 `Text.m_Color = 0.098,0.098,0.098`）。
+        /// 那个前提是"**浅灰**石牌"，而本工程实际用的原版按钮底图是**深板岩灰**：
+        /// `Menu/btn_med_normal.png` 内区实测 mean sRGB **0.376**（量法 `tools/probes/measure/btn_plate_luma.py`）
+        /// ⇒ `#191919` 只有 **2.79:1**（WCAG 2.1 AA 正文门槛 4.5:1），13px 中文密笔画直接糊成一块黑
+        /// （实机 before 图 `.ai-tmp/screenshots/uifix4_z_before_btn1.png`）；现值 **4.70:1** ✓。</para>
+        /// <para>⛔ 不再两套字色：本常量直接派生自 <see cref="UiArt.ButtonText"/>
+        /// （"面板按钮"那条渲染路径 `UiArt.Button/SquareButton/OrigButton` 用的就是它）——
+        /// 之前两条路径各写一个数、只差一个量级，正是本次缺陷的温床。</para>
         /// </summary>
-        public static readonly Color ButtonText = new Color(0.09803922f, 0.09803922f, 0.09803922f, 1f);
+        public static readonly Color ButtonText = UiArt.ButtonText;
 
         /// <summary>
-        /// 禁用态文字色 = 同色降透明度（原版 prefab 没给禁用态文字色，本项目按"可读但明显变灰"取）。
+        /// 禁用态文字色 = 同色降透明度（原版 prefab 没给禁用态字色，本项目按"可读但明显变灰"取）。
+        /// <para>禁用态低于 4.5:1 是**有意**的，登记依据 = WCAG 2.1 §1.4.3
+        /// （inactive user interface component 不设对比度要求），见 <see cref="UiArt.ButtonTextDisabled"/>。</para>
         /// </summary>
-        public static readonly Color ButtonTextDisabled = new Color(0.09803922f, 0.09803922f, 0.09803922f, 0.45f);
+        public static readonly Color ButtonTextDisabled
+            = new Color(UiArt.ButtonText.r, UiArt.ButtonText.g, UiArt.ButtonText.b, 0.45f);
 
         // ★ 片 4 删除（本节原有两条转发 `ArtFullBright` / `ArtDim`，**都已无调用方**）：
         //   · `ArtDim`（"未选中压暗一档"）的唯一用处是旧的 `FlowButton.SetSelected`（职业按钮选中态的近似）

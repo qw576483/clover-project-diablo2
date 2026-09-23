@@ -28,6 +28,15 @@ namespace Diablo2.Module.View
         /// <summary>是否地面物品视图（不走路、不播动作、无血条）。</summary>
         public bool IsGroundItem;
 
+        /// <summary>
+        /// ★ 片 ground-item-icon：地面物品的**原版图标资源路径**（`D2/Items/inv{code}`，
+        /// 来源 = `GroundItemVisual.IconPathOf`，= 背包/装备/腰带/商店同一张）。
+        /// <para>`null` / 空 = 这张原版图**在本批素材里拿不到**（或配表缺行）⇒ 该视图退回
+        /// **品质色块**（可见的缺失信号，登记在 `client/资源欠缺清单.md`）。
+        /// 只对 <see cref="IsGroundItem"/> 为真的视图有值，其余（玩家/怪物/NPC）恒为 null。</para>
+        /// </summary>
+        public string IconPath;
+
         /// <summary>玩家职业（占位色用；非玩家为默认）。</summary>
         public PlayerClass Cls;
 

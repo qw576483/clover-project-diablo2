@@ -89,10 +89,31 @@ namespace Diablo2.UI
         /// <summary>未选中项的原版贴图色调（压暗一档，用于「5 职业」里非当前职业的按钮）。</summary>
         public static readonly Color ArtDim = new Color(0.62f, 0.62f, 0.62f, 1f);
 
-        /// <summary>按钮文字色（暗金的暖黄）。</summary>
-        public static readonly Color ButtonText = new Color(0.91f, 0.82f, 0.52f, 1f);
+        /// <summary>
+        /// 按钮文字色（暗金的暖黄）= **全项目按钮 label 的唯一字色常量**。
+        /// <para>★ btn-label-fix（2026-09-23，主 agent 裁决 ①）：**0.91/0.82/0.52 → 0.95/0.87/0.60**
+        /// （= 与 <see cref="TitleColor"/> 同值）。为什么改（**量化，不是口味**）：
+        /// 本工程用的原版按钮底图是**深板岩灰** —— `Resources/Clover/D2/UI/Menu/btn_med_normal.png`
+        /// 内区（x 22..78% / y 25..75%，alpha>200，n=1278）实测平均 sRGB 亮度 **0.376**
+        /// （量法 `tools/probes/measure/btn_plate_luma.py`，落盘 `tools/probes/measure/btn_plate_luma.tsv`），
+        /// 按 WCAG 2.1 算对比度：旧值 **4.17:1**（< AA 正文门槛 4.5:1）、新值 **4.70:1** ✓。
+        /// 按钮字按原版 18px **Bold** 渲染（`m_FontSize:18` / `m_FontStyle:1`），18px < WCAG「大号文本」
+        /// 阈值 18.66px ⇒ 按**更严的正文**门槛 4.5:1 取。</para>
+        /// <para>被谁用：`UiArt.Button` / `SquareButton` / `OrigButton` 三条按钮工厂（覆盖 NPC 对话 / 商店 /
+        /// 死亡屏）与若干正文 label；`UiLayoutFlow.ButtonText` 现在**派生自本常量**（FlowButton 默认字色）
+        /// ⇒ 全项目按钮字色只有这一个真源。⛔ 不许在调用点另造字色
+        /// （门禁 = `uicheck` 的「按钮 label 对比度 ≥ 4.5:1（逐屏列数）+ 判据自检」）。</para>
+        /// </summary>
+        public static readonly Color ButtonText = new Color(0.95f, 0.87f, 0.60f, 1f);
 
-        /// <summary>按钮不可用时的文字色。</summary>
+        /// <summary>
+        /// 按钮**不可用**时的文字色。
+        /// <para>⚠️ 登记为**允许的差异**：它的对比度**故意**低于 4.5:1（0.45/0.43/0.40 压在原版石牌上约 1.2:1）。
+        /// 出处 = **WCAG 2.1 §1.4.3**：inactive user interface component 的文本**不设对比度要求**
+        /// （"Text or images of text that are part of an inactive user interface component … have no contrast
+        /// requirement"）。禁用态靠"变暗"表达不可点，这正是原版语义，⛔ 不为了过门槛把它提亮
+        /// （提亮会让"禁用"与"可用"分不出来）。</para>
+        /// </summary>
         public static readonly Color ButtonTextDisabled = new Color(0.45f, 0.43f, 0.40f, 1f);
 
         /// <summary>面板底板色（半透明黑，用于暂停/设置）。</summary>
