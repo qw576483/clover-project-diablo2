@@ -425,22 +425,31 @@ namespace Diablo2.Module.Map
             MapLog.Info($"MapView.SetFogOfWar: {(on ? "开" : "关")}（已探索 {_exploredCount} 格）");
         }
 
-        /// <summary>标记某格已探索（迷雾揭开）。由 `MapModule` 订阅 `Events.PlayerGridChanged` 转发。</summary>
-        public void MarkExplored(Vector2Int g)
+        /// <summary>
+        /// 标记某格已探索（迷雾揭开）。由 `MapModule` 订阅 `Events.PlayerGridChanged` 转发。
+        /// <para>
+        /// ★ 2026-09-23（S2，`Events.MapExplored` 的"首次"判定）：返回 = **本次调用是否真的改变了状态**
+        /// （true = 这一格刚刚第一次被探索）。调用方（`MapModule`）用它来保证"只在首次发事件"
+        /// —— 重复走过同一格返回 false ⇒ ⛔ 不发（否则边走边刷屏）。
+        /// </para>
+        /// <para>返回 false 的三种情形：未铺装 / 图外 / 该格此前已探索（都是"没有新增"）。</para>
+        /// </summary>
+        public bool MarkExplored(Vector2Int g)
         {
             if (_explored == null)
             {
                 MapLog.WarnThrottled("view.explore.nomap", "MarkExplored: 地图未铺装（ShowArea 未调用），忽略");
-                return;
+                return false;
             }
-            if (_map == null || !_map.InBounds(g)) return;
-            if (_explored[g.x, g.y]) return;
+            if (_map == null || !_map.InBounds(g)) return false;
+            if (_explored[g.x, g.y]) return false;
 
             _explored[g.x, g.y] = true;
             _exploredCount++;
 
             var fog = _fogTiles != null ? _fogTiles[g.x, g.y] : null;
             if (fog != null) fog.enabled = false;
+            return true;
         }
 
         /// <summary>该格是否已探索。</summary>

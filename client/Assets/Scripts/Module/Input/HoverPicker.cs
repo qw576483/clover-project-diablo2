@@ -51,6 +51,9 @@ namespace Diablo2.Module
 
         private bool _noViewLogged;
 
+        /// <summary>`[Input]` 的「怪物贴图矩形查询异常」只报一次（见 `Resolve` 的 ①b）。</summary>
+        private bool _noSpriteRectLogged;
+
         /// <summary>
         /// 「某格上是哪个地面物品」查询（**本项目新增的非契约注入点**）。
         /// 默认 = <see cref="GroundItemAtViaView"/>；离线宿主可整体替换。
@@ -73,19 +76,61 @@ namespace Diablo2.Module
         /// </summary>
         public Func<int, ItemQuality> ItemQualityOf { get; set; }
 
-        /// <summary>构造：装上默认的地面物品查询实现。</summary>
+        /// <summary>
+        /// 「怪物 id → 该怪物**贴图在世界 xy 平面上的实际包围矩形**」查询
+        /// （★ S3 新增的非契约注入点；悬停怪物按**精灵矩形**命中用）。
+        /// <para>为什么要有它（实机实测依据）：`Resolve(grid)` 原来只接受「鼠标解出的格 == 怪物脚下格」，
+        /// 而怪物精灵在屏幕上**向上覆盖 1.5~2 格**（实测：鼠标从怪 (15,53) 的脚下沿屏幕上移
+        /// 0/24/48/72px 仍解出 (15,53) 命中；**96px 起**解出 (14,52) ⇒ 上半身完全无反馈）。
+        /// 原版的命中语义是**精灵覆盖到就算悬停到**（不是"脚下格相等"）。</para>
+        /// <para>默认 = <see cref="MonsterSpriteRectViaView"/>（经 `IViewModule.GetView(id)` 的
+        /// `SpriteRenderer.bounds`）；离线宿主可整体替换（注入假矩形 ⇒ 可离线断言）。
+        /// 返回 <c>null</c> = 该怪当前没有可用贴图（未建节点/异步未加载/离线进程）⇒
+        /// **退回旧口径**（只认脚下格），不做任何"猜一个矩形"的兜底。</para>
+        /// <para>⛔ 这是**贴图实际矩形**，不是本项目自创的"命中半径/阈值" —— 见 <see cref="Resolve(Vector2Int, Vector2)"/>。</para>
+        /// </summary>
+        public Func<int, Rect?> MonsterSpriteRect { get; set; }
+
+        /// <summary>构造：装上默认的地面物品 / 贴图矩形查询实现。</summary>
         public HoverPicker()
         {
             GroundItemAt = GroundItemAtViaView;
             AllLabels = AllLabelsViaView;
             ItemQualityOf = QualityOfViaItem;
+            MonsterSpriteRect = MonsterSpriteRectViaView;
         }
 
         /// <summary>
-        /// 解析某格的悬停目标（优先级：怪物 → 地面物品 → NPC → 空地）。
-        /// 空地上若不可走 ⇒ 光标 `NoWalk`；否则 `Default`。**永不抛异常**（接口缺失只降级）。
+        /// 解析某格的悬停目标（**旧口径**：怪物只认脚下格 == 该格）。
+        /// 优先级：怪物 → 地面物品 → NPC → 空地。空地上若不可走 ⇒ 光标 `NoWalk`；否则 `Default`。
+        /// **永不抛异常**（接口缺失只降级）。
+        /// <para>保留它 = 离线宿主（`tools/probes/hosts/*`）与任何"只有格、没有鼠标世界点"的调用方
+        /// **语义一字不变**（S3 的改动只在新增的两参重载里生效）。</para>
         /// </summary>
         public HoverTarget Resolve(Vector2Int grid)
+        {
+            return Resolve(grid, Vector2.zero, false);
+        }
+
+        /// <summary>
+        /// 解析悬停目标（**新口径**：怪物除"脚下格相等"外，**贴图矩形覆盖到鼠标世界点**也算命中）。
+        /// <para>原版口径与出处：D2 的悬停/点击命中是**按精灵在屏幕上的实际矩形**做的（不是按格），
+        /// 所以鼠标压在怪物**身体**（脚上方）时原版同样高亮/显示目标；本项目旧实现按"脚下格相等"
+        /// ⇒ 上半身永远无反馈（实机复现见 <c>.ai-tmp/screenshots/s3_evidence.tsv</c> 的 `HOVER` round=1）。
+        /// 命中判定用 `MonsterSpriteRect(id).Contains(world)`，矩形来自 `SpriteRenderer.bounds` ——
+        /// **⛔ 没有任何自创常数**（不许写"命中半径 N 格/像素"）。</para>
+        /// <para>优先级与旧口径一致：**脚下格精确命中优先**，其次才是贴图矩形；矩形命中里取
+        /// 「离悬停格 Chebyshev 最近 → id 升序」的那只（确定性，不受 `All` 的遍历顺序影响）。</para>
+        /// </summary>
+        /// <param name="grid">鼠标解出的格（`Iso.ScreenToGrid`）。</param>
+        /// <param name="world">鼠标反投影到地面的**世界点**（`Iso.ScreenToWorldOnGround`）；
+        /// 用世界 xy 判定（精灵是正对相机的平面片，`Bounds.Contains` 的 z 厚度不可靠 ⇒ 只比 xy）。</param>
+        public HoverTarget Resolve(Vector2Int grid, Vector2 world)
+        {
+            return Resolve(grid, world, true);
+        }
+
+        private HoverTarget Resolve(Vector2Int grid, Vector2 world, bool useSpriteRect)
         {
             var t = new HoverTarget
             {
@@ -116,6 +161,57 @@ namespace Diablo2.Module
                     t.cursor = CursorKind.Attack;
                     t.id = m.id;
                     t.name = m.name;
+                    return t;
+                }
+            }
+
+            // ①b 怪物贴图矩形（★ S3：原版命中语义 = 精灵覆盖到就算悬停到；只有拿到了鼠标世界点时才启用）
+            //     为什么放在 ① 之后：脚下格精确命中永远优先（不改旧口径的既有行为）。
+            if (useSpriteRect)
+            {
+                var rectOf = MonsterSpriteRect;
+                var best = (MonsterState)null;
+                var bestDist = int.MaxValue;
+                if (rectOf != null && allMon != null)
+                {
+                    for (var i = 0; i < allMon.Count; i++)
+                    {
+                        var m = allMon[i];
+                        if (m == null || !m.alive) continue;
+
+                        Rect? r;
+                        try
+                        {
+                            r = rectOf(m.id);
+                        }
+                        catch (Exception e)
+                        {
+                            // 贴图查询（含 GetView / bounds 读取）出问题不该让输入层炸掉：只报一次并整体退回旧口径
+                            if (!_noSpriteRectLogged)
+                            {
+                                _noSpriteRectLogged = true;
+                                Log.Warn(Tag, $"怪物贴图矩形查询抛异常（{e.GetType().Name}: {e.Message}）⇒ 悬停退回「脚下格相等」口径（只报一次）");
+                            }
+                            break;
+                        }
+
+                        if (!r.HasValue || !r.Value.Contains(world)) continue;
+
+                        var d = Mathf.Max(Mathf.Abs(m.gridX - grid.x), Mathf.Abs(m.gridY - grid.y));
+                        if (d < bestDist || (d == bestDist && best != null && m.id < best.id))
+                        {
+                            best = m;
+                            bestDist = d;
+                        }
+                    }
+                }
+
+                if (best != null)
+                {
+                    t.hasTarget = true;
+                    t.cursor = CursorKind.Attack;
+                    t.id = best.id;
+                    t.name = best.name;
                     return t;
                 }
             }
@@ -301,6 +397,31 @@ namespace Diablo2.Module
             }
 
             return list;
+        }
+
+        /// <summary>
+        /// 默认的「怪物贴图矩形」实现：`IViewModule.GetView(怪物 id)` → `SpriteRenderer.bounds`
+        /// → 取**世界 xy 平面**的包围矩形（`new Rect(min.x, min.y, size.x, size.y)`）。
+        /// <para>⛔ 为什么不用 `Bounds.Contains(world)`：`SpriteRenderer.bounds` 的 z 厚度极小
+        /// （精灵是正对相机的平面片），而鼠标反投影得到的地面点 z 与精灵 z 不同 ⇒ `Contains` 恒假。
+        /// 本项目相机固定正交 ⇒ 只比 xy 才是"精灵在屏幕上的实际覆盖"。</para>
+        /// <para>拿不到（无 `IViewModule` / 无节点 / 无 sprite / 抛异常）⇒ 返回 <c>null</c>，
+        /// 悬停**退回旧口径**，不报错、不自创兜底矩形。只对**该 id** 降级，不影响别的怪。</para>
+        /// </summary>
+        private Rect? MonsterSpriteRectViaView(int monsterId)
+        {
+            var ctx = AppContext.I;
+            var view = ctx != null ? ctx.View : null;
+            if (view == null) return null;
+
+            var go = view.GetView(monsterId);
+            if (go == null) return null;                      // 该怪尚无视图（离线进程 / 未建节点）
+
+            var sr = go.GetComponent<SpriteRenderer>();
+            if (sr == null || sr.sprite == null) return null; // 贴图还没加载完（异步）⇒ 本帧退回旧口径
+
+            var b = sr.bounds;
+            return new Rect(b.min.x, b.min.y, b.size.x, b.size.y);
         }
 
         /// <summary>默认的「地面物品 id → 品质」实现（查 `IItemModule.GroundItems`；查不到按普通）。</summary>

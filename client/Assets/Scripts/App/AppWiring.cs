@@ -46,6 +46,9 @@ namespace Diablo2.App
         {
             _installed = false;
             _stageActive = false;
+            // ★ 片 S2（2026-09-23）：传送点的「已去过区域」也是静态集合 ⇒ 同一局内必须一起复位，
+            //   否则关了「域重载」时第二局一开局就带着上一局去过的地方（面板凭空多出目的地）。
+            AppWaypoint.ResetStaticForNewPlaySession();
         }
 
         /// <summary>接线（`Bootstrap` 在 `AppContext.AutoWire()` **之后**调一次；重复调用幂等）。</summary>
@@ -75,11 +78,16 @@ namespace Diablo2.App
             AppDoorGuard.Install(ctx);
             AppSnapshots.Install(ctx);        // 全量快照 + 面板打开前补发
             AppEventRouting.Install(ctx);     // UI/输入请求 → 门面方法
+            // ★ 片 S2（2026-09-23，修用户报的「传送点没效果」）：`AppWaypoint` 写完后**没人调它的
+            //   `Install`** ⇒ 点击/到达/面板/选目的地四条订阅一个都不存在，功能整条静默失效
+            //   （类在、编译过、日志干净 —— 这正是最贵的一类失败）。唯一装配点就是这里。
+            AppWaypoint.Install(ctx);         // 传送点：锚点交互 + 面板 + 选目的地 ⇒ 切区
             bus.On(Events.StageEntered, OnStageEntered);
             bus.On(Events.StageLeft, OnStageLeft);
             AttachRoots(ctx);
 
-            Game.Logger.Info(Tag, "App 接线完成：Stage 进/出（HUD + 全量快照）/ 过门去重断言 / 根节点注入 / 请求转发");
+            Game.Logger.Info(Tag, "App 接线完成：Stage 进/出（HUD + 全量快照）/ 过门去重断言 / 根节点注入 / "
+                + "请求转发 / 传送点（点锚点 ⇒ 面板 ⇒ 选目的地切区）");
         }
 
         /// <summary>

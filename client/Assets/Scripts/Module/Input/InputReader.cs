@@ -123,6 +123,21 @@ namespace Diablo2.Module
         /// <summary>鼠标所在格（相机不可用/输入不可用时保持上一次的值，仅作光标提示用）。</summary>
         public Vector2Int HoverGrid { get; private set; }
 
+        /// <summary>
+        /// 鼠标反投影到地面的**世界点**（与 <see cref="HoverGrid"/> **同一帧、同一次投影**得到）。
+        /// ★ S3：悬停怪物要按「贴图实际矩形」命中（原版口径），而矩形判定要用世界点，
+        /// 只有格是不够的（同一个格覆盖不到怪物上半身）。见 `HoverPicker.Resolve(Vector2Int, Vector2)`。
+        /// </summary>
+        private Vector3 _hoverWorld;
+
+        /// <summary>
+        /// <see cref="_hoverWorld"/> 是否与当前 <see cref="HoverGrid"/> 配对有效。
+        /// <para>⛔ 只有 `Poll` 里**同一次**反投影算出来的两个值才算配对：任何"只给格、不给点"的
+        /// 调用（<see cref="OverrideHoverGrid"/>、离线宿主）都会把它置 false ⇒ 那里**一字不变**地
+        /// 走旧口径（怪物只认脚下格），不会用上一次的残留世界点误命中。</para>
+        /// </summary>
+        private bool _hoverWorldValid;
+
         /// <summary>悬停解析器（自证/调试用；可替换 <see cref="HoverPicker.GroundItemAt"/>）。</summary>
         public HoverPicker Hover => _picker;
 
@@ -197,7 +212,10 @@ namespace Diablo2.Module
             var cam = ResolveCamera();
             if (cam != null)
             {
+                // ★ S3：格与世界点必须来自**同一次**反投影（`_hoverWorldValid` = 两者配对）。
                 HoverGrid = Iso.ScreenToGrid(cam, input.MousePosition);
+                _hoverWorld = Iso.ScreenToWorldOnGround(cam, input.MousePosition);
+                _hoverWorldValid = true;
             }
         }
 
@@ -281,7 +299,9 @@ namespace Diablo2.Module
         public HoverTarget UpdateHover(bool canInteract)
         {
             if (!canInteract) return _hover;
-            Publish(_picker.Resolve(HoverGrid));
+            // ★ S3：拿到了与 HoverGrid 同帧配对的世界点 ⇒ 走新口径（怪物按贴图实际矩形命中，
+            //   原版语义）；否则（含 `OverrideHoverGrid` 的离线/自证路径）**一字不变**走旧口径。
+            Publish(_hoverWorldValid ? _picker.Resolve(HoverGrid, _hoverWorld) : _picker.Resolve(HoverGrid));
             return _hover;
         }
 
@@ -408,7 +428,12 @@ namespace Diablo2.Module
         /// 离线自检宿主里 `Camera.main`/`Screen` 不可用（`SecurityException`）⇒ `Poll` 无法反投影，
         /// 由宿主直接给出格坐标来驱动悬停解析。
         /// </summary>
-        public void OverrideHoverGrid(Vector2Int grid) => HoverGrid = grid;
+        public void OverrideHoverGrid(Vector2Int grid)
+        {
+            HoverGrid = grid;
+            // ★ S3：合成的格**没有**配对的世界点 ⇒ 明确作废旧点，保证这里仍是"只认脚下格"的旧口径。
+            _hoverWorldValid = false;
+        }
 
         /// <summary>发布一次悬停目标（目标真的变了才发事件 + 打日志）。</summary>
         private void Publish(HoverTarget t)
@@ -533,6 +558,8 @@ namespace Diablo2.Module
             _labelsPrev.Clear();
             _labelsAltPrev = false;
             HoverGrid = Vector2Int.zero;
+            _hoverWorld = Vector3.zero;
+            _hoverWorldValid = false;      // ★ S3：重置后世界点与格同样作废（下一次 Poll 重新配对）
             _noCamLogged = false;
             _noInputLogged = false;
             _cam = null;

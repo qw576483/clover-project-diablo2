@@ -7,9 +7,12 @@
 //   · 可走查询 / A* 寻路转发 / 随机可走格
 //   · 渲染入口（`ShowArea`）与怪物刷新点 / NPC 点 / 出口 / 洞穴入口的对外暴露
 //   · 发 `Events.MapGenerated`（小地图）与 `Events.AreaChanged`
-//   · 订阅 `Events.PlayerGridChanged` → 揭迷雾 / 记已探索
+//   · ★ 2026-09-23（S2）发 `Events.MapExplored`（**只在某格首次被记为已探索时**，载荷 = 新增格集合）
+//   · 订阅 `Events.PlayerGridChanged` → 揭迷雾 / 记已探索 / 发 `Events.MapExplored`
 //
 // ⛔ 契约（`Module/Contracts.cs` 的 `IMapModule`）冻结：本文件**不新增/不改**接口签名。
+//   ★ 例外（2026-09-23，主 agent 追加)：契约新增只读成员 `ExploredCells` ⇒ 本文件必须实现它
+//     （实现 = 从 `MapView._explored` 投影，见该属性的注释）。
 // ⛔ 不重写 `CloverEngine.{AStar,IsoLayout}` 与 `CloverEngine.Rng`；不碰 `Game.Map`（引擎地图，本项目不使用）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -31,6 +34,17 @@ namespace Diablo2.Module.Map
         private MapView _view;
         private Transform _rootOverride;
         private bool _exploreSubscribed;
+
+        /// <summary>
+        /// ★ 2026-09-23（S2）`IMapModule.ExploredCells` 的**投影缓存**。
+        /// <para>**唯一权威仍是 `MapView._explored`**：本表只是"上次被问到时从渲染层抄下来的一份快照"，
+        /// 任何可能改变已探索集合的操作（新格 / 换区 / 清场）都把它置脏
+        /// ⇒ ⛔ 不存在第二份可与渲染层漂移的状态（两份状态必然漂移）。</para>
+        /// </summary>
+        private readonly List<Vector2Int> _exploredCache = new List<Vector2Int>();
+
+        /// <summary>投影缓存是否已过期（true = 下次读 `ExploredCells` 时从 `MapView` 重抄一遍）。</summary>
+        private bool _exploredDirty = true;
 
         // ═════════════════════════════════════════════════════════════════════
         // IMapModule：只读状态
@@ -74,6 +88,34 @@ namespace Diablo2.Module.Map
 
         /// <inheritdoc />
         public IReadOnlyList<Vector2Int> WaypointPoints { get { return _grid.WaypointPoints; } }
+
+        /// <summary>
+        /// ★ 2026-09-23（S2）**记忆式已探索格**（Tab 自动地图的数据源；契约注释见
+        /// `Module/Contracts.cs` 的 `IMapModule.ExploredCells`）。
+        /// <para>实现口径（逐条）：</para>
+        /// <list type="number">
+        /// <item>**数据源唯一** = 渲染层 `MapView` 的 `_explored` 位图（`CollectExplored` 抄出）
+        ///   —— 本模块**不新造**第二份已探索状态；</item>
+        /// <item>**何时增长** = `MapView.MarkExplored` 首次标记某格（由 `Events.PlayerGridChanged`
+        ///   驱动，见 <see cref="OnPlayerGridChanged"/>）；</item>
+        /// <item>**何时清空** = `ShowArea`（换区/重铺 ⇒ `MapView` 按新图尺寸重建位图）与 `Clear`（退出 Stage）
+        ///   —— 两处都把投影置脏，下次读取时自然为空/新的集合；</item>
+        /// <item>未铺装（`_view == null`）⇒ **空集合**（不抛）。</item>
+        /// </list>
+        /// </summary>
+        public IReadOnlyCollection<Vector2Int> ExploredCells
+        {
+            get
+            {
+                if (_exploredDirty)
+                {
+                    _exploredCache.Clear();
+                    if (_view != null) _view.CollectExplored(_exploredCache);
+                    _exploredDirty = false;
+                }
+                return _exploredCache;
+            }
+        }
 
         // ═════════════════════════════════════════════════════════════════════
         // IMapModule：查询
@@ -273,6 +315,7 @@ namespace Diablo2.Module.Map
         {
             UnsubscribeExplore();
             if (_view != null) _view.Clear();
+            _exploredDirty = true;        // ★ S2：渲染层的已探索位图已清 ⇒ 投影必须跟着作废
             _grid.Clear();
             MapLog.Info("Clear: 地图数据 / 渲染 / 已探索记录全部清空（退出 Stage）");
         }
@@ -314,6 +357,9 @@ namespace Diablo2.Module.Map
             }
             EnsureView();
             _view.ShowArea(area);
+            // ★ S2：`MapView.ShowArea` 在换区（或尺寸不符）时会按新图重建已探索位图
+            //   ⇒ 投影缓存必须作废，否则 `ExploredCells` 会把上一张图的格报给自动地图。
+            _exploredDirty = true;
         }
 
         /// <summary>战争迷雾开关（转 `MapView`；**非契约方法**，`IMapModule` 上没有）。</summary>
@@ -327,10 +373,28 @@ namespace Diablo2.Module.Map
             _view.SetFogOfWar(on);
         }
 
-        /// <summary>标记某格已探索（**非契约方法**；正常情况下由 `Events.PlayerGridChanged` 自动驱动）。</summary>
+        /// <summary>
+        /// 标记某格已探索（**非契约方法**；正常情况下由 `Events.PlayerGridChanged` 自动驱动）。
+        /// <para>★ S2：与自动订阅那条路径**同一口径** —— 只有"首次"才发 `Events.MapExplored`
+        /// 并作废投影缓存（两条入口都不许绕开这个判定，否则"每帧发事件"会从后门回来）。</para>
+        /// </summary>
         public void MarkExplored(Vector2Int g)
         {
-            if (_view != null) _view.MarkExplored(g);
+            if (_view == null) return;
+            if (_view.MarkExplored(g)) OnFirstExplored(g);
+        }
+
+        /// <summary>
+        /// 某格**首次**被记为已探索：作废投影缓存 + 发 `Events.MapExplored`（载荷 = 本次新增的格集合）。
+        /// <para>⛔ 只在这一处发（`OnPlayerGridChanged` 与公开的 `MarkExplored` 都走它），
+        /// 且只在 `MapView.MarkExplored` 回 true（真·首次）时被调 ⇒ 走过同一格不会重复发。</para>
+        /// <para>载荷给的是**新数组**（不是复用的可变集合）⇒ 收方可以安全持有引用。</para>
+        /// </summary>
+        private void OnFirstExplored(Vector2Int g)
+        {
+            _exploredDirty = true;
+            if (Game.Event == null) return;   // 离线宿主 / Game.Launch 未调用：只记状态，不发事件
+            Game.Event.Emit<IReadOnlyCollection<Vector2Int>>(Events.MapExplored, new[] { g });
         }
 
         /// <summary>该格是否已探索（**非契约方法**）。</summary>
@@ -524,10 +588,16 @@ namespace Diablo2.Module.Map
             _exploreSubscribed = false;
         }
 
-        /// <summary>`Events.PlayerGridChanged` 回调（**同一个方法引用**才能注销，见 `Core/Events.cs` 注释）。</summary>
+        /// <summary>
+        /// `Events.PlayerGridChanged` 回调（**同一个方法引用**才能注销，见 `Core/Events.cs` 注释）。
+        /// <para>★ S2：**这里就是 `Events.MapExplored` 的发方**（`Events.cs` 的常量注释与本行一一对应）：
+        /// 玩家每换一格 ⇒ 若该格是**第一次**被探索，`MapView.MarkExplored` 回 true ⇒ 发一次事件；
+        /// 重复走过同一格回 false ⇒ **0 次**发出（⛔ 不是每帧 / 不是每格无脑发）。</para>
+        /// </summary>
         private void OnPlayerGridChanged(Vector2Int g)
         {
-            if (_view != null) _view.MarkExplored(g);
+            if (_view == null) return;
+            if (_view.MarkExplored(g)) OnFirstExplored(g);
         }
     }
 }

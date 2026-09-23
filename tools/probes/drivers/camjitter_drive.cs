@@ -264,12 +264,28 @@ namespace CamJit
                 || d.IndexOf("SwiftShader", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        /// <summary>
+        /// S1 (U27 re-capture): keep the CLIENT's own frame cadence (= do not overwrite vSyncCount /
+        /// targetFrameRate). Reason (measured): this driver's Cfg() used to pin the measurement
+        /// cadence to vSync=0/targetFps=60, so a re-run could never show the client's cadence
+        /// change (Core/FramePacing now pins vSync=1 when the refresh rate is readable).
+        /// The cadence is written by the client at startup; this driver only reads it back
+        /// (see the ENV line readbackFps/readbackVSync).
+        /// </summary>
+        private static bool _keepCadence;
+
         // ---- editor / play setup (skill 4.5 environment self-check) -------------------------
         internal static string Cfg()
         {
             Application.runInBackground = true;
-            QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = 60;
+
+            // S1: default still pins 60/0 (= comparable with the historical baseline);
+            // when _keepCadence is true the client's own cadence is left untouched.
+            if (!_keepCadence)
+            {
+                QualitySettings.vSyncCount = 0;
+                Application.targetFrameRate = 60;
+            }
 
             var st = InputSystem.settings;
             st.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
@@ -280,19 +296,35 @@ namespace CamJit
             if (kb == null) kb = InputSystem.AddDevice<Keyboard>();
             if (UnityEngine.InputSystem.Mouse.current == null) InputSystem.AddDevice<UnityEngine.InputSystem.Mouse>();
 
-            Log("CFG runInBg=" + (Application.runInBackground ? 1 : 0)
+            // S1: BYTE-IDENTICAL in the default mode (no -KeepCadence) - the extra marker is only
+            // appended when the client cadence is deliberately left in effect, so old logs
+            // remain reproducible verbatim.
+            var cfg = "CFG runInBg=" + (Application.runInBackground ? 1 : 0)
                 + " vSync=" + QualitySettings.vSyncCount
                 + " targetFps=" + Application.targetFrameRate
                 + " focused=" + (Application.isFocused ? 1 : 0)
                 + " keyboard=" + (kb != null ? kb.name : "(null)")
                 + " mouse=" + (UnityEngine.InputSystem.Mouse.current != null ? UnityEngine.InputSystem.Mouse.current.name : "(null)")
                 + " gameRunning=" + (Game.IsRunning ? 1 : 0)
-                + " fsm=" + (Game.Fsm != null ? Game.Fsm.Current : "(null)"));
+                + " fsm=" + (Game.Fsm != null ? Game.Fsm.Current : "(null)");
+            if (_keepCadence) cfg += " cadencePinned=0";   // 0 = client cadence in effect (not overwritten)
+            Log(cfg);
             Log("DEVICE device=\"" + DeviceName() + "\" res=" + Screen.width + "x" + Screen.height
                 + " vSync=" + QualitySettings.vSyncCount
                 + " targetFps=" + Application.targetFrameRate);
             Log("MODULES=" + ModuleLine());
             return "CFG-OK";
+        }
+
+        /// <summary>
+        /// S1 (U27): same as <see cref="Cfg"/> but does NOT overwrite the client cadence, so the
+        /// recorded per-frame dt is the one produced under Core/FramePacing's own cadence
+        /// (that is what a before/after comparison needs).
+        /// </summary>
+        internal static string CfgKeepCadence()
+        {
+            _keepCadence = true;
+            return Cfg();
         }
 
         // ---- keyboard ----------------------------------------------------------------------
@@ -453,6 +485,9 @@ namespace CamJit
     public static class Api
     {
         public static string Cfg() { return Probe.Cfg(); }
+
+        /// <summary>S1 (U27): Cfg that does not overwrite the client cadence (use it for the "after" capture).</summary>
+        public static string CfgKeepCadence() { return Probe.CfgKeepCadence(); }
         public static string Paths(string spec) { Probe.Paths(spec); return "PATHS-OK"; }
         public static string Ping() { return "PONG gameRunning=" + (Game.IsRunning ? 1 : 0); }
     }
@@ -517,6 +552,19 @@ namespace CamJit
         // ---- recording -------------------------------------------------------------------
         private bool _recording;
         private readonly List<string> _rows = new List<string>();
+
+        /// <summary>
+        /// U27 (S1): append per-frame GC columns when the tour spec carries the 5th field "gc"
+        /// (`gcc` = GC.CollectionCount(0) delta, `gcm` = GC.GetTotalMemory(false) delta bytes).
+        /// OFF by default => the TSV keeps its exact previous column set (old traces stay
+        /// reproducible). The columns are appended AFTER `spr`, so camjitter_who.py /
+        /// camjitter_metrics.py keep reading the same indices.
+        /// Purpose: attribute the dt spikes (75~88 ms, 1% of frames, 3.4% of the time) to GC
+        /// vs asset loading instead of guessing.
+        /// </summary>
+        private bool _gc;
+        private int _gcLast = -1;
+        private long _gcMemLast = -1;
         private int _stopTail;
         private int _recFrames;
         private float _dtSum;
@@ -536,6 +584,7 @@ namespace CamJit
             if (parts.Length > 1 && parts[1].Length > 0) _save = parts[1];
             if (parts.Length > 2) _tsv = parts[2];
             var donePath = parts.Length > 3 ? parts[3] : string.Empty;
+            _gc = parts.Length > 4 && parts[4] == "gc";    // U27 (S1): optional 5th spec field
             _donePath = donePath;
             Probe.Paths(donePath);
             _step = 0;
@@ -685,6 +734,8 @@ namespace CamJit
         {
             _rows.Clear();
             _recFrames = 0;
+            _gcLast = -1;              // U27 (S1): GC deltas restart with each recording
+            _gcMemLast = -1;
             _stopTail = 0;
             _dtSum = 0f;
             _dtMax = 0f;
@@ -727,6 +778,20 @@ namespace CamJit
               .Append(spx.ToString("0.######", ci)).Append('\t')
               .Append(spy.ToString("0.######", ci)).Append('\t')
               .Append(spid);
+
+            if (_gc)
+            {
+                // U27 (S1): per-frame GC probe (spec field "gc") -- appended AFTER spr so the
+                // existing column indices stay valid.
+                var c0 = GC.CollectionCount(0);
+                var mem = GC.GetTotalMemory(false);
+                if (_gcLast < 0) { _gcLast = c0; _gcMemLast = mem; }
+                sb.Append('\t').Append((c0 - _gcLast).ToString(ci))
+                  .Append('\t').Append((mem - _gcMemLast).ToString(ci));
+                _gcLast = c0;
+                _gcMemLast = mem;
+            }
+
             _rows.Add(sb.ToString());
             _recFrames++;
             _dtSum += dt;
@@ -761,7 +826,9 @@ namespace CamJit
             var sb = new StringBuilder();
             // g2-resume appended node/sprite columns (the first six stay byte-identical -> camjitter_metrics.py
             // still reads parts[:6] unchanged).
-            sb.Append("frame\tdt\tpx\tpy\tcx\tcy\tnx\tny\tsw\tsh\tsx\tsy\tspr\n");
+            sb.Append("frame\tdt\tpx\tpy\tcx\tcy\tnx\tny\tsw\tsh\tsx\tsy\tspr");
+            if (_gc) sb.Append("\tgcc\tgcm");      // U27 (S1): optional GC columns (spec field "gc")
+            sb.Append('\n');
             for (var i = 0; i < _rows.Count; i++) { sb.Append(_rows[i]).Append('\n'); }
             var text = sb.ToString();
             if (_tsv.Length > 0)

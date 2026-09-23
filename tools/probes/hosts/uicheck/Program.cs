@@ -128,6 +128,7 @@ namespace Uicheck
             Console.WriteLine();
 
             CheckPanelsAndLayers();
+            CheckWaypoint();                // ★ 片 S2：传送点（激活列表口径 + 接线守卫 + 预制体在盘上）
             CheckLayeringAndForbiddenApis();
             CheckNoDirectResourcesLoad();   // ★ agent-34：E1 例外收口（项目侧 0 命中直连 Resources）
             CheckNoDirectionKeyMove();   // ★ 片 8：原版没有方向键移动 ⇒ 全仓源码 0 命中（验收表 U-1）
@@ -258,6 +259,16 @@ namespace Uicheck
                         "ShopBuyRequest", "ShopSellRequest", "ShopRepairRequest",
                     },
                 },
+                // ★ 片 S2（2026-09-23，用户「传送点没效果」）：`WaypointPanel` 之前**不在这张表里**
+                //   ⇒ 「是 UIPanel 子类 / 覆写了 Layer / 声明的层 / 事件双向核对 / 一个文件一个
+                //   MonoBehaviour」这五类契约断言对它是**空集**（本项目最高频的缺陷形态）。
+                //   ⚠️ 它**不收**任何事件（打开参数由 `App/AppWaypoint` 直接传给 `Game.UI.Open`），
+                //   只**发** `WaypointTravelRequest`（点列表里的一条目的地）。
+                new PanelSpec
+                {
+                    Type = typeof(WaypointPanel), Layer = "Popup",
+                    Events = new[] { "WaypointTravelRequest" },
+                },
                 new PanelSpec
                 {
                     Type = typeof(DeathPanel), Layer = "Top",
@@ -366,6 +377,61 @@ namespace Uicheck
                     "UIPanel/MonoBehaviour 出现次数");
             }
 
+            Console.WriteLine();
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ①-b ★ 片 S2（2026-09-23）：传送点（用户报「传送点没效果」）
+        //   判据 2/3 = **面板列表 == 已激活目的地**（= 已去过 − 当前区域；纯函数逐条断言）。
+        //   判据 1/3（生成 1 个且坐标与原版表一致）在 `mapcheck Step25`；
+        //   判据 3/3（点锚点 ⇒ 面板开 / 选目的地 ⇒ 区域切换）由 Play 驱动采（离线造不出 `Game.Event`）。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void CheckWaypoint()
+        {
+            Console.WriteLine("── ①-b 传送点：激活列表口径 + 接线守卫 + 预制体在盘上 ──");
+
+            // ① 预制体必须在盘上（引擎约定 `Resources/UI/{类名}`）：找不到 = 面板打不开，而且**不报错**
+            var prefab = Path.Combine(ResourceRoot, "UI", "WaypointPanel.prefab");
+            Check("WaypointPanel：预制体在盘上（Resources/UI/WaypointPanel.prefab）",
+                File.Exists(prefab), prefab);
+
+            // ② 列表口径 = 已去过 − 当前区域，顺序 = AreaId 枚举序（稳定可断言）
+            var all = new[] { (int)AreaId.Town, (int)AreaId.BloodMoor, (int)AreaId.DenOfEvil };
+            var d1 = WaypointPanel.PlanDests(all, (int)AreaId.Town);
+            Check("PlanDests(去过 3 个, 当前=营地) ⇒ 恰 2 条、不含当前区域、按枚举序",
+                d1.Count == 2 && d1[0].area == (int)AreaId.BloodMoor && d1[1].area == (int)AreaId.DenOfEvil,
+                $"count={d1.Count} [{string.Join(",", d1.ConvertAll(x => x.area + ":" + x.name).ToArray())}]");
+
+            var d2 = WaypointPanel.PlanDests(new[] { (int)AreaId.Town }, (int)AreaId.Town);
+            Check("PlanDests(只去过营地, 当前=营地) ⇒ 0 条（= 原版「尚未啟動其他傳送點」）",
+                d2.Count == 0, $"count={d2.Count}");
+
+            var d3 = WaypointPanel.PlanDests(new[] { (int)AreaId.Town, (int)AreaId.BloodMoor }, (int)AreaId.BloodMoor);
+            Check("PlanDests(去过 营地+野, 当前=野) ⇒ 恰 1 条 = 营地（列表 == 已去过 − 当前）",
+                d3.Count == 1 && d3[0].area == (int)AreaId.Town, $"count={d3.Count}");
+
+            var d4 = WaypointPanel.PlanDests(new[] { 999 }, (int)AreaId.Town);
+            Check("PlanDests(表外的号 999) ⇒ 0 条（⛔ 不自创目的地集合）", d4.Count == 0, $"count={d4.Count}");
+
+            var d5 = WaypointPanel.PlanDests(null, (int)AreaId.Town);
+            Check("PlanDests(null) ⇒ 0 条（不抛）", d5.Count == 0, $"count={d5.Count}");
+
+            Check("区域名 = 原版三张图；表外号给占位名（不猜）",
+                WaypointPanel.NameOf((int)AreaId.Town) == "罗格营地"
+                && WaypointPanel.NameOf((int)AreaId.BloodMoor) == "血腥荒野"
+                && WaypointPanel.NameOf((int)AreaId.DenOfEvil) == "邪恶洞穴"
+                && WaypointPanel.NameOf(999).StartsWith("区域#"),
+                "罗格营地 / 血腥荒野 / 邪恶洞穴 / 999→占位名");
+
+            // ③ 接线守卫（**回归闸门**）：`App/AppWaypoint.cs` 写好但没人调 `Install` ⇒ 点击 / 到达 /
+            //   面板 / 选目的地四条订阅一个都不存在 —— 类在、编译过、日志干净，功能整条静默失效。
+            //   ⚠️ 这是**源码级**断言（弱于行为断言），但本片撞上的正是这个失败形态。
+            var wiring = File.ReadAllText(
+                Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "App", "AppWiring.cs"));
+            Check("AppWiring.Install 调了 AppWaypoint.Install（否则整条传送链路静默失效）",
+                wiring.Contains("AppWaypoint.Install(ctx)"), "在 App/AppWiring.cs 内检索");
+            Check("AppWiring 复位调了 AppWaypoint.ResetStaticForNewPlaySession（防第二局带上一局的已激活集）",
+                wiring.Contains("AppWaypoint.ResetStaticForNewPlaySession()"), "在 App/AppWiring.cs 内检索");
             Console.WriteLine();
         }
 

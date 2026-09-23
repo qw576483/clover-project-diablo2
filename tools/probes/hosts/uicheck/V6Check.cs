@@ -16,6 +16,8 @@
 //      （实机 `v5_14` 的"散落小黄字"）。
 //   ④ **商店关闭**：`ShopPanel.OnClose` 里**不许**再 `Game.UI.Open`（"关了又被重开"）；
 //      `HudPanel` 里打开商店的唯一入口是 `OnShopOpen`（订阅 `Events.ShopOpen`）。
+//   ⑤b **automap 注入集合渲染**（★ U46，本轮 S1）：集合由**判据自己造**（不经过 `Reveal`），
+//      判 空集合⇒0 图元 / 只注入一格⇒图元数==单格 blit / 确定性 / 相邻格 bbox 平移 (+8,−4)。
 //   ⑤ **automap 绘制口径**：不压暗（`BackdropAlpha == 0`）+ 贴图尺寸非退化 + 绘制源非空
 //      （逐格 Cel 像素表）+ 已探索 = **记忆式**（片 g2-resume 把 E23 ④ 从"本格 + 8 邻域"改成
 //      半径 `MiniMapPanel.RevealRadius` 的可通行 BFS + 相邻墙轮廓；本条断言**行为**：
@@ -30,6 +32,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using Diablo2.Core;
@@ -342,6 +345,131 @@ namespace Uicheck
                 withCel > 0 && drawn == withCel,
                 $"有 cel 的已探索格={withCel}，真正画出={drawn}，不透明像素={opaque}"
                 + $"（tex={texW}x{texH}，cel 底={celFloor}/墙={celWall}）");
+
+            // ★ U46（本轮 S1）：把"已探索集合"做成**注入集合**后，渲染侧必须满足的三条
+            //   （判据自己造集合 ⇒ 与"揭示口径"解耦；入口 = `MiniMapPanel.ApplyExplored` / 核心 = `RenderExplored`）
+            CheckInjectedRender();
+        }
+
+        /// <summary>
+        /// ★ U46：**注入集合 ⇒ 图元**（纯函数渲染侧断言；⛔ 不经过 `Reveal`，集合由判据自己造）。
+        /// <para>① 空集合 ⇒ 0 格 / 0 图元；只注入 (0,0) ⇒ 图元数 == 该格 cel 单独 blit 的图元数（没有多画别的格）。</para>
+        /// <para>② 确定性：同一集合渲染两次逐像素一致；超集 ⇒ drawn 格数 = 注入格数（图元只增不减）。</para>
+        /// <para>③ cel 几何：相邻格 (0,0)→(1,0) 的图元 bbox 正好平移 **(+8, −4)** 纹理（列,行）
+        /// —— 原版 1/10 等距步进（世界向 (x+1) ⇒ (+8,+4)；纹理行号自底向上 ⇒ 行 −4）；
+        /// 出处 `.ai-tmp/test/automap-plan.md` §1.4「相邻格间距」+「锚点 = 帧左上角在格心 −(8,28)」。</para>
+        /// </summary>
+        private static void CheckInjectedRender()
+        {
+            const int w = 8;
+            const int h = 8;
+
+            var cel = -1;
+            foreach (var kv in AutoMapCel.CelPixels)
+            {
+                if (kv.Value != null && kv.Value.Length > 0) { cel = kv.Key; break; }
+            }
+            if (cel < 0)
+            {
+                Check("U46 ① 注入集合 ⇒ 图元（需要 `AutoMapCel.CelPixels` 非空）", false,
+                    "`AutoMapCel.CelPixels` 为空 ⇒ 无法判 cel 画法（生成器请重跑）");
+                return;
+            }
+
+            var map = new Diablo2.Def.MinimapArgs { width = w, height = h, seed = 90210 };
+            for (var i = 0; i < w * h; i++)
+            {
+                map.tiles.Add(Diablo2.Def.MinimapArgs.TileWalkable);
+                map.cels.Add((short)cel);
+                map.celsOver.Add((short)-1);
+            }
+
+            var stepX = AutoMapCel.W / 2;
+            var stepY = AutoMapCel.W / 4;
+            var texW = (w + h - 2) * stepX + AutoMapCel.W;
+            var texH = (w + h - 2) * stepY + AutoMapCel.H;
+            var palette = MiniMapPanel.CreatePalette();
+
+            // ① 空集合 ⇒ 什么都不画（"渲染源只有这个集合"的最强口径）
+            var none = new bool[w * h];
+            int wc, dr, op;
+            MiniMapPanel.CountDrawn(map, none, texW, texH, palette, out wc, out dr, out op);
+            Check("U46 ① 空注入集合 ⇒ 0 格 / 0 图元（画法不自己造格）",
+                wc == 0 && dr == 0 && op == 0, $"withCel={wc} drawn={dr} opaque={op}");
+
+            // ① 只注入 (0,0) ⇒ 图元数必须正好等于该格 cel 单独 blit 的图元数
+            var onlyA = new bool[w * h];
+            onlyA[0] = true;
+            var bufA = new Color32[texW * texH];
+            var drawnA = MiniMapPanel.RenderExplored(bufA, texW, texH, map, onlyA, palette, out wc, out op);
+            var scratch = new Color32[texW * texH];
+            var single = MiniMapPanel.BlitInto(scratch, texW, texH, h, cel, 0, 0, palette);
+            Check("U46 ① 只注入 (0,0) ⇒ 图元数 == 该格 cel 单独 blit 的图元数（没有多画任何别的格）",
+                drawnA == 1 && op == single && single > 0,
+                $"drawn={drawnA} opaque={op} singleBlit={single}（withCel={wc}）");
+
+            // ② 确定性 + 单调
+            var both = new bool[w * h];
+            both[0] = true; both[1] = true;
+            var bufB = new Color32[texW * texH];
+            var drawnB = MiniMapPanel.RenderExplored(bufB, texW, texH, map, both, palette, out wc, out op);
+            var bufA2 = new Color32[texW * texH];
+            var drawnA2 = MiniMapPanel.RenderExplored(bufA2, texW, texH, map, onlyA, palette, out wc, out op);
+            var same = true;
+            for (var i = 0; i < bufA.Length; i++)
+            {
+                if (bufA[i].r == bufA2[i].r && bufA[i].g == bufA2[i].g
+                    && bufA[i].b == bufA2[i].b && bufA[i].a == bufA2[i].a) continue;
+                same = false; break;
+            }
+            Check("U46 ② 确定性：同一注入集合渲染两次逐像素一致；两格注入 ⇒ 恰好 2 格有图元",
+                same && drawnA2 == drawnA && drawnB == 2,
+                $"两次单格 drawn={drawnA}/{drawnA2}（逐像素一致={same}）；两格 drawn={drawnB}");
+
+            // ③ cel 几何：bbox(1,0) − bbox(0,0) 必须正好 (+stepX, −stepY)
+            //   ⚠️ bbox 必须取自**只含 (1,0) 的集合**（拿两格的并集去比，比出来是并集范围、不是平移量）
+            var onlyB = new bool[w * h];
+            onlyB[1] = true;
+            var bufC = new Color32[texW * texH];
+            var drawnC = MiniMapPanel.RenderExplored(bufC, texW, texH, map, onlyB, palette, out wc, out op);
+            int ax0, ax1, ay0, ay1, bx0, bx1, by0, by1;
+            Bbox(bufA, texW, texH, out ax0, out ax1, out ay0, out ay1);
+            Bbox(bufC, texW, texH, out bx0, out bx1, out by0, out by1);
+            Check("U46 ③ cel 几何：相邻格 (0,0)→(1,0) 的图元 bbox 正好平移 (+8, −4) 纹理（列,行）",
+                drawnC == 1 && bx0 - ax0 == stepX && bx1 - ax1 == stepX
+                && ay0 - by0 == stepY && ay1 - by1 == stepY,
+                $"cell(0,0) bbox=({ax0},{ay0})..({ax1},{ay1})；cell(1,0) bbox=({bx0},{by0})..({bx1},{by1})；"
+                + $"（只含(1,0)的集合 drawn={drawnC}）期望 Δ=(+{stepX}, −{stepY})");
+
+            // ④ 跨片契约（判**接口形状**，不判源码字面）：`Core/Events.cs` 的 `Events.MapExplored`
+            //   注释点名收方 = `UI/MiniMapPanel.ApplyExplored(IReadOnlyCollection<Vector2Int>)`
+            //   ⇒ 这个接缝必须真的存在且签名一致（S2 发 / 本面板收，两边一改名就红）。
+            var apply = typeof(MiniMapPanel).GetMethod("ApplyExplored",
+                new[] { typeof(IReadOnlyCollection<Vector2Int>) });
+            var flag = typeof(MiniMapPanel).GetProperty("ExploredInjected");
+            Check("U46 ④ 跨片契约：`MiniMapPanel.ApplyExplored(IReadOnlyCollection<Vector2Int>)` + `ExploredInjected` 在位",
+                apply != null && apply.ReturnType == typeof(int) && flag != null && flag.PropertyType == typeof(bool),
+                $"ApplyExplored={(apply != null ? apply.ReturnType.Name : "(缺失)")}；"
+                + $"ExploredInjected={(flag != null ? flag.PropertyType.Name : "(缺失)")}"
+                + "（`Events.MapExplored` 的注释点名这个收方）");
+        }
+
+        /// <summary>不透明像素的包围盒（纹理坐标：minTx / maxTx / minRow / maxRow）。</summary>
+        private static void Bbox(Color32[] px, int texW, int texH,
+            out int minX, out int maxX, out int minY, out int maxY)
+        {
+            minX = int.MaxValue; maxX = int.MinValue; minY = int.MaxValue; maxY = int.MinValue;
+            for (var y = 0; y < texH; y++)
+            {
+                for (var x = 0; x < texW; x++)
+                {
+                    if (px[y * texW + x].a == 0) continue;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
         }
 
         /// <summary>某一列上已探索的格数（②的细节数字）。</summary>

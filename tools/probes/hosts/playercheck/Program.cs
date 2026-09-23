@@ -73,6 +73,9 @@ namespace PlayerCheck
         /// <summary>桩地图无传送点（契约成员见 `Module/Contracts.cs` 的 `IMapModule.WaypointPoints`，2026-09-23 新增）。</summary>
         public IReadOnlyList<Vector2Int> WaypointPoints => new List<Vector2Int>();
 
+        /// <summary>桩地图不记已探索（契约成员见 `Module/Contracts.cs` 的 `IMapModule.ExploredCells`，2026-09-23 新增）。</summary>
+        public IReadOnlyCollection<Vector2Int> ExploredCells => new List<Vector2Int>();
+
         public bool InBounds(Vector2Int g) => g.x >= 0 && g.y >= 0 && g.x < 8 && g.y < 8;
         public bool Walkable(Vector2Int g) => InBounds(g) && _walkable[g.x, g.y];
 
@@ -1606,6 +1609,58 @@ namespace PlayerCheck
                     bus.LastArgOf(Events.CursorChanged));
             }
 
+            // ── A2. ★ S3：怪物按**贴图实际矩形**命中（原版口径：精灵覆盖到就算悬停到）──
+            //   实机依据：`s3_evidence.tsv` 的 HOVER round=1 —— 鼠标从怪 (15,53) 的脚下沿屏幕上移
+            //   0/24/48/72px 仍解出 (15,53) 命中；**96px 起**解出 (14,52)（≠ 脚下格）⇒ 旧口径
+            //   hasTarget=False（怪的上半身完全无反馈）。这里注入"贴图矩形覆盖到上半身那一格的世界点"，
+            //   断言：① 旧口径（只给格）**仍然不命中**（改动没污染既有语义）；② 新口径命中；
+            //   ③ 世界点在矩形外仍然不命中（证明不是"把阈值放大"）；④ 脚下格精确命中仍优先。
+            {
+                var savedRect = reader.Hover.MonsterSpriteRect;
+                // 「怪上半身覆盖到的那一格」= 与怪相邻、且**不是**别的悬停用例的格（避免把 item/npc 命中算进来）
+                var bodyCell = monGrid;
+                var bodyOffs = new[]
+                {
+                    new Vector2Int(-1, -1), new Vector2Int(1, 1), new Vector2Int(1, -1),
+                    new Vector2Int(-1, 1), new Vector2Int(0, 2), new Vector2Int(2, 0)
+                };
+                for (var k = 0; k < bodyOffs.Length; k++)
+                {
+                    var c = monGrid + bodyOffs[k];
+                    if (c == itemGrid || c == npcGrid || c == emptyGrid) continue;
+                    bodyCell = c; break;
+                }
+                var worldInBody = (Vector2)Iso.GridToWorld(bodyCell) + new Vector2(0.1f, 0.1f);
+                reader.Hover.MonsterSpriteRect = id => id == monsterId
+                    ? (Rect?)new Rect(worldInBody.x - 0.5f, worldInBody.y - 0.5f, 1f, 1f)
+                    : null;
+                Console.WriteLine($"    贴图矩形用例：怪脚下格 {monGrid}、上半身格 {bodyCell}、世界点 {worldInBody}");
+
+                reader.OverrideHoverGrid(bodyCell);
+                var tOld = reader.UpdateHover(true);
+                Check("★ 旧口径不变：合成格（无配对世界点）落在怪上半身格 ⇒ 仍不命中",
+                    !tOld.hasTarget,
+                    $"hasTarget={tOld.hasTarget} cursor={tOld.cursor} 格=({tOld.gridX},{tOld.gridY})");
+
+                var tNew = reader.Hover.Resolve(bodyCell, worldInBody);
+                Check("★ 新口径：贴图矩形覆盖到鼠标世界点 ⇒ 命中该怪（cursor=Attack / id 正确 / 格=悬停格）",
+                    tNew.hasTarget && tNew.cursor == CursorKind.Attack && tNew.id == monsterId
+                    && tNew.gridX == bodyCell.x && tNew.gridY == bodyCell.y,
+                    $"hasTarget={tNew.hasTarget} cursor={tNew.cursor} id={tNew.id} 格=({tNew.gridX},{tNew.gridY})");
+
+                var tMiss = reader.Hover.Resolve(bodyCell, worldInBody + new Vector2(9f, 9f));
+                Check("★ 新口径：世界点在矩形之外 ⇒ 仍不命中（不是把命中范围放大）",
+                    !tMiss.hasTarget,
+                    $"hasTarget={tMiss.hasTarget} cursor={tMiss.cursor}");
+
+                reader.Hover.MonsterSpriteRect = id => null;          // 拿不到贴图 ⇒ 必须退回旧口径
+                var tNoRect = reader.Hover.Resolve(bodyCell, worldInBody);
+                Check("★ 无贴图矩形（异步未加载/离线）⇒ 退回旧口径，不命中", !tNoRect.hasTarget,
+                    $"hasTarget={tNoRect.hasTarget}");
+
+                reader.Hover.MonsterSpriteRect = savedRect;
+            }
+
             Check("留下了悬停命中日志（验收 #14 取证）", CaptureLogger.Has("[Hover] 首个悬停命中"),
                 CaptureLogger.Last("[Hover]"));
 
@@ -2041,6 +2096,17 @@ namespace PlayerCheck
                 FramePacing.TargetFrameRate == 60 && FramePacing.VSyncCount == 0,
                 $"targetFrameRate={FramePacing.TargetFrameRate} vSyncCount={FramePacing.VSyncCount}" +
                 "（旧口径：QualitySettings.asset 逐档 vSync 0/1 ⇒ 选 LOW/MED 时无帧率上限）");
+
+            // ★ U27（帧节奏下沉）**新增**断言：把"离线宿主拿到的档位"实打实打出来 —— 它必须是
+            //   **兜底口径**（刷新率读不到 ⇒ 60/0）。这条断言是给 e1/e3 的**前提**做锚：
+            //   离线档位没变 ⇒ e1/e3 一行都不用改（改判据只许因为口径真的变了，不许为了凑绿）。
+            int recFps, recVsync;
+            float recHz;
+            var recReadable = CloverEngine.FramePacingPolicy.Recommend(out recFps, out recVsync, out recHz);
+            Check("e0 U27 离线口径：`FramePacingPolicy.Recommend()` 在宿主里 = 兜底 60/0（刷新率读不到 ⇒ 不走 vSync=1）",
+                !recReadable && recFps == FramePacing.TargetFrameRate && recVsync == FramePacing.VSyncCount,
+                $"readable={recReadable} refreshHz={recHz:0.##} ⇒ targetFrameRate={recFps} vSyncCount={recVsync}"
+                + $"（兜底常量 = {FramePacing.TargetFrameRate}/{FramePacing.VSyncCount}）");
 
             FramePacing.ResetStaticsForNewPlaySession();
             var logsBefore = CaptureLogger.Count("[R1-D]");

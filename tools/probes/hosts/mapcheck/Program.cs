@@ -67,6 +67,10 @@ internal static class MapCheckProgram
         Run(Step23_WaterKind);
         // ── ★ 片 M3（2026-09-23：桥的可走性 / 东边界接缝 / 缺瓦片）只加断言，⛔ 不动既有步骤 ──
         Run(Step24_TownBridgeWalkableAndSeam);
+        // ── ★ 片 S2（2026-09-23：用户「传送点没效果」）只加断言，⛔ 不动既有步骤 ──────────
+        Run(Step25_WaypointAnchor);
+        // ── ★ 片 S2（2026-09-23：主 agent 追加「Tab 自动地图的记忆式已探索」）只加断言 ──────
+        Run(Step26_ExploredCellsContract);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -3433,6 +3437,146 @@ internal static class MapCheckProgram
             }
         }
         return n;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 25. ★ 片 S2（2026-09-23）：传送点锚点（用户报「传送点没效果」）
+    //     判据 1/3 = **生成 1 个且坐标与原版表一致**（数值类 ⇒ 断言，不截图）。
+    //     出处逐条写在 `MapGenTown.Waypoint` 的注释里（Levels.txt 的 Waypoint 列 /
+    //     Objects.txt Id=119 / LvlPrest 四块城镇 ds1 的 kind=2 预设单位重合于 (31,26)）。
+    //     ⛔ 只加断言：本步不改任何既有判据（§10「出口恰 3 格」等一律原样）。
+    // ═════════════════════════════════════════════════════════════════════
+    private static void Step25_WaypointAnchor()
+    {
+        Section("25. 传送点锚点（原版位置 / 可走 / 可达 / 不与出生点·NPC·出口重叠）");
+
+        var map = NewMap();
+        map.Generate(AreaId.Town, 20250916);
+
+        var pts = map.WaypointPoints;
+        Console.WriteLine($"   WaypointPoints = {Fmt(pts)}（{pts?.Count ?? 0} 个）");
+        Check(pts != null && pts.Count == 1, $"罗格营地**恰 1 个**传送点锚点（实得 {pts?.Count ?? 0}）");
+
+        var expect = MapGenTown.Waypoint;
+        Check(pts != null && pts.Count == 1 && pts[0] == expect,
+            $"锚点坐标 = 原版表算出的关卡格 {expect}（实得 {(pts != null && pts.Count == 1 ? pts[0].ToString() : "-")}）；" +
+            "出处 = Levels.txt Waypoint 列 0 + Objects.txt Id=119 + LvlPrest 四块 ds1 kind=2 预设单位重合");
+
+        if (pts == null || pts.Count != 1) return;
+        var wp = pts[0];
+
+        Check(map.Walkable(wp), $"锚点 {wp} 可走（不可走 ⇒ 玩家走不到、面板点不开）");
+
+        // 出生点/NPC/出口都不许与锚点重合（重合 ⇒ 点哪都是"另一个东西"）
+        var clash = new List<string>();
+        if (map.SpawnPoint == wp) clash.Add("SpawnPoint");
+        if (Has(map.Exits, wp)) clash.Add("Exit");
+        if (Has(map.NpcPoints, wp)) clash.Add("NpcPoint");
+        Check(clash.Count == 0, $"锚点不与出生点/出口/NPC 重合（冲突：{(clash.Count == 0 ? "无" : string.Join(",", clash))}）");
+
+        var path = map.FindPath(map.SpawnPoint, wp);
+        var steps = path == null ? -1 : path.Count - 1;
+        Check(steps >= 0, $"出生点 {map.SpawnPoint} 有路径走到锚点 {wp}（步数 {steps}）");
+
+        // 其它区域**不许**凭空多出传送点（面板只在城镇开；原版野外/洞穴的传送点本工程未做）
+        var moor = NewMap();
+        moor.Generate(AreaId.BloodMoor, 20250916);
+        Check(moor.WaypointPoints.Count == 0,
+            $"血腥荒野没有传送点锚点（实得 {moor.WaypointPoints.Count}）——⛔ 不自创目的地集合");
+        Console.WriteLine();
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 26. ★ 2026-09-23（S2）：Tab 自动地图的「记忆式已探索」数据源
+    //     `IMapModule.ExploredCells` + `Events.MapExplored`（主 agent 追加的离线活）。
+    //     ⚠️ 本宿主**没有 Unity 运行时** ⇒ 造不出 `MapView`（`new GameObject()` 会炸）
+    //     ⇒ 这里只断言"可离线判"的那一半：契约成员存在/类型对/无 view 时是空且不抛，
+    //     外加**源码级守卫**（发事件必须被"首次"判定守住 —— 这正是"定义了但没人查"的高发形态）。
+    // ═════════════════════════════════════════════════════════════════════
+    private static void Step26_ExploredCellsContract()
+    {
+        Section("26. 记忆式已探索：IMapModule.ExploredCells + Events.MapExplored");
+
+        // ① 契约成员在（逐字签名：IReadOnlyCollection<Vector2Int> ExploredCells { get; }）
+        var prop = typeof(IMapModule).GetProperty("ExploredCells",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        Console.WriteLine($"  IMapModule.ExploredCells = {(prop == null ? "(缺失)" : prop.PropertyType.Name)}"
+            + $"（可写={prop != null && prop.CanWrite}）");
+        Check(prop != null && prop.PropertyType == typeof(IReadOnlyCollection<Vector2Int>),
+            "契约成员 IReadOnlyCollection<Vector2Int> ExploredCells { get; } 存在且类型逐字一致");
+        Check(prop != null && !prop.CanWrite, "该成员是**只读**（无 setter）");
+
+        // ② 真实现里：未铺装（没有 MapView）⇒ 空集合、不抛
+        var map = NewMap();
+        map.Generate(AreaId.Town, 20250916);
+        var cells = map.ExploredCells;
+        Console.WriteLine($"  未调 ShowArea 时 ExploredCells = {(cells == null ? "(null)" : cells.Count + " 格")}");
+        Check(cells != null && cells.Count == 0,
+            "渲染层未铺装（没调 ShowArea / 离线宿主无 GameObject）⇒ ExploredCells = 空集合且不抛");
+
+        // ③ 事件常量逐字
+        var evtField = typeof(Events).GetField("MapExplored",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        var evtValue = evtField != null ? (string)evtField.GetValue(null) : null;
+        Console.WriteLine($"  Events.MapExplored = \"{evtValue}\"");
+        Check(evtField != null && evtValue == "D2.Map.Explored",
+            "事件常量 Events.MapExplored 存在且值 = \"D2.Map.Explored\"");
+
+        // ④ 源码级守卫：发事件必须被"首次"判定守住（⛔ 不许每帧/每格无脑发）
+        var repo2 = FindRepoRoot();
+        if (repo2 == null)
+        {
+            Console.WriteLine("   （找不到仓库根 ⇒ 跳过源码级守卫）");
+            Console.WriteLine();
+            return;
+        }
+        var moduleSrc = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(repo2, "client", "Assets", "Scripts", "Module", "Map", "MapModule.cs"));
+        var viewSrc = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(repo2, "client", "Assets", "Scripts", "Module", "Map", "MapView.cs"));
+        var onGrid = MethodBodyText(moduleSrc, "private void OnPlayerGridChanged(Vector2Int g)");
+        Console.WriteLine($"  OnPlayerGridChanged 体：if(_view.MarkExplored(g)) = "
+            + $"{onGrid.Contains("if (_view.MarkExplored(g)) OnFirstExplored(g);")}"
+            + $"；首次判定发事件 = {onGrid.Contains("OnFirstExplored")}");
+        Check(onGrid.Contains("if (_view.MarkExplored(g)) OnFirstExplored(g);"),
+            "发方 = MapModule.OnPlayerGridChanged，且**由 `MapView.MarkExplored` 的返回值把门**"
+            + "（重复走过同一格不重发 ⇒ 不是每帧发）");
+        Check(moduleSrc.Contains("Events.MapExplored")
+              && moduleSrc.Contains("Emit<IReadOnlyCollection<Vector2Int>>(Events.MapExplored, new[] { g })"),
+            "事件载荷 = 新探索到的格集合（逐字：\n      Emit<IReadOnlyCollection<Vector2Int>>(Events.MapExplored, new[] { g })）");
+        Check(viewSrc.Contains("public bool MarkExplored(Vector2Int g)"),
+            "`MapView.MarkExplored` 返回 bool（\"这一格是不是第一次\"——事件的唯一判据来源）");
+        Check(moduleSrc.Contains("if (_view != null) _view.CollectExplored(_exploredCache);"),
+            "`ExploredCells` 的实现 = 从渲染层 `_explored` 投影（⛔ 不在模块里新造第二份已探索状态）");
+        Console.WriteLine();
+    }
+
+    /// <summary>抽一个方法体的源文本（从签名起、按大括号配平到结束）。</summary>
+    private static string MethodBodyText(string src, string signature)
+    {
+        var i = src.IndexOf(signature, StringComparison.Ordinal);
+        if (i < 0) return string.Empty;
+        var open = src.IndexOf('{', i);
+        if (open < 0) return string.Empty;
+        var depth = 0;
+        for (var k = open; k < src.Length; k++)
+        {
+            if (src[k] == '{') depth++;
+            else if (src[k] == '}')
+            {
+                depth--;
+                if (depth == 0) return src.Substring(open, k - open + 1);
+            }
+        }
+        return string.Empty;
+    }
+
+    /// <summary>`IReadOnlyList&lt;Vector2Int&gt;` 上没有 `Contains`（宿主不开 System.Linq）⇒ 手写一份。</summary>
+    private static bool Has(IReadOnlyList<Vector2Int> list, Vector2Int g)
+    {
+        if (list == null) return false;
+        for (var i = 0; i < list.Count; i++) { if (list[i] == g) return true; }
+        return false;
     }
 
     private static string Fmt(IReadOnlyList<Vector2Int> list)

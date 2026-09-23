@@ -131,6 +131,9 @@ namespace ItemCheck
         /// <summary>桩地图无传送点（契约成员见 `Module/Contracts.cs` 的 `IMapModule.WaypointPoints`，2026-09-23 新增）。</summary>
         public IReadOnlyList<Vector2Int> WaypointPoints => new List<Vector2Int>();
 
+        /// <summary>桩地图不记已探索（契约成员见 `Module/Contracts.cs` 的 `IMapModule.ExploredCells`，2026-09-23 新增）。</summary>
+        public IReadOnlyCollection<Vector2Int> ExploredCells => new List<Vector2Int>();
+
         public readonly List<Vector2Int> NpcGrids = new List<Vector2Int>
         {
             new Vector2Int(10, 10), new Vector2Int(12, 10), new Vector2Int(14, 10),

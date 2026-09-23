@@ -1068,6 +1068,27 @@ namespace Diablo2.Module
         /// </summary>
         IReadOnlyList<Vector2Int> WaypointPoints { get; }
 
+        /// <summary>
+        /// **记忆式已探索格**（Tab 自动地图的数据源）。★ 2026-09-23 新增（S2）。
+        /// <para>
+        /// 口径（原版自动地图）：**访问过即记住、本局内持续累积** —— 玩家走过的格一旦被记为已探索
+        /// 就不再撤销（⛔ **不是**"当前视野 / 8 邻域"那套，那是本项目已登记的旧近似口径 `E23④`）。
+        /// 与 `Events.PlayerGridChanged` 一一对应：玩家每换一格 ⇒ 该格被记为已探索。
+        /// </para>
+        /// <para>
+        /// **数据源唯一**：渲染层 <c>Module/Map/MapView</c> 的 <c>_explored</c> 位图
+        /// （`MarkExplored` / `CollectExplored` / `IsExplored` 都在那里）—— ⛔ 本属性只是它的**投影**，
+        /// 不新造第二份状态（两份状态必然漂移）。
+        /// </para>
+        /// <para>
+        /// **作用域 = 当前区域**：换区时 <c>MapView.ShowArea</c> 会按新图尺寸重建已探索位图
+        /// （原版每张图的 automap 也是各自记忆的）；且格坐标是**区域局部**的
+        /// ⇒ ⛔ 跨区域合并成一个集合在语义上是错的（不同区域的 (x,y) 不可比）。
+        /// </para>
+        /// <para>未生成 / 未铺装（`ShowArea` 未调用）⇒ 返回空集合（不抛）。</para>
+        /// </summary>
+        IReadOnlyCollection<Vector2Int> ExploredCells { get; }
+
         /// <summary>是否在图内（不判可走）。</summary>
         bool InBounds(Vector2Int g);
 

@@ -137,6 +137,8 @@ namespace Diablo2.App
             //     ⚠️ 顺序**必须**在 `ApplyStoredSettings` **之后**：它内部的
             //     `QualitySettings.SetQualityLevel` 会按档位把 `vSyncCount` 重置成 0/1
             //     ⇒ 早于它设会被覆盖（帧率上限随画质档位漂移 = 旧口径）。
+            //     ★ U27：档位不再写死 —— `Pin` 内部走引擎 `FramePacingPolicy.Recommend()`
+            //     （刷新率可读 ⇒ vSync=1 帧交付锁到刷新率；读不到 ⇒ 兜底 60/0）。本行语义/顺序不变。
             FramePacing.Pin("启动");
 
             // ⑥ 模块装配（先 AutoWire 自动接入已实现模块，再显式建流程）

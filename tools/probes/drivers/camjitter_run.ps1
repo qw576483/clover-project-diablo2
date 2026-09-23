@@ -16,7 +16,14 @@
 # =============================================================================
 param(
     [string]$Tag = 'before',
-    [string]$Why = 'cam-jitter before/after baseline: the criterion is the per-frame relative offset between the player and Camera.main at the real frame cadence, which exists only inside a live Play session (Camera.main is written by the in-Update tick chain of App/Bootstrap)'
+    [string]$Why = 'cam-jitter before/after baseline: the criterion is the per-frame relative offset between the player and Camera.main at the real frame cadence, which exists only inside a live Play session (Camera.main is written by the in-Update tick chain of App/Bootstrap)',
+    # * S1 (U27): the driver's Cfg() used to PIN vSync=0/targetFps=60 (camjitter_drive.cs),
+    # so a re-run could never show the client's own cadence. -KeepCadence uses CfgKeepCadence,
+    # which leaves Core/FramePacing's pin untouched => the recorded dt IS the shipped cadence.
+    [switch]$KeepCadence,
+    # * S1 (U27): append two per-frame GC columns (gcc/gcm) to the TSV via the tour spec's 5th
+    # field "gc". Default OFF => the TSV keeps exactly its previous column set.
+    [switch]$Gc
 )
 
 $ErrorActionPreference = 'Continue'
@@ -34,6 +41,9 @@ $trace   = $outDir + '/cam-jitter-steps-' + $Tag + '.txt'
 $logCopy = $outDir + '/cam-jitter-log-' + $Tag + '.txt'
 $logPath = $proj + '/Logs/Editor.log'
 $playLog = $outDir + '/play-log.tsv'
+
+# * S1 (U27): which Cfg entry runs this session (resolved here so the play-log line below can record it).
+$cfgEntry = if ($KeepCadence) { 'CamJit.Api.CfgKeepCadence' } else { 'CamJit.Api.Cfg' }
 
 $script:offset = 0
 $script:lines = New-Object System.Collections.ArrayList
@@ -112,7 +122,14 @@ Say ('UNITY-STATUS ' + ($status -replace "`r?`n", ' '))
 
 foreach ($p in @($tsv, $done)) { if (Test-Path $p) { Remove-Item $p -Force; Say ('CLEARED ' + $p) } }
 
-Add-Content -Path $playLog -Value ((Get-Date).ToString('yyyy-MM-dd HH:mm') + "`tg2-resume`tcam-jitter-" + $Tag + "`t" + $Why) -Encoding UTF8
+# Bookkeeping line. The piece column is 'S1' (the old literal 'g2-resume' was a stale hard-coded
+# name); the cadence suffix is appended ONLY when -KeepCadence is used, so the default line keeps
+# the exact shape of the previous script. NOTE: this line is accounting, not measurement - the
+# measured path (tour legs / TSV columns / dt maths) is untouched by this piece.
+$logLine = (Get-Date).ToString('yyyy-MM-dd HH:mm') + "`tS1`tcam-jitter-" + $Tag + "`t" + $Why
+if ($KeepCadence) { $logLine += " [keepCadence=1 entry=" + $cfgEntry + "]" }
+if ($Gc) { $logLine += " [gcColumns=1]" }
+Add-Content -Path $playLog -Value $logLine -Encoding UTF8
 Say ('PLAYLOG-APPENDED ' + $playLog)
 
 Unity-Cmd @('editor_focus') -Quiet | Out-Null
@@ -124,15 +141,17 @@ Say ('LOG-OFFSET ' + $script:offset)
 Unity-Cmd @('editor_play') -Quiet | Out-Null
 Start-Sleep -Seconds 7
 
+Say ('CADENCE-MODE entry=' + $cfgEntry + ' keepCadence=' + $(if ($KeepCadence) { 1 } else { 0 }))
 $cfgOk = $false
 for ($i = 0; $i -lt 8; $i++) {
-    $r = Run-Step 'CamJit.Api.Cfg' ''
+    $r = Run-Step $cfgEntry ''
     if ($r -match 'CFG-OK|gameRunning=1') { $cfgOk = $true; break }
     Start-Sleep -Seconds 3
 }
 Say ('CFG-OK ' + $cfgOk)
 
 $spec = $Tag + '|g66|' + ($tsv -replace '\\', '/') + '|' + ($done -replace '\\', '/')
+if ($Gc) { $spec += '|gc' }        # * S1 (U27): 5th spec field => driver appends gcc/gcm columns
 $raw = Unity-Cmd @('run_script', '--file', $cs, '--entry', 'CamJit.Tour.Install', '--args', ('[\"' + $spec + '\"]'))
 Say ('INSTALL ' + ($raw -replace "`r?`n", ' '))
 

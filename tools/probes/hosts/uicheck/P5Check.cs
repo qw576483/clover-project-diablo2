@@ -287,12 +287,37 @@ namespace Uicheck
             Program.Check("小地图源码：旧「程序化点阵 + 本项目自选配色」的实现常量**全部删除**（0 命中）",
                 ghostPaint.Length == 0, ghostPaint.Length == 0 ? "0 命中" : ghostPaint);
 
-            Program.Check("小地图源码：逐格图形 = 原版 cel（`MinimapArgs.CelAt` + `AutoMapCel.CelPixels`）"
-                          + "，⛔ 本文件里没有任何自选色常量",
-                src.Contains("_map.CelAt(x, y, false)") && src.Contains("_map.CelAt(x, y, true)")
+            // ── ★ S1（U46）改 needle：**判行为，不判写法**（SKILL §4.7）────────────────────────
+            //   原 needle（脆弱判据 / 假判据）：`src.Contains("_map.CelAt(x, y, false)")` ——
+            //     它把"**接收者正好叫 `_map`**"这个**实现细节的字面写法**当成验收对象：
+            //     ① 只要有人把画法从实例方法提到**纯函数**（形参叫 `map`）就变红，而画法一字未改；
+            //     ② 反过来，任何人把代码改坏、只要字符串里留着 `_map.CelAt(x, y, false)` 就仍然绿
+            //        ⇒ 既拦不住真回归，又对**与行为无关的重命名**误报（典型"判源码字面"）。
+            //   新 needle：**正则匹配"对 `CelAt(x, y, false/true)` 的三参调用"**（接收者名任意、
+            //     空白任意），它判的是"这一格的地面层/物件层 cel 是从 `MinimapArgs.CelAt` 取的"
+            //     这个**过程**；配色仍按"必须有 ACT1 调色板来源 + 不许自选色常量"判。
+            var celFloorCall = System.Text.RegularExpressions.Regex.IsMatch(
+                src, @"\.CelAt\(\s*x\s*,\s*y\s*,\s*false\s*\)");
+            var celOverCall = System.Text.RegularExpressions.Regex.IsMatch(
+                src, @"\.CelAt\(\s*x\s*,\s*y\s*,\s*true\s*\)");
+            Program.Check("小地图源码：逐格图形 = 原版 cel（`MinimapArgs.CelAt(x,y,false/true)` 三参调用"
+                          + " + `AutoMapCel.CelPixels`），⛔ 本文件里没有任何自选色常量",
+                celFloorCall && celOverCall
                 && src.Contains("AutoMapCel.CelPixels") && src.Contains("AutoMapCel.PaletteRgb")
                 && !src.Contains("new Color32(0x"),
-                "见 Redraw() / Blit()（颜色只来自 ACT1 调色板表）");
+                "见 RenderExplored()（唯一画法；颜色只来自 ACT1 调色板表）；"
+                + $"地面层调用={celFloorCall} 物件层调用={celOverCall}");
+
+            // 闸门自身也要被闸（SKILL §8.3）：换过 needle 就必须做**两次**自检 ——
+            // 已知正确样本必须命中（否则恒假），已知错误样本必须不命中（否则恒真 = 假判据）。
+            var needlePos = System.Text.RegularExpressions.Regex.IsMatch(
+                "var floor = map.CelAt(x, y, false);", @"\.CelAt\(\s*x\s*,\s*y\s*,\s*false\s*\)");
+            var needleNeg = System.Text.RegularExpressions.Regex.IsMatch(
+                "var floor = map.CelAt(x, y);", @"\.CelAt\(\s*x\s*,\s*y\s*,\s*false\s*\)");
+            Program.Check("小地图 needle 自检：已知正确样本命中 + 已知错误样本不命中（换 needle 的两次自检）",
+                needlePos && !needleNeg,
+                $"正样本命中={needlePos}（`map.CelAt(x, y, false)`）；"
+                + $"负样本命中={needleNeg}（两参 `map.CelAt(x, y)`，必须为 False）");
 
             Program.Check("小地图源码：叠加层**铺满画布**（Backdrop 锚点 0..1）+ 以玩家格为中心平移（UpdateView）",
                 src.Contains("anchorMin = Vector2.zero") && src.Contains("anchorMax = Vector2.one")

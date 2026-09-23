@@ -119,6 +119,24 @@ namespace Diablo2.Core
         /// <summary>玩家所在格变化（参数 <see cref="Vector2Int"/> 格坐标）。</summary>
         public const string PlayerGridChanged = "D2.Map.PlayerGridChanged";
 
+        /// <summary>
+        /// 有新格**首次**被记为已探索（参数 <c>IReadOnlyCollection&lt;Vector2Int&gt;</c> = 本次新增的格集合）。
+        /// ★ 2026-09-23 新增（S2，Tab 自动地图的"记忆式已探索"数据源）。
+        /// <para>
+        /// **发方 = `Module/Map/MapModule.OnPlayerGridChanged`**（唯一发方），
+        /// **只在 `MapView.MarkExplored` 回"这一格确实是第一次"时发**（重复走过同一格 **0 次**发出）
+        /// ⇒ ⛔ 不是每帧发、也不是每次 `PlayerGridChanged` 都发。
+        /// 载荷是"本次新增的格"（当前实现每次恰 1 格 + 1 个新数组引用 ⇒ 收方可以安全持有该引用）。
+        /// </para>
+        /// <para>
+        /// **收方 = `UI/MiniMapPanel`**（S1 提供的注入接缝，**已接线** 2026-09-23）：
+        /// `MiniMapPanel.cs:678` 订阅本事件 / `:719-721` 转 `ApplyExplored(...)` / `:687` 注销。
+        /// 接管后 `ExploredInjected == true`，面板**不再**自行揭示（接管前保留它自己的兜底口径）。
+        /// </para>
+        /// <para>口径 = 访问过即记忆、本局内累积、作用域为当前区域（详见 `IMapModule.ExploredCells`）。</para>
+        /// </summary>
+        public const string MapExplored = "D2.Map.Explored";
+
         /// <summary>玩家踩到出入口（参数 <c>Def.AreaId</c> 目标区域）。</summary>
         public const string ExitEntered = "D2.Map.ExitEntered";
 
