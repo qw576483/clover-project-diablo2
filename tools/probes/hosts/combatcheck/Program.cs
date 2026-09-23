@@ -396,6 +396,8 @@ namespace CombatCheck
             AiRangeBacksOff();
             AiCowardFlees();
             MonsterVoiceTiming();
+            MonsterStepCadence();
+            MonsterDeathDelay();
 
             // ── 4.2 邪恶洞穴：Shaman(堕落萨满) 复活同伴 ──
             // ★ 本轮改：洞穴布点是随机的，**"萨满 + 复活半径内的同伴"这一对不是每张图都有**
@@ -579,9 +581,17 @@ namespace CombatCheck
                 // si(尖刺鼠) / wr(幽灵)：`MonSounds.txt` 的 `FsCnt` 列为空 ⇒ 原版没有移动音
             };
 
+            // 原版 `MonSounds.txt` 的 `DeaDelay`（死亡音延迟帧）：除 quillrat=4 外全类 = 1
+            var deaDelay = new System.Collections.Generic.Dictionary<string, float>
+            {
+                { "fallen", 1f }, { "fallenshaman", 1f }, { "quillrat", 4f }, { "zombie", 1f },
+                { "brute", 1f }, { "corruptrogue", 1f }, { "foulcrow", 1f }, { "wraith", 1f },
+            };
+
             var seen = new System.Collections.Generic.HashSet<string>();
             var badDelay = new System.Collections.Generic.List<string>();
             var badStep = new System.Collections.Generic.List<string>();
+            var badDeath = new System.Collections.Generic.List<string>();
 
             foreach (var m in _ctx.Monster.All)
             {
@@ -600,6 +610,11 @@ namespace CombatCheck
                 var gotStep = Diablo2.Module.Monster.MonsterSfx.StepPeriodTiles(m);
                 if (System.Math.Abs(gotStep - wantStep) > 1e-5f)
                     badStep.Add($"{code}({id}) 期望 {wantStep:0.###} 格/步 实得 {gotStep:0.###}");
+
+                var wantDeath = deaDelay[id] / Diablo2.Module.Monster.MonsterTuning.LogicFps;
+                var gotDeath = Diablo2.Module.Monster.MonsterSfx.DeathDelaySeconds(m);
+                if (System.Math.Abs(gotDeath - wantDeath) > 1e-5f)
+                    badDeath.Add($"{code}({id}) 期望 {wantDeath:0.###}s 实得 {gotDeath:0.###}s");
             }
 
             Check("逐类受击延迟 = `MonSounds.HitDelay` 帧 ÷ LogicFps(25)（quillrat=5 ⇒ 0.2s，其余 2 ⇒ 0.08s）",
@@ -608,8 +623,131 @@ namespace CombatCheck
             Check("脚步间隔 = 1 / `MonSounds.FsCnt`（有脚步的 6 类 = 2 ⇒ **0.5 格一步**；尖刺鼠/幽灵 = 0 = 不响）",
                 badStep.Count == 0 && seen.Count > 0,
                 badStep.Count == 0 ? $"已对账 {seen.Count} 类（半格一步，不再是跨格一次）" : string.Join("; ", badStep));
+            Check("死亡音延迟 = `MonSounds.DeaDelay` 帧 ÷ LogicFps(25)（quillrat=4 ⇒ 0.16s，其余 1 ⇒ 0.04s）",
+                badDeath.Count == 0 && seen.Count > 0,
+                badDeath.Count == 0 ? $"已对账 {seen.Count} 类" : string.Join("; ", badDeath));
 
             Console.WriteLine();
+        }
+
+        /// <summary>
+        /// ★ 片 monster-audio：**死亡音延迟的行为判据** —— 死亡**同帧**不许响，要等 `DeaDelay` 帧才响。
+        /// 期望值 `wantDelay` **从表经 `MonsterSfx.DeathDelaySeconds` 算**（⛔ 不硬编码）。
+        /// </summary>
+        private static void MonsterDeathDelay()
+        {
+            Section("4.1d 死亡音延迟（行为）：MonSounds.DeaDelay 帧 ÷ LogicFps ⇒ 同帧不响、到期才响");
+
+            MonsterState target = null;
+            foreach (var m in _ctx.Monster.All)
+            {
+                if (m != null && m.alive) { target = m; break; }
+            }
+            if (target == null)
+            {
+                Check("刷到一只可击杀的怪", false, "none");
+                return;
+            }
+
+            // 期望延迟：**从表算**（每类的 `DeaDelay` 帧 ÷ LogicFps），不是写死的数
+            var wantDelay = Diablo2.Module.Monster.MonsterSfx.DeathDelaySeconds(target);
+            var wantFrames = wantDelay * Diablo2.Module.Monster.MonsterTuning.LogicFps;
+
+            var dieBefore = CountCalls("sfxAt:monster_die_");
+            _ctx.Monster.ApplyDamage(target.id, 999999, Diablo2.Def.DamageType.Physical);
+            var atDeath = CountCalls("sfxAt:monster_die_") - dieBefore;
+            Check("死亡**同帧**不播死亡音（延迟 > 0 ⇒ 排期到 `DeaDelay` 之后起播）",
+                atDeath == 0, $"同帧 {atDeath} 次");
+
+            var waited = 0f;
+            var fired = 0;
+            var limit = (int)(wantDelay / Dt) + 8;
+            for (var i = 0; i <= limit && fired == 0; i++)
+            {
+                _ctx.Monster.Tick(Dt);
+                waited += Dt;
+                fired = CountCalls("sfxAt:monster_die_") - dieBefore;
+            }
+
+            Check($"死亡音在 {waited:0.###}s 后起播（= `DeaDelay` {wantFrames:0} 帧 ÷ LogicFps ⇒ 期望 {wantDelay:0.###}s，±1 tick）",
+                fired == 1 && System.Math.Abs(waited - wantDelay) <= Dt + 1e-5f,
+                $"waited={waited:0.###}s 期望={wantDelay:0.###}s Dt={Dt:0.###} fired={fired}");
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// ★ 片 monster-audio 第四轮：**脚步节奏的行为判据**（不是查表值，是"真走一遍数次数"）。
+        /// <para>
+        /// 判的到底是什么：`FsCnt=2` ⇒ 每 **0.5 格**一步。若哪天被改回"跨格一次"，
+        /// 脚步次数会掉到 ≈ 跨格次数（比值 ≈ 1）⇒ 本条立刻判红。
+        /// ⛔ 期望值**不是硬编码的 2**：比值门槛 1.5 来自「0.5 格/步 vs 1 格/步」这两档之间的空隙，
+        ///   具体每类的 `FsCnt` 仍由 `MonSsounds.txt` 经 `MonsterSfx.StepPeriodTiles` 给。
+        /// </para>
+        /// </summary>
+        private static void MonsterStepCadence()
+        {
+            Section("4.1c 脚步节奏（行为）：FsCnt=2 ⇒ 半格一步，脚步次数显著多于跨格次数");
+
+            MonsterState anchor = null;
+            foreach (var m in _ctx.Monster.All)
+            {
+                if (m == null || !m.alive) continue;
+                if (Diablo2.Module.Monster.MonsterSfx.StepPeriodTiles(m) > 0f) { anchor = m; break; }
+            }
+            if (anchor == null)
+            {
+                Check("刷到了「有脚步音」的怪（FsCnt 非空）", false, "本图没有 ⇒ 测不了（不是模块缺陷）");
+                return;
+            }
+
+            PlacePlayerAtDistance(anchor.Grid(), 3, 5f);      // 进仇恨 ⇒ 怪会真的走起来
+
+            var stepsBefore = CountStepCalls();
+            var last = new System.Collections.Generic.Dictionary<int, Vector2Int>();
+            foreach (var m in _ctx.Monster.All)
+            {
+                if (m == null || !m.alive) continue;
+                if (Diablo2.Module.Monster.MonsterSfx.StepPeriodTiles(m) > 0f) last[m.id] = m.Grid();
+            }
+
+            var gridMoves = 0;
+            var ticks = (int)(6f / Dt);
+            for (var i = 0; i < ticks; i++)
+            {
+                _ctx.Monster.Tick(Dt);
+                foreach (var m in _ctx.Monster.All)
+                {
+                    if (m == null || !m.alive) continue;
+                    Vector2Int prev;
+                    if (!last.TryGetValue(m.id, out prev)) continue;
+                    var g = m.Grid();
+                    if (g != prev) { gridMoves++; last[m.id] = g; }
+                }
+            }
+
+            var steps = CountStepCalls() - stepsBefore;
+            var ratio = gridMoves > 0 ? (float)steps / gridMoves : 0f;
+            Check($"脚步 {steps} 次 / 跨格 {gridMoves} 次 ⇒ 比值 {ratio:0.##}"
+                  + "（FsCnt=2 = 半格一步 ⇒ 期望 ≈2；若退回「跨格一次」只会有 ≈1 ⇒ 判红）",
+                steps > 0 && gridMoves > 0 && ratio >= 1.5f,
+                $"steps={steps} gridMoves={gridMoves} ratio={ratio:0.##}");
+            Console.WriteLine();
+        }
+
+        private static int CountStepCalls()
+        {
+            return CountCalls("sfxAt:monster_step_");
+        }
+
+        /// <summary>数 `RecordingAudio` 里某个前缀被请求了几次（**总数**，调用方自己取差值口径）。</summary>
+        private static int CountCalls(string prefix)
+        {
+            var n = 0;
+            foreach (var c in _audio.Calls)
+            {
+                if (c != null && c.StartsWith(prefix, System.StringComparison.Ordinal)) n++;
+            }
+            return n;
         }
 
         /// <summary>

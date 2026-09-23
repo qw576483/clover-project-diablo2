@@ -126,12 +126,11 @@ namespace Diablo2.Module.Combat
             var audio = ctx.Audio;
             if (audio != null)
             {
-                if (killed)
-                {
-                    audio.SfxAt(Monster.MonsterSfx.DieOf(target) ?? SfxKeys.MonsterDie,
-                        target.worldX, target.worldY, target.worldZ);
-                }
-                else
+                // ★ 片 monster-audio：**击杀那一下这里一声都不播** —— 死亡音按原版
+                //   `MonSounds.DeaDelay`（延迟帧数；除 quillrat=4 外全类 = 1）由 `MonsterModule.Die`
+                //   用与受击音**同一套**排期机制（`PendingHitSfx` / `PendingHitSfxTimer`）到点起播，
+                //   值同样 ÷ `LogicFps`。⛔ 这里若再播就会变成"同帧 + 延迟"两声。
+                if (!killed)
                 {
                     // 只播**撞击音**；怪物自身受击音（`MonSounds.HitSound`）由
                     // `MonsterModule.ApplyDamage` 按原版 `HitDelay` 帧排期后播（错开，见那边注释）。

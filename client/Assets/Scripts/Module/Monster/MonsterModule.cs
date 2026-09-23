@@ -249,6 +249,20 @@ namespace Diablo2.Module.Monster
             {
                 var m = _all[i];
 
+                // ★ 片 monster-audio：延迟排期的音（**受击音** / **死亡音**）到点起播。
+                //   必须放在 `alive` 判断**之前**：尸体的死亡音正是靠这条播出去的 ——
+                //   尸体分支下面直接 `continue`，放到后面会**永远播不出来**（静默失效）。
+                if (m.PendingHitSfx != null)
+                {
+                    m.PendingHitSfxTimer -= dt;
+                    if (m.PendingHitSfxTimer <= 0f)
+                    {
+                        PlayMonsterSfx(m, m.PendingHitSfx);
+                        m.PendingHitSfx = null;
+                        m.PendingHitSfxTimer = 0f;
+                    }
+                }
+
                 if (!m.State.alive)
                 {
                     m.CorpseTimer -= dt;         // 尸体只倒计时（回收交 SweepCorpses）
@@ -281,17 +295,6 @@ namespace Diablo2.Module.Monster
                     }
                 }
 
-                // ★ 片 monster-audio：延迟排期的**怪物自身受击音**到点起播。
-                if (m.PendingHitSfx != null)
-                {
-                    m.PendingHitSfxTimer -= dt;
-                    if (m.PendingHitSfxTimer <= 0f)
-                    {
-                        PlayMonsterSfx(m, m.PendingHitSfx);
-                        m.PendingHitSfx = null;
-                        m.PendingHitSfxTimer = 0f;
-                    }
-                }
 
                 if (m.ViewDirty)
                 {
@@ -399,6 +402,19 @@ namespace Diablo2.Module.Monster
             m.FleeTimer = 0f;
             m.ClearPath();
             m.CorpseTimer = MonsterTuning.CorpseLifetimeSeconds;
+
+            // ★ 片 monster-audio：死亡音（原版 `MonSounds.DeathSound`）按 `DeaDelay` 帧排期，
+            //   用的是**与受击音同一套**机制（`PendingHitSfx` / `PendingHitSfxTimer`）—— ⛔ 不新造排期。
+            //   `ApplyDamage` 在击杀那一下不会排受击音 ⇒ 这两个槽位此刻必为空，不会互相顶掉。
+            //   延迟同样 = 帧 ÷ `MonsterTuning.LogicFps`（出处见 `MonsterSfx.Timing`）。
+            var dieKey = MonsterSfx.DieOf(s) ?? Combat.SfxKeys.MonsterDie;
+            var dieDelay = MonsterSfx.DeathDelaySeconds(s);
+            if (dieDelay <= 0f) PlayMonsterSfx(m, dieKey);
+            else
+            {
+                m.PendingHitSfx = dieKey;
+                m.PendingHitSfxTimer = dieDelay;
+            }
             m.ViewDirty = true;
             m.Sync();
 

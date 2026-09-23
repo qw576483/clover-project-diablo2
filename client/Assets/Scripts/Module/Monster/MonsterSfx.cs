@@ -77,19 +77,23 @@ namespace Diablo2.Module.Monster
         //     以及 `OfficialAiDelayFrames / LogicFps` 的既有写法（同一个 25）。
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>下标：0=`HitDelay`（帧） 1=`FsCnt`（一个走路循环几步；0 = 原版无移动音）。</summary>
+        /// <summary>
+        /// 下标：0=`HitDelay`（帧） 1=`FsCnt`（一个走路循环几步；0 = 原版无移动音） 2=`DeaDelay`（帧）。
+        /// 全部**逐条抄自 `MonSounds.txt` 的对应列**（⛔ 没有一个数是估的）。
+        /// </summary>
         private static readonly System.Collections.Generic.Dictionary<string, float[]> Timing =
             new System.Collections.Generic.Dictionary<string, float[]>(
                 System.StringComparer.OrdinalIgnoreCase)
             {
-                { "fa", new[] { 2f, 2f } },   // fallen:      HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
-                { "fs", new[] { 2f, 2f } },   // fallenshaman:HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
-                { "si", new[] { 5f, 0f } },   // quillrat:    HitDelay=5（FsCnt 空 = 无移动音）
-                { "zm", new[] { 2f, 2f } },   // zombie:      HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
-                { "ye", new[] { 2f, 2f } },   // brute:       HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
-                { "cr", new[] { 2f, 2f } },   // corruptrogue:HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
-                { "bk", new[] { 2f, 2f } },   // foulcrow:    HitDelay=2 FsCnt=2 FsOff=0 FsPrb=100
-                { "wr", new[] { 2f, 0f } },   // wraith:      HitDelay=2（FsCnt 空 = 无移动音）
+                //                 HitDelay  FsCnt  DeaDelay
+                { "fa", new[] { 2f, 2f, 1f } },   // fallen:        FsOff=0 FsPrb=100
+                { "fs", new[] { 2f, 2f, 1f } },   // fallenshaman:  FsOff=0 FsPrb=100
+                { "si", new[] { 5f, 0f, 4f } },   // quillrat:      FsCnt 空 = 无移动音；DeaDelay=4
+                { "zm", new[] { 2f, 2f, 1f } },   // zombie:        FsOff=0 FsPrb=100
+                { "ye", new[] { 2f, 2f, 1f } },   // brute:         FsOff=0 FsPrb=100
+                { "cr", new[] { 2f, 2f, 1f } },   // corruptrogue:  FsOff=0 FsPrb=100
+                { "bk", new[] { 2f, 2f, 1f } },   // foulcrow:      FsOff=0 FsPrb=100（脚步音 = 振翅）
+                { "wr", new[] { 2f, 0f, 1f } },   // wraith:        FsCnt 空 = 无移动音
             };
 
         /// <summary>
@@ -100,6 +104,16 @@ namespace Diablo2.Module.Monster
         {
             var row = TimingRow(s);
             return row == null ? 0f : row[0] / MonsterTuning.LogicFps;
+        }
+
+        /// <summary>
+        /// 该怪物**死亡音**相对死亡时刻的延迟（秒）= `MonSounds.DeaDelay` 帧 ÷ `LogicFps`
+        /// （除 quillrat=4 ⇒ 0.16s 外，全类 = 1 ⇒ 0.04s）。未登记 / 该列为 0 ⇒ 返回 0（同帧响）。
+        /// </summary>
+        public static float DeathDelaySeconds(MonsterState s)
+        {
+            var row = TimingRow(s);
+            return row == null ? 0f : row[2] / MonsterTuning.LogicFps;
         }
 
         /// <summary>
