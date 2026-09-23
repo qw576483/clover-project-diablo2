@@ -64,6 +64,9 @@ namespace GIC
         private bool _quickDone;
         private bool _lateDone;
         private int _lastLoggedCount = -1;
+        private bool _walkDone;
+        private bool _walkShotDone;
+        private float _walkIssuedAt = -1f;
 
         public void Init(string root) { _root = root; }
 
@@ -93,6 +96,45 @@ namespace GIC
                 _lateDone = true;
                 _seenMoments++;
                 StartCoroutine(CaptureThen(Shot("groundicon_mon_2.png"), delegate { DumpAll("moment2"); }));
+            }
+
+            // moment 3: the tour drops the item wherever the drag release landed (measured: release
+            // x = -80 screen px, i.e. OFF-CAMERA) => the item is on the ground but NOT in frame.
+            // Walk the player to a DIAGONAL NEIGHBOUR of the item so the follow-camera brings it into
+            // frame, then shoot. Same public event the proven s2_drive probe uses (Events.MoveCommand);
+            // a diagonal neighbour (not the item's own cell) so no pickup is triggered.
+            if (_lateDone && !_walkDone) { _walkDone = WalkNextToItem(); if (_walkDone) _walkIssuedAt = Time.time; }
+            if (_walkDone && !_walkShotDone && Time.time - _walkIssuedAt >= 4f)
+            {
+                _walkShotDone = true;
+                _seenMoments++;
+                StartCoroutine(CaptureThen(Shot("groundicon_mon_3.png"), delegate { DumpAll("moment3-walked-next-to-item"); }));
+            }
+        }
+
+        /// <summary>Emits a move command to a diagonal neighbour of the first ground item (see moment 3).</summary>
+        private bool WalkNextToItem()
+        {
+            try
+            {
+                var it = ItemModule();
+                var list = it != null ? it.GroundItems : null;
+                if (list == null || list.Count == 0) return false;
+
+                var view = ViewModule();
+                var go = view != null ? view.GetView(list[0].Key) : null;
+                if (go == null) { Say("WALK-ABORT no node for id=" + list[0].Key); return false; }
+
+                var cell = Diablo2.Core.Iso.WorldToGrid(go.transform.position);
+                var target = new Vector2Int(cell.x + 1, cell.y + 1);
+                CloverEngine.Game.Event.Emit<Vector2Int>(Diablo2.Core.Events.MoveCommand, target);
+                Say("WALK-TO itemCell=(" + cell.x + "," + cell.y + ") target=(" + target.x + "," + target.y + ")");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Say("WALK-FAIL " + e.GetType().Name + ": " + e.Message);
+                return false;
             }
         }
 
