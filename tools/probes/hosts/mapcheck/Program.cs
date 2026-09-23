@@ -80,6 +80,8 @@ internal static class MapCheckProgram
         // ── ★ 片 black-why（2026-09-23：chunk-ctl 已证伪「缺块」，改查「块建完屏仍黑」）
         //    只加断言，⛔ 不动既有步骤、⛔ 不放宽任何既有断言 ────────────────────────
         Run(Step29_CameraClampMapEdge);
+        // ── ★ 片 black-why2（2026-09-23）：进区落点的边界余量（只加断言）─────────
+        Run(Step30_EntryLandingMargin);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -3995,6 +3997,59 @@ internal static class MapCheckProgram
         var mid = Iso.GridToWorld(40, 40);
         var midCam = new Vector3(mid.x, mid.y, -10f);
         Check(OffMapFraction(midCam, halfW, halfH, mw, mh) == 0f, "图心机位（格 40,40）可见矩形全部在图内（对照组，两种夹制等价）");
+        Console.WriteLine();
+    }
+
+    // ── ★ black-why2（2026-09-23 接力 black-why）：**进区落点**的边界余量 ─────────
+    //    只加断言：⛔ 不动 §0~§29 的任何一行、⛔ 不放宽任何既有断言。
+    //    判据口径 = 主 agent 任务书 §3 第 1 条（从营地东侧出口进入 Blood Moor ⇒
+    //    落点在地图内且距四边界 ≥ N 格 + 落点所在格可走）。
+    private static void Step30_EntryLandingMargin()
+    {
+        Section("30. ★ black-why2：营地东侧出口 → 血腥荒野，落点距四边界 ≥ N 格且整屏在图内");
+
+        var n = MapGenWilderness.EntryMarginCells;
+        Console.WriteLine($"  N（落点距四边界最小格数）= {n}" +
+            "  ← 实测可见格半跨 7 格（bw_deep_bwy1.txt：corners=[-6,13..8,27] @ player=(1,20)、ortho=3.75、1920x1080）+ 1 格备用");
+
+        const float ortho = 3.75f;                  // 实测（bw_deep_bwy1.txt 的 ortho=1 size=3.75）
+        const float aspect = 1920f / 1080f;         // 实测 screen=1920x1080
+        var halfW = ortho * aspect;
+        var halfH = ortho;
+
+        var seeds = new[] { 20250916, 222, 1001, 20250917, 777001 };
+        foreach (var seed in seeds)
+        {
+            var map = NewMap();
+            map.Generate(AreaId.BloodMoor, seed);
+            var sp = map.SpawnPoint;
+            var w = map.Width;
+            var h = map.Height;
+            var gate = map.Exits.Count > 0 ? map.Exits[0] : new Vector2Int(-1, -1);
+
+            var margin = Mathf.Min(Mathf.Min(sp.x, w - 1 - sp.x), Mathf.Min(sp.y, h - 1 - sp.y));
+            Check(margin >= n,
+                $"seed={seed}：落点 ({sp.x},{sp.y}) 距四边界最小 {margin} 格 ≥ {n}（地图 {w}x{h}）");
+            var clear3 = true;
+            for (var dx = -1; dx <= 1 && clear3; dx++)
+                for (var dy = -1; dy <= 1 && clear3; dy++)
+                    if (!map.Walkable(new Vector2Int(sp.x + dx, sp.y + dy))) clear3 = false;
+            Check(map.Walkable(sp) && clear3,
+                $"seed={seed}：落点 ({sp.x},{sp.y}) 所在格可走且 3×3 全可走");
+            Check(gate.x >= 0 && sp.y == gate.y && map.FindPath(sp, gate) != null,
+                $"seed={seed}：落点仍在回城口 {gate} 那条土路上（同一 y 且走得到 ⇒「西门进、站土路」的原版语义）");
+
+            var g = Iso.GridToWorld(sp.x, sp.y);
+            var frac = OffMapFraction(new Vector3(g.x, g.y, -10f), halfW, halfH, w, h);
+            Check(frac == 0f,
+                $"seed={seed}：落点机位可见矩形的『地图外』占比 = {frac * 100f:0.#}%（= 0 ⇒ 进区那一刻不露图外 Void）");
+
+            // 反证（只打印，⛔ 不计入判据）：修前落点 = 回城口东侧第 1 列 (gate.x+1, gate.y)
+            var og = Iso.GridToWorld(gate.x + 1, gate.y);
+            var oldFrac = OffMapFraction(new Vector3(og.x, og.y, -10f), halfW, halfH, w, h);
+            Console.WriteLine($"      反证：修前落点 ({gate.x + 1},{gate.y}) 的同口径地图外占比 = {oldFrac * 100f:0.#}%" +
+                "（> 0 = 那一帧必然露出左上那块笔直的黑三角）");
+        }
         Console.WriteLine();
     }
 

@@ -593,6 +593,23 @@ namespace MoveCheck
                 !Diablo2.Module.Map.MapSeam.IsTownEastSeam(AreaId.BloodMoor, townW,
                     new Vector2Int(townW - 1, 25), true),
                 "Area=BloodMoor ⇒ 只有城镇那条共享边列是接缝");
+
+            // ⑤ ★ 片 black-why2：过接缝进荒野之后的**落点**（`MapGenWilderness.PickSpawn`）。
+            //    ⛔ 只加断言：M3 已定稿的接缝连通性判定 / 桥面可走掩码 / 实体排序口径一律原样不动。
+            var entryN = Diablo2.Module.Map.MapGenWilderness.EntryMarginCells;
+            //    `MapModule` 是 internal ⇒ 与 mapcheck 同口径：本宿主把同一批源码编进本程序集后直接 new。
+            var bm = new Diablo2.Module.Map.MapModule();
+            bm.Generate(AreaId.BloodMoor, 20250916);
+            var sp = bm.SpawnPoint;
+            var margin = Math.Min(Math.Min(sp.x, bm.Width - 1 - sp.x),
+                                  Math.Min(sp.y, bm.Height - 1 - sp.y));
+            Check("过接缝进荒野：落点距四边界 ≥ N 格（N = 实测可见半跨 7 + 1 备用）",
+                margin >= entryN,
+                $"落点=({sp.x},{sp.y}) 地图={bm.Width}x{bm.Height} 最小边距={margin} N={entryN}");
+            Check("过接缝进荒野：落点所在格可走", bm.Walkable(sp), $"落点=({sp.x},{sp.y})");
+            Check("过接缝进荒野：落点仍在回城口那条土路上（原版「西门进、站土路」语义）",
+                bm.Exits.Count > 0 && sp.y == bm.Exits[0].y && bm.FindPath(sp, bm.Exits[0]) != null,
+                $"回城口={bm.Exits[0]} 落点={sp}");
         }
 
         private static bool MathfApprox(float a, float b) => Math.Abs(a - b) < 1e-4f;

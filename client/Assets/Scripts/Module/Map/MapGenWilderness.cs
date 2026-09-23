@@ -72,6 +72,22 @@ namespace Diablo2.Module.Map
         /// <summary>土路半宽（格）—— 路占 `2*RoadHalfWidth+1 = 3` 格宽（原版路 2~3 格宽）。</summary>
         private const int RoadHalfWidth = 1;
 
+        /// <summary>
+        /// ★ black-why2：**进区落点距地图边界的最小格数 = 8**。
+        /// <para>出处（**实测值**，⛔ 不是拍脑袋定的）：
+        /// `.ai-tmp/test/bw_deep_bwy1.txt` 的 `corners=[-6,13..8,27]` 是在
+        /// 玩家格 = (1,20)、相机 `ortho=3.75`、`screen=1920x1080` 下**实测的可见格 AABB**
+        /// ⇒ 可见范围是玩家**左右各 7 格**（x∈[p−6, p+7]）、**上下各 7 格**。
+        /// 落点距边界 ≥ 8 格 ⇒ 进区那一刻整屏（含等距投影后的屏幕四角）都落在地图内，
+        /// **不会露出图外 Void**（修前落点 x=1 ⇒ 屏幕左上 7 列在图外 = 那块"边界笔直的黑三角"）。</para>
+        /// <para>原版语义（⛔ **不是**"把落点钳到地图正中心"）：从罗格营地东侧过桥进荒野，
+        /// 落点仍在**荒野西侧那条土路上**（`PaintRoad` 铺的「回城口 → 洞穴口」土路，`gate.y` 那一行），
+        /// 只是从"贴着西边界那一列"改成"沿土路往东走进荒野几步"。
+        /// 依据：`MapSeam.cs` 文件头引的 `libd2/.../drlg/outdoors/OutRoom.zig:271`
+        ///（野外第 0 列 = 城镇关卡最后 1 列，共享边列 ⇒ 西门就是入口方向）。</para>
+        /// </summary>
+        public const int EntryMarginCells = 8;
+
         /// <summary>散落件个数范围（原版 `LvlSub` Type=6 也是"少量随机撒"）。</summary>
         private const int ScatterMin = 3, ScatterMax = 8;
 
@@ -186,7 +202,9 @@ namespace Diablo2.Module.Map
             {
                 MapLog.Warn("MapGenWilderness: 土路上找不到 3×3 全可走的格（原版块把路掐断了？）" +
                             "⇒ 就地净空 3×3（本条属非预期分支，正常不该出现）");
-                spawn = new Vector2Int(Mathf.Min(gate.x + 2, w - 2), gateY);
+                spawn = new Vector2Int(
+                    Mathf.Clamp(gate.x + EntryMarginCells, EntryMarginCells, w - 1 - EntryMarginCells),
+                    Mathf.Clamp(gateY, EntryMarginCells, h - 1 - EntryMarginCells));
                 map.ClearAround(spawn.Value, TileKind.Road, 1);
             }
             map.SpawnPoint = spawn.Value;
@@ -656,10 +674,19 @@ namespace Diablo2.Module.Map
 
         // ── 出生点 ───────────────────────────────────────────────────────────
 
-        /// <summary>土路上第一个 3×3 全可走的格（尽量靠回城口那一侧）。</summary>
+        /// <summary>
+        /// 土路上第一个 3×3 全可走的格（**距四边界 ≥ <see cref="EntryMarginCells"/> 格**，仍尽量靠回城口那一侧）。
+        /// <para>★ black-why2：修前从 `gate.x + 1`（= 1，紧贴西边界那列）起扫 ⇒ 落点恒为 (1, gateY)，
+        /// 进区那一刻屏幕左侧 7 列在地图外（等距投影下表现为**左上那块笔直的黑三角**）。
+        /// 现在从 `max(gate.x + 1, EntryMarginCells)` 起扫 ⇒ 落点仍是「西门进来、站在土路上」，
+        /// 但已沿土路往东走进荒野，整屏都在图内。</para>
+        /// </summary>
         private static Vector2Int? PickSpawn(GridMap map, Vector2Int gate)
         {
-            for (var x = Mathf.Min(gate.x + 1, map.Width - 1); x < map.Width; x++)
+            var minX = Mathf.Max(gate.x + 1, EntryMarginCells);
+            var maxX = map.Width - 1 - EntryMarginCells;
+            if (maxX < minX) maxX = minX;
+            for (var x = minX; x <= maxX; x++)
             {
                 var g = new Vector2Int(x, gate.y);
                 if (map.IsSpawnClear(g, 1)) return g;
