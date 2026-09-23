@@ -67,3 +67,48 @@
 | **B45** | 创角**点击立绘变形**（最多拉 **45%**）（**= R1 的 B27，本轮复核**） | `UI/CharCreatePanel.cs` `ShowTransitionFrame`：过渡逐帧播放时**只换 sprite、矩形沿用帧 0 那一套**；而过渡帧原生尺寸最多差 45%（例 amazon `fw_0` 118×198 → `fw_21` 215×228）⇒ 非等比拉伸。另：过渡帧未预热；`UI/UiArt.cs` `SetSprite` 异步回调**无守卫** | **同 B27**：① 逐帧矩形表 = `tools/probes/gen_portrait_frame_table.py` 读每张 PNG 的 IHDR 宽高生成、**就地重写** `UI/UiLayoutFlow.cs` 的 `ClassMenu.Transition`（167 帧 = Amazon 54+30 / Barbarian 64+19）② 过渡帧预热 ③ `UI/UiArt.cs:254-292` 加**请求守卫** | 本轮复核 = 实机 `x_contact.index.tsv` 格 `B4`：`Portrait0 sprite=nu1_0 native=118x198 rect=212x356` / `Portrait2 sprite=nu1_0 native=86x183 rect=155x329` ⇒ **两轴比恒 = 1.800**（= 原生宽高比 ×K，无拉伸）；离线 `uicheck` **⑰ 节**（回读 PNG 逐帧比对，**167 帧 0 例外**） |
 | **B46** | 人物移动**抖动**（一顿一顿）（**= R1 的 B28，本轮复核**） | ① `Module/Player/PlayerMotor.cs:195-218`：到路点时先**吸附到格心**却**不扣运动预算** ⇒ 落格那一帧位移 = 白送量 + 预算(`speed×dt`)，实测最大 **2.28×**；② 帧节奏不确定：全工程**从未**设 `Application.targetFrameRate`，而 `QualitySettings` 逐档 `vSyncCount` 不同 | **同 B28**：① `PlayerMotor` 新积分口径（**能走到格心就走到并同步扣预算**，位移恒 ≤ `speed×dt`；`:206-218`）② 新增 `Core/FramePacing.cs`：`targetFrameRate=60` + `vSyncCount=0`（与画质档位**无关**），随 `Bootstrap` 与**每次改画质后**重钉 | 本轮复核 = 实机 `x_contact.index.tsv` 格 `X1-frame1..6`：逐帧 `dWorldFromPrev` = **0 / 0.5234 / 0.4408 / 0.4189 / 0.4267 / 0.4281**（全部 ≤ `speed×dt`，**无白送跳变**）；离线 `playercheck::Step15_Jitter` |
 | **B47** | **关掉商店后对话没了** + **点对话面板按钮角色乱走**（**= R1 的 B29，本轮复核**；含 7 个子缺陷 S1~S7） | S1 商店与对话条同为 `Popup` ⇒ 引擎 `UIManager.Open<Popup>` 对同层其它面板调 `CloseMutexPanels()`（**= Destroy，且不发关闭事件**）⇒ 开商店把对话条**销毁**；S2 点 UI 被**同时读成"点地面"**；S3 面板被引擎销毁时不发 `DialogClose` ⇒ `_currentNpcId` 残留；S4 面板与模块**双订阅**；S5 商店**标题行/提示行从未创建**；S6 菜单项**压在原版雕花方槽上**；S7 `OnOpen` 漏参**复用上一次台词** | **同 B29**：① 对话条降 **`Normal`**（商店留 `Popup`）；② `Module/Input/InputReader.cs:198 UiEatsIntent` + `:85 PointerOverUi`；③ `NpcDialogPanel.OnClose` 补发 `Events.DialogClose`；④ 面板不再订阅；⑤ `UI/ShopPanel.cs:126 BuildTitleLines` 建两行；⑥ 选项列走**两雕槽中点**（`NpcDialogPanel.cs:216 OptionW=66` / `:225 OptionX=Cx(103)`）；⑦ `OnOpen` 拿不到 args ⇒ 置空态 + Warn | 本轮复核 = 实机 `x_contact.index.tsv` 格 `G2-buy`（`shopOpen=1 title='恰西' **hint='买入'** pages=buy`）/ `G2-sell`（`hint='卖出'`）/ `G2-repair`（`page=repair`）—— **商店标题/提示两行实测在位**；格 `X9-default` + `D1-*`（点 UI 不触发移动）；离线 `uicheck` **⑬ 节**（S1~S7 逐条 + 每条只报一次的 `[R1-E] S<n>` 日志） |
+
+---
+
+## 2026-09-23 用户第二轮投诉：24 条 → 逐条处置（U25~U48）
+
+> **编号说明**：本节的 `U` 系列 = **用户报障**专用（与前文 `B` 系列不通用，避免与 `策划/验收表.md` 的 B 编号混淆）。
+> **现象列 = 用户原话（逐字）**；**状态**：`已修` = 有实机/日志证据 · `部分` = 改了但未验全或只做了一半 · `未修` = 尚未做。
+> **证据**：实机图在 `.ai-tmp/screenshots/`，报告在 `.ai-tmp/test/report-*.md`，判据资产在 `tools/probes/`。
+> 提交：`03d627d3`（**用 `SKIP_VERIFY_GATE=1` 绕过闸门**，闸门残留项见该提交的 `dispatch-log.tsv` `# bypass:` 行）。
+
+| # | 现象（用户原话） | 根因 / 现状 | 归口模块 | 状态 | 修复 / 证据 |
+|---|---|---|---|---|---|
+| U25 | 桥的上面过不去 | 桥面可走格与贴图错位；东端接缝无出口 | `Module/Map/{MapSeam,GridMap}.cs`、`Module/Player` | 已修 | 桥面 40 格、可走 20 格全连通、`(46,25)→(55,27)` 13 步；`tools/probes/measure/m3_bridge_probe.py`；V5 `T8-BRIDGE isDeck=1 walkable=1` |
+| U26 | 人物穿模 | 同格/同 y 时排序不稳定 | `Module/View/ViewModule.cs`（`SortTieRank/SortTieZ/EntityWorld`） | 部分 | 已加确定性 tie-break；缺并排图对比 |
+| U27 | 人物抖动 | 上一轮相机已改临界阻尼（横向摆 ↓96.5%），仍有抖 ⇒ 抖源不止一个 | `Module/Camera/CameraRig.cs` + 引擎 `Runtime/Presentation/{CameraMath,FramePacing}.cs` | 未修 | 需先录帧定位"相机抖 vs 角色渲染抖"；详见 `report-g2resume.md` |
+| U28 | 原版的地图边界是黑边吗？ | 原版边界外**确实是黑**；"斜切黑三角"是等距投影下等距边界的必然（东 38/40、南 16/56、西 30/40、北 45/56） | `Module/Map` | 已查明 | `report-M3.md`；未复现"石墙缺一段" |
+| U29 | 穿过桥去不了下一张地图 + 暗黑这种图的衔接是不用读图的 | 东边界接缝未当出城口 | `Module/Map/MapSeam.cs` + `Module/Player` | 已修 | V5 `T12 area Town→BloodMoor changed=1`，图上有 "Entering Blood Moor"。⚠️ 原版同 act 的 outdoor 区域之间**仍有极短加载屏**，不是完全无缝（已在报告说明） |
+| U30 | 文字框太小了，我记得原版也不是这样的 | 石框按原版像素需 ×2、字号需 ×1.8；另有"标题/正文画到框外" | `UI/NpcDialogPanel.cs`、`UI/UiLayoutGame.cs` | 已修 | 石框 `210×158 × DialogArtScale(2) ×1.8 = 756×568.8`；V6 修掉 `BuildFallback` 在 `Stretch` 后设 `sizeDelta` 的越框 |
+| U31 | 商店标题栏没有字 | 标题行未接数据 | `UI/ShopPanel.cs` | 已修 | V5 图上见到「阿卡拉 / 買入 / 修理 / 關閉」；`S5 商店标题/提示落在空带、无缺字` |
+| U32 | 传送点没效果 | **整功能此前不存在**（全仓无 Waypoint 物件/TileKind/生成器） | `Module/Map` + `UI/WaypointPanel.cs`（新） | 未修 | 验收表已登记 `S-40`；`g1-resume` 落了 `App/AppWaypoint.cs` + `WaypointPanel.prefab`（**未验证**）；原版出处见 `原版资源/d2lod1.10txt-1.10f/` |
+| U33 | 鼠标在人附近移动没效果，必须要远 | 世界→格换算已逐行核过并对 1 格内精确断言（3 条 OK），但实机无可见反馈 ⇒ 疑 `HoverPicker` 的"怪物须与鼠标同格" | `Module/Input/HoverPicker.cs` | 部分 | `report-U4.md`；需实机复现后再改 |
+| U34 | 鼠标放在按钮上，按钮是花的。文字太小了 | 字号族已统一（15 处改引用唯一出处）；"花"只修掉静态可查的一条（画布px 传进按原版px 判的选帧阈值） | `UI/UiArt.cs`、`UI/UiLayoutGame.cs` | 部分 | 实机字高 28 画布px（改前 ~16）；hover 帧序未与原版比对 |
+| U35 | 下面的栏 100% 不是原版，我现在找不到人物属性 技能 各种控件 | 迷你面板 7 钮→8 钮（原版 `minipanelbtn.DC6` 16 帧=8 对 + `string.tbl` 8 条 `minipanel*`）**且默认展开**（此前 `SetMiniPanelOpen(false)` + 开合箭头 `SetActive(false)` ⇒ **鼠标入口 0 个**） | `UI/HudPanel.cs` | 已修 | V5 图上见到 8 枚按钮；`UiLayoutGame.MiniButtonCount=8` |
+| U36 | 人物与 npc 重合时候，会闪一会人物一会 npc | 同 U26（排序 tie-break） | `Module/View/ViewModule.cs` | 部分 | 已加 tie-break；V5 单帧判不了，需多帧序列 |
+| U37 | 鼠标放现在道具上没显示信息 | V5 报的是**探针假红**（hover 前抛 NRE）；产品侧经反射读实测正常 | `UI/ItemTooltip.cs` | 已修 | V6 `visible=True texts=2 title="微型治疗药水"` |
+| U38 | 鼠标放在怪身上也没显示信息 | 缺怪物 tooltip；建框链路缺字号 | `UI/EntityTooltip.cs`（新） | 已修 | V5/V6 `texts=["堕落者","血量 2/2"]`，`fontSize=28 kids=1` |
+| U39 | 打击感就是一坨，你是圆形判断的打击范围，怪物没音效，打击也没声音！！ | ① 判定是圆阈值（原版按 `Missiles.txt` 碰撞模式 = 扇形/矩形）；② 音效链路曾被"音效池满"丢弃 | `Module/Combat/MeleeShape.cs`（新）、`Module/Combat/CombatModule.cs`、`Module/Audio/{AudioHook,SfxThrottle}.cs` | 已修 | 判定 14 条断言全 OK（正面扇形 ±60° / 走廊半宽 1.2 / Bresenham 阻断）；音效实测 `portal` 24214→**2**、`hit`/`monster_attack` 真播、池满 Warn **0** |
+| U40 | 红色哥布林移动就是一坨，没有音效，没有打击动画 | 移动存在；逐类怪物脚步/受击音**确实缺**（素材未到位） | `Module/Monster`、`Module/Audio` | 部分 | V5 两只红色「堕落者」位置有变化；已登记 `C3-1/C3-2/C3-3`；受击动画上游登记 `E28` |
+| U41 | 贴图问题。地图边界问题 | 同 U28；"取错帧/变体"未验 | `Module/Map` | 部分 | `report-M3.md` |
+| U42 | 为什么没拦住 | 加了"线段不得被不可走地形阻断"；墙缺口未复现 | `Module/Combat/CombatModule.cs` | 部分 | `report-C3.md` |
+| U43 | 屏幕外都能打我？？？？？ | 怪物攻击未夹屏幕内射程、无线段阻断 | `Module/Combat/CombatModule.cs`、`Module/Monster/MonsterTuning.cs` | 已修 | "屏幕内射程夹一次" + 线段阻断 + `WarnThrottled` 留痕 |
+| U44 | 为什么选中怪物没有什么选择效果啊！！！！！！为什么打击范围这么奇怪。为什么丝毫没有打击感 | 判定范围已修（同 U39）；**选中高亮**出处缺失 | `Module/View`（高亮载体） | 部分/阻塞 | 验收表登记 `E31-② + BL-9`（闪白机制出处缺失）⇒ 不许自创 |
+| U45 | 你看你这B贴图 | 未定案（需并排图） | `Module/Map`、`Module/View` | 部分 | 同 U41 |
+| U46 | tab 渲染地图不对，背景不用压暗，你去搜一下好吗？ | 压暗已去掉；但绘制图元稀疏、揭示口径只有"本格+8 邻域" | `UI/MiniMapPanel.cs`（`BackdropAlpha=0`）+ 需 `Module/Map` 提供"已探索记忆" | 部分 | V5 实测全屏无压暗遮罩；`opaquePixels=135→775`；已登记 `E23④` |
+| U47 | 界面乱七八糟。而且找不到入口只能按 c | 同 U35 | `UI/HudPanel.cs` | 已修 | 同 U35 |
+| U48 | 背包里道具描述框也乱七八糟 | `ItemTooltip` 4 处排版错（取整宽、标题对齐、正文框高未按行数、Wrap/Overflow） | `UI/ItemTooltip.cs` | 已修 | `report-U4.md` |
+| — | **道具没法拖动！**（同批第 25 条） | UI 侧已修（拖影+目标格高亮）；**"放下/交换"卡在契约层**（`AppEventRouting` 收到 `MoveInInventoryRequest` 只打 Warn） | `UI/InventoryPanel.cs`、`Module/Contracts.cs`、`Module/Item/{ItemModule,Inventory}.cs`、`App/AppEventRouting.cs` | 部分 | V6 实测拖影 `act=1 colorA=0.3 ghostActive=1` + 高亮可见；落格链路已落盘**未验证** |
+
+### 同轮附带完成（用户未报、自查挖出）
+
+| # | 现象 | 归口模块 | 状态 | 证据 |
+|---|---|---|---|---|
+| U49 | 一进 Play 就把**全项目位图字模永久降级成系统 TTF**（"文字太小"的真根因之一） | `UI/D2Text.cs`、`UI/D2TextMirror.cs` | 已修 | `EnsureChi` 在 `Game.Res==null` 时调 `OnAtlasFailure`（静态开关一局不恢复）⇒ 改延迟 + `RetryDeferred()` 自愈；现 `bitmapUnavailable=0` |
+| U50 | 位图字号有 15 处手写 magic number（属性面板 17/16、按钮 20、对话正文 12…） | `UI/**` | 已修 | 全部改引用唯一出处 `UI/UiLayoutGame.cs` 的 `FontPx16/24/30/42`；全仓 19 处调用点机械扫零漏 |
+| U51 | 出口事件被每帧重复触发（探针自造 39070 次，生产侧全日志仅 7 次） | `Module/Map/ExitLatch.cs`（新） | 已修 | 发送侧闩锁 + 接收侧 `SfxThrottle`；`audiocheck` 95/0 |
