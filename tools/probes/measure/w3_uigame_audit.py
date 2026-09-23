@@ -165,7 +165,7 @@ class V(object):
         return V(self.x - a, self.y - b)
 
 
-DECL_RX = re.compile(r"([A-Za-z_]\w*)\s*=\s*([^;]+);")
+DECL_RX = re.compile(r"([A-Za-z_]\w*)\s*=(?![=>])\s*([^;{}]+);")
 CLASS_RX = re.compile(r"\b(?:class|struct)\s+([A-Za-z_]\w*)")
 FNS = {}
 
