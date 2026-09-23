@@ -27,6 +27,9 @@ internal static class MapCheckProgram
 {
     private static int _failures;
 
+    /// <summary>fail-to-pass 复现项（已确诊、待在**产品代码**里修的缺陷）。⛔ 不计入 `_failures`。</summary>
+    private static int _defects;
+
     private static void Main()
     {
         Console.WriteLine("================ MapCheck 开始 ================");
@@ -74,9 +77,13 @@ internal static class MapCheckProgram
         // ── ★ 片 chunk-hole2（2026-09-23：血沼泽「大片黑底」）只加断言，⛔ 不动既有步骤 ────
         Run(Step27_PlannedChunksEqualVisibleRange);
         Run(Step28_ChunkHoleSelfHeal);
+        // ── ★ 片 black-why（2026-09-23：chunk-ctl 已证伪「缺块」，改查「块建完屏仍黑」）
+        //    只加断言，⛔ 不动既有步骤、⛔ 不放宽任何既有断言 ────────────────────────
+        Run(Step29_CameraClampMapEdge);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
+        Console.WriteLine($"================ 待修缺陷复现项（DEFECT-REPRO，**不计入 FAIL**）：{_defects} ================");
         if (_failures != 0) Environment.ExitCode = 1;
     }
 
@@ -3910,10 +3917,171 @@ internal static class MapCheckProgram
             "不分块区（营地 56×40 = 2240 ≤ 4096，chunked=false）：全图建块集（4×3 块）覆盖任意可见范围 ⇒ 判完整");
     }
 
+    /// <summary>
+    /// 29. ★ 片 black-why（2026-09-23，血沼泽「块都建完了、屏还是黑的」）：根因不在建块链，
+    /// 而在**相机边界钳制的坐标系**。
+    /// <para>实测锚点（L2/L3，`.ai-tmp/test/bw_deep_bwy1.txt` 第 6/8 行 T1 读数）：
+    /// `map=80x80 area=1 chunkMin/Max=(0,0)-(1,2) MISSING=0 job=null`（⇒ 不是缺块），
+    /// `ground SR tot=1536 act=1536 en=1536 sprite=1536`（⇒ 不是失活 / 不是丢 sprite），
+    /// `cam=(-19.0,-11.0,-10.0) ortho=3.75 screen=1920x1080 player=(1,20)`，
+    /// 4x4 屏幕分格的地砖计数 `bAny=[5,4,6,5, 2,6,8,6, 0,1,7,6, 0,0,1,5]`
+    /// ⇒ **屏幕左上 3 格一个地砖节点都没有**，而其余格有。</para>
+    /// <para>为什么必然这样：`CameraRig.MapWorldBounds`（CameraRig.cs:521-531）取的是等距**菱形**
+    /// 四角的**世界 AABB**（158 × 79.5 世界单位），`ClampFocus` 只把焦点夹进「AABB − 半屏」。
+    /// 相机视口是**矩形**、地图占的是**菱形** ⇒ AABB 边/角附近整片矩形视野落在菱形之外，
+    /// 而夹制判不出来 ⇒ 玩家贴地图西边界（player.x=1）时近半个屏幕是地图外虚空（纯黑，
+    /// 与墙线严格平行）——这正是 chunk-ctl 测到的「MISSING=0 却连续黑区」。</para>
+    /// <para>本步只做**离线几何**断言：① 生产等距常数与 `GameConst` 同源；② AABB 夹制区域
+    /// **确实放行**当前机位；③ 该机位的可见矩形里地图外占比 ≈ 1/2；④ 格空间夹制（规格）
+    /// 能把占比压到 0。②③ 是 fail-to-pass（`Defect`，不计入 FAIL），修好 `CameraRig` 后应改回 `Check`。</para>
+    /// </summary>
+    private static void Step29_CameraClampMapEdge()
+    {
+        Section("29. ★ black-why：相机钳制用世界 AABB ⇒ 地图外虚空可见（血沼泽黑窗根因）");
+
+        // ① 等距常数：生产值现算（HalfTilePx / PixelsPerUnit），⛔ 不写裸数字
+        Console.WriteLine($"  Iso.HalfW/HalfH = ({Iso.HalfW}, {Iso.HalfH})  ← GameConst.IsoTilePxW/H={GameConst.IsoTilePxW}/{GameConst.IsoTilePxH}, PPU={GameConst.PixelsPerUnit}");
+        Check(Iso.HalfW == GameConst.IsoHalfW && Iso.HalfH == GameConst.IsoHalfH && Iso.HalfH * 2f == Iso.HalfW,
+            "等距半格 = 生产常量（宽 : 高 = 2 : 1）");
+
+        const int mw = 80, mh = 80;                  // bw_deep_bwy1.txt: map=80x80 area=1
+        const float ortho = 3.75f;                   // 实测 ortho size
+        const float aspect = 1920f / 1080f;          // 实测 screen=1920x1080
+        var camObs = new Vector3(-19f, -11f, -10f);   // 实测 cam=(-19.0,-11.0,-10.0)
+
+        // ② 生产 MapWorldBounds 的四个输入（Iso.GridToWorld，与 CameraRig.cs:523-526 逐字同源）
+        var p00 = Iso.GridToWorld(0, 0);
+        var p10 = Iso.GridToWorld(mw - 1, 0);
+        var p01 = Iso.GridToWorld(0, mh - 1);
+        var p11 = Iso.GridToWorld(mw - 1, mh - 1);
+        var min = new Vector2(Mathf.Min(Mathf.Min(p00.x, p10.x), Mathf.Min(p01.x, p11.x)),
+                              Mathf.Min(Mathf.Min(p00.y, p10.y), Mathf.Min(p01.y, p11.y)));
+        var max = new Vector2(Mathf.Max(Mathf.Max(p00.x, p10.x), Mathf.Max(p01.x, p11.x)),
+                              Mathf.Max(Mathf.Max(p00.y, p10.y), Mathf.Max(p01.y, p11.y)));
+        var halfW = ortho * aspect;
+        var halfH = ortho;
+        Console.WriteLine($"  地图世界 AABB（菱形四角取 min/max）= ({min.x:0.#},{min.y:0.#})..({max.x:0.#},{max.y:0.#})" +
+                          $"  尺寸 {max.x - min.x:0.#} x {max.y - min.y:0.#}（= {2 * (mw - 1) * Iso.HalfW:0.#} x {(mh - 1) * 2 * Iso.HalfH + Iso.HalfH * 0:0.#}）");
+        Check(Mathf.Abs((max.x - min.x) - 2f * (mw - 1) * Iso.HalfW) < 0.01f &&
+              Mathf.Abs((max.y - min.y) - (mh - 1) * 2f * Iso.HalfH) < 0.01f,
+            "AABB 尺寸 = 菱形对角线投影（宽 2(W-1)·HalfW / 高 (H-1)·2·HalfH）");
+
+        // ③ 屏幕矩形 → 地图外占比（用生产 Iso.WorldToGridContinuous 现算，不抄任何数字）
+        var fracObs = OffMapFraction(camObs, halfW, halfH, mw, mh);
+        Console.WriteLine($"  实测机位 {camObs} 的可见矩形里『地图外』占比 = {fracObs * 100f:0.#}%");
+
+        // ④ 生产 ClampFocus 的放行区间（CameraRig.cs:484-495 的实现，⛔ 6 行镜像，出处见注释）
+        var spanTooWide = (max.x - min.x) > halfW * 2f;
+        var loX = spanTooWide ? min.x + halfW : (min.x + max.x) * 0.5f;
+        var hiX = spanTooWide ? max.x - halfW : loX;
+        var spanTooHigh = (max.y - min.y) > halfH * 2f;
+        var loY = spanTooHigh ? min.y + halfH : (min.y + max.y) * 0.5f;
+        var hiY = spanTooHigh ? max.y - halfH : loY;
+        var insideAabb = camObs.x >= loX && camObs.x <= hiX && camObs.y >= loY && camObs.y <= hiY;
+        Defect(insideAabb && fracObs > 0.35f,
+            $"生产 AABB 夹制**放行**该机位（焦点 {camObs.x:0.#}/{camObs.y:0.#} 在 [{loX:0.#},{hiX:0.#}]×[{loY:0.#},{hiY:0.#}] 内）" +
+            $" ⇒ 夹制后仍有 {fracObs * 100f:0.#}% 屏幕是地图外虚空（chunk-ctl 观测的『MISSING=0 却连续黑区』）");
+
+        // ⑤ 规格：改成**格空间**夹制（可见格范围 ⊆ 地图），同一机位下占比必须归 0
+        var spec = GridSpaceClamp(camObs, halfW, halfH, mw, mh);
+        var fracSpec = OffMapFraction(spec, halfW, halfH, mw, mh);
+        Console.WriteLine($"  格空间夹制（规格）后机位 = ({spec.x:0.##},{spec.y:0.##})，同口径地图外占比 = {fracSpec * 100f:0.#}%");
+        Check(fracSpec == 0f, "★ 规格：格空间夹制后可见格范围 ⊆ 地图（地图外占比 = 0）");
+        Defect(Mathf.Abs(spec.x - camObs.x) > 0.01f || Mathf.Abs(spec.y - camObs.y) > 0.01f,
+            $"规格 vs 现状：同一落点下格空间夹制必须移动机位（现状 Δ=({spec.x - camObs.x:0.##},{spec.y - camObs.y:0.##})）" +
+            " ⇒ 修 `CameraRig.MapWorldBounds/ClampFocus`（⛔ 不是 `MapView`）");
+
+        // ⑥ 中间地带反证：玩家在图心（格 40,40）时两种夹制都不该露虚空
+        var mid = Iso.GridToWorld(40, 40);
+        var midCam = new Vector3(mid.x, mid.y, -10f);
+        Check(OffMapFraction(midCam, halfW, halfH, mw, mh) == 0f, "图心机位（格 40,40）可见矩形全部在图内（对照组，两种夹制等价）");
+        Console.WriteLine();
+    }
+
+    /// <summary>视口矩形内「落在 [0,W-1]×[0,H-1] 之外」的面积占比（生产 `Iso.WorldToGridContinuous` 现算）。</summary>
+    private static float OffMapFraction(Vector3 cam, float halfW, float halfH, int mw, int mh)
+    {
+        const int n = 160;
+        var off = 0;
+        var tot = 0;
+        for (var i = 0; i < n; i++)
+        {
+            for (var j = 0; j < n; j++)
+            {
+                var wx = cam.x - halfW + 2f * halfW * (i / (float)(n - 1));
+                var wy = cam.y - halfH + 2f * halfH * (j / (float)(n - 1));
+                var g = Iso.WorldToGridContinuous(new Vector3(wx, wy, 0f));
+                tot++;
+                const float eps = 1e-3f;   // 夹制会正好落在边界上，浮点误差不能算「露到图外」
+                if (g.x < -eps || g.y < -eps || g.x > mw - 1 + eps || g.y > mh - 1 + eps) off++;
+            }
+        }
+        return tot == 0 ? 0f : off / (float)tot;
+    }
+
+    /// <summary>视口矩形（世界）四角 → **网格**包围盒（生产 `Iso.WorldToGridContinuous` 现算）。</summary>
+    private static void ViewGridRect(Vector2 focus, float halfW, float halfH, out Vector2 lo, out Vector2 hi)
+    {
+        var lx = float.MaxValue;
+        var ly = float.MaxValue;
+        var hx = float.MinValue;
+        var hy = float.MinValue;
+        for (var i = 0; i < 2; i++)
+        {
+            for (var j = 0; j < 2; j++)
+            {
+                var g = Iso.WorldToGridContinuous(new Vector3(
+                    focus.x + (i == 0 ? -halfW : halfW),
+                    focus.y + (j == 0 ? -halfH : halfH), 0f));
+                if (g.x < lx) lx = g.x;
+                if (g.x > hx) hx = g.x;
+                if (g.y < ly) ly = g.y;
+                if (g.y > hy) hy = g.y;
+            }
+        }
+        lo = new Vector2(lx, ly);
+        hi = new Vector2(hx, hy);
+    }
+
+    /// <summary>
+    /// **规格**（尚无生产实现）：把焦点夹到「可见**网格**矩形 ⊆ 地图」的最小位移。
+    /// 与 `CameraRig.ClampFocus` 同形，但边界取的是**格空间**而非世界 AABB。
+    /// </summary>
+    private static Vector2 GridSpaceClamp(Vector3 cam, float halfW, float halfH, int mw, int mh)
+    {
+        var shiftX = 0f;
+        var shiftY = 0f;
+        for (var pass = 0; pass < 8; pass++)
+        {
+            Vector2 lo, hi;
+            ViewGridRect(new Vector2(cam.x + shiftX, cam.y + shiftY), halfW, halfH, out lo, out hi);
+            if (lo.x < 0f || hi.x > mw - 1 || lo.y < 0f || hi.y > mh - 1)
+            {
+                // 格位移 → 世界位移（`Iso` 是线性变换 ⇒ 用两条基向量换回去）
+                var wA = Iso.GridToWorld(0, 0);
+                var wB = Iso.GridToWorld(1, 0) - wA;
+                var wC = Iso.GridToWorld(0, 1) - wA;
+                var needX = lo.x < 0f ? -lo.x : (hi.x > mw - 1 ? mw - 1 - hi.x : 0f);
+                var needY = lo.y < 0f ? -lo.y : (hi.y > mh - 1 ? mh - 1 - hi.y : 0f);
+                shiftX += wB.x * needX + wC.x * needY;
+                shiftY += wB.y * needX + wC.y * needY;
+            }
+            else break;
+        }
+        return new Vector2(cam.x + shiftX, cam.y + shiftY);
+    }
+
     private static void Check(bool ok, string what)
     {
         Console.WriteLine($"    {(ok ? "✅" : "❌")} {what}");
         if (!ok) _failures++;
+    }
+
+    /// <summary>fail-to-pass 复现项：**不计入 `_failures`**（⛔ 不把既有 PASS 判据改红），单独统计。</summary>
+    private static void Defect(bool ok, string what)
+    {
+        Console.WriteLine($"    {(ok ? "✅ DEFECT-CLEARED" : "❌ DEFECT-REPRO")} {what}");
+        if (!ok) _defects++;
     }
 
     /// <summary>单步隔离：任一步炸掉都不能吞掉后面的证据。</summary>
