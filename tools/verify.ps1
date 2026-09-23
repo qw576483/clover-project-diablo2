@@ -57,6 +57,11 @@
 #   33 baseline-images | 34 no-assets-screenshots | 35 no-team-sessions | 36 graphics-device |
 #   37 numeric-log-only | 38 scale-tier | 39 impact-radius
 #
+# Added 2026-09-24 (gate-hardening): 40 always-true-asserts -- 0 Check() in the offline
+# hosts whose CONDITION is a hardcoded truth value.  Scanner =
+# tools/probes/scan_always_true_checks.py (character-level C# lexer + balanced parens);
+# the item block at the end of this file explains why it must never become a grep again.
+#
 # This file is ASCII-only ON PURPOSE (see reference/verify-template.md pitfall 1/2):
 # PS 5.1 parses a non-ASCII .ps1 without BOM as ANSI -> Chinese -match silently fails.
 # Every non-ASCII path / word below is built from code points.
@@ -2195,6 +2200,61 @@ if (-not (Test-Path $irPath)) {
                Where-Object { ($_ -split "`t").Count -lt 3 })
     if ($irBad.Count -eq 0) { Say 'PASS' 'impact-radius' 'every row lists dim / cause chain / affected rows' }
     else { Say 'FAIL' 'impact-radius' ($irBad.Count.ToString() + ' row(s) missing columns (dim / cause chain / affected rows)') }
+}
+
+# -----------------------------------------------------------------------------
+# 40 always-true-asserts -- zero Check(...) in the offline hosts whose CONDITION is a
+#    hardcoded truth value.  `Check(x, true, ...)` prints [ OK ] no matter what the
+#    program did: it is a judge that cannot fail (SKILL 4 item 10 / 8.3 "a prompt is a
+#    request, a gate is a guarantee"), and it silently inflates the pass count.
+#
+#    WHY THE SCANNER MUST STAY A LEXER, NOT A GREP -- two measured facts:
+#      (a) a single-line regex `Check\([^;]*,\s*true\s*,` missed 6 of 16 hits, because
+#          a real call can be split over lines:
+#              Check(
+#                  "what",
+#                  true,
+#                  "detail");
+#          the 6 were combatcheck:1104 and fullcheck:510/1229 and savecheck:313/349/762;
+#      (b) the earlier bracket-balancing PS scanner SILENTLY TRUNCATED files:
+#          it counted 112 of 270 calls in hosts/mapcheck/Program.cs and 46 of 262 in
+#          hosts/uicheck/Program.cs, then still printed a confident total.  Cause = C#
+#          interpolated strings that nest a string literal inside a hole, e.g.
+#              $"measured {CountIn(body, "EnsurePool().Take(")} / ..."
+#          its lexer ended the string at the inner quote, desynced, and a later paren
+#          scan jumped far ahead and swallowed the rest of the file.
+#    A truncated scan is invisible; that is the exact failure mode this item guards.
+#    So tools/probes/scan_always_true_checks.py models `{...}` holes (ICODE frames,
+#    nested strings, nested interpolations, verbatim $@" and {{ }}).  Never replace it
+#    with a regex/grep -- the grep IS the bug this item exists to catch.
+# -----------------------------------------------------------------------------
+$ataScript = Join-Path $root 'tools\probes\scan_always_true_checks.py'
+if (-not (Test-Path $ataScript)) {
+    Say 'FAIL' 'always-true-asserts' ('scanner missing: ' + $ataScript + ' -- the item cannot run, so no PASS is claimed')
+} elseif ($py -eq $null) {
+    Say 'HUMAN-ONLY' 'always-true-asserts' 'python not on PATH -- the scan could not run (never a PASS)'
+} else {
+    Push-Location $root
+    $ataOut = & python $ataScript 2>&1 | Out-String
+    $ataCode = $LASTEXITCODE
+    Pop-Location
+    $ataHit = [regex]::Match($ataOut, '(?m)^ALWAYS_TRUE_HITS=(\d+)')
+    $ataInv = [regex]::Match($ataOut, '(?m)^CHECK_INVOCATIONS=(\d+)')
+    $ataFiles = [regex]::Match($ataOut, '(?m)^CHECK_FILES=(\d+)')
+    if ((-not $ataHit.Success) -or (-not $ataInv.Success) -or (-not $ataFiles.Success)) {
+        Say 'FAIL' 'always-true-asserts' ('the scanner printed no count line (exit ' + $ataCode + ') -- harness defect, never a PASS')
+        @(($ataOut -split "`r?`n") | Select-Object -First 4) | ForEach-Object { Write-Output ('            ' + $_) }
+    } else {
+        $nHit = [int]$ataHit.Groups[1].Value
+        $nInv = [int]$ataInv.Groups[1].Value
+        $nAtaFiles = $ataFiles.Groups[1].Value
+        if ($nHit -eq 0) {
+            Say 'PASS' 'always-true-asserts' ('0 hit(s) of hardcoded-true / skipped-but-counted Check() out of ' + $nInv + ' invocation(s) in ' + $nAtaFiles + ' file(s) -- character lexer + balanced parens, NOT a grep')
+        } else {
+            Say 'FAIL' 'always-true-asserts' ($nHit.ToString() + ' always-green Check() out of ' + $nInv + ' invocation(s) -- a judge that cannot fail (SKILL 8.3)')
+            @(($ataOut -split "`r?`n") | Where-Object { $_ -match '^HIT' } | Select-Object -First 12) | ForEach-Object { Write-Output ('            ' + $_) }
+        }
+    }
 }
 
 Write-Output ""
