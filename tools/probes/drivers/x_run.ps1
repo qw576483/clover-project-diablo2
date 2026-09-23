@@ -305,9 +305,19 @@ if ($compileBad) {
 }
 Start-Sleep -Seconds 3
 
-Unity-Cmd @('clear_console') -Quiet | Out-Null
+# ---------------------------------------------------------------------------
+# clear_console REMOVED 2026-09-24 (fresh-final slice; ruling (b), sanctioned by the lead):
+#   a PRE-CAPTURE clear makes `console --level error` come back empty while the groundTruth
+#   latch stays set => a console-errors red nobody can read.  The ruling: do not clear before
+#   the capture; if a clear is ever wanted, do it AFTER the evidence is collected.
+#   Only this runner and u1_run.ps1 were changed; the other runners that clear were left alone.
+#   RECIPE MISMATCH (kept on purpose, do not silently drop): the DELIVERED batch
+#   (x_evidence_run1.txt + the 80 x_*.png tiles + x_contact.index.tsv, captured
+#   2026-09-24 04:32:30..04:40:33 with anchor 04:33:24) was produced by the OLD recipe, i.e.
+#   WITH this clear.  Never compare that batch line-for-line against a run of this recipe.
+# ---------------------------------------------------------------------------
 Init-Offset
-Say ('LOG-OFFSET ' + $script:offset)
+Say ('LOG-OFFSET ' + $script:offset + ' note=no-pre-capture-clear (recipe changed 2026-09-24)')
 Unity-Cmd @('editor_play') -Quiet | Out-Null
 Start-Sleep -Seconds 4
 
