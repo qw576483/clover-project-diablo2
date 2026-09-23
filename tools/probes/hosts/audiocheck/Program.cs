@@ -477,7 +477,8 @@ namespace AudioCheck
                 audio.Sfx("");
             }
             catch (Exception ex) { emptyThrew = ex.GetType().Name + ": " + ex.Message; }
-            var emptyKeyWarns = logger.CountWarn("Audio", "收到空音效键");
+            var countingLogger = Game.Logger as CountingLogger;      // Main 里注入的就是它
+            var emptyKeyWarns = countingLogger == null ? 0 : countingLogger.CountWarn("Audio", "收到空音效键");
             Check("空载荷 / 空键不抛异常（走了 Warn 降级分支）",
                 emptyThrew == null && emptyKeyWarns >= 1,
                 emptyThrew ?? $"Warn「收到空音效键 ⇒ 忽略」条数={emptyKeyWarns}（见上方 [Audio] 日志）");

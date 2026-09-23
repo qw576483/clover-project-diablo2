@@ -223,6 +223,18 @@ namespace Diablo2.Module.Map
         private float _lastRepaintAt = float.NegativeInfinity;        // ★ R1-D：上一次重铺时刻
         private bool _repaintCoalesceLogged;                          // ★ R1-D：口径日志只报一次
         private float _nextChunkRefresh;
+
+        // ── ★ travel-black：换区时"**按落点**算重铺范围 + 建满才通知落位" ─────────────────────────
+        //   缺陷（实机逐帧量到，见 `.ai-tmp/screenshots/travelblack_tb1.log`）：`AppFlow.EnterArea` 的顺序是
+        //   `Generate` → `ShowArea` → **然后**才挪玩家/相机 ⇒ `StartRebuild` 那一刻相机还停在**旧区**，
+        //   按它算出来的块范围与落地画面无关（实测旧区 (32,27) 算出 16 块，落地后屏上要的是另 9 块）；
+        //   建满一帧切换 ⇒ **交换本身**把屏上地砖撤光 = 落地整屏黑（≈1.84 s，直到第二次重铺才补回来）。
+        //   修法 = ① 换区那次重铺的可见范围改按**落点**（= 出生点，玩家即将站的地方）算；
+        //          ② 交换**之前**再对一次账（不完整就继续建，见 `ExtendJobToPlanRange`）；
+        //          ③ 建满交换后发 `Events.MapAreaReady` ⇒ Flow 才挪玩家/相机（那一帧渲染出来就是完整新图）。
+        private bool _hasLandingFocus;          // 本次重铺是否按落点算范围（换区置位，发完 AreaReady 清掉）
+        private Vector2Int _landingFocus;       // 落点（出生格）
+        private bool _areaReadyOwed;            // 欠一次 `Events.MapAreaReady`（换区置位，交换时发掉）
         private bool _hasChunkRange;
         private Vector2Int _chunkMin;
         private Vector2Int _chunkMax;
@@ -411,6 +423,18 @@ namespace Diablo2.Module.Map
                 _exploredCount = 0;
             }
 
+            if (areaChanged)
+            {
+                // ★ travel-black：换区这次整图重铺的可见范围**按落点算**（此刻相机还停在旧区 ——
+                //   `AppFlow.EnterArea` 是先 `ShowArea` 再挪玩家/相机；按相机算出来的范围与落地画面无关），
+                //   并欠一次 `Events.MapAreaReady`（建满交换那一帧才发，Flow 收到才挪玩家/相机）。
+                _landingFocus = _map.SpawnPoint;
+                _hasLandingFocus = true;
+                _areaReadyOwed = true;
+                MapLog.Info($"[travel-black] 换区重铺：可见范围改按**落点** {_landingFocus} 算" +
+                            "（相机此刻仍在旧区；建满交换后才发 Events.MapAreaReady）");
+            }
+
             RebuildLayers();
             MapLog.Info($"MapView.ShowArea: area={area}({MapLog.AreaLabel(area)}) size={_map.Width}x{_map.Height} " +
                         $"分块={(_chunked ? "是" : "否")} 迷雾={(_fogOn ? "开" : "关")} 块数={BuiltChunkCount}");
@@ -483,6 +507,8 @@ namespace Diablo2.Module.Map
             _showing = false;
             _chunked = false;
             _hasChunkRange = false;
+            _hasLandingFocus = false;                    // ★ travel-black：退场时落点口径一并作废
+            _areaReadyOwed = false;
             _repaintRequested = false;
             _repaintFirstAt = -1f;                       // ★ R1-D：清掉待重铺时刻（否则旧时刻会立刻触发）
             _lastRepaintAt = float.NegativeInfinity;     // （`_repaintCoalesceLogged` 不复位：口径日志一局只报一次）
@@ -596,7 +622,7 @@ namespace Diablo2.Module.Map
             _fogTiles = _fogOn ? new SpriteRenderer[_map.Width, _map.Height] : null;
             _chunked = _map.Width * _map.Height > BuildAllTileThreshold;
 
-            ComputeVisibleChunkRange(out var min, out var max);
+            ComputeRebuildRange(out var min, out var max);      // ★ travel-black：换区时按**落点**算
             var buildX0 = Mathf.Max(0, min.x);
             var buildY0 = Mathf.Max(0, min.y);
             _chunkMin = new Vector2Int(buildX0, buildY0);
@@ -654,7 +680,7 @@ namespace Diablo2.Module.Map
             _fogTiles = _fogOn ? new SpriteRenderer[_map.Width, _map.Height] : null;
             _chunked = _map.Width * _map.Height > BuildAllTileThreshold;
 
-            ComputeVisibleChunkRange(out var min, out var max);
+            ComputeRebuildRange(out var min, out var max);      // ★ travel-black：换区时按**落点**算
             var buildX0 = Mathf.Max(0, min.x);
             var buildY0 = Mathf.Max(0, min.y);
             _chunkMin = new Vector2Int(buildX0, buildY0);
@@ -673,6 +699,7 @@ namespace Diablo2.Module.Map
             _rebuildFramesLast = 1;
             LogPacingOnce("整图重铺(保底)");
             ReportFlatWallOverlaySkips();
+            NotifyAreaReadyIfOwed("整图重铺(保底，一帧铺完)");
         }
 
         /// <summary>
@@ -747,6 +774,9 @@ namespace Diablo2.Module.Map
 
             /// <summary>任务开始时的池计数（用来算"这次重铺新建/复用了多少"）。</summary>
             public int CreatedBefore, ReusedBefore;
+
+            /// <summary>★ travel-black：交换前对账追加过几轮（见 <see cref="ExtendJobToPlanRange"/>，上限 4）。</summary>
+            public int Extends;
         }
 
         /// <summary>
@@ -914,7 +944,13 @@ namespace Diablo2.Module.Map
             if (used > _rebuildPeakNodesPerFrame) _rebuildPeakNodesPerFrame = used;
             if (cells > _rebuildPeakCellsPerFrame) _rebuildPeakCellsPerFrame = cells;
 
-            if (job.ChunkIndex >= job.Chunks.Count) SwapToBuilt(job);   // 建满 ⇒ 同一帧切换
+            if (job.ChunkIndex >= job.Chunks.Count)
+            {
+                // ★ travel-black：交换**之前**再对一次账 —— 交换那一帧屏上必须是"完整的（新）图"。
+                //   不完整（相机在重铺期间动过 / 落点范围与登记范围不一致）⇒ 把缺块追加进本次清单、
+                //   继续建（下一帧），⛔ 不在这时候交换（否则交换本身就把屏上地砖撤光 = 落地黑）。
+                if (!ExtendJobToPlanRange(job)) SwapToBuilt(job);       // 建满 ⇒ 同一帧切换
+            }
         }
 
         /// <summary>★ T0FIX-H：在**缓冲集**里建一块的三层块根（建出来即失活 ⇒ 切换前绝不可见）。</summary>
@@ -1022,6 +1058,7 @@ namespace Diablo2.Module.Map
 
             LogPacingOnce("整图重铺");
             ReportFlatWallOverlaySkips();     // R1-B：只报一次的数值证据
+            NotifyAreaReadyIfOwed("分帧双缓冲交换");   // ★ travel-black：换区那次 ⇒ Flow 此刻才挪玩家/相机
             MapLog.Info($"[T0FIX-H] 整图重铺完成并**一帧切换**：{job.Frames} 帧 / 块 {job.Chunks.Count} / " +
                         $"建节点 {job.NodesBuilt}（单帧峰值 {job.PeakNodesInFrame}/{MaxTileNodesPerFrame}，" +
                         $"扫描峰值 {job.PeakCellsInFrame}/{MaxTileCellsPerFrame}）/ " +
@@ -1235,6 +1272,168 @@ namespace Diablo2.Module.Map
                                  Mathf.Clamp(minY / ChunkSize - 1, 0, chunksY - 1));
             max = new Vector2Int(Mathf.Clamp(maxX / ChunkSize + 1, 0, chunksX - 1),
                                  Mathf.Clamp(maxY / ChunkSize + 1, 0, chunksY - 1));
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ travel-black：换区重铺的**落点范围** + 交换前的完整性对账
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// ★ travel-black **纯函数**（离线可断言）：以 <paramref name="focusX"/>,<paramref name="focusY"/>（落点）
+        /// 为中心、用**当前视口的格半跨**（<paramref name="halfX"/>/<paramref name="halfY"/> — 由视口四角与屏幕
+        /// 中心算出的格坐标差，**平移不变**）算块范围，外扩 1 块（口径与 <see cref="ComputeVisibleChunkRange"/> 一致）。
+        /// <para>为什么需要"按落点算"：`AppFlow.EnterArea` 是 `Generate` → `ShowArea` → **然后**才挪玩家/相机
+        /// ⇒ `StartRebuild` 那一刻相机还在**旧区**，按相机算出的块范围与落地画面**无关**（实机量到：
+        /// 旧区 (32,27) 算出 16 块，而落地后屏上要的是另外 9 块）。整图重铺建的是那块错图，建满一帧切换
+        /// ⇒ **交换本身**把屏上地砖撤光 = 落地整屏黑（≈1.84 s，逐帧读数 `.ai-tmp/screenshots/travelblack_tb1.log`）。</para>
+        /// </summary>
+        public static void LandingRange(int focusX, int focusY, int halfX, int halfY, int mapW, int mapH,
+            out Vector2Int min, out Vector2Int max)
+        {
+            var chunksX = (mapW + ChunkSize - 1) / ChunkSize;
+            var chunksY = (mapH + ChunkSize - 1) / ChunkSize;
+            min = new Vector2Int(Mathf.Clamp(DivFloor(focusX - halfX, ChunkSize) - 1, 0, chunksX - 1),
+                                 Mathf.Clamp(DivFloor(focusY - halfY, ChunkSize) - 1, 0, chunksY - 1));
+            max = new Vector2Int(Mathf.Clamp(DivFloor(focusX + halfX, ChunkSize) + 1, 0, chunksX - 1),
+                                 Mathf.Clamp(DivFloor(focusY + halfY, ChunkSize) + 1, 0, chunksY - 1));
+        }
+
+        /// <summary>向下取整除法（C# 的 `/` 对负数是截断 ⇒ 视口在图的左/下边时算出来的块号会偏一格）。</summary>
+        private static int DivFloor(int v, int d)
+        {
+            return v >= 0 ? v / d : -(((-v) + d - 1) / d);
+        }
+
+        /// <summary>
+        /// 当前视口的**格半跨**（四角与屏幕中心的格坐标差的最大值；正交相机 ⇒ 与相机在哪无关，只与视口大小有关）。
+        /// 返回 false = 拿不到相机（那时退回按相机算，并 Warn）。
+        /// </summary>
+        private bool ViewHalfExtentCells(out int halfX, out int halfY)
+        {
+            halfX = 0;
+            halfY = 0;
+            var cam = ViewCamera != null ? ViewCamera : Camera.main;
+            if (cam == null) return false;
+            var c = Iso.ScreenToGrid(cam, new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0f));
+            var minX = int.MaxValue; var minY = int.MaxValue;
+            var maxX = int.MinValue; var maxY = int.MinValue;
+            for (var i = 0; i < 4; i++)
+            {
+                var sx = (i & 1) == 0 ? 0f : Screen.width;
+                var sy = (i & 2) == 0 ? 0f : Screen.height;
+                var g = Iso.ScreenToGrid(cam, new Vector3(sx, sy, 0f));
+                minX = Mathf.Min(minX, g.x); minY = Mathf.Min(minY, g.y);
+                maxX = Mathf.Max(maxX, g.x); maxY = Mathf.Max(maxY, g.y);
+            }
+            halfX = Mathf.Max(Mathf.Abs(minX - c.x), Mathf.Abs(maxX - c.x));
+            halfY = Mathf.Max(Mathf.Abs(minY - c.y), Mathf.Abs(maxY - c.y));
+            return true;
+        }
+
+        /// <summary>
+        /// 本次重铺该建哪一片块（**唯一口径**，`StartRebuild` / `RebuildImmediate` / 交换前对账三处共用）：
+        /// 换区落位待完成时 = <see cref="LandingRange"/>（落点），否则 = `ComputeVisibleChunkRange`（相机）。
+        /// </summary>
+        private void PlanRange(out int x0, out int y0, out int x1, out int y1)
+        {
+            var min = Vector2Int.zero;
+            var max = Vector2Int.zero;
+            if (_hasLandingFocus)
+            {
+                int hx, hy;
+                if (ViewHalfExtentCells(out hx, out hy))
+                {
+                    LandingRange(_landingFocus.x, _landingFocus.y, hx, hy, _map.Width, _map.Height, out min, out max);
+                    x0 = min.x; y0 = min.y; x1 = max.x; y1 = max.y;
+                    MapLog.Info($"[travel-black] 本次重铺范围按**落点** {_landingFocus}（视口半跨 {hx}×{hy} 格）" +
+                                $"⇒ 块 ({x0},{y0})-({x1},{y1})；相机此刻在旧区，不参与算范围");
+                    return;
+                }
+                MapLog.Warn("[travel-black] 落点重铺：拿不到相机视口跨度 ⇒ 本次退回按相机算（可能建错范围）");
+            }
+            ComputeVisibleChunkRange(out min, out max);
+            x0 = Mathf.Max(0, min.x); y0 = Mathf.Max(0, min.y);
+            x1 = max.x; y1 = max.y;
+        }
+
+        /// <summary>本次整图重铺要建的块范围（<see cref="PlanRange"/> 的薄壳，两处调用点共用）。</summary>
+        private void ComputeRebuildRange(out Vector2Int min, out Vector2Int max)
+        {
+            int x0, y0, x1, y1;
+            PlanRange(out x0, out y0, out x1, out y1);
+            min = new Vector2Int(x0, y0);
+            max = new Vector2Int(x1, y1);
+        }
+
+        /// <summary>★ travel-black：交换前的对账最多追加几轮（非预期态 —— 相机每帧都在跑 —— 的兜底，⛔ 不无限拖）。</summary>
+        private const int MaxExtendPasses = 4;
+
+        /// <summary>
+        /// ★ travel-black：交换**之前**的完整性对账（纯逻辑，⛔ 不建节点、不碰画面）：
+        /// 目标范围（<see cref="PlanRange"/>）里"清单里还没有"的块追加进 <paramref name="job"/> 的清单并返回 true
+        /// ⇒ 本帧不交换、下一帧继续建。
+        /// <para>为什么必须有它：`SwapToBuilt` 是**撤掉整屏旧地砖**的那一刻。只要新集不含"交换那一帧的可见块"，
+        /// 交换本身就制造黑屏（chunk-ctl 实测的 `patched T1` 就是这一形态：`MISSING=0 / job=null` 仍黑）。
+        /// 追加的块不是"多余的图" —— 它们正是**那一帧屏幕上要看的块**。</para>
+        /// </summary>
+        private bool ExtendJobToPlanRange(RebuildJob job)
+        {
+            if (!_chunked) return false;                  // 小图 = 全图清单，恒覆盖（mapcheck §27 已穷举）
+            int x0, y0, x1, y1;
+            PlanRange(out x0, out y0, out x1, out y1);
+
+            List<Vector2Int> add = null;
+            for (var cx = x0; cx <= x1; cx++)
+            {
+                for (var cy = y0; cy <= y1; cy++)
+                {
+                    var c = new Vector2Int(cx, cy);
+                    if (job.Chunks.Contains(c)) continue;
+                    if (add == null) add = new List<Vector2Int>();
+                    add.Add(c);
+                }
+            }
+            if (add == null) return false;
+
+            if (job.Extends >= MaxExtendPasses)
+            {
+                MapLog.Warn($"[travel-black] 交换前对账已达上限 {MaxExtendPasses} 轮，仍有 {add.Count} 块不在清单里" +
+                            $"（相机在重铺期间一直在跑？）⇒ 本次**照旧交换**，缺口交由增量补块路径补齐（非预期态）");
+                return false;
+            }
+
+            job.Extends++;
+            job.Chunks.AddRange(add);
+            var next = job.Chunks[job.ChunkIndex];
+            job.CursorX = next.x * ChunkSize;
+            job.CursorY = next.y * ChunkSize;
+            MapLog.Info($"[travel-black] 交换前对账：清单缺 {add.Count} 块（第 {job.Extends}/{MaxExtendPasses} 轮）" +
+                        $"⇒ 追加进本次清单（块 {job.Chunks.Count} 个），⛔ 本帧不交换（否则交换本身制造黑屏）");
+            return true;
+        }
+
+        /// <summary>
+        /// ★ travel-black：欠着的那次"换区铺装完成"通知 —— 发一次 <see cref="Events.MapAreaReady"/>，并把
+        /// 落点范围口径收掉（此后重铺恢复按相机算）。
+        /// <para>收方 = `Module/Flow/AppFlow.cs`：它收到才挪玩家/相机/怪 + 关读条屏 ⇒ **落地那一帧**渲染出来
+        /// 的就是完整的新区域（旧区画面一直保留到这一刻）。</para>
+        /// </summary>
+        private void NotifyAreaReadyIfOwed(string why)
+        {
+            if (!_areaReadyOwed) return;
+            _areaReadyOwed = false;
+            _hasLandingFocus = false;
+            MapLog.Info($"[travel-black] 换区铺装完成并已切换（{why}）⇒ 发 {Events.MapAreaReady}，" +
+                        "AppFlow 收到才挪玩家/相机（那一帧渲染出来的就是完整新图，⛔ 中间帧不会出现空屏）");
+            try
+            {
+                if (Game.Event != null) Game.Event.Emit(Events.MapAreaReady);
+            }
+            catch (System.Exception ex)
+            {
+                MapLog.Error($"[travel-black] 发 {Events.MapAreaReady} 失败（{ex.GetType().Name}: {ex.Message}）" +
+                             "⇒ AppFlow 的落位会超时兜底（见 AppFlow.OnStageTick）");
+            }
         }
 
         /// <summary>

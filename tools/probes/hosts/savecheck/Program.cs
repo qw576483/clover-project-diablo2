@@ -310,10 +310,16 @@ namespace SaveCheck
                 stray.Count == 0,
                 stray.Count == 0 ? "0 个孤儿" : stray.Count + " 个孤儿：" + string.Join(",", stray));
 
+            // ★ 片 assert-audit：原为硬编码 `true`（只是一句结论陈述 ⇒ 不产生判据、却占"通过"计数）。
+            //   改成**真的问一次引擎 `FileSlotStore`**：它必须能认出同一批槽位（口径同源 = 这条结论本身）。
+            //   出处：`Module/Save/SaveModule.cs:4-7`（槽位目录 `saves` / 全部走引擎 FileSlotStore）
+            //        + `Module/Save/SaveJson.cs:5`（旧键 `char/{名}` 已作废）。
+            var engineStoreNames = new List<string>(new FileSlotStore(slotsDir).List());
             Check("⇒ 现行存档口径 = 引擎 `FileSlotStore` 的 `<SettingDir>/saves/<角色名>.json`（一角色一文件）" +
-                  "，创建顺序在 `Game.Setting` 的 `char/index`（**A6 已落地**；`char/{名}` 旧键写法已作废）", true,
-                "出处：`Module/Save/SaveModule.cs:4-7`（槽位目录 `saves` / 全部走引擎 FileSlotStore）+ `Module/Save/SaveJson.cs:5`（旧键已作废）；" +
-                "本步骤原本按 A6 之前的旧键口径断言 ⇒ 曾误报 FAIL（已按现状更正，判据只增不减）");
+                  "，创建顺序在 `Game.Setting` 的 `char/index`（**A6 已落地**；`char/{名}` 旧键写法已作废）",
+                names.Count > 0 && engineStoreNames.Count == names.Count && engineStoreNames.Contains(names[0]),
+                $"引擎 FileSlotStore 在 {slotsDir} 认出 {engineStoreNames.Count} 个槽；`char/index` {names.Count} 个" +
+                "（两者同源 ⇒ 选角列表顺序由 index 决定，原文案「判据只增不减」保持）");
             Console.WriteLine();
         }
 
@@ -346,8 +352,11 @@ namespace SaveCheck
             Console.WriteLine("      引擎 `FileSlotStore.List()`（同三个键、同写入序）= " + got);
             Check("引擎新类：`List()` = **字典序**（alpha,mid,zeta）—— 与项目插入序**不同**",
                 got == "alpha,mid,zeta", got);
+            // ★ 片 assert-audit：原为硬编码 `true`（只写"上两条即证据"）⇒ 不产生判据。
+            //   改成**把上面两条量到的顺序真的比一遍**（两者必须不同 = 转发会改变选角列表顺序）。
             Check("⇒ 结论：把 `SaveModule.List()` 直接转发给 `FileSlotStore.List()` 会**改变选角列表顺序**（行为不等价）",
-                true, "上两条即证据（选角屏 `CharSelectPanel` 按 `List()` 顺序出行）");
+                string.Join(",", back) != got,
+                $"项目插入序={string.Join(",", back)}；引擎字典序={got}（不同 ⇒ 不等价；选角屏 `CharSelectPanel` 按 `List()` 顺序出行）");
             Console.WriteLine();
         }
 
@@ -759,9 +768,28 @@ namespace SaveCheck
                 LoadDoneArgs.Count == 1 && LoadDoneArgs[0] != null && save.LastError == "",
                 "LoadDone=" + LoadDoneArgs.Count + " LastError=\"" + save.LastError + "\"");
 
-            Check("⇒ R7 结论：**三种情况全部可判别**（LastError 空=档不存在 / 非空=读失败 / 成功）、" +
+            // ★ 片 assert-audit：原为硬编码 `true`（一句结论陈述 ⇒ 不产生判据却占"通过"计数）。
+            //   改成**把三种情况在同一入口上重跑一遍**（档都还在盘上）⇒ 这条结论本身变成可失败的判据：
+            //   任一情况退化成"与另一情况不可判别"（例如 LastError 不回归空串 / LoadDone 不发）就变红。
+            LoadDoneArgs.Clear();
+            CharacterSave r7Missing; var r7MissingOk = save.TryLoad("NoSuchHero_R7", out r7Missing);
+            var r7MissingDisc = !r7MissingOk && r7Missing == null && save.LastError == "" && LoadDoneArgs.Count == 0;
+
+            LoadDoneArgs.Clear();
+            CharacterSave r7Bad; var r7BadOk = save.TryLoad("BadHero", out r7Bad);      // ② 的截断档仍在盘上
+            var r7BadDisc = !r7BadOk && r7Bad == null && !string.IsNullOrEmpty(save.LastError)
+                            && save.LastError.Contains("损坏") && LoadDoneArgs.Count == 1 && LoadDoneArgs[0] == null;
+
+            LoadDoneArgs.Clear();
+            CharacterSave r7Ok; var r7OkFlag = save.TryLoad("OldVersionHero", out r7Ok);  // ③a 的档仍在盘上
+            var r7SuccessDisc = r7OkFlag && r7Ok != null && save.LastError == "" && LoadDoneArgs.Count == 1
+                                && LoadDoneArgs[0] != null;
+
+            Check("⇒ R7 结论（**判据本身重跑一遍**）：**三种情况全部可判别**（LastError 空=档不存在 / 非空=读失败 / 成功）、" +
                   "失败有可定位原因、失败时 `Events.LoadDone(null)` 被发出（= 用户可见反馈的触发点）",
-                true, "修前：两情况同返 null 且无任何判别位 / 无事件 ⇒ 见 `.ai-tmp/test/audit-C-logic-num.md` §2 R7");
+                r7MissingDisc && r7BadDisc && r7SuccessDisc,
+                $"①档不存在={r7MissingDisc} ②损坏={r7BadDisc} ③成功={r7SuccessDisc}"
+                + "（修前：两情况同返 null 且无任何判别位 / 无事件 ⇒ 见 `.ai-tmp/test/audit-C-logic-num.md` §2 R7）");
             Console.WriteLine();
         }
 

@@ -70,6 +70,9 @@ namespace GIC
         private Vector2Int _itemCell;
         private float _lastWalkLog = -1f;
         private bool _zoomDone;
+        private bool _goldDropped;
+        private float _goldDropAt = -1f;
+        private bool _goldShotDone;
 
         private static Diablo2.Module.IPlayerModule PlayerModule()
         {
@@ -157,6 +160,53 @@ namespace GIC
             {
                 _zoomDone = true;
                 StartCoroutine(ZoomShot(Shot("groundicon_zoom.png")));
+            }
+
+            // moment 5: gold ON THE GROUND. Gold is NOT an item_c row (`Module/Item/LootRoller.cs:327`
+            // builds `ItemStack{ itemId = 0, name = "金币", isGold = true }`) => it needs its own row
+            // in the evidence. The drop goes through the PRODUCTION entry `IItemModule.DropToGround`
+            // with the field set the existing probe driver already uses (x_drive.cs:3575 DropGoldStack).
+            if (_lateDone && !_goldDropped) { _goldDropped = DropGoldNearPlayer(); if (_goldDropped) _goldDropAt = Time.time; }
+            if (_goldDropped && !_goldShotDone && Time.time - _goldDropAt >= 2f)
+            {
+                _goldShotDone = true;
+                _seenMoments++;
+                StartCoroutine(CaptureThen(Shot("groundicon_gold.png"), delegate { DumpAll("moment5-gold"); }));
+            }
+        }
+
+        /// <summary>Puts one gold pile on the ground next to the player (see moment 5).</summary>
+        private bool DropGoldNearPlayer()
+        {
+            try
+            {
+                var it = ItemModule();
+                var p = PlayerModule();
+                if (it == null || p == null) { Say("GOLD-DROP-SKIP no item/player module"); return false; }
+
+                var pg = p.Grid;
+                var cell = new Vector2Int(pg.x + 1, pg.y);
+                var st = new Diablo2.Def.ItemStack
+                {
+                    itemId = 0,
+                    name = "金币",
+                    type = Diablo2.Def.ItemType.Misc,
+                    quality = Diablo2.Def.ItemQuality.Normal,
+                    count = 137,
+                    gridW = 1,
+                    gridH = 1,
+                    price = 0,
+                    isGold = true,
+                };
+                it.DropToGround(st, cell);
+                Say("GOLD-DROP count=137 cell=(" + cell.x + "," + cell.y + ") via=IItemModule.DropToGround"
+                    + " (字段集与 LootRoller.cs:327 一致；驱动写法复用 x_drive.cs:3575 DropGoldStack)");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Say("GOLD-DROP-FAIL " + e.GetType().Name + ": " + e.Message);
+                return false;
             }
         }
 

@@ -22,6 +22,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.Module;
 using Diablo2.Module.Item;
@@ -119,6 +120,31 @@ namespace FullCheck
                 noIconOnDisk == 0,
                 $"`ItemIconAvailability` 判定无图 {noIconRows} 件；其中磁盘上真有图的 {noIconOnDisk} 件"
                 + "（>0 说明'缺图'清单与磁盘不一致，需登记）");
+
+            // ── ③b 金币（itemId = 0 的金币堆，不是 item_c 行）──────────────────
+            // 出处：`Module/Item/LootRoller.cs:327` 造的 `ItemStack{ itemId = 0, name = "金币", isGold = true }`
+            // ⇒ `D2Icon` 那条链覆盖不到它（对 itemId ≤ 0 直接 null），修前地上是白方块。
+            // 原版地面金币图 = `invgld*.dc6`（三档都在盘），本轮**统一用 invgld**、分档 BLOCKED。
+            var gold = new ItemStack { itemId = 0, name = "金币", isGold = true };
+            var goldPath = GroundItemVisual.IconPathOf(gold);
+            var goldExpect = ResPaths.ItemIcon("gld");           // 项目里唯一的物品图路径拼法
+            var goldFile = resRoot == null || string.IsNullOrEmpty(goldExpect)
+                ? null : Path.Combine(resRoot, goldExpect.Replace('/', Path.DirectorySeparatorChar) + ".png");
+            Say("金币（itemId=0 的金币堆）走原版金堆图 `invgld`（不是色块），且路径来自唯一入口 ResPaths.ItemIcon",
+                string.Equals(goldPath, goldExpect, StringComparison.Ordinal)
+                && goldPath == "D2/Items/invgld" && goldFile != null && File.Exists(goldFile),
+                $"IconPathOf(金币)={goldPath ?? "null"} 期望={goldExpect}（磁盘在位={goldFile != null && File.Exists(goldFile)}）");
+
+            var notGoldZero = GroundItemVisual.IconPathOf(new ItemStack { itemId = 0, name = "?", isGold = false });
+            Say("非金币的 itemId=0 **不许**乱指一张图（保持 null ⇒ 走可见品质色块回退）",
+                notGoldZero == null, $"IconPathOf(itemId=0,isGold=false)={(notGoldZero ?? "null")}");
+
+            Say("原版金堆三档图都在盘（⛔ 阈值无权威载体 ⇒ 分档登记 BLOCKED，本轮统一用 invgld）",
+                resRoot != null
+                && File.Exists(Path.Combine(resRoot, "D2", "Items", "invgld.png"))
+                && File.Exists(Path.Combine(resRoot, "D2", "Items", "invgldm.png"))
+                && File.Exists(Path.Combine(resRoot, "D2", "Items", "invgldh.png")),
+                "`D2/Items/{invgld,invgldm,invgldh}.png` 逐个 Test-Path");
 
             // ── ④ 色调 ───────────────────────────────────────────────────────
             var tNormal = GroundItemVisual.TintOf(ItemQuality.Normal);

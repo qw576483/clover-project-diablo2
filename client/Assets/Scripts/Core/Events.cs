@@ -363,6 +363,21 @@ namespace Diablo2.Core
         /// </summary>
         public const string WaypointTravelRequest = "D2.Map.WaypointTravelRequest";
 
+        /// <summary>
+        /// 换区那次整图重铺**建满并已切换**（无参数）。★ travel-black 新增。
+        /// <para>
+        /// 发送方 = `Module/Map/MapView.cs`（只在"这次重铺是**换区**触发的"那一次切换/保底铺完后发一次；
+        /// 贴图到位重铺 / 迷雾开关重铺**不发**）。收方 = `Module/Flow/AppFlow.cs`。
+        /// </para>
+        /// <para>
+        /// 为什么需要它：换区时玩家/相机要**等新区域的地砖建好**再落位 —— 否则相机已经跳到落点、
+        /// 而生效集还是**旧区**那张图（落点超出旧图范围 ⇒ 屏上零地砖 = 落地整屏黑；实机逐帧量到 ≈1.84 s，
+        /// 见 `.ai-tmp/screenshots/travelblack_tb1.log`）。所以 `AppFlow.EnterArea` 拆成两拍：
+        /// ① 生成 + 登记重铺（相机**留在旧区**，旧图仍完整可见）→ ② 收到本事件才挪玩家/相机/怪 + 关读条屏。
+        /// </para>
+        /// </summary>
+        public const string MapAreaReady = "D2.Map.AreaReady";
+
         // ═════════════════════════════════════════════════════════════════════
         // 任务（Quest）
         // ═════════════════════════════════════════════════════════════════════

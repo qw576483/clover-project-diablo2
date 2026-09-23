@@ -970,6 +970,7 @@ namespace Diablo2.Module.Flow
 
             // Stage 作用域订阅：离场时用**同一方法引用**注销（见 LeaveStage ⑥）。
             Game.Event.On<AreaId>(Events.ExitEntered, OnExitEntered);
+            Game.Event.On(Events.MapAreaReady, OnMapAreaReady);   // ★ travel-black：换区第二拍的落位信号
 
             var ctx = Ctx;
             Log.Info(FlowLog.Tag,
@@ -982,6 +983,18 @@ namespace Diablo2.Module.Flow
 
         private void OnStageTick(float dt)
         {
+            // ★ travel-black：换区第二拍的**超时兜底**（正常路径由 `Events.MapAreaReady` 触发，见 OnMapAreaReady）。
+            if (_arrivalTo >= 0 && Time.realtimeSinceStartup >= _arrivalDeadline)
+            {
+                if (!_arrivalTimedOutLogged)
+                {
+                    _arrivalTimedOutLogged = true;
+                    Log.Warn(FlowLog.Tag, $"换区落位等待超时 {ArrivalMapTimeoutSeconds:0.#}s：地图侧未发 {Events.MapAreaReady}" +
+                        "（MapView 未建满/未被调用？）⇒ 本帧**强制落位**（非预期分支：屏上可能仍有空块）");
+                }
+                CompleteArrival("超时兜底（地图侧未发 AreaReady）");
+            }
+
             if (!EscPressed()) return;
 
             // 选项面板开着时 ESC 归它（它自己关闭），Flow 不抢。
@@ -1460,10 +1473,74 @@ namespace Diablo2.Module.Flow
             if (ctx?.Map != null)
             {
                 ctx.Map.Generate(to, seed);
-                ctx.Map.ShowArea(to);
+                ctx.Map.ShowArea(to);       // ★ travel-black：只**登记**重铺（范围按**落点**算，相机仍留在旧区）
             }
             else FlowLog.Missing("IMapModule");
 
+            // ── ★ travel-black：第一拍到此为止 —— **不在这里挪玩家/相机** ──────────────────────────
+            //   缺陷（实机逐帧量到，`.ai-tmp/screenshots/travelblack_tb1.log`）：旧顺序是 `ShowArea` **之后**
+            //   立刻挪玩家 + `SnapToTarget` ⇒ 相机已经落到新区域的出生格，而生效的渲染集还是**旧区**那张图
+            //   （出生格超出旧图范围 ⇒ 屏上零地砖）⇒ **落地整屏黑 ≈1.84 s**，直到地图侧第二次重铺才补回来。
+            //   新顺序：等 `Events.MapAreaReady`（新区域**建满并已切换**才发，见 `Module/Map/MapView.cs` 的
+            //   `NotifyAreaReadyIfOwed`）再落位 ⇒ 同一帧里"新图 + 玩家/相机在新位置"一起生效，中间帧不出现空屏。
+            _arrivalTo = (int)to;
+            _arrivalFrom = (int)from;
+            _arrivalSpawn = ctx?.Map?.SpawnPoint ?? Vector2Int.zero;
+            _arrivalDeadline = Time.realtimeSinceStartup + ArrivalMapTimeoutSeconds;
+            _arrivalTimedOutLogged = false;
+            Log.Info(FlowLog.Tag, $"[Stage] 区域切换 {from} → {to}：地图已生成 + 已登记重铺（范围按落点 " +
+                $"({_arrivalSpawn.x},{_arrivalSpawn.y}) 算，相机留在旧区）；**等 {Events.MapAreaReady} 才挪玩家/相机**" +
+                $"（超时 {ArrivalMapTimeoutSeconds:0.#}s 兜底）");
+
+            // 地图模块没接上时不会有人发 AreaReady ⇒ 本帧直接落位（非预期分支，点名不留卡死）
+            if (ctx?.Map == null)
+            {
+                Log.Warn(FlowLog.Tag, $"IMapModule 未接入 ⇒ 没有人会发 {Events.MapAreaReady}，本帧直接落位（区域里将只有空图）");
+                CompleteArrival("IMapModule 未接入（直接落位，超时兜底）");
+            }
+        }
+
+        /// <summary>★ travel-black：等"新区域建满并已切换"的超时（秒）。⛔ 兜底必须有 —— 地图侧不发事件时不许卡死在旧区。</summary>
+        private const float ArrivalMapTimeoutSeconds = 8f;
+
+        /// <summary>★ travel-black：待落位的区域（-1 = 没有待落位）。</summary>
+        private int _arrivalTo = -1;
+
+        /// <summary>★ travel-black：本次切换的来源区域（只进日志）。</summary>
+        private int _arrivalFrom = -1;
+
+        /// <summary>★ travel-black：落点（= 新区域的出生格）。</summary>
+        private Vector2Int _arrivalSpawn;
+
+        /// <summary>★ travel-black：落位等待的截止时刻（<see cref="Time.realtimeSinceStartup"/> 口径）。</summary>
+        private float _arrivalDeadline;
+
+        /// <summary>★ travel-black：超时兜底只报一次。</summary>
+        private bool _arrivalTimedOutLogged;
+
+        /// <summary>
+        /// ★ travel-black：`Events.MapAreaReady` 的收方（`MapView` 只在**换区那次**重铺建满并切换后发一次）。
+        /// </summary>
+        private void OnMapAreaReady()
+        {
+            if (_arrivalTo < 0) return;      // 不是换区（例如进图那一次重铺）：与本流程无关，不发日志
+            CompleteArrival($"{Events.MapAreaReady}（新区域已建满并已切换）");
+        }
+
+        /// <summary>
+        /// ★ travel-black：换区的**第二拍** —— 挪怪 / 挪玩家 / 挪相机 / 关读条屏 / 发 `AreaChanged`。
+        /// <para>它由 <see cref="OnMapAreaReady"/>（正常）或 <see cref="OnStageTick"/> 的超时分支（兜底）调用。</para>
+        /// </summary>
+        private void CompleteArrival(string why)
+        {
+            var to = (AreaId)_arrivalTo;
+            var from = _arrivalFrom;
+            var spawn = _arrivalSpawn;
+            _arrivalTo = -1;
+            _arrivalFrom = -1;
+            _arrivalTimedOutLogged = false;
+
+            var ctx = Ctx;
             if (ctx?.Monster != null)
             {
                 ctx.Monster.DespawnAll();
@@ -1471,7 +1548,6 @@ namespace Diablo2.Module.Flow
             }
             else FlowLog.Missing("IMonsterModule");
 
-            var spawn = ctx?.Map?.SpawnPoint ?? Vector2Int.zero;
             if (ctx?.Player != null)
             {
                 ctx.Player.TeleportTo(spawn);
@@ -1491,7 +1567,8 @@ namespace Diablo2.Module.Flow
 
             Game.UI.HideLoading();
             Game.Event.Emit(Events.AreaChanged, to);
-            Log.Info(FlowLog.Tag, $"[Stage] 区域已切换为 {to}，出生格=({spawn.x},{spawn.y})");
+            Log.Info(FlowLog.Tag, $"[Stage] 区域已切换为 {to}（{from} → {to}），出生格=({spawn.x},{spawn.y})；" +
+                $"落位依据 = {why}");
             _switchingArea = false;
         }
 
@@ -1579,6 +1656,10 @@ namespace Diablo2.Module.Flow
 
             // ⑥ 事件订阅（**同一方法引用**；Flow 常驻，只有舞台级订阅需要注销）
             Game.Event.Off<AreaId>(Events.ExitEntered, OnExitEntered);
+            Game.Event.Off(Events.MapAreaReady, OnMapAreaReady);      // ★ travel-black：同一方法引用注销
+            _arrivalTo = -1;                                          // ★ travel-black：待落位状态一并作废
+            _arrivalFrom = -1;
+            _arrivalTimedOutLogged = false;
 
             // ⑦ 模块状态复位（第二次进图必须是干净的）
             ResetModules();

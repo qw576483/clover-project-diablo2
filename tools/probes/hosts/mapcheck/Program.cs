@@ -86,6 +86,9 @@ internal static class MapCheckProgram
         Run(Step31_WalkableBorderRing);
         // ── ★ 片 map-border2（2026-09-23）：城镇豁免 §31 的**实测证据**（贴边可走格清单）──────
         Run(Step32_TownBorderWalkableInventory);
+        // ── ★ 片 travel-black（2026-09-24）：传送落地整屏黑 —— 「换区后**首个可玩帧**的已建块 ⊇ 屏上可见块」
+        //    只加断言，⛔ 不动既有步骤、⛔ 不放宽任何既有断言 ──────────────────────────────
+        Run(Step33_LandingRangeCoversViewport);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -4208,6 +4211,80 @@ internal static class MapCheckProgram
     //   为什么要它：裁决 A 的前提是"城镇里玩家实际走不到的贴边格 / 走到了也不露虚空"，
     //   这必须用**坐标 + 地形 + 从出生点可达**三件套钉住，⛔ 不许拿"§31 绿了"当证据。
     //   本步只打印 + 断言"清单非空"（清单本身是证据，不是判据）。
+    /// <summary>
+    /// ★ 片 travel-black（2026-09-24）：**换区后首个可玩帧的已建块 ⊇ 屏上可见块**。
+    /// <para>缺陷（实机逐帧量到，`.ai-tmp/screenshots/travelblack_tb1.log`）：传送落地后整屏黑 ≈1.84 s。
+    /// 根因 = `AppFlow.EnterArea` 里 `ShowArea` 发生在挪玩家/相机**之前** ⇒ `StartRebuild` 那一刻相机还停在
+    /// **旧区**，按它算出来的块范围与落地画面无关（实测旧区 (32,27) 算出 (0,0)-(3,2) 共 12 块，落地后屏上要的是
+    /// 另外 9 块 (0,2)-(2,4)），整图重铺建满一帧切换 ⇒ **交换本身**把屏上地砖撤光。</para>
+    /// <para>本步判的是**修法**（生产纯函数 <see cref="MapView.LandingRange"/>）：换区那次重铺的块范围按
+    /// **落点**（= 出生格）+ 视口格半跨算，必须覆盖"落地那一刻屏上要的块"；并给一条**反例**（按旧区那台相机
+    /// 算出来的范围盖不满）⇒ 断言判"过程"，⛔ 不是改一个数字就能变绿。</para>
+    /// </summary>
+    private static void Step33_LandingRangeCoversViewport()
+    {
+        Console.WriteLine("▶ 33. ★ travel-black：换区后**首个可玩帧**的已建块 ⊇ 屏上可见块（按落点算，⛔ 不按那台旧相机）");
+
+        // 实机那一局的真实数字（`.ai-tmp/screenshots/travelblack_tb1.log` 的 PRE 行 / 落地行）：
+        //   血腥荒野 80x80、出生点 (9,68)、视口四角格范围 [-6,61..24,75]（1920x1080，半跨 15x7 格）；
+        //   旧口径（旧区罗格营地那台相机在 (32,27)）算出 (0,0)-(3,2) 共 12 块。
+        const int mapW = 80, mapH = 80;
+        var spawn = new Vector2Int(9, 68);
+        const int halfX = 15, halfY = 7;
+        const int vx0 = -6, vy0 = 61, vx1 = 24, vy1 = 75;      // 落地那一刻的视口（格，实测）
+
+        Vector2Int min, max;
+        MapView.LandingRange(spawn.x, spawn.y, halfX, halfY, mapW, mapH, out min, out max);
+        var plan = new List<Vector2Int>();
+        MapView.PlannedChunks(true, min.x, min.y, max.x, max.y, 5, 5, plan);
+        Check(plan.Count > 0, $"按**落点** {spawn} 算出的块范围 ({min.x},{min.y})-({max.x},{max.y}) ⇒ 建块清单 {plan.Count} 块");
+        Check(MapView.ChunkRangeCovered(plan, new List<Vector2Int>(), min.x, min.y, max.x, max.y),
+            "落点范围里**每一块**都在建块清单里（换区那次重铺建满才交换 ⇒ 落地帧屏上无空洞）");
+        var spChunk = new Vector2Int(spawn.x / MapView.ChunkSize, spawn.y / MapView.ChunkSize);
+        Check(min.x <= spChunk.x && spChunk.x <= max.x && min.y <= spChunk.y && spChunk.y <= max.y,
+            $"**落点所在块** ({spChunk.x},{spChunk.y}) 必在范围内 ⇒ 玩家落地时脚下的图已经建好");
+
+        // 落地视口涉及的块 —— 必须全部在"按落点算"的清单里
+        var view = new List<Vector2Int>();
+        for (var cx = 0; cx < 5; cx++)
+        {
+            for (var cy = 0; cy < 5; cy++)
+            {
+                if (BlockTouches(cx, cy, vx0, vy0, vx1, vy1)) view.Add(new Vector2Int(cx, cy));
+            }
+        }
+        var miss = 0;
+        foreach (var c in view) { if (!plan.Contains(c)) miss++; }
+        Check(view.Count > 0 && miss == 0,
+            $"落地视口 [{vx0},{vy0}..{vx1},{vy1}] 涉及的 {view.Count} 块**全部**在按落点算的清单里（缺 {miss}）");
+
+        // 反例（防"改个数字就变绿"）：旧口径 = 按**旧区那台相机**算出的范围 —— 在落地视口上盖不满
+        var stale = new List<Vector2Int>();
+        MapView.PlannedChunks(true, 0, 0, 3, 2, 5, 5, stale);
+        var staleMiss = 0;
+        foreach (var c in view) { if (!stale.Contains(c)) staleMiss++; }
+        Check(staleMiss > 0,
+            $"反例：旧口径（按旧区相机算的 (0,0)-(3,2)，{stale.Count} 块）在落地视口上缺 {staleMiss} 块" +
+            " ⇒ 正是「交换那一刻屏上零地砖」（落地整屏黑）的成因");
+
+        // 小图（罗格营地 56x40 = 2240 ≤ 4096 ⇒ 不分块）：清单 = 全图，恒覆盖
+        var town = new List<Vector2Int>();
+        MapView.LandingRange(32, 28, halfX, halfY, 56, 40, out min, out max);
+        MapView.PlannedChunks(false, min.x, min.y, max.x, max.y, 4, 3, town);
+        Check(town.Count == 12 && MapView.ChunkRangeCovered(town, new List<Vector2Int>(), 0, 0, 3, 2),
+            $"小图（营地 56x40，不分块）清单 = 全图 {town.Count} 块 ⇒ 任意落点都覆盖（与 §27 同源）");
+    }
+
+    /// <summary>块 (cx,cy) 与格矩形 [x0,y0..x1,y1] 是否有交集（§33 用）。</summary>
+    private static bool BlockTouches(int cx, int cy, int x0, int y0, int x1, int y1)
+    {
+        var bx0 = cx * MapView.ChunkSize;
+        var bx1 = bx0 + MapView.ChunkSize - 1;
+        var by0 = cy * MapView.ChunkSize;
+        var by1 = by0 + MapView.ChunkSize - 1;
+        return bx0 <= x1 && bx1 >= x0 && by0 <= y1 && by1 >= y0;
+    }
+
     private static void Step32_TownBorderWalkableInventory()
     {
         Section("32. ★ map-border2：城镇贴边可走格清单（地形 + 可达性 + 该处地图外占比）");

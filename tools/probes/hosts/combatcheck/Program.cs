@@ -435,6 +435,11 @@ namespace CombatCheck
         {
             const int maxTries = 6;
             var tried = 0;
+            // ★ 片 assert-audit：原兜底判据 = `tried > 0`（只证明"有候选怪"）⇒ **一只都没满足判据时仍然记 OK**
+            //   （实测：`[ OK ] Melee：候选里的近战怪会靠近并出手 (试了 6 只…没有一只同时满足…)`），
+            //   且上面「会靠近 / 出手」两条真判据因此**永不执行**（死代码）⇒ 这是"没判的看起来像判了"。
+            //   改成真比：走到兜底 = 没有任何一只满足 ⇒ 必须变红（⛔ 不为变绿而放宽判据）。
+            var satisfied = 0;
 
             foreach (var m in _ctx.Monster.All)
             {
@@ -459,13 +464,15 @@ namespace CombatCheck
                     Check("Melee：会靠近（距离显著减小）", after < before - 1.0f,
                         $"{before:0.00} → {after:0.00}（m#{m.id}；判据 = 减小 > 1.0 格）");
                     Check("Melee：进入近战范围后出手攻击", attacks > 0, $"出手 {attacks} 次（m#{m.id}）");
+                    satisfied++;
                     return;
                 }
             }
 
-            Check("Melee：候选里的近战怪会靠近并出手", tried > 0,
+            Check("Melee：候选里的近战怪会靠近并出手（★ 判据 = 至少一只同时满足「靠近 >1.0 格 + 出手 >0 次」）",
+                satisfied > 0,
                 tried > 0
-                    ? $"试了 {tried} 只近战怪，没有一只同时满足「靠近 >1.0 格 + 出手 >0 次」 ⇒ 见逐只明细（可能是落点/地形）"
+                    ? $"试了 {tried} 只近战怪，**没有一只**同时满足「靠近 >1.0 格 + 出手 >0 次」 ⇒ 见逐只明细（落点/地形 或 追击链）"
                     : "血腥荒野里没有活着的近战怪");
         }
 

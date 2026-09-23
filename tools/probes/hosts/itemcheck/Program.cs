@@ -928,10 +928,16 @@ namespace ItemCheck
             item.DropToGround(onGround, new Vector2Int(11, 10));
             var fullId = LastGroundId(item);
             var fullBefore = item.GroundItems.Count;
+            // ★ 片 assert-audit：`Events.InventoryFull` 的**唯一发送点**就是这里（`ItemModule.Pickup` 满包分支）
+            //   ⇒ 真判：订阅计数，事件必须**恰好发一次**（不判的话 UI 的"背包已满"提示永远不亮）。
+            var invFullHits = 0;
+            Game.Event.On(Events.InventoryFull, () => invFullHits++);
             var pickedFull = item.Pickup(fullId);
             Check("满包拾取 ⇒ false", !pickedFull, "Pickup=" + pickedFull);
             Check("满包拾取失败 ⇒ 物品留在原地", item.GroundItems.Count == fullBefore && Contains(item, fullId),
                 "ground=" + item.GroundItems.Count);
+            Check("背包满事件已发（`Events.InventoryFull`，由 Pickup 路径发）",
+                invFullHits == 1, "InventoryFull 次数=" + invFullHits + "（期望恰好 1）");
             Check("满包有可读日志（背包放不下）", _log.Contains("Item", "背包放不下"), "见 [WARN] [Item]");
 
             // 5b) 「点击物品 → 走过去 → 自动拾取」（当前无人发 `PickupRequest`，本模块用 `MoveCommand` 兜底）

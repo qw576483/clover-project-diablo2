@@ -188,6 +188,7 @@ Start-Sleep -Seconds 3
 $gate = Unity-Cmd @('run_script', '--file', $cs, '--entry', 'TBlackDrv.Api.Ping')
 $gateOk = $false
 $gateText = [string]$gate
+Set-Content -Path (Join-Path $test ('travelblack_ping_' + $Tag + '.json')) -Value $gateText -Encoding UTF8
 if ($gateText -match 'PONG') { $gateOk = $true }
 Say ('PING-GATE ok=' + $gateOk + ' ' + (Clip $gateText 300))
 if (-not $gateOk) {

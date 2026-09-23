@@ -21,6 +21,9 @@
 //     复制 = 同一份真源两处，漂移一处就静默取不到图（`constraints.md` #9 那类失败）。
 //   · **色调 = `D2Icon.QualityTint`**（与另外三个图标面同款：品质色往白里提 62%，
 //     原版 8bit 像素不被染死）。`Normal` 品质 = 纯白 ⇒ 普通物品**逐像素等于原版**。
+//   · **特例：金币**（`itemId = 0` 的"金币堆"，**不是** `item_c` 行 ⇒ `D2Icon` 覆盖不到它）：
+//     原版地面金币图 = `invgld*.dc6`（按金额**三档**小/中/大，三张图都在盘）；**分档阈值无权威载体**
+//     ⇒ 本轮统一用 `invgld`、分档登记 BLOCKED（详见 `IconPathOf` 的注释）。
 //
 // ── 分层（如实登记，⛔ 不是"忘了"）─────────────────────────────────────────────
 //   本文件在 `Module/View`，引用了 `Diablo2.UI.D2Icon`。两条理由：
@@ -32,6 +35,7 @@
 //   movecheck / fullcheck）**都同时链了 `UI/*.cs`** ⇒ 不会出现"宿主缺 UI 编不过"。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.UI;
 using UnityEngine;
@@ -51,7 +55,19 @@ namespace Diablo2.Module.View
         /// </summary>
         public static string IconPathOf(ItemStack item)
         {
-            if (item == null || item.itemId <= 0) return null;
+            if (item == null) return null;
+
+            // ★ 金币（`Module/Item/LootRoller.cs:327` 造的金币堆：`itemId = 0, isGold = true`）
+            //   **不是 `item_c` 行** ⇒ 走不到 `D2Icon`（它对 itemId ≤ 0 直接返回 null）
+            //   ⇒ 修前地上那块白方块里，金币也在内（运行期日志 `#100001「金币」… 图=缺失 ⇒ 品质色块`）。
+            //   原版地面金币的画法 = 物品图 `invgld*.dc6`（按金额分小/中/大**三档**，三张图都在盘：
+            //   `D2/Items/{invgld,invgldm,invgldh}.png`）。
+            //   ⛔ **分档阈值无权威载体** ⇒ 本轮**统一用 `invgld`**、分档登记 BLOCKED
+            //   （不许自己拍一个金额阈值 —— 那就成了编造数据）。
+            //   路径拼法复用项目**唯一**入口 `ResPaths.ItemIcon`（= `D2/Items/inv` + code）。
+            if (item.isGold) return ResPaths.ItemIcon("gld");
+
+            if (item.itemId <= 0) return null;
             return D2Icon.ItemIconPath(item.itemId);
         }
 

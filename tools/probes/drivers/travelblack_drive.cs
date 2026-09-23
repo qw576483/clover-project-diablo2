@@ -108,8 +108,25 @@ namespace TBlackDrv
             var go = new GameObject("TravelBlackDrvHost");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<Host>();
+            // ★ 落地判据 = `Events.AreaChanged`（= AppFlow 换区的**第二拍**那一帧）。⛔ 不能用"玩家格变了"——
+            //   走到传送点锚点那一格也会让玩家格变（第一版就是这么被带偏的）。
+            try
+            {
+                if (Game.Event != null) Game.Event.On<AreaId>(Diablo2.Core.Events.AreaChanged, OnAreaChanged);
+            }
+            catch (System.Exception ex) { Warn("SUBSCRIBE-FAIL " + ex.GetType().Name); }
             Log("INSTALL outDir=" + OutDir + " tag=" + TagName + " fsm=" + Fsm());
             return "installed";
+        }
+
+        /// <summary>换区第二拍（玩家/相机真落位）的时刻；-1 = 还没落位。</summary>
+        internal static float AreaChangedAt = -1f;
+
+        private static void OnAreaChanged(AreaId a)
+        {
+            AreaChangedAt = Time.realtimeSinceStartup;
+            Log("AREA-CHANGED area=" + (int)a + " frame=" + Time.frameCount
+                + " t=" + AreaChangedAt.ToString("0.000") + "（第二拍：玩家/相机落位）");
         }
     }
 
@@ -194,22 +211,33 @@ namespace TBlackDrv
 
             // ⑥ 发面板按钮的同一个事件（AppWaypoint.OnTravelRequest 收它）
             var oldArea = (int)map.Area;
-            Api.Log("TRAVEL-REQ dest=" + dest + " from=" + oldArea
+            var preGrid = player.Grid;          // ★ 两拍切换的判据：**玩家格**跳了才是"落地"（第一拍不挪玩家）
+            Api.Log("TRAVEL-REQ dest=" + dest + " from=" + oldArea + " preGrid=" + Fmt(preGrid)
                     + "（与 WaypointPanel 按钮**同一个事件** " + Diablo2.Core.Events.WaypointTravelRequest + "）");
             Emit(Diablo2.Core.Events.WaypointTravelRequest, dest);
 
-            // ⑦ 落地帧起逐帧采样
+            // ⑦ 落地帧起逐帧采样。
+            //    ★ 两拍切换：`map.Area` 在第一拍（生成+登记重铺）就变了，但玩家/相机**第二拍才挪**
+            //      ⇒ "落地"必须按**玩家格跳变**判（否则把旧区画面当落地画面）。
             var t3 = Time.realtimeSinceStartup;
-            var landed = (int)map.Area == dest;
-            if (landed) { _landAt = Time.realtimeSinceStartup; }
-            while (Time.realtimeSinceStartup - t3 < 12f)
+            var phase1 = false;
+            var landed = false;
+            while (Time.realtimeSinceStartup - t3 < 14f)
             {
                 var now = (int)map.Area;
-                if (!landed && now == dest)
+                if (!phase1 && now == dest)
+                {
+                    phase1 = true;
+                    Api.Log("PHASE1 frame=" + Time.frameCount + " area " + oldArea + "->" + now
+                            + " player=" + Fmt(player.Grid) + "（第一拍：已生成 + 已登记重铺，玩家/相机未动）");
+                    Shot("travelblack_" + Api.TagName + "_0_travel_start.png");
+                }
+                if (phase1 && !landed && player.Grid != preGrid)
                 {
                     landed = true;
                     _landAt = Time.realtimeSinceStartup;
-                    Api.Log("LANDED frame=" + Time.frameCount + " area " + oldArea + "->" + now);
+                    Api.Log("LANDED frame=" + Time.frameCount + " area=" + now + " player=" + Fmt(player.Grid)
+                            + "（第二拍：玩家落位 ⇒ 本帧就是「落地帧」）");
                 }
 
                 if (landed && !_shot0) { _shot0 = true; Shot("travelblack_" + Api.TagName + "_1_landed.png"); }
@@ -292,14 +320,15 @@ namespace TBlackDrv
             var buf = Keys(view, "_bufGroundChunks");
             var pen = Keys(view, "_pendingChunks");
 
-            var exp = ExpectedRange(map);
+            int ex0, ey0, ex1, ey1;
+            ExpectedRange(map, out ex0, out ey0, out ex1, out ey1);
             var total = 0;
             var actCov = 0;
             var bufCov = 0;
             var penCov = 0;
-            for (var cx = exp.x; cx <= exp.z; cx++)
+            for (var cx = ex0; cx <= ex1; cx++)
             {
-                for (var cy = exp.y; cy <= exp.w; cy++)
+                for (var cy = ey0; cy <= ey1; cy++)
                 {
                     total++;
                     var c = new Vector2Int(cx, cy);
@@ -308,8 +337,8 @@ namespace TBlackDrv
                     if (pen.Contains(c)) penCov++;
                 }
             }
-            sb.Append(" exp=(").Append(exp.x).Append(',').Append(exp.y).Append(")-(")
-              .Append(exp.z).Append(',').Append(exp.w).Append(") total=").Append(total);
+            sb.Append(" exp=(").Append(ex0).Append(',').Append(ey0).Append(")-(")
+              .Append(ex1).Append(',').Append(ey1).Append(") total=").Append(total);
             sb.Append(" actCov=").Append(actCov).Append('/').Append(total);
             sb.Append(" bufCov=").Append(bufCov);
             sb.Append(" penCov=").Append(penCov);
@@ -335,21 +364,26 @@ namespace TBlackDrv
             var view = View();
             if (map == null || view == null) return int.MaxValue;
             var act = Keys(view, "_groundChunks");
-            var exp = ExpectedRange(map);
+            int ex0, ey0, ex1, ey1;
+            ExpectedRange(map, out ex0, out ey0, out ex1, out ey1);
             var miss = 0;
-            for (var cx = exp.x; cx <= exp.z; cx++)
-                for (var cy = exp.y; cy <= exp.w; cy++)
+            for (var cx = ex0; cx <= ex1; cx++)
+                for (var cy = ey0; cy <= ey1; cy++)
                     if (!act.Contains(new Vector2Int(cx, cy))) miss++;
             return miss;
         }
 
         /// <summary>屏幕四角 → 格 → 块范围（含 1 块外扩；与生产 `ComputeVisibleChunkRange` 同公式）。</summary>
-        private Vector4 ExpectedRange(IMapModule map)
+        private void ExpectedRange(IMapModule map, out int x0, out int y0, out int x1, out int y1)
         {
             var cxN = (map.Width + ChunkSize - 1) / ChunkSize;
             var cyN = (map.Height + ChunkSize - 1) / ChunkSize;
             var cam = Camera.main;
-            if (cam == null) return new Vector4(0, 0, cxN - 1, cyN - 1);
+            if (cam == null)
+            {
+                x0 = 0; y0 = 0; x1 = cxN - 1; y1 = cyN - 1;
+                return;
+            }
             var minX = int.MaxValue; var minY = int.MaxValue;
             var maxX = int.MinValue; var maxY = int.MinValue;
             for (var i = 0; i < 4; i++)
@@ -360,11 +394,10 @@ namespace TBlackDrv
                 minX = Mathf.Min(minX, g.x); minY = Mathf.Min(minY, g.y);
                 maxX = Mathf.Max(maxX, g.x); maxY = Mathf.Max(maxY, g.y);
             }
-            return new Vector4(
-                Mathf.Clamp(minX / ChunkSize - 1, 0, cxN - 1),
-                Mathf.Clamp(minY / ChunkSize - 1, 0, cyN - 1),
-                Mathf.Clamp(maxX / ChunkSize + 1, 0, cxN - 1),
-                Mathf.Clamp(maxY / ChunkSize + 1, 0, cyN - 1));
+            x0 = Mathf.Clamp(minX / ChunkSize - 1, 0, cxN - 1);
+            y0 = Mathf.Clamp(minY / ChunkSize - 1, 0, cyN - 1);
+            x1 = Mathf.Clamp(maxX / ChunkSize + 1, 0, cxN - 1);
+            y1 = Mathf.Clamp(maxY / ChunkSize + 1, 0, cyN - 1);
         }
 
         private static string Bounds(List<Vector2Int> ks)
@@ -464,10 +497,21 @@ namespace TBlackDrv
             return v != null ? v.Count : -1;
         }
 
+        /// <summary>
+        /// 集合里的块号集合。⚠️ `Dictionary` 直接枚举出来的是 `KeyValuePair`（不是键）⇒ 必须走 `IDictionary.Keys`；
+        /// `Queue&lt;Vector2Int&gt;` 直接枚举就是元素。（第一版漏了这一条，`actKeys=0@-` 与 `actCov=0` 全是假读数。）
+        /// </summary>
         private static List<Vector2Int> Keys(object o, string name)
         {
             var res = new List<Vector2Int>();
-            var e = F(o, name) as IEnumerable;
+            var raw = F(o, name);
+            var d = raw as IDictionary;
+            if (d != null)
+            {
+                foreach (var k in d.Keys) { if (k is Vector2Int v) res.Add(v); }
+                return res;
+            }
+            var e = raw as IEnumerable;
             if (e == null) return res;
             foreach (var k in e) { if (k is Vector2Int v) res.Add(v); }
             return res;
