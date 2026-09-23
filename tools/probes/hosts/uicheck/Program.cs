@@ -164,6 +164,10 @@ namespace Uicheck
                                         //   把「面板开着却什么都没画」变成可离线判的数：真实导出帧逐帧各铺一格已探索
                                         //   ⇒ 必须每格写出 ≥1 图元且 opaque>0；任何空帧 / 全透明索引 / 尺寸为 0 立刻红
             FontScaleCheck.Run();       // ★ 片 font-scale：全仓 `D2Label.Create` 零处漏字号 + 字号唯一出处（FontPx*）
+            DialogOptionsCheck.Run();   // ★ 片 dialog-options2：对话选项可读性（空文案 / 悬停坏图盖住文案）
+                                        //   + tooltip 可见性三条件（`ShouldBeVisible` 真值表 + 调用点真的接线）。
+                                        //   ⚠️ 唯一调用点就这一处：2026-09-24 该组断言曾同时在 `V6Check.Run()`
+                                        //   与此处被调用 ⇒ 输出里跑两遍；现已收敛到本行。
 
             Console.WriteLine();
             Console.WriteLine("未覆盖（需要 Unity 原生，留给主 agent 进 Play 后验）："

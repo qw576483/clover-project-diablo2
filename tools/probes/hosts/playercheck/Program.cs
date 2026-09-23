@@ -1531,6 +1531,148 @@ namespace PlayerCheck
                 worstInset >= insetF - 1e-3f,
                 $"最紧 = {worstTag} 余量={worstInset:0.####}（下限 {insetF:0.####}）");
 
+            // ═════════════════════════════════════════════════════════════════
+            // 11.12 ★ cam-verify（2026-09-24）：**贴边时两条判据必须同时成立**
+            //   (a) 可见格范围 ⊆ 地图（地图外虚空 = 0）
+            //   (b) 玩家（焦点）仍在视口内
+            //   11.10 只断言 (a)、11.11 只断言 (b)，各自都能"绿"；实机（`.ai-tmp/test/report-camverify.md`
+            //   §2，Play tag `cv3`）在**最外侧可走格**上同时读到 offTile=0% 与 margin>=0
+            //   ⇒ 本组把这两条**同时**断言，用例形状 = 实机量到的可走区：
+            //     · 血腥荒野 80×80：四边内缩 8 格（cv3 实测 outerGx=[8..71] outerGy=[8..71]，ringFromEdge=8）
+            //     · 罗格营地 56×40：实测最外侧可走格 (8,20)(8,31)(55,25)(55,27)(27,17)(27,38)
+            //       （桥面 `x=W-1` 与南边界行 `gy=38` 是 map-border2 明确保留的例外）
+            //   ⛔ 不弱化任何既有断言（只新增）；真实可走区**之外**的最外圈另列，如实打印
+            //      "两条不可兼得"的两个数 —— 那属于地图边界环该解决的事，⛔ 不是相机。
+            // ═════════════════════════════════════════════════════════════════
+            Console.WriteLine();
+            Console.WriteLine("    ── 贴边同时判：可见格 ⊆ 地图 **且** 玩家在视口内（用例形状 = 实机实测的可走区）──");
+            var bothTotal = 0;
+            var bothOk = 0;
+            var worstBoth = float.MaxValue;
+            var worstBothTag = "";
+
+            // (1) 野外 80×80：可走区 = 四边内缩 8 格 ⇒ 取四角 + 四边中点（8 个最外侧可走格）
+            var ringCells = new[]
+            {
+                new Vector2Int(8, 8), new Vector2Int(8, 71), new Vector2Int(71, 8), new Vector2Int(71, 70),
+                new Vector2Int(8, 39), new Vector2Int(71, 39), new Vector2Int(39, 8), new Vector2Int(39, 71),
+            };
+            foreach (var c in ringCells)
+            {
+                var fw = Iso.GridToWorld(c);
+                var camR = CameraRig.CameraPosForCamera(fw, fw, 80, 80,
+                    CameraRig.DefaultOrthographicSize, covA, -CameraRig.CameraDistance);
+                var vpR = CameraRig.WorldToViewport(fw, camR, CameraRig.DefaultOrthographicSize, covA);
+                var marginR = Mathf.Min(Mathf.Min(vpR.x, 1f - vpR.x), Mathf.Min(vpR.y, 1f - vpR.y));
+                var offTileR = OffTileAmount(camR.x, camR.y, halfWA, halfHA, 80, 80);
+                bothTotal++;
+                if (offTileR <= eps && marginR >= -eps) bothOk++;
+                if (marginR < worstBoth) { worstBoth = marginR; worstBothTag = $"80×80({c.x},{c.y})"; }
+                Check($"[80×80] 最外侧可走格({c.x},{c.y}) ⇒ 可见格 ⊆ 地图 且 玩家在视口内",
+                    offTileR <= eps && marginR >= -eps,
+                    $"两条数：offTile={offTileR:0.####}（0=无虚空） margin={marginR:0.####}（<0=玩家出画）" +
+                    $" 机位=({camR.x:0.##},{camR.y:0.##})");
+            }
+
+            // (2) 城镇 56×40：实机量到的最外侧可走格（含桥面 x=W-1 与南边界行 gy=38 两处例外）
+            var townEdgeCells = new[]
+            {
+                new Vector2Int(8, 20), new Vector2Int(8, 31), new Vector2Int(55, 25),
+                new Vector2Int(55, 27), new Vector2Int(27, 17), new Vector2Int(27, 38),
+            };
+            foreach (var c in townEdgeCells)
+            {
+                var fw = Iso.GridToWorld(c);
+                var camR = CameraRig.CameraPosForCamera(fw, fw, GameConst.TownWidth, GameConst.TownHeight,
+                    CameraRig.DefaultOrthographicSize, covA, -CameraRig.CameraDistance);
+                var vpR = CameraRig.WorldToViewport(fw, camR, CameraRig.DefaultOrthographicSize, covA);
+                var marginR = Mathf.Min(Mathf.Min(vpR.x, 1f - vpR.x), Mathf.Min(vpR.y, 1f - vpR.y));
+                var offTileR = OffTileAmount(camR.x, camR.y, halfWA, halfHA, GameConst.TownWidth, GameConst.TownHeight);
+                bothTotal++;
+                if (offTileR <= eps && marginR >= -eps) bothOk++;
+                if (marginR < worstBoth) { worstBoth = marginR; worstBothTag = $"56×40({c.x},{c.y})"; }
+                Check($"[56×40] 最外侧可走格({c.x},{c.y}) ⇒ 可见格 ⊆ 地图 且 玩家在视口内",
+                    offTileR <= eps && marginR >= -eps,
+                    $"两条数：offTile={offTileR:0.####}（0=无虚空） margin={marginR:0.####}（<0=玩家出画）" +
+                    $" 机位=({camR.x:0.##},{camR.y:0.##})");
+            }
+
+            Check("贴边可走区：两条判据**同时**成立的用例 = 全部（没有任何一条被悄悄放宽）",
+                bothOk == bothTotal && bothTotal > 0,
+                $"成立 {bothOk}/{bothTotal}；最紧一条 = {worstBothTag} margin={worstBoth:0.####}");
+
+            // (3) 对照：**不可达**的最外圈。两条在这里数学上不可兼得（前两片都栽在这上面）
+            //     ⇒ 如实打印两个数，并断言「玩家永不被顶出画面」这一条**仍然**成立（cap=1 的硬保证）。
+            var unreachable = new[]
+            {
+                new { W = 80, H = 80, X = 0,  Y = 0,  Tag = "80×80 北角(0,0)" },
+                new { W = 56, H = 40, X = 0,  Y = 0,  Tag = "56×40 西北角(0,0)" },
+                new { W = 56, H = 40, X = 55, Y = 39, Tag = "56×40 东南角(55,39)" },
+            };
+            foreach (var uc in unreachable)
+            {
+                var fwU = Iso.GridToWorld(new Vector2Int(uc.X, uc.Y));
+                var camU = CameraRig.CameraPosForCamera(fwU, fwU, uc.W, uc.H,
+                    CameraRig.DefaultOrthographicSize, covA, -CameraRig.CameraDistance);
+                var vpU = CameraRig.WorldToViewport(fwU, camU, CameraRig.DefaultOrthographicSize, covA);
+                var marginU = Mathf.Min(Mathf.Min(vpU.x, 1f - vpU.x), Mathf.Min(vpU.y, 1f - vpU.y));
+                var offTileU = OffTileAmount(camU.x, camU.y, halfWA, halfHA, uc.W, uc.H);
+                Check($"[{uc.W}×{uc.H}] {uc.Tag}（不可达，仅对照）⇒ 玩家仍不被顶出画面（cap=1 的硬保证）",
+                    marginU >= -eps,
+                    $"已知取舍两条数：offTile={offTileU:0.####}（>0 = 此处确实藏不住虚空，须由**地图边界环**解决）" +
+                    $" margin={marginU:0.####} 机位=({camU.x:0.##},{camU.y:0.##})");
+            }
+
+            // (4) ★ cam-verify 追补（主 agent 追补口径）：**真实可达性** —— 从出生点洪水填充，
+            //     取「离地图边界最近的可达格」。这才是"玩家真的能走到多靠边"，⛔ 不是人造落点
+            //     （`mapcheck §29` 的 (1,20) 是封环前的人造极端点，§29 通过只证明"夹制函数在极端机位下
+            //      不再放行虚空"，**不等于**玩家会走到那儿）。
+            //     判据：可达格离边界 ≥ (半屏半跨 a+b) 格 ⇔「零虚空」与「玩家居中」处处同时成立；
+            //     若 < a+b ⇒ 该格上夹制**必然**咬合 ⇒ 玩家被顶到画面角 ⇒ 如实打印两个数（剩余缺陷）。
+            var im = (mapObj as Diablo2.Module.IMapModule) ?? ctx.Map;
+            if (im != null && im.IsGenerated)
+            {
+                int w4 = im.Width, h4 = im.Height;
+                var seen = new bool[w4 * h4];
+                var q = new System.Collections.Generic.Queue<Vector2Int>();
+                var sp4 = im.SpawnPoint;
+                if (im.Walkable(sp4)) { seen[sp4.y * w4 + sp4.x] = true; q.Enqueue(sp4); }
+                var minD = int.MaxValue; var minCell = sp4; var reached = 0;
+                var nb = new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) };
+                while (q.Count > 0)
+                {
+                    var c = q.Dequeue(); reached++;
+                    var d = Math.Min(Math.Min(c.x, c.y), Math.Min(w4 - 1 - c.x, h4 - 1 - c.y));
+                    if (d < minD) { minD = d; minCell = c; }
+                    foreach (var s in nb)
+                    {
+                        var nn = new Vector2Int(c.x + s.x, c.y + s.y);
+                        if (nn.x < 0 || nn.y < 0 || nn.x >= w4 || nn.y >= h4) continue;
+                        if (seen[nn.y * w4 + nn.x] || !im.Walkable(nn)) continue;
+                        seen[nn.y * w4 + nn.x] = true; q.Enqueue(nn);
+                    }
+                }
+                // 零虚空要求**机位**离地图边界 ≥ (a+b)/2 格（a=halfW/HalfW、b=halfH/HalfH；
+                // 1080p/ortho3.75 ⇒ 7.083 格）—— 与 camera-follow §5 的推理同一个数。
+                var need = (halfWA / Iso.HalfW + halfHA / Iso.HalfH) * 0.5f;
+                var fw4 = Iso.GridToWorld(minCell);
+                var cam4 = CameraRig.CameraPosForCamera(fw4, fw4, w4, h4,
+                    CameraRig.DefaultOrthographicSize, covA, -CameraRig.CameraDistance);
+                var vp4 = CameraRig.WorldToViewport(fw4, cam4, CameraRig.DefaultOrthographicSize, covA);
+                var margin4 = Mathf.Min(Mathf.Min(vp4.x, 1f - vp4.x), Mathf.Min(vp4.y, 1f - vp4.y));
+                var off4 = OffTileAmount(cam4.x, cam4.y, halfWA, halfHA, w4, h4);
+                var pxPerUnit4 = 1080f / (2f * CameraRig.DefaultOrthographicSize);
+                var dist4 = Math.Sqrt(Math.Pow((fw4.x - cam4.x) * pxPerUnit4, 2) + Math.Pow((fw4.y - cam4.y) * pxPerUnit4, 2));
+                Console.WriteLine($"  ★ 可达区洪水填充：area={im.Area} {w4}×{h4} 可达格={reached}" +
+                                  $" 最靠边可达格=({minCell.x},{minCell.y}) 离边界={minD} 格（零虚空要求 ≥ {need:0.###} 格）");
+                Check($"★ 可达的最靠边格({minCell.x},{minCell.y})离边界 {minD} 格：该格上两条底线（零虚空 / 玩家在视口内）仍成立",
+                    off4 <= eps && margin4 >= -eps,
+                    $"两条数：offTile={off4:0.####}（0=无虚空） margin={margin4:0.####}（<0=出画）" +
+                    $" 玩家↔相机屏幕距离={dist4:0.#}px" +
+                    (dist4 > 72.0 ? " ⇒ **居中判据不成立 = 剩余缺陷（地图侧）**" : " ⇒ 居中判据成立") +
+                    $" 机位=({cam4.x:0.##},{cam4.y:0.##})");
+            }
+
             rig.Reset();
             Check("Reset 后正交尺寸回到默认、跟随与震动清空",
                 Math.Abs(rig.OrthographicSize - CameraRig.DefaultOrthographicSize) < 1e-4f && !rig.IsShaking,
@@ -1550,6 +1692,25 @@ namespace PlayerCheck
             if (hiX > mw - 1) off += hiX - (mw - 1);
             if (loY < 0f) off += -loY;
             if (hiY > mh - 1) off += hiY - (mh - 1);
+            return off;
+        }
+
+        /// <summary>
+        /// ★ cam-verify：**真实"虚空"格量** = 可见格包围盒越过 `[0,W)×[0,H)` 的总格数（0 = 整屏都有地砖）。
+        /// <para>与 `OffGridAmount` 的口径差别（两处都打印，避免"换个口径变绿"）：
+        /// 格子 g 覆盖连续区间 `[g, g+1)`（= `Iso` 的 `WorldToGridContinuous` 口径）
+        /// ⇒ 地图真正铺了砖的范围是 `[0,W)×[0,H)`；`OffGridAmount` 用 `W-1` 作上界，
+        /// 会把**最后一整圈格**算成图外（那圈其实有地砖）。</para>
+        /// </summary>
+        private static float OffTileAmount(float camX, float camY, float halfW, float halfH, int mw, int mh)
+        {
+            float loX, hiX, loY, hiY;
+            CameraRig.VisibleGridRect(camX, camY, halfW, halfH, out loX, out hiX, out loY, out hiY);
+            var off = 0f;
+            if (loX < 0f) off += -loX;
+            if (hiX > mw) off += hiX - mw;
+            if (loY < 0f) off += -loY;
+            if (hiY > mh) off += hiY - mh;
             return off;
         }
 

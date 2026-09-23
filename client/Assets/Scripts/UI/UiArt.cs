@@ -399,7 +399,30 @@ namespace Diablo2.UI
             {
                 normal = ResPaths.BtnMedNormal;
                 pressed = ResPaths.BtnMedPressed;
-                highlight = ResPaths.BtnMedSel;         // 原版中等按钮另有"高亮"版 ⇒ 悬停用它
+                // ★ dialog-options（2026-09-24 **已定案，恢复原版口径**）：中等按钮的悬停帧 =
+                //   原版**高亮帧** `ResPaths.BtnMedSel`（= `FrontEnd/MediumSelButtonBlank.dc6` 帧 0）。
+                //   该 DC6 属于 **FrontEnd 组 ⇒ 必须用 `fechar` 调色板解**（**不是** ACT1，**也不是**
+                //   曾被猜过的 `menu1`）。工程里那份曾是**按 ACT1 解的麻点图**：
+                //     孤立高饱和像素占比 **0.424**（同族干净图 0.017~0.075）⇒ 实机一悬停底板就花斑、
+                //     把按钮文案糊掉（图 `.ai-tmp/screenshots/btnlabel_recap_g1_dialog_options.png`，
+                //     NPC 对话第 2 项「交易」被糊住、第 1 项「離開」清晰）。
+                //   定案依据（**可复跑**；探针 `tools/probes/measure/probe_med_sel_palette.py` +
+                //   `regen_med_sel_fechar.py`）：把 MPQ 里能解的 **15 套** `data/global/palette/*/Pal.PL2`
+                //   全解出来逐套量**同一麻点判据**：
+                //     · `fechar` sel 帧0 = **0.054**（帧1 = 0.055）← 唯一落进干净带；
+                //     · `menu1` 0.271（**前片的假设被证伪**）/ menu4 0.103 / sky 0.106 /
+                //       ACT1 **0.424**（旧图来源）/ 其余 0.24~0.55；
+                //     · **横向佐证（决定性）**：同目录的**共享**按钮只有 **ACT1** 干净 ——
+                //       `WideButtonBlank` 0.017、`MediumButtonBlank` 0.040、`CancelButtonBlank` 0.045，
+                //       用 `fechar` 反而 0.104~0.177 起麻点；**只有 FrontEnd 专属的 Sel 变体反过来要
+                //       `fechar`** ⇒ 即「同一个 DC6 里不同按钮按所属组用不同 palette」。
+                //     · 与本项目既有惯例一致：`export_d2ui.py` 的 `frontend` 组本来就整组用 `PL2_FECHAR`。
+                //   资产已按 `fechar` 重出（`btn_med_sel` 0.054 / `btn_med_sel_pressed` 0.055），
+                //   导出器 `tools/d2codec/export_d2ui.py::group_buttons` 已同步改用 `PL2_FECHAR`
+                //   （防全量重导把麻点图覆盖回来）。
+                //   判据 = uicheck 的 Ⓐ-4/Ⓐ-4b（`ButtonSpritesFor` 返回的**每一条**路径都无花斑）
+                //   ⇒ 本方法保持纯函数、离线可断言。
+                highlight = ResPaths.BtnMedSel;
             }
         }
 
@@ -419,6 +442,11 @@ namespace Diablo2.UI
             var state = new ButtonArtState { Target = img, OnMissing = onMissing };
             var btn = img.GetComponent<Button>();
             state.Button = btn;
+
+            // ★ dialog-options（2026-09-24）：中等按钮的悬停帧**已恢复为原版高亮帧**（`ButtonSpritesFor` 已定），
+            //   所以这里**不再有**降级告警 —— 原先那条 `btnart.med.sel.blocked` 的前提（"资产是麻点图"）
+            //   已消失：`btn_med_sel.png` 已按 `fechar` 调色板重出（麻点 0.424 → 0.054）。
+            //   根因/依据/横向佐证见 `ButtonSpritesFor` 中等分支的注释。
 
             Load1(state, normalPath, 0);
             Load1(state, pressedPath, 1);

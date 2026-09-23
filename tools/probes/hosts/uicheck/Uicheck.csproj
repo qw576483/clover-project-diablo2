@@ -56,6 +56,10 @@
     <!-- ★ 片 automap-panel：automap 绘制载体有效性（尺寸 / 墨量 / alpha / 接线）—— 独立文件，
          避免与 Program.cs / V6Check.cs 的并发改动冲突 -->
     <Compile Include="AutomapCarrierCheck.cs" />
+    <!-- ★ 片 dialog-options2：对话选项可读性（空文案 / 悬停坏图盖住文案）+ tooltip 可见性三条件。
+         ⚠️ 2026-09-24 曾出现"两处同名实现**互相删除**"（V6Check.cs 里那份与本文件）⇒ 现在**只有这一份**：
+         谁要再在别处实现同名类，请**先**删本行再动手。 -->
+    <Compile Include="DialogOptionsCheck.cs" />
     <Compile Include="..\flowcheck\shim\EngineShim.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制；文件集与 flowcheck 一致） -->

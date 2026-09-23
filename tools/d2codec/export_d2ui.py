@@ -191,12 +191,22 @@ def group_buttons(pal):
         one(d.frames[1], out("UI", "Menu", "btn_med_pressed.png"), pal,
             "原版 MediumButtonBlank.dc6 帧 1（按下）", "buttons")
 
+    # ★★ dialog-options（2026-09-24 定案）：**这一组的调色板与其他按钮不同** —— 别改回 `pal`(ACT1)。
+    #   依据（可复跑：`tools/probes/measure/probe_med_sel_palette.py`，麻点判据 = 孤立高饱和像素占比）：
+    #     · 同目录的**共享**按钮只有 ACT1 干净：WideButtonBlank 0.017 / MediumButtonBlank 0.040 /
+    #       CancelButtonBlank 0.045，用 `fechar` 反而 0.104~0.177 起麻点；
+    #     · 而 **FrontEnd 专属的 `MediumSelButtonBlank.dc6` 反过来**：ACT1 解出 **0.424**（麻点，历史缺陷：
+    #       一悬停就把中等按钮的文案糊掉），**`fechar` 解出 0.054 / 0.055**（干净）。
+    #     · 与本文件开头「frontend 组用 PL2_FECHAR」的既有惯例一致（类选人像那组就是 fechar）。
+    #     · 曾猜过的 `menu1` 已被 15 套全量扫描**证伪**（0.271）。
+    #   ⇒ 口径 =「同一个 DC6 目录里，共享按钮 ACT1 / FrontEnd 专属按钮 fechar」。
+    pal_sel = dc6.read_pl2(res(*PL2_FECHAR.split("/")))
     d = read_dc6("data", "global", "ui", "FrontEnd", "MediumSelButtonBlank.dc6")
     if d and len(d.frames) >= 2:
-        one(d.frames[0], out("UI", "Menu", "btn_med_sel.png"), pal,
-            "原版 MediumSelButtonBlank.dc6 帧 0（高亮/悬停）", "buttons")
-        one(d.frames[1], out("UI", "Menu", "btn_med_sel_pressed.png"), pal,
-            "原版 MediumSelButtonBlank.dc6 帧 1（高亮 + 按下）", "buttons")
+        one(d.frames[0], out("UI", "Menu", "btn_med_sel.png"), pal_sel,
+            "原版 MediumSelButtonBlank.dc6 帧 0（高亮/悬停；FrontEnd 组 ⇒ 调色板 %s）" % PL2_FECHAR, "buttons")
+        one(d.frames[1], out("UI", "Menu", "btn_med_sel_pressed.png"), pal_sel,
+            "原版 MediumSelButtonBlank.dc6 帧 1（高亮 + 按下；调色板 %s）" % PL2_FECHAR, "buttons")
 
     d = read_dc6("data", "global", "ui", "CharSelect", "ShortButtonBlank.dc6")
     if d:

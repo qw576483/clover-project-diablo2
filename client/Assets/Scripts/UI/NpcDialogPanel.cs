@@ -454,6 +454,18 @@ namespace Diablo2.UI
             {
                 var button = EnsureOption(i);
                 var label = options[i] ?? string.Empty;
+
+                // ★ dialog-options（2026-09-24）：**空文案不再静默** —— 原版 `NPCMenu*` 每一条都有字，
+                //   而"按钮建出来了但一个字都没有"在画面上与"label 没建/被盖住"长得一样、且不报错
+                //   （主 agent 的读图报告正是把这种形状当成"选项按钮无文字"）。
+                //   判据 = `uicheck` 的 Ⓐ-1/Ⓐ-2（纯函数退化对）+ 实机图。
+                if (!IsReadable(label, (int)UiLayoutGame.FontPx16, UiArt.ButtonText))
+                {
+                    UiLog.WarnOnce("dialog.option.text.empty." + i,
+                        $"对话选项 [{i}] 的文案为空/不可读（\"{label}\"）⇒ 该按钮会画成**空按钮**；"
+                        + "请 Npc 模块给 options[" + i + "] 一条原版串表文案（`NPCMenu*`）");
+                }
+
                 _optionLabels[i].text = label;
                 var index = i;
                 // 重新绑定点击（先清掉旧监听，避免多次 Rebuild 叠加重放）
@@ -471,6 +483,20 @@ namespace Diablo2.UI
             UiLog.Info($"对话面板已刷新：NPC={dialog.npcName} 台词 {(_body.text ?? string.Empty).Length} 字 "
                        + $"选项 {options.Count} 项=[{string.Join(" / ", options)}]（全部为原版串表文案）");
         }
+
+        /// <summary>
+        /// 菜单项文案**可读**的纯判据（离线断言共用；见 `tools/probes/hosts/uicheck` 的 Ⓐ 组）：
+        /// 文案非空且不是纯空白 —— 原版串表里 `NPCMenu*` 每一条都有字，空串 = 画面上一个字的空按钮。
+        /// </summary>
+        public static bool IsReadableLabel(string text) => !string.IsNullOrWhiteSpace(text);
+
+        /// <summary>
+        /// 菜单项按钮**可读**的三条件：文案非空（<see cref="IsReadableLabel"/>）+ 字号 &gt; 0 +
+        /// 字色 alpha &gt; 0。第三个条件（字色对底板对比度 ≥ 4.5:1）由 `uicheck` 的按钮对比度断言负责，
+        /// 不在本函数里重复。纯函数 ⇒ 离线宿主可直接喂"已知坏样本"做退化对。
+        /// </summary>
+        public static bool IsReadable(string text, int fontSize, Color color)
+            => IsReadableLabel(text) && fontSize > 0 && color.a > 0f;
 
         private Image EnsureOption(int index)
         {

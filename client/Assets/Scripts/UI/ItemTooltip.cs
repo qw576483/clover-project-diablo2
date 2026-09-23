@@ -136,6 +136,18 @@ namespace Diablo2.UI
         public bool IsVisible => _visible;
 
         /// <summary>
+        /// ★ dialog-options（2026-09-24）：tooltip **该不该可见**的唯一判据（纯函数 ⇒ 离线可断言）。
+        /// 只有三个条件**同时**成立才允许停在可见态：
+        ///   ① 拥有它的面板还开着（面板 `OnClose` 会 `Destroy`，见 `InventoryPanel.OnClose`）；
+        ///   ② 指针在面板矩形**内**（`InventoryPanel.UpdateHover` 的 `RectangleContainsScreenPoint`）；
+        ///   ③ 指针下的格/装备槽**有物品**（悬空格 ⇒ 必须 `Hide`）。
+        /// 任一不成立 ⇒ 调用方必须 `Hide()`/`Destroy()` —— 这正是"离开背包后残留一块空框"
+        /// （`.ai-tmp/test/report-playverify.md` §1.2 / §4 第 10 条）那一族现象的判据口径。
+        /// </summary>
+        internal static bool ShouldBeVisible(bool panelOpen, bool pointerInsidePanel, bool hasItem)
+            => panelOpen && pointerInsidePanel && hasItem;
+
+        /// <summary>
         /// 在 <paramref name="parent"/> 下造一个 tooltip（默认隐藏）。
         /// <paramref name="parent"/> 用面板根（铺满父层）即可 —— 位置按 Canvas 局部坐标算。
         /// </summary>

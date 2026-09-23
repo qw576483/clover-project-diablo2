@@ -220,6 +220,13 @@ namespace Diablo2.App
                         Game.Logger.Warn(Tag, "小地图被请求打开，但地图未生成 ⇒ 面板会显示空白");
                         break;
                     }
+                    // ★ 此时机的作用 = **面板打开时刷新一次快照（新鲜度）** —— 不是用来修正"图心"。
+                    //   图心 / 揭示中心 = "玩家当前格" 由**源头**负责：`Module/Map/MapModule.BuildMinimap`
+                    //   的 `playerX/Y` 填 `_lastPlayerGrid`（契约见 `Module/Contracts.cs` 的「玩家所在格」；
+                    //   片 automap-panel 2026-09-24，实机 `mapPlayer==livePlayer 0→1`）。
+                    //   ⇒ 后人：⛔ 别把这里当"冗余回声"删掉（删了面板打开那一刻会拿到旧快照）；
+                    //     ⛔ 也别在这里再修一次"中心/揭示"（那是重复修同一件事，源头已经承担）。
+                    //   下一帧的补发（`EmitDeferredMapSnapshot`）同理：补的是"刚创建的面板还没订完"。
                     EmitMapEcho(ctx.Map.BuildMinimap());
                     EmitExploredSnapshot("面板打开：MiniMapPanel");
                     ScheduleDeferredMapSnapshot();

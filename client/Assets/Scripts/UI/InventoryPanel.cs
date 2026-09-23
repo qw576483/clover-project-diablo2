@@ -933,13 +933,32 @@ namespace Diablo2.UI
         private void UpdateHover()
         {
             if (_tooltip == null) return;
-            if (Game.Input == null || !Game.Input.Available) return;
+
+            // ★ dialog-options2（2026-09-24）：`ShouldBeVisible` 的三条件在这里**逐条用真实状态喂**，
+            //   任一条不成立就 `Hide()`（口径见 `ItemTooltip.ShouldBeVisible` 的注释）。
+            //   ① 面板还开着：本方法只由存活面板的 `OnUpdate` 驱动；面板销毁走 `OnClose` 的 `Destroy`
+            //      （⇒ 这里恒 true，写出来是为了让"三条件"在同一处可读、可离线断言）。
+            const bool panelOpen = true;
+
+            if (Game.Input == null || !Game.Input.Available)
+            {
+                // ⚠️ 非预期分支（旧写法在这里**直接 return、不 Hide**）：输入不可用 ⇒ **指针位置不可知**，
+                //   按"指针不在面板内"处理 ⇒ 必须隐 —— 否则 tooltip 停在上一帧的位置不动，就是用户报的
+                //   「离开背包后残留一块空框」那一族（`.ai-tmp/test/report-playverify.md` §1.2）。
+                if (!ItemTooltip.ShouldBeVisible(panelOpen, false, false)) _tooltip.Hide();
+                UiLog.WarnOnce("tooltip.hover.noinput",
+                    "悬停判定时 `Game.Input` 不可用（未挂载 / 未就绪）⇒ tooltip 强制隐藏（指针位置不可知）");
+                return;
+            }
 
             var mouse = Game.Input.MousePosition;
             var screen = new Vector2(mouse.x, mouse.y);
-            if (!RectTransformUtility.RectangleContainsScreenPoint((RectTransform)transform, screen, null))
+            var inside = RectTransformUtility.RectangleContainsScreenPoint((RectTransform)transform, screen, null);
+
+            // ② 指针在面板矩形内：不在 ⇒ 三条件第 ② 条不成立，必隐（原版 tooltip 也不在面板外停留）
+            if (!inside)
             {
-                _tooltip.Hide();
+                if (!ItemTooltip.ShouldBeVisible(panelOpen, inside, false)) _tooltip.Hide();
                 return;
             }
 
@@ -951,7 +970,8 @@ namespace Diablo2.UI
                 var item = anchor >= 0 && _data != null && anchor < _data.inventory.Count
                     ? _data.inventory[anchor]?.item
                     : null;
-                if (item != null) _tooltip.Show(item);
+                // ③ 指针下这一格**有物品**：空格 ⇒ 第 ③ 条不成立，必隐（不是"留一个空框"）
+                if (ItemTooltip.ShouldBeVisible(panelOpen, inside, item != null)) _tooltip.Show(item);
                 else _tooltip.Hide();
                 return;
             }
@@ -962,12 +982,13 @@ namespace Diablo2.UI
                 if (!RectTransformUtility.RectangleContainsScreenPoint(_equipRects[i], screen, null)) continue;
 
                 var item = FindEquipped(_data?.equip, EquipSlots[i].slot, EquipSlots[i].slotIndex);
-                if (item != null) _tooltip.Show(item);
+                if (ItemTooltip.ShouldBeVisible(panelOpen, inside, item != null)) _tooltip.Show(item);
                 else _tooltip.Hide();
                 return;
             }
 
-            _tooltip.Hide();
+            // 指针在面板内、但既不在背包格也不在装备槽上 ⇒ 第 ③ 条不成立
+            if (!ItemTooltip.ShouldBeVisible(panelOpen, inside, false)) _tooltip.Hide();
         }
 
         /// <summary>

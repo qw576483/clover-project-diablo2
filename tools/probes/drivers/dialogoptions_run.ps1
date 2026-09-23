@@ -78,11 +78,11 @@ try {
     Say ('RECOMPILE-DONE ok=' + $ok)
 
     # ---- 3. account for the Play session (SKILL 4.4) -------------------------
-    $why = 'presentation-class: only a real frame shows whether the NPC dialog option buttons are legible when the pointer HOVERS one of them (the hover state swaps the button plate; that plate was the corrupt btn_med_sel.png). The same session re-reads the DIALOG= lines (option labels) so the numeric and the visual half cannot drift apart.'
-    Add-Content -Path $playLog -Value ((Get-Date).ToString('yyyy-MM-dd HH:mm') + "`t" + $me + "`t" + $Tag + "`t" + $why) -Encoding UTF8
-    Say 'PLAY-LOG-APPENDED'
-
+    #   ⚠️ 只有**真的进 Play** 才写账（-SkipTour 时只做 recompile ⇒ 记账会凭空多一条"Play 会话"）
     if (-not $SkipTour) {
+        $why = 'presentation-class: only a real frame shows whether the NPC dialog option buttons are legible when the pointer HOVERS one of them (the hover state swaps the button plate; that plate was the corrupt btn_med_sel.png). The same session re-reads the DIALOG= lines (option labels) so the numeric and the visual half cannot drift apart.'
+        Add-Content -Path $playLog -Value ((Get-Date).ToString('yyyy-MM-dd HH:mm') + "`t" + $me + "`t" + $Tag + "`t" + $why) -Encoding UTF8
+        Say 'PLAY-LOG-APPENDED'
         # ---- 4. the existing X tour (opens Akara's dialog twice) -------------
         Say 'TOUR-START x_run.ps1'
         $x = Join-Path $root 'tools/probes/drivers/x_run.ps1'
