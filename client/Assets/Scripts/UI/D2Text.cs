@@ -1225,6 +1225,21 @@ namespace Diablo2.UI
 
         private static bool TryBulkLoad(D2Text.D2Font font, bool rebuildLive)
         {
+            // ★★ hud-redo3 修（**`D2Text 兜底 LoadAll 异常 … NullReferenceException` 警告洪水的根因**）：
+            //   本函数是 `ApplyGlyph` 的**第一步**（`D2Text.cs:1188`），而它比后面那句
+            //   `if (Game.Res == null)`（:1204）**先跑** ⇒ 启动期 `CloverRes.Init` 之前（`Game.Res == null`）
+            //   每一次 `SetText` 都会在这里对 null 调 `Game.Res.LoadAll<Sprite>` ⇒ **NRE** ⇒
+            //   被下面的 catch 打成一条 Warn（实测：12ms 内 3 条同文 `seq 738/739/740`，图集 `D2/Fonts/font24`）。
+            //   这是**真缺陷**：一条"资源加载异常"的 Warn 在表达"资源模块还没就绪"（后者是正常启动时序，
+            //   且 `EnsureChi`/`EnsureS2T` 都已按"延迟、等 `RetryDeferred()` 重试"处理）。
+            //   ⇒ 这里补上判空：**没就绪就安静返回 false**（不是失败、不刷 Warn、不改 `BulkTried`），
+            //     字模由 `D2Text.RetryDeferred()` 在 `Game.Res` 就绪后重新发起。
+            //   ⚠️ 这不是"关日志掩盖"：真正取不到图的那条路（`all == null || all.Length == 0`、
+            //   以及 `ApplyGlyph` 末尾的 `MarkBitmapUnavailable`）**原地保留且照旧报错**。
+            //   判据：进一次 Play 后 `console_status` 里 `D2Text 兜底 LoadAll 异常` **0 条**，
+            //   且 `bitmapUnavailable=0`（V6 的降级修不得回退）。
+            if (Game.Res == null) return false;
+
             // ⚠️ 路径口径：引擎（`Game.Res.LoadAll`）会自己拼 `CloverRes.Init("Clover")` 的根前缀
             //   ⇒ 这里传**相对路径**（`D2/Fonts/font42`）；⛔ 不要再加 `ResPaths.Root + "/"`
             //   （那是 Unity `Resources` 的拼法，加了就变成 `Clover/Clover/…` 取不到）。
