@@ -3981,12 +3981,10 @@ internal static class MapCheckProgram
         var fracProd = OffMapFraction(new Vector3(prod.x, prod.y, -10f), halfW, halfH, mw, mh);
         Console.WriteLine($"  生产格空间夹制后机位 = ({prod.x:0.##},{prod.y:0.##})（Δ=({prod.x - camObs.x:0.##}," +
                           $"{prod.y - camObs.y:0.##})），同口径地图外占比 = {fracProd * 100f:0.#}%");
-        // ⚠️ 极性说明（camera-clamp 片，⛔ 判据本体一字未改，只修 `Defect` 的**传参极性**）：
-        //    `Defect(ok, …)` 的语义是 **ok = 判据通过**（fail-to-pass：修好 ⇒ 变 true ⇒ ✅CLEARED）。
-        //    前片传的是"缺陷成立条件"（`insideAabb && fracObs > 0.35f`）：修好之后"放行"为 false
-        //    ⇒ 那个表达式恒 false ⇒ 判据**永远清不掉**（且阈值 0.35 与实测 31.3% 也不匹配）。
-        //    本片改成"修好后成立"的那一面：生产夹制**移动了**该机位 且 同口径虚空占比 = 0。
-        //    （退化校验：若把生产改回旧 AABB 夹制 ⇒ prodMoved=false ⇒ 本项立刻回 ❌DEFECT-REPRO。）
+        // ⚠️ 实参语义（camera-clamp 片）：`Defect(ok, …)` 里 **ok =「缺陷已消除 / 判据通过」**
+        //    （helper 内 `if (!ok) _defects++`，打印 ✅CLEARED ⇔ ok=true）。
+        //    ⇒ 下面两处传进去的**必须是"修好后成立"**的那一面，⛔ 不是"缺陷仍然存在"。
+        //    退化校验：把生产改回旧 AABB 夹制 ⇒ 两处同时回 ❌DEFECT-REPRO（不会变成豁免）。
         Defect(prodMoved && fracProd == 0f,
             $"生产夹制**不再放行**该机位（{nameof(CameraBounds)}.{nameof(CameraBounds.ClampFocusGrid)} 把机位 " +
             $"({camObs.x:0.#},{camObs.y:0.#}) 移到 ({prod.x:0.#},{prod.y:0.#})，" +
@@ -4004,7 +4002,12 @@ internal static class MapCheckProgram
         // ★ camera-clamp 片追加：生产实现必须与规格函数**同一个数**（判"生产"不判"另一套算法"）
         Check(Mathf.Abs(prod.x - spec.x) < 1e-3f && Mathf.Abs(prod.y - spec.y) < 1e-3f,
             $"★ 生产 == 规格：同一落点机位差 ({prod.x - spec.x:0.####},{prod.y - spec.y:0.####})（> 1e-3 ⇒ 生产走的不是格空间夹制）");
-        Defect(Mathf.Abs(spec.x - camObs.x) > 0.01f || Mathf.Abs(spec.y - camObs.y) > 0.01f,
+        // ⚠️ 实参语义（同上）：ok = **「缺陷已消除」**。本项原来传的是「规格 ≠ 现状」（缺陷仍存在的那一面），
+        //    与 helper 的 ok 语义相反 —— 但**直接取反会让它永远为 false**（`spec` 是规格解、`camObs` 是修前
+        //    实测机位，二者恒不相等）⇒ `_defects` 会被永久钉在 1，与「`_defects` 必须归 0」冲突。
+        //    ⇒ 取它的**等价 fail-to-pass 形式**：「现状（生产机位）已经 == 规格解」（修好后成立、修前不成立），
+        //    判据标签与规格文字一字未改（下面那行文案照旧，`Δ` 仍打印规格相对修前实测的位移）。
+        Defect(Mathf.Abs(prod.x - spec.x) < 1e-3f && Mathf.Abs(prod.y - spec.y) < 1e-3f,
             $"规格 vs 现状：同一落点下格空间夹制必须移动机位（现状 Δ=({spec.x - camObs.x:0.##},{spec.y - camObs.y:0.##})）" +
             " ⇒ 修 `CameraRig.MapWorldBounds/ClampFocus`（⛔ 不是 `MapView`）");
 
