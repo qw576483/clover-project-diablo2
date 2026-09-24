@@ -2,14 +2,14 @@
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 35,
   "spec_md_line": 131,
-  "spec_sha256": "a2994c076885600e11e3be14e5d825d74a8537fa88547fc75cf5e8aef89bddbb",
+  "spec_sha256": "4e942e167465bb942d2f1061451bf3880e289597de7a408a94ce5cd1f2629a7d",
   "category": "数值类",
   "system": "魔法词缀",
   "method": "官方前后缀表",
   "criterion": "生成魔法物品，词缀名与效果对得上",
   "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row35.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 07:43:44",
+  "generated": "2026-09-24 08:57:04",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_itemcheck.txt": [

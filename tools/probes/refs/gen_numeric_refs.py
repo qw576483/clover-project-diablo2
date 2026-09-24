@@ -64,9 +64,17 @@ CITEDRE_LOCAL = re.compile(r"(\.ai-tmp/test/[A-Za-z0-9_\-]+\.txt)")
 # 且在盘的产物**），⛔ 不新造数值、⛔ 不把不在盘的引用当 source。
 CITEDRE_REFS = re.compile(r"(tools/probes/refs/[A-Za-z0-9_\-]+\.txt)")
 
-# `--check` 的比对口径：`generated` 是**生成时刻戳**（同一份内容、两次运行的秒数必然不同），
-# 连它一起比 ⇒ 两次运行之间恒报 STALE（实测：剔除该字段后 13/13 逐字节相等）。
+# `--check` 的比对口径：把每一处 `generated`（生成时刻戳）的值换成占位符 `"<ignored>"`
+# 之后**逐字节**比（见 cmp_text）——时间戳本身不参与比对，所以 `--check` **不是**恒红。
 # ⛔ 只影响**比对**：写盘内容 / 字段名 / 路径一律不变（`generated` 照旧写进产物）。
+#
+# 真实语义与使用口径（2026-09-24 按代码校对；此处原先写着「连它一起比 ⇒ 两次运行之间恒报
+# STALE」，与实现不符，已改正）：
+#   * 逐字节比的是「**除 `generated` 外**」的全部内容；
+#   * 而 `spec_sha256` / `spec_md_line` 取自**整份 `策划/验收表.md`** ⇒ **表一被编辑，
+#     17 份 artifact 会同时判 STALE**（那是「表变了」，不是「产物内容错了」）；
+#   * ⇒ **正确用法**：**先把表改完并定稿，最后才重生成 numeric_refs**，然后在提交前跑一次
+#     `--check`，应当 **0 STALE**；若表还会再改，别把 `--check` 当必绿闸门用。
 GENRE = re.compile(r'"generated":\s*"[^"]*"')
 
 

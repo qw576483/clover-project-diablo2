@@ -9,7 +9,7 @@
   "criterion": "`tools/verify.ps1` 第 28 项 `coverage-acceptance` 实测",
   "conclusion": "通过：文献侧原先仍红，已由本轮**整轮实跑** `FAIL=0` 消除（闸门侧早先已改真做 `Test-Path`） ｜类别：数值类",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 08:54:22",
+  "generated": "2026-09-24 08:57:04",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/test/main-verify-final1.txt": [
