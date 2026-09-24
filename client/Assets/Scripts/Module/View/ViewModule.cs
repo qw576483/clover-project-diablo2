@@ -5,14 +5,16 @@
 // 这样模块生命周期只有一个来源，也不会因为场景切换丢掉挂在别处的方式。
 //
 // 职责：创建/更新/销毁精灵视图（玩家 8 方向、怪物、地面物品）、受击闪白、死亡表现、
-//       飘字（引擎 `Game.UI.FloatText`）、**头顶血条（引擎 `CloverEngine.WorldHpBar`）**、逐帧动画推进。
+//       飘字（引擎 `Game.UI.FloatText`）、逐帧动画推进。
+//       ★ u44-C4（第 7 轮）：**头顶血条（引擎 `CloverEngine.WorldHpBar`）已删** —— 原版对可击杀怪
+//         只有屏幕顶部 `EnemyBar`（`MouseSelection.cs:62-65`），"怪名 + 血量"现由 `UI/EnemyBarView` 承担。
 //
 // 动画：**业务自写逐帧切图**（`SpriteAnimator` / `SpriteFrames` / `ViewAnim`，本项目新增）
 //       —— 引擎 `Game.Anim` 是 Animator 驱动，不覆盖逐帧切图（理由见 `SpriteAnimator.cs` 文件头）。
 //
 // 命中反馈三件套里的两件在本模块：
 //   ① 飘字（`ShowFloatingText`，由 `Module/Combat/DamagePipeline` 在同一次命中里调用）
-//   ③ 头顶血条下降（`UpdateMonster` 把 `state.hp/maxHp` 喂给 `WorldHpBar`，同一调用栈）
+//   ③ （原"头顶血条下降"已按 u44-C4 删除；血量改由 `UI/EnemyBarView` 在悬停时读 `Def.MonsterState`）
 //   ② 音效钩子由 `DamagePipeline` 直接调 `IAudioModule`（可空）。
 //
 // ── ★ agent-16：空引用防护（修「MissingReferenceException 每帧刷屏」）────────────────
@@ -164,6 +166,58 @@ namespace Diablo2.Module.View
             Game.Event.On<InventoryChangedArgs>(Events.EquipChanged, OnEquipChanged);
             // ★ agent-20 §A：NPC 视图随进图建立（约定：HUD/NPC 这类"进图才存在的东西"都挂 StageEntered）
             Game.Event.On(Events.StageEntered, OnStageEntered);
+            // ★ u44（悬停选择表现 · 契约 C2）：鼠标悬停到谁 ⇒ 那个实体**整体变亮**
+            //   （原版 `_Brightness` 3.0 / `_Contrast` 1.01；移开回 1.0/1.0）。
+            //   驱动源 = `Events.HoverTargetChanged`（发送方 `Module/Input/InputReader.Publish`）
+            //   —— 与顶部血条（`UI/EnemyBarView`）**同一个事件**、同一个载荷，两边各消费各的那一半；
+            //   数值/属性名/手段的唯一真源 = `Module/View/EntityHighlight`（本文件不内联 3.0/1.01）。
+            Game.Event.On<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, OnHoverChanged);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 悬停变亮（契约 C2；原版 `MouseSelection.HotEntity` ⇒ `COFRenderer.selected`）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>当前被点亮（悬停）的实体 id；-1 = 没有（玩家/NPC/空地悬停都不点亮）。</summary>
+        private int _hoveredEntityId = -1;
+
+        /// <summary>
+        /// `Events.HoverTargetChanged` 的收方：把"上一个被悬停的实体"复位、把"这一个"点亮。
+        /// <para>口径（**逐条来自参考实现，不许扩**）：
+        ///   · 只有 `CursorKind.Attack`（= 指针下是**可攻击的怪物**）参与 —— 原版点亮的判据是
+        ///     `entity.selected`，由 `MouseSelection.HotEntity` 驱动，而 `HotEntity` 只可能是
+        ///     `CalcHotEntity` 选出的**可选中**实体；玩家被显式排除（`MouseSelection.cs:139-167`）。
+        ///   · 掉落物 / NPC 不走这条路：原版对它们走 `label.Show`（世界内名字牌）而不是"变亮"，
+        ///     本工程的地面物品名牌另有 `UI/GroundItemLabelView`、NPC 名字牌在 `UI/EnemyBarView`。</para>
+        /// </summary>
+        private void OnHoverChanged(Diablo2.Def.HoverTarget t)
+        {
+            var next = t != null && t.hasTarget && t.cursor == CursorKind.Attack && t.id >= 0 ? t.id : -1;
+            if (next == _hoveredEntityId) return;
+
+            var prev = _hoveredEntityId;
+            _hoveredEntityId = next;
+
+            // 先复位旧的、再点亮新的：同一帧里 id 变了也不会出现"两个同时亮"。
+            SetEntityHighlighted(prev, false);
+            SetEntityHighlighted(next, true);
+
+            if (next != -1 || prev != -1)
+            {
+                ViewLog.Info($"[悬停变亮] {(prev == -1 ? "无" : ("m#" + prev))} → "
+                    + (next == -1 ? "无" : $"m#{next}「{t.name}」")
+                    + $"（{EntityHighlight.BrightnessProperty}={EntityHighlight.BrightnessFor(next != -1)}"
+                    + $" / {EntityHighlight.ContrastProperty}={EntityHighlight.ContrastFor(next != -1)}"
+                    + "；来源 = `D2.Input.HoverChanged`，CursorKind.Attack 才点亮）");
+            }
+        }
+
+        /// <summary>把某个实体视图切到"悬停档/常规档"（视图不存在 ⇒ 静默跳过：它是正常时序）。</summary>
+        private void SetEntityHighlighted(int entityId, bool highlighted)
+        {
+            if (entityId < 0) return;
+            if (!_entities.TryGetValue(entityId, out var v) || v == null || v.Renderer == null) return;
+            EntityHighlight.Apply(v.Renderer, v.OriginalMaterial, highlighted);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -380,26 +434,19 @@ namespace Diablo2.Module.View
             v.SpriteCode = code;
             v.Dir = state.dir;
 
-            // 头顶血条（引擎件；**默认隐藏**，掉血了才显示 —— 原版也是这样）
-            // ⚠️ 血条的 width/height/yOffset 都是**宿主节点局部坐标**，而实体节点已乘 `ArtScale`(0.8)
-            //    ⇒ 三个都除以 ArtScale，保证血条在世界里仍然是 1×0.12、离脚底 2.15
-            //    （与接入真素材前**一模一样**，不产生"顺手把血条也改了"的副作用）。
-            v.Bar = WorldHpBar.Create(v.Root.transform,
-                WorldHpBar.DefaultWidth / SpriteFrames.ArtScale,
-                WorldHpBar.DefaultHeight / SpriteFrames.ArtScale,
-                WorldHpBar.DefaultYOffset / SpriteFrames.ArtScale, "MonsterHpBar");
-            if (v.Bar != null)
-            {
-                v.Bar.SetHp(state.hp, state.maxHp);
-                v.Bar.SetVisible(state.hp < state.maxHp);
-            }
+            // ★ U44-C4（第 7 轮）：这里原来建**头顶血条**（引擎件 `CloverEngine.WorldHpBar`：
+            //   `DefaultWidth/Height/YOffset ÷ ArtScale` + `SetHp/SetVisible`）。已按裁决**删除** ——
+            //   出处：原版对可击杀怪**只有**屏幕顶部 `EnemyBar`（`MouseSelection.cs:62-65` ⇒ `ShowEnemyBar`；
+            //   `EnemyBar.cs:26-35`），`select` 片真源码扫过参考实现里**没有**头顶血条 ⇒
+            //   头顶那条是本工程自加件，违反"⛔ 不许两份并存"。
+            //   现由 `UI/EnemyBarView.cs` 独家承担"怪名 + 血量"（悬停时显示）。
 
             PlayAnim(v, ViewAnim.Idle, true);
             _entities[state.id] = v;
 
             ViewLog.Info($"怪物视图已创建：m#{state.id} {state.name} 种类={state.kindId} sprite={code} " +
                          $"精英={state.isChampion}{(state.isChampion ? "（" + state.modName + "）" : "")} " +
-                         $"帧目录={ResPaths.MonsterDir(code)} 占位色={color} 血条={(v.Bar != null ? "已挂" : "缺失")}");
+                         $"帧目录={ResPaths.MonsterDir(code)} 占位色={color}（血量显示 = 悬停时的顶部 EnemyBar）");
         }
 
         /// <inheritdoc />
@@ -470,12 +517,9 @@ namespace Diablo2.Module.View
                 if (dirChanged || want != v.Playing) PlayAnim(v, want, SpriteFrames.LoopOf(want));
             }
 
-            // ★ 头顶血条：**同一次命中**的调用栈里就会走到这里 ⇒ 血条与扣血同帧下降
-            if (v.Bar != null)
-            {
-                v.Bar.SetHp(state.hp, state.maxHp);
-                v.Bar.SetVisible(state.alive && state.hp < state.maxHp);
-            }
+            // ★ U44-C4（第 7 轮）：这里原来把 `state.hp/maxHp` 喂给**头顶血条**（引擎件 `WorldHpBar`）。
+            //   头顶那条已删 ⇒ 血量显示改由 `UI/EnemyBarView` 在**悬停时**从 `Events.MonsterChanged`
+            //   的 `Def.MonsterState` 直接读（同一次命中 ⇒ 条与扣血同帧）。
         }
 
         /// <inheritdoc />
@@ -622,7 +666,8 @@ namespace Diablo2.Module.View
 
             v.Dead = true;
             v.CorpseFaded = false;
-            v.Bar?.SetVisible(false);
+            // （U44-C4 第 7 轮：这里原来隐藏**头顶血条**；那条已删，悬停顶部条由 `UI/EnemyBarView`
+            //   在目标不再是可击杀怪时自己收起。）
             PlayAnim(v, ViewAnim.Death, false);
             v.Anim.Replay();
             ApplyFrame(v);
@@ -700,6 +745,10 @@ namespace Diablo2.Module.View
             //   **只报一次**的日志永不出现，会把真实故障藏起来（诊断价值全丢）。
             //   清场时机正确：`Clear()` 只在离场/复位时走到。
             ViewLog.ResetThrottle();
+
+            // ★ u44：视图全没了 ⇒ "正在被点亮的实体"这个游标也必须作废（否则换场后第一个悬停
+            //   会因为 `next == _hoveredEntityId` 而**不点亮**：屏幕上看就是"新地图里第一次悬停没反应"）。
+            _hoveredEntityId = -1;
 
             // 已经干净 ⇒ 静默返回（`StageLeft` 与 Flow 的 `ResetModules()` 会各调一次本方法，正常路径
             // **不该**变成两条「清场完成」日志；异常路径（清了但没收到事件）也不会漏）。
@@ -937,7 +986,14 @@ namespace Diablo2.Module.View
                 if (v.HitFlashTimer > 0f) ApplyFlash(v);
                 else
                 {
-                    v.Root.transform.position = v.LastWorld;   // 撤掉受击位移
+                    // ★ U26/U36（2026-09-24）：**必须**经 `EntityWorld` —— 这里原先直接写 `v.LastWorld`
+                    //   （z = 状态里的 `worldZ`，恒 0）⇒ 受击闪白结束的那一帧把 z 次级键**整条丢掉**，
+                    //   该实体落回「z = 0 的无键带」：与地图瓦片/投射物等一切 z=0 的渲染器并列，
+                    //   又变成"没有任何决胜键"（用户症状「闪一会人物一会 npc」的同类残余）。
+                    //   判据：`EntityWorld` 是本文件 `Root.transform.position` 的**唯一入口**（见其注释）
+                    //   ⇒ 这条是唯一漏网路径；离线断言见 `tools/probes/hosts/movecheck` §11 的
+                    //   「唯一入口」扫描项（它逐行核 `Module/View/**` 里所有 position 赋值）。
+                    v.Root.transform.position = EntityWorld(v.EntityId, v.LastWorld);   // 撤掉受击位移
                     ApplyTint(v);
                 }
             }
@@ -1319,6 +1375,22 @@ namespace Diablo2.Module.View
         //   画在实体之上 —— 与"overlay = 遮蔽/迷雾应盖住实体"的既有意图一致（保守）。
         // 原版口径：原版同格实体的绘制次序是**稳定的生成序号**（不是每帧重排）；这里把它落成
         //   「类型档 → id」两级键，因此**重复调用结果恒定**（`mapcheck`/`movecheck` 有断言）。
+        //
+        // ── U26「人物穿模」/U36「闪一会人物一会 npc」复核（2026-09-24）────────────────────
+        // ① **第三键的口径有出处**（不是"我们用 z 当距离"的假设）：Unity 文档 `TransparencySortMode`
+        //    原文 —— "By default, perspective cameras sort objects based on distance from camera
+        //    position to the object center; and **orthographic cameras sort based on distance along
+        //    the view direction**"（https://docs.unity3d.com/ScriptReference/TransparencySortMode.html）。
+        //    本项目相机是**正交 + rotation=identity + 机位 z 恒为 `-CameraRig.CameraDistance`**
+        //    （`Module/Camera/CameraRig.cs` 的 `IsoLock`）⇒ 视图轴 = +Z ⇒ **排序距离之差 == 实体 z 之差**，
+        //    与相机跟焦/抖动/插值**无关**（相机 x/y 在正交模式下根本不参与排序）。
+        //    ⇒ "距离随插值抖动导致闪"这条假设**被证伪**（离线断言见 `movecheck` §11 的「相机 z 与焦点无关」）。
+        // ② **主排序键每帧重排**这条假设也被排除：`sortingOrder` 只在**格变化**时重算
+        //    （`UpdateMonster` / `TickPlayer`），而它是 `Grid` 的纯函数（`movecheck` §11 逐帧核）。
+        // ③ 唯一残余（本片修掉）：受击闪白结束时 `TickOne` 曾绕过 `EntityWorld` 直接写 `v.LastWorld`
+        //    ⇒ 把 z 次级键整条丢掉、落回 z=0 的无键带。⚠️ 仍在的**同族**漏网路径（⛔ 不在本片改动域内，
+        //    已登记回报）：`Module/Skill/ProjectileView.cs` 的 `Projectile.WorldOf(...)`（z=0，且与实体
+        //    同档 `EntitySortOrder`）⇒ 两个同 `gx+gy` 的投射物之间**仍然没有决胜键**。
 
         /// <summary>实体次级排序**类型档**（越大越靠前）：玩家 4 &gt; 城镇 NPC 3 &gt; 怪物 2 &gt; 地面物品 1。</summary>
         internal static int SortTieRank(int entityId)
@@ -1330,15 +1402,39 @@ namespace Diablo2.Module.View
         }
 
         /// <summary>
+        /// 引擎侧「同 `sortingOrder` 的确定性次级键」实例（<see cref="SortingLayers"/>）——
+        /// 本工程**只借它的 <see cref="SortingLayers.TiebreakOffset"/>**（实体 id → 微小 z 偏移），
+        /// 「id → 次级键」这个公式在项目侧不再留第二份
+        /// （投射物档同源：`Module/Skill/ProjectileView.SortZFor` 也走该引擎件，只是取模基数不同）。
+        /// <para>⛔ <c>fieldHeightTiles</c> 是引擎构造的**必填项**、本处用不到
+        /// （<see cref="SortingLayers.DepthOrder"/> 是 `worldY` 口径，而本项目的深度序是
+        /// **等距格** `(gx+gy)` 口径，见 <see cref="EntitySortOrder"/> 的说明）
+        /// ⇒ 填一个**有出处**的真实值 `GameConst.MapMaxSize`（任意区域尺寸硬上限，格）。</para>
+        /// <para>预算自洽：`SortTieMod × SortingLayers.DefaultTiebreakStep = 10000 × 1e-4 = 1.0`
+        /// 小于本项目**一个 order 级**（`GameConst.SortOrderStep` = 4）
+        /// ⇒ 次级键不可能翻转跨格 / 跨层的先后（满足引擎件文件头那条硬约束）。</para>
+        /// </summary>
+        private static readonly SortingLayers EntityTiebreak = new SortingLayers(
+            GameConst.MapMaxSize,
+            SortingLayers.DefaultDepthLevelsPerTile,
+            SortTieMod,
+            SortingLayers.DefaultTiebreakStep);
+
+        /// <summary>次级键取模基数（= 原公式里的 10000：同格堆叠可区分的上限）。</summary>
+        private const int SortTieMod = 10000;
+
+        /// <summary>
         /// 实体节点的**z 次级排序键**（同 `sortingOrder` 时 Unity 按"到相机距离"决胜）：
-        /// `(5 - rank) + (|id| % 10000) * 1e-4`，恒 &gt; 0（= 在地图层之后）。
-        /// 同级同类按 `EntityId` 升序 ⇒ **同一个输入永远得到同一个值**（纯函数）。
+        /// `(5 - rank) + TiebreakOffset(|id|)`（= 原 `(5 - rank) + (|id| % 10000) * 1e-4`，**逐位相同**），
+        /// 恒 &gt; 0（= 在地图层之后）。同级同类按 `EntityId` 升序 ⇒ **同一个输入永远得到同一个值**（纯函数）。
+        /// <para>⚠️ 传 `Mathf.Abs(id)` 而不是裸 `id`：引擎件按**有符号**取模（负值折回正区间），
+        /// 本项目口径是 `|id| % mod` —— 城镇 NPC 的 id 是负数（`NpcEntityId = -1-(int)NpcId`）
+        /// ⇒ 取绝对值后两者结果完全一致。</para>
         /// </summary>
         internal static float SortTieZ(int entityId)
         {
             var rank = SortTieRank(entityId);
-            var sub = Mathf.Abs(entityId) % 10000;
-            return (5 - rank) * 1f + sub * 0.0001f;
+            return (5 - rank) * 1f + EntityTiebreak.TiebreakOffset(Mathf.Abs(entityId));
         }
 
         /// <summary>实体节点的世界坐标（**唯一入口**：所有 `Root.transform.position` 赋值都经过它）。</summary>
@@ -1366,11 +1462,19 @@ namespace Diablo2.Module.View
                     EntityId = entityId,
                     Root = go,
                     Renderer = sr,
+                    // ★ u44：记下**建节点时的原材质**（悬停变亮的"移开还原"就还它）——
+                    //   必须在任何 `EntityHighlight.Apply(...)` 之前读，否则记下的就是被换过的那个。
+                    OriginalMaterial = sr.sharedMaterial,
                     BaseColor = color,
                     LastWorld = world,
                     UsingPlaceholder = true,
                     NeedsFrameRefresh = true,
                 };
+                // ★ u44：先把属性块写成"常规档"（1.0/1.0）——
+                //   ① 与原版一致：`Materials.SetRendererHighlighted(r, false)` 就是这么写的；
+                //   ② 实机判据要能**回读**这两个键（属性块里没写过的键 `GetFloat` 返回 0，
+                //      会把"没接线"误判成"亮度 0"）⇒ 建节点即写一次，此后只由悬停改。
+                EntityHighlight.Apply(sr, v.OriginalMaterial, false);
                 v.Anim.SpeedScale = 1f;
                 return v;
             }
@@ -1622,7 +1726,6 @@ namespace Diablo2.Module.View
             }
             v.Root = null;
             v.Renderer = null;
-            v.Bar = null;
         }
 
         private void DestroyViewRoot()
@@ -1696,6 +1799,40 @@ namespace Diablo2.Module.View
                   .Append($" 占位={v.UsingPlaceholder}");
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// **排序键逐帧采样**（自证/驱动用，**不在契约里**）。
+        /// <para>为什么必须有它：`SpriteRenderer` 的**实际绘制次序没有公开读取入口**（Unity 内部按
+        /// `(sortingLayer, sortingOrder, 视图轴距离)` 排）⇒ 要判"人物与 NPC 重合时闪不闪"，只能逐帧把
+        /// 两个节点的这三样读出来自己比。行格式（`\n` 分隔）：`类型|id|spriteCode|格|sortingOrder|z`
+        /// —— 驱动侧按 `sortingOrder` 升序、同值时 `z` 降序排，即得该帧的绘制次序（z 小 = 离正交相机近 = 画在前）。</para>
+        /// <para>它同时是「本片改动是否真的编译进当前 Play」的**存在性标记**（旧版 `ViewModule` 没有它）。</para>
+        /// </summary>
+        internal string DumpSortKeys()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("sortkeys version=u26-20260924");
+            AppendSortKey(sb, _player, "player");
+            foreach (var kv in _entities)
+            {
+                if (kv.Value != null && !kv.Value.IsPlayer) AppendSortKey(sb, kv.Value, "monster");
+            }
+            foreach (var kv in _groundItems) AppendSortKey(sb, kv.Value, "item");
+            foreach (var kv in _npcs) AppendSortKey(sb, kv.Value, "npc");
+            return sb.ToString();
+        }
+
+        /// <summary>`DumpSortKeys` 的单行（`Root`/`Renderer` 失效时静默跳过 —— 只读诊断，不改状态）。</summary>
+        private static void AppendSortKey(System.Text.StringBuilder sb, EntityView v, string kind)
+        {
+            if (v == null || v.Root == null) return;
+            var order = v.Renderer != null ? v.Renderer.sortingOrder : int.MinValue;
+            sb.Append('\n').Append(kind).Append('|').Append(v.EntityId)
+              .Append('|').Append(v.SpriteCode ?? "-")
+              .Append('|').Append(v.Grid.x).Append(',').Append(v.Grid.y)
+              .Append('|').Append(order)
+              .Append('|').Append(v.Root.transform.position.z.ToString("0.######"));
         }
 
         /// <summary>一行状态摘要。</summary>

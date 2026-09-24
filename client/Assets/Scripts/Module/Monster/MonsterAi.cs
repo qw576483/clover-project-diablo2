@@ -16,6 +16,18 @@
 //
 // ⛔ 所有"没按预期走"的分支都留日志（找不到路 / 目标格非法 / 退无可退 / 未登记的 AI 类型）。
 // ⛔ 高频分支用 `MonsterLog.WarnThrottled`（**自己想做的无时钟降频**，见该文件头）。
+//
+// ★ 片 eng2-path（引擎下沉 + 骨架显式化）：
+//   1. **推进下沉**：`Advance` / `StepToward` / 路径状态已下沉引擎 `CloverEngine.PathFollower`
+//      （本文件经 `MonsterRuntime` 薄转发调用，**语义一行未改**）。
+//   2. **状态骨架显式化**：每只怪一棵引擎状态机（`CloverEngine.Game.NewFsm()`；引擎全局那份是
+//      应用级流程，⛔ 不能共用），骨架 = `Idle → Aggro → Chase → Attack → Return / Flee`。
+//      · **归位**：每 tick 由 `PhaseOf` 算一次（`Fsm` 忽略自环 ⇒ 不会重跑 OnEnter/OnExit）；
+//      · **事件点显式转移**：出手成功 ⇒ `Attack`（`TryAttack`）；进入逃跑 ⇒ `Flee`（`Coward`）；
+//        脱战 ⇒ `Return`（`Disengage`）。
+//   ⛔ **行为与数值的唯一真相仍是本文件那 4 个 AI 函数**（Melee / Range / Shaman / Coward）：
+//      状态回调只做"骨架归位 + 转移留痕"，⛔ 不许把射程 / 距离 / 冷却等数值搬进状态回调或
+//      `PhaseOf`（那会让同一份判定出现两个产地，必然漂移）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Diablo2.Core;
@@ -36,6 +48,25 @@ namespace Diablo2.Module.Monster
             /// <summary>向玩家出手了。</summary>
             Attack = 1,
         }
+
+        // ── 状态骨架的状态名（引擎 `Fsm` 的 key；**字符串常量**，⛔ 不散落字面量）──────────
+        /// <summary>待机：未交战、也不在回原位。</summary>
+        private const string PhaseIdle = "Idle";
+
+        /// <summary>刚锁定玩家（进入仇恨的那一站，留痕用）。</summary>
+        private const string PhaseAggro = "Aggro";
+
+        /// <summary>交战推进（**行为入口**：调 4 个 AI 函数）。</summary>
+        private const string PhaseChase = "Chase";
+
+        /// <summary>本 tick 出手（事件标签，由 `TryAttack` 转进）。</summary>
+        private const string PhaseAttack = "Attack";
+
+        /// <summary>脱战回原位（`ReturnHome`）。</summary>
+        private const string PhaseReturn = "Return";
+
+        /// <summary>低血逃跑中（事件标签，由 `Coward` 转进；持续到 `FleeTimer` 归零）。</summary>
+        private const string PhaseFlee = "Flee";
 
         /// <summary>8 邻（与 `CloverEngine.AStar` / `GridMap` 同一套偏移，用于"挑一个更远离玩家的可走格"）。</summary>
         private static readonly Vector2Int[] Neighbors8 =
@@ -70,14 +101,97 @@ namespace Diablo2.Module.Monster
             var playerCenter = MonsterRuntime.Center(owner.PlayerGrid);
             var dist = Vector2.Distance(m.Pos, playerCenter);
 
+            // 骨架先建好：`UpdateEngagement` / `Coward` 会在**事件点**显式转状态（需要 `m.Ai` 已存在）。
+            var fsm = FsmOf(m, owner);
+            m.AiPlayerCenter = playerCenter;
+            m.AiDist = dist;
+            m.AiResult = Action.None;      // 每 tick 复位：本 tick 没走行为分支时不会残留上一帧的结果
+
             UpdateEngagement(owner, m, hasPlayer, dist, dt);
 
-            if (!m.Engaged)
-            {
-                if (m.Returning) ReturnHome(owner, m, dt);
-                return Action.None;
-            }
+            // ── 骨架归位 + 驱动 ──
+            // 归位（自环被 `Fsm` 忽略 ⇒ 不重跑回调）；真正的行为在 Chase / Return / Flee / Aggro / Idle
+            // 的状态回调里（`DispatchTick` / `ReturnHome`），⛔ 这里不做任何 AI 判定。
+            fsm.Transition(PhaseOf(m));
+            fsm.Tick(dt);
+            return m.AiResult;
+        }
 
+        // ═════════════════════════════════════════════════════════════════════
+        // 状态骨架（引擎 `Fsm`）：建 / 归位 / 行为入口
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 本 tick 的**骨架归位**（有意不改任何行为）。
+        /// <para>
+        /// `Attack` / `Flee` 是"事件点"显式转移的目标，这里**不复算**它们的条件 ——
+        /// `Attack` 只活到下一 tick 归位为止；`Flee` 由 `FleeTimer` 决定何时交回 `Chase`
+        /// （该计时器仍由 `Coward` 维护，⛔ 本方法不碰）。
+        /// </para>
+        /// </summary>
+        private static string PhaseOf(MonsterRuntime m)
+        {
+            if (!m.Engaged) return m.Returning ? PhaseReturn : PhaseIdle;
+
+            // 逃跑中：骨架停在 Flee（其 tick 仍走 `Coward` 的逃跑分支，行为与改动前一致）。
+            if (m.State != null && m.State.ai == MonsterAI.Coward && m.FleeTimer > 0f) return PhaseFlee;
+
+            // 刚锁定玩家 / 刚被复用（`Current == null`）：先走一站 Aggro 留痕，下一 tick 归位到 Chase。
+            if (m.Ai.Current == null || m.Ai.Current == PhaseIdle) return PhaseAggro;
+
+            return PhaseChase;
+        }
+
+        /// <summary>
+        /// 取（首次则建）**本怪自己的**状态机。注册一次、之后复用 —— 闭包捕获 `owner` / `m`，
+        /// 行为入口一律走 <see cref="DispatchTick"/> / <see cref="ReturnHome"/>。
+        /// </summary>
+        private static CloverEngine.IFsm FsmOf(MonsterRuntime m, MonsterModule owner)
+        {
+            if (m.Ai != null) return m.Ai;
+
+            var fsm = CloverEngine.Game.NewFsm();
+
+            fsm.RegisterState(PhaseIdle,
+                onTick: _ => { m.AiResult = Action.None; });
+
+            fsm.RegisterState(PhaseAggro,
+                onEnter: () => MonsterLog.Info($"ai-state m#{m.State.id} {m.State.name}: → {PhaseAggro}（已锁定玩家）"),
+                onTick: dt => DispatchTick(owner, m, dt));
+
+            fsm.RegisterState(PhaseChase,
+                onTick: dt => DispatchTick(owner, m, dt));
+
+            fsm.RegisterState(PhaseAttack,
+                onEnter: () => MonsterLog.Info($"ai-state m#{m.State.id} {m.State.name}: → {PhaseAttack}（本 tick 出手）"),
+                onTick: dt => DispatchTick(owner, m, dt));
+
+            fsm.RegisterState(PhaseReturn,
+                onEnter: () => MonsterLog.Info($"ai-state m#{m.State.id} {m.State.name}: → {PhaseReturn}（回原位 {m.Home}）"),
+                onTick: dt => ReturnHome(owner, m, dt));
+
+            fsm.RegisterState(PhaseFlee,
+                onEnter: () => MonsterLog.Info($"ai-state m#{m.State.id} {m.State.name}: → {PhaseFlee}（低血逃跑中）"),
+                onTick: dt => DispatchTick(owner, m, dt));
+
+            m.Ai = fsm;
+            return fsm;
+        }
+
+        /// <summary>
+        /// 状态回调的**唯一行为入口**：调 <see cref="Dispatch"/>（那 4 个 AI 函数），把结果写回
+        /// <see cref="MonsterRuntime.AiResult"/>。⛔ 这里不做任何数值判断 —— 判定全在 4 个 AI 函数里。
+        /// </summary>
+        private static void DispatchTick(MonsterModule owner, MonsterRuntime m, float dt)
+        {
+            m.AiResult = Dispatch(owner, m, m.AiPlayerCenter, m.AiDist, dt);
+        }
+
+        /// <summary>
+        /// **4 种 AI 的行为分发**（自改动前 `Step` 尾部的 `switch` 一字未改地搬来 —— 仍是唯一真相）。
+        /// </summary>
+        private static Action Dispatch(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
+        {
             switch (m.State.ai)
             {
                 case MonsterAI.Melee:
@@ -168,6 +282,7 @@ namespace Diablo2.Module.Monster
             m.Returning = true;
             m.FleeTimer = 0f;
             m.ClearPath();
+            m.Ai?.Transition(PhaseReturn);      // 事件点：脱战 ⇒ 骨架置 Return（下一 tick 由 PhaseOf 接管）
         }
 
         /// <summary>回原位（脱战后）；到达即停。</summary>
@@ -333,6 +448,7 @@ namespace Diablo2.Module.Monster
             {
                 m.FleeTimer = MonsterTuning.CowardFleeSeconds;
                 m.ClearPath();
+                m.Ai?.Transition(PhaseFlee);    // 事件点：低血 ⇒ 骨架置 Flee（持续到 FleeTimer 归零）
                 MonsterLog.Info($"flee m#{m.State.id} {m.State.name}：hp {m.State.hp}/{m.State.maxHp}" +
                                 $"（{ratio * 100f:0}%）≤ {MonsterTuning.CowardFleeHpRatio * 100f:0}% ⇒ 背向玩家逃跑" +
                                 $"（持续 {MonsterTuning.CowardFleeSeconds:0.0}s）");
@@ -469,6 +585,7 @@ namespace Diablo2.Module.Monster
             m.AttackAnimTimer = MonsterTuning.AttackAnimSeconds;
             m.ViewDirty = true;
             owner.RequestMonsterAttack(m);
+            m.Ai?.Transition(PhaseAttack);      // 事件点：出手 ⇒ 骨架置 Attack（下一 tick 由 PhaseOf 接管）
             return Action.Attack;
         }
     }

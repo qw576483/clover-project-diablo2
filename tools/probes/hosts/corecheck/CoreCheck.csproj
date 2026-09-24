@@ -83,4 +83,10 @@
     </Reference>
   </ItemGroup>
 
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+  </ItemGroup>
 </Project>

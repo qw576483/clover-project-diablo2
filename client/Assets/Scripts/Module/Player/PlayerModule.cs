@@ -430,10 +430,37 @@ namespace Diablo2.Module.Player
                 PlayerLog.Warn($"存档位置 ({saved.x},{saved.y}) 不可走 ⇒ 落在出生点 " +
                                $"({_motor.Grid.x},{_motor.Grid.y})（存档数据/地图 seed 不一致？）");
 
-            // 当前值：存档里存了就沿用（钳到上限），没存（0）则满血
-            _life = save.life > 0 ? Mathf.Min(save.life, _stats.MaxLife) : _stats.MaxLife;
-            _mana = save.mana > 0 ? Mathf.Min(save.mana, _stats.MaxMana) : _stats.MaxMana;
-            _stamina = save.stamina > 0 ? Mathf.Min(save.stamina, _stats.MaxStamina) : _stats.MaxStamina;
+            // ★ u52cur（缺陷 A）：**旧口径档必须迁移**，不能只做 `Min(cur, max)`。
+            //   根因（`文件:行`）：上面的 `_stats.Recompute()`（`PlayerModule.cs:408`）用的是**新**口径
+            //   （`PlayerStats.Max*` ← `class_c.hp_add/base_stamina`，官方 `charstats` 起始量），
+            //   而**旧口径**（charstat 片修前）写进档的 `life/mana/stamina` 是"起始四维 × 成长系数"那套
+            //   式子的产物 —— 两者**不同源**。实测活档 `client/setting/saves/S2203805.json`：
+            //   `life=60 / mana=22 / stamina=20`（＝旧公式），`version=1`，`cls=1, lvl=1, 四维 20/25/20/15`；
+            //   实机读数（`u52play` 11:38:35 那批，.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99）
+            //   `life=50/50 mana=15/15 stamina=**20/84**` ⇒ 与 `Min(60,50)/Min(22,15)/Min(20,84)` **逐值对得上**：
+            //   生命/法力因旧值偏大被夹到上限（**看着像满的**），而**耐力旧值 20 < 新上限 84 ⇒ 卡在 20/84**，
+            //   这就是用户看到的「人物状态框数值不对」那一格。
+            //   裁决（team-lead 缺陷 A）：**版本更旧的档 ⇒ 三资源按当前口径补满**（旧口径下它们当时本就是
+            //   对应旧上限的满值；1 级起始量即满值起步：`charstats.hpadd+起始体力=50` / 起始精力=15 / `stamina=84`）
+            //   + **一次 Info**（不是每条资源一条）。
+            //   现行版本档**保持原语义**："存了就沿用（钳到上限），没存（0）则满" —— 实测活档 `SAArea1.json`
+            //   的 `life=34`（中局受伤时存的档）证明**沿用**是既定行为，⛔ 不许把"沿用"改成"补满"。
+            if (save.version < GameConst.SaveVersion)
+            {
+                _life = _stats.MaxLife;
+                _mana = _stats.MaxMana;
+                _stamina = _stats.MaxStamina;
+                PlayerLog.Info(
+                    $"[Load] 存档版本 {save.version} < 当前 {GameConst.SaveVersion} ⇒ **旧档迁移**：" +
+                    $"三资源按当前口径补满（生命={_life} 法力={_mana} 耐力={_stamina}，" +
+                    $"档里的旧值 {save.life}/{save.mana}/{save.stamina} 是旧公式产物，与现在的上限不同源）");
+            }
+            else
+            {
+                _life = save.life > 0 ? Mathf.Min(save.life, _stats.MaxLife) : _stats.MaxLife;
+                _mana = save.mana > 0 ? Mathf.Min(save.mana, _stats.MaxMana) : _stats.MaxMana;
+                _stamina = save.stamina > 0 ? Mathf.Min(save.stamina, _stats.MaxStamina) : _stats.MaxStamina;
+            }
 
             PlayerLog.Info(
                 $"[Load] {_name} 职业={_stats.Cls} 等级={_stats.Level} 经验={_exp}/{ExpNext} " +

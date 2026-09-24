@@ -177,8 +177,10 @@ namespace Diablo2.UI
         {
             if (_bgmText != null) _bgmText.SetText(_bgm.ToString("0.00"));
             if (_sfxText != null) _sfxText.SetText(_sfx.ToString("0.00"));
-            UiArt.SetBarRatio(_bgmBar, _bgm);
-            UiArt.SetBarRatio(_sfxBar, _sfx);
+            // ★ 片 d2-bar：音量条的比例刷新一律走**引擎**锚点宽度件（`UiArt.SetBarRatio` 已删，
+            //   它与 `UIFactory.SetBarWidth` 是同一件事的第二份实现）。
+            if (_bgmBar != null) UIFactory.SetBarWidth(_bgmBar.rectTransform, _bgm);
+            if (_sfxBar != null) UIFactory.SetBarWidth(_sfxBar.rectTransform, _sfx);
             if (_fullscreenButton != null) _fullscreenButton.SetText(_fullscreen ? Text.On : Text.Off);
             if (_qualityButton != null) _qualityButton.SetText(QualityLabelOf(_quality));
         }

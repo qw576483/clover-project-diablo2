@@ -472,6 +472,13 @@ namespace ShopGrid
                 return true;
             });
 
+            // ------------------------------------------------ bottom-bar square buttons (u53-shopart)
+            // The two action buttons must carry the ORIGINAL buysellbtn art (repair = frame 2,
+            // close = frame 10), not the flat placeholder colour UiArt.ButtonBg. Reading
+            // Image.sprite.name at run time is the only way to tell the two apart: the source
+            // applies the sprite asynchronously (UiArt.SetSprite -> Game.Res.LoadAsset).
+            Add("dump-buttons", () => { DumpShopArt(); return true; });
+
             // ---------------------------------------------------------------- dump + shot (buy page)
             Add("dump-buy", () => { Dump("buy"); Shoot("shop_cells_buy.png"); return true; });
             Add("shot-buy", () => ShotLanded());
@@ -663,6 +670,117 @@ namespace ShopGrid
                     + " shopCell=" + ShopPanel.CellSize.ToString("0.0")
                     + " panel=" + ShopPanel.PanelSize.x.ToString("0.0") + "x" + ShopPanel.PanelSize.y.ToString("0.0"));
             }
+        }
+
+        /// <summary>
+        /// 片 u53-shopart: read the two bottom-bar square buttons as they actually are in Play —
+        /// node present / sprite name / Image colour / transition / pressed sprite / rect.
+        /// The placeholder shape (no sprite + flat UiArt.ButtonBg colour) shows up here as
+        /// sprite=none, which is exactly what the offline check (uicheck ShopArtCheck) forbids.
+        /// </summary>
+        private void DumpShopArt()
+        {
+            var shop = FindShop();
+            if (shop == null) { Drive.Log("SHOPART-BTN open=0"); return; }
+            var root = shop.transform;
+            DumpButton(root, "RepairAll", 2);
+            DumpButton(root, "Close", 3);
+        }
+
+        private static string Fmt(Rect r)
+            => "(x" + r.xMin.ToString("0.#") + " y" + r.yMin.ToString("0.#") + " "
+               + r.width.ToString("0.#") + "x" + r.height.ToString("0.#") + ")";
+
+        /// <summary>Screen-space rect of a RectTransform (ScreenSpaceOverlay canvas => world == screen).</summary>
+        private static Rect ScreenRect(RectTransform rt)
+        {
+            var c = new Vector3[4];
+            rt.GetWorldCorners(c);
+            var min = new Vector2(float.MaxValue, float.MaxValue);
+            var max = new Vector2(float.MinValue, float.MinValue);
+            for (var i = 0; i < 4; i++)
+            {
+                var sp = RectTransformUtility.WorldToScreenPoint(null, c[i]);
+                min = Vector2.Min(min, sp);
+                max = Vector2.Max(max, sp);
+            }
+            return new Rect(min, max - min);
+        }
+
+        /// <summary>
+        /// 片 u53-shopart: the label must sit OUTSIDE the button rect (the original square button is a
+        /// pure glyph -- repair = hammer+anvil, close = circled slash -- so a label on top of it hides
+        /// the very art that makes the button self-explanatory). Reads, live: the button rect, the
+        /// Label child's rect in BUTTON-LOCAL space (directly comparable to ShopPanel.ButtonRect /
+        /// ButtonLabelRect), the screen-space rects, and whether they overlap (must be 0).
+        /// </summary>
+        private void DumpButton(Transform root, string name, int slot)
+        {
+            var go = Drive.Node(root, name);
+            var img = Drive.ImgOf(go);
+            var btn = go != null ? go.GetComponent<Button>() : null;
+            var pressed = btn != null && btn.spriteState.pressedSprite != null
+                ? btn.spriteState.pressedSprite.name : "none";
+            var color = img != null
+                ? (img.color.r.ToString("0.###") + "," + img.color.g.ToString("0.###") + ","
+                   + img.color.b.ToString("0.###") + "," + img.color.a.ToString("0.###"))
+                : "(no-img)";
+
+            var label = go != null ? go.transform.Find("Label") as RectTransform : null;
+            var lr = label != null ? label.rect : new Rect();
+            var lLocal = label != null
+                ? new Rect(label.anchoredPosition - lr.size * 0.5f, lr.size) : new Rect();
+            var expect = ShopPanel.ButtonLabelRect(slot);
+            var buttonLocal = ShopPanel.ButtonRect(slot);
+            var overlapLocal = label != null && lLocal.Overlaps(buttonLocal);
+            var labelText = label != null ? label.GetComponent<Text>() : null;
+
+            // R2-a: the button must sit CENTRED in the carved slot's inner recess
+            // (the old constant put it on the slot's TOP EDGE -> 18 original px too high).
+            if (img != null)
+            {
+                var c = img.rectTransform.anchoredPosition;      // panel-local (parent = panel root)
+                var want = ShopPanel.SlotCenter(slot);
+                var inner = ShopPanel.SlotInnerRect(slot);
+                var sd = img.rectTransform.sizeDelta;
+                var br = new Rect(c.x - sd.x * 0.5f, c.y - sd.y * 0.5f, sd.x, sd.y);
+                var inside = br.xMin >= inner.xMin - 0.01f && br.xMax <= inner.xMax + 0.01f
+                          && br.yMin >= inner.yMin - 0.01f && br.yMax <= inner.yMax + 0.01f;
+                Drive.Log("SHOPART-SLOT slot=" + slot
+                    + " actualCenter=(" + c.x.ToString("0.0") + "," + c.y.ToString("0.0") + ")"
+                    + " expectCenter=(" + want.x.ToString("0.0") + "," + want.y.ToString("0.0") + ")"
+                    + " size=" + sd.x.ToString("0.0") + "x" + sd.y.ToString("0.0")
+                    + " distCanvasPx=" + (c - want).magnitude.ToString("0.###")
+                    + " distOrigPx=" + ((c - want).magnitude / 1.8f).ToString("0.###")
+                    + " inner=" + Fmt(inner)
+                    + " buttonInPanel=" + Fmt(br)
+                    + " insideInner=" + (inside ? 1 : 0));
+            }
+
+            var overlapScreen = false;
+            var screen = "labelScreen=(none) buttonScreen=(none)";
+            if (label != null && img != null)
+            {
+                var ls = ScreenRect(label);
+                var bs = ScreenRect(img.rectTransform);
+                overlapScreen = ls.Overlaps(bs);
+                screen = "labelScreen=" + Fmt(ls) + " buttonScreen=" + Fmt(bs);
+            }
+
+            Drive.Log("SHOPART-BTN name=" + name + " slot=" + slot
+                + " node=" + (go != null ? 1 : 0)
+                + " sprite=" + Drive.SpriteOf(go)
+                + " color=" + color
+                + " transition=" + (btn != null ? btn.transition.ToString() : "(no-btn)")
+                + " pressed=" + pressed
+                + " rect=" + Drive.RectOf(go)
+                + " labelChild=" + (label != null ? 1 : 0)
+                + " labelRectLocal=" + Fmt(lLocal)
+                + " expectedLabelLocal=" + Fmt(expect)
+                + " labelFontSize=" + (labelText != null ? labelText.fontSize.ToString() : "(-)")
+                + " overlapLocal=" + (overlapLocal ? 1 : 0)
+                + " " + screen
+                + " overlapScreen=" + (overlapScreen ? 1 : 0));
         }
 
         private void Finish(string why)

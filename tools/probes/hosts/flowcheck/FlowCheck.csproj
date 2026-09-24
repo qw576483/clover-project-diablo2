@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ───────────────────────────────────────────────────────────────────────
        Flow / 流程面板 / App 自检宿主（**非 Unity 工程、不参与打包**）
@@ -113,4 +113,26 @@
     </Reference>
   </ItemGroup>
 
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\LoadingPacing.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\PointerFloatLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\DragDropLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteStripLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldOverlayWidgets.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\BitmapFont.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ScreenPointUtil.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UIPanelGuards.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UiImageLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteSwapButton.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProjectileRuntime.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />
+  </ItemGroup>
 </Project>

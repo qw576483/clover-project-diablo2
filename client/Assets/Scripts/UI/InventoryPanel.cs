@@ -336,6 +336,22 @@ namespace Diablo2.UI
         private Image _dropHighlight;
         private int _dragAnchor = -1;
 
+        /// <summary>
+        /// ★ 片 eng-drag-drop（2026-09-24）：**拖放机制**收敛到引擎件 `CloverEngine.DragDropLayer`
+        /// （拖影取件/跟随指针 · 屏幕点 → 格坐标 · 目标格高亮回调 · 落点判定 + 可否放注入）。
+        /// <para>
+        /// ⛔ **D2 语义全部留在本面板**，一个字都没下沉：
+        ///   · 「哪些格可放」= <see cref="CanPlaceInInventory"/>（本面板注入）；
+        ///   · 「高亮怎么画」= <see cref="OnDropTargetChanged"/>（本面板回调里画 `DropHighlight`）；
+        ///   · 「落点该怎么处理（装备槽 / 背包内移动 / 丢地面）」= <see cref="PlanDrop"/>（未改一字）。
+        /// </para>
+        /// <para>屏幕点换算（含"按画布模式取相机"）走引擎 `ScreenPointUtil`，⛔ 本文件不再自写一份。</para>
+        /// </summary>
+        private DragDropLayer _drag;
+
+        /// <summary>最近一次拖拽上报的指针屏幕点（只给"指针下无格"那条日志用；-1 之外都算已知）。</summary>
+        private Vector2 _lastDragScreen;
+
         // ═════════════════════════════════════════════════════════════════════
         // 请求事件（**离线可断言**；载荷打包即契约，逐字对齐 `Core/Events.cs` 的注释）
         // ═════════════════════════════════════════════════════════════════════
@@ -413,6 +429,10 @@ namespace Diablo2.UI
             _tooltip?.Destroy();
             _tooltip = null;
             _dragAnchor = -1;
+            // ★ 片 eng-drag-drop：关面板时若拖拽还在进行，由引擎拖放层收表现
+            //   （藏拖影 + 目标格回调一次"无格"= 取消高亮）——否则 `DragGhost` / `DropHighlight`
+            //   会以"还亮着"的状态留到下次打开（改前只清 `_dragAnchor`，两个节点没人收）。
+            _drag?.HideGhost();
             UiLog.Info("背包面板已关闭");
         }
 
@@ -526,24 +546,56 @@ namespace Diablo2.UI
         }
 
         /// <summary>
+        /// 关闭按钮上的那个字（**原版字模的拉丁「X」**，不是自绘图形、也不是中文标签）。
+        /// <para>⚠️ 为什么不是中文「关闭」：本工程最小字模 = 原版 `font16`（画布 **28.8px**，
+        /// `UiLayoutGame.FontPx16`）⇒ 两个字 ≈ 57.6px **宽于本槽内区 ~48px**（槽 32×31 原版px ×1.8
+        /// = 57.6×55.8，原版小方钮底图内区约 26 原版px = 46.8 画布px）⇒ 必然越框/折行。
+        /// 单个拉丁 `X`（≈28.8px）居中放得下，且**语义与原版 `CloseButton` 的图形一致**。</para>
+        /// </summary>
+        private const string CloseMarkText = "X";
+
+        /// <summary>
         /// 底部一行（原版 `InventoryPanel.prefab` 的三个节点，位置/尺寸逐条 ×1.8）：
         /// `CloseButton`(关闭) + `GoldButton`(金币按钮，原版帧 `goldcoinbtn.dc6.0` 0/1 = 常态/按下)
         /// + `GoldText`(金币数字，位图字体)。
-        /// <para>⚠️ 关闭按钮的「X」图形**不在本批素材里**（底图只有一个凹槽）⇒ 命中区按原版矩形摆放，
-        /// 图形登记在 `client/资源欠缺清单.md`，**不自己画一个**（1:1 硬标准）。</para>
+        /// <para>★ R8-close（2026-09-24）：关闭按钮**从"100% 透明的命中区"改成"可见的关闭标记"**
+        /// —— 修前 `new Color(1,1,1,0)` ⇒ 点得到、屏上**什么都看不见**（用户第三批投诉
+        /// 「甚至连他妈的关闭都没有」在本格上是字面正确）。</para>
+        /// <para>用什么补（**取件结果 + 为什么不自画 + 为什么不套方钮族**）：
+        /// ① 原版那张「X」图形（Diablerie `InventoryPanel.prefab` 的 `CloseButton.m_Sprite` guid
+        ///    `bd016b557dbd0934bbc9b79319d50729`，**32×31**）**不在盘**：片 `popupaudit` 按名 10 条 MISS；
+        ///    本片再加两路 —— mpq 按名 **42** 条 `close/exit/cancel/xbtn/esc/button` 名字族全 MISS
+        ///    （4 条对照项命中 ⇒ 链路可信）；DC6 全集按**图形内容**扫 448 个文件、647 个落在 20..54px
+        ///    尺寸带的帧，X 相似度最高只有 0.481（物品图标 `inv1x1.DC6`）⇒ **全集内没有任何 X 形帧**。
+        /// ② ⇒ 走「⛔ 不自画 + 只用原版素材」：**按钮底图不另贴**（本槽的按钮位就是原版底图自己画好的
+        ///    凹槽 —— 贴一张外来的板反而会盖掉它），**文案 = 原版位图字模的拉丁「X」**
+        ///    （见 <see cref="CloseMarkText"/>，字模文件 = 原版 `LOCAL/FONT/chi/font16`）。
+        /// ③ ⚠️ 为什么不套 `PANEL/buysellbtn.DC6` 那族 32×32 方钮帧（同尺寸族、且工程内已有用法）：
+        ///    本槽的原版图形是 **32×31 的独立 sprite**，而方钮族的帧尺寸是 **32×32** ⇒ 不是同一件东西；
+        ///    且该族有图形的帧是「锤子+铁砧(2/3)＝修理」「⊘(10/11)＝商店关闭」**别的界面的语义**
+        ///    （出处 = 片 u53-shopart 按原版商店实机读图 + `策划/验收表.md` E4，见 `uicheck/ShopArtCheck.cs`），
+        ///    套到背包上要么是空板（帧 0/1，`ShopArtCheck` 明写"那是旧实现的错处"）要么是错的图标。
+        /// ④ 残余（已登记 `client/资源欠缺清单.md` #22）：拿到原版「X」贴图后**只换这一处标记**
+        ///    （把 `D2Label` 换成 `UiArt.SetSprite(close, "D2/UI/Panel/closebtn")`），
+        ///    本段几何（原版 `CloseButton` 32×31 @(-125.8,-184.1)×1.8）与接线一个字都不动。</para>
         /// </summary>
         private void BuildBottomRow()
         {
-            // ── 关闭按钮：命中区 + 原版底图的凹槽（点一下 = 关面板，与原版 `CloseButton` 同效）──
+            // ── 关闭按钮：原版命中区矩形（透明 ⇒ 露出原版底图自带的凹槽）+ 原版字模「X」──
+            //    命中区本身仍是原版矩形与原来那套接线；**新增的只有那个看得见的「X」**。
             var close = UiArt.Panel(transform, "CloseButton", CloseButtonSize, PanelPos + CloseButtonPos,
                 new Color(1f, 1f, 1f, 0f), true);
             var closeBtn = close.gameObject.AddComponent<Button>();
             closeBtn.targetGraphic = close;
             closeBtn.onClick.AddListener(() =>
             {
-                UiLog.Info("点背包关闭按钮 ⇒ 走 `Events.PanelToggleRequest` 关闭（与按 I/Esc 同一条路径）");
+                UiLog.Info("点背包关闭按钮 ⇒ 走 `Events.PanelToggleRequest` 关闭（与按 I 同一条路径）");
                 Game.Event.Emit(Events.PanelToggleRequest, nameof(InventoryPanel));
             });
+            // 可见的关闭标记：原版字模「X」（alpha=1；命中区面积 = `CloseButtonSize`）
+            D2Label.Create(close.transform, "CloseMark", CloseMarkText, D2Text.D2Font.Font16,
+                TextAnchor.MiddleCenter, UiArt.TitleColor, CloseButtonSize, Vector2.zero,
+                (int)UiLayoutGame.FontPx16);
 
             // ── 金币按钮：原版 `goldcoinbtn.dc6.0` 两帧（0=常态 1=按下），帧尺寸实测 20×17 ──
             // ⚠️ 逐帧按名加载在本工程取不到（见 `UiArt.RequestStrip` 的实测注释）⇒ 一律走条带取帧。

@@ -37,6 +37,11 @@
 //     本该恒真的点上把攻击拒掉：实测 40 次真实左键全被拒（`report-audioverify2.md` §2.3）。
 //   ⛔ 判据见 `tools/probes/hosts/combatcheck` 第 18 节（同格命中 / 正前方命中 / 正侧方不命中 /
 //     超距不命中 / 隔墙不命中）。
+//
+// ★ 实现已下沉（2026-09-24 片 eng-geom）：**几何算法**搬到引擎
+//   `clover-client-unity-engine/Runtime/Core/HitShape.cs`（`CloverEngine.HitShape`）；
+//   本文件只剩**题材调参常量**（60° / 1.2 格，见上面两条推导）+ **薄转发**（公开签名一字未改）。
+//   数值等价的比对脚本见 `.ai-tmp/test/enggeom_equiv/`（改前实现 vs 引擎件逐行比对）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -44,7 +49,21 @@ using UnityEngine;
 
 namespace Diablo2.Module.Combat
 {
-    /// <summary>攻击判定形状：正面扇形 + 矩形走廊 + 线段通畅（全部纯函数）。</summary>
+    /// <summary>
+    /// 攻击判定形状：正面扇形 + 矩形走廊 + 线段通畅。
+    /// <para>
+    /// ★ **实现已下沉到引擎**（`CloverEngine.HitShape`，`Runtime/Core/HitShape.cs`）——
+    /// 本类只留**题材调参常量**（`FrontConeHalfAngleDeg` / `MeleeHalfWidth`，见文件头推导）
+    /// 与**薄转发**（公开签名一字未改，调用点无需改动）。
+    /// </para>
+    /// <para>
+    /// 为什么常量留在项目侧：60° 半角与 1.2 格半宽是**本项目 8 向朝向的量化推导结果**
+    /// （见文件头"正面锥半角 60°"/"走廊半宽"两条），属玩法调参，不是通用底座；
+    /// 引擎件只接受 `cosMin` / `reach` / `halfWidth` 参数。
+    /// 出处：`clover-project-diablo2 client/Assets/Scripts/Module/Combat/MeleeShape.cs:48-152`
+    /// ⇒ `clover-client-unity-engine Runtime/Core/HitShape.cs`（整类逐行下沉）。
+    /// </para>
+    /// </summary>
     internal static class MeleeShape
     {
         /// <summary>正面扇形半角（度）。60° ⇒ 8 向量化误差（±22.5°）与斜向贴身都不丢。</summary>
@@ -56,11 +75,9 @@ namespace Diablo2.Module.Combat
         /// <summary>矩形走廊半宽（格）—— 见文件头"走廊半宽"的推导。</summary>
         public const float MeleeHalfWidth = 1.2f;
 
-        /// <summary>线段遍历的格数上限（防御：BadLine 参数导致死循环时能退出并报 false）。</summary>
-        private const int MaxLineSteps = 1024;
-
         /// <summary>
         /// 朝向的**格增量** → **单位向量**（格坐标下的向量，不是屏幕方向）。
+        /// <para>★ 已下沉：转发到 `CloverEngine.HitShape.ToUnit`（算法与边界逐行照搬）。</para>
         /// <para>
         /// ⛔ 本类**不自己写 `Dir8` 映射表**：格增量一律由调用方用**引擎权威表**
         /// `Iso.DirectionDelta(dir)`（= `CloverEngine.IsoLayout.DirectionDelta`）取好再传进来
@@ -70,18 +87,7 @@ namespace Diablo2.Module.Combat
         /// <returns>false = 朝向向量不可解（0 向量；调用方据此**拒绝**本次攻击并留痕）。</returns>
         public static bool ToUnit(int dx, int dy, out float fx, out float fy)
         {
-            fx = dx;
-            fy = dy;
-            var len = Mathf.Sqrt(fx * fx + fy * fy);
-            if (len <= 0f)
-            {
-                fx = 0f;
-                fy = 0f;
-                return false;
-            }
-            fx /= len;
-            fy /= len;
-            return true;
+            return CloverEngine.HitShape.ToUnit(dx, dy, out fx, out fy);
         }
 
         /// <summary>
@@ -95,9 +101,7 @@ namespace Diablo2.Module.Combat
         /// </summary>
         public static bool InFrontCone(float fx, float fy, float dx, float dy, float cosMin)
         {
-            var len = Mathf.Sqrt(dx * dx + dy * dy);
-            if (len <= 1e-6f) return true;      // 同格 ⇒ 命中（原版口径：距离 0 ≤ 任何 reach）
-            return (dx * fx + dy * fy) / len >= cosMin;
+            return CloverEngine.HitShape.InFrontCone(fx, fy, dx, dy, cosMin);
         }
 
         /// <summary>
@@ -106,10 +110,7 @@ namespace Diablo2.Module.Combat
         /// </summary>
         public static bool InMeleeRect(float fx, float fy, float dx, float dy, float reach, float halfWidth)
         {
-            var along = dx * fx + dy * fy;
-            if (along < 0f || along > reach) return false;
-            var perp = dx * (-fy) + dy * fx;
-            return Mathf.Abs(perp) <= halfWidth;
+            return CloverEngine.HitShape.InMeleeRect(fx, fy, dx, dy, reach, halfWidth);
         }
 
         /// <summary>
@@ -123,32 +124,8 @@ namespace Diablo2.Module.Combat
         /// </summary>
         public static bool LineClear(Func<Vector2Int, bool> walkable, Vector2Int from, Vector2Int to)
         {
-            if (walkable == null) return true;
-
-            var x = from.x;
-            var y = from.y;
-            var x1 = to.x;
-            var y1 = to.y;
-            var dx = Mathf.Abs(x1 - x);
-            var dy = Mathf.Abs(y1 - y);
-            var sx = x < x1 ? 1 : -1;
-            var sy = y < y1 ? 1 : -1;
-            var err = dx - dy;
-            var guard = 0;
-
-            while (guard++ < MaxLineSteps)
-            {
-                if (x == x1 && y == y1) return true;
-
-                var e2 = 2 * err;
-                if (e2 > -dy) { err -= dy; x += sx; }
-                if (e2 < dx) { err += dx; y += sy; }
-
-                if (x == x1 && y == y1) return true;          // 到达终点：两端点不判可走
-                if (!walkable(new Vector2Int(x, y))) return false;
-            }
-
-            return false;                                       // 步数爆掉 = 入参异常 ⇒ 按"不通"处理并让调用方留痕
+            // ★ 已下沉：转发到引擎件（Bresenham 逐格判可走；两端点不判；null 探针放行）
+            return CloverEngine.HitShape.LineClear(walkable, from, to);
         }
     }
 }

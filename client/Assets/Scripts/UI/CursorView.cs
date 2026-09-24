@@ -31,6 +31,13 @@
 //   并登记在 `client/资源欠缺清单.md`。拿到 4 态图后：改 `ResPaths.Cursor` 的取帧口径
 //   （若那时是多帧条带）+ 本文件 `SpriteFor` 一处即可，触发链/承载方式都不用动。
 //
+// ── ★ agent-eng2 本轮：机制下沉引擎（本文件只留 D2 的形态口径与事件订阅）────────────
+//   「独立画布 + 跟随鼠标 + 显隐 + 系统光标接管」这一套机制移入引擎件
+//   `CloverEngine.SoftwareCursorLayer`（`clover-client-unity-engine/Runtime/Presentation/
+//   WorldOverlayWidgets.cs`）；本文件只剩：① 装配（自安装常驻对象 → 调引擎件建画布）；
+//   ② D2 取值（`UiLayoutGame.Cursor*` 全部常量、`ResPaths.Cursor`）；③ 形态分派与缺口 Warn；
+//   ④ 事件订阅。⛔ 公开 API / 调用点零改动；屏幕点换算由引擎件统一走 `ScreenPointUtil`。
+//
 // ── 装配方式（为什么是自安装而不是挂在某个面板上）────────────────────────────────
 //   引擎面板必须走 `Resources/UI/{类名}` 预制体（`Runtime/Presentation/UI.cs:131-140`），
 //   而本工程的面板预制体由 `Diablo2 → 一键生成工程` 生成（`Assets/Editor/ProjectBuilder.cs`）
@@ -92,8 +99,10 @@ namespace Diablo2.UI
         }
 
         // ── 状态 ─────────────────────────────────────────────────────────────
-        private RectTransform _canvasRt;
-        private RectTransform _imageRt;
+        /// <summary>引擎件：独立画布 + 跟随鼠标 + 显隐（含系统光标接管）。</summary>
+        private SoftwareCursorLayer _cursor;
+
+        /// <summary>光标贴图节点（引擎建的；本类只负责往里塞 sprite）。</summary>
         private Image _image;
 
         private bool _built;
@@ -101,7 +110,6 @@ namespace Diablo2.UI
         private bool _spriteRequested;
         private bool _spriteReady;
         private bool _stageActive;
-        private bool _systemCursorHidden;
         private bool _inputUnavailableLogged;
         private CursorKind _kind = CursorKind.Default;
 
@@ -113,7 +121,10 @@ namespace Diablo2.UI
         private void OnDestroy()
         {
             Unsubscribe();
-            SetSystemCursorHidden(false);   // 面板/对象被销毁时绝不把系统光标留在"藏"的状态
+            // 引擎件 Dispose 内部会**把系统光标恢复可见**（绝不把玩家的指针留在"藏"的状态）。
+            if (_cursor != null) _cursor.Dispose();
+            _cursor = null;
+            _image = null;
             if (_instance == this) _instance = null;
         }
 
@@ -124,7 +135,7 @@ namespace Diablo2.UI
             if (!_spriteRequested) TryLoadSprite();
             if (!_stageActive || !_spriteReady) return;
 
-            if (_imageRt == null || _canvasRt == null) return;
+            if (_cursor == null) return;
             if (Game.Input == null || !Game.Input.Available)
             {
                 if (!_inputUnavailableLogged)
@@ -135,48 +146,48 @@ namespace Diablo2.UI
                 return;
             }
 
-            // 屏幕点 → 本画布局部坐标（ScreenSpaceOverlay ⇒ 相机传 null）。
+            // 屏幕点 → 画布局部坐标：引擎件内部统一走 `ScreenPointUtil`（相机按**画布模式**取；
+            // 本画布是 ScreenSpaceOverlay ⇒ 解析为 null，与原写死的 null 同一实参 ⇒ 数值恒等）。
             var screen = Game.Input.MousePosition;
-            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _canvasRt, new Vector2(screen.x, screen.y), null, out var local))
-            {
-                _imageRt.anchoredPosition = local;
-            }
+            _cursor.Follow(new Vector2(screen.x, screen.y));
         }
 
-        // ── 构建（独立画布 + 一张 Image）─────────────────────────────────────
-
+        // ── 构建（交给引擎件：独立画布 + 一张 Image）─────────────────────────
         private void Build()
         {
             if (_built) return;
             _built = true;
 
-            // ⚠️ 用 `UIFactory.CreateNode`（它建出来的 GameObject 自带 RectTransform）再挂 Canvas。
-            var canvasNode = UIFactory.CreateNode("CursorCanvas", transform);
-            _canvasRt = canvasNode;
-            var canvas = canvasNode.gameObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = CanvasSortingOrder;
-
-            // 与引擎常驻画布同一套缩放口径（参考分辨率/匹配权重见 `UiLayoutGame` 的常量注释）。
-            var scaler = canvasNode.gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = UiLayoutGame.CursorCanvasRef;
-            scaler.matchWidthOrHeight = UiLayoutGame.CursorCanvasMatch;
-
-            _image = UiArt.Panel(canvasNode, "Cursor", UiLayoutGame.CursorSize, Vector2.zero, Color.white, false);
-            if (_image == null)
+            // D2 取值全部在这里给引擎：画布排序层 / 参考分辨率 / 匹配权重 / 贴图尺寸 / hot spot。
+            var spec = new SoftwareCursorSpec
             {
-                UiLog.Error("光标节点没建出来（`UiArt.Panel` 返回 null）⇒ 本轮只能沿用系统光标");
+                CanvasNodeName = "CursorCanvas",
+                SortingOrder = CanvasSortingOrder,
+                ReferenceResolution = UiLayoutGame.CursorCanvasRef,
+                MatchWidthOrHeight = UiLayoutGame.CursorCanvasMatch,
+                ImageNodeName = "Cursor",
+                ImageSize = UiLayoutGame.CursorSize,
+                ImagePivot = UiLayoutGame.CursorHotspotPivot,
+            };
+
+            _cursor = SoftwareCursorLayer.Create(transform, spec, CreateCursorImage);
+            if (_cursor == null)
+            {
+                UiLog.Error("光标节点没建出来（引擎 `SoftwareCursorLayer.Create` 返回 null）⇒ 本轮只能沿用系统光标");
                 return;
             }
 
-            _imageRt = _image.rectTransform;
-            // hot spot = 箭头尖（原版贴图左上角）⇒ pivot (0,1)，见 `UiLayoutGame.CursorHotspotPivot`。
-            _imageRt.pivot = UiLayoutGame.CursorHotspotPivot;
-            _imageRt.anchorMin = _imageRt.anchorMax = new Vector2(0.5f, 0.5f);
-            _image.enabled = false;            // 贴图到位前不显示（也绝不藏系统光标）
-            _image.raycastTarget = false;      // 光标不许吃点击
+            _image = _cursor.Image;
+        }
+
+        /// <summary>
+        /// 引擎的光标图工厂（**项目侧渲染注入点**）：造那张 `Image`。
+        /// <para>pivot / 居中锚点 / `raycastTarget = false` / 初始 `enabled = false` 由引擎件统一写；
+        /// 这里只管"用项目的 UI 工厂造一块纯色底板"。</para>
+        /// </summary>
+        private static Image CreateCursorImage(RectTransform canvasRoot, string nodeName, Vector2 size, Vector2 pivot)
+        {
+            return UiArt.Panel(canvasRoot, nodeName, size, Vector2.zero, Color.white, false);
         }
 
         // ── 贴图 ─────────────────────────────────────────────────────────────
@@ -286,22 +297,13 @@ namespace Diablo2.UI
             }
         }
 
-        /// <summary>可见性 = 「在游戏内」且「贴图到位」；两者都成立才隐藏系统光标。</summary>
+        /// <summary>
+        /// 可见性 = 「在游戏内」且「贴图到位」；两者都成立才显示自绘光标**并**隐藏系统光标
+        /// （成对由引擎件 `SoftwareCursorLayer.SetVisible` 保证 —— ⛔ 绝不出现"两个光标"或"一个都没有"）。
+        /// </summary>
         private void ApplyVisibility()
         {
-            var show = _stageActive && _spriteReady;
-            if (_image != null) _image.enabled = show;
-            SetSystemCursorHidden(show);
-        }
-
-        private void SetSystemCursorHidden(bool hidden)
-        {
-            if (_systemCursorHidden == hidden) return;
-            _systemCursorHidden = hidden;
-            Cursor.visible = !hidden;      // UnityEngine.Cursor：隐藏/恢复**系统**箭头
-            UiLog.Info(hidden
-                ? "系统光标已隐藏（改由本工程画原版箭头）"
-                : "系统光标已恢复（非游戏内 / 贴图未就位 / 已销毁）");
+            if (_cursor != null) _cursor.SetVisible(_stageActive && _spriteReady);
         }
     }
 }

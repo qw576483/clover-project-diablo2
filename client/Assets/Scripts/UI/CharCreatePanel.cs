@@ -148,6 +148,19 @@ namespace Diablo2.UI
 
             /// <summary>每点体力 = 耐力（`class_c.stam_per_vit`）。</summary>
             public float stamPerVit;
+
+            /// <summary>
+            /// 起始生命加成（`class_c.hp_add`，官方 `charstats.hpadd`）。
+            /// <para>★ classcols 片（2026-09-24）：从配表读入 —— 取代原先写在
+            /// `LifeOf` 里的常量（真值只在表里；判据 = 全仓 0 命中那个旧常量名）。</para>
+            /// </summary>
+            public int hpAdd;
+
+            /// <summary>
+            /// 起始耐力上限（`class_c.base_stamina`，官方 `charstats.stamina`）。
+            /// <para>★ classcols 片（2026-09-24）：同上，取代原先写在本文件里的逐职业常量表。</para>
+            /// </summary>
+            public int baseStamina;
         }
 
         /// <summary>`OnOpen(param)` 参数。</summary>
@@ -970,15 +983,35 @@ namespace Diablo2.UI
             Game.Event.Emit(Events.CharCreateRequest, save);
         }
 
-        // 官方 charstats 口径（`class_c` 列注释）：四维系 + 等级成长系。
+        // ★★ U3 更正（2026-09-24，charstat 片）：官方 charstats 口径 = **起始值 + 成长**，
+        //   不是"起始四维 × 成长系数"。官方 1 级值（出处：`原版资源/参考工程_Diablerie/
+        //   d2lod1.10txt/data/global/excel/charstats.txt:2..6` 的 `hpadd`(30)/`stamina` 列
+        //   —— 与 `原版资源/d2raw/…/charstats.txt` 逐字节相同 —— 加 Arreat Summit 各职业页
+        //   Starting Attributes）：
+        //     生命 = hpadd(30) + 起始体力（亚马逊 50 / 女法师 40 / 亡灵法师 45 / 圣骑士 55 / 野蛮人 55）
+        //     法力 = 起始精力（15 / 35 / 25 / 15 / 10）
+        //     耐力 = `stamina` 列（84 / 74 / 79 / 89 / 92）
+        //   旧式 `vit × lifePerVit` 给出 60/20/30/75/100、`eng × manaPerMag` 给出 22/70/50/22/10、
+        //   `vit × stamPerVit` 给出 20/10/15/25/25 ⇒ 1 级数值全错（用户第三批投诉 ①）。
+        //   ⛔ 与 `Module/Player/PlayerStats.MaxLifeOf/MaxManaOf/MaxStaminaOf` **逐字同式** ——
+        //   分层自检 ③ 禁止 UI 引用 `Diablo2.Module`，故这里复制一份；两处一致性由
+        //   `tools/probes/hosts/playercheck` §1（含 5 职业逐一比对）把守。改一处必须改另一处。
+        //
+        // ✅ classcols 片（2026-09-24）：`hpadd` / `stamina` 的数字常量**已删除**，改从
+        //   `ClassEntry.hpAdd` / `ClassEntry.baseStamina` 读 —— 值由 `Module/Flow/ClassTable.Build()`
+        //   从配表 `class_c` 的 `hp_add` / `base_stamina` 列搬进 `ClassEntry` ⇒ **真值只在表里**。
+
         private static int LifeOf(ClassEntry c, int vit, int level)
-            => Mathf.Max(1, Mathf.RoundToInt(vit * c.lifePerVit + (level - 1) * c.lifePerLvl));
+            => Mathf.Max(1, Mathf.RoundToInt(
+                (c.hpAdd + c.vit) + (vit - c.vit) * c.lifePerVit + (level - 1) * c.lifePerLvl));
 
         private static int ManaOf(ClassEntry c, int eng, int level)
-            => Mathf.Max(1, Mathf.RoundToInt(eng * c.manaPerMag + (level - 1) * c.manaPerLvl));
+            => Mathf.Max(1, Mathf.RoundToInt(
+                c.eng + (eng - c.eng) * c.manaPerMag + (level - 1) * c.manaPerLvl));
 
         private static int StaminaOf(ClassEntry c, int vit, int level)
-            => Mathf.Max(1, Mathf.RoundToInt(vit * c.stamPerVit + (level - 1) * c.stamPerLvl));
+            => Mathf.Max(1, Mathf.RoundToInt(
+                c.baseStamina + (vit - c.vit) * c.stamPerVit + (level - 1) * c.stamPerLvl));
 
         // ── 刷新 ────────────────────────────────────────────────────────────
 

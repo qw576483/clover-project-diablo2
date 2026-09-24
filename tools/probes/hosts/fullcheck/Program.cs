@@ -716,11 +716,13 @@ namespace FullCheck
                 upd == null ? "找不到 UpdateHover"
                             : $"{upd.Name}({upd.GetParameters()[0].ParameterType.Name})");
 
-            var et = typeof(EntityTooltip).GetMethod("OnHoverChanged",
+            // ★ 片 u44（契约 C4）：消费点从 `UI/EntityTooltip`（头顶 tooltip，已删）换成
+            //   `UI/EnemyBarView`（屏幕顶部怪名血条 + NPC 名字牌）。
+            var et = typeof(EnemyBarView).GetMethod("OnHoverChanged",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
                 System.Reflection.BindingFlags.NonPublic);
             var etPs = et != null ? et.GetParameters() : new System.Reflection.ParameterInfo[0];
-            Check("★ 消费点存在：`UI/EntityTooltip.OnHoverChanged(Diablo2.Def.HoverTarget)`",
+            Check("★ 消费点存在：`UI/EnemyBarView.OnHoverChanged(Diablo2.Def.HoverTarget)`",
                 et != null && etPs.Length == 1 && etPs[0].ParameterType == typeof(Diablo2.Def.HoverTarget),
                 et == null ? "找不到 OnHoverChanged"
                            : $"{et.Name}({(etPs.Length == 1 ? etPs[0].ParameterType.FullName : "参数个数=" + etPs.Length)})");

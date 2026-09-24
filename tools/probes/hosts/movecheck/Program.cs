@@ -146,6 +146,10 @@ namespace MoveCheck
 
             Section9_SortTieBreak();
 
+            Section11_SortFrameSequence();
+
+            Section12_ProjectileSortKey();
+
             Section10_RetargetSlowDrag();
 
             Console.WriteLine();
@@ -660,6 +664,602 @@ namespace MoveCheck
             Check("过接缝进荒野：落点仍在回城口那条土路上（原版「西门进、站土路」语义）",
                 bm.Exits.Count > 0 && sp.y == bm.Exits[0].y && bm.FindPath(sp, bm.Exits[0]) != null,
                 $"回城口={bm.Exits[0]} 落点={sp}");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 11. ★ U26「人物穿模」/ U36「人物与 npc 重合时候，会闪一会人物一会 npc」（2026-09-24）
+        //     台账 = `策划/自审对比/bug清单.md:83` / `:93`，两条都卡在「V5 单帧判不了，缺多帧序列」
+        //     ⇒ 本节把「多帧序列」补上（仍是离线数值断言，秒级，不进 Play）。
+        //
+        //     **判过程不判结果**（一条能靠"改个数字"变绿的检查项等于没判）：
+        //       · Unity 的绘制次序 = `(sortingLayer, sortingOrder, 视图轴距离)` 三级键。本项目相机
+        //         正交 + rotation=identity + 机位 z 恒 = `-CameraRig.CameraDistance` ⇒ 第三级
+        //         **就是实体节点的 z**（口径出处 = Unity 文档 `TransparencySortMode`：
+        //         "orthographic cameras sort based on distance along the view direction"）。
+        //       · ⇒ 「次序是否由键唯一确定」这一**过程** = **主键相等时第三键必须不相等**。
+        //         旧代码（z 恒 0）在同 `gx+gy` 位形下两级键**全等** ⇒ 引擎没有任何决胜依据
+        //         ⇒ 用户看到「一会人物一会 npc」。
+        //     本节三段：
+        //       ⓐ 先证明**旧口径必然不可判别**（红样本 = 闸门极性自检：探针确实能变红）；
+        //       ⓑ 再证明现口径在**三种位形 × 60 帧**上零不可判别、次序恒定、且不违反主键优先；
+        //       ⓒ 换另一条候选裁决口径（Perspective：到相机位置的距离）复核，证明结论**不依赖**
+        //         Unity 到底把 `TransparencySortMode.Default` 解析成哪一种。
+        //     ⛔ 只加断言，不改既有判据（§9 原样不动）。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>每种位形的采样帧数（≥30；dt = 1/60 ⇒ 60 帧 = 1 秒 ≈ 3 格路程）。</summary>
+        private const int Frames11 = 60;
+
+        /// <summary>相机滞后扫描（世界单位）—— 正交口径下相机 xy 不参与排序，这里用它复核 Perspective 口径。</summary>
+        private static readonly float[] LagSweep = { -3f, -2f, -1f, 0f, 1f, 2f, 3f };
+
+        private static void Section11_SortFrameSequence()
+        {
+            Section($"11. ★ U26/U36：排序键的逐帧序列（三种位形 × {Frames11} 帧；含旧口径红样本）");
+
+            // ── 真实输入：城镇地图（真 seed） + 真 NPC 站位 + 真 A* + 真 PlayerMotor ────────────
+            var town = new Diablo2.Module.Map.MapModule();
+            town.Generate(AreaId.Town, 0);
+            var npcGrid = town.NpcPoints[(int)NpcId.Akara];
+
+            // NPC 实体 id 走**生产口径**（`ViewModule.NpcEntityId` 是 private ⇒ 反射取，⛔ 不另写一份）
+            var npcIdMethod = typeof(ViewModule).GetMethod("NpcEntityId",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var npcEntityId = npcIdMethod != null
+                ? (int)npcIdMethod.Invoke(null, new object[] { NpcId.Akara })
+                : 0;
+            Check("NPC 实体 id == 生产口径 `ViewModule.NpcEntityId`（负号区段，与玩家 1 / 怪物 1000+ / 物品 100000+ 不冲突）",
+                npcEntityId == -1 - (int)NpcId.Akara,
+                $"NpcId.Akara={(int)NpcId.Akara} ⇒ entityId={npcEntityId}；出生点={town.SpawnPoint} " +
+                $"阿卡拉格=({npcGrid.x},{npcGrid.y}) walkable={town.Walkable(npcGrid)}");
+
+            // ── ⓒ-前置：第三键的口径（相机距离裁决）──────────────────────────────────────
+            var camZ = -CameraRig.CameraDistance;
+            var camNear = CameraRig.CameraPosForFocus(Iso.GridToWorld(0, 0), town.Width, town.Height,
+                CameraRig.DefaultOrthographicSize, 16f / 9f, camZ);
+            var camFar = CameraRig.CameraPosForFocus(Iso.GridToWorld(town.Width - 1, town.Height - 1),
+                town.Width, town.Height, CameraRig.DefaultOrthographicSize, 16f / 9f, camZ);
+            Check("相机机位 z 与焦点无关 ⇒ 正交排序距离只由实体 z 决定（与跟焦/插值抖动无关）",
+                Math.Abs(camNear.z - camZ) < 1e-6f && Math.Abs(camFar.z - camZ) < 1e-6f,
+                $"焦点(0,0)⇒z={camNear.z:0.###}；焦点对角落⇒z={camFar.z:0.###}；期望 {camZ:0.###}");
+
+            // ── 真走位（真 A* 路径 + 真 PlayerMotor 逐帧推进）────────────────────────────
+            var path = FindWalkPath(town, town.SpawnPoint, npcGrid);
+            Check("拿到一条真实 A* 路径（出生点 → 阿卡拉站位）",
+                path != null && path.Count >= 2,
+                path == null ? "FindPath 返回 null（后续断言无法成立）" : $"{path.Count - 1} 步" +
+                    $"（起 ({path[0].x},{path[0].y}) 终 ({path[path.Count - 1].x},{path[path.Count - 1].y})）");
+            if (path == null || path.Count < 2)
+            {
+                Console.WriteLine("      ⇒ 没有合法路径：本节其余断言**不成立**（⛔ 不是跳过项）");
+                return;
+            }
+
+            var motor = new Diablo2.Module.Player.PlayerMotor();
+            motor.Teleport(town.SpawnPoint, town);
+            motor.SetPath(path, path[path.Count - 1]);
+
+            var gridSeq = new List<Vector2Int>();
+            var worldSeq = new List<UnityEngine.Vector3>();
+            for (var f = 0; f < Frames11; f++)
+            {
+                motor.Tick(Dt, town);
+                gridSeq.Add(motor.Grid);
+                worldSeq.Add(motor.World);
+            }
+
+            var gridJumps = 0;
+            var orderChanges = 0;
+            for (var f = 1; f < Frames11; f++)
+            {
+                if (gridSeq[f] != gridSeq[f - 1]) gridJumps++;
+                if (ViewModule.EntitySortOrder(gridSeq[f]) != ViewModule.EntitySortOrder(gridSeq[f - 1]))
+                    orderChanges++;
+            }
+            // 「重算时机」的完备性：同一个格**任何时刻**都必须得到同一个排序键（帧号/时间/世界坐标都不许参与）
+            var orderMismatch = 0;
+            for (var f = 0; f < Frames11; f++)
+            {
+                for (var g = f + 1; g < Frames11; g++)
+                {
+                    if (gridSeq[g] != gridSeq[f]) continue;
+                    if (ViewModule.EntitySortOrder(gridSeq[g]) != ViewModule.EntitySortOrder(gridSeq[f]))
+                        orderMismatch++;
+                }
+            }
+            Check("走位序列不是空跑（帧数 ≥ 30，且真的跨了格）",
+                gridJumps > 0 && (worldSeq[Frames11 - 1] - worldSeq[0]).magnitude > 1f,
+                $"跨格 {gridJumps} 次；世界位移 " +
+                $"{(worldSeq[Frames11 - 1] - worldSeq[0]).magnitude:0.###} 世界单位；格序列 " +
+                $"({gridSeq[0].x},{gridSeq[0].y})→({gridSeq[Frames11 - 1].x},{gridSeq[Frames11 - 1].y})");
+            Check("排序键是格的**纯函数**（同格恒同值）⇒ 「只在格变化时重算 sortingOrder」不会漏",
+                orderMismatch == 0,
+                $"同格异值 {orderMismatch} 例（60 帧里跨格 {gridJumps} 次；若键还是帧号/世界坐标的函数就会漏 ⇒ 表现为永久错档）");
+            Check("★ 主键相等的区间**可以持续整段走位**（不是单帧偶发）",
+                gridJumps > 0 && orderChanges == 0,
+                $"格序列沿**等 gx+gy 对角线**推进（跨 {gridJumps} 格），主键变化 {orderChanges} 次 " +
+                $"(恒 = {ViewModule.EntitySortOrder(gridSeq[0])}) ⇒ 整段走位每帧都要靠第三键决胜；" +
+                "旧口径 ⇒ 整段都在交替，正是用户说的「闪**一会**」而不是「闪一帧」");
+
+            // ── 三种位形（都是「主键恒相等」的关系；⛔ 位形由格偏移定义，不是编出来的坐标）──────
+            var shapes = new[] { new Vector2Int(0, 0), new Vector2Int(1, -1), new Vector2Int(2, -2) };
+            var shapeNames = new[] { "1 严格同格", "2 相邻格同 y", "3 同 y 不同格" };
+            var shapeGaps = new[] { "世界 Δ=(0,0)", "世界 Δ=(2,0)", "世界 Δ=(4,0)" };
+
+            for (var s = 0; s < shapes.Length; s++)
+            {
+                var off = shapes[s];
+                var samePrimary = 0;
+                var undecidableNew = 0;
+                var undecidableOld = 0;
+                var flips = 0;
+                var frontPlayer = 0;
+                var perspDisagree = 0;
+                var perspChecks = 0;
+                var prevFront = 0;
+                var raw = new System.Text.StringBuilder();
+                var sampleFirst = "";
+                var sampleLast = "";
+
+                for (var f = 0; f < Frames11; f++)
+                {
+                    var pGrid = gridSeq[f];
+                    var pWorld = worldSeq[f];
+                    var nGrid = new Vector2Int(pGrid.x + off.x, pGrid.y + off.y);
+                    var nWorld = Iso.GridToWorld(nGrid);      // NPC 静态（建视图时就是这个格心）
+
+                    var pOrder = ViewModule.EntitySortOrder(pGrid);
+                    var nOrder = ViewModule.EntitySortOrder(nGrid);
+                    // ⚠️ 两条候选口径必须用**同一个实际 transform 位置**（含 z 次级键）——
+                    //    第三键取错基准（拿裸世界坐标而不是 `EntityWorld` 的结果）会得出假结论。
+                    var pPos = ViewModule.EntityWorld(GameConst.PlayerEntityId, pWorld);
+                    var nPos = ViewModule.EntityWorld(npcEntityId, nWorld);
+                    var pz = pPos.z;
+                    var nz = nPos.z;
+
+                    if (pOrder == nOrder) samePrimary++;
+                    var front = FrontOf(pOrder, pz, nOrder, nz);
+                    if (front == 0) undecidableNew++;
+                    if (front > 0) frontPlayer++;
+                    if (pOrder == nOrder && prevFront != 0 && front != prevFront) flips++;
+                    if (front != 0) prevFront = front;
+
+                    // ⓐ 旧口径（改前）：第三键 = 世界坐标 z（`GridToWorld` 恒 0，无次级键）
+                    if (FrontOf(pOrder, pWorld.z, nOrder, nWorld.z) == 0) undecidableOld++;
+
+                    // ⓒ 另一条候选口径：Perspective（到相机**位置**的距离），含相机滞后扫描
+                    for (var li = 0; li < LagSweep.Length; li++)
+                    {
+                        var lag = LagSweep[li];
+                        var camX = new UnityEngine.Vector3(pPos.x + lag, pPos.y, camZ);
+                        var camY = new UnityEngine.Vector3(pPos.x, pPos.y + lag, camZ);
+                        var fx = FrontOf(pOrder, (pPos - camX).magnitude, nOrder, (nPos - camX).magnitude);
+                        var fy = FrontOf(pOrder, (pPos - camY).magnitude, nOrder, (nPos - camY).magnitude);
+                        perspChecks += 2;
+                        if (fx != front || fy != front) perspDisagree++;
+                    }
+
+                    raw.Append(front > 0 ? "+" : (front < 0 ? "-" : "?"));
+                    var line = $"[{pOrder},{nOrder}]({pz:0.0000},{nz:0.0000})";
+                    if (f == 0) sampleFirst = line;
+                    if (f == Frames11 - 1) sampleLast = line;
+                }
+
+                Console.WriteLine($"  ── 位形 {shapeNames[s]}：偏移格 ({off.x},{off.y})，{shapeGaps[s]}");
+                Console.WriteLine($"     逐帧「谁在前」原始读数（+ = 玩家在前，- = NPC 在前，? = 三级键全等=未定义）：");
+                Console.WriteLine($"     {raw}");
+                Console.WriteLine($"     首帧键 (pOrder,nOrder)(pz,nz) = {sampleFirst}；末帧 = {sampleLast}");
+
+                // ⓑ 现口径：零不可判别 + 次序恒定 + 判定 = 玩家（z 小者离正交相机近 ⇒ 画在前）
+                Check($"位形 {shapeNames[s]}：主键恒相等（{samePrimary}/{Frames11} 帧）⇒ 逐帧走的都是「第三键决胜」这条路",
+                    samePrimary == Frames11,
+                    $"主键相等 {samePrimary} / {Frames11} 帧（gx+gy 相同 ⇒ 必然相等）");
+                Check($"位形 {shapeNames[s]}：**零**不可判别帧（三级键全等 = 次序未定义 = 闪的充要前置）",
+                    undecidableNew == 0,
+                    $"现口径不可判别 {undecidableNew} 帧；旧口径（z 无次级键）不可判别 {undecidableOld} 帧");
+                Check($"位形 {shapeNames[s]}：【红样本·闸门极性】旧口径必然不可判别（本节判据确实能变红）",
+                    undecidableOld == samePrimary && undecidableOld > 0,
+                    $"旧口径不可判别 {undecidableOld} / {samePrimary} 帧 ⇒ 无决胜键，次序交给引擎内部提交顺序");
+                Check($"位形 {shapeNames[s]}：相邻帧绘制次序翻转 {flips} 次（要求 0）+ 判定恒为玩家在前",
+                    flips == 0 && frontPlayer == Frames11,
+                    $"翻转 {flips} 次；玩家在前 {frontPlayer}/{Frames11} 帧");
+                Check($"位形 {shapeNames[s]}：换 Perspective 口径（含相机滞后 ±3 扫描 {perspChecks} 例）次序结论一致",
+                    perspDisagree == 0,
+                    $"不一致 {perspDisagree} / {perspChecks} 例（⇒ 结论不依赖 Unity 把 Default 解析成哪种模式）");
+            }
+
+            // ── deck 判定的**同族并列**（纯函数；deck 口径本身在 `mapcheck` §22 / `combatcheck` §15.4 已有逐格断言）
+            //    `GameConst.LayerOffsetDeckEntity` 的常量注释写着「4D+106 与 实体(D+1) 同值，但正南恒是栏杆
+            //    ⇒ 实际不会并列」——本项把这个"假设"变成**可判**：真并列时，唯一决胜键就是第三键。
+            var deckGrid = new Vector2Int(46, 25);                          // 城镇桥面样例格（mapcheck §22 同格）
+            var southItemGrid = new Vector2Int(46, 26);                     // gx+gy = D+1 的一格
+            var deckOrder = Iso.EntitySortOrder(deckGrid, true);
+            var southOrder = Iso.EntitySortOrder(southItemGrid, false);
+            var deckZ = ViewModule.SortTieZ(GameConst.PlayerEntityId);
+            var itemZ = ViewModule.SortTieZ(GameConst.GroundItemIdBase + 1);
+            Check("桥面档 4D+106 与「gx+gy=D+1 的普通实体档」数值并列 ⇒ 一旦同屏，第三键是唯一决胜键（旧口径必闪）",
+                deckOrder == southOrder && deckZ < itemZ,
+                $"deck({deckGrid.x},{deckGrid.y})档={deckOrder} == 普通({southItemGrid.x},{southItemGrid.y})档={southOrder}；" +
+                $"z(玩家)={deckZ:0.0000} < z(地面物品#{GameConst.GroundItemIdBase + 1})={itemZ:0.0000}");
+
+            // ── ⑤ 「唯一入口」不变式（**源码级**，防回归）：`Module/View/**` 里所有对
+            //    `Root.transform.position` 的**赋值**都必须经过 `EntityWorld`（z 次级键的唯一产地）。
+            //    为什么是源码级：这是一条**不变式**，不是数值 —— 数值断言看不见"新加一条绕过它的路径"。
+            //    出处 = `ViewModule.cs` 的 `EntityWorld` 注释 + 本片修的漏网路径（受击位移撤销那处）。
+            //    修前它必然红（那处直接写 `v.LastWorld`）。
+            var viewDir = System.IO.Path.Combine(ResolveProjectRoot(),
+                "client", "Assets", "Scripts", "Module", "View");
+            var posAssigns = 0;
+            var bypass = new List<string>();
+            if (!System.IO.Directory.Exists(viewDir))
+            {
+                Check("「唯一入口」扫描：Module/View/** 可定位", false, "目录不存在：" + viewDir);
+            }
+            else
+            {
+                foreach (var file in System.IO.Directory.GetFiles(viewDir, "*.cs",
+                             System.IO.SearchOption.AllDirectories))
+                {
+                    var src = System.IO.File.ReadAllLines(file);
+                    for (var i = 0; i < src.Length; i++)
+                    {
+                        var t = src[i];
+                        if (t.TrimStart().StartsWith("//")) continue;          // 注释行不算
+                        var at = t.IndexOf(".transform.position", StringComparison.Ordinal);
+                        if (at < 0) continue;
+                        var rest = t.Substring(at + ".transform.position".Length);
+                        if (rest.StartsWith("==")) continue;                   // 比较不算
+                        if (!rest.TrimStart().StartsWith("=")) continue;       // 读取（`.z` / `;` / `)`）不算
+                        posAssigns++;
+                        if (t.IndexOf("EntityWorld(", StringComparison.Ordinal) < 0)
+                            bypass.Add(System.IO.Path.GetFileName(file) + ":" + (i + 1) + " " + t.Trim());
+                    }
+                }
+                var msg = bypass.Count == 0 ? "" : "违例：" + string.Join(" ｜ ", bypass.ToArray());
+                Check("Module/View/** 里 Root.transform.position 的赋值 100% 经过 EntityWorld（唯一入口不变式）",
+                    posAssigns > 0 && bypass.Count == 0,
+                    $"扫描到 {posAssigns} 处赋值，绕过 {bypass.Count} 处" + (msg.Length > 0 ? "；" + msg : ""));
+            }
+
+            // ── 同族路径（**已修**：2026-09-24 team-lead 裁决 P1）：`Projectile.WorldOf` 的 z 按裁决
+            //    **仍是 0**（那是逻辑层返回值语义，⛔ 不许改）；投射物表现层的第三键由
+            //    `ProjectileView.WorldPosOf` 在其上补 z = `SortZFor(p.id)` ⇒ 判据见 §12。
+            var projZ = Diablo2.Module.Skill.Projectile.WorldOf(new UnityEngine.Vector2(3.5f, 7.5f)).z;
+            Check("`Projectile.WorldOf` 的 z 恒 0（**按裁决保留**：逻辑层语义；表现层第三键在 §12）",
+                projZ == 0f,
+                "出处 Module/Skill/Projectile.cs:141-144（`Core/` 契约冻结 + 裁决「⛔ 不改返回值语义」）；" +
+                "`ProjectileView.WorldPosOf` 补 z = `SortZFor(p.id)` ∈ (0,0.9]，实体档 `SortTieZ` ≥ 1.0001");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 12. ★ U26/U36 **同族**：投射物的第三键（P1 · team-lead 2026-09-24 裁决：判据先行 + 修法落地）
+        //     事实链（逐条源码可读，⛔ 不是推断）：
+        //       · `Module/Skill/Projectile.cs:141-144` 的 `WorldOf` **z 恒 0**（逻辑层返回值语义，
+        //         裁决「⛔ 不改」）；
+        //       · `ProjectileView` 的 `sortingOrder = ViewModule.EntitySortOrder(p.Grid)` ⇒ 与实体层
+        //         **同一个主键函数**（= 同族）；同 `gx+gy` 的两个投射物主键相等、第三键也相等
+        //         ⇒ 次序未定义（交给渲染器内部提交顺序）—— 与 U26/U36 的根因同族。
+        //       · **修法（本片唯一一处产品改动）**：`ProjectileView.WorldPosOf` 在 `WorldOf` 之上补
+        //         **纯函数**第三键 z = `ProjectileView.SortZFor(p.id)` ∈ (0, 0.9]。
+        //     判据（口径抄 §11「判过程不判结果」）：**主键相等 ⇒ 第三键必须两两不等**；
+        //       不等 = 次序可判别；相等 = 次序未定义。
+        //     ⚠️ 值带 (0, 0.9] **刻意压在实体档 `ViewModule.SortTieZ`（恒 ≥ 1.0001）之下** ⇒
+        //       「投射物 vs 实体」的先后关系**与改前逐值一致**（都画在实体之前）；本次只补
+        //       「投射物之间」这条无键带。要改"投射物 vs 实体"的遮挡关系 = **表现类** ⇒
+        //       台账「待 Unity 窗口」总表 **W7**（看同格 / 相邻格两态各一图）。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Section12_ProjectileSortKey()
+        {
+            Section("12. ★ U26/U36 同族：投射物第三键（三形 × {vs 实体 / vs 投射物} + 纯函数 + 改前必红 + 值带）");
+
+            // ── 真输入：真城镇地图（真 seed） + 真 NPC 站位 + 真 A* 路径（与 §11 同来源）────
+            var town = new Diablo2.Module.Map.MapModule();
+            town.Generate(AreaId.Town, 0);
+            var npcGrid = town.NpcPoints[(int)NpcId.Akara];
+            var npcIdMethod = typeof(ViewModule).GetMethod("NpcEntityId",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var npcEntityId = npcIdMethod != null
+                ? (int)npcIdMethod.Invoke(null, new object[] { NpcId.Akara }) : 0;
+            var path = FindWalkPath(town, town.SpawnPoint, npcGrid);
+
+            // **现口径**（生产）：投射物表现层第三键 = `ProjectileView.SortZFor`
+            Func<int, float> projZ = Diablo2.Module.Skill.ProjectileView.SortZFor;
+            // **旧口径**（改前）：`Projectile.WorldOf` 的 z（恒 0）—— 只喂"改前必红"样本，⛔ 不当生产口径
+            Func<int, float> projZOld = _ =>
+                Diablo2.Module.Skill.Projectile.WorldOf(new UnityEngine.Vector2(3.5f, 7.5f)).z;
+            // 实体第三键 = 生产**唯一入口** `ViewModule.EntityWorld` 的 z
+            Func<int, Vector2Int, float> entZAt = (id, g) => ViewModule.EntityWorld(id, Iso.GridToWorld(g)).z;
+
+            if (path == null || path.Count < 2)
+            {
+                Check("投射物第三键：真 A* 路径可定位（本节前置）", false,
+                    "FindPath 返回 null ⇒ 本节其余断言**不成立**（⛔ 不是跳过项）");
+            }
+            else
+            {
+                // 三形 = 与 §11 完全相同的三种「主键恒相等」关系（由**格偏移**定义，不是编出来的坐标）
+                var shapes = new[] { new Vector2Int(0, 0), new Vector2Int(1, -1), new Vector2Int(2, -2) };
+                var shapeNames = new[] { "1 严格同格", "2 相邻格同 y", "3 同 y 不同格" };
+                var entityIds = new[] { npcEntityId, 1007, GameConst.PlayerEntityId, GameConst.GroundItemIdBase + 1 };
+                var entityNames = new[] { "NPC(阿卡拉)", "怪物#1007", "玩家", "地面物品#100001" };
+                var projIds = new[] { 1, 2, 3, 7, 12, 99, 1000, 8999 };   // 含跨档/取模边界值
+
+                // ── ⓐ 纯函数：100 次重复调用得到**同一序列**（防"值依赖调用次数/外部状态"）──
+                var seqOk = true;
+                var first = new float[projIds.Length];
+                for (var k = 0; k < projIds.Length; k++) first[k] = projZ(projIds[k]);
+                for (var it = 0; it < 100; it++)
+                {
+                    for (var k = 0; k < projIds.Length; k++)
+                    {
+                        // 交叉喂别的 id（打乱调用顺序）后再回读同一 id
+                        var _ = projZ(projIds[(k + 3) % projIds.Length]);
+                        if (projZ(projIds[k]) != first[k]) seqOk = false;
+                    }
+                }
+                Check("`ProjectileView.SortZFor` 是纯函数（100 轮乱序重复调用 ⇒ 同一 id 恒同值）",
+                    seqOk,
+                    $"id={string.Join(",", projIds)} ⇒ z={string.Join(",", Array.ConvertAll(first, v => v.ToString("0.0000")))}");
+
+                // ── ⓑ 值带：所有投射物键 ∈ (0, 1)，且**严格小于**实体档下界（= 遮挡关系不变）──
+                var bandMin = float.MaxValue;
+                var bandMax = float.MinValue;
+                for (var id = 0; id < 10000; id++)
+                {
+                    var z = projZ(id);
+                    if (z < bandMin) bandMin = z;
+                    if (z > bandMax) bandMax = z;
+                }
+                var entMin = entZAt(GameConst.PlayerEntityId, path[0]);          // 实体档最小（玩家 rank 4 ⇒ 1.0001）
+                Check("值带 (0,1) 且 < 实体档下界 ⇒ 「投射物 vs 实体」先后关系与改前**逐值一致**（改遮挡关系留给 W7）",
+                    bandMin > 0f && bandMax < entMin,
+                    $"投射物 z 扫描 id∈[0,9999] ⇒ [{bandMin:0.0000}, {bandMax:0.0000}]；实体档最小 z={entMin:0.0000}");
+
+                // ── ⓒ 三形 × 「投射物 vs 实体」（要求断言）────────────────────────────────
+                for (var s = 0; s < shapes.Length; s++)
+                {
+                    var off = shapes[s];
+                    var samePrimary = 0;
+                    var pairs = 0;
+                    var collisions = new List<string>();
+                    foreach (var cell in path)
+                    {
+                        var eGrid = new Vector2Int(cell.x + off.x, cell.y + off.y);
+                        if (ViewModule.EntitySortOrder(cell) != ViewModule.EntitySortOrder(eGrid)) continue;
+                        samePrimary++;
+                        var pz = projZ(1);
+                        for (var k = 0; k < entityIds.Length; k++)
+                        {
+                            pairs++;
+                            var ez = entZAt(entityIds[k], eGrid);
+                            if (pz == ez)
+                                collisions.Add($"格({cell.x},{cell.y}) {entityNames[k]}：order={ViewModule.EntitySortOrder(cell)} 且 z 都 = {pz:0.0000}");
+                        }
+                    }
+                    Check($"位形 {shapeNames[s]}：主键相等的格上「投射物 vs 实体」第三键**两两不等**（{pairs} 对）",
+                        samePrimary > 0 && collisions.Count == 0,
+                        $"主键相等 {samePrimary}/{path.Count} 格 × {entityIds.Length} 类实体 = {pairs} 对；碰撞 {collisions.Count} 处" +
+                        (collisions.Count > 0 ? "：" + string.Join(" ｜ ", collisions.ToArray()) : "") +
+                        $"（投射物 z={projZ(1):0.0000}；实体 z：NPC={entZAt(npcEntityId, npcGrid):0.0000} " +
+                        $"玩家={entZAt(GameConst.PlayerEntityId, path[0]):0.0000}）");
+                }
+
+                // ── ⓓ 三形 × 「投射物 vs 投射物」（本裁决点名的要求断言）────────────────────
+                for (var s = 0; s < shapes.Length; s++)
+                {
+                    var off = shapes[s];
+                    var samePrimary = 0;
+                    var cols = new List<string>();
+                    foreach (var cell in path)
+                    {
+                        var eGrid = new Vector2Int(cell.x + off.x, cell.y + off.y);
+                        if (ViewModule.EntitySortOrder(cell) != ViewModule.EntitySortOrder(eGrid)) continue;
+                        samePrimary++;
+                        var nodes = new List<(string Name, int Order, float Z)>();
+                        for (var k = 0; k < projIds.Length; k++)
+                            nodes.Add(($"投射物#{projIds[k]}", ViewModule.EntitySortOrder(cell), projZ(projIds[k])));
+                        var c = SortCollisions(nodes);
+                        if (c.Count > 0) cols.Add($"格({cell.x},{cell.y})：" + string.Join(" ｜ ", c.ToArray()));
+                    }
+                    Check($"位形 {shapeNames[s]}：同 gx+gy 的 {projIds.Length} 个投射物第三键**两两不等**（{samePrimary} 格）",
+                        samePrimary > 0 && cols.Count == 0,
+                        $"主键相等 {samePrimary}/{path.Count} 格；碰撞 {cols.Count} 格" +
+                        (cols.Count > 0 ? "：" + string.Join(" ｜ ", cols.ToArray()) : "") +
+                        $"（id={string.Join(",", projIds)} ⇒ z 全不相等；改前这里恒为 {projIds.Length} 选 2 全撞）");
+                }
+
+                // ── ⓔ 判据极性·**已知好**样本（两个实体的真键同格）⇒ 必须判「可判别」──────────
+                var goodSample = new List<(string Name, int Order, float Z)>
+                {
+                    ("玩家", ViewModule.EntitySortOrder(path[0]), entZAt(GameConst.PlayerEntityId, path[0])),
+                    ("NPC", ViewModule.EntitySortOrder(path[0]), entZAt(npcEntityId, path[0])),
+                };
+                var goodColl = SortCollisions(goodSample);
+                Check("判据极性·**已知好**样本：两个**有**第三键的节点同格（玩家 + NPC）⇒ 判据判「可判别」（0 碰撞）",
+                    goodColl.Count == 0,
+                    $"碰撞 {goodColl.Count} 处；z(玩家)={entZAt(GameConst.PlayerEntityId, path[0]):0.0000} " +
+                    $"vs z(NPC)={entZAt(npcEntityId, path[0]):0.0000}");
+
+                // ── ⓕ **改前必红**（旧口径 = `Projectile.WorldOf` 的 z 恒 0）⇒ 判据必须报碰撞 ────
+                //     这条是"判据能变红"的证据：修法若被回退（或别处又绕过 `WorldPosOf` 拼裸 z），
+                //     ⓓ 会当场变红；本条证明**同一判据**对旧口径判红。
+                var oldSample = new List<(string Name, int Order, float Z)>
+                {
+                    ("投射物#1(旧口径)", ViewModule.EntitySortOrder(path[0]), projZOld(1)),
+                    ("投射物#2(旧口径)", ViewModule.EntitySortOrder(path[0]), projZOld(2)),
+                };
+                var oldColl = SortCollisions(oldSample);
+                Check("【改前必红】旧口径（z 取自 `Projectile.WorldOf` = 恒 0）同 gx+gy 两投射物 ⇒ 判据**必须**报碰撞",
+                    oldColl.Count == 1,
+                    $"碰撞 {oldColl.Count} 处" + (oldColl.Count > 0 ? "：" + oldColl[0] : "") +
+                    $"（z 都 = {projZOld(1):0.0000} ⇒ 主键相等时唯一决胜键也相等 = 次序未定义；"
+                    + $"现口径同位置 z = {projZ(1):0.0000}/{projZ(2):0.0000} ⇒ 已可判别）");
+
+                // ── ⓖ 现口径·真输入：同 gx+gy 的两个投射物 ⇒ **0 碰撞**（ⓕ 的翻转态）──────────
+                var realTwo = new List<(string Name, int Order, float Z)>
+                {
+                    ("投射物#1", ViewModule.EntitySortOrder(path[0]), projZ(1)),
+                    ("投射物#2", ViewModule.EntitySortOrder(path[0]), projZ(2)),
+                };
+                Check("现口径·真输入：同 gx+gy 的两个投射物第三键**不等**（ⓕ 的翻转态 = 修法在盘上）",
+                    SortCollisions(realTwo).Count == 0,
+                    $"格({path[0].x},{path[0].y})：order={ViewModule.EntitySortOrder(path[0])}、z = {projZ(1):0.0000} vs {projZ(2):0.0000}" +
+                    $"（出处 `ProjectileView.WorldPosOf` ← `SortZFor(p.id)`）");
+
+                // ── ⓗ W7 的**离线闭合**候选：多帧「不再交替」证据（team-lead 2026-09-24 第 3 版口径）
+                //   口径同 §11：**逐帧**取两节点的**实际**第三键算「谁在前」（`+` = #1 在前），`flips` 必须 0。
+                //   真输入 = 真 A* 逐帧走位；两个投射物分别停在「玩家当前格」与「当前格 + 三形偏移」
+                //   = **主键恒相等**的那三种关系；位置走**生产唯一产地** `ProjectileView.WorldPosOf`。
+                //   ⚠️ **极性一句话（写死在这里，防再读反）**：本组要证的是「**每帧都可判别**」
+                //     —— 通过条件 = `ProjPasses` = {主键全相等 ∧ 不可判别 0 ∧ #1 在前 全帧 ∧ 翻转 0}；
+                //     ⛔ **不是**「键元组必须逐帧恒定」：键随格变化属正常（`EntitySortOrder` 随格而变、
+                //     两枚投射物**同步**变 ⇒ 次序不变）；反而"恒定地不可判别"才是**旧口径**的病征。
+                //   **退化样本** `ⓗ-样本`：把第三键换回旧口径（`WorldOf`，恒 0）喂**同一个** `ProjFrames`
+                //     + **同一个** `ProjPasses` ⇒ 必须**不成立**（证明判据能红，⛔ 不是 §48 那种"只能绿"）。
+                Func<Diablo2.Module.Skill.Projectile, float> zProd = p => Diablo2.Module.Skill.ProjectileView.WorldPosOf(p).z;
+                Func<Diablo2.Module.Skill.Projectile, float> zOldOf = p => Diablo2.Module.Skill.Projectile.WorldOf(p.pos).z;
+                for (var s = 0; s < shapes.Length; s++)
+                {
+                    var off = shapes[s];
+                    var st = ProjFrames(town, path, off, zProd, zOldOf);
+                    Console.WriteLine($"  ── ⓗ 位形 {shapeNames[s]}：偏移格 ({off.x},{off.y})，真走位 {Frames11} 帧");
+                    Console.WriteLine($"     逐帧「谁在前」（+ = 投射物#1 在前，- = #2 在前，? = 三级键全等=未定义）：");
+                    Console.WriteLine($"     {st.Seq}");
+                    Check($"ⓗ 位形 {shapeNames[s]}：主键全相等 {st.Same}/{Frames11} ∧ 不可判别 {st.UndecNew} ∧ #1 在前 {st.FrontA}/{Frames11} ∧ 翻转 {st.Flips} ⇒ `ProjPasses`={ProjPasses(st)}",
+                        ProjPasses(st),
+                        $"主键相等 {st.Same}；翻转 {st.Flips}；#1 在前 {st.FrontA}/{Frames11}；不可判别 {st.UndecNew}；" +
+                        $"键元组取值 {st.KeySets.Count} 种（{st.KeyChanged}/{Frames11} 帧变值）⇒ {string.Join(" ｜ ", st.KeySets.ToArray())}" +
+                        $"（⚠️ 键随格变属正常、⛔ 判据不要求键恒定）");
+                    Check($"ⓗ 位形 {shapeNames[s]}：【红样本·闸门极性】旧口径同帧**每帧都不可判别**（原状 = 交给引擎提交顺序）",
+                        st.UndecOld == st.Same && st.UndecOld > 0,
+                        $"旧口径不可判别 {st.UndecOld}/{st.Same} 帧（两枚 z 都 = 0）⇒ 「新口径每帧可判别 + 旧口径每帧未定义」两条合起来即可离线闭合 W7");
+                }
+
+                // 退化样本：**与主路径同一段实现**（`ProjFrames`）+ **同一个通过条件**（`ProjPasses`），
+                //  只把第三键来源换成旧口径 ⇒ `ProjPasses` 必须 False（否则就是"只能绿"的假判据）。
+                var stBad = ProjFrames(town, path, shapes[2], zOldOf, zOldOf);
+                Check("ⓗ-样本（**同实现·能红**）：第三键换回旧口径（`WorldOf` 恒 0）喂同一 `ProjFrames`/`ProjPasses` ⇒ 通过条件必须**不成立**",
+                    !ProjPasses(stBad) && stBad.UndecNew > 0 && stBad.FrontA == 0,
+                    $"旧口径：主键相等 {stBad.Same}、不可判别 {stBad.UndecNew}/{Frames11}、#1 在前 {stBad.FrontA}、翻转 {stBad.Flips}" +
+                    $" ⇒ `ProjPasses`={ProjPasses(stBad)}（必须 False）；逐帧序列 = {stBad.Seq}");
+            }
+        }
+
+        /// <summary>
+        /// 主键相等的一组节点里，第三键**两两不等**（= 次序可判别）的检查：返回「主键相等且第三键也相等」的节点对。
+        /// **空 = 全部可判别**。口径 = §11 的「判过程不判结果」（主键相等 ⇒ 第三键必须决胜）。
+        /// </summary>
+        private static List<string> SortCollisions(List<(string Name, int Order, float Z)> nodes)
+        {
+            var bad = new List<string>();
+            for (var a = 0; a < nodes.Count; a++)
+            {
+                for (var b = a + 1; b < nodes.Count; b++)
+                {
+                    if (nodes[a].Order != nodes[b].Order) continue;        // 主键不同 ⇒ 不需要第三键
+                    if (nodes[a].Z == nodes[b].Z)
+                        bad.Add($"{nodes[a].Name} vs {nodes[b].Name}：order={nodes[a].Order} 且 z 都 = {nodes[a].Z:0.0000}");
+                }
+            }
+            return bad;
+        }
+
+        /// <summary>ⓗ 的逐帧统计（**主路径与退化样本调同一实现**；第三键来源可注入）。</summary>
+        private sealed class ProjFrameStat
+        {
+            public int Same;          // 主键（sortingOrder）相等 的帧数
+            public int Flips;         // 相邻帧「谁在前」翻转 次数
+            public int UndecNew;      // 现口径下"三级键全等 = 未定义" 的帧数
+            public int UndecOld;      // 对照口径（旧）下未定义 的帧数
+            public int FrontA;        // #1 在前 的帧数
+            public int KeyChanged;    // 键元组相对首帧变值 的帧数（**信息项**，⛔ 不是通过条件）
+            public List<string> KeySets = new List<string>();
+            public string Seq = "";
+        }
+
+        /// <summary>
+        /// ⓗ 的**通过条件**（主路径与退化样本**共用同一个**）：
+        /// 主键全相等 ∧ 不可判别 0 ∧ #1 在前 全帧 ∧ 翻转 0。
+        /// ⛔ 不含"键元组恒定" —— 键随格变化属正常；判据是"**每帧都可判别**"，不是"键不变"。
+        /// </summary>
+        private static bool ProjPasses(ProjFrameStat st)
+            => st.Same == Frames11 && st.UndecNew == 0 && st.FrontA == Frames11 && st.Flips == 0;
+
+        /// <summary>
+        /// ⓗ 的逐帧实现：真 A* 逐帧走位（真 `PlayerMotor` + 真 `MapModule`），两枚投射物停在
+        /// 「当前格」与「当前格 + <paramref name="off"/>」（⇒ 主键恒相等）；`zNew` = 被判的第三键来源，
+        /// `zOld` = 对照口径（只喂"旧口径每帧未定义"这条极性锚）。
+        /// </summary>
+        private static ProjFrameStat ProjFrames(Diablo2.Module.Map.MapModule town, List<Vector2Int> path,
+            Vector2Int off,
+            Func<Diablo2.Module.Skill.Projectile, float> zNew,
+            Func<Diablo2.Module.Skill.Projectile, float> zOld)
+        {
+            var st = new ProjFrameStat();
+            var motor = new Diablo2.Module.Player.PlayerMotor();
+            motor.Teleport(town.SpawnPoint, town);
+            motor.SetPath(path, path[path.Count - 1]);
+            var prev = 0;
+            var keyFirst = "";
+            var sb = new System.Text.StringBuilder();
+            for (var f = 0; f < Frames11; f++)
+            {
+                motor.Tick(Dt, town);
+                var aGrid = motor.Grid;
+                var bGrid = new Vector2Int(aGrid.x + off.x, aGrid.y + off.y);
+                var oa = ViewModule.EntitySortOrder(aGrid);
+                var ob = ViewModule.EntitySortOrder(bGrid);
+                // 投射物在**格中心**（`Projectile.Grid` = floor(pos) ⇒ pos = 格 + 0.5）
+                var pa = new Diablo2.Module.Skill.Projectile
+                { id = 1, pos = new UnityEngine.Vector2(aGrid.x + 0.5f, aGrid.y + 0.5f) };
+                var pb = new Diablo2.Module.Skill.Projectile
+                { id = 2, pos = new UnityEngine.Vector2(bGrid.x + 0.5f, bGrid.y + 0.5f) };
+                var za = zNew(pa);
+                var zb = zNew(pb);
+                if (oa == ob) st.Same++;
+                var front = FrontOf(oa, za, ob, zb);
+                if (front == 0) st.UndecNew++;
+                if (front > 0) st.FrontA++;
+                if (oa == ob && prev != 0 && front != prev) st.Flips++;
+                if (front != 0) prev = front;
+                if (FrontOf(oa, zOld(pa), ob, zOld(pb)) == 0) st.UndecOld++;
+                var key = $"{oa},{ob}|{za:0.0000},{zb:0.0000}";   // 信息项：键随格变化是正常的
+                if (f == 0) keyFirst = key;
+                else if (key != keyFirst) st.KeyChanged++;
+                if (!st.KeySets.Contains(key)) st.KeySets.Add(key);
+                sb.Append(front > 0 ? "+" : (front < 0 ? "-" : "?"));
+            }
+            st.Seq = sb.ToString();
+            return st;
+        }
+
+        /// <summary>三级键下的「谁在前」：主键（sortingOrder）大者在前；相等时第三键（z / 距离）**小者**在前；全等 = 0（未定义）。</summary>
+        private static int FrontOf(int pOrder, float pThird, int nOrder, float nThird)
+        {
+            if (pOrder != nOrder) return pOrder > nOrder ? +1 : -1;
+            if (pThird < nThird) return +1;
+            if (nThird < pThird) return -1;
+            return 0;
+        }
+
+        /// <summary>真 A* 路径；终点不可达时退到起点 8 邻域里最近的一个可走格（保证有 ≥2 点的合法路径）。</summary>
+        private static List<Vector2Int> FindWalkPath(IMapModule map, Vector2Int from, Vector2Int to)
+        {
+            var path = map.FindPath(from, to);
+            if (path != null && path.Count >= 2) return path;
+
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                for (var dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    var n = new Vector2Int(from.x + dx, from.y + dy);
+                    if (!map.Walkable(n)) continue;
+                    path = map.FindPath(from, n);
+                    if (path != null && path.Count >= 2) return path;
+                }
+            }
+            return null;
         }
 
         private static bool MathfApprox(float a, float b) => Math.Abs(a - b) < 1e-4f;

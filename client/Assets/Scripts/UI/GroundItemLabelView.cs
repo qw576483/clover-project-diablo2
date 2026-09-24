@@ -14,6 +14,15 @@
 // 为什么挂在 HUD（`UI/HudPanel` 持有）：HUD 是进图后常驻的画布层，名牌必须画在
 //   角色/物品之上、又不该被面板遮住；节点与 HUD 同生命周期（`StageEntered` 建 / `StageLeft` 拆）。
 //
+// ── ★ agent-eng2 本轮：**机制下沉引擎**（本文件只留 D2 语义与取值）─────────────────
+//   「按 id 池化复用 + 世界点投影到画布 + 显隐 + 收尾隐藏」这一套机制移入引擎件
+//   `CloverEngine.WorldProjectedLabelLayer`（`clover-client-unity-engine/Runtime/Presentation/
+//   WorldOverlayWidgets.cs`）；本文件只剩三件事：
+//     ① D2 取值：文案（名字 / "物品 #id" 兜底）、品质配色、世界落点（格中心 + 半格高）；
+//     ② 渲染注入：把 `D2Label` 包成引擎认得的 `IOverlayLabelView`（引擎不许引用项目类）；
+//     ③ 事件订阅与日志（调用点 / 公开 API **零改动**）。
+//   ⛔ 屏幕点 ⇄ 画布局部点换算由引擎件统一走 `ScreenPointUtil`（本文件不再自己调 `RectTransformUtility`）。
+//
 // 样式口径（⛔ 不自创）：
 //   · 字体 = `D2Text.D2Font.Font16` —— 与 HUD 技能格热键标签同一号（原版最小号，项目 UI 口径）；
 //   · 颜色 = 品质色 `ItemQualityColor.Of(quality)` —— 与 `UI/ItemTooltip` 的名称配色**同一张表**；
@@ -51,33 +60,28 @@ namespace Diablo2.UI
         private static readonly Vector2 LabelSize =
             new Vector2(GameConst.IsoTilePxW * UiLayoutGame.K, GameConst.HalfTilePxH * UiLayoutGame.K);
 
-        private readonly RectTransform _parent;
-        private readonly RectTransform _canvas;
+        /// <summary>引擎通用件：世界投影标签层（**池化复用 / 投影 / 显隐**全在它里面）。</summary>
+        private readonly WorldProjectedLabelLayer _layer;
 
-        /// <summary>地面物品 id → 名牌节点（按 id 复用，避免每次悬停都新建/销毁）。</summary>
-        private readonly Dictionary<int, D2Label> _nodes = new Dictionary<int, D2Label>();
+        /// <summary>本次要应用的标签（复用一个列表：`Apply` 是悬停驱动的热路径，不每次分配）。</summary>
+        private readonly List<WorldLabelItem> _items = new List<WorldLabelItem>();
 
-        /// <summary>本帧没出现在载荷里的 id（收尾时隐藏）。</summary>
-        private readonly List<int> _stale = new List<int>();
-
-        private bool _canvasWarned;
-        private bool _camWarned;
-
-        /// <summary>当前显示中的名牌数（自证/断言用）。</summary>
-        public int VisibleCount { get; private set; }
+        /// <summary>当前显示中的名牌数（自证/断言用；转发引擎件）。</summary>
+        public int VisibleCount => _layer != null ? _layer.VisibleCount : 0;
 
         /// <summary>最近一次收到的 Alt 态（自证/断言用）。</summary>
         public bool AltHeld { get; private set; }
 
         public GroundItemLabelView(RectTransform parent)
         {
-            _parent = parent;
-            _canvas = parent != null ? parent.GetComponentInParent<Canvas>()?.transform as RectTransform : null;
-            if (_canvas == null)
+            var canvas = parent != null ? parent.GetComponentInParent<Canvas>()?.transform as RectTransform : null;
+            if (canvas == null)
             {
-                _canvasWarned = true;
                 UiLog.Warn("找不到所属 Canvas ⇒ 名牌位置换算退化为格原点（名牌仍会创建，但不跟随物品）");
             }
+
+            // 引擎件只做机制；**画什么字**由 `CreateLabelView` 注入（项目侧 `D2Label` 位图字模）。
+            _layer = new WorldProjectedLabelLayer(canvas, parent, CreateLabelView, Tag);
         }
 
         /// <summary>
@@ -93,83 +97,62 @@ namespace Diablo2.UI
             }
 
             AltHeld = args.altHeld;
-            _stale.Clear();
-            foreach (var kv in _nodes) _stale.Add(kv.Key);
-
-            var shown = 0;
+            _items.Clear();
             for (var i = 0; i < args.labels.Count; i++)
             {
                 var l = args.labels[i];
-                if (l == null || l.id < 0) continue;
+                if (l == null || l.id < 0) continue;      // 非法 id：不喂给引擎（引擎会跳过并留痕）
 
-                _stale.Remove(l.id);
-
-                var label = NodeOf(l.id);
-                if (label == null) continue;                 // 建节点失败（只在非预期下发生，已 Warn）
-
-                var text = string.IsNullOrEmpty(l.name) ? "物品 #" + l.id : l.name;
-                label.text = text;
-                label.color = ItemQualityColor.Of(l.quality);
-
-                var rt = label.rectTransform;
-                var pos = ScreenAnchoredPositionOf(l.gridX, l.gridY);
-                if (pos.HasValue)
+                // D2 取值全部在这三行：世界落点 / 文案兜底 / 品质配色
+                _items.Add(new WorldLabelItem
                 {
-                    label.SetActive(true);
-                    rt.anchoredPosition = pos.Value;
-                }
-                else
-                {
-                    // 非预期但可解释：相机缺失 / 格在相机背面（切场景那一帧）⇒ 本件藏起来，别画在错误位置
-                    label.SetActive(false);
-                }
-
-                shown++;
+                    Id = l.id,
+                    World = WorldOf(l.gridX, l.gridY),
+                    Text = string.IsNullOrEmpty(l.name) ? "物品 #" + l.id : l.name,
+                    Color = ItemQualityColor.Of(l.quality),
+                });
             }
 
-            for (var i = 0; i < _stale.Count; i++)
-            {
-                if (_nodes.TryGetValue(_stale[i], out var node) && node != null) node.SetActive(false);
-            }
-
-            VisibleCount = shown;
+            var shown = _layer.Apply(_items);
             UiLog.Info($"[{Tag}] 名牌应用：altHeld={AltHeld} 载荷 {args.labels.Count} 条 ⇒ 可见 {shown} 条、"
-                + $"隐藏 {_stale.Count} 条（节点名 {NodePrefix}<id>）");
+                + $"隐藏 {_items.Count - shown} 条（节点名 {NodePrefix}<id>；池化/投影机制 = 引擎 WorldProjectedLabelLayer）");
         }
 
         /// <summary>隐藏全部名牌（离场 / 载荷为空）。</summary>
         public void Clear()
         {
-            foreach (var kv in _nodes)
-                if (kv.Value != null) kv.Value.SetActive(false);
-            if (VisibleCount != 0)
-                UiLog.Info($"[{Tag}] 名牌清空（原可见 {VisibleCount} 条）");
-            VisibleCount = 0;
+            var before = VisibleCount;
+            if (_layer != null) _layer.Clear();
+            if (before != 0)
+                UiLog.Info($"[{Tag}] 名牌清空（原可见 {before} 条）");
             AltHeld = false;
         }
 
         /// <summary>销毁全部名牌节点（HUD 关闭 / 离场；HUD 自己会再 new 一个）。</summary>
         public void Destroy()
         {
-            foreach (var kv in _nodes)
-            {
-                if (kv.Value == null) continue;
-                var go = kv.Value.gameObject;
-                if (go != null) Object.Destroy(go);
-            }
-            _nodes.Clear();
-            VisibleCount = 0;
+            if (_layer != null) _layer.Dispose();
             AltHeld = false;
         }
 
-        /// <summary>取（或建）某件地面物品的名牌节点。</summary>
-        private D2Label NodeOf(int id)
+        /// <summary>
+        /// 格 → 世界落点（**D2 语义**：格中心再抬半格高 = 落在该格顶边上，见文件头「样式口径」）。
+        /// </summary>
+        private static Vector3 WorldOf(int gridX, int gridY)
         {
-            if (_nodes.TryGetValue(id, out var exists) && exists != null) return exists;
+            var world = Iso.GridToWorld(gridX, gridY);
+            world.y += GameConst.IsoHalfH;
+            return world;
+        }
 
-            // ★ 片 font-scale：补显式字号（默认 0 = 按原版 px 1:1 画 ⇒ 名牌只有应有的 ~55%，
-            //   用户报「文字太小」的 6 处之一）。框见 `LabelSize`（已换算到画布 px）。
-            var label = D2Label.Create(_parent, NodePrefix + id, string.Empty, D2Text.D2Font.Font16,
+        /// <summary>
+        /// 引擎标签工厂（**项目侧渲染注入点**）：造一条 `D2Label`（原版字模、项目字号 / 对齐），
+        /// 包成引擎认得的 `IOverlayLabelView`。返回 `null` ⇒ 该物品不显示名牌（引擎会留痕）。
+        /// </summary>
+        private static IOverlayLabelView CreateLabelView(int id, Transform parent)
+        {
+            // ★ 片 font-scale：补显式字号（默认 0 = 按原版 px 1:1 画 ⇒ 名牌只有应有的 ~55%）。
+            var label = D2Label.Create(parent, NodePrefix + id, string.Empty, D2Text.D2Font.Font16,
                 TextAnchor.LowerCenter, Color.white, LabelSize, Vector2.zero, (int)UiLayoutGame.FontPx16);
             if (label == null)
             {
@@ -177,46 +160,32 @@ namespace Diablo2.UI
                 return null;
             }
 
-            label.SetActive(false);
-            _nodes[id] = label;
-            UiLog.Info($"[{Tag}] 名牌节点已创建：{NodePrefix}{id}「{label.text}」"
-                + $"尺寸={LabelSize.x}×{LabelSize.y}（一格的像素盒）字体=Font16（项目 UI 口径）");
-            return label;
+            UiLog.Info($"[{Tag}] 名牌节点已创建：{NodePrefix}{id} 尺寸={LabelSize.x}×{LabelSize.y}"
+                + $"（一格的像素盒）字体=Font16（项目 UI 口径）");
+            return new LabelView(label);
         }
 
         /// <summary>
-        /// 格 → 名牌在 Canvas 局部坐标里的落点（**纯换算**：世界坐标 = 格中心抬半格高；屏幕 = 相机投影）。
-        /// 相机/画布不可用 ⇒ null（调用方把该件藏起来，绝不画到错误位置）。
+        /// `D2Label` → 引擎 <see cref="IOverlayLabelView"/> 的适配器。
+        /// <para>为什么要有它：引擎件**不许引用项目类**（`D2Label` 属 `Diablo2.UI`）⇒ 适配只能落在项目侧。
+        /// 引擎只通过这 5 个动作驱动标签，⛔ 不认识位图字模、也不知道字号。</para>
         /// </summary>
-        private Vector2? ScreenAnchoredPositionOf(int gridX, int gridY)
+        private sealed class LabelView : IOverlayLabelView
         {
-            if (_canvas == null) return null;
+            private readonly D2Label _label;
 
-            var cam = UIFactory.UICamera();     // 引擎口径：`Camera.main`，取不到退化成任意一台相机
-            if (cam == null)
-            {
-                if (!_camWarned)
-                {
-                    _camWarned = true;
-                    UiLog.Warn("找不到相机 ⇒ 地面物品名牌无法从格坐标投影到屏幕（名牌暂不显示；只报一次）");
-                }
-                return null;
-            }
+            public LabelView(D2Label label) { _label = label; }
 
-            var world = Iso.GridToWorld(gridX, gridY);
-            world.y += GameConst.IsoHalfH;      // 抬半格高 = 落在该格顶边上（见文件头「样式口径」）
+            /// <summary>节点被销毁 ⇒ `gameObject` 为 null（Unity 的"已销毁 == null"语义）。</summary>
+            public bool IsAlive => _label != null && _label.gameObject != null;
 
-            var screen = cam.WorldToScreenPoint(world);
-            if (screen.z < 0f) return null;     // 相机背面（切场景那一帧）
+            public RectTransform Rect => _label != null ? _label.rectTransform : null;
 
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _canvas, new Vector2(screen.x, screen.y), null, out var local))
-            {
-                UiLog.WarnOnce("groundlabel.convert.fail", "屏幕点 → Canvas 局部坐标换算失败 ⇒ 名牌位置不更新");
-                return null;
-            }
+            public void SetText(string text) { if (_label != null) _label.SetText(text); }
 
-            return local;
+            public void SetColor(Color color) { if (_label != null) _label.SetColor(color); }
+
+            public void SetActive(bool active) { if (_label != null) _label.SetActive(active); }
         }
     }
 }

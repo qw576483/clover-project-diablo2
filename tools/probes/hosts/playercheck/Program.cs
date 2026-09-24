@@ -32,6 +32,7 @@ using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.Module;              // 12 个门面接口 + CameraRig + InputReader（后两者刻意与接口同命名空间，见其文件头）
 using Diablo2.Module.Player;       // PlayerModule / PlayerStats / PlayerMotor / PlayerLog
+using Diablo2.Module.Save;         // ★ u52block：SaveModule / SaveJson（链路级一跳要用**真**存档模块）
 using UnityEngine;
 // ⚠️ 故意**不** `using Table;`：`Table` 命名空间里有一个 `Table.Vector3` 结构，
 //    与 `UnityEngine.Vector3` 同名 ⇒ 一旦 `using Table;` + `using UnityEngine;` 同时出现，
@@ -304,6 +305,11 @@ namespace PlayerCheck
             RunStep("7. 升级", () => Step7_LevelUp(ctx, player));
             RunStep("8. 属性点", () => Step8_AllocateStat(ctx, player));
             RunStep("9. 装备生效", () => Step9_Equip(ctx, player, bus));
+            RunStep("9b. ★ R6 格挡（盾基材 block 接入）", () => Step9b_Block(ctx, player, bus));
+            RunStep("9c. ★ u52cur 三资源 cur/max（新建即满 / 旧档迁移 / 沿用语义）",
+                () => Step9c_Resources(ctx, player, bus));
+            RunStep("9d. ★ u52block 链路级一跳：真 SaveModule.Load → 真 PlayerModule.LoadFrom（老档耐力 20/84 的断链点）",
+                () => Step9d_SaveToPlayerHop(ctx, player));
             RunStep("10. 死亡/复活", () => Step10_DeathRevive(ctx, map, player, bus));
             RunStep("11. 等距跟随相机", () => Step11_Camera(ctx, map, rig, input));
             RunStep("12. 输入读取", () => Step12_Input(ctx, input, bus));
@@ -390,13 +396,28 @@ namespace PlayerCheck
             //    这里改为断言「本宿主**没有编入**的模块仍保持 null」——这才是该用例的本意（降级不崩）。
             //    ★ 本轮（T0 判据缺口 2）：`Module/Item` 已加入本宿主的编译清单（见 `PlayerCheck.csproj`），
             //      §17 要用**真实** `ItemModule` 断言双武器组 ⇒ 从"未编入"名单里移出并单独断言它是真实现。
+            //   ★ 本片（U27 三分判据）：`Module/View` **也**加进了本宿主的编译清单
+            //     （§15 f 要调生产件 `ViewModule.EntityWorld` = 角色渲染节点位置的唯一口径）
+            //     ⇒ "未编入"名单里把 View 移出，并像 ItemModule 那样**单独断言它是真实现**。
+            //   ★ 本片（u52block 链路级一跳）：`Module/Save` **也**加进了本宿主的编译清单
+            //     （§9d 要真 `SaveModule.Load` → 真 `PlayerModule.LoadFrom`，见 `PlayerCheck.csproj`）
+            //     ⇒ 按**同一处置**再走一遍："未编入"名单里把 Save 移出，并**单独断言它是真实现**。
+            //     ⚠️ **这不是放宽**（README §57(a)：加文件 = 改既有断言的输入 ⇒ 要按新输入改判据）：
+            //        名单里剩下的 4 个（Combat/Skill/Quest/Audio）仍必须为 null，
+            //        而 Save 必须**恰好**是生产实现（不是桩）。
             Check("本宿主未编入的模块保持 null（降级，不崩）",
                 ctx.Combat == null && ctx.Skill == null && ctx.Quest == null
-                && ctx.View == null && ctx.Audio == null && ctx.Save == null,
+                && ctx.Audio == null,
                 ctx.Describe() + "（Monster/Npc = 本宿主 §13 的桩 StubMonsters/StubNpcs，非生产实现）");
+            Check("本轮新增编入的 ViewModule 是真实现（§15 f 的三分判据打在它上面）",
+                ctx.View != null && ctx.View.GetType().Name == "ViewModule",
+                ctx.View == null ? "null" : ctx.View.GetType().FullName);
             Check("本轮新增编入的 ItemModule 是真实现（§17 的双武器组断言打在它上面）",
                 ctx.Item != null && ctx.Item.GetType().Name == "ItemModule",
                 ctx.Item == null ? "null" : ctx.Item.GetType().FullName);
+            Check("本片（u52block）新增编入的 SaveModule 是真实现（§9d 的链路级一跳打在它上面）",
+                ctx.Save != null && ctx.Save.GetType().Name == "SaveModule",
+                ctx.Save == null ? "null" : ctx.Save.GetType().FullName);
 
             Console.WriteLine("    （下方若出现 [Cfg] 的 WARN：非 Unity 进程读 config.json 的正常降级，" +
                               "Cfg 内部已 try/catch，不是失败）");
@@ -408,10 +429,26 @@ namespace PlayerCheck
         // ═════════════════════════════════════════════════════════════════════
         private static void Step1_FiveClasses(AppContext ctx, object mapObj)
         {
-            Section("1. 五职业 1 级 MaxLife/MaxMana/MaxStamina ↔ class_c 计算值逐一相等");
+            Section("1. 五职业 1 级 MaxLife/MaxMana/MaxStamina ↔ **官方起始值**（charstats.txt + Arreat Summit）");
             var player = (PlayerModule)ctx.Player;
 
-            Console.WriteLine("    id 职业        str dex vit eng  life/vit mana/mag stam/vit   生命 法力 耐力   防御  AR");
+            // ★★ U3（2026-09-24）判据换口径 —— 为什么要换（原断言是**恒真**的）：
+            //   旧断言的"期望值"是**用同一个错公式现算**（`row.Vit * row.LifePerVit`）再和 PlayerModule 比，
+            //   两边同源 ⇒ 无论公式多错它都 OK（实测：它给 60/22/20 全绿，而官方 1 级是 50/15/84）。
+            //   现在期望值 = **官方原始数据，硬编码**（出处逐条写在下面三行数组旁），
+            //   并且**不再由 `class_c` 参与**期望值的计算。
+            //
+            //   出处①（列语义 + 逐列取值）：`原版资源/d2raw/data/global/excel/charstats.txt:2..6`
+            //     · 第 7 列 `stamina` = "Starting amount of Stamina" ⇒ 84 / 74 / 79 / 89 / 92
+            //     · 第 8 列 `hpadd`   = "Bonus starting Life value (…gets added with the vit field value
+            //                            to determine the overall starting amount of Life)" ⇒ 5 职业同为 30
+            //   出处②（1 级实际值，官方职业页 classic.battle.net/diablo2exp/classes/*.shtml
+            //          Starting Attributes → Hit Points / Stamina / Mana）：
+            var officialLife = new[] { 50, 40, 45, 55, 55 };   // Amazon/Sorceress/Necromancer/Paladin/Barbarian
+            var officialMana = new[] { 15, 35, 25, 15, 10 };
+            var officialStam = new[] { 84, 74, 79, 89, 92 };
+
+            Console.WriteLine("    id 职业        str dex vit eng  life/vit mana/mag stam/vit  生命(官方) 法力(官方) 耐力(官方)   防御  AR");
             var allOk = true;
 
             for (var id = 1; id <= 5; id++)
@@ -419,29 +456,49 @@ namespace PlayerCheck
                 var row = Table.TableLoader.Class(id);
                 player.CreateNew((PlayerClass)id, "Check" + id);
 
-                var expLife = Mathf.Max(1, Mathf.RoundToInt(row.Vit * row.LifePerVit));
-                var expMana = Mathf.Max(1, Mathf.RoundToInt(row.Eng * row.ManaPerMag));
-                var expStam = Mathf.Max(1, Mathf.RoundToInt(row.Vit * row.StamPerVit));
+                var expLife = officialLife[id - 1];
+                var expMana = officialMana[id - 1];
+                var expStam = officialStam[id - 1];
 
                 var ok = player.MaxLife == expLife && player.MaxMana == expMana && player.MaxStamina == expStam;
                 allOk &= ok;
 
                 Console.WriteLine($"    {id}  {row.Name,-8}  {row.Str,3} {row.Dex,3} {row.Vit,3} {row.Eng,3}" +
                                   $"  {row.LifePerVit,7:0.##} {row.ManaPerMag,7:0.##} {row.StamPerVit,7:0.##}" +
-                                  $"   {player.MaxLife,4} {player.MaxMana,4} {player.MaxStamina,4}" +
-                                  $"   {player.Defense,4} {player.AttackRating,4}   {(ok ? "" : "❌ 与配表不符")}");
-                Check($"{row.Name} 1 级生命/法力/耐力 = 配表公式值",
+                                  $"   {player.MaxLife,4}({expLife,3}) {player.MaxMana,4}({expMana,3}) {player.MaxStamina,4}({expStam,3})" +
+                                  $"   {player.Defense,4} {player.AttackRating,4}   {(ok ? "" : "❌ 与官方起始值不符")}");
+                Check($"{row.Name} 1 级生命/法力/耐力 = 官方起始值（hpadd+起始体力 / 起始精力 / charstats.stamina）",
                     ok, $"期望 {expLife}/{expMana}/{expStam}，实际 {player.MaxLife}/{player.MaxMana}/{player.MaxStamina}");
             }
 
-            Check("5 职业逐一相符", allOk, "见上表（公式与 UI/CharCreatePanel.LifeOf 完全一致）");
+            Check("5 职业逐一相符（官方起始值）", allOk, "见上表；期望值逐条硬编码自 charstats.txt + Arreat Summit");
+
+            // ── 判据自检（**退化样本**，⛔ 不许恒真）─────────────────────────────
+            //   把**旧公式**（起始四维 × 成长系数）喂进同一条判据：必须 5 个职业全部变红。
+            //   若旧公式还能全绿 ⇒ 这条断言判不到"起始截距"，等于没判（本片修的就是这个截距）。
+            var degGreen = 0;
+            for (var id = 1; id <= 5; id++)
+            {
+                var r = Table.TableLoader.Class(id);
+                var oldLife = Mathf.Max(1, Mathf.RoundToInt(r.Vit * r.LifePerVit));
+                var oldMana = Mathf.Max(1, Mathf.RoundToInt(r.Eng * r.ManaPerMag));
+                var oldStam = Mathf.Max(1, Mathf.RoundToInt(r.Vit * r.StamPerVit));
+                if (oldLife == officialLife[id - 1] && oldMana == officialMana[id - 1] && oldStam == officialStam[id - 1])
+                    degGreen++;
+            }
+            Check("退化样本：旧公式（起始四维 × 成长系数）在 5 职业上**全红**（判据真的在判起始截距）",
+                degGreen == 0, $"旧公式与官方起始值相同的职业数 = {degGreen}（要求 0）");
 
             // 与创角屏同口径的抽查（验收 #17：创角预览要跟进图后对得上）
+            //   ⚠️ 这里把 `UI/CharCreatePanel.LifeOf` 的**表达式逐字抄一遍**（UI 层不进本宿主；
+            //      分层自检 ③ 也禁止 UI 引用 Module）—— 真正"屏上预览 == 面板"的比对在 Play 驱动里做。
             var amazon = Table.TableLoader.Class(1);
             player.CreateNew(PlayerClass.Amazon, "Check1");
-            var uiLife = Mathf.Max(1, Mathf.RoundToInt(amazon.Vit * amazon.LifePerVit + 0 * amazon.LifePerLvl));
-            Check("与 CharCreatePanel 的生命公式一致（亚马逊 1 级）", player.MaxLife == uiLife,
-                $"PlayerModule={player.MaxLife} CharCreatePanel={uiLife}");
+            var uiLife = Mathf.Max(1, Mathf.RoundToInt((30 + amazon.Vit) + (amazon.Vit - amazon.Vit) * amazon.LifePerVit
+                                                       + 0 * amazon.LifePerLvl));
+            Check("与 CharCreatePanel.LifeOf 同式（亚马逊 1 级 = 50，与官方一致）",
+                player.MaxLife == uiLife && uiLife == 50,
+                $"PlayerModule={player.MaxLife} 创角屏式={uiLife} 官方=50");
             Console.WriteLine("    " + player.DumpStats());
         }
 
@@ -972,9 +1029,11 @@ namespace PlayerCheck
             Check("生命上限按配表增长（+life_per_lvl）",
                 player.MaxLife == lv1Life + Mathf.RoundToInt(row.LifePerLvl),
                 $"{lv1Life} → {player.MaxLife}（life_per_lvl={row.LifePerLvl}）");
-            Check("法力上限按配表增长（+mana_per_lvl）",
-                player.MaxMana == Mathf.RoundToInt(row.Eng * row.ManaPerMag + 1 * row.ManaPerLvl),
-                $"法力上限 {player.MaxMana}（mana_per_lvl={row.ManaPerLvl}）");
+            // ★ U3：期望值同样换成**官方起始口径**（起始精力 + 1 级 × mana_per_lvl），
+            //   旧写法 `row.Eng × manaPerMag` 把"起始精力"又乘了一遍成长系数（正是本片修掉的错）。
+            Check("法力上限按配表增长（起始精力 + mana_per_lvl）",
+                player.MaxMana == Mathf.RoundToInt(row.Eng + 1 * row.ManaPerLvl),
+                $"法力上限 {player.MaxMana}（起始精力 {row.Eng} + mana_per_lvl={row.ManaPerLvl}）");
             Check("属性点 +stat_per_lvl", player.StatPoints == lv1StatPoints + row.StatPerLvl,
                 $"{lv1StatPoints} → {player.StatPoints}（stat_per_lvl={row.StatPerLvl}）");
             Check("技能点 +1", player.SkillPoints == lv1SkillPoints + 1,
@@ -1081,6 +1140,415 @@ namespace PlayerCheck
             Check("卸下后加成归零", player.Str == beforeStr && player.MaxLife == beforeLife
                 && player.GetResist(DamageType.Fire) == beforeFire,
                 $"力 {player.Str} 生命上限 {player.MaxLife} 火抗 {player.GetResist(DamageType.Fire)}");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 9b. ★ u52block（R6）：格挡 —— 盾牌**基材** block 接入 / 合成式 / 上限 / 闸门 / 退化样本
+        //     用户报的「人物状态框，数值信息不对」含这一格：装了盾格挡仍是 0%。
+        //     出处（逐条；⛔ 无一条来自"看起来合理"）：
+        //       ① **合成式**：Arreat Summit「Basics: Character Information → Blocking」
+        //          （`https://classic.battle.net/diablo2exp/basics/characters.shtml`，2026-09-24 实取原文）
+        //          `Total Blocking = (Blocking * (Dexterity - 15)) / (Character Level * 2)`
+        //          `Blocking = A total of the Blocking on all of your items.`
+        //          `The block value itself is a combination of a value inherent to that particular
+        //           player class, and any other block bonuses from items. This value is capped at 75%.`
+        //       ② **盾牌基材 block** = 官方 `Armor.txt` 第 11 列 `block`
+        //          （`原版资源/d2lod1.10txt-1.10f/data/global/excel/Armor.txt`；打表 ⇒ `item_c.block`）
+        //       ③ **职业固有值** = 官方 `charstats.txt` 第 32 列 `BlockFactor`（打表 ⇒ `class_c.block_factor`）
+        //       ④ **官方公布值交叉核对**：`https://www.diablo-2.net/items/shields`（2026-09-24 实取）
+        //          + `https://d2grail.com/items/bases/armor/shields/normal/buckler`（Buckler 同行一致）
+        //     类别：**数值类** ⇒ 运行时日志 + 断言（⛔ 本片不进 Play、不截图）。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step9b_Block(AppContext ctx, PlayerModule player, RecordingEventBus bus)
+        {
+            Section("9b. ★ R6 格挡：盾基材 block 接入（逐职业期望值 / 上限边界 / 无盾闸门 / 退化样本）");
+
+            // ── ① 出处交叉核对：打表出来的 `item_c.block` == 官方公布格挡 − 职业固有值(Pal 30) ──
+            //   官方公布的普通盾「格挡」（Paladin 档，实取 https://www.diablo-2.net/items/shields）：
+            //     Buckler 30 / Small 35 / Large 42 / Kite 38 / Spiked 40 / Bone 50 / Tower 54 / Gothic 46
+            //   `charstats.txt:2..6` 第 32 列 BlockFactor = Pal 30 / Ama 25 / Bar 25 / Sor 20 / Nec 20
+            //   ⇒ 官方公布值 = 职业固有值 + 盾基材 block ⇒ 盾基材 block = 公布值 − 30（与职业无关）。
+            var officialPaladinBlock = new Dictionary<string, int>
+            {
+                { "buc", 30 }, { "sml", 35 }, { "lrg", 42 }, { "kit", 38 },
+                { "spk", 40 }, { "bsh", 50 }, { "tow", 54 }, { "gts", 46 },
+            };
+            var palFactor = Table.TableLoader.Class(4).BlockFactor;      // 圣骑士 = 30
+            var crossOk = 0;
+            var crossTotal = 0;
+            var missing = new List<string>();
+            var crossDetail = new List<string>();
+            foreach (var kv in officialPaladinBlock)
+            {
+                var r = FindItemRowByCode(kv.Key);
+                var exp = kv.Value - palFactor;
+                if (r == null)
+                {
+                    // ⚠️ Act I 打表口径（`tools/table-convert/convert.py` 的 `ITEM_MAX_LEVEL = 12`）：
+                    //    官方 qlvl > 12 的盾不进 `item_c`（Kite 15 / Bone 19 / Tower 22 / Gothic 30）
+                    //    ⇒ 本工程 Act I 里有 4 种普通盾（Buc/Sml/Lrg/Spk）。这是**既有口径**，本片不改。
+                    missing.Add(kv.Key);
+                    continue;
+                }
+                crossTotal++;
+                if (r.Block == exp) crossOk++;
+                crossDetail.Add($"{kv.Key}:{r.Block}(期望{exp})");
+            }
+            Check("Act I 表里的盾：`item_c.block` = 官方公布格挡 − `class_c.block_factor`(Pal 30) 逐条相符（4 种）",
+                crossTotal == 4 && crossOk == crossTotal,
+                $"相符 {crossOk}/{crossTotal}：{string.Join(" ", crossDetail)}");
+            Check("官方 qlvl>12 的 4 种盾按既有 Act I 口径不在 `item_c`（Kite15/Bone19/Tower22/Gothic30）",
+                string.Join(",", missing) == "kit,bsh,tow,gts",
+                "不在表里的：" + string.Join(",", missing));
+
+            // ── ② 合成式（逐职业期望值；期望值**硬编码自官方公式**，⛔ 不由被测代码现算）──
+            //   盾 = Small Shield（官方 block = 5）；等级两档：Lv1 与 Lv10。
+            //   Lv1（各职业起始敏/固有值都读 `class_c`）：敏25+BF25 → (10×30)/2 = 150 → 钳 75；…全部顶到 75
+            //   Lv10（各职业分道，验的是"**盾 block 与职业 BlockFactor 两项都进去了**"）：
+            //     Amazon     (25−15)×(5+25)/(2×10) = 300/20 = 15
+            //     Sorceress  (25−15)×(5+20)/(2×10) = 250/20 = 12（整数除法，与官方同）
+            //     Necromancer                                            = 12
+            //     Paladin    (20−15)×(5+30)/(2×10) = 175/20 = 8
+            //     Barbarian  (20−15)×(5+25)/(2×10) = 150/20 = 7
+            var smallShield = FindItemRowByCode("sml");
+            Check("配表里取到 Small Shield（item_c.block = 5，官方 Armor.txt 同值）",
+                smallShield != null && smallShield.Block == 5,
+                smallShield == null ? "取不到行" : $"id={smallShield.Id} block={smallShield.Block}");
+
+            var expectLv1 = new[] { 75, 75, 75, 75, 75 };
+            var expectLv10 = new[] { 15, 12, 12, 8, 7 };
+            var formulaOk = true;
+            var formulaDetail = new List<string>();
+            for (var id = 1; id <= 5; id++)
+            {
+                var cr = Table.TableLoader.Class(id);
+                var got1 = PlayerStats.ComputeBlockChance(true, cr.Dex, smallShield.Block, cr.BlockFactor, 1);
+                var got10 = PlayerStats.ComputeBlockChance(true, cr.Dex, smallShield.Block, cr.BlockFactor, 10);
+                formulaOk &= got1 == expectLv1[id - 1] && got10 == expectLv10[id - 1];
+                formulaDetail.Add($"{cr.Name} Lv1={got1}(期望{expectLv1[id - 1]}) Lv10={got10}(期望{expectLv10[id - 1]})");
+            }
+            Check("装盾（Small Shield block=5）后逐职业格挡 = 官方公式值（Lv1 与 Lv10 两档，5 职业）",
+                formulaOk, string.Join("；", formulaDetail));
+            Console.WriteLine("   " + string.Join("；", formulaDetail));
+
+            // ── ③ 上限钳制的边界用例（官方 capped at 75%）──
+            //   Amazon + Small Shield + Lv1：BF25+block5 = 30 ⇒ (dex−15)×30/2 = (dex−15)×15
+            //     dex=20 → 75（**刚好到上限**）· dex=21 → 90（**超过上限** ⇒ 钳 75）· dex=19 → 60（未到上限，原值）
+            Check("上限边界①：敏20 ⇒ (20−15)×(5+25)/2 = 75 **刚好到上限**",
+                PlayerStats.ComputeBlockChance(true, 20, 5, 25, 1) == 75,
+                "实际 " + PlayerStats.ComputeBlockChance(true, 20, 5, 25, 1));
+            Check("上限边界②：敏21 ⇒ 算得 90 **超过上限** ⇒ 钳到 75",
+                PlayerStats.ComputeBlockChance(true, 21, 5, 25, 1) == 75,
+                "实际 " + PlayerStats.ComputeBlockChance(true, 21, 5, 25, 1));
+            Check("上限边界③：敏19 ⇒ 60 **未到上限** ⇒ 保留原值（钳制不误伤正常值）",
+                PlayerStats.ComputeBlockChance(true, 19, 5, 25, 1) == 60,
+                "实际 " + PlayerStats.ComputeBlockChance(true, 19, 5, 25, 1));
+            Check("下限：敏14（< 15）⇒ 负数钳到 0（不是负数格挡）",
+                PlayerStats.ComputeBlockChance(true, 14, 5, 25, 1) == 0,
+                "实际 " + PlayerStats.ComputeBlockChance(true, 14, 5, 25, 1));
+
+            // ── ④ 无盾闸门（**既有读数，不许放宽**）──
+            //   官方：无盾/无死灵头骨时角色屏不显示格挡率 ⇒ 徒手/只穿甲恒 0%。
+            //   1 级徒手亚马逊若把职业固有值单独算进去会得 (25−15)×25/2 = 125% ⇒ 钳 75%，与官方 0% 冲突。
+            Check("无盾闸门：`hasShield=false` ⇒ 恒 0%（哪怕敏捷很高）",
+                PlayerStats.ComputeBlockChance(false, 9999, 0, 25, 1) == 0
+                && PlayerStats.ComputeBlockChance(false, 25, 0, 25, 1) == 0,
+                "expected 0/0");
+            Check("★ Buckler（官方 block=0，3 个职业的起始盾）也算「有盾」：Ama (25−15)×25/2 = 125→75 / Bar (20−15)×25/2 = 62",
+                PlayerStats.ComputeBlockChance(true, 25, 0, 25, 1) == 75
+                && PlayerStats.ComputeBlockChance(true, 20, 0, 25, 1) == 62,
+                $"Ama={PlayerStats.ComputeBlockChance(true, 25, 0, 25, 1)} Bar={PlayerStats.ComputeBlockChance(true, 20, 0, 25, 1)}");
+
+            // ── ⑤ 退化样本：把**修前形状**喂进同一判据 ⇒ 必须变红 ──
+            //   修前：盾基材 block 没接入 ⇒ 装备项只等于词缀 block 之和（本样例无词缀 ⇒ 0）
+            //   ⇒ 旧闸门 "装备项 <= 0 ⇒ 0%" 把装盾也判成 0%（= 用户报的症状）。
+            var preFixAma = PreFixBlockChance(25, 0, 25, 1);
+            var preFixBar = PreFixBlockChance(20, 0, 25, 1);
+            Check("退化样本①（装盾后=公式值）：修前形状（装备项恒 0）在同一判据上**变红**（Ama 0≠75 / Bar 0≠62）",
+                preFixAma != 75 && preFixBar != 62,
+                $"修前 Ama={preFixAma} Bar={preFixBar}（要求分别 ≠ 75 / ≠ 62）");
+            Check("退化样本②（上限边界同判据）：修前形状在敏19/20/21 上**全得 0** ⇒ 三个边界读数全红",
+                PreFixBlockChance(19, 0, 25, 1) != 60 && PreFixBlockChance(20, 0, 25, 1) != 75
+                && PreFixBlockChance(21, 0, 25, 1) != 75,
+                $"修前 19→{PreFixBlockChance(19, 0, 25, 1)} / 20→{PreFixBlockChance(20, 0, 25, 1)}"
+                + $" / 21→{PreFixBlockChance(21, 0, 25, 1)}（要求 ≠ 60 / ≠ 75 / ≠ 75）");
+            // 退化样本③（无盾闸门）：闸门是**承重**的 —— 去掉它（按"有盾"恒真算）1 级徒手亚马逊
+            //   会得 (25−15)×25/2 = 125 ⇒ 钳 75%，与官方「无盾 = 0%」冲突 ⇒ 证明这条判据判的是闸门本身。
+            Check("退化样本③（无盾闸门）：闸门去掉（`hasShield` 恒真）徒手亚马逊会算成 75% ≠ 官方 0%",
+                PlayerStats.ComputeBlockChance(true, 25, 0, 25, 1) == 75,
+                "去掉闸门：徒手亚马逊 = " + PlayerStats.ComputeBlockChance(true, 25, 0, 25, 1) + "%（官方 0%）");
+
+            // ── ⑥ 事件链（真入口）：装盾 ⇒ `Events.EquipChanged` ⇒ 面板那一格（`BlockChance`）不再 0 ──
+            //   这一条判的是"接线"（根因的那一环）：盾基材 block 真的进了 `BonusBlock`。
+            player.CreateNew(PlayerClass.Barbarian, "Shield");
+            var noShield = player.Stats.BlockChance;
+            Check("装盾前（徒手）= 0%（既有读数：`Check1 … 格挡0%` / `row17.json` 指着它，⛔ 未放宽）",
+                noShield == 0, $"BlockChance={noShield}（HasShield={player.Stats.HasShield}）");
+
+            var shield = new ItemStack
+            {
+                itemId = smallShield.Id,
+                name = "Small Shield(自检)",
+                type = ItemType.Armor,
+                defMin = smallShield.DefMin,
+                defMax = smallShield.DefMax,
+            };
+            var equipArgs = new InventoryChangedArgs { gold = 0 };
+            equipArgs.equip.Add(shield);
+            bus.Emit(Events.EquipChanged, equipArgs);
+
+            // 野蛮人 1 级：起始敏 20（`class_c.dex`）+ 盾 block 5 + BF 25
+            //   ⇒ (20−15) × (5+25) / (2×1) = 150 / 2 = 75（硬编码自官方公式，⛔ 不由被测代码现算）
+            const int barbExpect = 75;
+            Check("装盾后（Barbarian 1 级 + Small Shield）= 官方公式值 75%",
+                player.Stats.BlockChance == barbExpect && barbExpect > 0,
+                $"期望 {barbExpect}，实际 {player.Stats.BlockChance}（盾格挡加成 BonusBlock={player.Stats.BonusBlock}）");
+            Check("装备日志：盾 1 件 / 带盾=True / 格挡上屏同一真值",
+                CaptureLogger.Has("盾 1 件") && CaptureLogger.Has("带盾=True")
+                && CaptureLogger.Has($"格挡 {barbExpect}%"),
+                CaptureLogger.Last("[Equip] 装备生效"));
+
+            // 再加一档**非上限**的读数（Lv1 各职业都顶到 75 ⇒ 单这一条分不出"公式对不对"）：
+            //   直接置等级只为把钳制从读数里排除（走的是同一条 `Recompute`，不绕过公式）。
+            //   野蛮人 Lv10 + Small Shield：敏 20 → (20−15) × (5+25) / (2×10) = 150/20 = 7
+            player.Stats.Level = 10;
+            player.Stats.Recompute();
+            Check("装盾后（Barbarian Lv10 + Small Shield）= 官方公式值 7%（非上限档，公式能分道）",
+                player.Stats.BlockChance == 7, $"期望 7，实际 {player.Stats.BlockChance}");
+
+            bus.Emit(Events.EquipChanged, new InventoryChangedArgs());
+            Check("卸下盾 ⇒ 回到 0%（闸门跟着「有没有盾」走，不是「有没有加成」）",
+                player.Stats.BlockChance == 0 && !player.Stats.HasShield,
+                $"BlockChance={player.Stats.BlockChance} HasShield={player.Stats.HasShield}");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 9c. ★ u52cur（缺陷 A/B）：三资源 cur/max —— 新建即满 / 旧档迁移 / "沿用"语义不许被改掉
+        //     实机症状（`u52play` 11:38:35 那批，判为有效）：
+        //       `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`
+        //       `[D2U3C] DTO name=S2203805 cls=Amazon level=1 … life=50/50 mana=15/15 stamina=**20/84**`
+        //     活档（**只读**）：`client/setting/saves/S2203805.json` =
+        //       `{version:1, name:S2203805, cls:1, level:1, str:20, dex:25, vit:20, eng:15,
+        //         life:60, mana:22, stamina:20, statPoints:0, …}`（mtime 2026-09-23 20:38 = charstat 片修前）
+        //       ⇒ 该档是**旧口径**档：`life/mana/stamina` 是"起始四维 × 成长系数"那套式子的产物，
+        //         与现在的官方起始上限（50 / 15 / 84）**不同源**。
+        //     出处（起始量 = 满值）：`charstats.txt:2..6` 的 `hpadd`(30)+起始体力(20)=50 / 起始精力(15) /
+        //       `stamina`(84)；表内落位 = `class_c.hp_add / base_stamina`（★ charstat 片 §1 已判）。
+        //     类别：**数值类** ⇒ 运行时日志 + 断言（⛔ 不截图、不进 Play）。
+        //     ⚠️ **本段与 `itemcheck` §13b 是同一组断言的镜像（有意的重复，main 已批）**：本宿主编
+        //       `Module/View`（别的片把 View 改坏时整宿主编不过，本轮真实发生过一次），而 `itemcheck`
+        //       不编 View ⇒ 那侧留一份**独立的可跑副本**。⛔ **两处改动必须同步**（§9c ↔ itemcheck §13b）。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void Step9c_Resources(AppContext ctx, PlayerModule player, RecordingEventBus bus)
+        {
+            Section("9c. ★ u52cur 三资源 cur/max：新建即满 / 旧档迁移 / 现行档沿用（退化样本）");
+
+            // ── ① 新建角色进图 ⇒ cur == max（三资源逐条）──
+            player.CreateNew(PlayerClass.Amazon, "CurNew");
+            var cL = player.Life == player.MaxLife;
+            var cM = player.Mana == player.MaxMana;
+            var cS = player.Stamina == player.MaxStamina;
+            Check("新建角色：cur == max（生命/法力/耐力逐条；官方起始量即满值起步）",
+                cL && cM && cS,
+                $"生命 {player.Life}/{player.MaxLife} 法力 {player.Mana}/{player.MaxMana} 耐力 {player.Stamina}/{player.MaxStamina}");
+            Check("新建角色 1 级三资源 = 官方起始值（50 / 15 / 84，`charstats.txt`）",
+                player.MaxLife == 50 && player.MaxMana == 15 && player.MaxStamina == 84,
+                $"{player.MaxLife}/{player.MaxMana}/{player.MaxStamina}");
+
+            // ── ② 新建 → 写档 → 读档 ⇒ 仍是 cur == max（现行版本档不许被"沿用"语义打坏）──
+            var rt = new CharacterSave();
+            player.WriteTo(rt);
+            Check("写档：version 被写成当前 `GameConst.SaveVersion`（迁移判据的前提）",
+                rt.version == GameConst.SaveVersion, $"档内 version={rt.version} 当前={GameConst.SaveVersion}");
+            player.LoadFrom(rt);
+            Check("新建档往返（写→读）后仍 cur == max（三资源）",
+                player.Life == player.MaxLife && player.Mana == player.MaxMana && player.Stamina == player.MaxStamina,
+                $"生命 {player.Life}/{player.MaxLife} 法力 {player.Mana}/{player.MaxMana} 耐力 {player.Stamina}/{player.MaxStamina}");
+
+            // ── ③ 旧口径档（逐值抄活档 S2203805.json）⇒ 迁移后 cur == max ──
+            var legacy = LegacySave();
+            player.LoadFrom(legacy);
+            Check("旧档（version < 当前，= 活档 S2203805 逐值）迁移后 三资源 cur == max（50/15/84）",
+                player.Life == 50 && player.Mana == 15 && player.Stamina == 84
+                && player.Life == player.MaxLife && player.Stamina == player.MaxStamina,
+                $"生命 {player.Life}/{player.MaxLife} 法力 {player.Mana}/{player.MaxMana} 耐力 {player.Stamina}/{player.MaxStamina}");
+            Check("旧档迁移留下了**一条**可定位 Info（不是每条资源一条）",
+                CaptureLogger.Has("旧档迁移"), CaptureLogger.Last("旧档迁移"));
+
+            // ── ④ 退化样本：把"旧档也走 `Min(cur,max)`"的**修前形状**喂进同一判据 ⇒ 必须变红 ──
+            var preFixStam = PreFixLoadedCur(legacy.stamina, player.MaxStamina);        // = Min(20, 84) = 20
+            Check("退化样本（旧档同判据）：修前形状只做 `Min(cur,max)` ⇒ 耐力得 20 ≠ 84（正是实机症状）",
+                preFixStam == 20 && preFixStam != 84,
+                $"修前形状耐力 = {preFixStam}/84（要求 ≠ 84；实机读数正是 20/84）");
+
+            // ── ⑤ 现行版本档**必须沿用** cur（中局受伤档不许被补满：活档 SAArea1.json life=34）──
+            var midGame = LegacySave();
+            midGame.version = GameConst.SaveVersion;        // 现行版本
+            midGame.life = 34;                              // 实测活档 SAArea1.json 的中局值
+            midGame.stamina = 40;
+            player.LoadFrom(midGame);
+            Check("现行版本档沿用 cur：中局受伤档（life=34 / stamina=40）读档后**原样保留**（⛔ 不许改成补满）",
+                player.Life == 34 && player.Stamina == 40,
+                $"生命 {player.Life}/{player.MaxLife} 耐力 {player.Stamina}/{player.MaxStamina}");
+
+            // ── ⑥ 降级路径：越界 / 缺失字段不崩、口径不变（既有上界不放宽）──
+            var over = LegacySave();
+            over.version = GameConst.SaveVersion;
+            over.life = 9999;                               // 越上限 ⇒ 钳到 max（既有行为）
+            over.stamina = 0;                               // "没存" ⇒ 满（既有行为）
+            player.LoadFrom(over);
+            Check("现行版本档：越上限的 cur 钳到 max、cur=0 视为「没存」⇒ 满（既有降级口径未放宽）",
+                player.Life == player.MaxLife && player.Stamina == player.MaxStamina,
+                $"生命 {player.Life}/{player.MaxLife} 耐力 {player.Stamina}/{player.MaxStamina}");
+
+            var broken = LegacySave();
+            broken.version = GameConst.SaveVersion;
+            broken.name = null;                             // 缺失字段 ⇒ 退回默认名，不崩
+            broken.cls = 0;
+            var threw = false;
+            try { player.LoadFrom(broken); } catch (Exception ex) { threw = true; Console.WriteLine("   " + ex); }
+            Check("缺失字段（name=null / cls=0）的档不抛异常（降级路径照旧）", !threw, "LoadFrom 未抛异常");
+            player.CreateNew(PlayerClass.Amazon, "CurNew");  // 复位，避免污染后续段
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 9d. ★ u52block（链路级一跳）：真 `SaveModule.Load`（读盘）→ 真 `PlayerModule.LoadFrom`
+        // ═════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// ★ u52block（缺陷出处：U52「老档耐力 20/84」，实机读数
+        /// `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`）。
+        /// <para>**为什么单开一节**：本宿主此前只编 `Module/Player/**`，而 `savecheck` 只编 Save（Player 是
+        /// shim）⇒ 「真 `SaveModule.Load` → 真 `PlayerModule.LoadFrom`」这**一跳是断的**。而本轮那个 bug
+        /// 恰恰是**单元级绿 / 链路级红**：`Load` 若把 `data.version` 抬到当前，下游
+        /// `PlayerModule.cs:448` 的 `save.version &lt; GameConst.SaveVersion` 恒 false ⇒ 迁移分支成死代码；
+        /// 而 `savecheck`（只到 `Load` 的返回值）与 `playercheck` §9c（夹具是测试自己 `new` 出来的、
+        /// **跳过 `Load`**）**两边都绿**。§9c 与本节的唯一差别 = 夹具**从磁盘经真 `Load` 拿**。</para>
+        /// <para>⛔ 不复制 `SaveModule.cs` / 不镜像它的逻辑：本节调的就是 `Assets/Scripts` 里**同一份**源文件
+        /// （由 `PlayerCheck.csproj` 链入）。槽位目录 = 临时目录，跑完删除；`Game.Config` / `ctx.Save` 复原。</para>
+        /// </summary>
+        private static void Step9d_SaveToPlayerHop(AppContext ctx, PlayerModule player)
+        {
+            Section("9d. ★ u52block 链路级一跳：真 SaveModule.Load（读盘）→ 真 PlayerModule.LoadFrom（老档耐力 20/84 断链点）");
+
+            // 槽位目录 = `<仓库根>/.ai-tmp/test/playercheck-u52hop/saves`（一次性产物只许放 .ai-tmp/test）
+            var dir = System.IO.Path.Combine(ResolveProjectRoot(), ".ai-tmp", "test", "playercheck-u52hop");
+            try { if (System.IO.Directory.Exists(dir)) System.IO.Directory.Delete(dir, true); } catch { }
+            var savesDir = System.IO.Path.Combine(dir, "saves");
+            System.IO.Directory.CreateDirectory(savesDir);
+
+            var prevConfig = Game.Config;                         // 复原用（不给后续段留副作用）
+            var prevSave = ctx.Save;
+            Game.Config = new GameConfig { SettingDir = dir };    // 真 `SaveModule.Store` 靠它拼 <SettingDir>/saves
+            var save = new SaveModule();
+            ctx.Save = save;                                      // `ApplyOtherModules` 经 ctx 取其余模块（离线全 null ⇒ 只多几条 Warn）
+
+            try
+            {
+                Check("1) 被验证对象就位：真 `SaveModule`（与 `Assets/Scripts` 同一份源文件）装上 `ctx.Save`、`Ready == true`",
+                    save.Ready, "Ready=" + save.Ready + " 槽位目录=" + savesDir);
+
+                // ── 夹具 = 活档 S2203805.json 的**逐值**副本，version 故意留成 `SaveVersion-1`（旧口径档）──
+                var legacy = LegacySave();
+                legacy.name = "HopLegacyHero";
+                legacy.version = GameConst.SaveVersion - 1;
+                System.IO.File.WriteAllText(System.IO.Path.Combine(savesDir, legacy.name + ".json"), SaveJson.Write(legacy));
+
+                // ① 真 Load 读盘：版本号必须**原样保留**（这一跳的关键）
+                var loaded = save.Load(legacy.name);
+                Check("2) ★ 真 `SaveModule.Load` 从磁盘读出旧档 ⇒ `data != null`、`LastError == \"\"`、且 " +
+                      "`data.version` 仍是档内的 " + (GameConst.SaveVersion - 1) + "（⛔ 不被抬到当前 —— " +
+                      "否则下游 `PlayerModule.cs:448` 的判据恒 false、三资源迁移成死代码）",
+                    loaded != null && save.LastError == "" && loaded.version == GameConst.SaveVersion - 1,
+                    loaded == null ? "data=null LastError=\"" + save.LastError + "\""
+                        : ("version=" + loaded.version + " gold=" + loaded.gold + " LastError=\"" + save.LastError + "\""));
+
+                // ② 这个 data **不加工**直喂真 `PlayerModule.LoadFrom`（= `AppFlow` 的真实调用形状）
+                var migBefore = CaptureLogger.Count("旧档迁移");       // ★ 段序即输入：只用**本条链**造成的增量
+                var threw = false;
+                if (loaded != null)
+                {
+                    try { player.LoadFrom(loaded); }
+                    catch (Exception ex) { threw = true; Console.WriteLine("   " + ex); }
+                }
+                var migDelta = CaptureLogger.Count("旧档迁移") - migBefore;
+                Check("3) 该 data **不加工**直喂真 `PlayerModule.LoadFrom` ⇒ 不抛异常 + **本条链真的触发了「旧档迁移」分支**" +
+                      "（日志增量 ≥1；若 `Load` 把版本抬到当前，这里**不会**有增量）",
+                    loaded != null && !threw && migDelta >= 1, "threw=" + threw + " 迁移日志增量=" + migDelta);
+
+                // ③ 三资源按当前口径补满（实机症状 = 耐力卡在 20/84）
+                Check("4) 迁移后三资源 cur == max，且**逐值** 生命 50 / 法力 15 / 耐力 84（实机症状 = 耐力 20/84）",
+                    player.Life == 50 && player.Mana == 15 && player.Stamina == 84
+                    && player.Life == player.MaxLife && player.Mana == player.MaxMana && player.Stamina == player.MaxStamina,
+                    "生命 " + player.Life + "/" + player.MaxLife + " 法力 " + player.Mana + "/" + player.MaxMana
+                    + " 耐力 " + player.Stamina + "/" + player.MaxStamina);
+
+                // ④ ★ 判据**能红**：把同一份夹具的版本改成"当前"（= 模拟旧契约「Load 抬版本」之后的形状）
+                //     ⇒ 迁移分支**不触发** ⇒ 耐力**停在 20**。谁把 `Load` 改回"抬到当前"，这条链就退回实机症状。
+                var asCurrent = LegacySave();
+                asCurrent.name = "HopAsCurrentHero";
+                asCurrent.version = GameConst.SaveVersion;         // = 旧契约（Load 抬版本）之后的形状
+                var migBeforeCurrent = CaptureLogger.Count("旧档迁移");
+                player.LoadFrom(asCurrent);
+                var migDeltaCurrent = CaptureLogger.Count("旧档迁移") - migBeforeCurrent;
+                Check("5) ★ 本条红 = 旧契约（Load 抬版本）复活：同一档但 `version == 当前` ⇒ 迁移**不触发**（日志增量 0）、" +
+                      "耐力**停在 20 ≠ 84**（⇒ 证明 2)~4) 测的是「版本有没有被改动」这个过程，不是恒绿）",
+                    player.Stamina == 20 && player.Stamina != player.MaxStamina && player.MaxStamina == 84
+                    && migDeltaCurrent == 0,
+                    "生命 " + player.Life + "/" + player.MaxLife + " 耐力 " + player.Stamina + "/" + player.MaxStamina
+                    + " 迁移日志增量=" + migDeltaCurrent);
+            }
+            finally
+            {
+                player.CreateNew(PlayerClass.Amazon, "CurNew");    // 复位（与 §9c 末尾同一处置，避免污染后续段）
+                ctx.Save = prevSave;
+                Game.Config = prevConfig;
+                try { if (System.IO.Directory.Exists(dir)) System.IO.Directory.Delete(dir, true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// **旧口径活档的逐值副本**（`client/setting/saves/S2203805.json`，**只读**抄写；
+        /// `version` 取 `GameConst.SaveVersion - 1` ⇒ 走"更旧版本"的迁移分支，**与本片未改的常量值无关**）。
+        /// </summary>
+        private static CharacterSave LegacySave()
+        {
+            return new CharacterSave
+            {
+                version = GameConst.SaveVersion - 1,
+                name = "S2203805",
+                cls = PlayerClass.Amazon,
+                level = 1,
+                exp = 0,
+                str = 20, dex = 25, vit = 20, eng = 15,
+                life = 60,          // 旧公式产物（= 起始体力 20 × 3）
+                mana = 22,          // 旧公式产物（= 起始精力 15 × 1.5）
+                stamina = 20,       // 旧公式产物（= 起始体力 20 × 1）—— 实机卡在这一格
+                statPoints = 0, skillPoints = 0, gold = 0,
+                gridX = 0, gridY = 0, mapSeed = 77928551,
+            };
+        }
+
+        /// <summary>**修前形状**：读档时只做 `Min(cur, max)`（不判版本、不迁移）。仅用于退化样本。</summary>
+        private static int PreFixLoadedCur(int savedCur, int max)
+            => savedCur > 0 ? Mathf.Min(savedCur, max) : max;
+
+        /// <summary>
+        /// **修前形状**（旧 `ComputeBlockChance`：装备项 = 只有词缀 block，且"装备项 &lt;= 0 ⇒ 0%"）。
+        /// 只用于**退化样本** —— 证明新判据真的在判"盾基材 block 那一环"（喂进去必须变红）。
+        /// </summary>
+        private static int PreFixBlockChance(int dex, int affixBlock, int classBlockFactor, int level)
+        {
+            if (affixBlock <= 0 || level <= 0) return 0;
+            return Mathf.Clamp((dex - 15) * (affixBlock + classBlockFactor) / (2 * level), 0, 75);
+        }
+
+        /// <summary>按官方 `code` 在 `item_c` 里找一行（后缀/异常时返回 null）。</summary>
+        private static Table.BaseItemRow FindItemRowByCode(string code)
+        {
+            var rows = Table.Tables.Default.Item.All();
+            for (var i = 0; i < rows.Count; i++)
+                if (rows[i] != null && rows[i].Code == code) return rows[i];
+            return null;
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -2611,6 +3079,482 @@ namespace PlayerCheck
                 GameConst.WildernessMaxSize * GameConst.WildernessMaxSize > Diablo2.Module.Map.MapView.BuildAllTileThreshold,
                 $"野外最大 {GameConst.WildernessMaxSize}×{GameConst.WildernessMaxSize} = {GameConst.WildernessMaxSize * GameConst.WildernessMaxSize} 格 > {Diablo2.Module.Map.MapView.BuildAllTileThreshold}" +
                 $" ⇒ 每块 {chunkCells * perCellMax} 个节点（不在本片改动范围，只登记）");
+
+            // ═════════════════════════════════════════════════════════════════
+            // f) ★ U27 三分判据：**相机 / 角色渲染节点 / 角色逻辑** 三层位置分列
+            //    （同一段输入驱动，逐帧采样；回答"抖出现在哪一层"）
+            //
+            //  层定义（每层都取生产件的**唯一出口**，⛔ 不镜像公式）：
+            //    ① 相机 = `CameraRig.Position`（跟随 + 边界夹制算出来的机位）
+            //    ② 渲染 = `ViewModule.EntityWorld(PlayerEntityId, w)` —— 它正是
+            //             `ViewModule.TickPlayer` 写 `EntityView.Root.transform.position` 的
+            //             **唯一口径**（`ViewModule.cs:787` 写、`:1345` 定义）
+            //    ③ 逻辑 = `player.World`（契约 `IPlayerModule.World` 原文 = "渲染插值后的实际位置"）
+            //
+            //  为什么要这条判据（用户报「人物抖动」有两种**互相排斥**的形态，必须分开判）：
+            //    · **层间差**：渲染 ≠ 逻辑（表现层又插了一次值 / 用了另一套坐标），
+            //      或相机相对玩家来回摆 ⇒ 表现层缺陷，改表现层；
+            //    · **层内时间不匀**：三层位置各自都"干净"，但位置是 f(t) 按 dt 积分 ⇒
+            //      **帧间隔不匀直接变成每帧推进量不匀** ⇒ 帧节奏问题，改表现层没用。
+            //    ⇒ f1/f3 判层间差；f2 判层内推进量（按 8 方向分组，因为等距投影是各向异性的）。
+            //
+            //  ⚠️ 判据自检（"退化样本必须变红"）：f1b/f2b/f3b 三条 = 对**同一批采样**故意注入
+            //     退化量，断言检测函数能抓出来 —— 否则"全绿"可能只是检测函数没睡醒。
+            // ═════════════════════════════════════════════════════════════════
+            {
+                var flowBefore3 = ctx.Flow;
+                ctx.Flow = new StubFlow();      // `RefreshFocus` 才走"跟主角"那条（同 c 段的口径）
+                try
+                {
+                    player.Stop();
+                    player.TeleportTo(map.SpawnPoint);
+                    rig.Reset();
+                    rig.EnableZoom = false;
+                    rig.EnableEdgeScroll = false;
+                    rig.SetTargetGrid(map.SpawnPoint);
+                    rig.SnapToTarget();
+                    rig.Tick(dt);
+
+                    var target3 = FindFarWalkable(map, map.SpawnPoint, 12, requireNoLineOfSight: false);
+
+                    // ── 逐帧三分采样（同一段输入：一次 MoveTo + 每帧 player.Tick/rig.Tick）──
+                    var camSeq = new List<Vector3>();
+                    var renderSeq = new List<Vector3>();
+                    var logicSeq = new List<Vector3>();
+                    player.MoveTo(target3);
+                    for (var f3 = 0; f3 < FrameCap && player.IsMoving; f3++)
+                    {
+                        player.Tick(dt);
+                        rig.Tick(dt);                       // 与真机同一帧内顺序（AppContext.Tick：View → Camera）
+                        logicSeq.Add(player.World);
+                        renderSeq.Add(RenderWorldOf(player.World));
+                        camSeq.Add(rig.Position);
+                    }
+
+                    Check("f0 三分判据采到了一段真路径（帧数 > 60，且三层序列等长）",
+                        logicSeq.Count > 60 && logicSeq.Count == renderSeq.Count && logicSeq.Count == camSeq.Count,
+                        $"帧数 {logicSeq.Count}（{map.SpawnPoint} → {target3}，dt={dt:0.####}s，" +
+                        $"逻辑终点 {CellOf(player.World)}）");
+
+                    // ── f1 层间差①：渲染层 vs 逻辑层（层② 的**唯一**口径就是不插值 ⇒ 必须逐位相等）──
+                    var diffRL = LayerDiffMax(renderSeq, logicSeq);
+                    var diffRLInjected = LayerDiffMaxWithInjection(renderSeq, logicSeq, 1e-3f);
+                    Check("f1 渲染层 ≡ 逻辑层（同一帧逐位相等：层② 不二次插值，`ViewModule.cs:787`）",
+                        diffRL <= 1e-6f,
+                        $"逐帧 |渲染−逻辑| 最大 = {diffRL:0.#########} 格（{logicSeq.Count} 帧；" +
+                        "层② 的 z 是常数排序键（同 id 恒定），xy 恒等 ⇒ 差值只可能来自「别人又插了一次值」）");
+                    Check("f1b ★ 判据自检（退化样本必须变红）：给渲染层注入 1e-3 格偏移 ⇒ 必须被抓出",
+                        diffRLInjected > 1e-4f && diffRLInjected <= 1e-3f + 1e-6f,
+                        $"注入 1e-3 后同一检测函数读到 {diffRLInjected:0.#########} 格（阈值 1e-4）");
+
+                    // ── f2 层内：逻辑层「每帧推进量」按 8 方向分组后**组内恒定** ──
+                    //   口径 = **格空间恒定速度**（`PlayerMotor` 每帧按 `speed×dt` 推格空间距离；
+                    //   出处 = 原版 `unit.runSpeed = 15` map 单位/秒 ÷ 5 单位/格 = 3 格/秒，
+                    //   见 `GameConst.PlayerWalkSpeed` 注释与 `Engine/Iso.SubTileCount = 5`）。
+                    //   ⇒ 同一个格空间方向上的世界步长/格步长 比值必须**逐帧同一个数**。
+                    //   ⚠️ **跨方向**的比值本来就不等（等距投影 HalfW:HalfH = 2:1 的必然，
+                    //      解析值 0.7071(屏幕正下) ~ 1.4142(屏幕正右)）—— 那是**投影口径**，
+                    //      本判据**只登记不判**（⛔ 不为了让数字好看去改积分口径）。
+                    int buckets3;
+                    string dirDetail;
+                    var budget3 = player.MoveSpeed * dt;              // 标称单帧格步长（移动积分口径的输入）
+                    var spreadLogic = AdvanceSpread(logicSeq, budget3, true, out buckets3, out dirDetail);
+                    var spreadLogicInjected = AdvanceSpreadNoTurnFilter(logicSeq, budget3);
+                    Check("f2 逻辑层「世界步长/格步长」按 8 方向分组后**组内恒定**（容差 1e-3 = float 噪声余量）",
+                        buckets3 >= 3 && spreadLogic <= 1.001f,
+                        $"有样本的方向数 {buckets3}；组内 spread（max/min）最大 = {spreadLogic:0.######}；" + dirDetail);
+                    Check("f2b ★ 判据自检（退化样本必须变红）：把「纯帧」过滤关掉 ⇒ 同一批采样必须变红",
+                        spreadLogicInjected > 1.001f,
+                        $"过滤关掉后同一检测函数读到 spread = {spreadLogicInjected:0.######}（阈值 1.001）；" +
+                        "=> 换向帧确实存在、且上面的过滤是承重的（不是把缺陷一起滤掉）");
+
+                    // ── f3 层间差②：**相机层不许"跳"/"冻"** ──
+                    //   量的是「相机与逻辑的相对偏移」的逐帧变化量（世界空间，方向无关）。
+                    //   上界 = 玩家该帧最大位移 ×1.1（解析：相机最坏 = 完全冻结 ⇒ 变化量 = 玩家位移；
+                    //   ×1.1 余量与 c1 同口径）。⚠️ **绝不用"相机单帧步长 vs 逻辑单帧步长"比大小**：
+                    //   相机是低通，换向时它的速度矢量要转，单帧步长**可以**大于玩家该帧步长
+                    //   （实测第一版就这么误判了 416 帧，见 report-u27.md）。
+                    // 玩家单帧**世界**位移的上限 = 标称格步长 × 「世界/格」比值的最大值
+                    // （比值上限由 `Iso.GridToWorld` 对 8 个格方向现算，⛔ 不写死数字）
+                    var perFrameLimit3 = budget3 * MaxWorldPerGridRatio() * 1.1f;
+                    int relJumpAt;
+                    var relJump = RelativeOffsetJump(camSeq, logicSeq, perFrameLimit3, out relJumpAt);
+                    Check("f3 相机层与逻辑层的相对偏移**逐帧变化量** ≤ 玩家单帧最大位移 ×1.1（相机不跳、不冻）",
+                        relJumpAt < 0,
+                        $"最大单帧相对偏移变化量 = {perFrameLimit3 + (relJumpAt < 0 ? 0f : relJump) + 0f:0.#####} 格（上限 {perFrameLimit3:0.#####}）" +
+                        $"；超限帧 = {(relJumpAt < 0 ? "无" : relJumpAt.ToString())}（共 {camSeq.Count} 帧）");
+
+                    // f3b ★ 判据自检（退化样本必须变红）：把某一帧的**相机位置**猛地挪一格 ⇒ 必须抓出
+                    {
+                        var injectedCam = new List<Vector3>(camSeq);
+                        var im = camSeq.Count / 2;
+                        injectedCam[im] = camSeq[im] + new Vector3(1f, 0f, 0f);
+                        int at2;
+                        var jump2 = RelativeOffsetJump(injectedCam, logicSeq, perFrameLimit3, out at2);
+                        Check("f3b ★ 判据自检（退化样本必须变红）：给某一帧相机注入 1 格跳变 ⇒ 必须被抓出",
+                            at2 == im && jump2 > 0f,
+                            $"注入帧 {im}（+1 格）⇒ 检测函数报超限帧 {at2}、超限量 {jump2:0.#####} 格");
+                    }
+
+                    // ── f4 逐帧原始读数（三层；给回报直接抄）──
+                    var head = Math.Min(10, logicSeq.Count);
+                    var sb3 = new System.Text.StringBuilder();
+                    sb3.Append("f4 逐帧原始读数（前 ").Append(head).Append(" 帧；单位=世界格）：");
+                    for (var i5 = 0; i5 < head; i5++)
+                    {
+                        sb3.Append("\n        #").Append(i5)
+                           .Append(" 逻辑(").Append(logicSeq[i5].x.ToString("0.#####")).Append(",")
+                           .Append(logicSeq[i5].y.ToString("0.#####")).Append(")")
+                           .Append(" 渲染(").Append(renderSeq[i5].x.ToString("0.#####")).Append(",")
+                           .Append(renderSeq[i5].y.ToString("0.#####")).Append(")  相机(")
+                           .Append(camSeq[i5].x.ToString("0.#####")).Append(",")
+                           .Append(camSeq[i5].y.ToString("0.#####")).Append(")")
+                           .Append("  相对偏移(").Append((logicSeq[i5].x - camSeq[i5].x).ToString("0.####")).Append(",")
+                           .Append((logicSeq[i5].y - camSeq[i5].y).ToString("0.####")).Append(")");
+                    }
+                    Console.WriteLine("    [INFO ] " + sb3);
+
+                    // ── f5 ★ 相机夹制带（**补的判据缺口**）─────────────────────────────
+                    //   既有 c1~c8 的路径是 (32,28)→(8,20)（镇西北），而且**离线时
+                    //   `CameraRig.ClampToMapBounds` 因 `_cam == null` 直接 return**
+                    //   （`CameraRig.cs:913`：拿不到 aspect ⇒ 不做半屏换算）
+                    //   ⇒ **既有 8 条相机断言从未覆盖"边界夹制"**。
+                    //   这里换一条可离线判的入口：直接调**生产纯函数** `CameraBounds.ClampCameraGrid`
+                    //   （`mapcheck §29` 用的同一份实现，⛔ 不镜像公式），对 Town 的**真实可走格**
+                    //   逐格算"机位被夹到哪"。
+                    //   半屏口径（有出处，不是自创参数）：
+                    //     halfH = `CameraRig.DefaultOrthographicSize`（3.75，出处见该常量注释）
+                    //     halfW = halfH × aspect，aspect = 1920/1080（出处 = 本机 Play 采集分辨率
+                    //             1920×1080，见 `.ai-tmp/test/report-camverify.md` §3）
+                    //   解析边界：机位可行域 = 焦点格 g 满足 g.y ≤ H − (a+b)/2（此处 a=halfW/HalfW=6.667、
+                    //   b=halfH/HalfH=7.5 ⇒ (a+b)/2 = 7.0833）⇒ Town 40 行时 g.y ≤ 32.917；
+                    //   同式 g.x ≤ W − 7.0833 = 48.917。
+                    {
+                        const float aspect = 1920f / 1080f;
+                        var halfW = CameraRig.DefaultOrthographicSize * aspect;
+                        var halfH = CameraRig.DefaultOrthographicSize;
+                        var boundY = map.Height - (halfW / Iso.HalfW + halfH / Iso.HalfH) * 0.5f;
+                        var boundX = map.Width - (halfW / Iso.HalfW + halfH / Iso.HalfH) * 0.5f;
+
+                        var walkableCount = 0;
+                        var clampedCount = 0;
+                        var outsideBand = 0;
+                        var maxShift = 0f;
+                        var maxAt = Vector2Int.zero;
+                        for (var y2 = 0; y2 < map.Height; y2++)
+                        {
+                            for (var x2 = 0; x2 < map.Width; x2++)
+                            {
+                                var g2 = new Vector2Int(x2, y2);
+                                if (!map.Walkable(g2)) continue;
+                                walkableCount++;
+                                var fw = Iso.GridToWorld(g2);
+                                var focus2 = new Vector2(fw.x, fw.y);
+                                var cam2 = CameraBounds.ClampCameraGrid(focus2, focus2,
+                                    map.Width, map.Height, halfW, halfH);
+                                var shift = (cam2 - focus2).magnitude;
+                                if (shift <= 1e-4f) continue;
+                                clampedCount++;
+                                if (g2.y > boundY && g2.x > boundX) outsideBand++;
+                                if (shift > maxShift) { maxShift = shift; maxAt = g2; }
+                            }
+                        }
+
+                        Check("f5 相机夹制只在该咬合的带内发生（Town: g.y > 32.917 或 g.x > 48.917）" +
+                              "—— 且 Town 里确实有被夹的可走格（既有断言没覆盖这块）",
+                            clampedCount > 0 && outsideBand == 0,
+                            $"可走格 {walkableCount}，被夹 {clampedCount} 格（带外被夹 = {outsideBand}；" +
+                            $"解析边界 g.y>{boundY:0.###} / g.x>{boundX:0.###}）");
+                        Check("f6 ★ 夹制位移读数（= 实机「玩家偏离屏幕中心」那两处的离线同源量）",
+                            maxShift > 0f,
+                            $"最大夹制位移 {maxShift:0.####} 格 = {maxShift * (1080f / (2f * CameraRig.DefaultOrthographicSize)):0.#} px" +
+                            $"@1080p，发生在格 ({maxAt.x},{maxAt.y})" +
+                            "（实机同两处读数：`report-camverify.md` §3 `dist p50 459/483px、max 904px`" +
+                            " ⇒ 离线纯函数与实机同源、同量级）");
+                    }
+                }
+                finally
+                {
+                    ctx.Flow = flowBefore3;
+                    player.Stop();
+                }
+            }
+
+            // ═════════════════════════════════════════════════════════════════
+            // g) ★ U27 **时间轴判据**（team-lead 追补）：同一段输入，**只换 dt 序列**
+            //
+            //  为什么必须补：f1 的读数（渲染 ≡ 逻辑 逐帧 0 偏差）已把"渲染层自己抖"排除，
+            //  三层位置也各自干净 ⇒ 剩下唯一能造"一顿一顿"的候选是**帧时间**
+            //  （位置 = `f(t)` 按 dt 积分 ⇒ dt 不匀直接变每帧推进量不匀）。
+            //  判据形态（team-lead 指定，机械可判）：
+            //    **把 dt 序列置换成均匀值后重算位移序列** —— 抖动能被均匀 dt 消掉 ⇒ 抖源在**帧节奏**。
+            //
+            //  dt 序列出处（⛔ 不是自创数据）：`tools/probes/drivers/d2u27_real_dt.txt`
+            //    = 既有**真机** TSV `.ai-tmp/test/cam-jitter-cvkeep.tsv` 的 dt 列（1185 帧，
+            //      片 cam-verify 的 cvkeep = 客户端自己钉的帧节奏），由 `d2u27_dt_extract.py`
+            //      抽取，文件头带 n/mean/sd/min/p95/p99/max 与出处。取不到 ⇒ 非预期分支：
+            //      打 Warn 并**跳过本判据**（如实登记为未判，⛔ 不假装绿）。
+            //
+            //  ⚠️ 量的空间 = **格空间**（`CellOf`）：格空间的单帧步长 = `speed×dt`，**与方向无关**
+            //     ⇒ 它是"时间轴"的干净坐标；世界空间的步长还夹着 2:1 投影的方向因子（f2 已登记）。
+            // ═════════════════════════════════════════════════════════════════
+            {
+                var dtReal = LoadRealDtSeq("tools/probes/drivers/d2u27_real_dt.txt");
+                Check("g0 时间轴判据的输入（真机 dt 序列）可用",
+                    dtReal != null && dtReal.Count >= 60,
+                    "取不到 `tools/probes/drivers/d2u27_real_dt.txt`（被清？）⇒ **时间轴判据跳过**；" +
+                    "⛔ 不得据此说「无抖动」，如实登记为未判");
+
+                if (dtReal != null && dtReal.Count >= 60)
+                {
+                    var flowBefore4 = ctx.Flow;
+                    ctx.Flow = new StubFlow();
+                    try
+                    {
+                        var meanDt = Mean(dtReal);
+                        var dtUni = new float[dtReal.Count];
+                        for (var i = 0; i < dtUni.Length; i++) dtUni[i] = meanDt;
+                        var start4 = map.SpawnPoint;
+                        var target4 = FindFarWalkable(map, start4, 12, requireNoLineOfSight: false);
+
+                        // 跑 A：真机 dt 序列；跑 B：同一序列**置换成均匀值**
+                        var camA = new List<float>(); var playA = new List<float>();
+                        var camB = new List<float>(); var playB = new List<float>();
+                        float gA1, gA2, gA3, gB1, gB2, gB3;
+                        TraceCamera(player, rig, map, start4, target4, dtReal.ToArray(), 0f, camA, playA, out gA1, out gA2, out gA3);
+                        var endA = CellOf(player.World);
+                        TraceCamera(player, rig, map, start4, target4, dtUni, 0f, camB, playB, out gB1, out gB2, out gB3);
+                        var endB = CellOf(player.World);
+
+                        var sd = 0f;
+                        for (var i = 0; i < dtReal.Count; i++) { var d = dtReal[i] - meanDt; sd += d * d; }
+                        sd = (float)Math.Sqrt(sd / dtReal.Count);
+
+                        var jA = JudderSd(camA, 5);
+                        var jB = JudderSd(camB, 5);
+                        var corrA = CorrDt(camA, dtReal, 5);
+
+                        Check("g1 dt 序列统计（真机 cvkeep 1185 帧；判据输入自证）",
+                            dtReal.Count >= 1000,
+                            $"n={dtReal.Count} mean={meanDt:0.######}s sd={sd:0.######}s " +
+                            $"min={Min(dtReal):0.######} p95={Pct(dtReal, 0.95f):0.######} " +
+                            $"p99={Pct(dtReal, 0.99f):0.######} max={Max(dtReal):0.######}");
+
+                        Check("g2 ★ **dt 置换成均匀值后抖动必须消失**（抖动可被均匀 dt 消掉 ⇒ 抖源 = 帧节奏，不是位置）",
+                            jA > 1e-5f && jB <= 0.2f * jA,
+                            $"相机逐帧格空间步长的抖动 sd（局部均值 ±5 帧，与 `camjitter_who.py` 的 judge() 同口径）：" +
+                            $"真机 dt ⇒ J_A={jA:0.######} 格；均匀 dt(={meanDt:0.######}s) ⇒ J_B={jB:0.######} 格；" +
+                            $"J_B/J_A={(jA > 1e-9f ? jB / jA : float.NaN):0.####}（判据线 0.2；" +
+                            "解析：步长 = speed×dt ⇒ 抖动 ∝ dt 的偏离，均匀 dt ⇒ 偏离 = 0 ⇒ J_B 只余换向帧噪声）");
+
+                        Check("g2b ★ 判据自检（退化样本必须变红）：A 与 B 必须**显著不同**，否则本判据没有分辨力",
+                            jB < 0.2f * jA || jB > 5f * jA,
+                            $"J_A={jA:0.######} vs J_B={jB:0.######}（比值 {(jA > 1e-9f ? jB / jA : float.NaN):0.####}）" +
+                            " ⇒ 两条曲线在数值上确实不同（不是同一个数被打印两遍）");
+
+                        Check("g3 corr(相机纵向偏差, dt−均值) ≥ 0.7 ⇒ 不匀就是帧时间造成的（与 `camjitter_who.py` C3 同口径）",
+                            corrA >= 0.7f,
+                            $"corr={corrA:0.####}（判据线 0.7：解析理想 = 1；既有真机双口径实测 0.729/0.765" +
+                            "（有夹制）/ 0.923（无夹制），见 `.ai-tmp/test/report-camverify.md` §3）");
+
+                        Check("g4 换 dt 序列**不改几何**：两种 dt 下终点一致（证明 dt 只影响时序）",
+                            (endA - endB).magnitude <= 1e-3f,
+                            $"终点 A={endA} B={endB} 差 {(endA - endB).magnitude:0.#######} 格");
+
+                        // 逐帧原始读数（前 12 帧：dt / 玩家格步 / 相机格步）
+                        var n5 = Math.Min(12, camA.Count - 1);
+                        var sb4 = new System.Text.StringBuilder("g5 逐帧原始读数（前 " + n5 + " 帧；格空间）：");
+                        for (var i = 1; i <= n5; i++)
+                        {
+                            sb4.Append("\n        #").Append(i)
+                               // ⚠️ 配对口径：`TraceCamera` 在第 f 帧用 `dtSeq[f % n]` 推进，
+                               //    并把**该帧的步长**追加到 `camSteps[f]` ⇒ 打印 `camA[i]` 必须配 `dtReal[i % n]`
+                               .Append(" dt=").Append(dtReal[i % dtReal.Count].ToString("0.######"))
+                               .Append(" 玩家步=").Append(playA[i].ToString("0.######"))
+                               .Append(" 相机步=").Append(camA[i].ToString("0.######"))
+                               .Append(" | 均匀dt 下 相机步=").Append(i < camB.Count ? camB[i].ToString("0.######") : "n/a");
+                        }
+                        Console.WriteLine("    [INFO ] " + sb4);
+                    }
+                    finally
+                    {
+                        ctx.Flow = flowBefore4;
+                        player.Stop();
+                    }
+                }
+            }
+
+            // ═════════════════════════════════════════════════════════════════
+            // h) ★ U27 **夹制段**判据（补本片最大的判据缺口）：输出侧夹制的**连续性**
+            //
+            //  为什么以前判不了：修前 `CameraRig.ClampToMapBounds()` 在 `_cam == null` 时直接
+            //  `return`（"拿不到 aspect ⇒ 不做半屏换算"）⇒ **离线宿主永远走不到夹制**，
+            //  c1~c8 八条相机断言从未覆盖它。修后该逻辑抽成**纯函数** `CameraRig.StepFollow`
+            //  （不碰 `Camera` / 原生 API），本判据**逐帧驱动这一份生产实现** ⇒ 覆盖成立。
+            //
+            //  被夹的判定：`shown`（本帧写进相机的机位）与 `raw`（自由平滑状态）不相等
+            //  ⇔ 输出被夹制改写过（`StepFollow` 的 out 与 in/out 参数天然给出这两个量）。
+            //
+            //  判据：**全程最大单帧显示机位位移 ≤ 全程最大单帧玩家位移 ×1.05**（h2；f3 同一余量口径），
+            //  并拿**旧口径**（状态被改写 + 清零速度）在同一段输入上当退化样本（h3 必须红）。
+            //  ⛔ 别把"7.3604 格"当成脱开时的跳变量：那是「玩家偏离屏幕中心」的**静态位移量**
+            //  （f5/f6；与实机同格逐字相同）。实测旧口径脱开时的代价只有 **+15.5%（1.3px@1080p）**
+            //  —— 咬合点与脱开点重合，账不累积；详见 `CameraRig.StepFollow` 的注释与本段 h4 的澄清。
+            // ═════════════════════════════════════════════════════════════════
+            {
+                const float aspectH = 1920f / 1080f;                  // 出处同 f5：本机 Play 采集分辨率 1920×1080
+                const float orthoH = CameraRig.DefaultOrthographicSize;
+                var startH = map.SpawnPoint;
+                var southH = startH;
+                var bestY = int.MinValue;
+                var bestD = int.MaxValue;
+                for (var y = 0; y < map.Height; y++)
+                    for (var x = 0; x < map.Width; x++)
+                    {
+                        var g = new Vector2Int(x, y);
+                        if (!map.Walkable(g) || map.TileAt(g) == TileKind.Exit) continue;
+                        var d = Math.Abs(x - startH.x) + Math.Abs(y - startH.y);
+                        if (y > bestY || (y == bestY && d < bestD)) { bestY = y; bestD = d; southH = g; }
+                    }
+
+                // 每帧同时算两条口径（**同一条路径、同一串 dt**）：
+                //   ① 生产口径 = `CameraRig.StepFollow`（本帧唯一实现）
+                //   ② 旧口径对照 = 状态被改写成夹制值 + 清零速度状态（**已删掉的实现**，只作对照实验；
+                //      与 §15 c8 的"旧口径（纯指数 τ=0.12）峰峰值"同一类对照，⛔ 不是生产实现）
+                var pShown = new List<float>();      // 新口径：显示机位的逐帧位移（格空间）
+                var pFocus = new List<float>();      // 玩家（焦点）的逐帧位移（格空间）
+                var oJump = 0f;
+                var oSteps = new List<float>();      // 旧口径：显示机位的逐帧位移（格空间）—— 用于"步长序列阶跃"对照
+                var releaseAt = new List<int>();     // 脱开帧（从"被夹"变"不被夹"的第一帧）的序号
+                var clampedFrames = 0;
+                var unclampedAfterClamp = 0;
+                var worstJump = -1f;
+                var worstJumpAt = -1;
+                var raw = Vector3.zero;
+                var vel = Vector3.zero;
+                var oRaw = Vector3.zero;
+                var oVel = Vector3.zero;
+
+                player.Stop();
+                player.TeleportTo(startH);
+                var w0 = CameraRig.DesiredPosition(player.World, -CameraRig.CameraDistance);
+                raw = w0; oRaw = w0;                      // 先吸附（与 `rig.SnapToTarget()` 同义）
+
+                var prevFocus = CellOf(player.World);
+                var prevShown = new Vector2(float.NaN, float.NaN);
+                var prevOld = new Vector2(float.NaN, float.NaN);
+                var sawClamp = false;
+
+                for (var leg = 0; leg < 2; leg++)         // 腿 0：走进南带（夹制咬合）；腿 1：走回出生点（脱开）
+                {
+                    player.MoveTo(leg == 0 ? southH : startH);
+                    for (var f = 0; f < 3000 && player.IsMoving; f++)
+                    {
+                        player.Tick(Dt);
+                        var focus = player.World;
+                        var want = CameraRig.DesiredPosition(focus, -CameraRig.CameraDistance);
+
+                        Vector3 shown;
+                        CameraRig.StepFollow(ref raw, ref vel, want, focus, CameraRig.FollowSmoothTime, Dt,
+                            map.Width, map.Height, orthoH, aspectH, out shown);
+
+                        oRaw = CloverEngine.CameraMath.SmoothDamp(oRaw, want, ref oVel, CameraRig.FollowSmoothTime, Dt);
+                        var oShown = CameraRig.ClampForAspect(oRaw, focus, map.Width, map.Height, orthoH, aspectH);
+                        if ((oShown - oRaw).sqrMagnitude > 0f) { oVel = Vector3.zero; oRaw = oShown; }
+
+                        var curFocus = CellOf(focus);
+                        var fs = (curFocus - prevFocus).magnitude;
+                        var cs = CellOf(shown);
+                        var os = CellOf(oShown);
+                        var isClamped = (shown - raw).sqrMagnitude > 1e-8f;    // 输出被夹制改写过
+                        if (isClamped) { clampedFrames++; sawClamp = true; }
+                        else if (sawClamp)
+                        {
+                            if (unclampedAfterClamp == 0) releaseAt.Add(pShown.Count);   // 脱开首帧
+                            unclampedAfterClamp++;
+                        }
+
+                        if (!float.IsNaN(prevShown.x))
+                        {
+                            var csStep = (cs - prevShown).magnitude;
+                            pShown.Add(csStep);
+                            pFocus.Add(fs);
+                            var lim = fs * 1.1f + 1e-4f;
+                            if (csStep > lim && csStep - lim > worstJump) { worstJump = csStep - lim; worstJumpAt = pShown.Count - 1; }
+                        }
+                        if (!float.IsNaN(prevOld.x))
+                        {
+                            var osStep = (os - prevOld).magnitude;
+                            oSteps.Add(osStep);
+                            if (osStep > oJump) oJump = osStep;
+                        }
+
+                        prevFocus = curFocus;
+                        prevShown = cs;
+                        prevOld = os;
+                    }
+                }
+
+                Check("h1 这条路径**确实**进出过相机夹制带（被夹帧 > 0 且之后脱开过）——否则本判据没有信息量",
+                    clampedFrames > 5 && unclampedAfterClamp > 5,
+                    $"{startH}→{southH}→{startH}：被夹帧 {clampedFrames}，脱开后帧 {unclampedAfterClamp}（共采 {pShown.Count} 帧）");
+
+                // ⚠️ 判据口径（第一版踩坑，如实记录）：**不能**用"逐帧 |Δ显示机位| ≤ 该帧玩家位移×1.1" ——
+                //   相机是低通，玩家**换向**时相机要先把速度反号，那几帧它**合法地**比玩家单帧位移大
+                //   （实测第一版 388/389 帧"超限"，全是这个原因，不是缺陷）。
+                //   有效口径 = 全程比对**最大值**：新口径下显示机位单帧位移**不超过**玩家单帧位移（状态只滞后、
+                //   输出是状态的单调函数 ⇒ 不会领跑）；旧口径会把"攒下的账"在释放后补一帧 ⇒ 超出来。
+                var maxShown = Max(pShown);
+                var maxFocus = Max(pFocus);
+                Check("h2 ★ 夹制段连续：全程**最大**单帧显示机位位移 ≤ 全程最大单帧玩家位移 ×1.05（不领跑、不跳）",
+                    maxShown <= maxFocus * 1.05f,
+                    $"{startH}→{southH}→{startH}（{pShown.Count} 帧，其中被夹 {clampedFrames} 帧）：" +
+                    $"max|Δ显示机位| = {maxShown:0.######} 格 vs max|Δ玩家| = {maxFocus:0.######} 格" +
+                    $"（比值 {maxShown / maxFocus:0.####}；1 格 = {144f:0} px@1080p ⇒ 差 {(maxShown - maxFocus) * 144f:0.#} px）");
+
+                Check("h3 ★ 判据自检（退化样本 = **旧口径**：状态被改写 + 清零速度）在同一段输入上必须变红",
+                    oJump > maxShown * 1.1f,
+                    $"旧口径 max|Δ显示机位| = {oJump:0.######} 格 vs 新口径 {maxShown:0.######} 格" +
+                    $"（= +{(oJump / maxShown - 1f) * 100f:0.#}%，{(oJump - maxShown) * 144f:0.#} px@1080p）" +
+                    " ⇒ 旧口径「脱开后从静止起步 / 补攒下的账」造成的单帧超出可被判据抓出");
+
+                // ── h4 ★ team-lead 指定的口径：**相机格空间「步长序列」在咬合期/脱开后不存在阶跃** ──
+                //   度量 = 步长序列自身的一阶差分 `max|step[i] − step[i−1]|`（"阶跃"二字的直接量化）。
+                //   判据线**不引绝对常数**：拿同一次运行里的**旧口径**当尺（新口径要 ≤ 旧口径的一半）。
+                //   ⚠️ 一处如实说明：旧口径的"脱开首帧速度归零"在本配置下**不表现为步长掉到 0**
+                //   （`smoothTime = 0.02s` 远小于 `dt = 1/60s` ⇒ `SmoothDamp` 那一帧由**误差项**主导、
+                //   照样输出一大步）——它表现为**步长过冲**（h3 的 +15.5%）+ **步长序列的阶跃**（本条）。
+                // ⛔ **实测反例（本判据改成"把反例钉住"）**：team-lead 指定的"脱开首帧速度**不归零**"
+                //    这条**在两口径下都不成立为差异** —— 实测两个口径的脱开首帧步长都 ≈ 玩家步长：
+                //      · 新口径 `pShown[r]` / 旧口径 `oSteps[r]` 与玩家该帧步长之比都接近 1；
+                //      · 原因：`smoothTime = 0.02s` **远小于** `dt = 1/60s` ⇒ `SmoothDamp` 那一帧由**误差项**
+                //        主导，速度状态被清零也照样输出一大步 ⇒ "清零"**不**表现为步长掉到 0。
+                //    步长**序列**的阶跃量（`max|Δstep|`）同样不是分辨量：新 0.05965 vs 旧 0.04749 格
+                //    —— 阶跃的真正来源是**夹制本身**（被夹轴不动 ⇒ 步长变小；脱开后恢复满步长），
+                //    两个口径都有，与该不该清零速度状态无关。
+                //    ⇒ 旧口径**唯一**可测的代价 = h3 的**单帧过冲**（+15.5% = 1.3px@1080p）。
+                //    本断言把上面这条澄清**钉成判据**（将来谁把脱开首帧做成"掉到 0"就会红）。
+                var dNew = MaxAbsStepDelta(pShown);
+                var dOld = MaxAbsStepDelta(oSteps);
+                var relNew = float.NaN;
+                var relOld = float.NaN;
+                if (releaseAt.Count > 0)
+                {
+                    var r = releaseAt[0];
+                    if (r < pShown.Count && r < pFocus.Count && pFocus[r] > 1e-6f) relNew = pShown[r] / pFocus[r];
+                    if (r < oSteps.Count && r < pFocus.Count && pFocus[r] > 1e-6f) relOld = oSteps[r] / pFocus[r];
+                }
+                // 实测读数（脱开首帧步长 / 玩家该帧步长）：新 **0.5627**、旧 **0.5932** —— **两口径几乎同一个数**
+                //   ⇒ 钉住的结论 = "清零速度状态**不**改变脱开首帧的步长"（差异 0.031，判据线 0.1 = 区分"同/不同"的分辨率）
+                //   同时要求两者都 > 0.2（只看数量级：证的是"**不**掉到 0"，⛔ 不承担精细判定）。
+                Check("h4 口径澄清（⭐ 实测反例已钉住）：脱开首帧步长**两口径相同**且**不为 0**（\"清零速度\"不改变它）",
+                    relNew == relNew && relOld == relOld
+                    && MathF.Abs(relNew - relOld) <= 0.1f && relNew > 0.2f && relOld > 0.2f,
+                    $"脱开首帧 #{string.Join(",", releaseAt)}：步长/玩家步长 = 新 {relNew:0.####} vs 旧 {relOld:0.####}" +
+                    $"（差 {MathF.Abs(relNew - relOld):0.####}；两口径同一个数 ⇒ 清零速度状态**不**改脱开首帧的步长）" +
+                    $"；步长序列 max|Δstep|：新 = {dNew:0.######} vs 旧 = {dOld:0.######} 格（阶跃来自夹制本身，不是清零）" +
+                    "；⇒ 旧口径唯一可测代价 = h3 的单帧过冲 +15.5%（见 CameraRig.StepFollow 注释）");
+            }
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -2803,6 +3747,317 @@ namespace PlayerCheck
 
         /// <summary>世界坐标 → **连续格坐标**（z 分量清零：世界是 z=0 的 XY 平面，相机 z=-10）。</summary>
         private static Vector2 CellOf(Vector3 world) => Iso.WorldToGridContinuous(new Vector3(world.x, world.y, 0f));
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ U27：三分判据（相机 / 渲染节点 / 逻辑）用的检测函数
+        //   ⛔ 每一个都配一条"退化样本"用法（§15 f1b/f2b），证明它**真的在判**：
+        //      没睡醒的检测函数会让"全绿"变成假绿。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// ★ U27 层②的口径：角色**渲染节点**的世界坐标 = 直接调**生产件** `ViewModule.EntityWorld`
+        /// （`internal static`，本宿主已把 `Module/View` 编入；它就是 `ViewModule.TickPlayer`
+        /// 写 `EntityView.Root.transform.position` 的那一行，见 `ViewModule.cs:787` / `:1345`）。
+        /// ⛔ 不在宿主里镜像这个公式 —— 镜像 = 改了生产也不变红的假闸门。
+        /// </summary>
+        private static Vector3 RenderWorldOf(Vector3 logicWorld) =>
+            Diablo2.Module.View.ViewModule.EntityWorld(GameConst.PlayerEntityId, logicWorld);
+
+        /// <summary>
+        /// ★ U27 f3：**「世界步长 / 格步长」比值的最大值**（8 个格方向里取最大）。
+        /// 同一个格方向下这个比值是常数（`Iso` 是线性映射）⇒ 它的最大值就是"同样的速度 ×dt
+        /// 最多能在世界里走多远"的量纲换算因子。⛔ 现算（走生产件 `Iso.GridToWorld`），不写死 1.414。
+        /// </summary>
+        private static float MaxWorldPerGridRatio()
+        {
+            var dirs = new[]
+            {
+                new Vector2Int(1, 0), new Vector2Int(0, 1),
+                new Vector2Int(1, 1), new Vector2Int(1, -1),
+            };
+            var origin = Iso.GridToWorld(Vector2Int.zero);
+            var best = 0f;
+            for (var i = 0; i < dirs.Length; i++)
+            {
+                var w = Iso.GridToWorld(dirs[i]) - origin;
+                var wl = MathF.Sqrt(w.x * w.x + w.y * w.y);
+                var gl = MathF.Sqrt(dirs[i].x * dirs[i].x + dirs[i].y * dirs[i].y);
+                var r = wl / gl;
+                if (r > best) best = r;
+            }
+            return best;
+        }
+
+        // ── ★ U27 §15 g) 时间轴判据用的小工具 ─────────────────────────────────
+        //   口径逐条对齐 `tools/probes/drivers/camjitter_who.py`（既有真机量法），
+        //   ⛔ 不引新参数：J = 逐帧步长相对**局部均值**（±win 帧）的纵向偏差 sd；
+        //      corr = corr(纵向偏差, dt)。这两个量在真机 TSV 上就是那支 python 脚本算的同一把尺。
+
+        /// <summary>真机逐帧 dt 序列（判据资产，文件头带出处；取不到返回 null，由调用方如实留痕）。</summary>
+        private static List<float> LoadRealDtSeq(string path)
+        {
+            try
+            {
+                // 路径解析：`dotnet run` 的 CWD 因调用方式而异（本项目根 / 宿主目录 / 别处）
+                // ⇒ 从**可执行文件目录**逐级向上找「仓库根」（判据资产按仓库相对路径登记）。
+                var resolved = (string)null;
+                var candidates = new List<string> { path };
+                // ⚠️ 必须写全名 `System.AppContext`：本文件有 `using AppContext = Diablo2.App.AppContext;`
+                //    的别名（组合根），裸写会解析到别名 ⇒ CS0117。
+                var up = System.AppContext.BaseDirectory;
+                // 10 级 = 从 `<宿主>/bin/Debug/net10.0` 一直找到**仓库根**（实测 8 级只到 `tools/`）
+                for (var i = 0; i < 10 && up != null; i++)
+                {
+                    candidates.Add(System.IO.Path.Combine(up, path));
+                    up = System.IO.Path.GetDirectoryName(up);
+                }
+                for (var i = 0; i < candidates.Count; i++)
+                    if (System.IO.File.Exists(candidates[i])) { resolved = candidates[i]; break; }
+                if (resolved == null)
+                {
+                    Console.WriteLine("    [WARN ] 真机 dt 序列找不到；试过 " + string.Join(" | ", candidates));
+                    return null;
+                }
+
+                var list = new List<float>();
+                foreach (var line in System.IO.File.ReadAllLines(resolved))
+                {
+                    if (line.Length == 0 || line[0] == '#') continue;
+                    float v;
+                    if (float.TryParse(line, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out v) && v > 0f)
+                        list.Add(v);
+                }
+                return list.Count > 0 ? list : null;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("    [WARN ] 读真机 dt 序列失败（" + e.GetType().Name + ": " + e.Message + "）⇒ 时间轴判据跳过");
+                return null;
+            }
+        }
+
+        private static float Mean(List<float> xs)
+        {
+            var s = 0f;
+            for (var i = 0; i < xs.Count; i++) s += xs[i];
+            return xs.Count > 0 ? s / xs.Count : 0f;
+        }
+
+        private static float Min(List<float> xs) { var m = float.MaxValue; for (var i = 0; i < xs.Count; i++) if (xs[i] < m) m = xs[i]; return m; }
+        private static float Max(List<float> xs) { var m = float.MinValue; for (var i = 0; i < xs.Count; i++) if (xs[i] > m) m = xs[i]; return m; }
+
+        /// <summary>百分位（线性插值；与 `camjitter_who.py` 的 `pct()` 同算法）。</summary>
+        private static float Pct(List<float> xs, float q)
+        {
+            if (xs.Count == 0) return float.NaN;
+            var s = new List<float>(xs); s.Sort();
+            if (s.Count == 1) return s[0];
+            var pos = q * (s.Count - 1);
+            var lo = (int)Math.Floor(pos);
+            var hi = (int)Math.Ceiling(pos);
+            return lo == hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (pos - lo);
+        }
+
+        /// <summary>
+        /// ★ U27 g2：逐帧步长序列的**抖动 sd**（局部均值 ±<paramref name="win"/> 帧的纵向偏差 sd）。
+        /// 序列是**一维标量**（格空间步长 = speed×dt，与方向无关）⇒ 纵向偏差 = 该帧步长 − 局部均值，
+        /// 与 `camjitter_who.py` 的两维版在同一把尺上（直线段上等价）。
+        /// </summary>
+        private static float JudderSd(List<float> steps, int win)
+        {
+            var dev = new List<float>();
+            for (var i = 0; i < steps.Count; i++)
+            {
+                var lo = Math.Max(0, i - win);
+                var hi = Math.Min(steps.Count, i + win + 1);
+                var m = 0f;
+                for (var k = lo; k < hi; k++) m += steps[k];
+                m /= (hi - lo);
+                dev.Add(steps[i] - m);
+            }
+            if (dev.Count < 2) return 0f;
+            var mu = Mean(dev);
+            var s = 0f;
+            for (var i = 0; i < dev.Count; i++) { var d = dev[i] - mu; s += d * d; }
+            return (float)Math.Sqrt(s / dev.Count);
+        }
+
+        /// <summary>
+        /// ★ U27 g3：`corr(逐帧步长的纵向偏差, dt)` —— 与 `camjitter_who.py` 的 `corr_dt()` 同口径。
+        /// 高相关 ⇒ 不匀就是帧时间造成的（位移 = v·dt ⇒ 理想相关 = 1）。
+        /// </summary>
+        private static float CorrDt(List<float> steps, List<float> dts, int win)
+        {
+            var jl = new List<float>();
+            var dl = new List<float>();
+            for (var i = 0; i < steps.Count; i++)
+            {
+                var lo = Math.Max(0, i - win);
+                var hi = Math.Min(steps.Count, i + win + 1);
+                var m = 0f;
+                for (var k = lo; k < hi; k++) m += steps[k];
+                m /= (hi - lo);
+                jl.Add(steps[i] - m);
+                dl.Add(dts[i % dts.Count]);
+            }
+            if (jl.Count < 5) return float.NaN;
+            var mj = Mean(jl); var md = Mean(dl);
+            var sj = 0f; var sd = 0f; var cov = 0f;
+            for (var i = 0; i < jl.Count; i++)
+            {
+                var a = jl[i] - mj; var b = dl[i] - md;
+                sj += a * a; sd += b * b; cov += a * b;
+            }
+            sj = (float)Math.Sqrt(sj / jl.Count); sd = (float)Math.Sqrt(sd / dl.Count);
+            if (sj < 1e-12f || sd < 1e-12f) return float.NaN;
+            return (cov / jl.Count) / (sj * sd);
+        }
+
+        /// <summary>
+        /// ★ U27 h4：「步长序列」的一阶差分最大值 `max|step[i] − step[i−1]|` = **阶跃量**（格）。
+        /// 用于判"咬合期/脱开后速度不连续"：序列平滑 ⇒ 这个量小。
+        /// </summary>
+        private static float MaxAbsStepDelta(List<float> steps)
+        {
+            var worst = 0f;
+            for (var i = 1; i < steps.Count; i++)
+            {
+                var d = MathF.Abs(steps[i] - steps[i - 1]);
+                if (d > worst) worst = d;
+            }
+            return worst;
+        }
+
+        /// <summary>★ U27 f1：两条世界坐标序列的**逐帧最大偏差**（xy 平面；层间差判据）。</summary>
+        private static float LayerDiffMax(List<Vector3> a, List<Vector3> b)
+        {
+            var max = 0f;
+            var n = Math.Min(a.Count, b.Count);
+            for (var i = 0; i < n; i++)
+            {
+                var dx = a[i].x - b[i].x;
+                var dy = a[i].y - b[i].y;
+                var d = MathF.Sqrt(dx * dx + dy * dy);
+                if (d > max) max = d;
+            }
+            return max;
+        }
+
+        /// <summary>★ U27 f1b：同一条判据，先把 <paramref name="a"/> 整体加一个偏移（**退化样本**）。</summary>
+        private static float LayerDiffMaxWithInjection(List<Vector3> a, List<Vector3> b, float offset)
+        {
+            var injected = new List<Vector3>(a.Count);
+            for (var i = 0; i < a.Count; i++) injected.Add(a[i] + new Vector3(offset, 0f, 0f));
+            return LayerDiffMax(injected, b);
+        }
+
+        /// <summary>
+        /// ★ U27 f2：**层内**判据 —— 逐帧算「世界步长 / 格步长」的比值，按 8 个格空间方向分组，
+        /// 返回**组内** spread（max/min）的最大值（1.0 = 同一方向每帧推进量恒定）。
+        /// <para>为什么按方向分组：格空间恒定速度 × 等距 2:1 投影 ⇒ **跨方向**的比值本来就不等
+        /// （解析 0.7071 ~ 1.4142），那是投影口径（登记在案，⛔ 不判、不改）；能判的是"同一方向内"。</para>
+        /// <para>分组键 = `Iso.DirectionTo(符号化的格增量)`（生产件；增量取符号后 8 方向各一桶）。</para>
+        /// </summary>
+        private static float AdvanceSpread(List<Vector3> seq, float budget, bool filterTurns,
+            out int buckets, out string detail)
+        {
+            // 桶键 = **格增量的符号对**（8 个），⛔ 不用 `Iso.DirectionTo`：
+            //   实测（本判据第一版）：`DirectionTo` 判的是**屏幕**朝向 ⇒ 屏幕空间里
+            //   `(1,-1)` 与 `(1,0)` 落在同一个 45° 扇区（投影角 0° 与 −26.6°）⇒ 两个不同的
+            //   格方向被并成一桶，桶内 spread 假红 1.581（实测读数见 `.ai-tmp/test/report-u27.md`）。
+            //   而 世界/格 比值只取决于**格方向**（`Iso` 是线性映射）⇒ 必须按格方向分桶。
+            var byDir = new Dictionary<int, List<float>>();
+            var skippedTurn = 0;
+            for (var i = 1; i < seq.Count; i++)
+            {
+                var dg = CellOf(seq[i]) - CellOf(seq[i - 1]);
+                var dgl = dg.magnitude;
+                if (dgl < 1e-6f) continue;                       // 没动：方向未定义，不进样本
+                // 「纯」帧（只走一个方向）：整帧预算全花在同一段 ⇒ |Δ格| == 标称预算。
+                //   跨路点那一帧会把**两段不同方向**的位移相加（|Δ格| < 预算，比值是两段混合）
+                //   —— 那是**换向帧**，不是"同一方向推进量不齐"，必须剔出样本。
+                //   ⛔ 尺子就是**标称预算本身**（`speed×dt`，移动积分口径的输入），不引新阈值。
+                if (filterTurns && dgl < budget * (1f - 1e-3f)) { skippedTurn++; continue; }
+                var dw = seq[i] - seq[i - 1];
+                var dwl = MathF.Sqrt(dw.x * dw.x + dw.y * dw.y);
+                // ⚠️ **零分量必须带容差**：轴方向步长的"零"那一维是浮点残渣（~1e-7），
+                //    直接判符号会把它当成 ±1 ⇒ 纯轴向帧被塞进对角桶 ⇒ 桶内 spread 假红 1.581
+                //    （实测第一版就是这个假红；`dirsign` 用预算的 1e-3 当零带，与上面的"纯帧"尺同源）。
+                var eps = budget * 1e-3f;
+                var sx = dg.x > eps ? 1 : (dg.x < -eps ? -1 : 0);
+                var sy = dg.y > eps ? 1 : (dg.y < -eps ? -1 : 0);
+                if (sx == 0 && sy == 0) { skippedTurn++; continue; }   // 双向都是残渣 ⇒ 这帧方向不可判
+                var key = (sx + 1) * 3 + (sy + 1);               // 0..8 唯一的符号对编码
+                if (!byDir.ContainsKey(key)) byDir[key] = new List<float>();
+                byDir[key].Add(dwl / dgl);
+            }
+            buckets = 0;
+            var worst = 1f;
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"（剔出换向/收尾帧 {skippedTurn} 帧）");
+            foreach (var kv in byDir)
+            {
+                var v = kv.Value;
+                if (v.Count < 5) continue;                       // 样本太少的桶不参与判定（只登记）
+                buckets++;
+                var lo = v[0];
+                var hi = v[0];
+                for (var i = 1; i < v.Count; i++)
+                {
+                    if (v[i] < lo) lo = v[i];
+                    if (v[i] > hi) hi = v[i];
+                }
+                var spread = hi / lo;
+                if (spread > worst) worst = spread;
+                var sx2 = kv.Key / 3 - 1;
+                var sy2 = kv.Key % 3 - 1;
+                sb.Append($"  格({sx2},{sy2}) n={v.Count} 世界/格={lo:0.#####}~{hi:0.#####}");
+            }
+            detail = "分格方向读数（世界步长/格步长；**跨方向**的差异 = 等距 HalfW:HalfH=2:1 的必然，只登记不判）：" + sb;
+            return worst;
+        }
+
+        /// <summary>
+        /// ★ U27 f2b（**判据自检 / 退化样本**）：同一条检测函数，**把"纯帧"过滤关掉**再喂同一批采样。
+        /// <para>为什么这才是这条判据的退化样本：世界→格的映射是**固定线性**的 ⇒ 单帧的
+        /// 「世界步长/格步长」比值**只由格方向决定**，世界坐标上的任何扰动都会连带改掉格增量
+        /// ⇒ 你**造不出**"同方向、不同比值"的样本（实测：注入 5% 步长改动比值恒为 0.0）。
+        /// 能造出"同桶不同比值"的只有**换向帧**（一帧横跨两个格方向，比值为两段混合）。</para>
+        /// <para>⇒ 自检内容 = 「**过滤关掉后同一批采样必须变红**」：既证明换向帧真实存在，
+        /// 也证明上面的过滤是**承重**的（不是把缺陷一起滤掉了）。</para>
+        /// </summary>
+        private static float AdvanceSpreadNoTurnFilter(List<Vector3> seq, float budget)
+        {
+            int buckets;
+            string detail;
+            return AdvanceSpread(seq, budget, false, out buckets, out detail);
+        }
+
+        /// <summary>
+        /// ★ U27 f3：**相机层不许"跳"/"冻"** —— 逐帧量「相机与逻辑的相对偏移」的变化量
+        /// （世界空间；方向无关，故可用一把尺）。
+        /// <para>上界有解析出处：**相机最坏情况 = 完全冻结**（机位不动）⇒ 相对偏移的变化量 = 玩家该帧位移；
+        /// 低通只允许"跟不上一帧"，不允许"冲出去"（同一余量口径见 `CameraRig` c1 的 ×1.1）。
+        /// ⇒ 上界 = 玩家该帧最大位移 × 1.1。</para>
+        /// <para>返回最大超限量与其发生的帧号（&lt; 0 = 无超限）。</para>
+        /// </summary>
+        private static float RelativeOffsetJump(List<Vector3> camSeq, List<Vector3> logicSeq,
+            float perFrameLimit, out int at)
+        {
+            var worst = -1f;
+            at = -1;
+            var n = Math.Min(camSeq.Count, logicSeq.Count);
+            for (var i = 1; i < n; i++)
+            {
+                var r0 = new Vector2(logicSeq[i - 1].x - camSeq[i - 1].x, logicSeq[i - 1].y - camSeq[i - 1].y);
+                var r1 = new Vector2(logicSeq[i].x - camSeq[i].x, logicSeq[i].y - camSeq[i].y);
+                var j = (r1 - r0).magnitude;
+                if (j <= perFrameLimit + 1e-4f) continue;
+                if (j - perFrameLimit > worst) { worst = j - perFrameLimit; at = i; }
+            }
+            return worst;
+        }
 
         /// <summary>
         /// 地图上**最长的一条「单方向直线」可走段**（同一行或同一列的连续可走格），

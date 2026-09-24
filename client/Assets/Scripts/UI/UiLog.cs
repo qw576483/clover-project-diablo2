@@ -9,12 +9,18 @@
 //      `Require<T>` 把「判空 + 打 Warn + 返回 null 让面板降级」收敛成一处，
 //      于是每个面板的 `OnOpen` 都长一样，且**漏参数时不会静默退回默认值**。
 //
+// ★ 参数校验那一段已**下沉到引擎**（`CloverEngine.UIPanelGuards`，
+//   `clover-client-unity-engine/Runtime/Presentation/UIPanelGuards.cs`）：判定 / 降级口径 /
+//   留痕闸门（走 `LogThrottle`，同一面板同一原因只报一次）都归引擎，本文件只做**薄转发**并钉死
+//   UI 层 tag（`[Ui]`）。**公开签名与调用点零改动**。
+//
 // ⛔ 本文件在 UI 层：只允许引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def`，
 //    不得引用 `Diablo2.Module` 下任何类型（分层自检 ③）。
 //    本项目新增（agent-09）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
+using CloverEngine;
 using Diablo2.Core;
 
 namespace Diablo2.UI
@@ -49,40 +55,26 @@ namespace Diablo2.UI
             => Log.WarnThrottled(Tag, key, msg, intervalSeconds);
 
         /// <summary>
-        /// 校验 `OnOpen(param)` 的载荷：类型不符/为空 ⇒ **打 Warn 并返回 null**（面板按空数据打开，不崩）。
+        /// 校验 `OnOpen(param)` 的载荷：类型不符/为空 ⇒ **留痕 + 返回 null**（面板按空数据打开，不崩）。
+        /// <para>**薄转发**到引擎件 <c>CloverEngine.UIPanelGuards.Require</c>
+        /// （`clover-client-unity-engine/Runtime/Presentation/UIPanelGuards.cs`）——
+        /// 判定 / 降级口径 / 留痕闸门（走 `LogThrottle`，同一面板同一原因**只报一次**，⛔ 不刷屏）都归引擎；
+        /// 本方法只钉死 UI 层 tag（`[Ui]`，验收脚本按它检索日志）。**公开签名与调用点零改动**。</para>
         /// </summary>
         /// <typeparam name="T">期望的载荷类型（`Diablo2.Def` 里的 DTO）。</typeparam>
         /// <param name="param">`OnOpen` 收到的 object。</param>
         /// <param name="panel">面板类名（日志里点名，便于定位）。</param>
         public static T Require<T>(object param, string panel) where T : class
         {
-            if (param == null)
-            {
-                Warn($"{panel}.OnOpen 缺少参数（param=null）⇒ 按空数据打开（数值为 0 / 列表为空），"
-                     + "请检查打开方是否漏传 DTO（constraints.md #7）");
-                return null;
-            }
-
-            if (param is T typed)
-                return typed;
-
-            Warn($"{panel}.OnOpen 参数类型不符：期望 {typeof(T).Name}，实际 {param.GetType().Name}"
-                 + " ⇒ 按空数据打开（请检查事件参数类型是否与 Core/Events.cs 的约定一致）");
-            return null;
+            UIPanelGuards.Require(param, panel, Tag, out T value);
+            return value;
         }
 
         /// <summary>
-        /// 校验 `OnOpen(param)` 里的整型载荷（如 skillId / questId）；缺失或类型不符 ⇒ Warn + 返回兜底值。
+        /// 校验 `OnOpen(param)` 里的整型载荷（如 skillId / questId）；缺失或类型不符 ⇒ 留痕 + 返回兜底值。
+        /// <para>**薄转发**到引擎件 <c>CloverEngine.UIPanelGuards.RequireValue</c>（同一留痕口径：只报一次）。</para>
         /// </summary>
         public static int RequireInt(object param, string panel, int fallback)
-        {
-            if (param is int value)
-                return value;
-
-            Warn(param == null
-                ? $"{panel}.OnOpen 缺少整型参数（param=null）⇒ 用兜底值 {fallback}"
-                : $"{panel}.OnOpen 参数类型不符：期望 int，实际 {param.GetType().Name} ⇒ 用兜底值 {fallback}");
-            return fallback;
-        }
+            => UIPanelGuards.RequireValue(param, panel, fallback, Tag);
     }
 }

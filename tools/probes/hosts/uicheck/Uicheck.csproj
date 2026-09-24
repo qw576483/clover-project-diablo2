@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ───────────────────────────────────────────────────────────────────────
        UI 层自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
@@ -50,6 +50,9 @@
          （纯函数逐格断言）+ 边界（放不下要点名 Warn 且不覆盖）」—— 独立文件，避免与
          Program.cs / W3GameCheck.cs 的并发改动冲突 -->
     <Compile Include="ShopGridCheck.cs" />
+    <Compile Include="ShopArtCheck.cs" />
+    <!-- ★ 片 u53-closefix：弹框关闭出口（层/遮罩 + 关闭控件可见 + 同一入口）+ 3 条退化样本 -->
+    <Compile Include="CloseExitCheck.cs" />
     <!-- 引擎门面替身：**复用 flowcheck 那一份**（同一份文件，两个宿主共用，改一处即同步） -->
     <Compile Include="GroundItemLabelCheck.cs" />
     <Compile Include="V6Check.cs" />
@@ -60,6 +63,14 @@
          ⚠️ 2026-09-24 曾出现"两处同名实现**互相删除**"（V6Check.cs 里那份与本文件）⇒ 现在**只有这一份**：
          谁要再在别处实现同名类，请**先**删本行再动手。 -->
     <Compile Include="DialogOptionsCheck.cs" />
+    <!-- ★ 片 u32-close（2026-09-24）：传送点**链路中段**的离线行为断言 ——
+         `AppWaypoint` 的列表回灌/快照/新局复位 + 「点锚点 ⇒ 走过去 ⇒ 开面板」 +
+         「选目的地 ⇒ 拒绝 4 种 / 放行 1 种」。生产类（`App/AppWaypoint.cs`）经下面
+         `App\*.cs` 那一行已在清单里；本文件只加断言、⛔ 不动既有步骤。 -->
+    <Compile Include="WaypointFlowCheck.cs" />
+    <Compile Include="U52ResistCheck.cs" />
+    <!-- u52-resist P-2b: per-box single-line check for the character panel Level/Exp/SkillPoints boxes (reuses section 8 NeedNative + font tables). Own file to avoid concurrent edits on Program.cs / U52ResistCheck.cs. -->
+    <Compile Include="CharTopRightTextCheck.cs" />
     <Compile Include="..\flowcheck\shim\EngineShim.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制；文件集与 flowcheck 一致） -->
@@ -109,6 +120,13 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
+    <!-- ★ 片 u44impl offline closeout 2026-09-24: Module/View/EntityHighlight.cs is the ONLY source
+         of the C2 numbers (_Brightness 3.0 / _Contrast 1.01); it was NOT in this whitelist, so C2 could
+         only be text-extracted from source (same blind spot family as the Shader.HasProperty CS1061
+         green-in-uicheck case). Link it + its only dependency ViewLog.cs (which only needs Core/Log.cs,
+         already listed). Do NOT link the Module/View/*.cs glob - it drags in ViewModule.cs deps. -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\EntityHighlight.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewLog.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -143,4 +161,25 @@
     </Reference>
   </ItemGroup>
 
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\LoadingPacing.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\PointerFloatLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteStripLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\DragDropLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\BitmapFont.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldOverlayWidgets.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ScreenPointUtil.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UIPanelGuards.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UiImageLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteSwapButton.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />
+  </ItemGroup>
 </Project>

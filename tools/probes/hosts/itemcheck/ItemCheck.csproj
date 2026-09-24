@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ───────────────────────────────────────────────────────────────────────
        Item / Quest / Npc / Save 自检宿主（**非 Unity 工程、不参与打包**）
@@ -89,6 +89,10 @@
          ⇒ 把 `Module/Map/**` 链进来（本片没改这些文件，只是让宿主恢复可编译）。
          本宿主已有 `StubMap : IMapModule`（不重名，无冲突）。 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <!-- ★ eng-tile 片（2026-09-24）：`Module/Map/TileNodePool.cs` + `TileRenderState.cs` 已下沉到引擎
+         （项目侧只剩薄转发）⇒ 不链引擎那两份就 CS0246（`Module/Map/MapView.cs` 用它们）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileNodePool.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderState.cs" />
 
     <!-- ★ 起始装备轮新增：只链 `DamageFormula.cs` + `CombatLog.cs` 两个文件（**不是**整个 Module/Combat/**），
          为的是用**生产入口**断言「起始装备让普攻伤害真的 > 0」（配表 → ItemStack.dmg → 官方物理伤害公式）。
@@ -140,4 +144,17 @@
     </Reference>
   </ItemGroup>
 
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EnterLatch.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\ChunkedTilePlanner.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\StableHash.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\JsonWriter.cs" />
+  </ItemGroup>
 </Project>

@@ -34,13 +34,27 @@
 //     ⚠️ **实测**（Play 2026-09-17，探针 `client/_dev/p_frames.cs`）：
 //       逐帧按名 `LoadAsset<Sprite>("D2/UI/Menu/button_wide_0")` = **null**（本工程这套导入设置下失效），
 //       而整条 `Game.Res.LoadAll<Sprite>("D2/UI/Menu/button_wide")` = 3 个名字正确的子 sprite。
-//       ⇒ 逐帧按名为主、**整条 LoadAll 兜底**（`TryBulkLoad`），与 `UI/D2Text.cs` 的字模加载同一套做法。
+//       ⇒ 逐帧按名为主、**整条 LoadAll 兜底**（`SpriteStripLoader` 的主路），与 `UI/D2Text.cs` 的字模加载同一套做法。
 //       （片 34 起这两条都走引擎资源模块 `Game.Res.*`，⛔ 不再直接调 Unity 的 `Resources`；
 //         路径是**相对 `CloverRes` 根前缀**的写法，根前缀由后端拼 —— 出处 `Contracts.cs` 的 `LoadAll` 注释。）
+//
+// ★ d2-uiart（2026-09-24）：**三块与引擎件重复的能力已改为转调**（公开 API 与调用点一字未动）：
+//   ① 异步贴图 + 请求序号守卫 + 占位保留 + 同路径去重 + unlit 材质校验 → `UiImageLoader`
+//      （`SetSprite` / `SetArtTint` / `EnsureUnlit` / `IsLitShader` 四个方法体转调）；
+//   ② sprite-swap 四态落地（`transition= SpriteSwap` + `SpriteState` 填充 + 缺态回落常态 + 色调 +
+//      `preserveAspect` + unlit）→ `SpriteSwapButton.Apply`（`Apply` / `ApplyButtonFrames` / `LoadOrig` 三条落点）；
+//   ③ 多帧条带取帧（整条 `LoadAll` 主路 + 逐帧按名兜底 + 就绪回调 + 同路径去重 + 缺帧留痕）
+//      → `SpriteStripLoader`（`RequestStrip` 转调；本文件原来的 `FrameSet` / `RequestFrames` /
+//      `OnFrameLoaded` / `CompleteFrames` / `TryBulkLoad` / `ApplyButtonFrame` 已删）。
+//   ⛔ 未收敛的三处是**刻意如此**，不是遗漏：
+//     · `ButtonSpritesFor` / `ButtonStripFor` / 全部尺寸·配色·字号常量 = **项目素材数据与项目约定**，
+//       引擎件按设计不含任何素材路径 / 配色（见 `SpriteSwapButton` 文件头「零项目取值」）；
+//     · 按钮骨架仍走 `UIFactory.CreateButton`（也是引擎件），**不**走 `SpriteSwapButton.Create`：后者的
+//       "占位皮肤"分支会把「贴图仍在途」按「常态贴图缺失」记一条 WarnOnce（假告警，污染日志）；
+//     · `SquareButton` 的底图由调用方后贴（无四态、无 sprite-swap）⇒ 与 `SpriteSwapButton` 契约不同。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using CloverEngine;
 using Diablo2.Core;
@@ -77,7 +91,18 @@ namespace Diablo2.UI
         public const float WideButtonMinWidth = 200f;
 
         // ── 配色（照原版暗黑、低饱和的暖褐 + 冷蓝；纯色块不引入通用素材）────
-        /// <summary>按钮底板色（**仅贴图未到位/缺失时的纯色占位**；贴图到位后走原版亮度）。</summary>
+        /// <summary>
+        /// 按钮底板色 —— **只是异步在途 / 素材缺失时的兜底**（<see cref="SetSprite"/> 成功后
+        /// `color` 会被改成 <see cref="ArtFullBright"/>，故它不是"按钮的底图"）。
+        /// <para>⚠️ 读代码时最容易误判的一格（实测代价：片 `popupaudit` 只读到这里就判
+        /// 「商店修理/关闭按钮底板是纯色占位」，而 `<c>ShopPanel.BuildBottomBar</c>` 在其后
+        /// 三行就调 `ApplyBuySellButtonArt` 贴了原版 `buysellbtn_2/_10`；片 `u53-shopart`
+        /// 进 Play 读到 `Image.sprite.name = buysellbtn_2 / buysellbtn_10` 才把这条判成误报）。
+        /// ⇒ 判据 = 每个"自带占位色的按钮工厂"都必须有 art 绑定：
+        /// `UiArt.Button` ⇒ <see cref="ApplyButtonFrames"/>；`OrigButton` ⇒ <c>LoadOrig</c>；
+        /// `SquareButton`（契约就是"底图由调用方贴"）⇒ 调用点必须紧跟 art 应用，
+        /// 门禁 = `tools/probes/hosts/uicheck/ShopArtCheck.cs`（含退化样本必须变红）。</para>
+        /// </summary>
         public static readonly Color ButtonBg = new Color(0.15f, 0.13f, 0.11f, 0.94f);
 
         /// <summary>
@@ -136,22 +161,23 @@ namespace Diablo2.UI
 
         private const string Tag = "Ui";
 
-        // ── 原版贴图的「色调」状态（★ 解决异步竞态）──────────────────────────
+        // ── 原版贴图的「色调」状态（★ 解决异步竞态 / d2-uiart 后只留项目侧副本）──────
         // 贴图是 `LoadAsset` **异步**回来的：面板在贴图回来**之后**才改色（如创角屏的
         // 「当前选中职业」）会被这次回调覆盖成白色 ⇒ 把"这幅图想要的颜色乘数"记在
         // `ConditionalWeakTable` 上（键是 Image，Image 被销毁后条目随 GC 消失，不泄漏），
         // 由**加载完成的那一刻**统一套用。这样两种顺序都对。
+        //
+        // ★ d2-uiart（2026-09-24）：**"请求序号守卫"那半截已随加载体一起下沉到引擎
+        //   `UiImageLoader`**（它自己按 Image 记序号 + 路径 + 在途/已落地标记），本文件不再记 `Request`。
+        //   这里保留的只是**项目侧色调副本**，原因：`UiImageLoader` 把色调存在它自己的弱表里且
+        //   **不暴露读接口**，而本文件另有两条"不经 `UiImageLoader` 的落图路径" —— 条带整条取帧
+        //   （`ApplyButtonFrames`）/ 原版单帧按钮底图（`Apply`）/ 专用底图（`LoadOrig`）——
+        //   它们在贴图到位那一刻要读回"这幅图想要的色调"。
+        //   ⇒ 色调**双写**（引擎一份 + 项目一份），两边口径一致（默认 `ArtFullBright` = 原版亮度白）。
         private sealed class ArtState
         {
             /// <summary>贴图到位后要套的色调（默认 = 原版亮度）。</summary>
             public Color Tint = ArtFullBright;
-
-            /// <summary>
-            /// ★ R1-C：本 Image 上已发起的贴图请求序号（每次 <see cref="SetSprite"/> 自增）。
-            /// 回调里比对"我这次是不是最新的" ⇒ 过期回调丢弃（异步乱序时不会盖掉新图）。
-            /// 存在 <see cref="ConditionalWeakTable{TKey,TValue}"/> 里 ⇒ Image 销毁后条目随 GC 消失，不泄漏。
-            /// </summary>
-            public int Request;
         }
 
         private static readonly ConditionalWeakTable<Image, ArtState> ArtStates
@@ -161,13 +187,16 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 设置某幅原版贴图的色调（选中/未选中、空球底 …）。
-        /// 贴图**已在**则立即生效；**未到**则记下，等 `SetSprite` 的回调套用（不丢状态）。
+        /// 贴图**已在**则立即生效；**未到**则记下，等贴图到位的那一刻套用（不丢状态）。
+        /// <para>★ d2-uiart：设置逻辑转调引擎 `UiImageLoader.SetTint`（它就是把"贴图已在 ⇒ 立即写
+        /// <c>img.color</c>；未到 ⇒ 记下、由回调套用"这条语义下沉的那一件）；项目侧那份副本见
+        /// <see cref="ArtState"/> 的注释（供条带 / 单帧落图路径读回）。</para>
         /// </summary>
         public static void SetArtTint(Image img, Color tint)
         {
             if (img == null) return;
-            StateOf(img).Tint = tint;
-            if (img.sprite != null) img.color = tint;   // 贴图已在 ⇒ 立即生效
+            StateOf(img).Tint = tint;               // 项目侧副本（落图路径读它）
+            UiImageLoader.SetTint(img, tint);       // ★ 引擎件：贴图已在 ⇒ 立即生效；未到 ⇒ 记下等回调套用
         }
 
         // ── 根节点 ───────────────────────────────────────────────────────────
@@ -284,53 +313,35 @@ namespace Diablo2.UI
         /// 与旧行为在"回调恰好按序到达"时逐字相同；只在乱序时把"错态"修成"最新态"。</para>
         /// </summary>
         /// <param name="onLoadedTint">可选的显式色调；不传 = 用记下的色调（默认原版亮度白）。</param>
+        /// <remarks>
+        /// ★ d2-uiart（2026-09-24）：**方法体已转调引擎 `UiImageLoader.SetSprite`**（该件就是照本条下沉的）。
+        /// 接口一对一同口径；引擎版**另加**"同一 Image 上同路径在途/已成功则不重复发起"的去重（⛔ 失败过的
+        /// 路径不拦 ⇒ 再调一次就是重试）。⛔ 这里不再自己调 `Game.Res.LoadAsset` —— 那正是被下沉掉的那份实现。
+        /// </remarks>
         public static void SetSprite(Image img, string spritePath, Color? onLoadedTint = null)
         {
             if (img == null || string.IsNullOrEmpty(spritePath)) return;
 
-            if (Game.Res == null)
-            {
-                Log.WarnOnce(Tag, "res.null", $"Game.Res 未初始化（CloverRes.Init 未调用），贴图 {spritePath} 无法加载");
-                return;
-            }
+            if (onLoadedTint.HasValue) StateOf(img).Tint = onLoadedTint.Value;  // 与项目侧副本保持一致
 
-            var state = StateOf(img);
-            if (onLoadedTint.HasValue) state.Tint = onLoadedTint.Value;
-
-            // ★ R1-C 请求守卫：本次请求的序号（回调里比对；过期回调丢弃）
-            var request = ++state.Request;
             if (!_r1cGuardLogged)
             {
                 _r1cGuardLogged = true;
-                Log.Info("R1-C", "UiArt.SetSprite 已加**请求守卫**：同一 Image 上只有最新一次请求的回调会落地" +
-                    "（`LoadAsset` 异步 ⇒ 连续换图时旧回调可能晚到并盖掉新图；逐帧动画/快速悬停会踩到）" +
-                    "；过期回调丢弃、不告警（设计内行为）");
+                Log.Info("R1-C", "UiArt.SetSprite 转调引擎 `UiImageLoader.SetSprite`（请求序号守卫 + 占位保留 + 同路径去重"
+                    + " + unlit 校验）：同一 Image 上只有最新一次请求的回调会落地"
+                    + "（`LoadAsset` 异步 ⇒ 连续换图时旧回调可能晚到并盖掉新图；逐帧动画/快速悬停会踩到）"
+                    + "；过期回调丢弃、不告警（设计内行为）");
             }
 
-            Game.Res.LoadAsset<Sprite>(spritePath, sp =>
-            {
-                if (img == null) return;            // 面板可能已关闭销毁
-                if (state.Request != request) return;   // ★ R1-C：本次请求已被更新的请求取代 ⇒ 丢弃（不覆盖新图）
-                if (sp == null)
-                {
-                    // 非预期分支：素材缺失/路径写错 ⇒ 保留纯色占位 + 点名路径（不静默）
-                    Log.Warn(Tag, $"原版贴图缺失：{spritePath}（保留纯色底 {img.color}，按占位显示）");
-                    return;
-                }
-
-                img.sprite = sp;
-                img.color = state.Tint;             // ★ 原版亮度（默认白）—— 贴图不再被深色占位底乘暗
-                EnsureUnlit(img);
-                Log.Info(Tag, $"[原版贴图] {spritePath} → {img.name}，色调={state.Tint}（白=原版亮度）");
-            });
+            UiImageLoader.SetSprite(img, spritePath, onLoadedTint);   // ★ 引擎件（唯一实现）
         }
 
-        /// <summary>R1-C 的"只报一次"标志（见 <see cref="SetSprite"/> 的请求守卫）。</summary>
+        /// <summary>R1-C 的"只报一次"标志（见 <see cref="SetSprite"/> 的请求守卫，现由引擎件落地）。</summary>
         private static bool _r1cGuardLogged;
 
         /// <summary>
         /// 造一个**原版底图**按钮：`UIFactory.CreateButton` + 项目配色/字号 +
-        /// 原版帧底图（常态/悬停/按下，见 <see cref="ApplyButtonFrame"/>）。
+        /// 原版帧底图（常态/悬停/按下，见 <see cref="ApplyButtonFrames"/>）。
         /// </summary>
         public static Image Button(Transform parent, string name, string label, Vector2 size, Vector2 pos,
             Action onClick)
@@ -358,25 +369,26 @@ namespace Diablo2.UI
             //   （例如素材目录还没同步到新文件），这样按钮不会退化成纯色块。
             //
             // ★ 片 4b 修（本轮 4 条 Error 里的 3 条的根因）：多帧条带那条老路径改成**按需触发**。
-            //   原来这里**无条件**先 `RequestFrames(strip, …)`，而该路径在本工程**必然取不到图**
+            //   原来这里**无条件**先取条带帧（现走引擎 `SpriteStripLoader`），而该路径在本工程**必然取不到图**
             //   （本文件头 §C-④ 的实测：逐帧按名 `LoadAsset<Sprite>("D2/UI/Menu/button_wide_0")`
             //   = null —— 本套导入设置下**子 sprite 按名加载失效**），于是每建一个按钮就产生 3 条
             //   `[Error] [Resource] 加载失败：D2/UI/Menu/button_wide_{0,1,2}`
             //   （进 Play 的 4 条 Error 里这 3 条就是它们；实测时间戳 16:21:48.400/401 同一帧）。
             //   现在**只有**「单帧原版图整组缺失」才会走到它（`onMissing`）⇒ 正常工程一次都不发起。
             //   ⛔ 这不是"把 Error 降级 / 加静默兜底"：兜底路径**原地保留**（真缺失时照样
-            //      RequestFrames + 逐帧 Warn + 条带兜底），只是不再**预先**跑一条已知取不到图的路径。
+            //      取条带帧 + 逐帧 Warn + 条带兜底），只是不再**预先**跑一条已知取不到图的路径。
+            //   ★ d2-uiart：兜底路径的取帧改走引擎 `SpriteStripLoader`（见 `RequestStrip` 的转调），
+            //     套帧仍由本文件的 `ApplyButtonFrames` 收敛（它只做"帧表 → 项目的按钮语义"这一段）。
             ApplyOriginalButtonArt(img, size, () =>
             {
                 var strip = ButtonStripFor(size);
-                var frames = RequestFrames(strip, ButtonStripFrames(strip));
-                ApplyButtonFrame(img, frames);
+                RequestStrip(strip, ButtonStripFrames(strip), frames => ApplyButtonFrames(img, frames));
             });
             return img;
         }
 
         // ── ★ agent-18 §B：原版按钮底图（DC6 单帧 PNG）────────────────────────
-        //  ⚠️ 与 `RequestFrames`/`MenuButtonWide` 的区别（**不是重复造轮子，是换了数据源**）：
+        //  ⚠️ 与 `RequestStrip`/`MenuButtonWide` 的区别（**不是重复造轮子，是换了数据源**）：
         //    旧路径把整条 `button_wide.png`（816×35）切成 3 帧用，帧矩形是"按 RGB 竖缝反推"的；
         //    本轮从 `d2data.mpq` 解 `FrontEnd/WideButtonBlank.dc6` 得到**权威帧**：
         //      4 帧 = 256×35 + 16×35 + 256×35 + 16×35 ⇒ 按钮 = 帧 0+1（常态）/ 帧 2+3（按下），
@@ -496,31 +508,38 @@ namespace Diablo2.UI
             if (normal == null)
             {
                 // 整组缺失（单帧原版图还没同步到工程）⇒ 退回"多帧条带"兜底；条带也缺才保持纯色块。
-                // 两条路径都在 Load1/RequestFrames 里 Warn 过，这里只点名"走了哪条兜底"。
+                // 两条路径都在 Load1 / 条带加载里 Warn 过，这里只点名"走了哪条兜底"。
                 Log.Warn(Tag, $"原版按钮单帧底图整组缺失 ⇒ 退回多帧条带兜底（{ResPaths.MenuButtonWide} / "
                               + $"{ResPaths.MenuButtonMedium}）；条带也缺则按钮保持纯色块 {ButtonBg}");
                 st.OnMissing?.Invoke();
                 return;
             }
 
-            img.sprite = normal;
-            // ★ 原版帧的宽高比是固定的（宽 272×35 / 中 128×35）：`preserveAspect` 让**矩形尺寸
-            //   与帧比例不一致时按比例内缩**，而不是把原版按钮拉长/压扁（不改原版像素）。
-            img.preserveAspect = true;
-            img.color = StateOf(img).Tint;              // 原版亮度（默认白）
-            EnsureUnlit(img);
-
             var btn = st.Button != null ? st.Button : img.GetComponent<Button>();
-            if (btn == null) return;
-
-            btn.transition = Selectable.Transition.SpriteSwap;
-            btn.spriteState = new SpriteState
+            if (btn == null)
             {
-                highlightedSprite = st.Sprites[2] != null ? st.Sprites[2] : normal,
-                pressedSprite = st.Sprites[1] != null ? st.Sprites[1] : normal,
-                selectedSprite = st.Sprites[2] != null ? st.Sprites[2] : normal,
-                disabledSprite = normal,
-            };
+                // 非预期分支：底板没有 Button 组件 ⇒ 只能贴常态帧（悬停/按下不会变）。⛔ 不静默
+                Log.Warn(Tag, $"按钮 {img.name} 没有 Button 组件 ⇒ 原版底图只套了常态帧（悬停/按下无变化）");
+                img.sprite = normal;
+                // ★ 原版帧的宽高比是固定的（宽 272×35 / 中 128×35）：`preserveAspect` 让**矩形尺寸
+                //   与帧比例不一致时按比例内缩**，而不是把原版按钮拉长/压扁（不改原版像素）。
+                img.preserveAspect = true;
+                img.color = StateOf(img).Tint;          // 原版亮度（默认白）
+                EnsureUnlit(img);
+                return;
+            }
+
+            // ★ d2-uiart：四态落地（`transition` / `SpriteState` / 缺态回落常态 / 色调 / `preserveAspect`
+            //   / unlit）转调引擎 `SpriteSwapButton.Apply` —— 本文件不再手写 `SpriteState`
+            //   （手写时"某态为 null"会被 Unity 的 `DoSpriteSwap` **静默早退**，这正是引擎件要治的坑）。
+            SpriteSwapButton.Apply(btn, new SpriteSwapButton.Skin(
+                normal,
+                st.Sprites[2],                      // 悬停 = 高亮帧（宽按钮没有高亮帧 ⇒ 由引擎回落常态）
+                st.Sprites[1],                      // 按下（缺 ⇒ 引擎回落常态）
+                normal,                             // 禁用 = 常态（只灰化文字，见 SetInteractable）
+                tint: StateOf(img).Tint,            // 项目侧色调（默认 = 原版亮度白）
+                placeholder: ButtonBg,
+                preserveAspect: true));
             Log.Info(Tag, $"[原版按钮底图] {ResPaths.Root}/{img.name} ← 三态就位（常态/按下/高亮）");
         }
 
@@ -593,7 +612,7 @@ namespace Diablo2.UI
         /// **实测**（Play 2026-09-17，本轮读图 + 日志）`Game.Res.LoadAsset&lt;Sprite&gt;` 取
         /// `D2/UI/Panel/buysellbtn.DC6.0_0` 直接
         /// `[Error] [Resource] 加载失败：D2/UI/Panel/buysellbtn.DC6.0_0`（本工程这套导入设置下
-        /// **子 sprite 按名加载失效**，同 <see cref="TryBulkLoad"/> 注释里那条 `button_wide_0` 的实测）。
+        /// **子 sprite 按名加载失效**，同引擎 <c>SpriteStripLoader</c> 注释里那条 `button_wide_0` 的实测）。
         /// 而这批素材**同时**存在单帧文件 `buysellbtn_0.png`（Sprite/Single/Point，与能正常加载的
         /// `buyselltabs_0.png` 导入参数逐项相同）⇒ 方钮走单帧文件，不做条带按名取帧。</para>
         /// </summary>
@@ -603,7 +622,16 @@ namespace Diablo2.UI
         //   底图由调用方贴（见 `BuySellButtonFramePrefix`），这里只保证"定尺 + 命中区 + 文字"。
         //   为什么单独一个（不直接用 `Button`）：`Button` 会按**原版宽/中按钮**（272×35 / 128×35）
         //   贴底图，而那两套是**前端菜单**的按钮，跟买卖屏右下那 4 个雕槽（底图实测 34×27）不是一回事。
-        public static Image SquareButton(Transform p, string n, string lb, Vector2 sz, Vector2 ps, Action cb)
+        /// <param name="labelRect">
+        /// **可选**：标签矩形，**相对按钮自身中心**（按钮 local 空间，按钮 rect = 以 (0,0) 为中心、
+        /// 边长 <paramref name="sz"/> 的正方形）。给 `null` ⇒ 保持历史行为（标签铺满整钮）。
+        /// <para>★ 片 u53-shopart 为什么加这个口子：原版这两颗钮是**纯图形自明**（E4：修理 = 锤+铁砧、
+        /// 关闭 = ⊘），标签铺满整钮时**正好压住图形**（实机 8× 放大图里只剩两个汉字）⇒
+        /// 商店把标签放到**钮外正下方**（`ShopPanel.ButtonLabelRect`，纯函数 + 离线判据）。
+        /// 默认值 `null` 保证既有的"铺满"语义不被悄悄改掉（改行为必须由调用方**显式**给矩形）。</para>
+        /// </param>
+        public static Image SquareButton(Transform p, string n, string lb, Vector2 sz, Vector2 ps, Action cb,
+            Rect? labelRect = null)
         {
             var img = UIFactory.CreateButton(n, p, lb, sz, ps, ButtonBg, cb);
             EnsureUnlit(img);
@@ -617,13 +645,39 @@ namespace Diablo2.UI
             else
             {
                 text.color = ButtonText;
-                text.fontSize = (int)UiLayoutGame.FontPx16;
+                text.fontSize = (int)UiLayoutGame.FontPx16;      // 字号唯一真源（⛔ 不写死）
                 D2TextMirror.Attach(text, D2Text.FontFor((int)UiLayoutGame.FontPx16), null);
+                ApplyLabelRect(text, labelRect, sz);
             }
 
-            UiLog.Info("SquareButton 已建（底图由调用方贴）");
+            UiLog.Info($"SquareButton 已建（底图由调用方贴；标签={Describe(labelRect, sz)}）");
             return img;
         }
+
+        /// <summary>
+        /// 把方钮标签摆到指定矩形（不给 ⇒ 保持 `UIFactory.CreateButton` 的**铺满**形状）。
+        /// <para>纯几何：只碰 RectTransform 的 anchor/pivot/sizeDelta/anchoredPosition，
+        /// ⛔ 不动文字内容 / 字号 / 字色 / 字模。</para>
+        /// </summary>
+        private static void ApplyLabelRect(Text text, Rect? labelRect, Vector2 buttonSize)
+        {
+            if (text == null || !labelRect.HasValue) return;
+            var rt = text.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = labelRect.Value.size;
+            rt.anchoredPosition = labelRect.Value.center;
+            if (rt.rect.width < 1f || rt.rect.height < 1f)
+            {
+                // 非预期分支：退化矩形（宽/高 ≤ 0）⇒ 文字会画不出来，点名而不是静默
+                Log.Warn(Tag, $"方钮标签矩形退化 {labelRect.Value}（按钮 {buttonSize}）⇒ 标签只剩 0 尺寸");
+            }
+        }
+
+        private static string Describe(Rect? labelRect, Vector2 buttonSize)
+            => labelRect.HasValue
+                ? $"钮外 {labelRect.Value.size.x:0.#}×{labelRect.Value.size.y:0.#} @({labelRect.Value.center.x:0.#},{labelRect.Value.center.y:0.#})"
+                : $"铺满按钮 {buttonSize.x:0.#}×{buttonSize.y:0.#}";
 
         /// <summary>
         /// 造一个**底图由调用方指定前缀**的原版按钮（片 5 新增）。
@@ -706,22 +760,29 @@ namespace Diablo2.UI
                     return;
                 }
 
-                img.sprite = normal;
-                // 原版帧宽高比固定（96×32）⇒ 矩形与帧比例不一致时按比例内缩，不拉变形
-                img.preserveAspect = true;
-                img.color = StateOf(img).Tint;
-                EnsureUnlit(img);
-
                 var btn = st.Button != null ? st.Button : img.GetComponent<Button>();
-                if (btn == null) return;
-                btn.transition = Selectable.Transition.SpriteSwap;
-                btn.spriteState = new SpriteState
+                if (btn == null)
                 {
-                    highlightedSprite = normal,
-                    pressedSprite = st.Sprites[1] != null ? st.Sprites[1] : normal,
-                    selectedSprite = normal,
-                    disabledSprite = normal,
-                };
+                    // 非预期分支：底板没有 Button 组件 ⇒ 只能贴常态帧。⛔ 不静默
+                    Log.Warn(Tag, $"按钮 {img.name} 没有 Button 组件 ⇒ 原版专用底图只套了常态帧（按下无变化）");
+                    img.sprite = normal;
+                    // 原版帧宽高比固定（96×32）⇒ 矩形与帧比例不一致时按比例内缩，不拉变形
+                    img.preserveAspect = true;
+                    img.color = StateOf(img).Tint;
+                    EnsureUnlit(img);
+                    return;
+                }
+
+                // ★ d2-uiart：四态落地转调引擎 `SpriteSwapButton.Apply`。原版**专用钮只有常态/按下两态**
+                //   ⇒ 悬停与选中都指常态帧（与下沉前的 `LoadOrig` 逐字同口径）。
+                SpriteSwapButton.Apply(btn, new SpriteSwapButton.Skin(
+                    normal,                             // 常态
+                    normal,                             // 悬停 = 常态（原版这两套素材没有高亮帧）
+                    st.Sprites[1],                      // 按下（缺 ⇒ 引擎回落常态）
+                    normal,                             // 禁用 = 常态
+                    tint: StateOf(img).Tint,
+                    placeholder: ButtonBg,
+                    preserveAspect: true));
             });
         }
 
@@ -839,28 +900,20 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 造一条**锚点宽度驱动**的进度条（`constraints.md` #3：不用 `fillAmount` + 空 sprite）。
-        /// 轨道是父底图，填充块用 `anchorMax.x = ratio` 表达进度。
+        /// 轨道是父底图，填充块的比例由**引擎** <see cref="UIFactory.SetBarWidth"/> 表达。
+        /// <para>★ 片 d2-bar：本方法原来自带一个 <c>SetBarRatio</c> 与自己的一套锚点数学，
+        /// 与引擎 <c>UIWidgetControls.cs:239</c> 是**同一件事的第二份实现** ⇒ 已删；
+        /// 刷新一律调 <c>UIFactory.SetBarWidth(fill.rectTransform, ratio)</c>（见 <see cref="ProgressBar"/>
+        /// 与 `SettingsPanel.Refresh`）。</para>
         /// </summary>
-        /// <returns>填充块 Image；调用方用 <see cref="SetBarRatio"/> 刷新。</returns>
+        /// <returns>填充块 Image；调用方用 `UIFactory.SetBarWidth(fill.rectTransform, ratio)` 刷新。</returns>
         public static Image ProgressBar(Transform parent, string name, Vector2 size, Vector2 pos,
             Color trackColor, Color fillColor)
         {
             var track = Panel(parent, name, size, pos, trackColor, false);
             var fill = FullPanel(track.transform, "Fill", fillColor, false);
-            SetBarRatio(fill, 0f);
+            UIFactory.SetBarWidth(fill.rectTransform, 0f);      // 唯一实现 = 引擎件
             return fill;
-        }
-
-        /// <summary>按比例刷新锚点宽度进度条（0~1）。</summary>
-        public static void SetBarRatio(Image fill, float ratio)
-        {
-            if (fill == null) return;
-            var r = Mathf.Clamp01(ratio);
-            var rt = fill.rectTransform;
-            rt.anchorMin = new Vector2(0f, 0f);
-            rt.anchorMax = new Vector2(r, 1f);
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
         }
 
         // ── 不受 2D 光照影响的材质（§C-①）────────────────────────────────────
@@ -873,163 +926,29 @@ namespace Diablo2.UI
         /// `UI/Default` 与 `Sprites/Default` 都是 unlit ⇒ 返回 false。
         /// </para>
         /// </summary>
-        public static bool IsLitShader(string shaderName)
-        {
-            if (string.IsNullOrEmpty(shaderName)) return false;
-            var n = shaderName.ToLowerInvariant();
-            if (n.Contains("unlit")) return false;   // 必须先判 unlit：`unlit` 里也含 `lit`
-            return n.Contains("lit");
-        }
+        /// <remarks>★ d2-uiart（2026-09-24）：实现体转调引擎 `UiImageLoader.IsLitShader(string)`（同口径纯函数）。</remarks>
+        public static bool IsLitShader(string shaderName) => UiImageLoader.IsLitShader(shaderName);
 
         /// <summary>
         /// 确保这个 Image 走**不受 2D 光照影响**的材质（引擎 Canvas 是
         /// `RenderMode.ScreenSpaceOverlay`，`Runtime/Presentation/UI.cs:49` ⇒ 默认材质 =
         /// Canvas 的 `UI/Default`，unlit）。本函数是**防御性校验**：只有发现 Image 被挂了
         /// 受光材质才动手（换回 Canvas 默认材质），并留下 Warn —— 不静默。
+        /// <para>★ d2-uiart（2026-09-24）：实现体转调引擎 `UiImageLoader.EnsureUnlit`（照本条下沉，
+        /// 限频 Warn 由引擎 `LogThrottle` 负责）。</para>
         /// </summary>
-        public static void EnsureUnlit(Image img)
-        {
-            if (img == null) return;
+        public static void EnsureUnlit(Image img) => UiImageLoader.EnsureUnlit(img);
 
-            var mat = img.material;
-            if (mat == null) return;                 // 最常见路径：走 Canvas 默认材质（unlit），无需处理
+        // ── 原版按钮底图：多帧条带（§C-④）——★ d2-uiart：取帧实现体已下沉到引擎 ─────────
+        //   原来这里有一整套 `FrameSet` / `RequestFrames` / `OnFrameLoaded` / `CompleteFrames` /
+        //   `TryBulkLoad` / `ApplyButtonFrame`（"先整条 LoadAll、失败才回退逐帧按名 + 同路径去重 +
+        //   就绪回调 + 缺帧点名"）—— 它就是引擎 `Runtime/Presentation/SpriteStripLoader.cs` 的出处，
+        //   ⇒ 本文件**整段删除**、改为持有一个引擎加载器实例并转调（口径逐字一致，含"整条优先"的
+        //   次序、与"回调可能**同帧同步**"的约定）。
+        //   ⛔ 项目侧只留"帧表 → 本项目的按钮语义"这一段（见 `ApplyButtonFrames` / `Apply`）。
 
-            if (!IsLitShader(mat.shader != null ? mat.shader.name : null)) return;
-
-            // 非预期分支：受光材质会随 2D 光照把 UI 压暗（且不报错）⇒ 换回 UI 默认材质 + 点名
-            Log.Warn(Tag, $"Image {img.name} 的材质 {mat.shader.name} 受 2D 光照影响（会压暗 UI）" +
-                          " ⇒ 已改回 Canvas 默认 UI 材质（unlit）");
-            img.material = null;
-        }
-
-        // ── 原版按钮底图：多帧条带的取帧与补图（§C-④）────────────────────────
-
-        /// <summary>一条多帧底图条带的加载状态（帧 sprite + 等待补图的按钮 + 未回帧数）。</summary>
-        private sealed class FrameSet
-        {
-            /// <summary>条带路径（`ResPaths.MenuButtonWide` 这类，不带帧号）。</summary>
-            public string Strip;
-
-            /// <summary>条带**文件名**（`button_wide`）——子 sprite 名 = `{StripName}_{帧号}`。</summary>
-            public string StripName;
-
-            public Sprite[] Frames;
-            public int Pending;
-            public bool Ready;
-            public bool BulkTried;
-            public readonly List<Image> Waiters = new List<Image>();
-
-            /// <summary>「条带就绪后回调」的等待者（`RequestStrip` 登记；与 <see cref="Waiters"/> 一样在结算时清空）。</summary>
-            public readonly List<Action<Sprite[]>> Callbacks = new List<Action<Sprite[]>>();
-        }
-
-        /// <summary>条带路径 → 加载状态（进程内共享，5 个按钮只取一次图）。</summary>
-        private static readonly Dictionary<string, FrameSet> FrameSets = new Dictionary<string, FrameSet>();
-
-        /// <summary>登记/取一条多帧条带（首次调用触发异步取帧；重复调用直接复用）。</summary>
-        private static FrameSet RequestFrames(string stripPath, int frameCount)
-        {
-            if (FrameSets.TryGetValue(stripPath, out var cached)) return cached;
-
-            var set = new FrameSet
-            {
-                Strip = stripPath,
-                StripName = stripPath.Substring(stripPath.LastIndexOf('/') + 1),
-                Frames = new Sprite[frameCount],
-                Pending = frameCount,
-            };
-            FrameSets[stripPath] = set;
-
-            if (Game.Res == null)
-            {
-                Log.WarnOnce(Tag, "frames.res.null",
-                    $"Game.Res 未初始化 ⇒ 原版按钮底图 {stripPath} 取不到，按钮退回纯色块（见 UiArt.Button）");
-                set.Pending = 0;
-                set.Ready = true;
-                return set;
-            }
-
-            // ★ 片 8 B33（修掉"每次进 Stage 必现的 2 条 Error"）：
-            //   原先**无条件先跑**「逐帧按名向引擎资源模块要每一帧」（见下面兜底段那三行），
-            //   而这条路在本工程**必然取不到图**（本文件头 §C-④ 的实测：这套导入设置下子 sprite 按名加载失效），
-            //   引擎资源模块对**每一次**失败都 `Log.Error("[Resource] 加载失败：…")`
-            //   ⇒ 每建一次 HUD（= 每次进 Stage）白刷 2 条 Error（实测 `D2/UI/Panel/overlap_{0,1}`）。
-            //   ⇒ 改成**先走真正能取到图的那条路**（整条 `LoadAll`），它失败才回退逐帧按名。
-            //   ⛔ 这不是"把 Error 降级 / 加静默兜底"：逐帧路径**原地保留**（真取不到时照样走它、
-            //      那时的 Error 是真失败、有意义），只是不再**预先**跑一条已知取不到图的路径。
-            if (TryBulkLoad(set))
-            {
-                set.BulkTried = true;
-                set.Pending = 0;
-                CompleteFrames(set);
-                return set;
-            }
-
-            // 兜底：逐帧按名（整条 LoadAll 也失败时才走）。
-            // ⚠️ `Game.Res.LoadAsset` 命中缓存时回调可能**同步**触发 ⇒ 先把 Pending 设成帧总数，
-            //    再逐帧发起；最后一个回调（无论同步还是下一帧）才是"全部就绪"，不会提前结算。
-            for (var i = 0; i < frameCount; i++)
-            {
-                var index = i;
-                var path = ResPaths.Frame(stripPath, index);
-                Game.Res.LoadAsset<Sprite>(path, sp => OnFrameLoaded(set, index, sp));
-            }
-            return set;
-        }
-
-        private static void OnFrameLoaded(FrameSet set, int index, Sprite sp)
-        {
-            if (sp != null) set.Frames[index] = sp;      // 兜底已填过的槽不被后来的 null 覆盖
-
-            set.Pending--;
-            if (set.Pending > 0) return;                 // 三帧全部有结果后才结算（只结算一次）
-
-            CompleteFrames(set);
-        }
-
-        /// <summary>
-        /// 条带**结算**（只结算一次）：逐帧按名回齐 / 整条 `LoadAll` 直接成功 / 两者都失败 —— 三条路都收敛到这里。
-        /// 缺帧时再兜一次整条 `LoadAll`（失败则 Warn，不静默）。
-        /// </summary>
-        private static void CompleteFrames(FrameSet set)
-        {
-            var missing = false;
-            for (var i = 0; i < set.Frames.Length; i++)
-                if (set.Frames[i] == null) missing = true;
-
-            if (missing && !set.BulkTried)
-            {
-                set.BulkTried = true;
-                if (TryBulkLoad(set))
-                {
-                    // 实测（Play 2026-09-17）：本工程 `Resources.Load<Sprite>("…/button_wide_0")`
-                    // **取不到**（逐帧按名加载失效），整条 `LoadAll` 才能取到 —— 与
-                    // `UI/D2Text.cs` 的字模加载是同一个坑、同一套兜底。
-                    Log.Info(Tag, $"[原版按钮底图] {set.Strip}：逐帧按名加载取不到 ⇒ 已用整条 LoadAll 兜底");
-                }
-                else
-                {
-                    Log.Warn(Tag, $"原版按钮底图取不到：{set.Strip}（逐帧按名 + 整条 LoadAll 都失败）" +
-                                  " ⇒ 按钮保持纯色块（见 UI/UiArt.cs 的取帧注释）");
-                }
-            }
-
-            set.Ready = true;
-            var ok = 0;
-            for (var i = 0; i < set.Frames.Length; i++)
-                if (set.Frames[i] != null) ok++;
-
-            Log.Info(Tag, $"[原版按钮底图] {set.Strip} {ok}/{set.Frames.Length} 帧就位，补图 {set.Waiters.Count} 个按钮");
-
-            // 快照后再应用：补图过程中可能有按钮被销毁（面板关闭）
-            var waiters = set.Waiters.ToArray();
-            set.Waiters.Clear();
-            for (var i = 0; i < waiters.Length; i++) ApplyButtonFrame(waiters[i], set);
-
-            var callbacks = set.Callbacks.ToArray();
-            set.Callbacks.Clear();
-            for (var i = 0; i < callbacks.Length; i++) callbacks[i]?.Invoke(set.Frames);
-        }
+        /// <summary>项目侧共享的条带加载器（**进程内同路径只取一次图**，与下沉前的 `FrameSets` 同效）。</summary>
+        private static readonly SpriteStripLoader StripLoader = new SpriteStripLoader();
 
         /// <summary>
         /// 取一条**多帧条带**的全部帧（逐帧按名 + 「整条 LoadAll」兜底，与按钮底图同一套）；
@@ -1041,110 +960,56 @@ namespace Diablo2.UI
         /// 只有整条取（`Game.Res.LoadAll&lt;Sprite&gt;(条带)`，片 34 起走引擎资源模块）才取得到
         /// ⇒ 所有条带取帧都收敛到本函数。
         /// </para>
-        /// </summary>
+        /// <remarks>
+        /// ★ d2-uiart（2026-09-24）：**实现体已转调引擎 `SpriteStripLoader.RequestStrip`**（该件就是照本条
+        /// 下沉的）：整条 `LoadAll` 主路 + 失败才逐帧按名兜底 + 同路径去重 + 就绪回调 + 缺帧点名，
+        /// 全部由引擎件负责；项目侧只留一个**进程内共享**的加载器实例（<see cref="StripLoader"/>），
+        /// 保证"同一条带只取一次图"的既有行为不变。
+        /// </remarks>
         public static void RequestStrip(string stripPath, int frameCount, Action<Sprite[]> onReady)
-        {
-            if (string.IsNullOrEmpty(stripPath) || frameCount <= 0)
-            {
-                onReady?.Invoke(Array.Empty<Sprite>());
-                return;
-            }
-
-            var set = RequestFrames(stripPath, frameCount);
-            if (set.Ready)
-            {
-                onReady?.Invoke(set.Frames);       // 已在缓存里 ⇒ 同步回调（调用方要能接受同步）
-                return;
-            }
-            set.Callbacks.Add(onReady);
-        }
+            => StripLoader.RequestStrip(stripPath, frameCount, onReady);
 
         /// <summary>
-        /// 兜底：把整条多帧贴图一次读出来，按「子 sprite 名 = `{条带名}_{帧号}`」装进 <see cref="FrameSet"/>。
-        /// <para>
-        /// **为什么需要它（实测，不是保险起见）**：Play 里逐帧按名
-        /// （`Game.Res.LoadAsset&lt;Sprite&gt;("D2/UI/Menu/button_wide_0")`）返回 **null**，
-        /// 而整条取（`Game.Res.LoadAll&lt;Sprite&gt;("D2/UI/Menu/button_wide")`）拿到
-        /// 3 个名字正确（`button_wide_0/1/2`）的子 sprite ⇒ 本工程这套导入设置下**逐帧按名加载失效**。
-        /// 同一个坑 `UI/D2Text.cs` 的字模加载已经踩过并同样用 `LoadAll` 兜底（该文件 §兜底 注释有出处）。
-        /// </para>
-        /// <para>取图走**引擎资源模块**（`Game.Res.LoadAll&lt;Sprite&gt;`，片 34 起）：整条取的能力已下沉到
-        /// `IResourceManager`（`Contracts.cs` 的 `Exists` / `LoadAll`），⛔ 不再直接调 Unity 的 `Resources`
-        /// —— 那会让资源根前缀 / 缓存 / 卸载策略 / 热更后端全部失效（收尾前这里是验收表 **E1** 登记的唯一例外）。</para>
-        /// <para>⚠️ 路径口径：引擎会自己拼 `CloverRes.Init("Clover")` 的根前缀 ⇒ 传**相对路径**
-        /// （`D2/UI/Menu/button_wide`），⛔ 不要再自己加 `ResPaths.Root + "/"`（那是 Unity `Resources` 的拼法）。</para>
+        /// 把一条**多帧条带**的帧表套到按钮上 —— 帧序 **0 = 常态 / 1 = 悬停 / 2 = 按下**
+        /// （= `AssetImporter.MultiFrameStrips` 的实测帧矩形；禁用态沿用常态帧，只灰化文字，见 <see cref="SetInteractable"/>）。
+        /// <para>★ d2-uiart（2026-09-24）：本方法取代了下沉前的 `ApplyButtonFrame(Image, FrameSet)` ——
+        /// 取帧 / 同路径去重 / 整条兜底已由引擎 `SpriteStripLoader` 负责（见 <see cref="RequestStrip"/>），
+        /// 这里只做"帧表 → 本项目的按钮语义"，四态落地转调引擎 `SpriteSwapButton.Apply`。</para>
+        /// <para>缺帧**不静默**：整条缺失（`frames[0] == null`）⇒ 保留纯色占位 <see cref="ButtonBg"/> 并 Warn
+        /// （条带加载器已点名路径与缺口数）；非法参数（空表）⇒ 加载器已 Warn，这里直接返回（⛔ 不重复告警）。</para>
         /// </summary>
-        private static bool TryBulkLoad(FrameSet set)
+        private static void ApplyButtonFrames(Image img, Sprite[] frames)
         {
-            var atlas = set.Strip;                       // 引擎相对路径（根前缀由后端拼）
-            Sprite[] all;
-            try
+            if (img == null) return;                            // 面板已关闭销毁
+            if (frames == null || frames.Length == 0) return;   // 参数非法：加载器已 Warn
+
+            var normal = frames[0];
+            if (normal == null)
             {
-                all = Game.Res.LoadAll<Sprite>(atlas);
-            }
-            catch (Exception ex)
-            {
-                Log.Warn(Tag, $"原版按钮底图 LoadAll 兜底异常（{atlas}）：{ex.GetType().Name}: {ex.Message}");
-                return false;
-            }
-
-            if (all == null || all.Length == 0) return false;
-
-            var prefix = set.StripName + "_";
-            var taken = 0;
-            for (var i = 0; i < all.Length; i++)
-            {
-                var sp = all[i];
-                if (sp == null || string.IsNullOrEmpty(sp.name)) continue;
-                if (!sp.name.StartsWith(prefix, StringComparison.Ordinal)) continue;
-                if (!int.TryParse(sp.name.Substring(prefix.Length), out var frame)) continue;
-                if (frame < 0 || frame >= set.Frames.Length) continue;
-
-                set.Frames[frame] = sp;
-                taken++;
-            }
-            return taken > 0;
-        }
-
-        /// <summary>
-        /// 把原版帧底图套到按钮上（帧未就绪 ⇒ 登记为等待者，就绪后自动补上）。
-        /// 帧序（`AssetImporter.MultiFrameStrips` 实测帧矩形 + 本任务书 §C-④ 口径）：
-        /// **0 = 常态 / 1 = 悬停 / 2 = 按下**；禁用态沿用常态帧（只灰化文字，见 <see cref="SetInteractable"/>）。
-        /// </summary>
-        private static void ApplyButtonFrame(Image img, FrameSet set)
-        {
-            if (img == null) return;                 // 面板已关闭销毁
-
-            if (!set.Ready)
-            {
-                set.Waiters.Add(img);
+                // 非预期分支：整条缺失 ⇒ 保持纯色块（加载器已点名条带路径 + 缺口数）
+                Log.Warn(Tag, $"条带取帧失败 ⇒ 按钮 {img.name} 保持纯色块 {ButtonBg}（见本文件取帧注释）");
                 return;
             }
-
-            var normal = set.Frames[0];
-            if (normal == null) return;              // 整条缺失：保持纯色块（OnFrameLoaded 已逐帧 Warn）
 
             var btn = img.GetComponent<Button>();
             if (btn == null)
             {
+                // 非预期分支：底板没有 Button 组件 ⇒ 只套常态帧（悬停/按下无变化）。⛔ 不静默
                 Log.Warn(Tag, $"按钮 {img.name} 没有 Button 组件，原版底图只套了常态帧（悬停/按下无变化）");
                 img.sprite = normal;
-                img.color = StateOf(img).Tint;
+                img.color = StateOf(img).Tint;           // 原版亮度（或调用方记下的色调）
                 EnsureUnlit(img);
                 return;
             }
 
-            img.sprite = normal;
-            img.color = StateOf(img).Tint;           // 原版亮度（或调用方记下的色调）
-            btn.transition = Selectable.Transition.SpriteSwap;
-            btn.spriteState = new SpriteState
-            {
-                highlightedSprite = set.Frames[1],
-                pressedSprite = set.Frames[2],
-                selectedSprite = set.Frames[1],
-                disabledSprite = normal,
-            };
-            EnsureUnlit(img);
+            // ★ 引擎件：四态落地（缺态回落常态、⛔ 不把 null 填进 SpriteState —— 那会让 Unity 静默早退）
+            SpriteSwapButton.Apply(btn, new SpriteSwapButton.Skin(
+                normal,
+                frames.Length > 1 ? frames[1] : null,    // 悬停（缺 ⇒ 引擎回落常态）
+                frames.Length > 2 ? frames[2] : null,    // 按下（缺 ⇒ 引擎回落常态）
+                normal,                                 // 禁用 = 常态
+                tint: StateOf(img).Tint,
+                placeholder: ButtonBg));
         }
     }
 }

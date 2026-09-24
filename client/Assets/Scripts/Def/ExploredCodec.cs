@@ -28,12 +28,19 @@
 //   ⇒ 缺字段的旧档读进来就是"没有已探索记录"，读档流程照常成功（本文件不参与版本降级判断）。
 //
 // 与 `Def.CharacterSave` 的字段一一对应：`ExploredAreaDto.area / w / h / cells`。
-// ⛔ 无 Unity 依赖（只用 System / System.Collections.Generic / System.Text）⇒ `savecheck` 宿主可离线跑。
+// ⛔ 无 Unity 依赖（只用 System / System.Collections.Generic / System.Text + 引擎件）⇒ `savecheck` 宿主可离线跑。
+//
+// ★ 片 eng-coreutil（2026-09-24）：位图编解码的**实现**已下沉到引擎件
+//   `CloverEngine.GridBitSet`（`clover-client-unity-engine/Runtime/Core/GridBitSet.cs`）；
+//   本文件保留 DTO（`ExploredAreaDto` 的区域语义字段）与项目自己的命名（`ExploredCodec` / `MaxCells` /
+//   `Describe`），`Encode` / `Decode` / `IndexOf` / `ToCell` **逐参数逐语义**转调引擎件。
+//   离线宿主需把 `Runtime/Core/GridBitSet.cs` 一并编入（与本工程其它下沉件同一做法）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
 using System.Collections.Generic;
 using System.Text;
+using CloverEngine;
 
 namespace Diablo2.Def
 {
@@ -60,11 +67,16 @@ namespace Diablo2.Def
         public string cells;
     }
 
-    /// <summary>`ExploredAreaDto` 的编解码（**纯函数**，离线可断言；见文件头）。</summary>
+    /// <summary>`ExploredAreaDto` 的编解码（**纯函数**，离线可断言；见文件头）。
+    /// <para>★ 片 eng-coreutil：**机制已下沉到引擎件** `CloverEngine.GridBitSet`
+    /// （`clover-client-unity-engine/Runtime/Core/GridBitSet.cs`）—— 本类只保留本项目自己的
+    /// **语义命名与 DTO 边界**（`ExploredAreaDto` 的区域字段 / 上限常量 / 摘要串），
+    /// 编解码本身一字不差地转调引擎（幂等 / 越界 / 坏串容错语义见引擎件文件头）。</para></summary>
     public static class ExploredCodec
     {
-        /// <summary>位图上限（格）：防御坏档里的超大 `w*h`（不设上限的话一个坏字段就能吃掉几百 MB）。</summary>
-        public const int MaxCells = 1 << 20;      // 1,048,576 格（本工程上限 80×80 = 6400）
+        /// <summary>位图上限（格）：防御坏档里的超大 `w*h`（不设上限的话一个坏字段就能吃掉几百 MB）。
+        /// <para>★ 唯一出处 = 引擎件 `GridBitSet.MaxCells`（本常量是它的项目别名，⛔ 不再写第二遍字面量）。</para></summary>
+        public const int MaxCells = GridBitSet.MaxCells;      // 1,048,576 格（本工程上限 80×80 = 6400）
 
         /// <summary>
         /// 把格索引集合编码成 base64 位图。
@@ -72,22 +84,7 @@ namespace Diablo2.Def
         /// <para>确定性：同集合 ⇒ 同串（位图按索引落位、无顺序依赖）⇒ 可直接当"存→读→再存"幂等断言用。</para>
         /// </summary>
         public static string Encode(IEnumerable<int> indices, int w, int h)
-        {
-            if (w <= 0 || h <= 0) return string.Empty;
-            var n = (long)w * h;
-            if (n > MaxCells) return string.Empty;         // 防御：非法尺寸不做位图
-
-            var bytes = new byte[(n + 7) / 8];
-            if (indices != null)
-            {
-                foreach (var i in indices)
-                {
-                    if (i < 0 || i >= n) continue;
-                    bytes[i >> 3] |= (byte)(1 << (i & 7));
-                }
-            }
-            return Convert.ToBase64String(bytes);
-        }
+            => GridBitSet.Encode(indices, w, h);
 
         /// <summary>
         /// 把 base64 位图解码成格索引（**只并入、不清空** <paramref name="into"/>；返回本次并入的格数）。
@@ -95,54 +92,15 @@ namespace Diablo2.Def
         /// ⇒ 返回 0 且**不抛**（调用方拿到"空集合"，读档照常成功）。</para>
         /// </summary>
         public static int Decode(ExploredAreaDto dto, List<int> into)
-        {
-            if (into == null) return 0;
-            if (dto == null) return 0;
-            if (dto.w <= 0 || dto.h <= 0) return 0;
-            var n = (long)dto.w * dto.h;
-            if (n > MaxCells) return 0;
-            if (string.IsNullOrEmpty(dto.cells)) return 0;
-
-            byte[] bytes;
-            try
-            {
-                bytes = Convert.FromBase64String(dto.cells);
-            }
-            catch (FormatException)
-            {
-                return 0;                                   // 坏串（旧档 / 手改）⇒ 当"没有已探索记录"
-            }
-
-            var count = 0;
-            var total = (int)n;
-            for (var i = 0; i < total; i++)
-            {
-                var b = i >> 3;
-                if (b >= bytes.Length) break;               // 短串：后面一律视为未探索（不抛）
-                if ((bytes[b] & (1 << (i & 7))) == 0) continue;
-                into.Add(i);
-                count++;
-            }
-            return count;
-        }
+            => dto == null ? 0 : GridBitSet.Decode(dto.cells, dto.w, dto.h, into);
 
         /// <summary>把格坐标（区域局部）折成索引（越界返回 -1）。</summary>
         public static int IndexOf(int x, int y, int w, int h)
-        {
-            if (w <= 0 || h <= 0) return -1;
-            if (x < 0 || y < 0 || x >= w || y >= h) return -1;
-            return y * w + x;
-        }
+            => GridBitSet.IndexOf(x, y, w, h);
 
         /// <summary>把索引还原成格坐标（越界返回 `(0,0)` 并把 <paramref name="ok"/> 置 false）。</summary>
         public static void ToCell(int i, int w, int h, out int x, out int y, out bool ok)
-        {
-            x = 0; y = 0; ok = false;
-            if (w <= 0 || h <= 0 || i < 0 || i >= w * h) return;
-            x = i % w;
-            y = i / w;
-            ok = true;
-        }
+            => ok = GridBitSet.ToCell(i, w, h, out x, out y);
 
         /// <summary>日志/断言用的可读摘要（例：`area=1 80x80 格=612 cells=1108B`）。</summary>
         public static string Describe(ExploredAreaDto dto)

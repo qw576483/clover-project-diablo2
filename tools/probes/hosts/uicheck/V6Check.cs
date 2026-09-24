@@ -179,16 +179,21 @@ namespace Uicheck
         }
 
         // ── ③ 怪物悬停：字号必须显式给（否则按原版 px 1:1 = 其它 UI 的 ~45%）────
+        //   ★ 片 u44（契约 C4）：承载它的文件从 `UI/EntityTooltip.cs`（头顶 tooltip，已删）
+        //     换成 `UI/EnemyBarView.cs`（顶部条 + NPC 名字牌）。③ 这条缺陷的**回归保护**随载体迁移，
+        //     口径不变：两条 `D2Label.Create` 必须显式给字号；只是第二条"框单位"改成新载体的形状
+        //     （名字牌尺寸 = 文本实测 × 画布字号 + padding×K ⇒ 同样不许混进世界格 px）。
         private static void CheckEntityTooltipFont()
         {
-            var src = Strip(Ui("EntityTooltip.cs"));
+            var src = Strip(Ui("EnemyBarView.cs"));
             var hasFontPx = src.Contains("(int)UiLayoutGame.FontPx16");
-            Check("③ EntityTooltip 的两条 D2Label.Create 传了显式字号 `(int)UiLayoutGame.FontPx16`",
+            Check("③ EnemyBarView 的两条 D2Label.Create 传了显式字号 `(int)UiLayoutGame.FontPx16`",
                 hasFontPx, hasFontPx ? "命中 (int)UiLayoutGame.FontPx16" : "0 命中（会按原版 px 1:1 画成小字块）");
 
-            var boxCanvas = src.Contains("GameConst.IsoTilePxW * UiLayoutGame.K");
-            Check("③ EntityTooltip 的排版框用**画布单位**（格 px × K），不再混用世界格 px",
-                boxCanvas, boxCanvas ? "命中 格px × K" : "未命中（排版框与世界单位混用 ⇒ 换行宽度错）");
+            var boxCanvas = src.Contains("* UiLayoutGame.K") && !src.Contains("GameConst.IsoTilePxW");
+            Check("③ EnemyBarView 的排版/牌子尺寸用**画布单位**（原版 px / 实测字宽 × K），不混用世界格 px",
+                boxCanvas, boxCanvas ? "命中 ×UiLayoutGame.K 且 0 处 GameConst.IsoTilePxW"
+                                     : "未命中（排版框与世界单位混用 ⇒ 换行/黑底尺寸错）");
 
             // 纯函数判据：fontSize = 0 就是"原版 px 1:1"（这正是缺陷的量级来源）
             var scale0 = D2Text.ScaleFor(0, true, D2Text.D2Font.Font16);

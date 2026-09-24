@@ -8,14 +8,28 @@
 //   或显式给一张 1×1 白 sprite。
 //
 // 本助手的做法（两条路都由 <see cref="Decide"/> 决定，可被离线自检断言）：
+//   · **锚点宽度/高度**：进度数学**全项目只有一份实现** —— **横向**一律走引擎
+//     `UIFactory.SetBarWidth`（`clover-client-unity-engine/Runtime/Presentation/UIWidgetControls.cs:239`），
+//     与设置面板音量条（`UiArt.ProgressBar`）同一条路径。本片（d2-bar）删掉了项目侧那两处平行实现。
 //   · **有 sprite** ⇒ `Filled` + `fillAmount`。这与**原版**完全一致：
 //     原版 `ControlPanel.prefab` 里 `HealthBar`/`ManaAnimation` 是 `m_Type=3`(Filled) +
 //     `m_FillMethod=1`(Vertical) + `m_FillOrigin=0`(Bottom) + sprite=`healthbar.png`/`manabar.png`；
 //     `Filler`（经验条）是 `m_Type=3` + `m_FillMethod=0`(Horizontal) + `m_FillOrigin=0`(Left) +
 //     sprite=`ExperienceBar.png`。**即原版就是 Filled + 真 sprite**（禁令禁的是「Filled + 空 sprite」）。
 //   · **没 sprite**（异步加载尚未回来 / 素材缺失）⇒ **绝不用 Filled**，
-//     改用**锚点宽度/高度**（`anchorMax.x = ratio` / `anchorMax.y = ratio`）表达进度，
+//     改用**锚点宽度/高度**表达进度（横向委托引擎 `UIFactory.SetBarWidth`、纵向见下），
 //     这样在贴图到位前后都真的有画面反馈，且不会踩静默失效。
+//
+// ⚠️ **引擎缺口（本片 d2-bar 规定不许改引擎 ⇒ 薄壳只能留在项目侧）**：
+//   `UIFactory.SetBarWidth(RectTransform, float)` 只覆盖**横向**（`anchorMax=(p,1)`），缺两样能力：
+//     ① **纵向条**（血球 / 蓝球自底向上，原版语义）—— 本文件 <see cref="ApplyAnchorVertical"/> 按
+//        引擎同一口径补：`anchorMin=(0,0)` / `anchorMax=(1,p)` / `offsetMin=offsetMax=0`。
+//     ② **有 sprite ⇒ 切 `Filled` + `fillAmount`** 的判定与切换（<see cref="Apply"/> 的 Filled 分支）。
+//   建议引擎签名（两条，向后兼容，⛔ 本片未改引擎）：
+//     `public static void SetBarFill(RectTransform fill, float progress01, bool horizontal)`
+//     `public static void SetBarFill(Image img, float progress01, bool horizontal)`
+//       （后者：`img.sprite != null` ⇒ `type=Filled` + fillMethod/fillOrigin + `fillAmount`；
+//         否则委托给前者的横向/纵向锚点路径。）
 //
 // 用法（面板里只有一行）：
 //   UiBar.Set(img, ResPaths.PanelHealthBar, 0.65f, horizontal: false);
@@ -188,16 +202,11 @@ namespace Diablo2.UI
 
             var ratio = Mathf.Clamp01(state.Ratio);
             var mode = Decide(img.sprite != null);
-            var rt = img.rectTransform;
-
-            // 先把矩形归一成「铺满父节点」，两种模式都从同一几何基准出发
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
 
             if (mode == FillMode.FilledSprite)
             {
+                var rt = img.rectTransform;
+                Normalize(rt);               // 铺满父节点（几何契约见上）
                 img.type = Image.Type.Filled;
                 img.fillMethod = state.Horizontal ? Image.FillMethod.Horizontal : Image.FillMethod.Vertical;
                 img.fillOrigin = 0;          // 原版：Horizontal→Left、Vertical→Bottom（都是 0）
@@ -208,7 +217,38 @@ namespace Diablo2.UI
 
             // 无 sprite ⇒ **绝不用 Filled**（fillAmount 会静默失效），改锚点宽度/高度
             img.type = Image.Type.Simple;
-            rt.anchorMax = state.Horizontal ? new Vector2(ratio, 1f) : new Vector2(1f, ratio);
+            if (state.Horizontal)
+            {
+                // 横向：**唯一实现**在引擎（本片收敛点）—— 引擎内部已含铺满父节点的归一化
+                UIFactory.SetBarWidth(img.rectTransform, ratio);
+                return;
+            }
+
+            // 纵向：引擎缺口（`SetBarWidth` 只有横向）⇒ 项目侧薄壳，口径与引擎逐字一致
+            ApplyAnchorVertical(img.rectTransform, ratio);
+        }
+
+        /// <summary>
+        /// 纵向锚点填充（血球 / 蓝球自底向上）。**引擎缺口**：`UIFactory.SetBarWidth`
+        /// 只处理横向 ⇒ 这层薄壳留在项目侧，口径与引擎逐字一致
+        /// （`anchorMin=(0,0)` / `anchorMax=(1,p)` / `offsetMin=offsetMax=0`）。
+        /// 引擎补了 `SetBarFill(..., horizontal)` 后应删掉本方法、直接调引擎。
+        /// </summary>
+        private static void ApplyAnchorVertical(RectTransform rt, float ratio)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = new Vector2(1f, ratio);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        /// <summary>把矩形归一成「铺满父节点」——Filled 模式与纵向锚点模式共用的几何基准。</summary>
+        private static void Normalize(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
         }
     }
 }

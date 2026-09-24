@@ -18,6 +18,7 @@
 //   （表现缺失，逻辑照常跑），同时打一条 `[Skill]` 日志（这是"没按预期走"的分支，必须留痕）。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.Module.View;
@@ -32,6 +33,56 @@ namespace Diablo2.Module.Skill
         private static Sprite _placeholder;
         private static bool _createFailedLogged;
 
+        // ── U26/U36 **同族**：投射物的第三键（z 次级排序键）—— team-lead 2026-09-24 裁决 P1 ──────
+        // 为什么需要：`Projectile.WorldOf` 的 z **恒 0**（`Projectile.cs:141-144`；那是**逻辑层**的
+        //   返回值语义，⛔ 按裁决不许改）⇒ 同 `gx+gy` 的两个投射物「主键（`EntitySortOrder`）相等
+        //   且第三键也相等」⇒ 次序未定义，交给渲染器内部提交顺序（就是 U26/U36 那条根因的同族）。
+        // 口径：给投射物一个**纯函数**第三键（沿用 `ViewModule.SortTieZ` 的「档底 + id × 步长」形状），
+        //   ⛔ 不动 `Module/View/**`、⛔ 不改 `Projectile.cs` 的返回值语义。
+        // 取值带 = (0, 0.9]：实体档 `ViewModule.SortTieZ` 恒 ≥ 1.0001 ⇒ **投射物与实体的先后关系不变**
+        //   （仍画在实体之前），只把「投射物之间」这条**无键带**补上 —— 要改"投射物 vs 实体"的遮挡
+        //   关系是**表现类**，留给台账「待 Unity 窗口」总表 **W7**（看同格 / 相邻格两态各一图）。
+        private const float SortZBase = 0.0001f;      // 档底：⛔ 不许为 0（z == 0 正是"无第三键"）
+        private const int SortZModulo = 9000;         // 档内取模 ⇒ 上界 1e-4 + 8999×1e-4 = 0.9 < 1
+
+        /// <summary>
+        /// 引擎侧「同 `sortingOrder` 的确定性次级键」实例（<see cref="SortingLayers"/>）——
+        /// 本项目**只借它的 <see cref="SortingLayers.TiebreakOffset(int)"/>**：取模基数换成
+        /// 投射物档的 <see cref="SortZModulo"/>，步长沿用引擎默认 `DefaultTiebreakStep`（= 1e-4，
+        /// 与实体档 <c>ViewModule.SortTieZ</c> **同量级**：正交相机下距离差 ~1e-4 可分辨）。
+        /// <para>原先项目侧那段 `n = id % Mod; if (n &lt; 0) n += Mod; return n * step;`
+        /// 与引擎件 <c>TiebreakOffset</c> 的实现**逐字同源**（含负值折回）⇒ 本工程不再保留第二份，
+        /// 值**逐位不变**（数值等价证据：`.ai-tmp/test/d2view-sortkey/`）。</para>
+        /// <para>⛔ <c>fieldHeightTiles</c> 是引擎构造必填项、本处用不到（深度序是等距格口径，
+        /// 见 `ViewModule.EntitySortOrder`）⇒ 填有出处的 `GameConst.MapMaxSize`。</para>
+        /// </summary>
+        private static readonly SortingLayers SortZTiebreak = new SortingLayers(
+            GameConst.MapMaxSize,
+            SortingLayers.DefaultDepthLevelsPerTile,
+            SortZModulo,
+            SortingLayers.DefaultTiebreakStep);
+
+        /// <summary>
+        /// 投射物节点的**第三键**（z 次级排序键）：**纯函数**（同一 id ⇒ 同一值）；同一 `gx+gy` 上
+        /// 不同 id ⇒ 值不等（可决胜）。见上方「U26/U36 同族」注释。
+        /// </summary>
+        public static float SortZFor(int projectileId)
+        {
+            return SortZBase + SortZTiebreak.TiebreakOffset(projectileId);
+        }
+
+        /// <summary>
+        /// 投射物节点的世界坐标 = `Projectile.WorldOf(p.pos)` + **第三键**（z = `SortZFor(p.id)`）。
+        /// <para>本文件是投射物表现层位置的**唯一产地**（同 `ViewModule.EntityWorld` 之于实体）：
+        /// ⛔ `TryCreate` / `Sync` 都必须走这里，不许各自拼 z。</para>
+        /// </summary>
+        public static Vector3 WorldPosOf(Projectile p)
+        {
+            var w = Projectile.WorldOf(p.pos);
+            w.z = SortZFor(p.id);
+            return w;
+        }
+
         /// <summary>
         /// 为投射物创建表现节点。**失败不抛**：返回 false，逻辑继续跑（离线宿主即走这条）。
         /// </summary>
@@ -42,7 +93,8 @@ namespace Diablo2.Module.Skill
             try
             {
                 var go = new GameObject($"Projectile_{p.id}_{p.skillName}");
-                go.transform.position = Projectile.WorldOf(p.pos);
+                // ⛔ 不许直接写 `Projectile.WorldOf(p.pos)`（它的 z 恒 0 = 无第三键）⇒ 走唯一产地
+                go.transform.position = WorldPosOf(p);
 
                 var sr = go.AddComponent<SpriteRenderer>();
                 sr.sprite = ResolveSprite(p);
@@ -77,8 +129,9 @@ namespace Diablo2.Module.Skill
         public static void Sync(Projectile p)
         {
             if (p == null || p.View == null) return;
-            p.View.transform.position = Projectile.WorldOf(p.pos);
-            // 同 `TryCreate`：排序口径走 `ViewModule.EntitySortOrder`（含 deck 抬档），⛔ 不写裸实体档
+            // 同 `TryCreate`：位置走唯一产地 `WorldPosOf`（含第三键），⛔ 不写裸 `Projectile.WorldOf`
+            p.View.transform.position = WorldPosOf(p);
+            // 排序口径走 `ViewModule.EntitySortOrder`（含 deck 抬档），⛔ 不写裸实体档
             if (p.Renderer != null) p.Renderer.sortingOrder = ViewModule.EntitySortOrder(p.Grid);
         }
 

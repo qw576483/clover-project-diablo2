@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- =============================================================================
+       tableverify — **打表链判据**（只编不引引擎）：打表产物 Assets/Scripts/Table/** 的离线自检宿主
+       来历：classcols 片（2026-09-24）。它替代 `docs/配表说明.md` §1 第⑤步里那个
+             **在盘上不存在**的入口 `_table_discard/verify/TableVerify.csproj`
+             （全仓 `TableVerify.csproj` 0 命中；`_table_discard/` 只有 mapping.tsv）。
+       作用：证明"打表产物是 **Unity 无关**的纯 C#，可独立 dotnet build"。
+             打表工具 `clover-tools/table/core/internal/gen/cs.go` 生成的 `Table/**` 里
+             **只有 `TableLoader.cs` 引用引擎**（`using CloverEngine;`，走 CloverTable），
+             其余（`Base/*.cs`、`Registry.cs`、各逻辑表壳）只依赖 BCL。
+
+       为什么只编「不引引擎」的那一半（本宿主的存在理由）：
+         ① 这一步要判的是"**产物本身**能不能编"，不是"项目 + 引擎能不能编"。
+            引了引擎就变成在测引擎，产物坏了也可能被引擎的编译顺序掩盖。
+         ② 引擎源在**另一个仓库** `clover-client-unity-engine/`，引它等于让本判据依赖
+            跨仓路径。别的宿主（playercheck 等）已因 Unity/引擎依赖被迫带上
+            `<Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\...">`；
+            此处**刻意不加**：`TableLoader.cs` 被 Exclude 掉，缺口由本宿主的
+            `Tables.Default.LoadAll(dir)`（打表工具自带的强类型壳访问器）覆盖。
+         ③ 因此本宿主**不需要**任何 Unity 引用、不需要 `$(UnityEditorRoot)`，
+            可在无编辑器的机器上跑（见下面“Unity 前置检查的豁免”）。
+
+       断言四项（正文见 Program.cs 文件头）：
+         ① 新列（class_c 的 hp_add/base_stamina/block_factor）逐职业 == 官方 charstats 原值；
+         ② 老列未被新列挤位；③ **退化样本**（摘掉新 3 列 ⇒ 断言必须变红，防恒真）；
+         ④ 其余 10 张表行数不变（防重打表时的附带损伤）。
+
+       ⚠️ **构建产物不进本目录**（team-lead 2026-09-24 硬要求）：
+          本目录**只许放工程源码**（.csproj / .cs / 注释）。`bin/` `obj/` 由下面两个属性
+          一律重定向到 `<项目根>/.ai-tmp/hosts/tableverify-build/` ⇒ 无论谁用
+          `dotnet run`（`run_all_hosts.ps1` 就是裸调）还是手动 build，都不会在本目录留产物。
+       ============================================================================= -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>TableVerify</AssemblyName>
+    <RootNamespace>TableVerify</RootNamespace>
+    <NoWarn>CS0169;CS0649;CS0414</NoWarn>
+    <!-- ⛔ 构建产物（bin/ obj/）的落点**不在这里**配置 ——
+         它必须写在同目录的 `Directory.Build.props`（那儿才在 Microsoft.Common.props 之前求值）。
+         实测把 Base*OutputPath 写在本文件正文：编译输出能引走，但 **NuGet restore 仍会在本目录
+         重建 obj/**（project.assets.json 等 5 个文件），改 MSBuildProjectExtensionsPath 还会报 MSB3540。
+         详见同目录 Directory.Build.props 的文件头。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 打表产物。`TableLoader.cs` 是唯一引用 CloverEngine 的文件（见上第 ② 条）⇒ Exclude。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs"
+             Exclude="..\..\..\..\client\Assets\Scripts\Table\TableLoader.cs" />
+  </ItemGroup>
+
+  <!-- Unity 前置检查的豁免：本宿主不引 Unity/引擎（见上第 ③ 条），
+       但 `tools/probes/hosts/Directory.Build.props` 给**全部**兄弟宿主加了一条
+       `CloverCheckUnityEditorRoot`（找不到 UnityEngine.CoreModule.dll 就 Error）。
+       这里用**同名空 Target 覆盖它**（csproj 正文在 Directory.Build.props 之后求值 ⇒ 后定义者生效），
+       使本判据在无 Unity 的机器上也能跑 —— 否则"只编不引引擎"就只剩半句话。 -->
+  <Target Name="CloverCheckUnityEditorRoot" />
+
+</Project>

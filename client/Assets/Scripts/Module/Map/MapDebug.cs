@@ -7,9 +7,15 @@
 //
 // 生成流程（`MapModule.Generate`）在成功后会**自动**打一份 stats + 字符画头部 + 哈希，
 // 所以「三处区域各生成一次」的证据**天然落在日志里**，不需要额外调用。
+//
+// ★ 2026-09-24 下沉：`DumpAscii()` / `Hash()` 的**通用内核**（行首 `D3 + '|'` 口径、FNV-1a 常量、
+//   "先混宽高、再按 y 外层升序 / x 内层升序逐格"的顺序）已搬进引擎件 `CloverEngine.StableHash`；
+//   本文件只保留**本项目语义**（`CharOf`：一格画什么字符 —— S/E/C/N/M 与 '~' 水）。
+//   两个方法的签名与**输出逐字符未变**（改前 / 改后的取证日志可直接 diff）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Text;
+using CloverEngine;
 using Diablo2.Def;
 using UnityEngine;
 
@@ -63,50 +69,35 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 可走性字符画：`y` 从大到小逐行输出（地图「北」在顶部），行首带 y 坐标。
+        /// <para>★ 下沉：行首 `D3 + '|'` / 首行图例 / "只输出顶部 maxRows 行"的口径全部在
+        /// 引擎件 <see cref="StableHash.ToAscii"/>；本方法只给"一格画什么字符"（<see cref="CharOf"/>，
+        /// 那才是本项目语义：`S`/`E`/`C`/`N`/`M` 与地形字符）。</para>
         /// </summary>
         /// <param name="maxRows">只输出顶部若干行（&lt;= 0 = 全部）。</param>
         public static string DumpAscii(GridMap map, int maxRows = 0)
         {
             if (map == null) return "MapDebug.DumpAscii: map == null";
 
-            var sb = new StringBuilder((map.Width + 8) * Mathf.Min(map.Height, maxRows > 0 ? maxRows : map.Height) + 256);
-            sb.AppendLine($"ASCII y={map.Height - 1}→0  x=0→{map.Width - 1}   " +
-                          "图例: ' '=图外/未生成 '.'=可走 '#'=障碍 '~'=水 'S'=出生点 'E'=出口 'C'=洞穴入口 'N'=NPC 'M'=刷怪点");
-
-            var rows = 0;
-            for (var y = map.Height - 1; y >= 0; y--)
-            {
-                if (maxRows > 0 && rows >= maxRows) break;
-                sb.Append(y.ToString("D3")).Append('|');
-                for (var x = 0; x < map.Width; x++)
-                {
-                    sb.Append(CharOf(map, x, y));
-                }
-                sb.AppendLine();
-                rows++;
-            }
-            return sb.ToString();
+            return StableHash.ToAscii(map.Width, map.Height, (x, y) => CharOf(map, x, y),
+                $"ASCII y={map.Height - 1}→0  x=0→{map.Width - 1}   " +
+                "图例: ' '=图外/未生成 '.'=可走 '#'=障碍 '~'=水 'S'=出生点 'E'=出口 'C'=洞穴入口 'N'=NPC 'M'=刷怪点",
+                maxRows);
         }
 
-        /// <summary>地形 + 尺寸 + seed 的 FNV-1a 64 位哈希（同 seed 两次生成必须一致）。</summary>
+        /// <summary>
+        /// 地形 + 尺寸的 FNV-1a 64 位哈希（同 seed 两次生成必须一致）。
+        /// <para>★ 下沉：哈希常量（`OffsetBasis` / `Prime`）、"先混宽高、再按 y 外层升序 / x 内层升序
+        /// 逐格混入 `byte` 地形码"、"`X16` 大写十六进制"三条口径全在引擎件
+        /// <see cref="StableHash.HashGridHex"/>。⛔ 不自留第二份 —— 常量写错或顺序不一致会让两条日志
+        /// "看起来都对、却永远对不上"，且不报错。</para>
+        /// <para>注意：本哈希只混**地形码 + 尺寸**（与旧实现的 `Mix(h, (ulong)map.Width…)` 逐字节等价）；
+        /// seed / 出生点等元数据不进哈希（要哈希复合结构请用 <see cref="StableHash.Combine(ulong,ulong)"/>
+        /// 自行串联，**顺序即契约**）。</para>
+        /// </summary>
         public static string Hash(GridMap map)
         {
             if (map == null) return "0000000000000000";
-
-            const ulong offset = 14695981039346656037UL;
-            const ulong prime = 1099511628211UL;
-            var h = offset;
-
-            h = Mix(h, (ulong)map.Width, prime);
-            h = Mix(h, (ulong)map.Height, prime);
-            for (var y = 0; y < map.Height; y++)
-            {
-                for (var x = 0; x < map.Width; x++)
-                {
-                    h = Mix(h, (ulong)(byte)map.Get(x, y), prime);
-                }
-            }
-            return h.ToString("X16");
+            return StableHash.HashGridHex(map.Width, map.Height, (x, y) => (byte)map.Get(x, y));
         }
 
         /// <summary>生成完成后统一取证：统计块 + 哈希 + 字符画（头部或全量）。</summary>
@@ -126,13 +117,10 @@ namespace Diablo2.Module.Map
         }
 
         // ── 内部 ─────────────────────────────────────────────────────────────
-        private static ulong Mix(ulong h, ulong value, ulong prime)
-        {
-            h ^= value;
-            h *= prime;
-            return h;
-        }
-
+        /// <summary>
+        /// 一格画什么字符（**本项目语义**：图例里的 `S`/`E`/`C`/`N`/`M` 与 `'~'` 水都在这里判；
+        /// 引擎件 `StableHash.ToAscii` 只负责"怎么排版"，不认识这些符号）。
+        /// </summary>
         private static char CharOf(GridMap map, int x, int y)
         {
             var g = new Vector2Int(x, y);

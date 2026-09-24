@@ -2,51 +2,40 @@
 // Diablo2 · Module/Audio/AudioLog.cs
 // 音频模块的日志出口（tag 固定 = `Audio`，见 `Core/Log.cs` 的 tag 白名单）。
 //
-// ⛔ **刻意不用 `Core/Log.WarnOnce / WarnThrottled / ErrorOnce`**：
-//   那三个入口的降频闸门读了 `UnityEngine.Time.realtimeSinceStartup`（`Core/Log.cs:133`），
-//   在**非 Unity 宿主**（`tools/audiocheck` 离线自检、纯 .NET 进程）会抛 `SecurityException`，
-//   一抛就把「只报一次」变成「报一次就崩」。所以本类用**私有标志/集合**自己实现"只报一次"。
+// ★★ "只报一次"的设施已**收敛到引擎**（本片 d2-log）：原先本类用 **4 个 `HashSet` + 8 个 `bool` 标志**
+//    自己维护"每键一次 / 每事一次"；现在全部换成引擎的时间口径闸门
+//    `CloverEngine.LogThrottle.ShouldLog(key, float.PositiveInfinity)`（= 同一 key 整个进程只放行一次）。
+//    ⛔ 本文件**不再持有任何限频状态容器**；`MissingWarnCount` / `UnregisteredWarnCount` /
+//    `ThrottledWarnCount` 三个**计数**是给离线宿主断言用的业务账目，保留。
+//    为什么原先要自实现：老 `Core/Log.WarnOnce` 的闸门读 `UnityEngine.Time.realtimeSinceStartup`
+//    （原生 ECall），在**纯 .NET 宿主**（`tools/probes/hosts/audiocheck`）里会抛 `SecurityException`
+//    ⇒「只报一次」变成「报一次就崩」。该性质现在由**引擎**保证（`Runtime/Core/LogThrottle.cs`
+//    §语义约束 ①：三级时钟、**永不抛异常**，非 Unity 进程首次探测失败即自动降级到进程单调时钟）
+//    ⇒ 本类可以直接委托；要确定性计时请注入 `Log.Clock`（⛔ 本层不自行改全局时钟）。
 //
-// 「只报一次」的粒度：
-//   · **文件缺失** —— 每个键各报一次（素材一次没到位，键数有限 ⇒ 不会刷屏）；
+// key 都加了 `Audio/` 前缀 + 用途段（引擎的限频表是**全局一张**，原实现是每类一张
+// ⇒ 必须防跨用途/跨模块撞 key；前缀对调用方不可见，key 从不进日志）。
+// 「只报一次」的粒度（**与原实现逐条一致**）：
+//   · **文件缺失** —— 每个键各报一次（SFX / BGM 各占一个 key 段，互不影响）；
 //   · **基础设施缺失**（`Game.Sound` / `Game.Res` / `Game.Setting` / `Game.Event` 为 null）—— 各报一次；
-//   · 标志是**静态**的（进程生命周期内一次），与"素材到位前反复请求同一缺失键"这条路径对得上。
-//
+//   · 记录是**进程级**的（引擎静态表），与"素材到位前反复请求同一缺失键"这条路径对得上。
 // 素材到位后这些告警自动消失（探测到文件后不再进缺失分支），**无需改代码**。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
-using System.Collections.Generic;
+using CloverEngine;
 using Diablo2.Core;
 
 namespace Diablo2.Module.Audio
 {
-    /// <summary>音频模块日志（防刷屏由**私有标志**实现，不依赖引擎时钟）。</summary>
+    /// <summary>音频模块日志（防刷屏 = 引擎 <see cref="LogThrottle"/> 的时间口径闸门）。</summary>
     internal static class AudioLog
     {
         /// <summary>日志 tag（`Core/Log.cs` 白名单里的模块名）。</summary>
         public const string Tag = "Audio";
 
-        /// <summary>已就「文件缺失」告警过的 SFX 键。</summary>
-        private static readonly HashSet<string> MissingSfxWarned = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>已就「文件缺失」告警过的 BGM 键。</summary>
-        private static readonly HashSet<string> MissingBgmWarned = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>已就「未登记的键」告警过的键。</summary>
-        private static readonly HashSet<string> UnregisteredWarned = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>已就「同键重复过快被节流」告警过的键（★ 片 C4 新增，每键一条）。</summary>
-        private static readonly HashSet<string> ThrottledWarned = new HashSet<string>(StringComparer.Ordinal);
-
-        private static bool _noSoundWarned;
-        private static bool _noResWarned;
-        private static bool _noSettingWarned;
-        private static bool _noEventWarned;
-        private static bool _emptyKeyWarned;
-        private static bool _nullPayloadWarned;
-        private static bool _unknownAreaWarned;
-        private static bool _noMapWarned;
+        /// <summary>本模块在引擎全局限频表里的 key 前缀（引擎是一张全局表 ⇒ 防跨模块撞 key）。</summary>
+        private const string KeyPrefix = "Audio/";
 
         /// <summary>「文件缺失」累计告警条数（自检断言"恰好 1 条"用；正常流程只读）。</summary>
         internal static int MissingWarnCount;
@@ -70,7 +59,7 @@ namespace Diablo2.Module.Audio
         /// <summary>音效文件缺失（每键一次）：不重复调用引擎，静默降级。</summary>
         public static void MissingSfx(string key, string fileName, string path)
         {
-            if (!MissingSfxWarned.Add(key)) return;
+            if (!Once(KeyPrefix + "missing.sfx/" + key)) return;
             MissingWarnCount++;
             Log.Warn(Tag,
                 $"音效文件缺失：键=\"{key}\" 期望文件=\"{fileName}\"（路径 {path}）" +
@@ -80,7 +69,7 @@ namespace Diablo2.Module.Audio
         /// <summary>BGM 文件缺失（每键一次）。</summary>
         public static void MissingBgm(string key, string fileName, string path)
         {
-            if (!MissingBgmWarned.Add(key)) return;
+            if (!Once(KeyPrefix + "missing.bgm/" + key)) return;
             MissingWarnCount++;
             Log.Warn(Tag,
                 $"BGM 文件缺失：键=\"{key}\" 期望文件=\"{fileName}\"（路径 {path}）" +
@@ -89,14 +78,13 @@ namespace Diablo2.Module.Audio
 
         /// <summary>
         /// ★ 片 C4：**同一音效键重复过快，本次被节流丢弃**（每键一条，见 `SfxThrottle`）。
-        /// <para>为什么不用 `Core/Log.WarnThrottled`：那个入口读 `Time.realtimeSinceStartup`（`Core/Log.cs:133`），
-        /// 在离线自检宿主（纯 .NET 进程）会抛 `SecurityException` —— 与本类文件头记的同一个坑；
-        /// 这里用私有集合实现"每键一次"，离线宿主也跑得通。</para>
+        /// <para>闸门 = 引擎 <see cref="LogThrottle.ShouldLog"/>（`+∞` ⇒ 每键一条）：不再依赖
+        /// `UnityEngine.Time`，纯 .NET 宿主也跑得通（引擎自动降级，永不抛）。</para>
         /// </summary>
         public static void WarnThrottledSfx(string key, float sinceSeconds)
         {
             if (string.IsNullOrEmpty(key)) return;
-            if (!ThrottledWarned.Add(key)) return;          // 每个键只留一条痕（防"节流日志自己刷屏"）
+            if (!Once(KeyPrefix + "sfx.throttled/" + key)) return;   // 每个键只留一条痕（防"节流日志自己刷屏"）
             ThrottledWarnCount++;
             Log.Warn(Tag,
                 $"音效键 \"{key}\" 重复过快：距上次起播仅 {sinceSeconds * 1000f:0} ms" +
@@ -108,7 +96,7 @@ namespace Diablo2.Module.Audio
         public static void UnregisteredKey(string key, bool isBgm)
         {
             if (string.IsNullOrEmpty(key)) return;
-            if (!UnregisteredWarned.Add((isBgm ? "B:" : "S:") + key)) return;
+            if (!Once(KeyPrefix + "unregistered/" + (isBgm ? "B:" : "S:") + key)) return;
             UnregisteredWarnCount++;
             Log.Warn(Tag,
                 $"音效键未登记：\"{key}\"（{(isBgm ? "BGM" : "SFX")}）不在 `SfxRegistry` 里" +
@@ -118,87 +106,79 @@ namespace Diablo2.Module.Audio
         /// <summary>`Game.Sound` 未挂载（引擎表现域没起来）。</summary>
         public static void NoSoundManager()
         {
-            if (_noSoundWarned) return;
-            _noSoundWarned = true;
+            if (!Once(KeyPrefix + "no.sound")) return;
             Log.Warn(Tag, "`Game.Sound` 为 null（引擎表现域未挂载？）⇒ 所有音效/BGM 调用被跳过（只报这一条）");
         }
 
         /// <summary>`Game.Res` 未挂载。</summary>
         public static void NoResourceManager()
         {
-            if (_noResWarned) return;
-            _noResWarned = true;
+            if (!Once(KeyPrefix + "no.res")) return;
             Log.Warn(Tag, "`Game.Res` 为 null（CloverRes.Init 未调用？）⇒ 无法探测音频文件是否存在，按未到位处理（只报这一条）");
         }
 
         /// <summary>`Game.Setting` 未挂载（音量无法持久化）。</summary>
         public static void NoSetting()
         {
-            if (_noSettingWarned) return;
-            _noSettingWarned = true;
+            if (!Once(KeyPrefix + "no.setting")) return;
             Log.Warn(Tag, "`Game.Setting` 为 null ⇒ 音量改动只作用于本次会话，不落盘（只报这一条）");
         }
 
         /// <summary>`Game.Event` 未挂载（触发点无法接线）。</summary>
         public static void NoEventBus()
         {
-            if (_noEventWarned) return;
-            _noEventWarned = true;
+            if (!Once(KeyPrefix + "no.event")) return;
             Log.Warn(Tag, "`Game.Event` 为 null（Game.Launch 未调用？）⇒ 事件触发点未接线，只有直连调用会出声（只报这一条）");
         }
 
         /// <summary>收到空键。</summary>
         public static void EmptyKey()
         {
-            if (_emptyKeyWarned) return;
-            _emptyKeyWarned = true;
+            if (!Once(KeyPrefix + "empty.key")) return;
             Log.Warn(Tag, "收到空音效键 ⇒ 忽略（只报这一条）");
         }
 
         /// <summary>事件载荷为 null（不该发生：发送方数据异常）。</summary>
         public static void NullPayload(string what)
         {
-            if (_nullPayloadWarned) return;
-            _nullPayloadWarned = true;
+            if (!Once(KeyPrefix + "null.payload")) return;
             Log.Warn(Tag, $"事件载荷为 null（{what}）⇒ 忽略该次音效（只报这一条）");
         }
 
         /// <summary>区域没有对应 BGM 登记（数据异常）。</summary>
         public static void UnknownArea(object area)
         {
-            if (_unknownAreaWarned) return;
-            _unknownAreaWarned = true;
+            if (!Once(KeyPrefix + "unknown.area")) return;
             Log.Warn(Tag, $"区域「{area}」没有登记的 BGM ⇒ 保持当前曲目（只报这一条）");
         }
 
         /// <summary>进图时还没收到过 `Events.AreaChanged`（Map 模块未接入 / 未发事件）。</summary>
         public static void NoAreaChanged()
         {
-            if (_noMapWarned) return;
-            _noMapWarned = true;
+            if (!Once(KeyPrefix + "no.area.changed")) return;
             Log.Warn(Tag,
                 $"进图（{Events.StageEntered}）前没有收到过 {Events.AreaChanged}" +
                 "（IMapModule 未接入或未发该事件？）⇒ BGM 暂按区域 Town 处理（只报这一条）");
         }
 
         /// <summary>
+        /// "只报一次"的闸门 = 引擎时间口径 <see cref="LogThrottle.ShouldLog"/>（`+∞` ⇒ 同一 key 只放行一次）。
+        /// ⛔ 与 <see cref="Log.ShouldLog"/> 的区别：这里**不**先短路项目静默开关（`Log.Suppress`）——
+        /// 原实现（`HashSet.Add`）在静默期同样会**推进**"已报"状态，换成先短路会让静默期后的首条告警
+        /// 与本类计数账目对不上。输出仍然走 `Log.Warn`（tag 规范化 + 静默开关在那一层）。
+        /// </summary>
+        private static bool Once(string key) => LogThrottle.ShouldLog(key, float.PositiveInfinity);
+
+        /// <summary>
         /// 清空"只报一次"状态与计数器。**仅供离线自检宿主**（同一进程里跑多个场景用例）：
         /// 生产流程**没有**调用点（素材到位后这些告警本来就不会再出现）。
+        /// <para>⚠️ 引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>，时间口径 + 计数口径一起清），
+        /// 没有"按 key 清"的入口 ⇒ 这里会把 `Log` / 其他模块的限频记录一并清掉。宿主用例本来就要求
+        /// 干净起点，故可接受；已在回报中登记。</para>
         /// </summary>
         internal static void ResetForTest()
         {
-            MissingSfxWarned.Clear();
-            MissingBgmWarned.Clear();
-            UnregisteredWarned.Clear();
-            ThrottledWarned.Clear();
-            _noSoundWarned = false;
-            _noResWarned = false;
-            _noSettingWarned = false;
-            _noEventWarned = false;
-            _emptyKeyWarned = false;
-            _nullPayloadWarned = false;
-            _unknownAreaWarned = false;
-            _noMapWarned = false;
+            LogThrottle.Reset();
             MissingWarnCount = 0;
             UnregisteredWarnCount = 0;
             ThrottledWarnCount = 0;

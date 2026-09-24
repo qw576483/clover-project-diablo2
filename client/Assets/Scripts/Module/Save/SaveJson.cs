@@ -21,6 +21,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using CloverEngine;
 using Diablo2.Def;
 
 namespace Diablo2.Module.Save
@@ -86,7 +87,7 @@ namespace Diablo2.Module.Save
 
             Field(sb, "savedAtTicks", s.savedAtTicks, true);
             Key(sb, "playedSeconds", true);
-            sb.Append(s.playedSeconds.ToString("R", CultureInfo.InvariantCulture));
+            JsonWriter.WriteFloat(sb, s.playedSeconds);
 
             sb.Append('}');
             return sb.ToString();
@@ -109,66 +110,34 @@ namespace Diablo2.Module.Save
             return sb.ToString();
         }
 
+        // ── 写原语一律转发到引擎 JsonWriter（确定性：固定顺序 + R 浮点 + null 安全）──
+        //    字段顺序仍由本文件的 Write(...) 决定（DTO 布局留业务侧，见 JsonWriter 类型注释）。
         private static void Field(StringBuilder sb, string key, int v, bool comma)
         {
             Key(sb, key, comma);
-            sb.Append(v.ToString(CultureInfo.InvariantCulture));
+            JsonWriter.WriteInt(sb, v);
         }
 
         private static void Field(StringBuilder sb, string key, long v, bool comma)
         {
             Key(sb, key, comma);
-            sb.Append(v.ToString(CultureInfo.InvariantCulture));
+            JsonWriter.WriteLong(sb, v);
         }
 
         private static void Field(StringBuilder sb, string key, string v, bool comma)
         {
             Key(sb, key, comma);
-            WriteString(sb, v);
+            JsonWriter.WriteString(sb, v);
         }
 
         private static void Key(StringBuilder sb, string key, bool comma)
         {
-            if (comma) sb.Append(',');
-            WriteString(sb, key);
-            sb.Append(':');
+            JsonWriter.WriteKey(sb, key, comma);
         }
 
         private static void WriteString(StringBuilder sb, string v)
         {
-            if (v == null)
-            {
-                sb.Append("null");
-                return;
-            }
-
-            sb.Append('"');
-            for (var i = 0; i < v.Length; i++)
-            {
-                var c = v[i];
-                switch (c)
-                {
-                    case '"': sb.Append("\\\""); break;
-                    case '\\': sb.Append("\\\\"); break;
-                    case '\n': sb.Append("\\n"); break;
-                    case '\r': sb.Append("\\r"); break;
-                    case '\t': sb.Append("\\t"); break;
-                    case '\b': sb.Append("\\b"); break;
-                    case '\f': sb.Append("\\f"); break;
-                    default:
-                        if (c < ' ')
-                        {
-                            sb.Append("\\u");
-                            sb.Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
-                        }
-                        else
-                        {
-                            sb.Append(c);
-                        }
-                        break;
-                }
-            }
-            sb.Append('"');
+            JsonWriter.WriteString(sb, v);
         }
 
         private static void WriteIntList(StringBuilder sb, List<int> list)
@@ -251,7 +220,7 @@ namespace Diablo2.Module.Save
         private static void Field(StringBuilder sb, string key, bool v, bool comma)
         {
             Key(sb, key, comma);
-            sb.Append(v ? "true" : "false");
+            JsonWriter.WriteBool(sb, v);
         }
 
         private static void WriteItemList(StringBuilder sb, List<ItemStack> list)
@@ -683,160 +652,42 @@ namespace Diablo2.Module.Save
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 极简 JSON 解析器（对象 → Dictionary<string,object>，数组 → List<object>，
-        // 数字 → long/double，字符串 → string，null/bool 原样）
+        // 极简 JSON 解析原语 —— 已收敛到引擎 `CloverEngine.JsonWriter`（本文件只保留转发，
+        // 公开 API 与调用点零改动）。产物映射：对象 → Dictionary<string,object>，
+        // 数组 → List<object>，整数 → long、浮点 → double，字符串 → string，null/bool 原样。
+        // ⛔ 不再在本文件平行维护第二套解析实现（引擎侧为唯一真相，见 结构规则.md §4.4）。
+        // ⚠️ 与 `MiniJson.Parse` 的区别：这里整数只认 long（超出退 double），业务取值侧
+        //    GetInt/GetLong/GetFloat 依赖这个口径；大整数（uint64 对象号）请用 MiniJson。
         // ═════════════════════════════════════════════════════════════════════
 
         private static void SkipWs(string s, ref int pos)
         {
-            while (pos < s.Length)
-            {
-                var c = s[pos];
-                if (c == ' ' || c == '\t' || c == '\n' || c == '\r') { pos++; continue; }
-                break;
-            }
+            JsonWriter.SkipWhitespace(s, ref pos);
         }
 
         private static object ParseValue(string s, ref int pos)
         {
-            SkipWs(s, ref pos);
-            if (pos >= s.Length) throw new System.FormatException("JSON 意外结束（期望一个值）");
-
-            var c = s[pos];
-            switch (c)
-            {
-                case '{': return ParseObject(s, ref pos);
-                case '[': return ParseArray(s, ref pos);
-                case '"': return ParseString(s, ref pos);
-                case 't':
-                    Expect(s, ref pos, "true");
-                    return true;
-                case 'f':
-                    Expect(s, ref pos, "false");
-                    return false;
-                case 'n':
-                    Expect(s, ref pos, "null");
-                    return null;
-                default:
-                    return ParseNumber(s, ref pos);
-            }
-        }
-
-        private static void Expect(string s, ref int pos, string token)
-        {
-            if (pos + token.Length > s.Length || string.CompareOrdinal(s, pos, token, 0, token.Length) != 0)
-                throw new System.FormatException($"位置 {pos} 处期望 \"{token}\"");
-            pos += token.Length;
+            return JsonWriter.ParseValue(s, ref pos);
         }
 
         private static Dictionary<string, object> ParseObject(string s, ref int pos)
         {
-            var res = new Dictionary<string, object>();
-            pos++;                                   // '{'
-            SkipWs(s, ref pos);
-            if (pos < s.Length && s[pos] == '}') { pos++; return res; }
-
-            while (true)
-            {
-                SkipWs(s, ref pos);
-                if (pos >= s.Length || s[pos] != '"') throw new System.FormatException($"位置 {pos} 处期望对象键（字符串）");
-                var key = ParseString(s, ref pos);
-                SkipWs(s, ref pos);
-                if (pos >= s.Length || s[pos] != ':') throw new System.FormatException($"位置 {pos} 处期望 ':'");
-                pos++;
-                res[key] = ParseValue(s, ref pos);
-                SkipWs(s, ref pos);
-                if (pos >= s.Length) throw new System.FormatException("JSON 对象未闭合（期望 '}'）");
-                if (s[pos] == ',') { pos++; continue; }
-                if (s[pos] == '}') { pos++; return res; }
-                throw new System.FormatException($"位置 {pos} 处期望 ',' 或 '}}'");
-            }
+            return JsonWriter.ParseObject(s, ref pos);
         }
 
         private static List<object> ParseArray(string s, ref int pos)
         {
-            var res = new List<object>();
-            pos++;                                   // '['
-            SkipWs(s, ref pos);
-            if (pos < s.Length && s[pos] == ']') { pos++; return res; }
-
-            while (true)
-            {
-                res.Add(ParseValue(s, ref pos));
-                SkipWs(s, ref pos);
-                if (pos >= s.Length) throw new System.FormatException("JSON 数组未闭合（期望 ']'）");
-                if (s[pos] == ',') { pos++; continue; }
-                if (s[pos] == ']') { pos++; return res; }
-                throw new System.FormatException($"位置 {pos} 处期望 ',' 或 ']'");
-            }
+            return JsonWriter.ParseArray(s, ref pos);
         }
 
         private static string ParseString(string s, ref int pos)
         {
-            pos++;                                   // 开引号
-            var sb = new StringBuilder();
-            while (true)
-            {
-                if (pos >= s.Length) throw new System.FormatException("JSON 字符串未闭合");
-                var c = s[pos++];
-                if (c == '"') return sb.ToString();
-                if (c != '\\') { sb.Append(c); continue; }
-
-                if (pos >= s.Length) throw new System.FormatException("JSON 转义未结束");
-                var e = s[pos++];
-                switch (e)
-                {
-                    case '"': sb.Append('"'); break;
-                    case '\\': sb.Append('\\'); break;
-                    case '/': sb.Append('/'); break;
-                    case 'n': sb.Append('\n'); break;
-                    case 'r': sb.Append('\r'); break;
-                    case 't': sb.Append('\t'); break;
-                    case 'b': sb.Append('\b'); break;
-                    case 'f': sb.Append('\f'); break;
-                    case 'u':
-                        if (pos + 4 > s.Length) throw new System.FormatException("\\u 转义不完整");
-                        var hex = s.Substring(pos, 4);
-                        pos += 4;
-                        sb.Append((char)int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
-                        break;
-                    default:
-                        throw new System.FormatException($"未知转义 \\{e}");
-                }
-            }
+            return JsonWriter.ParseString(s, ref pos);
         }
 
         private static object ParseNumber(string s, ref int pos)
         {
-            var start = pos;
-            var isFloat = false;
-            if (pos < s.Length && (s[pos] == '-' || s[pos] == '+')) pos++;
-            while (pos < s.Length)
-            {
-                var c = s[pos];
-                if (c >= '0' && c <= '9') { pos++; continue; }
-                if (c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-') { isFloat = isFloat || c == '.' || c == 'e' || c == 'E'; pos++; continue; }
-                break;
-            }
-            if (pos == start) throw new System.FormatException($"位置 {start} 处期望一个值");
-
-            var text = s.Substring(start, pos - start);
-            if (isFloat)
-            {
-                double d;
-                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out d))
-                    throw new System.FormatException($"非法浮点数 \"{text}\"");
-                return d;
-            }
-
-            long l;
-            if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out l))
-            {
-                double d;
-                if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) return d;
-                throw new System.FormatException($"非法整数 \"{text}\"");
-            }
-            return l;
+            return JsonWriter.ParseNumber(s, ref pos);
         }
     }
 }

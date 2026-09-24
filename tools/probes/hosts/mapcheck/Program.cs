@@ -1298,7 +1298,10 @@ internal static class MapCheckProgram
         Section("17. ★ T0FIX-A：单帧尖峰修复 —— 增量分帧（每帧 ≤ 1 块）/ 块根建完才激活 / 池化逐项相等");
 
         const string ViewRel = "client/Assets/Scripts/Module/Map/MapView.cs";
-        const string PoolRel = "client/Assets/Scripts/Module/Map/TileNodePool.cs";
+        // ★ eng-tile 片（2026-09-24）：`TileNodePool` 已**下沉到引擎**（项目侧只剩薄转发）⇒
+        //    结构断言（"瓦片节点的唯一创建点" / `Take`/`Return` 的 activeSelf 配对）改读**引擎源码**。
+        //    ⛔ 不许把判据改回项目侧那份 —— 那会变成"实现搬走了、判据还在原地"的假闸门。
+        const string PoolRel = "../clover-client-unity-engine/Runtime/Presentation/TileNodePool.cs";
         var view = System.IO.File.ReadAllText(System.IO.Path.Combine(ResolveProjectRoot(),
             ViewRel.Replace('/', System.IO.Path.DirectorySeparatorChar)));
         var poolSrc = System.IO.File.ReadAllText(System.IO.Path.Combine(ResolveProjectRoot(),
@@ -1442,10 +1445,12 @@ internal static class MapCheckProgram
             "「缓冲层根被判空」分支里）—— 它**不是**常规路径的一部分");
 
         // ── ⑤ 池化收益的**算术证明**（纯函数 SplitDemand，不建 GameObject）──────────────
-        TileNodePool.SplitDemand(0, 7, out var f1, out var c1);
-        TileNodePool.SplitDemand(7, 7, out var f2, out var c2);
-        TileNodePool.SplitDemand(2, 7, out var f3, out var c3);
-        TileNodePool.SplitDemand(9, 0, out var f4, out var c4);
+        // ★ eng-tile 片（2026-09-24）：实现已下沉 ⇒ 这两处写全 `CloverEngine.` 前缀
+        //    （本文件同时 `using CloverEngine;` 与 `using Diablo2.Module.Map;` ⇒ 简单名会 CS0104 二义）。
+        CloverEngine.TileNodePool.SplitDemand(0, 7, out var f1, out var c1);
+        CloverEngine.TileNodePool.SplitDemand(7, 7, out var f2, out var c2);
+        CloverEngine.TileNodePool.SplitDemand(2, 7, out var f3, out var c3);
+        CloverEngine.TileNodePool.SplitDemand(9, 0, out var f4, out var c4);
         Console.WriteLine($"  SplitDemand：free=0,demand=7 ⇒ (取{f1},新建{c1})；free=7,demand=7 ⇒ (取{f2},新建{c2})；" +
                           $"free=2,demand=7 ⇒ (取{f3},新建{c3})；free=9,demand=0 ⇒ (取{f4},新建{c4})");
         Check(f1 == 0 && c1 == 7 && f2 == 7 && c2 == 0 && f3 == 2 && c3 == 5 && f4 == 0 && c4 == 0,
@@ -1485,7 +1490,7 @@ internal static class MapCheckProgram
                 }
             }
         }
-        TileNodePool.SplitDemand(nodes, nodes, out var reuseAll, out var createAll);
+        CloverEngine.TileNodePool.SplitDemand(nodes, nodes, out var reuseAll, out var createAll);
         Console.WriteLine($"  三区域整图节点数（逐块实测，不含迷雾）= {nodes}；把全部归还池后再次整图重铺 ⇒ " +
                           $"复用 {reuseAll} / **新建 {createAll}**");
         Check(createAll == 0 && reuseAll == nodes,
@@ -1494,7 +1499,9 @@ internal static class MapCheckProgram
             "（⚠️ 冷池首帧仍要新建全图节点：既要「一帧铺满不露空」就不可能零新建 —— 取舍见回报）");
 
         // ── ⑥ 一格瓦片渲染状态是**格的纯函数**（与节点/池无关）⇒ 逐项相等不靠"记得重设"────
-        var stFields = typeof(TileRenderState).GetFields(
+        // ★ eng-tile 片（2026-09-24）：`TileRenderState` 的**真身**已下沉到引擎（项目侧是薄转发 struct）
+        //    ⇒ 这条"恰 5 个 public readonly 字段"的断言必须打在**引擎类型**上，否则打在转发层上恒 0 字段。
+        var stFields = typeof(CloverEngine.TileRenderState).GetFields(
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
         var names = new List<string>();
         var allReadonly = true;
@@ -1898,7 +1905,10 @@ internal static class MapCheckProgram
         Section("20. ★ T0FIX-I：Stage 黑屏回归 —— 瓦片/块根 activeSelf 复位（池配对 / 逐块复活 / 不露空）");
 
         const string ViewRel = "client/Assets/Scripts/Module/Map/MapView.cs";
-        const string PoolRel = "client/Assets/Scripts/Module/Map/TileNodePool.cs";
+        // ★ eng-tile 片（2026-09-24）：`TileNodePool` 已**下沉到引擎**（项目侧只剩薄转发）⇒
+        //    结构断言（"瓦片节点的唯一创建点" / `Take`/`Return` 的 activeSelf 配对）改读**引擎源码**。
+        //    ⛔ 不许把判据改回项目侧那份 —— 那会变成"实现搬走了、判据还在原地"的假闸门。
+        const string PoolRel = "../clover-client-unity-engine/Runtime/Presentation/TileNodePool.cs";
         var view = System.IO.File.ReadAllText(System.IO.Path.Combine(ResolveProjectRoot(),
             ViewRel.Replace('/', System.IO.Path.DirectorySeparatorChar)));
         var poolSrc = System.IO.File.ReadAllText(System.IO.Path.Combine(ResolveProjectRoot(),

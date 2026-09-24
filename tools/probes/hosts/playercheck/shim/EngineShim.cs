@@ -303,6 +303,12 @@ namespace CloverEngine
         void Set<T>(string key, T value);
         void Save();
         void Load();
+        // ★ u52block：真引擎 `Runtime/Core/Setting.cs:44/49` 还有这两个成员
+        //   （真 `Module/Save/SaveModule.cs:250/437/591` 用 `Delete`）⇒ 旧替身**与真签名不一致**。
+        //   这个不一致一直没暴露，是因为此前**没有任何宿主把 SaveModule 编进来过**；
+        //   本片把 SaveModule 编进来后，编译器立刻报了 3 处 CS1061（正是"覆盖率哨兵"该干的事）。
+        void Delete(string key);
+        void DeleteAll();
     }
 
     /// <summary>内存设置（自检用）。</summary>
@@ -319,6 +325,10 @@ namespace CloverEngine
         public void Set<T>(string key, T value) { _d[key] = value; }
         public void Save() { SaveCount++; }
         public void Load() { }
+        /// <summary>★ u52block：对齐真 `Setting.cs:44`（`SaveModule` 删角色时清旧键 / 清迁移期键）。</summary>
+        public void Delete(string key) { _d.Remove(key); }
+        /// <summary>★ u52block：对齐真 `Setting.cs:49`。</summary>
+        public void DeleteAll() { _d.Clear(); }
     }
 
     // ── Game 门面 ───────────────────────────────────────────────────────────
@@ -335,6 +345,16 @@ namespace CloverEngine
         public static IResourceManager Res = new EmptyResourceManager();
         public static IInputManager Input = new ScriptedInput();
         public static ISetting Setting = new MemSetting();
+        /// <summary>
+        /// ★ u52block 新增：`Game.Config`（真引擎 `Runtime/Core/Game.cs:341`
+        /// `public static GameConfig Config { get; private set; }`）。
+        /// 为什么需要：真 `Module/Save/SaveModule.cs:131-136` 的 `Store` 靠它拼 `&lt;SettingDir&gt;/saves/`
+        /// ⇒ 链入 SaveModule 后，宿主必须能提供它（真引擎本就有这一项，故补进替身不算放宽契约）。
+        /// 类型 <see cref="GameConfig"/> 本文件末尾已有（签名与真引擎逐字对齐）。
+        /// </summary>
+        public static GameConfig Config = new GameConfig();
+        /// <summary>★ U27：`Module/View` 的 `Game.UI.FloatText` 引用点（宿主替身，见文件末 `UI`）。</summary>
+        public static UI UI = new UI();
         public static bool IsRunning;
 
         public static void Launch(GameConfig config) { IsRunning = true; }
@@ -350,5 +370,45 @@ namespace CloverEngine
         public string SettingDir;
         public string ResourceRoot;
         public string DataDir;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ★ U27（人物抖动三分判据）：`Module/View` 编入本宿主后新增的两个引擎替身。
+    //   为什么是替身而不是把引擎件也编进来：`WorldHpBar`（`Runtime/Presentation/UIWidgets.cs`）
+    //   与 `UI`（`Runtime/Presentation/UI.cs`）都在引擎的 Presentation 大件里（合计 ~82 KB），
+    //   编进来会把 uGUI / TextMeshPro / 场景依赖整条拖入 —— 而本宿主对它们的**唯一用途**
+    //   只是「让 `Module/View` 编得过」，判据一个字都不碰它们（判据只调 `ViewModule.EntityWorld`）。
+    //   签名逐字对齐引擎（本文件是覆盖率哨兵，签名字段对不上就该报错）。
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// <summary>`Runtime/Presentation/UIWidgets.cs:1047` 的替身（**只列 `Module/View` 引用到的成员**）。</summary>
+    public sealed class WorldHpBar
+    {
+        /// <summary>同引擎 `WorldHpBar.DefaultWidth`（米，世界空间）。</summary>
+        public const float DefaultWidth = 1.0f;
+
+        /// <summary>同引擎 `WorldHpBar.DefaultHeight`（米）。</summary>
+        public const float DefaultHeight = 0.12f;
+
+        /// <summary>同引擎 `WorldHpBar.DefaultYOffset`（米）。</summary>
+        public const float DefaultYOffset = 2.15f;
+
+        /// <summary>同引擎 `WorldHpBar.Create`（宿主无渲染 ⇒ 恒返回 null，调用方已判空）。</summary>
+        public static WorldHpBar Create(Transform target, float width = DefaultWidth,
+            float height = DefaultHeight, float yOffset = DefaultYOffset, string tag = "HpBar",
+            int sortingOrder = 0) => null;
+
+        /// <summary>同引擎 `WorldHpBar.SetHp`。</summary>
+        public void SetHp(float hp, float maxHp) { }
+
+        /// <summary>同引擎 `WorldHpBar.SetVisible`。</summary>
+        public void SetVisible(bool visible) { }
+    }
+
+    /// <summary>`Runtime/Presentation/UI.cs:297` 的替身（`Game.UI.FloatText` 的宿主侧）。</summary>
+    public sealed class UI
+    {
+        /// <summary>同引擎 `UI.FloatText`（宿主无 UI ⇒ 不画，但**签名必须一致**）。</summary>
+        public void FloatText(Vector3 worldPos, string text, Color? color = null, float duration = 1.2f) { }
     }
 }

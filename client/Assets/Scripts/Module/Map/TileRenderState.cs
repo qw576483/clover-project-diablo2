@@ -1,75 +1,61 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · Module/Map/TileRenderState.cs  ★ T0FIX-A 新增
+// Diablo2 · Module/Map/TileRenderState.cs  ★ eng-tile 下沉后 = **薄转发**
 //
-// **一格瓦片的全部渲染状态**（不可变值类型）。存在的唯一理由：
-//   对象池复用节点时，"复用"与"新建"必须给出**逐项相同**的渲染结果 —— 把状态收成一个
-//   5 字段的值，再由 `MapView.ApplyTileState` **无条件**写全 5 个字段，就使这件事成为
-//   **结构性保证**（而不是"我记得每次都重设了"）。
+// 实现已下沉到引擎：`CloverEngine.TileRenderState`
+//   （clover-client-unity-engine · Runtime/Presentation/TileRenderState.cs）。
+// 本文件**只保留项目侧类型名与公开成员名**（`Sprite` / `Color` / `LocalScale` / `Position` /
+// `SortingOrder` / `SameAs` / `ToString` 一字未改）⇒ 全部调用点（`MapView.ApplyTileState` 的逐项读写、
+// `GroundState`/`ObjectState`/`FogState` 的构造、离线判据的 `SameAs`）逐字不变。
 //
-// 字段与 `SpriteRenderer` 的对应（断言口径 = 这 5 项逐项相等）：
-//   Sprite        → SpriteRenderer.sprite
-//   Color         → SpriteRenderer.color
-//   LocalScale    → transform.localScale
-//   Position      → transform.position（世界坐标，含 x/y/z ⇒ **6 个字段值**）
-//   SortingOrder  → SpriteRenderer.sortingOrder
+// ⚠️ 与引擎那份的**一处形状差异**（本项目的 mapcheck §17⑥ 钉的是引擎类型）：引擎里这 5 项是
+//   `public readonly` **字段**；这里是**只读属性**（C# 的 struct 不能继承，转发只能用属性）。
+//   逐项语义与只读性完全一致。
 //
-// ⛔ 本类型**只放渲染状态**：不许塞业务字段（`TileKind`/块号/是否已探索…都进不来）——
-//    一旦塞进来，池化路径就会开始"继承上一次的残留状态"。
+// ⛔ 本文件不许再长出状态字段：⛔ 不许在这里复制一份 5 字段的存储（那就是"平行两套"，
+//   会让"复用节点的渲染字段从哪来"重新变成两个真相）。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using CloverEngine;
 using UnityEngine;
 
 namespace Diablo2.Module.Map
 {
-    /// <summary>一格瓦片的渲染状态（见文件头；5 个字段 / 6 个字段值）。</summary>
+    /// <summary>一格瓦片的渲染状态（见文件头）—— 薄转发到 <see cref="CloverEngine.TileRenderState"/>。</summary>
     internal readonly struct TileRenderState
     {
-        /// <summary>贴图（null = 占位菱形）。</summary>
-        public readonly Sprite Sprite;
-
-        /// <summary>节点颜色（有贴图 = 白；占位 = 可辨的占位色）。</summary>
-        public readonly Color Color;
-
-        /// <summary>节点缩放（有贴图 = `契约PPU / 80`；占位 = 1）。</summary>
-        public readonly Vector3 LocalScale;
-
-        /// <summary>节点世界坐标（含对齐修正，见 `MapView.PlaceOfPx`）。</summary>
-        public readonly Vector3 Position;
-
-        /// <summary>深度排序值（`Iso.SortOrder(g, 层偏移)`）。</summary>
-        public readonly int SortingOrder;
+        private readonly CloverEngine.TileRenderState _v;
 
         /// <summary>构造（唯一入口；全部字段必须显式给）。</summary>
         public TileRenderState(Sprite sprite, Color color, Vector3 localScale, Vector3 position, int sortingOrder)
         {
-            Sprite = sprite;
-            Color = color;
-            LocalScale = localScale;
-            Position = position;
-            SortingOrder = sortingOrder;
+            _v = new CloverEngine.TileRenderState(sprite, color, localScale, position, sortingOrder);
         }
 
-        /// <summary>
-        /// 5 个渲染字段**逐项相等**（离线断言用；不依赖 `Vector3.Equals` 的 epsilon 语义）。
-        /// </summary>
+        /// <summary>贴图（null = 占位菱形）。</summary>
+        public Sprite Sprite { get { return _v.Sprite; } }
+
+        /// <summary>节点颜色（有贴图 = 白；占位 = 可辨的占位色）。</summary>
+        public Color Color { get { return _v.Color; } }
+
+        /// <summary>节点缩放。</summary>
+        public Vector3 LocalScale { get { return _v.LocalScale; } }
+
+        /// <summary>节点世界坐标（含对齐修正）。</summary>
+        public Vector3 Position { get { return _v.Position; } }
+
+        /// <summary>深度排序值。</summary>
+        public int SortingOrder { get { return _v.SortingOrder; } }
+
+        /// <summary>5 个渲染字段**逐项相等**（离线断言用）。</summary>
         public bool SameAs(TileRenderState other)
         {
-            return ReferenceEquals(Sprite, other.Sprite)
-                   && Color.r == other.Color.r && Color.g == other.Color.g
-                   && Color.b == other.Color.b && Color.a == other.Color.a
-                   && LocalScale.x == other.LocalScale.x && LocalScale.y == other.LocalScale.y
-                   && LocalScale.z == other.LocalScale.z
-                   && Position.x == other.Position.x && Position.y == other.Position.y
-                   && Position.z == other.Position.z
-                   && SortingOrder == other.SortingOrder;
+            return _v.SameAs(other._v);
         }
 
         /// <summary>单行描述（日志/断言输出用）。</summary>
         public override string ToString()
         {
-            return $"sprite={(Sprite != null ? Sprite.name : "(占位)")} color=({Color.r:0.###},{Color.g:0.###}," +
-                   $"{Color.b:0.###},{Color.a:0.###}) scale=({LocalScale.x:0.####},{LocalScale.y:0.####}) " +
-                   $"pos=({Position.x:0.####},{Position.y:0.####},{Position.z:0.####}) order={SortingOrder}";
+            return _v.ToString();
         }
     }
 }

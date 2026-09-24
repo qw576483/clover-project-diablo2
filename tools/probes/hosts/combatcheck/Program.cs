@@ -2920,7 +2920,7 @@ namespace CombatCheck
                 + $"{MonsterTuning.AttackIntervalSeconds:0.00}s 一次 ⇒ 必然 > 0）");
             Check("★ 结算层 **一次都没有** 因线段阻断拒绝（发起方已在出手前自检）",
                 rejectsWhileBlocked == 0, $"被拒 {rejectsWhileBlocked} 次（日志含「{rejectNeedle}」；"
-                + "`WarnThrottled` 只印第 1/10/100… 次 ⇒ 这个数是**节流后的下限**，0 才是「一次都没有」）");
+                + "`WarnThrottled` 只印第 1 次、第 100 次、第 200 次… ⇒ 这个数是**节流后的下限**，0 才是「一次都没有」）");
             Check("用例真的进入了仇恨（不是「怪没发现玩家」导致的空转）",
                 _log.Has(aggroNeedle + target.id), $"日志含 \"{aggroNeedle}{target.id}\"");
 

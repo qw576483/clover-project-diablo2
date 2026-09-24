@@ -65,7 +65,16 @@ namespace Diablo2.UI
         /// <summary>补齐行名（本项目新增；原版 prefab 无对应节点，见文件头说明）。</summary>
         public static readonly string[] ExtraName = { "命中", "格挡" };
 
-        /// <summary>四系抗性（本项目新增）。</summary>
+        /// <summary>
+        /// 四系抗性行名（顺序 火/冰/电/毒，与 <see cref="UiLayoutGame.CharResistRowOrig"/> 同序）。
+        /// <para>★ 出处（⛔ 不是自创中文，U52-resist 复核过）：本项目**配表**里这四个名字就是它们 ——
+        /// `client/Assets/StreamingAssets/Table/Affix.tsv:19-26` 的
+        /// `res-cold 冰冷抗性 / res-fire 火焰抗性 / res-ltng 闪电抗性 / res-pois 毒素抗性`
+        /// （由 `tools/table-convert/cn_names.py` 从原版串表映射；原版长形 `4071..4074`
+        /// 「火焰抵抗力/冰冷抵抗力/閃電抵抗力/毒素抵抗力」是 5 字，advance 65 art ⇒ 需 76 art 框，
+        /// 与「值列不折行」在 art 0..112.5 的预算内互斥 ⇒ 只能取 4 字这一档）。
+        /// ⇒ **本面板与物品 tooltip 用同一套词**，改文案会让两处不一致。</para>
+        /// </summary>
         public static readonly string[] ResistName = { "火焰抗性", "冰冷抗性", "闪电抗性", "毒素抗性" };
 
         private bool _built;
@@ -74,6 +83,9 @@ namespace Diablo2.UI
 
         private Text _nameText;
         private Text _topRightText;
+        private Text _band2MidText;
+        private Text _band2RightText;
+        private Text _closeText;
         private readonly D2Label[] _statValues = new D2Label[4];
         private readonly Text[] _derivedNames = new Text[4];
         private readonly D2Label[] _derivedValues = new D2Label[4];
@@ -122,14 +134,30 @@ namespace Diablo2.UI
             UiArt.SetSprite(bg, ResPaths.PanelCharStat);
 
             // ── 角色名（原版 CharName 矩形）──
-            _nameText = UiArt.Label(transform, "CharName", string.Empty, 22, TextAnchor.MiddleCenter,
+            // ★ U3：字号一律取 `UiLayoutGame.FontPx16`（**全 UI 字号唯一出处**，见该文件 §U3 注释：
+            //   "任何 UI 文字的字号都必须从这里取，不许再写魔法数字"。本面板旧值 22/18/17/16 是魔法数字，
+            //   画出来只有应有的 ~55%~76% ⇒ 正是"标签比数字小一圈"的根因）。
+            _nameText = UiArt.Label(transform, "CharName", string.Empty, (int)UiLayoutGame.FontPx16, TextAnchor.MiddleCenter,
                 UiArt.TitleColor, UiLayoutGame.CharNameSize, PanelPos + UiLayoutGame.CharNamePos);
             _nameText.raycastTarget = false;
 
-            // ── 右上框：等级 / 经验（本项目新增，占原版右上空框）──
-            _topRightText = UiArt.Label(transform, "TopRight", string.Empty, 18, TextAnchor.MiddleCenter,
+            // ── 右上凹槽：等级（本项目新增；★ U3 改成**底图实测凹槽** art 193..309 × 10..26）──
+            _topRightText = UiArt.Label(transform, "TopRight", string.Empty, (int)UiLayoutGame.FontPx16, TextAnchor.MiddleCenter,
                 UiArt.TextColor, UiLayoutGame.CharTopRightSize, PanelPos + UiLayoutGame.CharTopRightPos);
             _topRightText.raycastTarget = false;
+
+            // ── 底图第二排两个空框（★ U3 新增）：中框 = 技能点 / 右框 = 经验 ──
+            //   为什么拆到第二排（根因，实机截图可见）：旧代码把「等级+经验+技能点」挤在右上**一个**框里，
+            //   串长 ≈ 400 画布px，而右上凹槽净宽只有 210 画布px ⇒ 左起越过凹槽左沿、右端越出面板右边缘。
+            _band2MidText = UiArt.Label(transform, "Band2Mid", string.Empty, (int)UiLayoutGame.FontPx16,
+                TextAnchor.MiddleCenter, UiArt.TextColor,
+                UiLayoutGame.CharBand2MidSize, PanelPos + UiLayoutGame.CharBand2MidPos);
+            _band2MidText.raycastTarget = false;
+
+            _band2RightText = UiArt.Label(transform, "Band2Right", string.Empty, (int)UiLayoutGame.FontPx16,
+                TextAnchor.MiddleCenter, UiArt.TextColor,
+                UiLayoutGame.CharBand2RightSize, PanelPos + UiLayoutGame.CharBand2RightPos);
+            _band2RightText.raycastTarget = false;
 
             BuildStatRows();
             BuildDerivedRows();
@@ -143,26 +171,38 @@ namespace Diablo2.UI
         {
             var rect = UiLayoutGame.CharStatRowSize;
             var nameSize = new Vector2(rect.x * 0.58f, rect.y);
-            var valueSize = new Vector2(rect.x * 0.42f, rect.y);
             var nameOffset = new Vector2(-rect.x * 0.21f, 0f);
-            var valueOffset = new Vector2(rect.x * 0.29f, 0f);
+
+            // ★ U3 修（真根因）：数值列**不再**从标签矩形里切 42% 出来，而是落到**底图的数值隔间**
+            //   （原版 art 80..112 ⇒ node −64 ± 16，见 `UiLayoutGame.CharStatValueX/W` 的实测注释）。
+            //   旧写法 `valueOffset = rect.x * 0.29` 把数字画在标签隔间的右半 ⇒ 屏上数字中心 503
+            //   而分隔条在 520.8、数值隔间到 589 ⇒ 数字**跨压在分隔条上**（实机截图逐字可见）。
+            //   行高用**凹槽净高 18 art**（不是标签矩形的 27.9）⇒ 字底不再压行框下沿金线。
+            var valueSize = new Vector2(UiLayoutGame.CharStatValueW * UiLayoutGame.K,
+                UiLayoutGame.CharRowSlotH * UiLayoutGame.K);
 
             for (var i = 0; i < 4; i++)
             {
+                // 标签：仍用 prefab 的标签矩形中心（值不动），只把**文字**按凹槽中心下移修正 `CharRowTextDy`
                 var center = PanelPos + UiLayoutGame.CharStatRowOrig[i] * UiLayoutGame.K;
+                var textCenter = center + new Vector2(0f, UiLayoutGame.CharRowTextDy * UiLayoutGame.K);
 
-                var nm = UiArt.Label(transform, "StatName" + i, StatRowName[i], 17, TextAnchor.MiddleLeft,
-                    UiArt.TextColor, nameSize, center + nameOffset);
+                var nm = UiArt.Label(transform, "StatName" + i, StatRowName[i], (int)UiLayoutGame.FontPx16,
+                    TextAnchor.MiddleLeft, UiArt.TextColor, nameSize, textCenter + nameOffset);
                 nm.raycastTarget = false;
 
                 // ★ 片 font-scale：补显式字号（默认 0 = 按原版 px 1:1 画 ⇒ 只有应有的 ~55%；
                 //   用户报「属性面板文字太小」的 4 组之一）。字号唯一出处 = `UiLayoutGame.FontPx16`。
                 _statValues[i] = D2Label.Create(transform, "StatValue" + i, "0", D2Text.D2Font.Font16,
-                    TextAnchor.MiddleRight, UiArt.TitleColor, valueSize, center + valueOffset,
+                    TextAnchor.MiddleRight, UiArt.TitleColor, valueSize,
+                    PanelPos + new Vector2(UiLayoutGame.CharStatValueX,
+                        UiLayoutGame.CharStatRowOrig[i].y + UiLayoutGame.CharRowTextDy) * UiLayoutGame.K,
                     (int)UiLayoutGame.FontPx16);
 
                 // 加点箭头（原版底图行尾的三角槽）：贴图用原版 `PANEL/menubutton.DC6` 帧 0（15×24）。
-                // ★ w3 审计换帧名来源：`UiArt.ArrowFrame(0)` = DC6 直出那一套（索引 0 = 透明），
+                // ★ w3 审计换帧名来源：`UiArt.ArrowFrame(0)` = DC6 直出那一套（**DC6 调色板索引 0 = 透明色**；
+                //   ⛔ 不是"第 0 帧是空白帧" —— 帧 0 有内容：实测 opaque=322/360，
+                //   量法 `tools/probes/measure/dc6_frame_alpha.py`；两套导出的差别就是那 38 个透明像素），
                 //   不用 Diablerie 副本（同画面但透明像素被写成不透明黑；该副本文件已由 w4 删除）
                 //   —— 理由逐条见 `UI/UiArt.cs` 的「原版小图标帧」一节。
                 var kind = StatRowKind[i];
@@ -184,16 +224,26 @@ namespace Diablo2.UI
             {
                 var size = i == 0 ? UiLayoutGame.CharDefenseSize : UiLayoutGame.CharDerivedSize;
                 var center = PanelPos + UiLayoutGame.CharDerivedRowOrig[i] * UiLayoutGame.K;
+                var textCenter = center + new Vector2(0f, UiLayoutGame.CharRowTextDy * UiLayoutGame.K);
 
-                _derivedNames[i] = UiArt.Label(transform, "DerivedName" + i, DerivedName[i], 17,
-                    TextAnchor.MiddleLeft, UiArt.TextColor,
-                    new Vector2(size.x * 0.55f, size.y), center + new Vector2(-size.x * 0.22f, 0f));
+                _derivedNames[i] = UiArt.Label(transform, "DerivedName" + i, DerivedName[i],
+                    (int)UiLayoutGame.FontPx16, TextAnchor.MiddleLeft, UiArt.TextColor,
+                    new Vector2(size.x * 0.55f, size.y), textCenter + new Vector2(-size.x * 0.22f, 0f));
                 _derivedNames[i].raycastTarget = false;
 
-                // ★ 片 font-scale：补显式字号（唯一出处 `UiLayoutGame.FontPx16`）。
+                // ★ U3 修：数值列 = 底图**紧邻标签隔间右侧**的数值隔间 ——
+                //   · i = 0（防御）：art 271..309 ⇒ node 130 ± 19（`CharDefValueX/W`）
+                //   · i ≥ 1（耐力/生命/法力）：底图这几行有**两格**数值隔间（art 231..270 + 272..309）
+                //     ⇒ `cur/max` 一串写在**跨这两格**的框里（node 110 ± 39 = `CharCurMaxX/W`）
+                //     （旧写法把 "26/26" 右对齐在标签矩形右半 ⇒ 屏上跨压在分隔条 art 269.5 上）
+                var valueX = i == 0 ? UiLayoutGame.CharDefValueX : UiLayoutGame.CharCurMaxX;
+                var valueW = i == 0 ? UiLayoutGame.CharDefValueW : UiLayoutGame.CharCurMaxW;
+
                 _derivedValues[i] = D2Label.Create(transform, "DerivedValue" + i, "0", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
-                    new Vector2(size.x * 0.45f, size.y), center + new Vector2(size.x * 0.27f, 0f),
+                    new Vector2(valueW * UiLayoutGame.K, UiLayoutGame.CharRowSlotH * UiLayoutGame.K),
+                    PanelPos + new Vector2(valueX,
+                        UiLayoutGame.CharDerivedRowOrig[i].y + UiLayoutGame.CharRowTextDy) * UiLayoutGame.K,
                     (int)UiLayoutGame.FontPx16);
             }
         }
@@ -206,15 +256,19 @@ namespace Diablo2.UI
             {
                 var center = PanelPos + UiLayoutGame.CharBottomRightOrig[i] * UiLayoutGame.K;
 
-                _extraNames[i] = UiArt.Label(transform, "ExtraName" + i, ExtraName[i], 16,
-                    TextAnchor.MiddleLeft, UiArt.TextColor,
+                _extraNames[i] = UiArt.Label(transform, "ExtraName" + i, ExtraName[i],
+                    (int)UiLayoutGame.FontPx16, TextAnchor.MiddleLeft, UiArt.TextColor,
                     new Vector2(size.x * 0.55f, size.y), center + new Vector2(-size.x * 0.22f, 0f));
                 _extraNames[i].raycastTarget = false;
 
-                // ★ 片 font-scale：补显式字号（唯一出处 `UiLayoutGame.FontPx16`）。
+                // ★ U3 修：数值列与「防御」同口径（底图右下这几个薄框与右侧派生行同宽：
+                //   art 271..309 ⇒ node 130 ± 19）。旧写法把它画在标签矩形右半 ⇒ 跨压分隔条。
                 _extraValues[i] = D2Label.Create(transform, "ExtraValue" + i, "0", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
-                    new Vector2(size.x * 0.45f, size.y), center + new Vector2(size.x * 0.27f, 0f),
+                    new Vector2(UiLayoutGame.CharDefValueW * UiLayoutGame.K,
+                        UiLayoutGame.CharRowSlotH * UiLayoutGame.K),
+                    PanelPos + new Vector2(UiLayoutGame.CharDefValueX, UiLayoutGame.CharBottomRightOrig[i].y)
+                        * UiLayoutGame.K,
                     (int)UiLayoutGame.FontPx16);
             }
         }
@@ -227,30 +281,81 @@ namespace Diablo2.UI
             {
                 var center = PanelPos + UiLayoutGame.CharResistRowOrig[i] * UiLayoutGame.K;
 
-                _resistNames[i] = UiArt.Label(transform, "ResistName" + i, ResistName[i], 17,
-                    TextAnchor.MiddleLeft, UiArt.TextColor,
-                    new Vector2(size.x * 0.66f, size.y), center + new Vector2(-size.x * 0.17f, 0f));
+                // ★ U52-resist 修（D10：标签**折行压住下一行**；根因 = 标签框只有 46 art，
+                //   而 4 字中文标签在 font16 下最少要 63 art）：
+                //   标签框改走 `CharResistNameX/W`（中心 node −127、宽 66 art = art 0..66），
+                //   值列同步改走收窄后的 `CharResistValueX/W`（art 67.5..112.5，**右沿不动**）；
+                //   两个框不相交（间隔 1.5 art px）、都在面板内。
+                //   为什么不能用「四维标签隔间的左沿 art 10」起框、为什么不能改文案
+                //   （配表出处 + 5 字原版长形放不下）⇒ 逐条写在 `UiLayoutGame.CharResistNameX` 的注释里。
+                //   折行判据（生产口径：`needNative < availPx`）见
+                //   `tools/probes/hosts/uicheck/U52ResistCheck.cs`。
+                _resistNames[i] = UiArt.Label(transform, "ResistName" + i, ResistName[i],
+                    (int)UiLayoutGame.FontPx16, TextAnchor.MiddleLeft, UiArt.TextColor,
+                    new Vector2(UiLayoutGame.CharResistNameW * UiLayoutGame.K, size.y),
+                    PanelPos + new Vector2(UiLayoutGame.CharResistNameX, UiLayoutGame.CharResistRowOrig[i].y)
+                        * UiLayoutGame.K);
                 _resistNames[i].raycastTarget = false;
 
-                // ★ 片 font-scale：补显式字号（唯一出处 `UiLayoutGame.FontPx16`）。
-                //   ⚠️ 值列框 = 0.34 × 74.3 ×1.8 = **45.5 画布px**（最窄的一列）⇒ 字高 28 时
-                //   换行阈值 = 45.5/scale ≈ 29 原版px（"75%" ≈ 24px，放得下；"100%" 会折行）。
-                //   实测（Probe/Play）逐条核 `LineCount`；若出现折行就按"值列不折行"处理（Overflow）。
+                // ★ U3 修：值列**与四维行数值列对齐**（同一列 x = `CharStatValueX`，宽 `CharStatValueW`）。
+                //   本组行是"本项目新增"（底图左下是空白大理石，没有隔间）⇒ 列位只在面板内部求一致：
+                //   与**最近的一族有框行**（四维行）同列。旧写法 `size.x * 0.33` 把 "0%" 画在行内右半，
+                //   与四维行的数字不在同一列（实机截图上两列错开 ≈ 47 画布px）。
+                //   ⚠️ 列宽（主 agent 2026-09-24 裁决）：抗性是**带 % 的百分比**，用四维那种窄列
+                //   （33 art）连 `75%` 都压线 ⇒ 必须比它宽，且**右沿与四维数值列右沿对齐**
+                //   = art 112.5。
+                //   ★ U52-resist：宽 64 → **45 art**（左沿从 art 48 退到 67.5，**右沿不动**）——
+                //   给上面那个 66 art 的标签框让位；`-100%`（advance 47 art）在 45 art 下
+                //   availPx = 52 > 47 ⇒ **不折行**（余量 5 art；最小可放宽度 = 42 art）。
+                //   出处与算术逐条写在 `UiLayoutGame.CharResistValueX` 的注释里，
+                //   离线判据（含退化样本）见 `tools/probes/hosts/uicheck/U52ResistCheck.cs`。
                 _resistValues[i] = D2Label.Create(transform, "ResistValue" + i, "0%", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
-                    new Vector2(size.x * 0.34f, size.y), center + new Vector2(size.x * 0.33f, 0f),
+                    new Vector2(UiLayoutGame.CharResistValueW * UiLayoutGame.K, size.y),
+                    PanelPos + new Vector2(UiLayoutGame.CharResistValueX, UiLayoutGame.CharResistRowOrig[i].y)
+                        * UiLayoutGame.K,
                     (int)UiLayoutGame.FontPx16);
             }
         }
 
+        /// <summary>关闭钮文案（与 `UI/WaypointPanel.cs` 的关闭钮同口径：原版按钮帧 + 原版字模文案）。</summary>
+        private const string CloseText = "关闭";
+
         /// <summary>
-        /// 关闭按钮：命中区按原版矩形；「X」图形**不在本批素材里**（底图只有一个凹槽）
-        /// ⇒ 不自己画一个，登记在 `client/资源欠缺清单.md`。
+        /// 关闭按钮：命中区按原版矩形；<b>★ U3 修（主 agent 2026-09-24 裁决）——让它可见</b>。
+        /// <para>真根因：旧实现 `new Color(1,1,1,<b>0</b>)` ⇒ 节点在屏上**完全透明**，
+        /// 点得到、看不见 —— 用户"连关闭都没有"在这一格**字面成立**（实机放大图
+        /// `.ai-tmp/test/cs_zoom_bottom.png`：底图那个方形凹槽里是空的）。</para>
+        /// <para>改法（口径 = 主 agent 裁定，⛔ 不自画 X）：
+        /// ① 命中区**几何不动**（原版 prefab `CloseButton` (−15.4,−188.3) 32×31，与底图
+        ///    art 128..159 × 389..420 的方形凹槽实测一致）；
+        /// ② 贴**原版按钮帧** `Resources/Clover/D2/UI/Menu/btn_cancel_0.png`（DC6 直出，
+        ///    与 `WaypointPanel` 的中按钮同源）+ 原版字模文案「关闭」；
+        /// ③ 兜底色 = 原版按钮底板色（**alpha 1**）⇒ 即使贴图加载失败，也**可见 + 可点**
+        ///    （判据 `FindCloseNode != null &amp;&amp; alpha &gt; 0.9` 因此不再依赖素材是否到位）；
+        /// ④ "原版就是帧+文案"有据：原版 prefab 的 `CloseButton` 自己就带一个 `text: Close`
+        ///    的标签组件（`.ai-tmp/test/cs_orig_CharstatPanel.prefab.txt`，MonoBehaviour 114272374721566020）。</para>
+        /// <para>⚠️ 图形仍待补（原版那个 X 的独立图形不在本批素材里）⇒ 已按纪律
+        /// **只追加**登记到 `client/资源欠缺清单.md`，⛔ 不自己画一个冒充原版。</para>
         /// </summary>
         private void BuildCloseButton()
         {
             var close = UiArt.Panel(transform, "CloseButton", UiLayoutGame.CharCloseSize,
-                PanelPos + UiLayoutGame.CharClosePos, new Color(1f, 1f, 1f, 0f), true);
+                PanelPos + UiLayoutGame.CharClosePos, UiArt.ButtonBg, true);
+            //   路径走 `ResPaths` 的**具名常量**（`Core/ResPaths.cs:255`，= 原版
+            //   `MENU/MediumButtonBlank.dc6` 帧 0，与 `WaypointPanel` 的中按钮**同一张图**）——
+            //   ⛔ 不写字面量：`ResPaths.cs:21` 记着"未确认文件名的素材不要臆造常量"，
+            //   而写错路径的失败模式是**静默返回 null**（真值只在常量里）。
+            UiArt.SetSprite(close, ResPaths.BtnMedNormal);
+            close.preserveAspect = true;
+
+            // 原版字模文案（`D2Label`，与面板其它文字同字号 = `UiLayoutGame.FontPx16`）
+            var text = UiArt.Label(transform, "CloseLabel", CloseText, (int)UiLayoutGame.FontPx16,
+                TextAnchor.MiddleCenter, UiArt.ButtonText, UiLayoutGame.CharCloseSize,
+                PanelPos + UiLayoutGame.CharClosePos);
+            text.raycastTarget = false;
+            _closeText = text;
+
             var button = close.gameObject.AddComponent<Button>();
             button.targetGraphic = close;
             button.onClick.AddListener(() =>
@@ -281,9 +386,14 @@ namespace Diablo2.UI
             _nameText.text = stats != null && !string.IsNullOrEmpty(stats.name) ? stats.name : "(无角色)";
             var points = stats != null ? stats.statPoints : 0;
             var skillPoints = stats != null ? stats.skillPoints : 0;
-            _topRightText.text = $"等级 {(stats != null ? stats.level : 0)}    经验 "
-                                 + $"{(stats != null ? stats.exp : 0)}/{(stats != null ? stats.expNext : 0)}"
-                                 + $"    技能点 {skillPoints}";
+
+            // ★ U3 修：三段分框显示（右上 = 等级 / 第二排右框 = 经验 / 第二排中框 = 技能点）。
+            //   出处：底图三处凹槽的逐像素实测（`UiLayoutGame.CharTopRightPos` / `CharBand2RightPos` /
+            //   `CharBand2MidPos`）。旧写法把三段拼成一行塞进右上**一格** ⇒ 实测屏宽 ≈ 400 > 凹槽 210
+            //   ⇒ 越框 + 越出面板右边缘。
+            _topRightText.text = $"等级 {(stats != null ? stats.level : 0)}";
+            _band2RightText.text = $"经验 {(stats != null ? stats.exp : 0)}/{(stats != null ? stats.expNext : 0)}";
+            _band2MidText.text = $"技能点 {skillPoints}";
 
             SetStat(0, stats?.str ?? 0);
             SetStat(1, stats?.dex ?? 0);

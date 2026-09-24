@@ -1480,6 +1480,80 @@ namespace ItemCheck
                 _log.Contains("T0GAP", "向下取整") && _log.Contains("T0GAP", "不会为负"),
                 "见 [INFO] [T0GAP]");
 
+            // 13b) ★ u52cur（缺陷 A/B）：三资源 cur/max —— 新建即满 / 旧档迁移 / 现行档"沿用"
+            //   ⚠️ **本段是 `playercheck` §9c 的镜像（有意的重复，main 已批）**：
+            //      ① `playercheck` 编 `Module/View` ⇒ 别的片把 View 改坏时整宿主编不过（本轮 12:13~12:2x
+            //         真实发生过：`EntityHighlight.cs` 用了 Unity 6000.6 不存在的 `Shader.HasProperty(string)`）；
+            //      ② 本节不编 View ⇒ 这组**存档语义**断言在这里有**独立的可跑副本**。
+            //      ⛔ **两处改动必须同步**（`playercheck §9c` ↔ 本节）；本节用**真实 PlayerModule** 取证。
+            //
+            //   实机症状（`u52play` 11:38:35 那批，判为有效）：
+            //     `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`
+            //     `[D2U3C] DTO name=S2203805 … life=50/50 mana=15/15 stamina=20/84`
+            //   活档（**只读**）`client/setting/saves/S2203805.json`（mtime 2026-09-23 20:38 = charstat 片修前）：
+            //     `version:1, cls:1, level:1, 四维 20/25/20/15, life:60, mana:22, stamina:20`
+            //   ⇒ 与 `Min(60,50)/Min(22,15)/Min(20,84)` **逐值对得上**：life/mana 因旧值偏大被夹到上限，
+            //     **stamina 旧值 20 < 新上限 84 ⇒ 卡在 20/84**。
+            //   出处（起始量 = 满值）：`charstats.txt:2..6` 的 `hpadd`(30)+起始体力(20)=50 / 起始精力(15) /
+            //     `stamina`(84)；表内落位 = `class_c.hp_add / base_stamina`。
+            Section("13b) ★ u52cur 三资源 cur/max（新建即满 / 旧档迁移 / 现行档沿用 / 退化样本）");
+            var cur = new Diablo2.Module.Player.PlayerModule();
+            cur.CreateNew(PlayerClass.Amazon, "CurNew");
+            Check("新建角色：三资源 cur == max（官方起始量即满值起步）",
+                cur.Life == cur.MaxLife && cur.Mana == cur.MaxMana && cur.Stamina == cur.MaxStamina,
+                $"生命 {cur.Life}/{cur.MaxLife} 法力 {cur.Mana}/{cur.MaxMana} 耐力 {cur.Stamina}/{cur.MaxStamina}");
+            Check("新建亚马逊 1 级 = 官方起始值 50 / 15 / 84（`charstats.txt`）",
+                cur.MaxLife == 50 && cur.MaxMana == 15 && cur.MaxStamina == 84,
+                $"{cur.MaxLife}/{cur.MaxMana}/{cur.MaxStamina}");
+
+            var rtSave = new CharacterSave();
+            cur.WriteTo(rtSave);
+            Check("写档：version 写成当前 `GameConst.SaveVersion`（迁移判据的前提）",
+                rtSave.version == GameConst.SaveVersion, $"档内 {rtSave.version} / 当前 {GameConst.SaveVersion}");
+            cur.LoadFrom(rtSave);
+            Check("新建档往返（写→读）后仍 cur == max",
+                cur.Life == cur.MaxLife && cur.Mana == cur.MaxMana && cur.Stamina == cur.MaxStamina,
+                $"生命 {cur.Life}/{cur.MaxLife} 法力 {cur.Mana}/{cur.MaxMana} 耐力 {cur.Stamina}/{cur.MaxStamina}");
+
+            var legacySave = CurLegacySave();
+            cur.LoadFrom(legacySave);
+            Check("旧档（version < 当前；逐值抄活档 S2203805）迁移后 = 50/15/84 且 cur == max",
+                cur.Life == 50 && cur.Mana == 15 && cur.Stamina == 84,
+                $"生命 {cur.Life}/{cur.MaxLife} 法力 {cur.Mana}/{cur.MaxMana} 耐力 {cur.Stamina}/{cur.MaxStamina}");
+            Check("旧档迁移留下**一条**可定位 Info（不是每条资源一条）",
+                _log.Contains("Player", "旧档迁移"), "见 [INFO] [Player] 旧档迁移");
+
+            var preFixStam = CurPreFix(legacySave.stamina, cur.MaxStamina);
+            Check("退化样本（旧档同判据）：修前形状只做 `Min(cur,max)` ⇒ 耐力 20 ≠ 84（正是实机症状）",
+                preFixStam == 20 && preFixStam != 84, $"修前形状耐力 = {preFixStam}/84");
+
+            var midSave = CurLegacySave();
+            midSave.version = GameConst.SaveVersion;
+            midSave.life = 34;                     // 实测活档 `SAArea1.json` 的中局值
+            midSave.stamina = 40;
+            cur.LoadFrom(midSave);
+            Check("现行版本档沿用 cur：中局受伤档（life=34 / stamina=40）读档后原样保留（⛔ 不许改成补满）",
+                cur.Life == 34 && cur.Stamina == 40,
+                $"生命 {cur.Life}/{cur.MaxLife} 耐力 {cur.Stamina}/{cur.MaxStamina}");
+
+            var overSave = CurLegacySave();
+            overSave.version = GameConst.SaveVersion;
+            overSave.life = 9999;
+            overSave.stamina = 0;
+            cur.LoadFrom(overSave);
+            Check("现行版本档：越上限钳到 max、cur=0 视为「没存」⇒ 满（既有降级口径未放宽）",
+                cur.Life == cur.MaxLife && cur.Stamina == cur.MaxStamina,
+                $"生命 {cur.Life}/{cur.MaxLife} 耐力 {cur.Stamina}/{cur.MaxStamina}");
+
+            // ⛔ 边界：**未来版本**档**不许**被迁移（迁移只对"更旧"生效）—— 反过来说，
+            //    旧客户端（`SaveVersion=1`）读本片之后写出的新档（=2）走的正是这条 `else` 分支。
+            var futureSave = CurLegacySave();
+            futureSave.version = GameConst.SaveVersion + 1;
+            futureSave.stamina = 40;                   // 已是当前口径的"当前值" ⇒ 必须原样保留
+            cur.LoadFrom(futureSave);
+            Check("未来版本档（version = 当前 + 1）⇒ 走 else 沿用 cur、**不迁移**（迁移只对更旧生效）",
+                cur.Stamina == 40, $"耐力 {cur.Stamina}/{cur.MaxStamina}（要求 40）");
+
             // ── 15. ★ 起始装备（`start_item_c` ← 官方 charstats.txt；用户报「创建角色后徒手打不动怪」）──
             //   断言打在**生产实现** `Module/Item/StartItems.cs` 上；期望值由本宿主**自己解析官方
             //   `charstats.txt`**（不读我们自己的配表）⇒ 判的是"我们抽的表 == 官方表"这条**过程**，
@@ -1605,6 +1679,89 @@ namespace ItemCheck
                     w == null || wRow == null ? "无武器"
                         : $"stack={w.dmgMin}-{w.dmgMax} item_c={wRow.DmgMin}-{wRow.DmgMax}");
             }
+
+            // 15d) ★ u52block（R6）：盾牌**基材**格挡（`item_c.block` ← 官方 `Armor.txt` 第 11 列）
+            //   「玩家侧把它算进总格挡」的接线由 `playercheck` §9b 把守；本节判**物品侧**那一半：
+            //     ① 盾牌识别：`item_c` 里 block ≠ 0 的行必须**全部**是官方盾类（`shie`/`ashd`/`head`）
+            //     ② 基材取值：`item_c.block` == 官方公布格挡（Paladin 档）− 职业固有值（30）
+            //        官方公布值出处（2026-09-24 实取）：`https://www.diablo-2.net/items/shields`
+            //        + `https://d2grail.com/items/bases/armor/shields/normal/buckler`
+            //        职业固有值出处：`charstats.txt:2..6` 第 32 列 `BlockFactor`（Pal 30，打表 ⇒ `class_c`）
+            //     ③ 起始盾落位：classes 1/4/5 的 `buc` 必须进 Shield 槽、且能在 `item_c` 里查到
+            //   ⚠️ 为什么 Buckler 的 block=0 也算盾：官方公布的 Buckler 格挡（Pal 30 / Ama·Bar 25 /
+            //      Sor·Nec 20）**恰好等于**职业固有值 ⇒ 它的基材项就是 0（原值，⛔ 不是缺列）。
+            Section("15d) ★ R6 盾牌基材 block（item_c.block ↔ 官方公布格挡；盾类识别；起始盾落位）");
+            const int palBlockFactor = 30;                       // charstats.txt 列 32（Paladin）
+            var officialPaladinShieldBlock = new Dictionary<string, int>
+            {
+                { "buc", 30 }, { "sml", 35 }, { "lrg", 42 }, { "kit", 38 },
+                { "spk", 40 }, { "bsh", 50 }, { "tow", 54 }, { "gts", 46 },
+            };
+            var allItems = Table.Tables.Default.Item.All();
+            var shieldRows = new List<Table.BaseItemRow>();
+            var nonShieldWithBlock = 0;
+            for (var i = 0; i < allItems.Count; i++)
+            {
+                var r = allItems[i];
+                if (r == null) continue;
+                var isShield = r.Type == "shie" || r.Type == "ashd" || r.Type == "head";
+                if (isShield) shieldRows.Add(r);
+                else if (r.Block != 0) nonShieldWithBlock++;
+            }
+            Check($"盾类识别：`item_c` 里 block≠0 的行**全部**落在 shie/ashd/head（非盾带 block 的行数 = {nonShieldWithBlock}，要求 0）",
+                nonShieldWithBlock == 0, "非盾且 block≠0 的行数=" + nonShieldWithBlock);
+            // 口径：`tools/table-convert/convert.py` 的 `ITEM_MAX_LEVEL = 12`（Act I 全区 qlvl 上限）
+            //   官方 `Armor.txt` 的盾共 54 行（shie 24 / ashd 15 / head 15），其中 qlvl ≤ 12 的只有
+            //   8 行：buc(1) / sml(5) / lrg(11) / spk(11) / pa1(4) / pa2(8) / ne1(4) / ne2(8)。
+            Check("Act I 口径下 `item_c` 的盾行数 = 8（官方全表 54 行，qlvl>12 的按既有口径不进 Act I 表）",
+                shieldRows.Count == 8, "shieldRows=" + shieldRows.Count);
+
+            var baseOk = 0;
+            var baseTotal = 0;
+            var baseMissing = new List<string>();
+            var baseDetail = new List<string>();
+            foreach (var kv in officialPaladinShieldBlock)
+            {
+                Table.BaseItemRow hit = null;
+                for (var i = 0; i < allItems.Count && hit == null; i++)
+                    if (allItems[i] != null && allItems[i].Code == kv.Key) hit = allItems[i];
+                var exp = kv.Value - palBlockFactor;
+                if (hit == null) { baseMissing.Add(kv.Key); continue; }
+                baseTotal++;
+                if (hit.Block == exp) baseOk++;
+                baseDetail.Add($"{kv.Key}:{hit.Block}(期望{exp})");
+            }
+            Check("Act I 表里的 4 种普通盾：`item_c.block` = 官方公布格挡 − 职业固有值(30) 逐条相符",
+                baseTotal == 4 && baseOk == baseTotal,
+                $"{baseOk}/{baseTotal}：{string.Join(" ", baseDetail)}；不在表里：{string.Join(",", baseMissing)}");
+
+            var startShieldOk = 0;
+            var startShieldDetail = new List<string>();
+            for (var clsId = 1; clsId <= 5; clsId++)
+            {
+                var cls = (PlayerClass)clsId;
+                var sv = NewCharSave(cls);
+                Diablo2.Module.Item.StartItems.Apply(sv);
+                var slots = EquipSlots(sv);
+                var hasShieldSlot = false;
+                for (var si = 0; si < slots.Count; si++)
+                    if (slots[si] == ItemSlot.Shield) hasShieldSlot = true;
+                var codeOk = true;
+                var codeTxt = "-";
+                if (hasShieldSlot)
+                {
+                    Table.BaseItemRow shieldRow;
+                    var st = FirstShield(sv, out shieldRow);
+                    codeOk = shieldRow != null && shieldRow.Block == 0 && shieldRow.Code == "buc";
+                    codeTxt = st == null ? "无" : (shieldRow == null ? "行缺" : shieldRow.Code + "(block=" + shieldRow.Block + ")");
+                }
+                var expectShield = clsId == 1 || clsId == 4 || clsId == 5;   // 官方 charstats 起始 item2=buc（larm）
+                if (hasShieldSlot == expectShield && codeOk) startShieldOk++;
+                startShieldDetail.Add($"{cls}:盾槽={hasShieldSlot}(期望{expectShield}) {codeTxt}");
+            }
+            Check("起始盾落位：仅 Amazon/Paladin/Barbarian 有盾槽且是 `buc`（官方 charstats item2=buc/larm，block=0）",
+                startShieldOk == 5, string.Join("；", startShieldDetail));
+            Console.WriteLine("   " + string.Join("；", startShieldDetail));
 
             // ── 16. ★ impl-invfix：N2「背包空格」复核（`report-inspect.md` §1 N2）──────────
             //
@@ -2108,6 +2265,49 @@ namespace ItemCheck
         }
 
         /// <summary>第一个武器槽装备（+ 它的 `item_c` 行）。</summary>
+        /// <summary>
+        /// ★ u52cur：**旧口径活档的逐值副本**（`client/setting/saves/S2203805.json`，**只读**抄写）。
+        /// `version` 取 `GameConst.SaveVersion - 1` ⇒ 走"更旧版本"的迁移分支（**与常量当前值无关**，
+        /// 这样断言在常量 1→2 前后都成立）。
+        /// </summary>
+        private static CharacterSave CurLegacySave()
+        {
+            return new CharacterSave
+            {
+                version = GameConst.SaveVersion - 1,
+                name = "S2203805",
+                cls = PlayerClass.Amazon,
+                level = 1,
+                exp = 0,
+                str = 20, dex = 25, vit = 20, eng = 15,
+                life = 60, mana = 22, stamina = 20,          // 旧公式产物（修前口径）
+                statPoints = 0, skillPoints = 0, gold = 0,
+                gridX = 0, gridY = 0, mapSeed = 77928551,
+            };
+        }
+
+        /// <summary>**修前形状**：读档时只做 `Min(cur, max)`。仅用于退化样本。</summary>
+        private static int CurPreFix(int savedCur, int max)
+            => savedCur > 0 ? Mathf.Min(savedCur, max) : max;
+
+        /// <summary>★ u52block（R6）：起始装备里的**盾**（官方盾类 `shie`/`ashd`/`head`）。</summary>
+        private static ItemStack FirstShield(CharacterSave sv, out Table.BaseItemRow row)
+        {
+            row = null;
+            if (sv == null) return null;
+            for (var i = 0; i < sv.equip.Count; i++)
+            {
+                var it = sv.equip[i];
+                if (it == null) continue;
+                var r = Table.Tables.Default.Item.Get(it.itemId);
+                if (r == null) continue;
+                if (r.Type != "shie" && r.Type != "ashd" && r.Type != "head") continue;
+                row = r;
+                return it;
+            }
+            return null;
+        }
+
         private static ItemStack FirstWeapon(CharacterSave sv, out Table.BaseItemRow row)
         {
             row = null;

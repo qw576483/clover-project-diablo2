@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ───────────────────────────────────────────────────────────────────────
        SaveCheck · agent-37（引擎下沉 A6 · 原子槽位存储）自检宿主（**非 Unity 工程**）
@@ -117,4 +117,12 @@
     </Reference>
   </ItemGroup>
 
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\JsonWriter.cs" />
+  </ItemGroup>
 </Project>

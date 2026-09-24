@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
        片 W5「动画 1:1」离线自检宿主（`tools/probes/hosts/animcheck`）。
@@ -51,12 +51,25 @@
 ..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraMath.cs
 " />
 
+    <!-- sunk grid-space camera clamp (eng-camera-math): Module/Camera/CameraBounds.cs now
+         forwards to CloverEngine.CameraBoundsKit, so this host must compile the engine file too
+         or it fails with CS0117. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraBoundsKit.cs
+" />
+
     <!-- sunk frame-pacing capability (impl-camera): Core/FramePacing.cs now forwards to the
          engine type CloverEngine.FramePacingPolicy, so this host must compile the engine file
          or it fails with CS0234. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
     <Compile Include="
 ..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs
 " />
+
+    <!-- sunk tiebreak capability (d2-view): `Module/View/ViewModule.cs` 的实体第三键 `SortTieZ`
+         与 `Module/Skill/ProjectileView.cs` 的投射物第三键 `SortZFor` 都改走引擎
+         `CloverEngine.SortingLayers.TiebreakOffset`（项目侧不再自留该公式）⇒ 必须把引擎文件链进来，
+         否则 CS0246。口径与上面两条 sunk-* 一致：每个宿主最多一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SortingLayers.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
@@ -64,12 +77,50 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\*\*.cs" />
+    <!-- ★ eng-tile 片（2026-09-24）：上面那条通配把 `Module/Map/*.cs` 也链进来了，而
+         `TileNodePool.cs` + `TileRenderState.cs` 已下沉到引擎（项目侧只剩薄转发）⇒ 必须补链引擎两份。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileNodePool.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderState.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EnterLatch.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\PointerFloatLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\DragDropLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\PathFollower.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteStripLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldOverlayWidgets.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\BitmapFont.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProjectileRuntime.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UIPanelGuards.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ScreenPointUtil.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UIWidgetControls.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UiImageLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteSwapButton.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\Sound.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\HitShape.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\LoadingPacing.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\ChunkedTilePlanner.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\JsonWriter.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Game.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\StableHash.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dispatcher.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LanContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\PresentationContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\DeviceId.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EngineRunner.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />
   </ItemGroup>
 
   <ItemGroup>

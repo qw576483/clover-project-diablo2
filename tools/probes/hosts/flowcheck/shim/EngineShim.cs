@@ -238,6 +238,18 @@ namespace CloverEngine
         public static Image CreateButton(string name, Transform parent, string label, Vector2 size, Vector2 pos,
             Color bg, Action onClick) => null;
         public static Camera UICamera() => null;
+        /// <summary>`Runtime/Presentation/UIWidgetControls.cs:239`（同 `UIFactory` 的另一半）。
+        /// ★ 片 d2-bar：项目侧条状控件已收敛到这一件（`UiBar` 横向 / `UiArt.ProgressBar` / `SettingsPanel`）
+        /// ⇒ 宿主不链它就会 CS0117。这里的实现与引擎**逐字一致**（离线下无 Unity 节点，`fill` 为 null 时直接返回）。</summary>
+        public static void SetBarWidth(RectTransform fill, float progress01)
+        {
+            if (fill == null) return;
+            var p = Mathf.Clamp01(progress01);
+            fill.anchorMin = new Vector2(0f, 0f);
+            fill.anchorMax = new Vector2(p, 1f);
+            fill.offsetMin = Vector2.zero;
+            fill.offsetMax = Vector2.zero;
+        }
     }
 
     /// <summary>`Runtime/Presentation/TextHooks.cs`（E-core-12）：业务可注册的"文字渲染挂钩"。</summary>

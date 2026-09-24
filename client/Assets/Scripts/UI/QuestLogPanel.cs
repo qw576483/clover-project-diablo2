@@ -51,7 +51,16 @@ using UnityEngine.UI;
 
 namespace Diablo2.UI
 {
-    /// <summary>任务日志面板。层：<see cref="UILayer.Popup"/>。</summary>
+    /// <summary>
+    /// 任务日志面板。层：<see cref="UILayer.Normal"/>。
+    /// <para>★ R8-close（2026-09-24）：原先声明 <see cref="UILayer.Popup"/> ⇒ 引擎在 Popup 层插**全屏模态
+    /// 遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` → `:443-461` `ShowMask()`，
+    /// `raycastTarget = true`），而本屏**一个关闭控件都没有**（全文只有 Act 页签）⇒ 遮罩把 `Normal`（HUD）
+    /// 整个盖住 ⇒ **纯鼠标玩家打开任务日志后无任何出口**。原版没有模态遮罩（靠 Q 键 / 小面板按钮开合），
+    /// 故按同一口径**降层**——先例 = `UI/NpcDialogPanel.cs` 的 R1-E。
+    /// ⚠️ 引擎的 `CloseMutexPanels()` 只关 `Layer == Popup` 的面板 ⇒ 同族互斥改由 HUD 入口显式补
+    /// （`UI/HudPanel.cs` 的 `CloseScreenFamily`，注释里有"为什么必须补"）。</para>
+    /// </summary>
     public class QuestLogPanel : UIPanel
     {
         // ═════════════════════════════════════════════════════════════════════
@@ -242,7 +251,9 @@ namespace Diablo2.UI
         private Text _text;
 
         /// <inheritdoc/>
-        public override UILayer Layer => UILayer.Popup;
+        /// <remarks>R8-close：`Popup` → `Normal`（**遮罩消失 ⇒ HUD 的「任務記錄 Q」入口可点 = 同一入口开合**；
+        /// 理由/出处见类头注释与 `UI/NpcDialogPanel.cs` 的 R1-E）。</remarks>
+        public override UILayer Layer => UILayer.Normal;
 
         /// <inheritdoc/>
         public override void OnOpen(object param)

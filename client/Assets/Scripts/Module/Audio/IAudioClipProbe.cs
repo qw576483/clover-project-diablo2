@@ -1,24 +1,28 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Audio/IAudioClipProbe.cs
-// **音频资源探测接缝**：`AudioModule` 判断「`Sound/{BGM,SFX}/{键}` 到底能不能取到音频」
+// **音频资源存在性接缝**：`AudioModule` 判断「`Sound/{BGM,SFX}/{键}` 到底取不取得到音频」
 // 只经这一个接口。
 //
-// 为什么要有这个接缝（而不是直接在 `AudioModule` 里写 `Game.Res.LoadAsset<AudioClip>`）：
-//   · 引擎的 `ISoundManager.PlaySFX/PlayBGM` **对缺失文件是静默的**（`Sound.cs:109` `if (clip == null) return;`），
-//     业务拿不到"到底有没有"这个信息 ⇒ 无法实现「缺文件只 Warn 一次 + 之后静默」这条硬要求；
-//   · 离线自检宿主（`tools/audiocheck`，非 Unity 进程）**无法构造 `UnityEngine.AudioClip`**
-//     ⇒ 若把探测写死在这里，就没法在无编辑器环境里验证"缺失降级"与"触发点是否被请求"。
-//   把探测抽成接口后：生产用 `EngineAudioClipProbe`（走 `Game.Res`），自检宿主注入替身。
+// ★ 片 sinkup6-d2 · d2-audio（收敛）：接缝**保留**，但实现口径已收敛到引擎既有的存在性入口
+//   `Game.Res.Exists`（见 `EngineAudioClipProbe`）—— 不再自建异步 `LoadAsset<AudioClip>` 探测
+//   与自算缓存（那是与引擎「加载 + 缓存」路径平行的第二套）。`AudioModule` 侧原先配套的
+//   `_missingSfx/_missingBgm/_probedSfx/_probedBgm` 四张表已随之删除。
 //
-// 契约：`Probe` **允许同步回调**（引擎 `ResourceManager.LoadAsset` 命中缓存时就是同步回调，
-//   见 `Runtime/Resource/ResourceManager.cs:159-166`）⇒ 实现方不许假设回调晚于 `Probe` 返回。
+// 为什么还留这个接缝（而不是在 `AudioModule` 里直接写 `Game.Res.Exists`）：
+//   · 离线自检宿主（`tools/probes/hosts/audiocheck`，非 Unity 进程）要能注入替身，断言两条路径
+//     ——「取不到 ⇒ 只 Warn 一次 + **不调引擎**」与「取得到 ⇒ 正常发播放请求」；
+//   · 生产实现只有 `EngineAudioClipProbe` 一个（薄转发，见该文件头）。
+//
+// 契约：`Probe` **恰好回调一次**（可用 = `true` / 不可用 = `false`），**不抛异常**；
+//   `onResult` 的时机**允许同步**（生产实现 `EngineAudioClipProbe` 就是同步 —— `Game.Res.Exists`
+//   是同步入口）⇒ 实现方**不许**假设回调晚于 `Probe` 返回，调用方也不许假设回调一定晚于返回。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
 
 namespace Diablo2.Module.Audio
 {
-    /// <summary>音频资源探测（唯一与引擎资源系统打交道的接缝）。</summary>
+    /// <summary>音频资源存在性探测（唯一与引擎资源存在性打交道的接缝）。</summary>
     internal interface IAudioClipProbe
     {
         /// <summary>

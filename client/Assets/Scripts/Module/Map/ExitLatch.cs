@@ -17,6 +17,16 @@
 //   的冻结规则算），也不改任何"什么算出口"的形状（那仍是 `TileKind.Exit` + `MapSeam.IsTownEastSeam`）。
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ★ 2026-09-24 下沉：**状态跃迁本身**已搬进引擎件 `CloverEngine.EnterLatch<T>`（`T` = 触发点载荷），
+//   本类型只剩一层**薄封装**，公开 API 一字未改（`NoGrid` / `LastTriggerGrid` / `Fired` /
+//   `ShouldEmit(bool,Vector2Int)` / `Reset()`）。
+//   为什么下沉：这是**任何**"踩到某区域触发一次"（出口 / 接缝 / 陷阱 / 传送门 / 治疗泉 / 拾取区）
+//   都要的判据，且是**共享判据** —— 同一份口径会被"生产路径"与"离线断言"两处用到（本文件 §为什么
+//   单独一个文件的理由，正是这次下沉的理由）。
+//   唯一的表达差异：引擎用 `HasLastTrigger`（布尔位）表达"从未触发"，本项目对外历史口径是哨兵值
+//   `NoGrid` ⇒ 在 `LastTriggerGrid` 里做一次映射，⛔ 不下沉 `int.MinValue` 这个项目侧哨兵。
+
+using CloverEngine;
 using UnityEngine;
 
 namespace Diablo2.Module.Map
@@ -27,44 +37,23 @@ namespace Diablo2.Module.Map
         /// <summary>「没有格」哨兵（与 `PlayerModule.NoGrid` 同值口径）。</summary>
         public static readonly Vector2Int NoGrid = new Vector2Int(int.MinValue, int.MinValue);
 
-        /// <summary>是否已在本轮"进入出口区"里发过（0 = 已重新武装，1 = 已发过）。</summary>
-        private byte _fired;
-
-        /// <summary>最近一次触发时所在的格（供日志/排障读；不参与判定）。</summary>
-        private Vector2Int _lastTriggerGrid;
+        /// <summary>引擎件闩锁（**唯一**状态；本类型不再自留 `_fired` / `_lastTriggerGrid` 第二份）。</summary>
+        private EnterLatch<Vector2Int> _latch;
 
         /// <summary>最近一次触发时所在的格（`NoGrid` = 从未触发过）。</summary>
-        public Vector2Int LastTriggerGrid => _lastTriggerGrid;
+        public Vector2Int LastTriggerGrid => _latch.HasLastTrigger ? _latch.LastTriggerAt : NoGrid;
 
         /// <summary>是否处于"已发过、尚未重新武装"状态。</summary>
-        public bool Fired => _fired != 0;
+        public bool Fired => _latch.Fired;
 
         /// <summary>
         /// 是否应当发出过门请求。
         /// <para><paramref name="onExit"/> = 本格是否属于出口区（调用方按唯一口径算好再传进来）。</para>
-        /// <para>⛔ 纯函数式：同样的入参序列 ⇒ 同样的出参序列，没有隐藏状态（状态只有本值类型自己的两个字段）。</para>
+        /// <para>⛔ 纯函数式：同样的入参序列 ⇒ 同样的出参序列，没有隐藏状态（状态只有引擎件闩锁自己的三个字段）。</para>
         /// </summary>
-        public bool ShouldEmit(bool onExit, Vector2Int grid)
-        {
-            if (!onExit)
-            {
-                // 离开出口区 ⇒ 重新武装（下一次再进入可再发一次）
-                _fired = 0;
-                return false;
-            }
-
-            if (_fired != 0) return false;      // 已在本次"进入出口区"里发过 ⇒ 同一出口/接缝只发一次
-
-            _fired = 1;
-            _lastTriggerGrid = grid;
-            return true;
-        }
+        public bool ShouldEmit(bool onExit, Vector2Int grid) => _latch.ShouldEmit(onExit, grid);
 
         /// <summary>重新武装（进图落位 / 传送 / 复活 / 复位：把玩家搬到别处后，出口要能再触发一次）。</summary>
-        public void Reset()
-        {
-            _fired = 0;
-            _lastTriggerGrid = NoGrid;
-        }
+        public void Reset() => _latch.Reset();
     }
 }

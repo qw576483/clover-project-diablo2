@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ───────────────────────────────────────────────────────────────────────
        地图模块自检宿主（**非 Unity 工程、不参与打包**；按 skill §1.8 放在 `.ai-tmp/hosts/`）
@@ -64,11 +64,27 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <!-- ★ eng-tile 片（2026-09-24）：`Module/Map/TileNodePool.cs` 与 `TileRenderState.cs` 已**下沉到引擎**
+         （项目侧只剩薄转发）⇒ 宿主必须把引擎那两份编进来，否则 CS0246。
+         ⚠️ 随之 §17①/§20 的结构断言（"瓦片节点的唯一创建点"）改读**引擎那份**的源码文本
+         —— 实现搬了，判据必须跟着搬（⛔ 否则「项目侧那份没有 `new GameObject(`」会被误判成缺陷）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileNodePool.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderState.cs" />
     <!-- ★ camera-clamp 片（2026-09-23）：§29 的缺陷判据**直接调生产** `CameraBounds.ClampFocusGrid`
          （⛔ 不再在探针里镜像 6 行公式 —— 镜像会让"生产改了、探针照旧"变成假闸门）。
          本件是**纯数学**（只用 `Core/Iso` + `UnityEngine`），不牵 `Game`/`AppContext`
          ⇒ 单独链进来不会把整棵模块树拖进本宿主。 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Camera\CameraBounds.cs" />
+    <!-- ★ eng-camera-math 片（2026-09-24）：`CameraBounds.cs` 已变薄转发 ⇒ 算法本体（引擎
+         `CloverEngine.CameraBoundsKit`）必须一起链进来，否则 CS0117/CS0246 = 宿主整编不过。
+         本件只依赖 `UnityEngine` + 引擎 `LogThrottle`（上面已链）⇒ 不会把别的模块拖进来。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraBoundsKit.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EnterLatch.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\StableHash.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\ChunkedTilePlanner.cs" />
   </ItemGroup>
 
   <ItemGroup>

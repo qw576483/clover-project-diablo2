@@ -6,7 +6,23 @@
 //   · 本类  = 播放出口（Sfx / SfxAt / Bgm / StopBgm / 音量与静音）+ **缺文件降级**；
 //   · `AudioHook` = 事件触发点（经 `Game.Event` 订阅，见 `_common.md` §2：**不改别的模块的文件**）；
 //   · `SfxRegistry` = 音效键 → 期望文件名的唯一登记表；
-//   · `IAudioClipProbe` = 唯一的资源探测接缝（生产 = `EngineAudioClipProbe`）。
+//   · `IAudioClipProbe` = 唯一的资源**存在性**接缝（生产 = `EngineAudioClipProbe`，薄转发到引擎
+//     `Game.Res.Exists`）。
+//
+// ★ 片 sinkup6-d2 · d2-audio（收敛与引擎/日志层的三层平行实现）：本类原先**自维护**两张表
+//   （`_missingSfx` / `_missingBgm`）＋配套的两张「已探测过」表（`_probedSfx` / `_probedBgm`），
+//   用来做「缺文件只 Warn 一次 + 之后不再调用引擎」。这两件事**各有现成口径**，四张表已全部删除：
+//     · **存在性**：不再自建异步探测（原 `LoadAsset<AudioClip>` ＋自己算缓存），改用引擎既有入口
+//       `Game.Res.Exists`（`IResourceManager.Exists` 声明于 `Runtime/Core/Contracts.cs:1287`，
+//       实现在 `Runtime/Resource/ResourceManager.cs:251`，**按路径缓存** —— 重复问 = 字典命中，
+//       这正是原来 `_probed*` 表想买的东西，不必再自存一份）；
+//     · **只 Warn 一次**：交给日志层唯一那份静态集合（`AudioLog.cs:31-34` 的
+//       `MissingSfxWarned` / `MissingBgmWarned`），本类不再各存一份；
+//       引擎 `Sound.cs` 对「真的走到加载」的 `clip == null` 另有整进程一次的
+//       `LogThrottle.WarnOnce`（`Sound.cs:272/336/361/387`）作第二道网（被存在性闸门拦住时走不到）；
+//     · **不再调用引擎**：存在性为假 ⇒ 本类**不调** `Game.Sound`（原行为逐字保留）。
+//   ⚠️ 副作用（有意为之）：`_probed*` 消失后，同一缺失键的每次请求都会问一次存在性 ——
+//   生产里那是引擎 `_existsCache` 的一次字典命中（不打盘、不加载），**不是**恢复成"每次读盘"。
 //
 // 触发点现状（**避免重复发声**，先读了一遍已有代码）：
 //   命中/未命中/玩家受击/玩家死亡/怪物死亡 → 已由 `Module/Combat/DamagePipeline.cs`
@@ -16,8 +32,9 @@
 //   ⇒ 本模块**不再**为这些事件另订阅一遍（否则同一次命中出两声）。`AudioHook` 只接
 //     **尚未覆盖**的那些：脚步 / 拾取 / 使用 / 升级 / 任务完成 / 复活 / UI / 对话 / 商店 / 进图 / 传送 / BGM。
 //
-// 缺文件降级（硬要求 ④）：探测到取不到 ⇒ **每个键只 Warn 一次** + 之后**静默**，且**不再调用引擎**
-//   （`_missingSfx`/`_missingBgm` 短路），**不抛异常**。素材到位后无需改代码，自动出声。
+// 缺文件降级（硬要求 ④）：存在性为假 ⇒ **每个键只 Warn 一次** + 之后**静默**，且**不再调用引擎**，
+//   **不抛异常**（「只 Warn 一次」的存放处 = `AudioLog` 的静态集合，见上方 ★ 段）。
+//   素材到位后无需改代码，自动出声。
 //
 // 音量（硬要求 ①）：`Game.Sound.SetVolume(SoundGroup.BGM/SFX, v)` + `Game.Sound.SetMute(…)`，
 //   并持久化到 `Game.Setting`（键 `GameConst.SettingKeyBgmVolume/SfxVolume`，初值取 `Cfg`）。
@@ -33,8 +50,6 @@
 //   本片的实机判据走 `[T0] S3-MUTE`（SetMute 后 settings.json 有键 + 冷启动读回）。
 // ─────────────────────────────────────────────────────────────────────────────
 
-using System;
-using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
@@ -48,17 +63,9 @@ namespace Diablo2.Module.Audio
         /// <summary>BGM 切歌淡入淡出时长（秒；引擎 `PlayBGM(clip, fade)` 的 fade 参数）。</summary>
         private const float BgmFadeSeconds = 0.6f;
 
-        /// <summary>已判定"文件缺失"的 SFX 键（命中即静默，不再探测/调用引擎）。</summary>
-        private readonly HashSet<string> _missingSfx = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>已探测过的 SFX 键（首次请求才探测一次，之后直接播）。</summary>
-        private readonly HashSet<string> _probedSfx = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>已判定"文件缺失"的 BGM 键。</summary>
-        private readonly HashSet<string> _missingBgm = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>已探测过的 BGM 键。</summary>
-        private readonly HashSet<string> _probedBgm = new HashSet<string>(StringComparer.Ordinal);
+        // ★ d2-audio：原先这里四张表（`_missingSfx` / `_probedSfx` / `_missingBgm` / `_probedBgm`）
+        //   已删除 —— 「是否缺失」问引擎的 `Game.Res.Exists`（按路径缓存），「只 Warn 一次」由
+        //   `AudioLog` 的静态集合负责。见文件头 ★ 段。
 
         /// <summary>事件触发点接线器（与本类同属 Audio 模块，直接持有本类引用不违反跨模块约定）。</summary>
         private readonly AudioHook _hook;
@@ -126,34 +133,26 @@ namespace Diablo2.Module.Audio
 
             if (!SfxRegistry.IsBgm(key)) AudioLog.UnregisteredKey(key, true);
             if (_currentBgm == key) return;                       // 同一首不重播（换区域才切歌）
-            if (_missingBgm.Contains(key)) return;                // 已知缺失：静默
 
-            if (!_probedBgm.Contains(key))
+            var path = ResPaths.Bgm(key);
+            var file = SfxRegistry.BgmFileName(key) ?? (key + SfxRegistry.BgmExtension);
+            var probe = ClipProbe;
+            if (probe == null)
             {
-                _probedBgm.Add(key);                              // 登记"在探测"，防止洪峰期重复探测
-                var path = ResPaths.Bgm(key);
-                var file = SfxRegistry.BgmFileName(key) ?? (key + SfxRegistry.BgmExtension);
-                var probe = ClipProbe;
-                if (probe == null)
-                {
-                    PlayBgmNow(key);
-                    return;
-                }
-
-                probe.Probe(path, ok =>
-                {
-                    if (!ok)
-                    {
-                        _missingBgm.Add(key);
-                        AudioLog.MissingBgm(key, file, path);
-                        return;
-                    }
-                    PlayBgmNow(key);
-                });
+                PlayBgmNow(key);
                 return;
             }
 
-            PlayBgmNow(key);
+            // 存在性问引擎（`Game.Res.Exists`，按路径缓存）；缺失 ⇒ 日志层只报一次 + 本次不调引擎。
+            probe.Probe(path, ok =>
+            {
+                if (!ok)
+                {
+                    AudioLog.MissingBgm(key, file, path);
+                    return;
+                }
+                PlayBgmNow(key);
+            });
         }
 
         /// <inheritdoc />
@@ -235,7 +234,8 @@ namespace Diablo2.Module.Audio
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// SFX 统一出口：登记 → 缺失短路 → 首次探测 → 播放。**探测失败只 Warn 一次**（每键）。
+        /// SFX 统一出口：登记 → 节流 → **存在性（问引擎 `Game.Res.Exists`）** → 播放。
+        /// 不存在 ⇒ 只 Warn 一次（`AudioLog` 的静态集合）且**不调引擎**。
         /// </summary>
         private void PlaySfxInternal(string key, bool positional, Vector3 pos)
         {
@@ -258,34 +258,25 @@ namespace Diablo2.Module.Audio
                 return;
             }
 
-            if (_missingSfx.Contains(key)) return;                 // 已知缺失：静默（只报过一次）
-
-            if (!_probedSfx.Contains(key))
+            var path = ResPaths.Sfx(key);
+            var file = SfxRegistry.SfxFileName(key) ?? (key + SfxRegistry.SfxExtension);
+            var probe = ClipProbe;
+            if (probe == null)
             {
-                _probedSfx.Add(key);
-                var path = ResPaths.Sfx(key);
-                var file = SfxRegistry.SfxFileName(key) ?? (key + SfxRegistry.SfxExtension);
-                var probe = ClipProbe;
-                if (probe == null)
-                {
-                    PlaySfxNow(key, positional, pos);
-                    return;
-                }
-
-                probe.Probe(path, ok =>
-                {
-                    if (!ok)
-                    {
-                        _missingSfx.Add(key);
-                        AudioLog.MissingSfx(key, file, path);
-                        return;
-                    }
-                    PlaySfxNow(key, positional, pos);
-                });
+                PlaySfxNow(key, positional, pos);
                 return;
             }
 
-            PlaySfxNow(key, positional, pos);
+            // 存在性问引擎（`Game.Res.Exists`，按路径缓存）；缺失 ⇒ 日志层只报一次 + 本次不调引擎。
+            probe.Probe(path, ok =>
+            {
+                if (!ok)
+                {
+                    AudioLog.MissingSfx(key, file, path);
+                    return;
+                }
+                PlaySfxNow(key, positional, pos);
+            });
         }
 
         /// <summary>真正调引擎（键即资源名，引擎自带"文件不存在时静默"）。</summary>

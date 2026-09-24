@@ -728,10 +728,55 @@ namespace Diablo2.Module.Skill
                           $"伤害={dmgMin}-{dmgMax} {def.dmgType} 来源={(missile != null ? missile.Name + "(missile_c)" : "兜底")}");
         }
 
-        /// <summary>推进全部投射物：飞行 → **地形逐格步进** → 命中判定 → 消散。</summary>
+        /// <summary>
+        /// 地形阻挡探针（注入给引擎件 `ProjectileRuntime`；**缓存一次**，避免每帧方法组转换分配委托）。
+        /// </summary>
+        private CloverEngine.ProjectileBlockProbe _blockProbe;
+
+        /// <summary>目标探针（注入给引擎件 `ProjectileRuntime`；同上缓存）。</summary>
+        private CloverEngine.ProjectileTargetProbe _targetProbe;
+
+        /// <summary>
+        /// 推进全部投射物：飞行 → **地形逐格步进** → 命中判定 → 消散。
+        /// <para>
+        /// ★ **计算已下沉**（2026-09-24 片 eng-geom）：飞行积分 / 逐格扫掠 / 最近命中全部搬到引擎件
+        /// `CloverEngine.ProjectileRuntime`（`clover-client-unity-engine/Runtime/Core/ProjectileRuntime.cs`
+        /// 的 `Advance`），本方法只做**编排 + 项目侧副作用**（表现同步 / 伤害管线 / 音效 / 日志 / 回收）。
+        /// </para>
+        /// <para>
+        /// 两处注入：`_blockProbe` = "这一格能不能走"（逐类裁决表仍是本文件 `BlocksProjectile`，唯一出处）、
+        /// `_targetProbe` = "打到谁了"；"消散 / 命中要干什么"按引擎返回的 `ProjectileOutcome` **分类**分派。
+        /// </para>
+        /// </summary>
         private void TickProjectiles(float dt)
         {
             if (_projectiles.Count == 0) return;
+
+            // 地形探针：拿不到地图 / 地图未生成 ⇒ 传 null（引擎件本帧不做地形阻挡），原因在这里留痕
+            var map = AppContext.I != null ? AppContext.I.Map : null;
+            CloverEngine.ProjectileBlockProbe blocked;
+            if (map == null)
+            {
+                SkillLog.WarnOnce("proj.terrain.nomap",
+                    "投射物地形碰撞：IMapModule 未接入（AppContext.Map == null）⇒ 本帧不做地形阻挡" +
+                    "（撞墙会穿过去；离线自检宿主属正常）");
+                blocked = null;
+            }
+            else if (!map.IsGenerated)
+            {
+                SkillLog.WarnOnce("proj.terrain.nogen",
+                    "投射物地形碰撞：地图未生成（IsGenerated == false）⇒ 本帧不做地形阻挡");
+                blocked = null;
+            }
+            else
+            {
+                if (_blockProbe == null) _blockProbe = ProbeTerrainBlocked;
+                blocked = _blockProbe;
+            }
+
+            var monster = AppContext.I != null ? AppContext.I.Monster : null;
+            var monsterCount = monster != null ? monster.All.Count : 0;
+            if (monsterCount > 0 && _targetProbe == null) _targetProbe = ProbeMonster;
 
             for (var i = _projectiles.Count - 1; i >= 0; i--)
             {
@@ -743,47 +788,41 @@ namespace Diablo2.Module.Skill
                     continue;
                 }
 
-                var from = p.pos;
-                p.Step(dt);
+                // ── 一帧推进（引擎件）─────────────────────────────────────────
+                //    ★ 审计 B 红行 R3：地形扫掠**必须排在命中怪物之前** —— 一帧跨多格（高速 / 卡帧后的 dt）
+                //    时端点会越过墙，若先判怪物就会判成"命中墙后那只怪" = 隔墙射杀。
+                //    引擎件内部次序：飞行积分 → 地形逐格扫掠（截停 + 回退射程）→ 最近命中
+                //    （截停后**还要再判一次**：贴墙站着的怪必须能被打到）→ 分类。
+                var body = p.ToBody();
+                // 引擎件签名 = `Advance(ref body, dt, blocked, target, targetCount)`（**5 参**）：
+                //   地形扫掠的采样步长由引擎件自持（`ProjectileRuntime.DefaultSampleStep` = 0.25 格），
+                //   与本文件的 `TerrainSampleStep` **同值** ⇒ 不再作为参数传出（行为不变）。
+                var tick = CloverEngine.ProjectileRuntime.Advance(ref body, dt, blocked,
+                    monsterCount > 0 ? _targetProbe : null, monsterCount);
+                p.FromBody(body);
+
+                if (tick.Stepped) p.Trail.Add(tick.SteppedPos);     // 轨迹点取**截停之前**的位置
                 ProjectileView.Sync(p);
+                if (tick.Clipped) ProjectileView.Sync(p);           // 截停后的表现点
 
-                // ── 地形碰撞（★ 审计 B 红行 R3：原版投射物撞墙/障碍即消散，不穿墙）──
-                //    ⚠️ 必须**排在命中怪物之前**：一帧跨多格（高速 / 卡帧后的 dt）时端点会越过墙，
-                //    若先判怪物就会判成"命中墙后那只怪"= 隔墙射杀。逐格步进见 `TrySweepTerrain`。
-                if (TrySweepTerrain(from, p.pos, out var blockedCell, out var blockedKind, out var stopAt))
+                switch (tick.Outcome)
                 {
-                    var flown = p.pos;
-                    p.pos = stopAt;                                  // 截停在进入阻挡格之前（表现点）
-                    p.traveled = Mathf.Max(0f, p.traveled - Vector2.Distance(stopAt, flown));
-                    ProjectileView.Sync(p);
-
-                    // 贴墙站着的怪先算命中（否则这次判定会被墙"吃掉"）
-                    var wallHitId = FindHitMonster(p);
-                    if (wallHitId >= 0)
-                    {
-                        ResolveHit(p, wallHitId);
+                    case CloverEngine.ProjectileOutcome.HitMonster:
+                        ResolveHit(p, tick.MonsterId);
                         RetireProjectile(p, i);
                         continue;
-                    }
 
-                    ResolveTerrainHit(p, blockedCell, blockedKind);
-                    RetireProjectile(p, i);
-                    continue;
-                }
+                    case CloverEngine.ProjectileOutcome.HitTerrain:
+                        // 地形类别仍由本侧查（`TileKind` 是项目语义；引擎件只回"第一格阻挡格"）
+                        ResolveTerrainHit(p, tick.BlockedCell, map.TileAt(tick.BlockedCell));
+                        RetireProjectile(p, i);
+                        continue;
 
-                var hitId = FindHitMonster(p);
-                if (hitId >= 0)
-                {
-                    ResolveHit(p, hitId);
-                    RetireProjectile(p, i);
-                    continue;
-                }
-
-                if (!p.alive)
-                {
-                    SkillLog.Info($"[Skill] 投射物 #{p.id}（{p.skillName}）射程耗尽自然消散：" +
-                                  $"飞了 {p.traveled:0.00} 格，轨迹 {p.TrailText()}");
-                    RetireProjectile(p, i);
+                    case CloverEngine.ProjectileOutcome.Expired:
+                        SkillLog.Info($"[Skill] 投射物 #{p.id}（{p.skillName}）射程耗尽自然消散：" +
+                                      $"飞了 {p.traveled:0.00} 格，轨迹 {p.TrailText()}");
+                        RetireProjectile(p, i);
+                        continue;
                 }
             }
         }
@@ -875,58 +914,55 @@ namespace Diablo2.Module.Skill
         internal static bool PassableForProjectile(TileKind kind) => !BlocksProjectile(kind);
 
         /// <summary>
-        /// 逐格步进扫 `from → to` 这段位移：返回**第一个阻挡格**及其地形类型，并用
-        /// <paramref name="stopAt"/> 给出投射物应停的位置（= 进入该格之前最后一个可穿越的采样点；
-        /// 线段起点本身就在阻挡格里时 = <paramref name="from"/>）。
-        /// <para>为什么扫整段而不是只判端点：一帧跨多格（高速投射物 / 卡帧后的 dt）时只判端点会穿墙。</para>
-        /// <para>拿不到地图 / 地图未生成 ⇒ 本帧**不做**地形阻挡并留一次 Warn（不静默；离线宿主里
-        /// `IMapModule` 未接入时这是正常分支）。</para>
+        /// **"这一格能不能走"** —— 注入给引擎件 `ProjectileRuntime.Advance` 的地形探针
+        /// （逐格扫掠的内核在引擎件 `TrySweepTerrain` 里，见 `Runtime/Core/ProjectileRuntime.cs`）。
+        /// <para>
+        /// ⛔ 逐类**裁决表**仍在本文件的 <see cref="BlocksProjectile"/>（唯一出处）——
+        /// 引擎件只问"这一格挡不挡"，不抄第二份地形语义（新增 `TileKind` 时只需改这一处）。
+        /// </para>
         /// </summary>
-        private static bool TrySweepTerrain(Vector2 from, Vector2 to, out Vector2Int blockedCell,
-            out TileKind blockedKind, out Vector2 stopAt)
+        /// <summary>
+        /// **第 <paramref name="index"/> 个候选取哪个怪** —— 注入给引擎件 `ProjectileRuntime` 的目标探针。
+        /// <para>索引空间**必须**与调用点传的 <c>targetCount</c> 同一份：调用点用
+        /// <c>AppContext.Monster.All.Count</c>，本方法也用 `All[index]` ⇒ 全程 1:1，不会错位。</para>
+        /// <para>位置口径与发射时一致：`targetCenter = (gridX + 0.5, gridY + 0.5)`（连续格坐标的格心，
+        /// 见本文件发射段的 `new Vector2(targetGrid.x + 0.5f, …)`）。</para>
+        /// <para>尸体（`alive == false`）返回 false ⇒ 引擎件跳过它，但仍占着自己的下标。</para>
+        /// </summary>
+        private static bool ProbeMonster(int index, out int id, out Vector2 center)
         {
-            blockedCell = default(Vector2Int);
-            blockedKind = TileKind.Void;
-            stopAt = from;
+            id = -1;
+            center = default;
 
-            var d = to - from;
-            var dist = d.magnitude;
-            if (dist <= 0f) return false;
+            var monster = AppContext.I != null ? AppContext.I.Monster : null;
+            if (monster == null) return false;
 
+            var all = monster.All;
+            if (index < 0 || index >= all.Count)
+            {
+                // 非预期分支：探针索引越界（调用方的 targetCount 与本帧的 All 快照不一致）
+                SkillLog.WarnThrottled("proj.probe.oob",
+                    $"投射物目标探针索引越界（index={index}，All.Count={all.Count}）⇒ 本帧漏判一次命中");
+                return false;
+            }
+
+            var m = all[index];
+            if (m == null || !m.alive) return false;
+
+            id = m.id;
+            center = new Vector2(m.gridX + 0.5f, m.gridY + 0.5f);
+            return true;
+        }
+
+        private static bool ProbeTerrainBlocked(Vector2Int cell)
+        {
             var map = AppContext.I != null ? AppContext.I.Map : null;
             if (map == null)
             {
-                SkillLog.WarnOnce("proj.terrain.nomap",
-                    "投射物地形碰撞：IMapModule 未接入（AppContext.Map == null）⇒ 本帧不做地形阻挡" +
-                    "（撞墙会穿过去；离线自检宿主属正常）");
+                // 理论不可达（`TickProjectiles` 外层已判并传 null）；防御：不把"拿不到地图"变成"撞墙"
                 return false;
             }
-            if (!map.IsGenerated)
-            {
-                SkillLog.WarnOnce("proj.terrain.nogen",
-                    "投射物地形碰撞：地图未生成（IsGenerated == false）⇒ 本帧不做地形阻挡");
-                return false;
-            }
-
-            var steps = Mathf.CeilToInt(dist / TerrainSampleStep);
-            var lastCell = new Vector2Int(int.MinValue, int.MinValue);
-            for (var i = 1; i <= steps; i++)
-            {
-                var pt = from + d * ((float)i / steps);
-                var g = new Vector2Int(Mathf.FloorToInt(pt.x), Mathf.FloorToInt(pt.y));
-                if (g == lastCell) continue;                 // 同一格只判一次
-                lastCell = g;
-
-                var kind = map.TileAt(g);
-                if (BlocksProjectile(kind))
-                {
-                    blockedCell = g;
-                    blockedKind = kind;
-                    return true;
-                }
-                stopAt = pt;                                 // 该格可穿 ⇒ 记录"最后安全位置"
-            }
-            return false;
+            return BlocksProjectile(map.TileAt(cell));
         }
 
         /// <summary>

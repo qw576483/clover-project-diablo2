@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ───────────────────────────────────────────────────────────────────────
        Player / Camera / Input 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
@@ -34,6 +34,8 @@
     <Compile Include="Program.cs" />
     <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
     <Compile Include="shim\EngineShim.cs" />
+    <!-- ★ U27：`Module/View` 里唯一编不进来的 `GroundItemVisual.cs` 的最小替身（见该文件头） -->
+    <Compile Include="shim\ViewDepsShim.cs" />
 
     <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制）
          ★ 编入范围 = 本 agent 交付物 + 其依赖 + `Module/Map`（移动要真地图）。
@@ -55,12 +57,23 @@
          否则 `CameraRig` 调 `CloverEngine.CameraMath.SmoothDamp` 会 CS0117、`Core/FramePacing`
          调 `CloverEngine.FramePacing` 会 CS0246 —— 宿主是"引擎改了签名就编不过"的覆盖率哨兵。 -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraMath.cs" />
+    <!-- ★ eng-camera-math 片：`Module/Camera/CameraBounds.cs` 已变薄转发
+         （算法本体 = 引擎 `CloverEngine.CameraBoundsKit`）⇒ 必须链进来，否则 CS0117。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraBoundsKit.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs" />
+    <!-- sunk tiebreak capability (d2-view): `Module/View/ViewModule.cs` 的实体第三键 `SortTieZ`
+         改走引擎 `CloverEngine.SortingLayers.TiebreakOffset`（项目侧不再自留该公式）
+         ⇒ 必须把引擎文件链进来，否则 CS0246。口径与上面两条 sunk-* 一致：每个宿主最多一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SortingLayers.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <!-- ★ eng-tile 片（2026-09-24）：`Module/Map/TileNodePool.cs` + `TileRenderState.cs` 已下沉到引擎
+         （项目侧只剩薄转发）⇒ 不链引擎那两份就 CS0246（`Module/Map/MapView.cs` 用它们）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileNodePool.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderState.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Player\*.cs" />
     <!-- ★ 本轮（T0 判据缺口 2「双武器组缺失」）新增：把 `Module/Item` 编进来，
          让本宿主断言"W 键 → 事件 → 装备数据真的换了主手"这条链的**装备侧**行为
@@ -72,6 +85,17 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Camera\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Input\*.cs" />
+    <!-- ★ U27（人物抖动三分判据）：把 `Module/View` 也编进来 —— 判据要在**同一宿主、同一段输入**下
+         分列三层位置：① 相机（`CameraRig.Position`）② 角色渲染节点（`ViewModule.EntityWorld`，即
+         `EntityView.Root.transform.position` 的**唯一写入口径**）③ 角色逻辑（`IPlayerModule.World`）。
+         ⛔ 不镜像公式：直接调生产件 `ViewModule.EntityWorld`（`internal static`，同程序集内可见）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\*.cs" />
+    <!-- ⛔ 唯一排除件：`GroundItemVisual.cs` 只做「地面物品图标路径 / 品质色调」，且链到
+         `Diablo2.UI.D2Icon`（→ 再拖 `UiLog`/`UiArt`/`ItemQualityColor`，即整条 UI 依赖）。
+         它与**位置**毫无关系（判据不碰它），故本宿主用 `shim/ViewDepsShim.cs` 的**最小替身**
+         顶住那两个成员（签名逐字对齐生产件）。排除写法用 `Compile Remove`（保住 glob，
+         将来新增 View 文件仍会被编进来，只少这一个）。 -->
+    <Compile Remove="..\..\..\..\client\Assets\Scripts\Module\View\GroundItemVisual.cs" />
     <!-- App/：只编 AppContext（组合根，模块经它取接口）；**不编 Bootstrap**（MonoBehaviour + 真实引擎启动） -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\App\AppContext.cs" />
     <!-- Flow/：AppContext 有 `IAppFlow` 字段 ⇒ 只编接口文件（**不编 AppFlow**，构造即订阅会重复） -->
@@ -83,6 +107,30 @@
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+
+    <!-- u52block (chain-level one hop): compile the REAL Module/Save/** (incl. real SaveModule.Load)
+         into THIS host. Before this, playercheck compiled only Module/Player/** and savecheck compiled
+         only Save (Player was a shim) => "real Load -> real LoadFrom" was a BROKEN hop, which is exactly
+         the U52 shape ("stamina 20/84": unit-level green / chain-level red).
+         Dependencies (proven by a scratch probe build):
+           * SaveModule.Store goes through the engine FileSlotStore;
+           * FileSlotStore validates .json slot content with the engine's own MiniJson.Parse
+         => these two engine files must be linked too, otherwise CS0246.
+         NOT needed: the engine Runtime/Core/Setting.cs ; linking it would collide with the shim's
+         ISetting (CS0101); SaveModule only uses Game.Setting (Get/Set/Save/Delete) + Game.Config.SettingDir.
+         Comments kept ASCII-only on purpose (this .csproj has no BOM). -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Save\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EnterLatch.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\JsonWriter.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\StableHash.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\ChunkedTilePlanner.cs" />
   </ItemGroup>
 
   <ItemGroup>

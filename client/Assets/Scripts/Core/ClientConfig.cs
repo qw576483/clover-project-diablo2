@@ -4,7 +4,7 @@
 // （范式见 skill `patterns/client/config.md`）。
 //
 // 铁律：
-//   ① 同一项配置**只允许一处默认值**（本文件里的字段默认值），业务里不要再写第二遍；
+//   ① 同一项配置**只允许一处默认值**（本文件里 `GameConfigSection` 的字段默认值），业务里不要再写第二遍；
 //   ② 文件缺失 / 解析失败 → **回退默认值 + Warn，绝不抛异常**（配置问题不该让游戏起不来）；
 //   ③ 业务读配置一律 `Cfg.Xxx`，不出现裸字面量。
 //
@@ -12,11 +12,19 @@
 //    （`Game.Logger` 会变成 CS1061，见 skill `patterns/client/config.md` 常见问题）。
 //    取 game 段用 `Cfg.GameCfg`，或直接用下面的属性快捷方式。
 //
-// 读取顺序（先命中的先用）：
+// 读取顺序（先命中的先用；★ 片 eng-coreutil：这条链的**机制**已下沉到引擎）：
 //   ① 引擎资源模块 `Game.Res.LoadAll<TextAsset>("Configs/config")`（**同步**，片 34 起；
 //      改造前是直连 `Resources.Load<TextAsset>`，见验收表 E1）—— 跨平台可用（WebGL/移动端只能走这条）
 //   ② `Application.dataPath/Configs/config.json`      —— Editor 与桌面平台
 //   ③ 内置默认值 + 一条 Warn
+//
+// ★ 本文件现在只负责「这个项目的 config.json 长什么样」：
+//   · 逐来源怎么读（资源模块 / 磁盘文件） = 本文件的两个读取委托；
+//   · ①→②→③ 的顺序回退、读取/解析失败跳过、全坏回默认值、`Reload` 重跑链 = **引擎件**
+//     `CloverEngine.ConfigSectionLoader<T>`（`clover-client-unity-engine/Runtime/Core/ClientConfig.cs`）。
+//   · 公开 API（`Source` / `FilePath` / `Root` / `GameCfg` / `DefaultPlayerName` / `BgmVolume` /
+//     `SfxVolume` / `Fullscreen` / `Reload`）**一字未改**；日志文案仍由本文件产生（引擎只补
+//     "来源级跳过"与"总兜底"两类新日志，见引擎件文件头的等价性说明）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -59,13 +67,39 @@ namespace Diablo2.Core
     {
         private const string Tag = "Cfg";
 
-        private static ConfigRootSection _config;
-        private static string _source = "(未加载)";
-
-        /// <summary>配置来源描述（`Resources` / `文件:<路径>` / `默认值`），打日志时带上便于定位。</summary>
-        public static string Source => _source;
+        /// <summary>加载链（首次访问时构造；`Root` 惰性触发一次加载，`Reload` 重跑）。</summary>
+        private static ConfigSectionLoader<ConfigRootSection> _loader;
 
         private static string _filePath;
+
+        private static ConfigSectionLoader<ConfigRootSection> Loader
+        {
+            get
+            {
+                if (_loader == null)
+                {
+                    // ⚠️ 来源表在**首次访问时**求值（`FilePath` 会碰 `Application.dataPath`）：
+                    //    与改造前一致 —— 静态构造期不读盘、不碰 Unity API。
+                    _loader = new ConfigSectionLoader<ConfigRootSection>(
+                        Tag,
+                        new[]
+                        {
+                            // ① 引擎资源模块（跨平台：WebGL / 移动端只能走这条）
+                            new ConfigSource($"Resources/{ResPaths.ConfigResourceKey}", ReadResourceText),
+                            // ② Application.dataPath（Editor / 桌面）；`LogLabel` = 磁盘路径（解析错误点名用）
+                            new ConfigSource("文件:" + FilePath, ReadFileText, FilePath),
+                        },
+                        Parse,
+                        () => new ConfigRootSection(),
+                        (root, from) => ClampAndWarn(root.game, from));
+                }
+
+                return _loader;
+            }
+        }
+
+        /// <summary>配置来源描述（`Resources` / `文件:<路径>` / `默认值`），打日志时带上便于定位。</summary>
+        public static string Source => Loader.Source;
 
         /// <summary>
         /// 配置文件在磁盘上的绝对路径（Editor / 桌面平台）。
@@ -94,14 +128,7 @@ namespace Diablo2.Core
         }
 
         /// <summary>根对象（首次访问时加载）。</summary>
-        public static ConfigRootSection Root
-        {
-            get
-            {
-                if (_config == null) _config = Load();
-                return _config;
-            }
-        }
+        public static ConfigRootSection Root => Loader.Value;
 
         /// <summary>game 段（**不要**命名为 `Game`，会遮蔽引擎门面）。</summary>
         public static GameConfigSection GameCfg => Root.game;
@@ -133,12 +160,12 @@ namespace Diablo2.Core
         /// <summary>重新加载（改完 json 不必重启编辑器时用）。</summary>
         public static void Reload()
         {
-            _config = Load();
-            Log.Info(Tag, $"配置已重载，来源={_source}");
+            Loader.Reload();
+            Log.Info(Tag, $"配置已重载，来源={Loader.Source}");
         }
 
         /// <summary>
-        /// 从**引擎资源模块**同步取 `Configs/config`（该路径下的第一个）。
+        /// 来源 ①：从**引擎资源模块**同步取 `Configs/config`（该路径下的第一个）。
         /// <para>
         /// ★ 片 34：原先直连 Unity 的 `Resources.Load<TextAsset>`（验收表 **E1** 登记的例外）——
         /// 那会绕开资源根前缀 / 缓存 / 卸载策略 / 热更后端。引擎侧补齐了同步入口
@@ -148,7 +175,50 @@ namespace Diablo2.Core
         /// 与改造前取到的是**同一份** Unity 资源，只是经过了引擎的资源抽象。
         /// </para>
         /// <para>⚠️ 路径是**相对 `CloverRes` 根前缀**的写法（`Configs/config`），根前缀由后端拼。</para>
+        /// <para>返回 null / 空 = 本来源没有内容（引擎静默跳过，改试来源 ②）。</para>
         /// </summary>
+        private static string ReadResourceText()
+        {
+            try
+            {
+                var asset = LoadConfigAsset();
+                return asset != null ? asset.text : null;
+            }
+            catch (Exception e)
+            {
+                // 非预期分支：跳过本条来源，退回文件与默认值（不静默）
+                Log.Warn(Tag, $"Resources 读取 {ResPaths.ConfigResourceKey} 异常：{e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 来源 ②：`Application.dataPath/Configs/config.json`。
+        /// <para>文件不存在 / 读不动 ⇒ **Warn + 返回 null**（不抛；引擎改试下一个来源 = 内置默认值）。</para>
+        /// </summary>
+        private static string ReadFileText()
+        {
+            // ⚠️ catch 里**不许再调 FilePath**：失败的操作在 catch 里重演一次 = 异常直接漏出去
+            var path = string.Empty;
+            try
+            {
+                path = FilePath;
+                if (!File.Exists(path))
+                {
+                    Log.Warn(Tag, $"未找到配置文件 {path}，使用内置默认值");
+                    return null;
+                }
+
+                return File.ReadAllText(path);
+            }
+            catch (Exception e)
+            {
+                Log.Warn(Tag, $"读取配置文件异常（path=\"{path}\"），使用内置默认值：{e.GetType().Name}: {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>引擎资源模块里取 config 资源（`Game.Res` 未初始化 / 无资源 ⇒ null）。</summary>
         private static TextAsset LoadConfigAsset()
         {
             if (Game.Res == null)
@@ -163,61 +233,11 @@ namespace Diablo2.Core
             return all != null && all.Length > 0 ? all[0] : null;
         }
 
-        private static ConfigRootSection Load()
-        {
-            // ① 引擎资源模块（跨平台：WebGL / 移动端只能走这条）
-            try
-            {
-                var asset = LoadConfigAsset();
-                if (asset != null && !string.IsNullOrEmpty(asset.text))
-                {
-                    var parsed = Parse(asset.text, $"Resources/{ResPaths.ConfigResourceKey}");
-                    if (parsed != null)
-                    {
-                        _source = $"Resources/{ResPaths.ConfigResourceKey}";
-                        return parsed;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Warn(Tag, $"Resources 读取 {ResPaths.ConfigResourceKey} 异常：{e.Message}");
-            }
-
-            // ② Application.dataPath（Editor / 桌面）
-            // ⚠️ catch 里**不许再调 FilePath**：失败的操作在 catch 里重演一次 = 异常直接漏出去
-            var path = string.Empty;
-            try
-            {
-                path = FilePath;
-                if (File.Exists(path))
-                {
-                    var parsed = Parse(File.ReadAllText(path), path);
-                    if (parsed != null)
-                    {
-                        _source = "文件:" + path;
-                        return parsed;
-                    }
-                }
-                else
-                {
-                    Log.Warn(Tag, $"未找到配置文件 {path}，使用内置默认值");
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Warn(Tag, $"读取配置文件异常（path=\"{path}\"），使用内置默认值：{e.GetType().Name}: {e.Message}");
-            }
-
-            // ③ 默认值
-            _source = "默认值";
-            var fallback = new ConfigRootSection();
-            Log.Warn(Tag,
-                $"使用内置默认值（bgm={fallback.game.bgm_volume} sfx={fallback.game.sfx_volume} " +
-                $"fullscreen={fallback.game.fullscreen} name={fallback.game.default_player_name}）");
-            return fallback;
-        }
-
+        /// <summary>
+        /// 解析一段 json（**返回 null = 本来源不可用**，引擎改试下一个来源 / 回默认值）。
+        /// <para>片 eng-coreutil：签名与文案保持原样，只是改由引擎件按来源逐个调用
+        /// （`from` = 该来源的日志标签：`Resources/...` 或磁盘路径）。</para>
+        /// </summary>
         private static ConfigRootSection Parse(string json, string from)
         {
             try
@@ -236,7 +256,6 @@ namespace Diablo2.Core
                     root.game = new GameConfigSection();
                 }
 
-                ClampAndWarn(root.game, from);
                 return root;
             }
             catch (Exception e)
@@ -246,8 +265,11 @@ namespace Diablo2.Core
             }
         }
 
+        /// <summary>命中来源后的规范化钩子（引擎在解析成功、返回给业务之前调用一次）。</summary>
         private static void ClampAndWarn(GameConfigSection game, string from)
         {
+            if (game == null) return;
+
             if (game.bgm_volume < 0f || game.bgm_volume > 1f)
             {
                 Log.Warn(Tag, $"{from} 的 game.bgm_volume={game.bgm_volume} 越界，已裁剪到 0~1");

@@ -191,16 +191,10 @@ namespace Diablo2.UI
             return Table(font)[c - FirstChar];
         }
 
-        /// <summary>纯拉丁串的整串宽度（px）。</summary>
+        /// <summary>纯拉丁串的整串宽度（px）。内核在引擎件 <see cref="BitmapFont.Measure"/>。</summary>
         public static int Measure(D2Font font, string text)
         {
-            if (string.IsNullOrEmpty(text))
-                return 0;
-
-            var width = 0;
-            for (var i = 0; i < text.Length; i++)
-                width += Advance(font, text[i]);
-            return width;
+            return BitmapFont.Measure(Source(font, false), text);
         }
 
         /// <summary>
@@ -270,20 +264,14 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 某字模在图集里的 UV 矩形。
-        /// <para>口径：图集按**行主序**摆放，格子 = <c>CellW×CellH</c>，第 i 帧的格子 = (i % Cols, i / Cols)；
-        /// PNG 行 0 在**上**，而 Unity 的 UV (0,0) 在**左下** ⇒ y 要按 <c>1-(row+1)*CellH/H</c> 翻。</para>
+        /// 某字模在图集里的 UV 矩形。口径搬到引擎件 <see cref="BitmapFont.CellUv"/>：
+        /// 图集按**行主序**摆放，格子 = <c>CellW×CellH</c>，第 i 帧的格子 = (i % Cols, i / Cols)；
+        /// PNG 行 0 在**上**，而 Unity 的 UV (0,0) 在**左下** ⇒ y 按 <c>1-(row+1)*CellH/H</c> 翻。
         /// </summary>
         internal static Rect CellUv(D2Font font, ChiGlyph g)
         {
-            var s = Slot(font);
-            var w = s.Atlas != null && s.Atlas.width > 0 ? s.Atlas.width : 1;
-            var h = s.Atlas != null && s.Atlas.height > 0 ? s.Atlas.height : 1;
-            return new Rect(
-                g.Col * (float)s.CellW / w,
-                1f - (g.Row + 1) * (float)s.CellH / h,
-                (float)s.CellW / w,
-                (float)s.CellH / h);
+            var uv = BitmapFont.CellUv(Source(font, true), ToGlyph(g));
+            return new Rect(uv.X, uv.Y, uv.Width, uv.Height);
         }
 
         private static readonly ChiFont[] ChiCache = new ChiFont[4];
@@ -533,45 +521,38 @@ namespace Diablo2.UI
             });
         }
 
-        /// <summary>取某字符的 chi 字模（直查 → 简体回退）。查不到返回 false。</summary>
+        /// <summary>
+        /// 取某字符的 chi 字模（直查 → 简体回退）。查不到返回 false。
+        /// <para>**回退怎么退**这一层在引擎件 <see cref="BitmapFont.TryResolve"/>（按优先级依次尝试候选源）；
+        /// 这里只描述两个候选源：① chi 表直查 ② 简体换成原版繁字形码位后再查 chi 表
+        /// （映射表逐条经"字模 + 原版语料"双重校验）。</para>
+        /// </summary>
         public static bool HasGlyph(D2Font font, char c, out ChiGlyph glyph)
         {
-            var slot = Slot(font);
-            if (slot.Ready && slot.Glyphs.TryGetValue(c, out glyph))
-                return true;
-
-            // 简体字：换成**原版的繁字形**再查（映射表逐条经"字模 + 原版语料"双重校验）
-            if (_s2t != null)
+            BitmapGlyph g;
+            if (Source(font, true).TryGetGlyph(c, out g))
             {
-                int alt;
-                if (_s2t.TryGetValue(c, out alt) && slot.Ready && slot.Glyphs.TryGetValue(alt, out glyph))
-                    return true;
+                glyph = ToChi(g);
+                return true;
             }
 
             glyph = default(ChiGlyph);
             return false;
         }
 
-        /// <summary>按字符取排版步进（px）：拉丁走拉丁表，其余走 chi 表；两边都没有 ⇒ 0（原版行为）。</summary>
+        /// <summary>
+        /// 按字符取排版步进（px）：拉丁走拉丁表，其余走 chi 表；两边都没有 ⇒ 0（原版行为）。
+        /// 内核在引擎件 <see cref="BitmapFont.Step"/>。
+        /// </summary>
         public static int StepOf(D2Font font, char c, bool chi)
         {
-            if (!chi)
-                return Advance(font, c);
-
-            ChiGlyph g;
-            return HasGlyph(font, c, out g) ? g.Advance : 0;
+            return BitmapFont.Step(Source(font, chi), c);
         }
 
-        /// <summary>量一串的宽度（px）。<paramref name="chi"/> = 是否走 chi 字模。</summary>
+        /// <summary>量一串的宽度（px）。<paramref name="chi"/> = 是否走 chi 字模。内核在引擎件 <see cref="BitmapFont.Measure"/>。</summary>
         public static int MeasureNative(D2Font font, string text, bool chi)
         {
-            if (string.IsNullOrEmpty(text))
-                return 0;
-
-            var w = 0;
-            for (var i = 0; i < text.Length; i++)
-                w += StepOf(font, text[i], chi);
-            return w;
+            return BitmapFont.Measure(Source(font, chi), text);
         }
 
         /// <summary>
@@ -579,59 +560,11 @@ namespace Diablo2.UI
         /// 先把 `\n` 当硬换行拆段，再对每段贪心塞字：
         /// 走到"量到 ≥ 框宽"就断；路过空格就在**最后一个空格**断（空格不带到下一行）；
         /// 没空格（中文就是这种）就断在能塞下的最后一个字；框为 0 也至少出一个字（否则死循环）。
+        /// 内核在引擎件 <see cref="BitmapFont.WrapLines"/>。
         /// </summary>
         public static List<string> WrapLines(D2Font font, string text, bool chi, int availPx, bool wrap)
         {
-            var lines = new List<string>();
-            if (string.IsNullOrEmpty(text))
-                return lines;
-
-            var paragraphs = text.Split('\n');
-            for (var p = 0; p < paragraphs.Length; p++)
-            {
-                var s = paragraphs[p];
-                if (!wrap || availPx <= 0 || MeasureNative(font, s, chi) < availPx)
-                {
-                    lines.Add(s);
-                    continue;
-                }
-
-                var start = 0;
-                while (start < s.Length)
-                {
-                    var w = 0;
-                    var fits = 0;
-                    var lastSpace = -1;
-                    while (start + fits < s.Length)
-                    {
-                        if (s[start + fits] == ' ') lastSpace = start + fits;
-                        var next = w + StepOf(font, s[start + fits], chi);
-                        if (next >= availPx)
-                            break;
-                        w = next;
-                        fits++;
-                    }
-
-                    if (start + fits >= s.Length)
-                    {
-                        lines.Add(s.Substring(start));
-                        break;
-                    }
-
-                    if (lastSpace > start)
-                    {
-                        lines.Add(s.Substring(start, lastSpace - start));
-                        start = lastSpace;
-                        while (start < s.Length && s[start] == ' ') start++;   // 断在空格的：空格不带下去
-                        continue;
-                    }
-
-                    var take = fits > 0 ? fits : 1;                            // 框太窄也至少出一个字
-                    lines.Add(s.Substring(start, take));
-                    start += take;
-                }
-            }
-            return lines;
+            return BitmapFont.WrapLines(Source(font, chi), text, availPx, wrap);
         }
 
         // ── 字号档位 / 缩放（画布单位 ↔ 原版 px）───────────────────────────────
@@ -670,6 +603,155 @@ namespace Diablo2.UI
         public static int CountLines(D2Font font, string text, bool chi, int availPx, bool wrap)
         {
             return WrapLines(font, text, chi, availPx, wrap).Count;
+        }
+
+        // ── 引擎排版内核（CloverEngine.BitmapFont）的数据源适配 ────────────────
+        // 本文件**不再自带**度量 / 换行 / 切格 / bestFit / 回退选择的第二份实现：这些能力
+        // 一律转发到引擎件 `CloverEngine.BitmapFont`（零项目类型依赖、纯函数、可离线自检）。
+        // 这里只负责把本项目的两套字模（拉丁 advance 表 / chi 映射表 + 简繁回退）喂给内核，
+        // **素材口径（.tbl / .dc6 / png / 路径 / 简繁表）仍全部留在本项目侧**。
+        private static readonly IGlyphSource[,] Sources = new IGlyphSource[4, 2];
+
+        /// <summary>
+        /// 取某字号 / 某套字模的内核数据源（缓存；属性读的是 slot 的**实时**状态，
+        /// 因为 chi 字模是异步加载的，格子尺寸与图集尺寸到货后才确定）。
+        /// </summary>
+        internal static IGlyphSource Source(D2Font font, bool chi)
+        {
+            var i = (int)font;
+            if (i < 0 || i >= Sources.GetLength(0)) i = 0;
+            var c = chi ? 1 : 0;
+            var s = Sources[i, c];
+            if (s == null)
+            {
+                var f = (D2Font)i;
+                s = chi
+                    // chi 的回退链：① 直查 chi 表 ② 简繁 remap 后再查 chi 表
+                    //（"依次尝试"这层在引擎 `BitmapFont.TryResolve`；链首的表提供格子 / 图集尺寸）
+                    ? BitmapFont.Chain(new IGlyphSource[] { new ChiGlyphSource(f), new S2TGlyphSource(f) })
+                    : (IGlyphSource)new LatinGlyphSource(f);
+                Sources[i, c] = s;
+            }
+            return s;
+        }
+
+        /// <summary>内核字形 → 本项目的 chi 字形（同一份数据的两个视图）。</summary>
+        private static BitmapGlyph ToGlyph(ChiGlyph g)
+        {
+            return new BitmapGlyph { Col = g.Col, Row = g.Row, Advance = g.Advance };
+        }
+
+        /// <summary>本项目的 chi 字形 → 内核字形。</summary>
+        private static ChiGlyph ToChi(BitmapGlyph g)
+        {
+            ChiGlyph r;
+            r.Col = g.Col;
+            r.Row = g.Row;
+            r.Advance = g.Advance;
+            return r;
+        }
+
+        /// <summary>拉丁字模源：步进 = 原版 advance 表（码位范围外 ⇒ 格宽，原件行为）。</summary>
+        private sealed class LatinGlyphSource : IGlyphSource
+        {
+            private readonly D2Font _font;
+
+            internal LatinGlyphSource(D2Font font) { _font = font; }
+
+            public int CellWidth { get { return D2Text.CellWidth(_font); } }
+
+            public int CellHeight { get { return D2Text.CellHeight(_font); } }
+
+            // 拉丁走逐字形 sprite（不经 UV 切格）⇒ 图集尺寸无意义，按"未知"报（内核按 1 兜底）
+            public int AtlasWidth { get { return 0; } }
+
+            public int AtlasHeight { get { return 0; } }
+
+            public bool TryGetGlyph(char c, out BitmapGlyph glyph)
+            {
+                glyph = new BitmapGlyph { Col = 0, Row = 0, Advance = D2Text.Advance(_font, c) };
+                return true;
+            }
+        }
+
+        /// <summary>chi 字模源（**只直查**；简繁回退由 <see cref="S2TGlyphSource"/> 那一环负责）。</summary>
+        private sealed class ChiGlyphSource : IGlyphSource
+        {
+            private readonly D2Font _font;
+
+            internal ChiGlyphSource(D2Font font) { _font = font; }
+
+            public int CellWidth { get { return D2Text.ChiCellW(_font); } }
+
+            public int CellHeight { get { return D2Text.ChiCellH(_font); } }
+
+            public int AtlasWidth
+            {
+                get
+                {
+                    var a = D2Text.Slot(_font).Atlas;
+                    return a != null && a.width > 0 ? a.width : 1;
+                }
+            }
+
+            public int AtlasHeight
+            {
+                get
+                {
+                    var a = D2Text.Slot(_font).Atlas;
+                    return a != null && a.height > 0 ? a.height : 1;
+                }
+            }
+
+            public bool TryGetGlyph(char c, out BitmapGlyph glyph)
+            {
+                var slot = D2Text.Slot(_font);
+                ChiGlyph g;
+                if (slot.Ready && slot.Glyphs.TryGetValue(c, out g))
+                {
+                    glyph = ToGlyph(g);
+                    return true;
+                }
+
+                glyph = default(BitmapGlyph);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 简 / 繁回退源：把简体字换成**原版的繁字形**码位，再去 chi 表里查。
+        /// 表未就绪（`_s2t == null`，异步加载中）⇒ 本环查不到（不降级、不报错，与原件一致）。
+        /// </summary>
+        private sealed class S2TGlyphSource : IGlyphSource
+        {
+            private readonly D2Font _font;
+            private readonly IGlyphSource _direct;
+
+            internal S2TGlyphSource(D2Font font)
+            {
+                _font = font;
+                _direct = new ChiGlyphSource(font);
+            }
+
+            public int CellWidth { get { return _direct.CellWidth; } }
+
+            public int CellHeight { get { return _direct.CellHeight; } }
+
+            public int AtlasWidth { get { return _direct.AtlasWidth; } }
+
+            public int AtlasHeight { get { return _direct.AtlasHeight; } }
+
+            public bool TryGetGlyph(char c, out BitmapGlyph glyph)
+            {
+                glyph = default(BitmapGlyph);
+                var map = _s2t;
+                if (map == null) return false;
+
+                int alt;
+                if (!map.TryGetValue(c, out alt)) return false;
+
+                return _direct.TryGetGlyph((char)alt, out glyph);
+            }
         }
 
         // ── 失败通道（不静默）────────────────────────────────────────────────
@@ -966,19 +1048,19 @@ namespace Diablo2.UI
             var cellW = chi ? D2Text.ChiCellW(_font) : D2Text.CellWidth(_font);
             var cellH = chi ? D2Text.ChiCellH(_font) : D2Text.CellHeight(_font);
 
-            // 「缩到框里」：宽度超框就整体缩一档（对应 uGUI 的 resizeTextForBestFit）
+            // 「缩到框里」：宽度超框就整体缩一档（对应 uGUI 的 resizeTextForBestFit）。
+            // 判据与缩放下限口径在引擎件 `BitmapFont.BestFitScale`（装得下 ⇒ 原样返回，⛔ 不放大、
+            // ⛔ 不逐行缩 —— 同一列标签的字号必须一致）。
             if (_bestFit && size.x > 0f)
             {
                 var need = D2Text.MeasureNative(_font, _text, chi) * scale;
-                if (need > size.x)
-                {
-                    var minScale = _bestFitMin > 0 ? D2Text.ScaleFor(_bestFitMin, chi, _font) : 0f;
-                    var fit = scale * size.x / need;
-                    scale = Mathf.Max(fit, minScale);
-                }
+                var minScale = _bestFitMin > 0 ? D2Text.ScaleFor(_bestFitMin, chi, _font) : 0f;
+                scale = BitmapFont.BestFitScale(need, scale, size.x, minScale);
             }
 
-            var availPx = _wrap && size.x > 0f ? Mathf.Max(1, Mathf.RoundToInt(size.x / scale)) : 0;
+            // 框宽（画布单位）→ 换行可用宽度（px）：原件口径 `Mathf.Max(1, Mathf.RoundToInt(size.x / scale))`，
+            // 已下沉到引擎件 `BitmapFont.WrapWidthPx`（框宽 ≤ 0 ⇒ 0 ⇒ 下方 WrapLines 不换行）。
+            var availPx = _wrap ? BitmapFont.WrapWidthPx(size.x, scale) : 0;
             var lines = D2Text.WrapLines(_font, _text, chi, availPx, _wrap);
             _lineCount = lines.Count;
 

@@ -69,8 +69,13 @@ namespace Diablo2.Module.View
         /// <summary>精灵渲染器。</summary>
         public SpriteRenderer Renderer;
 
-        /// <summary>世界空间头顶血条（玩家为 null）。</summary>
-        public WorldHpBar Bar;
+        /// <summary>
+        /// ★ u44（悬停变亮）：**建节点时** <see cref="Renderer"/> 的 `sharedMaterial`。
+        /// <para>用途：悬停期间实体被换上自定义着色器材质（`EntityHighlight`），移开时必须还原成
+        /// **原来那个** —— 记下来才能"还原"，而不是"换成另一个我以为是默认的"。
+        /// 值为 null 也合法（= Unity 默认精灵材质），`EntityHighlight.Apply(r, null, false)` 会把它写回去。</para>
+        /// </summary>
+        public Material OriginalMaterial;
 
         /// <summary>逐帧动画器（**本项目新增**）。</summary>
         public readonly SpriteAnimator Anim = new SpriteAnimator();

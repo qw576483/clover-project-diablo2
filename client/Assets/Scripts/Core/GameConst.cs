@@ -205,8 +205,24 @@ namespace Diablo2.Core
         public static bool IsMonsterId(int id) => id >= MonsterIdBase && id < GroundItemIdBase;
 
         // ── 存档 ─────────────────────────────────────────────────────────────
-        /// <summary>存档格式版本（`CharacterSave.version` 应写本值；版本不一致时按需迁移）。</summary>
-        public const int SaveVersion = 1;
+        /// <summary>
+        /// 存档格式版本（`CharacterSave.version` 应写本值；版本不一致时按需迁移）。
+        /// <para>★ **2026-09-24 `u52cur` 片：1 → 2**（**`Core/**` 属冻结区，本次由 main 明确授权改这一行**）。
+        /// 变更内容 = **只把常量 +1**，**不改任何字段布局**（存档 schema 一字未动）。</para>
+        /// <para>**为什么必须 +1**：`charstat` 片把 1 级"生命/法力/耐力"的**起始量**口径改对了
+        /// （`PlayerStats.Max*` ← `class_c.hp_add` / `base_stamina` ← 官方 `charstats.txt`），
+        /// 而**改前创建**的档里 `life/mana/stamina` 是"起始四维 × 成长系数"那套旧式子的产物
+        /// （活档实证 `client/setting/saves/S2203805.json`：`life=60 / mana=22 / stamina=20`）——
+        /// 与现在的上限**不同源**。磁盘上 **74/74** 个现存档都是 `version == 1`
+        /// （普查 = `.ai-tmp/test/u52block-save-census.txt`；其中 69 档是旧口径）
+        /// ⇒ **不 +1**，`PlayerModule.LoadFrom` 的 `save.version &lt; GameConst.SaveVersion` **永不成立**，
+        /// 那 69 档迁不动 ⇒ 实机残留「耐力 cur = 20 / max = 84」（用户报的"人物状态框数值不对"那格）。</para>
+        /// <para>**消费方**：`Module/Player/PlayerModule.LoadFrom`（更旧版本 ⇒ 三资源按当前口径补满 +
+        /// 一条 Info，并在档里旧值打出来）；`Module/Save/SaveModule.cs` 的"版本不符 ⇒ Warn + 兼容路径"。
+        /// ⛔ **旧客户端读新档**：走既有"降级处理"（`fileVersion != SaveVersion` ⇒ Warn + 尽力读）
+        /// —— 因为本变更**不动字段**，所以旧客户端读到的是完整数据（`itemcheck §11` 的 `version:99` 用例覆盖该路径）。</para>
+        /// </summary>
+        public const int SaveVersion = 2;
 
         /// <summary>
         /// 存档的键前缀（`char/{角色名}`）。

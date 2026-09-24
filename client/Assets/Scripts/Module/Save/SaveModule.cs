@@ -338,15 +338,41 @@ namespace Diablo2.Module.Save
             }
 
             // ★ R7 情况 ③：版本不符 ⇒ **降级处理**（缺字段已在 SaveJson 里取默认值），绝不抛异常，
-            //   走兼容路径并**留一条 Info**（按任务书 §2.3；Warn 也保留 —— 它提示"别回写覆盖原档"）。
+            //   走兼容路径并**留一条 Info**（按任务书 §2.3；Warn 也保留）。
+            //
+            // ★★ u52cur（2026-09-24）：**旧档不再在这里被"修好"** —— 这是 E60 迁移在真实链路上
+            //   不可达的根因（`charstat` 实机证据：老档仍 `耐力 20/84`）。
+            //   链路：`SaveModule.Load`（此处）→ 返回的 `data` → `AppFlow` 取到手 → `PlayerModule.LoadFrom(data)`。
+            //   旧版这里写 `data.version = GameConst.SaveVersion;` ⇒ 等 `PlayerModule.LoadFrom` 拿到时
+            //   `save.version` 已是**当前值** ⇒ 它的判据 `save.version < GameConst.SaveVersion`
+            //   **恒 false** ⇒ 迁移分支是**死代码**（单元级夹具直接构造 `CharacterSave`，跳过本模块，
+            //   所以当时是绿的 —— "单元级绿 / 链路级红"）。
+            //   ⇒ 本模块**只报不改**：保留档里的原版本号，让下游能判"这是旧口径档"。
+            //   ⛔ 不会因此让档永远停在旧版本：**回写磁盘时一律写当前版本** ——
+            //      `SaveModule.Save()` 的 `data.version = GameConst.SaveVersion`（本文件 `:236`）
+            //      与 `PlayerModule.WriteTo` 的同名赋值（`Module/Player/PlayerModule.cs:483`）两处都在。
+            //   ⛔ 也**不**把"存了就沿用（钳上限）"改成"一律补满"（活档 `SAArea1.json` `life=34` 是中局
+            //      受伤档，一律补满会静默治成满血；判据见 `itemcheck` §11c / `playercheck` §9c）。
             var fileVersion = data.version;
             if (fileVersion != GameConst.SaveVersion)
             {
-                Log.Warn("Save", $"读档：「{name}」的存档版本 {fileVersion} ≠ 当前 {GameConst.SaveVersion} "
-                    + "⇒ 降级处理（缺字段取默认值、按当前版本继续读），请勿在此基础上回写覆盖原档");
-                data.version = GameConst.SaveVersion;
-                Log.Info("Save", $"读档：「{name}」走**兼容路径**（版本 {fileVersion} → {GameConst.SaveVersion}；"
-                    + "存档里缺失的字段由 SaveJson.TryParse 按默认值补齐）");
+                if (fileVersion > GameConst.SaveVersion)
+                {
+                    // 比当前还新（旧客户端读新档）：尽力读，但**别回写** —— 回写会把新字段丢掉。
+                    Log.Warn("Save", $"读档：「{name}」的存档版本 {fileVersion} **比当前 {GameConst.SaveVersion} 还新** "
+                        + "⇒ 按兼容路径尽力读（缺字段取默认值），请勿在此基础上回写覆盖原档");
+                    Log.Info("Save", $"读档：「{name}」走**兼容路径**（版本 {fileVersion} > 当前 {GameConst.SaveVersion}；"
+                        + $"`data.version` 保持 {fileVersion} 不改写；存档里缺失的字段由 SaveJson.TryParse 按默认值补齐）");
+                }
+                else
+                {
+                    Log.Warn("Save", $"读档：「{name}」的存档版本 {fileVersion} < 当前 {GameConst.SaveVersion} "
+                        + $"⇒ 走旧档兼容路径（缺字段取默认值、语义按当前版本继续读）；档内版本号**保持 {fileVersion} 不改写**"
+                        + "（下游 `PlayerModule.LoadFrom` 用它判「旧档资源迁移」）");
+                    Log.Info("Save", $"读档：「{name}」走**兼容路径**（版本 {fileVersion}（不改写）→ 语义按当前 "
+                        + $"{GameConst.SaveVersion}；存档里缺失的字段由 SaveJson.TryParse 按默认值补齐；"
+                        + $"**下一次保存会把它写成 {GameConst.SaveVersion}**）");
+                }
             }
 
             if (string.IsNullOrEmpty(data.name)) data.name = name;

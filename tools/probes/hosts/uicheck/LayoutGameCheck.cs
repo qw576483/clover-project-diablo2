@@ -633,15 +633,143 @@ namespace Uicheck
                 if (!InPanel(r, CharacterPanel.PanelPos, CharacterPanel.PanelSize)) inside = false;
             Check("原版 9 个行矩形都在面板内", inside, "9/9 在界内");
 
-            Check("补齐行（等级/经验/命中/格挡/四系抗性）落在原版**空框/空白区**内、不压原版行",
+            Check("补齐行（等级/经验/技能点/命中/格挡/四系抗性）落在原版**空框/空白区**内、不压原版行",
                 UiLayoutGame.CharBottomRightOrig.Length == 2
                 && UiLayoutGame.CharResistRowOrig.Length == 4
                 && !OverlapsAny(UiLayoutGame.CharTopRightPos, UiLayoutGame.CharTopRightSize, rowRects)
+                && !OverlapsAny(UiLayoutGame.CharBand2MidPos, UiLayoutGame.CharBand2MidSize, rowRects)
+                && !OverlapsAny(UiLayoutGame.CharBand2RightPos, UiLayoutGame.CharBand2RightSize, rowRects)
                 && !OverlapsAny(UiLayoutGame.CharBottomRightOrig[0] * K, UiLayoutGame.CharBottomRightSize, rowRects)
                 && !OverlapsAny(UiLayoutGame.CharBottomRightOrig[1] * K, UiLayoutGame.CharBottomRightSize, rowRects)
                 && !OverlapsAny(UiLayoutGame.CharResistRowOrig[0] * K, UiLayoutGame.CharResistRowSize, rowRects)
                 && !OverlapsAny(UiLayoutGame.CharResistRowOrig[3] * K, UiLayoutGame.CharResistRowSize, rowRects),
-                "右上空框 / 右下两细框 / 左下空白区（本项目新增，原版 prefab 无这些行）");
+                "右上凹槽 / 第二排中·右空框 / 右下两细框 / 左下空白区（本项目新增，原版 prefab 无这些行）");
+
+            // 新增的 3 个空框必须在**面板内**（旧 CharTopRight 尺寸 150×26 时右端已到面板边缘，
+            // 加上那一串 12 字的文案就越出去了 —— 见 §U3 的实测）。
+            Check("新增空框（右上凹槽 / 第二排中·右）都在面板矩形内",
+                InPanel(RectAt(CharacterPanel.PanelPos + UiLayoutGame.CharTopRightPos, UiLayoutGame.CharTopRightSize),
+                    CharacterPanel.PanelPos, CharacterPanel.PanelSize)
+                && InPanel(RectAt(CharacterPanel.PanelPos + UiLayoutGame.CharBand2MidPos, UiLayoutGame.CharBand2MidSize),
+                    CharacterPanel.PanelPos, CharacterPanel.PanelSize)
+                && InPanel(RectAt(CharacterPanel.PanelPos + UiLayoutGame.CharBand2RightPos, UiLayoutGame.CharBand2RightSize),
+                    CharacterPanel.PanelPos, CharacterPanel.PanelSize),
+                $"右上 {UiLayoutGame.CharTopRightPos}+{UiLayoutGame.CharTopRightSize}、"
+                + $"中 {UiLayoutGame.CharBand2MidPos}、右 {UiLayoutGame.CharBand2RightPos}");
+
+            // ═════════════════════════════════════════════════════════════════
+            // ③-b ★ U3（2026-09-24）：**数值列的 x 取自底图凹槽**（不是从标签矩形里切出来的）
+            //
+            // 出处 = `client/Assets/Resources/Clover/D2/UI/Panel/charstat.png`（320×432）
+            //   **逐像素暗色连通域实测**（脚本 `tools/probes/measure/charstat_slots.py`，
+            //   读数落 `.ai-tmp/test/report-u3-charstat.md`）：
+            //     四维行：标签隔间 art 11..74、亮分隔条 75..79、**数值隔间 art 80..112**（中心 96）
+            //     派生行 Defense：标签 161..269、**数值 271..309**（中心 290）
+            //     派生行 耐力/生命/法力：标签 161..229、**两格数值 231..270 + 272..309**
+            //   面板中心 = art (160,216) ⇒ node = art − 160（与 `CharStatRowOrig` 同坐标）。
+            // ═════════════════════════════════════════════════════════════════
+            Check("**数值列** = 底图凹槽实测中心（四维 art 80..112 / 派生 art 271..309 / cur-max 跨 art 231..309）",
+                Near(UiLayoutGame.CharStatValueX, 96f - 160f) && Near(UiLayoutGame.CharStatValueW, 33f)
+                && Near(UiLayoutGame.CharDefValueX, 290f - 160f) && Near(UiLayoutGame.CharDefValueW, 39f)
+                && Near(UiLayoutGame.CharCurMaxX, (231f + 309f) / 2f - 160f) && Near(UiLayoutGame.CharCurMaxW, 79f),
+                $"四维 x={UiLayoutGame.CharStatValueX:0.##} w={UiLayoutGame.CharStatValueW:0.##}；"
+                + $"派生 x={UiLayoutGame.CharDefValueX:0.##} w={UiLayoutGame.CharDefValueW:0.##}；"
+                + $"cur/max x={UiLayoutGame.CharCurMaxX:0.##} w={UiLayoutGame.CharCurMaxW:0.##}");
+
+            // 行框净高与文字 y 修正（文字必须落在凹槽内、不压行框下沿金线）
+            Check("行框净高 = 底图实测 art 18；文字 y 修正 = (prefab 矩形高 27.9 − 18)/2 = 4.95",
+                Near(UiLayoutGame.CharRowSlotH, 18f)
+                && Near(UiLayoutGame.CharRowTextDy, (27.9f - 18f) / 2f),
+                $"slotH={UiLayoutGame.CharRowSlotH} textDy={UiLayoutGame.CharRowTextDy:0.###}");
+
+            // ── 判据自检（**退化样本**，⛔ 不许恒真）─────────────────────────────
+            //   旧写法（`CharacterPanel` 改前）：数值 = 标签矩形中心 + 0.29×矩形宽
+            //   = −115.4 + 0.29×74.3 = −93.85（node）。若它与新值相等，这条断言就判不到列位。
+            var oldValueX = -115.4f + 0.29f * 74.3f;
+            Check("退化样本：旧数值列（标签矩形 + 0.29×宽）≠ 底图数值隔间中心（判据真的在判列位）",
+                Math.Abs(oldValueX - UiLayoutGame.CharStatValueX) > 20f,
+                $"旧 {oldValueX:0.##} vs 新 {UiLayoutGame.CharStatValueX:0.##}"
+                + $"（差 {Math.Abs(oldValueX - UiLayoutGame.CharStatValueX):0.##} 原版px）");
+
+            // ═════════════════════════════════════════════════════════════════
+            // ③-c ★ U3（2026-09-24）：**关闭命中区可见化**（主 agent 裁决，用户原话
+            //   「连关闭都没有」在这一格字面成立：旧实现把 CloseButton 的 alpha 写成 0
+            //   ⇒ 点得到、屏上完全看不见；实机放大图 `.ai-tmp/test/cs_zoom_bottom.png` 里
+            //   底图那个方形凹槽是空的）。
+            //   本宿主（离线）判**构建口径**（面板实例要 Unity 运行时，判不到）：
+            //     · 关闭节点必须用**可见的**兜底色（`UiArt.ButtonBg`，alpha 0.94 > 0.9）
+            //     · 必须有原版按钮帧 + 「关闭」文案（⛔ 不许自画 X）
+            //     · 几何仍是原版 prefab 的 32×31（上面已逐条断言）
+            //   运行时的 `alpha > 0.9` 由 Play 驱动的 `find_close` 判据补（见返回报告 §6）。
+            // ═════════════════════════════════════════════════════════════════
+            // ★★ 2026-09-24 自纠（团队级教训：**假红 / 假绿**，主 agent 广播 + 我独立复核时抓到）：
+            //   本判据读的是**源码文本** ⇒ 有两个必须堵的窟窿：
+            //     ① **假红**：注释里出现同一个词就会被算成"代码里有"（实证：文件头注释写了
+            //        `editor_play` ⇒ "必须在取锁之后"那条静态断言报 False，而真实调用点是对的）；
+            //     ② **假绿**：旧的自检写成 `oldClose.Contains("0f)")` —— 常量包含自己的子串，
+            //        **恒真**，等于没判。
+            //   ⇒ 现在改成：**先剥 C# 注释**（`StripCsComments`）+ **双向样本**（已知正确样本必须绿、
+            //      已知错误样本必须红、只写在注释里的旧写法必须仍然绿）。⛔ 别再把自检写回恒真。
+            var cpPath = System.IO.Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts",
+                "UI", "CharacterPanel.cs");
+            var cpSrc = System.IO.File.Exists(cpPath) ? System.IO.File.ReadAllText(cpPath) : string.Empty;
+
+            Func<string, bool> closeVisible = src =>
+            {
+                var code = StripCsComments(src);
+                return code.Contains("UiArt.Panel(transform, \"CloseButton\"")
+                       && code.Contains("UiArt.ButtonBg, true)")
+                       && !code.Contains("new Color(1f, 1f, 1f, 0f), true)");
+            };
+            Func<string, bool> closeHasOriginalFrameAndText = src =>
+            {
+                var code = StripCsComments(src);
+                return code.Contains("ResPaths.BtnMedNormal")
+                       && code.Contains("\"CloseLabel\"")
+                       && code.Contains("private const string CloseText = \"关闭\"");
+            };
+
+            Check("关闭钮：不再是 alpha 0 的隐形命中区（构建用可见兜底色 `UiArt.ButtonBg`）",
+                cpSrc.Length > 0 && closeVisible(cpSrc),
+                cpSrc.Length == 0 ? "读不到 CharacterPanel.cs" : "CloseButton 构建行已换为可见底色");
+            Check("关闭钮：原版按钮帧（`ResPaths.BtnMedNormal`）+ 原版字模文案「关闭」，⛔ 无自画 X",
+                cpSrc.Length > 0 && closeHasOriginalFrameAndText(cpSrc),
+                "命中区 32×31 几何不动（上一条已判），本判只判可见化与素材来源");
+
+            // ── 双向自检（⛔ 三条缺一不可，任何一条恒真/恒假都说明判据坏了）──────────
+            // A. 已知**错**样本：把旧写法作为**代码**注入 ⇒ 同一条判据必须变红
+            var badSrc = cpSrc + "\n        var __old_close = new Color(1f, 1f, 1f, 0f), true);\n";
+            Check("自检 A（已知错样本）：注入旧的 alpha 0 代码行 ⇒ `closeVisible` 必须变红",
+                cpSrc.Length > 0 && closeVisible(cpSrc) && !closeVisible(badSrc),
+                "正确样本绿 / 错误样本红 = 判据真的在判可见性");
+            // B. **假红防护**：把同一串只写在**注释**里 ⇒ 必须仍然绿（证明剥注释生效）
+            var commentSrc = cpSrc + "\n        // 旧写法曾是：new Color(1f, 1f, 1f, 0f), true)\n";
+            Check("自检 B（假红防护）：同一串只出现在注释里 ⇒ 判据必须仍然绿（剥注释生效）",
+                cpSrc.Length > 0 && closeVisible(commentSrc),
+                "上一版会把注释当代码 ⇒ 假红；本版先剥注释");
+            // C. 素材来源那条也要能红（把按钮帧那串注释掉 ⇒ 必须红）
+            var noFrameSrc = cpSrc.Replace("\"CloseLabel\"", "\"CloseLabelRenamed\"");
+            Check("自检 C：改掉 `CloseLabel` 节点名 ⇒ 素材/文案那条必须变红",
+                cpSrc.Length > 0 && closeHasOriginalFrameAndText(cpSrc) && !closeHasOriginalFrameAndText(noFrameSrc),
+                "正确样本绿 / 错误样本红");
+        }
+
+        /// <summary>
+        /// 剥掉 C# 的行注释（`//…`）与块注释（`/*…*/`）。
+        /// <para>为什么静态文本判据必须先剥（团队级实证 2026-09-24）：原文里搜关键词时，
+        /// **注释里出现的同一个词会被当成代码** ⇒ 判据**假红**（让别的片去修一个不存在的 bug）；
+        /// 反向也会**假绿**（把旧写法注释掉就"通过"）。⇒ 剥离后再搜，且配**双向样本**自检。</para>
+        /// <para>★ 2026-09-24（team-lead 指派 §5.2 第 34 条）：本 helper 从 `private` 升为
+        /// <c>internal</c>，作为**本宿主唯一的剥注释实现**供 `Program.cs` 复用 ——
+        /// ⛔ 不要再在别的 Check 类里写第 N 份副本（宿主里已各有 `StripComments`×3 / `CodeOnly`×1）。</para>
+        /// </summary>
+        internal static string StripCsComments(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            s = System.Text.RegularExpressions.Regex.Replace(s, @"/\*.*?\*/", " ",
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+            s = System.Text.RegularExpressions.Regex.Replace(s, @"//[^\n]*", " ");
+            return s;
         }
 
         private static bool OverlapsAny(Vector2 centerRel, Vector2 size, List<Rect> rows)

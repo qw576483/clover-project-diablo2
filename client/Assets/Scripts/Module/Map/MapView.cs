@@ -818,23 +818,23 @@ namespace Diablo2.Module.Map
         /// <para>顺序 = 改前两条路径的顺序，逐字保留：分块模式 = `BuildChunkRange`（**cx 外层、cy 内层**）；
         /// 非分块模式 = "全图逐块"循环（同样 cx 外层、cy 内层）。兄弟序（同 `sortingOrder` 的平局次序）
         /// 就靠它不变 ⇒ 画面逐像素不变。</para>
+        /// <para>★ **枚举已下沉**（2026-09-24 接线）：循环搬到引擎件
+        /// `CloverEngine.ChunkedTilePlanner.AppendChunkCoords`，`xOuter: true` 就是这里的
+        /// 「cx 外层 / cy 内层」；本方法**仍是纯函数**（离线断言口径不变），且**不清空** `into`
+        /// （与改前一致：调用方决定清不清）。⛔ 别改 `xOuter`——那是画面逐像素不变的判据之一。</para>
         /// </summary>
         public static void PlannedChunks(bool chunked, int buildX0, int buildY0, int buildX1, int buildY1,
             int chunksX, int chunksY, List<Vector2Int> into)
         {
             if (into == null) return;
+
             if (chunked)
             {
-                for (var cx = buildX0; cx <= buildX1; cx++)
-                {
-                    for (var cy = buildY0; cy <= buildY1; cy++) into.Add(new Vector2Int(cx, cy));
-                }
+                CloverEngine.ChunkedTilePlanner.AppendChunkCoords(buildX0, buildX1, buildY0, buildY1, into, xOuter: true);
                 return;
             }
-            for (var cx = 0; cx < chunksX; cx++)
-            {
-                for (var cy = 0; cy < chunksY; cy++) into.Add(new Vector2Int(cx, cy));
-            }
+
+            CloverEngine.ChunkedTilePlanner.AppendChunkCoords(0, chunksX - 1, 0, chunksY - 1, into, xOuter: true);
         }
 
         /// <summary>
@@ -2447,19 +2447,32 @@ namespace Diablo2.Module.Map
                 Iso.SortOrder(g, GameConst.LayerOffsetOverlay));
         }
 
+        /// <summary>
+        /// ★ 像素对齐 / 缩放 / 占位色的纯内核**已下沉到引擎件** `CloverEngine.TileRenderer`（2026-09-24 接线）。
+        /// <para>度量口径**逐项相同**（不是"差不多"）：契约 PPU = `GameConst.PixelsPerUnit`(64)、
+        /// 格图像素高 = <see cref="D2TilePixelsPerUnit"/>(80)、半格高 = `GameConst.IsoHalfH`
+        /// —— 与 `Core/Iso.cs` 里那个私有 `IsoLayout` 的构造参数**同源**，故 `PlaceOfPx` 的 `dy` 逐位相同。</para>
+        /// <para>⛔ 改这里等于改画面：本文件的下述方法现在是**薄转发**，语义由引擎件注释负责。</para>
+        /// </summary>
+        private static readonly CloverEngine.TileRenderer TileKernel = new CloverEngine.TileRenderer(
+            new CloverEngine.IsoLayout(GameConst.IsoHalfW, GameConst.IsoHalfH,
+                GameConst.SortOrderStep, GameConst.SortOrderBase),
+            GameConst.PixelsPerUnit, D2TilePixelsPerUnit);
+
         /// <summary>节点缩放：有原版贴图 ⇒ `契约PPU / 80`（见 <see cref="D2TilePixelsPerUnit"/>）；占位菱形 ⇒ 1。</summary>
         internal static Vector3 LocalScaleFor(bool hasSprite)
         {
-            return hasSprite
-                ? Vector3.one * (GameConst.PixelsPerUnit / D2TilePixelsPerUnit)
-                : Vector3.one;
+            return TileKernel.LocalScaleFor(hasSprite);
         }
 
-        /// <summary>节点颜色：有原版贴图 ⇒ 白（原版像素不能被染色）；占位 ⇒ 可辨的占位色。</summary>
+        /// <summary>
+        /// 节点颜色：有原版贴图 ⇒ 白（原版像素不能被染色）；占位 ⇒ 可辨的占位色。
+        /// <para>`kind` → 占位色的映射（<see cref="GroundColor"/> / <see cref="ObjectColor"/>）**属项目语义、留在本侧**；
+        /// "有贴图就白 / 无贴图用占位色"这条判断在引擎件里（`TileRenderer.ColorFor`）。</para>
+        /// </summary>
         internal static Color ColorFor(bool hasSprite, TileKind kind, bool isGround)
         {
-            if (hasSprite) return Color.white;
-            return isGround ? GroundColor(kind) : ObjectColor(kind);
+            return CloverEngine.TileRenderer.ColorFor(hasSprite, isGround ? GroundColor(kind) : ObjectColor(kind));
         }
 
         /// <summary>
@@ -2481,7 +2494,7 @@ namespace Diablo2.Module.Map
         ///     就是它的落脚菱形，更高的部分向上长（栅栏/树/帐篷都是这样）。
         /// </summary>
         private static Vector3 PlaceOf(Vector3 cellCenter, Sprite sprite, bool isFloor)
-            => PlaceOfPx(cellCenter, sprite != null ? Mathf.RoundToInt(sprite.rect.height) : 0, isFloor);
+            => PlaceOfPx(cellCenter, CloverEngine.TileRenderer.HeightPxOf(sprite), isFloor);
 
         /// <summary>
         /// <see cref="PlaceOf"/> 的**纯内核**（接口只吃"图像高(px)"，⛔ 不碰 `Sprite`）
@@ -2492,13 +2505,7 @@ namespace Diablo2.Module.Map
         /// <param name="isFloor">true = 地砖（顶边贴格中心上方半格）；false = 墙/物件（底边贴下方半格）。</param>
         internal static Vector3 PlaceOfPx(Vector3 cellCenter, int spriteHeightPx, bool isFloor)
         {
-            if (spriteHeightPx <= 0) return cellCenter;         // 占位菱形本来就与格同心
-
-            var h = spriteHeightPx / D2TilePixelsPerUnit;       // 图像在世界单位下的高
-            var dy = isFloor
-                ? GameConst.IsoHalfH - h * 0.5f             // 顶边在 +halfH ⇒ 中心下移
-                : h * 0.5f - GameConst.IsoHalfH;            // 底边在 -halfH ⇒ 中心上移
-            return new Vector3(cellCenter.x, cellCenter.y + dy, cellCenter.z);
+            return TileKernel.PlaceOfPx(cellCenter, spriteHeightPx, isFloor);
         }
 
         // ═════════════════════════════════════════════════════════════════════

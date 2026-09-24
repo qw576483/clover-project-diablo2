@@ -1,26 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Audio/EngineAudioClipProbe.cs
-// `IAudioClipProbe` 的**生产实现**：用引擎资源管理器探测音频能否取到。
+// `IAudioClipProbe` 的**生产实现**：一层**薄转发**，直接问引擎既有的存在性入口
+//   `Game.Res.Exists(path)`
+//     · 接口声明：`Runtime/Core/Contracts.cs:1287  bool Exists(string path);`
+//     · 实现：`Runtime/Resource/ResourceManager.cs:251  public bool Exists(string path)`
+//       （:254 命中 `_existsCache` ⇒ **按路径缓存**，只降不升）。
 //
-// 做法：`Game.Res.LoadAsset<AudioClip>("Sound/SFX/{键}", clip => …)`。
-//   · 音频存在 → 回调 `clip != null`，且引擎 `ResourceManager` **按路径缓存**该资源
-//     （`Runtime/Resource/ResourceManager.cs:159-166`，同路径并发加载还会合并）；
-//     随后 `AudioModule` 让 `Game.Sound.PlaySFX(键)` 播放时，引擎内部同样的
-//     `LoadAsset<AudioClip>($"Sound/SFX/{键}")`（`Sound.cs:107`）会**命中同一份缓存**，不重复读盘。
-//   · 音频缺失 → 引擎回调 null，本类回报 `false`；`AudioModule` 据此"报一次 + 之后静默"。
+// ★ 片 sinkup6-d2 · d2-audio（收敛与引擎平行的第二套探测）：
+//   原实现 = `Game.Res.LoadAsset<AudioClip>(path, clip => …)` **＋ 自己算「按路径缓存」**，
+//   等于把引擎的「加载 + 缓存」那条路又走了一遍（还多付一次真实加载）。引擎的既有口径是
+//   「要问在不在用 `Game.Res.Exists`」（`Runtime/Presentation/Sound.cs` 文件头语义约束 ⑤ 原文），
+//   本类改为照做。三点收益：
+//     · `Exists` 同步返回 ⇒ 回调**立即**发生（契约允许，见 `IAudioClipProbe` 的契约段）；
+//     · `Exists` **按路径缓存** ⇒ 重复问 = 字典命中，不打盘 —— 这正是 `AudioModule` 原
+//       `_probedSfx/_probedBgm` 两张表想买的东西，现在由引擎提供（那两张表已删）；
+//     · `Exists` 只回答「在不在」、**不驻留**（不占缓存、不动引用计数）⇒ 音频对象仍由引擎在
+//       `PlaySFX/PlayBGM` 的真实加载路径上按需装入，探测与装载解耦。
 //   · `Game.Res` 为 null（`CloverRes.Init` 未调用）→ 报一次 Warn 并按"未到位"处理，**不抛异常**。
-//
-// ⚠️ 刻意**不**在探测里 Release：音效/BGM 体量小且会反复播放，保持驻留避免每次播放都吃一次加载抖动。
-//    真正需要腾内存时由引擎的字节水位 + LRU 淘汰（`ResourceManager.EnforceWatermark`）负责。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
 using CloverEngine;
-using UnityEngine;
 
 namespace Diablo2.Module.Audio
 {
-    /// <summary>生产用音频探测（走 `Game.Res` + 引擎约定的 `Sound/**` 路径）。</summary>
+    /// <summary>生产用存在性探测（薄转发到引擎 `Game.Res.Exists`；不再自建加载/缓存）。</summary>
     internal sealed class EngineAudioClipProbe : IAudioClipProbe
     {
         /// <inheritdoc />
@@ -35,7 +39,7 @@ namespace Diablo2.Module.Audio
                 return;
             }
 
-            res.LoadAsset<AudioClip>(path, clip => onResult?.Invoke(clip != null));
+            onResult?.Invoke(res.Exists(path));
         }
     }
 }

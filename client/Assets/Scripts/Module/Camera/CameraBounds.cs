@@ -1,8 +1,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Camera/CameraBounds.cs
-// 「相机边界夹制」的**纯数学**：无 Unity 原生调用、不碰 `Game` / `AppContext`
-// ⇒ 离线自检宿主（tools/probes/hosts/mapcheck §29）**直接链本文件调生产实现**，
-//    ⛔ 不必在探针里再镜像一份"看起来一样"的公式（镜像 = 改了生产也不变红的假闸门）。
+// 「相机边界夹制」的**项目门面**：只持有**项目取值**（`FocusSafeMarginRatio`）与
+// 「半格宽高 = `Iso.HalfW/HalfH`」这两项参数，算法本体**已下沉引擎**
+// `CloverEngine.CameraBoundsKit`（★ eng-camera-math 片，2026-09-24）。
+//
+// 为什么本文件仍然存在（⛔ 不是多余的一层）：
+//   · `FocusSafeMarginRatio` 是**项目口径的常量**（原版 D2 的"主角必须留在视口内"），
+//     引擎不替业务定这个值 ⇒ 它留在项目，由本文件传给引擎件；
+//   · 半格宽高来自 `GameConst`（经 `Iso.HalfW/HalfH`），同样不进引擎。
+//   ⇒ 公开签名与调用点（`CameraRig.CameraPosForFocus/CameraPosForCamera`、
+//     `tools/probes/hosts/mapcheck` §29、`playercheck` §11）**一字未改**。
+//
+// ⛔ 本文件**不含任何算法**：所有夹制只在引擎 `CameraBoundsKit`（同一份 = 离线宿主直接链的那份）。
+//    旧版这里的 `private static ClampSpan` 与 `_visibilityWonLogged` 已随之删除
+//    （⚠️ 非预期分支"地图角格处让位给主角可见"的日志出口一并移到引擎
+//     `LogThrottle.WarnOnce("Camera","cameraBounds.visibilityWon")`）。
 //
 // ── ★ 缺陷修复（camera-clamp 片，2026-09-23）：夹制用错了坐标系 ────────────────
 //   **实测现象**（bw_deep_bwy1.txt）：进血腥荒野后机位 (-19,-11,-10)，chunk 侧 `MISSING=0`
@@ -12,27 +24,16 @@
 //   菱形与它的 AABB 之间那**四个三角区**在世界里根本没有对应格子（= 地图外虚空），
 //   而 AABB 夹制把它们当成"图内"⇒ 机位落在 AABB 内即被放行（实测该机位就是 no-op）
 //   ⇒ 屏幕上 31.3% 是地图外虚空 = 那片黑。
-//   **修法**（本文件）：夹制回到**格空间** —— 把「可见格矩形」夹进 [0..W-1]×[0..H-1]。
+//   **修法**：夹制回到**格空间** —— 把「可见格矩形」夹进 [0..W]×[0..H]（完整推导见引擎
+//   `Runtime/Presentation/CameraBoundsKit.cs` 的文件头，那里是**唯一**权威处）。
 //
-// ── 口径（与 `Core/Iso` 同源；⛔ 不写第二份常量）───────────────────────────────
-//   连续格坐标 (gx, gy)：整数 = **格线**（`Iso.WorldToGridContinuous` 的口径；
-//   格子 g 覆盖 [g, g+1)，`Iso.GridToWorld(gx,gy)` 返回的是**中心** (gx+0.5, gy+0.5)）。
-//   旋转到菱形自己的两条轴（屏幕矩形在这个框里是**轴对齐**的 ⇒ 两向可独立夹制）：
-//        u = gx − gy =  X / Iso.HalfW          v = gx + gy = −Y / Iso.HalfH
-//        X = u · Iso.HalfW                     Y = −v · Iso.HalfH
-//   半屏在 (u,v) 框里的半跨：a = halfW / Iso.HalfW ，b = halfH / Iso.HalfH
-//   ⇒ 可见格矩形 = { |Δu| ≤ a, |Δv| ≤ b }（一个菱形）；它全部落在地图内 ⟺
-//        s1 = u + v ∈ [a+b, 2(W−1) − (a+b)]      （s1 = 2·gx ∈ [0, 2(W−1)]）
-//        s2 = v − u ∈ [a+b, 2(H−1) − (a+b)]      （s2 = 2·gy ∈ [0, 2(H−1)]）
-//
-// ── ⚠️ 一条**硬约束**：主角必须留在视口内 ──────────────────────────────────────
-//   把菱形整个塞进地图需要的位移可能大于"主角还在画面里"允许的位移 —— 在**地图角格**
-//   上两者**数学上不可兼得**（证明：两条约束相加得 v ≥ a+b，而主角可见要求 |Δv| ≤ b，
-//   在角格处 a+b > 2b 时无解）。此时**让位给主角可见**（地图角落那点虚空由地图边界块
-//   的美术去盖，属 `Module/Map` 侧，⛔ 不是相机该解决的事）。
+// ── 一条**硬约束**：主角必须留在视口内 ──────────────────────────────────────
+//   在地图**角格**上「零虚空」与「主角可见」数学上不可兼得（证明见引擎件文件头）⇒
+//   此时**让位给主角可见**（地图角落那点虚空由地图边界块的美术去盖，属 `Module/Map` 侧）。
 //   判据：`tools/probes/hosts/playercheck` §11「被钳制 ⇒ 焦点仍在视口内」。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using CloverEngine;
 using Diablo2.Core;
 using UnityEngine;
 
@@ -41,8 +42,9 @@ using UnityEngine;
 namespace Diablo2.Module
 {
     /// <summary>
-    /// 相机边界夹制的纯函数（**格空间**，⛔ 不是世界 AABB）。
-    /// <para>是 `CameraRig.CameraPosForFocus` 与 `tools/probes/hosts/mapcheck` §29 的**同一份实现**。</para>
+    /// 相机边界夹制的**项目门面**（格空间，⛔ 不是世界 AABB）：实现 = 引擎
+    /// <see cref="CameraBoundsKit"/>，本类只把两个项目参数喂进去
+    /// （<see cref="FocusSafeMarginRatio"/> 与 <see cref="Iso.HalfW"/> / <see cref="Iso.HalfH"/>）。
     /// </summary>
     public static class CameraBounds
     {
@@ -54,14 +56,15 @@ namespace Diablo2.Module
         /// 个半屏位移才能把虚空压到 0（`mapcheck` §29 `fracProd == 0` + 生产==规格），本值 &lt; 0.9125
         /// 会让 §29 变红；② 上界 —— `playercheck` §11.10 四角用例的「图外格量不差于修前」在本值 = 1
         /// 时恰好取等，&gt; 1 没有意义（会允许焦点落到画面外）。⇒ **只能取 1**。</para>
+        /// <para>★ eng-camera-math 片：本常量**留在项目**（引擎不替业务定这个值），
+        /// 由本类的转发传给引擎件。</para>
         /// </summary>
         public const float FocusSafeMarginRatio = 1f;
 
-        /// <summary>"主角可见优先"生效过（只报一次，避免每帧刷屏）。</summary>
-        private static bool _visibilityWonLogged;
-
         /// <summary>
         /// 把机位夹到「可见**格**矩形 ⊆ 地图」，并保证**焦点（玩家）仍在视口安全边距内**。
+        /// <para>★ eng-camera-math 片：**实现已下沉引擎** <see cref="CameraBoundsKit.ClampCameraGrid"/>
+        /// （逐行同源），本方法是薄转发 —— 签名与调用点一字未改；两个项目参数在此处喂进去。</para>
         /// <para>★ 口径（camera-follow 片）：夹的是**机位** `camera`，⛔ 不是焦点 ——
         /// 焦点只作为「机位最多能挪多远」的参照。前一片把两者当同一个量（`camera == focus`），
         /// 于是「藏虚空」的位移被当成「焦点被夹」⇒ 玩家被顶到画面角落（实机 p50 598px）。</para>
@@ -76,67 +79,19 @@ namespace Diablo2.Module
         public static Vector2 ClampCameraGrid(Vector2 camera, Vector2 focus, int mapWidth, int mapHeight,
             float halfW, float halfH)
         {
-            var iw = Iso.HalfW;                       // 等距半格（世界单位）：1.0 / 0.5
-            var ih = Iso.HalfH;
-            if (mapWidth <= 0 || mapHeight <= 0 || halfW <= 0f || halfH <= 0f || iw <= 0f || ih <= 0f)
-                return camera;
-
-            var a = halfW / iw;                       // 半屏在 u 方向的半跨（格）
-            var b = halfH / ih;                       // 半屏在 v 方向的半跨（格）
-            var margin = a + b;                       // 菱形顶点到中心在两个方向上的合计跨度
-
-            var u = camera.x / iw;                    // **机位**在菱形轴系里的坐标
-            var v = -camera.y / ih;
-
-            // ★ camera-follow 片：上界用 **2·W / 2·H**（格的连续口径），⛔ 不是 2·(W−1)。
-            //   `Iso` 的连续格坐标里「格 g 覆盖 [g, g+1)」⇒ 地图的真实连续范围是 [0, W]×[0, H]；
-            //   取 (W−1) 等于把最外一圈格当成图外，**白白吃掉一整格**可跟随范围
-            //   （56×40 城镇：机位 gy 上限 31.917 → 32.917 ⇒ 玩家↔机位偏移少 1 格 ≈ 144px@1080p）。
-            var s1 = ClampSpan(u + v, margin, 2f * mapWidth - margin);          // = 2·gx
-            var s2 = ClampSpan(v - u, margin, 2f * mapHeight - margin);         // = 2·gy
-
-            var u2 = (s1 - s2) * 0.5f;
-            var v2 = (s1 + s2) * 0.5f;
-
-            // ★ 主角可见预算：位移是相对**焦点**（玩家）量的，⛔ 不是相对机位自己
-            //   （相对机位自己量的话，机位已经在边缘上 ⇒ 预算被自己吃掉，玩家一路被顶到画面角上）。
-            //   上界 = 半屏 × FocusSafeMarginRatio ⇒ 焦点永远落在视口 [inset, 1−inset] 内。
-            var uf = focus.x / iw;
-            var vf = -focus.y / ih;
-            var au = a * FocusSafeMarginRatio;
-            var bv = b * FocusSafeMarginRatio;
-            var uc = Mathf.Clamp(u2, uf - au, uf + au);
-            var vc = Mathf.Clamp(v2, vf - bv, vf + bv);
-            if (Mathf.Abs(uc - u2) > 1e-4f || Mathf.Abs(vc - v2) > 1e-4f)
-            {
-                if (!_visibilityWonLogged)
-                {
-                    _visibilityWonLogged = true;
-                    Log.Warn("Camera", $"地图角格处「零虚空」与「主角可见（安全边距 {FocusSafeMarginRatio:0.##}）」" +
-                                       $"不可兼得 ⇒ 本次让位给主角可见（机位 ({uc * iw:0.##},{-vc * ih:0.##})，" +
-                                       $"零虚空解为 ({u2 * iw:0.##},{-v2 * ih:0.##})，焦点 ({focus.x:0.##},{focus.y:0.##})，只报一次）");
-                }
-                u2 = uc;
-                v2 = vc;
-            }
-
-            return new Vector2(u2 * iw, -v2 * ih);
+            return CameraBoundsKit.ClampCameraGrid(camera, focus, mapWidth, mapHeight,
+                halfW, halfH, Iso.HalfW, Iso.HalfH, FocusSafeMarginRatio);
         }
 
         /// <summary>
         /// 兼容口径：**机位与焦点同一处**（= 相机想停在玩家身上的理想情形）。
         /// `mapcheck` §29 / `playercheck` §11 的用例走这个入口（它们只给一个点）。
+        /// <para>★ eng-camera-math 片：**实现已下沉引擎**（薄转发）。</para>
         /// </summary>
         public static Vector2 ClampFocusGrid(Vector2 focus, int mapWidth, int mapHeight, float halfW, float halfH)
         {
-            return ClampCameraGrid(focus, focus, mapWidth, mapHeight, halfW, halfH);
-        }
-
-        /// <summary>纯函数：把 [lo,hi] 这段可行区间夹出来；区间为空（视野比地图还大）⇒ 居中（原版语义）。</summary>
-        private static float ClampSpan(float s, float lo, float hi)
-        {
-            if (hi <= lo) return (lo + hi) * 0.5f;
-            return Mathf.Clamp(s, lo, hi);
+            return CameraBoundsKit.ClampFocusGrid(focus, mapWidth, mapHeight,
+                halfW, halfH, Iso.HalfW, Iso.HalfH, FocusSafeMarginRatio);
         }
     }
 }

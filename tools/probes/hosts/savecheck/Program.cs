@@ -19,7 +19,11 @@
 //      `SaveModule.Load/TryLoad` 的**三情况可判别** —— ① 档不存在 ⇒ `false` + `LastError==""`（正常、不报错）；
 //      ② 档在但解析失败/损坏 ⇒ `false` + `LastError!=""`（含档名+原因）+ `Events.LoadDone` 发 **null**
 //      （= 用户可见反馈的触发点，唯一消费者 `AppFlow.OnLoadDone` → 复用 `UI/D2ConfirmPanel`）；
-//      ③ 版本不符 / 缺字段 ⇒ 兼容读**成功** + Info（值取默认值）。⛔ 本步骤**只加断言**，
+//      ③ 版本不符 / 缺字段 ⇒ 兼容读**成功** + Info（值取默认值）；
+//         ★ 契约（2026-09-24 起，`u52cur` 修 U52）：兼容读**保留档内原版本号**（⛔ 不再抬到当前 ——
+//           那是下游 `PlayerModule.LoadFrom` 判"旧档资源迁移"的唯一输入），**回写磁盘时才写当前版本**。
+//         ⇒ 判据两半齐：`③a`（读=保留原值）+ `③a-2`（写=抬到当前，实测落盘 JSON 版本）。
+//      ⛔ 本步骤**只加断言**，
 //      并把**被验证对象本身**（`Module/Save/SaveModule.cs`，与 Assets/ 同一份文件）编进宿主。
 //
 // 已知边界（不是缺陷）：
@@ -737,9 +741,27 @@ namespace SaveCheck
             Check("③a 旧版本档（version=" + (GameConst.SaveVersion - 1) + " ≠ 当前 " + GameConst.SaveVersion +
                   "）⇒ 兼容读**成功**（`TryLoad` = true，⛔ 不因版本不符而失败）",
                 legacyOk && legacyData != null, "TryLoad=" + legacyOk);
-            Check("③a ⇒ 版本被抬到当前（`data.version == GameConst.SaveVersion`）",
-                legacyData != null && legacyData.version == GameConst.SaveVersion,
+            // ⚠️ **契约变更 ⇒ 本条判据必须同步**（2026-09-24 · `u52cur` 修 U52「耐力 20/84」）：
+            //   旧契约 = `SaveModule.Load` **把 `data.version` 抬到当前**（原来这条断言就是这么写的）；
+            //   新契约 = **只报不改**：读档返回的数据**保留档内原版本号**，让下游
+            //     `PlayerModule.LoadFrom`（`Module/Player/PlayerModule.cs:448` 的
+            //     `save.version < GameConst.SaveVersion`）能判出"这是旧口径档" ⇒ 触发三资源迁移；
+            //     **回写磁盘时才写当前版本**。修法注释出处 = `Module/Save/SaveModule.cs:343-376`。
+            //   ⇒ 判据必须**两半都判**（读=保留 / 写=抬到当前）—— 只判一半会各放过一类真缺陷：
+            //     ① 只判"读=保留" ⇒ 放过"档永远停在旧版本、每次进游戏都重跑一遍迁移"；
+            //     ② 只判"写=抬到当前" ⇒ 放过"读档时版本已被改掉 ⇒ 迁移永不触发"（**就是本次那个 bug 本身**）。
+            //   ★ "能失败"的实证：本条在改契约后**真的红过一次**（`version=1`，实测），现在按新契约转绿。
+            //   # direct-fix: d2fix/team-lead（2026-09-24）—— 判据侧单文件同步；越界披露与复核去向见
+            //     `.ai-tmp/test/dispatch-log.tsv` 末段的 team-lead 那行（净增 31 行 > skill §2.6 的 20 行）。
+            Check("③a ⇒ ★ 读档**保留档内原版本号**（`data.version == " + (GameConst.SaveVersion - 1) +
+                  "`，⛔ 不再被抬到当前 —— 这是下游判「旧档资源迁移」的唯一输入）",
+                legacyData != null && legacyData.version == GameConst.SaveVersion - 1,
                 "version=" + (legacyData == null ? -1 : legacyData.version));
+            // ★ 段序即输入（README §57(a)）：③a 的三条收尾断言**必须在本段（③a 段内）判定** ——
+            //   ③a-2 自己会再发一次 `Events.LoadDone`（成功读档）+ 留下自己的 `LastError` 与
+            //   「兼容路径」日志 ⇒ 若把这三条排在 ③a-2 **之后**，它们读到的就是 ③a-2 之后的全局状态
+            //   （实测：`LoadDoneArgs.Count` 2、`兼容路径` 日志 4、`LastError` 是 ③a-2 那次 `Save` 留下的空串）。
+            //   修前靠 `loadDoneKeep` 先存后复原兜住 —— 那是**症状级补丁**（§54），正解 = 插到断言块末尾。
             Check("③a ⇒ **值不丢**（金币 777 / 等级 7 / seed 原样读回）",
                 legacyData != null && legacyData.gold == 777 && legacyData.level == 7 && legacyData.mapSeed == 20260919,
                 legacyData == null ? "(null)" : ("gold=" + legacyData.gold + " level=" + legacyData.level + " seed=" + legacyData.mapSeed));
@@ -748,6 +770,24 @@ namespace SaveCheck
             Check("③a ⇒ `LastError == \"\"`（成功路径不残留错误）+ `Events.LoadDone` 以**非 null** 发出",
                 save.LastError == "" && LoadDoneArgs.Count == 1 && LoadDoneArgs[0] != null,
                 "LastError=\"" + save.LastError + "\" LoadDone=" + LoadDoneArgs.Count);
+
+            // ── ③a-2 另一半：**回写磁盘时抬到当前**（⛔ 用独立槽位，不动 ③a 的夹具 ⇒ 后面 R7 结论不受影响）──
+            var wb = BuildSave();
+            wb.name = "OldVersionWriteBack";
+            wb.version = GameConst.SaveVersion - 1;
+            wb.gold = 4321;
+            File.WriteAllText(Path.Combine(savesDir, wb.name + ".json"), SaveJson.Write(wb));
+
+            CharacterSave wbLoaded;
+            var wbLoadOk = save.TryLoad(wb.name, out wbLoaded);          // 读：应为"保留 " + (GameConst.SaveVersion - 1)
+            var wbSaveOk = wbLoadOk && save.Save(wbLoaded);              // 写：生产 `Save(CharacterSave)`（`SaveModule.cs:236`）
+            var wbBack = SaveJson.TryParse(File.ReadAllText(Path.Combine(savesDir, wb.name + ".json")), out var wbErr);
+            Check("③a-2 ⇒ ★ 回写**抬到当前**（读到的 " + (GameConst.SaveVersion - 1) + " → 落盘 " + GameConst.SaveVersion +
+                  "，且值不丢）：'读=保留原值 / 写=写当前' 两半齐 ⇒ 旧档迁移只跑一次、档不会永远停在旧版本",
+                wbSaveOk && wbBack != null && wbBack.version == GameConst.SaveVersion && wbBack.gold == 4321,
+                "TryLoad=" + wbLoadOk + " Save=" + wbSaveOk + " 落盘 version=" +
+                (wbBack == null ? -1 : wbBack.version) + " gold=" + (wbBack == null ? -1 : wbBack.gold) +
+                (string.IsNullOrEmpty(wbErr) ? "" : " err=" + wbErr));
 
             // ── ③b 版本相同但缺字段（旧档少列）⇒ 取默认值 ─────────────────
             File.WriteAllText(Path.Combine(savesDir, "SparseHero.json"),

@@ -247,26 +247,116 @@ namespace Diablo2.UI
                 (int)UiLayoutGame.FontPx16);
 
             var btnSize = new Vector2(UiLayoutGame.ShopBottomSlotSize, UiLayoutGame.ShopBottomSlotSize);
+            // ★ 片 u53-shopart：标签**移到钮外正下方**（`ButtonLabelRect`，纯函数 + 离线判据）——
+            //   原版这两颗钮是"纯图形自明"（帧 2 = 锤+铁砧、帧 10 = ⊘），标签铺满时**正好压住图形**。
             _repairButton = UiArt.SquareButton(transform, "RepairAll", "修理", btnSize,
-                SlotPos(2), OnRepairAll);
+                SlotCenter(2), OnRepairAll, ButtonLabelRect(2));
             // 常态帧 2（= 锤子 + 铁砧），见 ApplyBuySellButtonArt 的逐帧读图表
             ApplyBuySellButtonArt(_repairButton, 2);
-            var close = UiArt.SquareButton(transform, "Close", "关闭", btnSize, SlotPos(3), OnCloseShop);
+            var close = UiArt.SquareButton(transform, "Close", "关闭", btnSize, SlotCenter(3), OnCloseShop,
+                ButtonLabelRect(3));
             // 常态帧 10（= 禁止符 ⊘）
             ApplyBuySellButtonArt(close, 10);
         }
 
-        /// <summary>`ShopBottomSlotX` 第 i 个雕槽的中心（越界 ⇒ 退回最后一个并告警，不静默）。</summary>
-        private static Vector2 SlotPos(int i)
+        /// <summary>
+        /// 相邻雕槽的中心距（= `ShopBottomSlotX[1] − ShopBottomSlotX[0]` = 原版实测 pitch **52** × K = 93.6 画布px）。
+        /// <para>标签框宽取它 ⇒ **四个雕槽的标签两两不重叠**（`Rect.Overlaps` 为假），且"52"有底图实测出处
+        /// （`策划/验收表.md` E4 / B5：列 115-148 / 167-200 / 219-252 / 271-304，pitch 52）。</para>
+        /// </summary>
+        public static float SlotPitch
+            => UiLayoutGame.ShopBottomSlotX[1] - UiLayoutGame.ShopBottomSlotX[0];
+
+        /// <summary>
+        /// 第 <paramref name="slot"/> 个雕槽里那颗方钮的矩形 —— **按钮 local 空间**（以按钮中心为原点）。
+        /// 判据用（`tools/probes/hosts/uicheck/ShopArtCheck.cs` ⑤）：标签矩形必须与它**不相交**。
+        /// </summary>
+        public static Rect ButtonRect(int slot)
+        {
+            var s = UiLayoutGame.ShopBottomSlotSize;
+            return new Rect(-s * 0.5f, -s * 0.5f, s, s);
+        }
+
+        /// <summary>
+        /// 方钮**标签**矩形 —— **按钮 local 空间**（同 <see cref="ButtonRect"/>，故两者可直接比）。
+        /// <para>★ 片 u53-shopart：标签放**钮外正下方居中**，让原版图形（帧 2 的锤+铁砧 / 帧 10 的 ⊘）
+        /// **零遮挡**；这是本项目新增的表现（原版该处只有图形、没有文字）⇒ 已把"标签位置 = 钮外正下方"
+        /// 作为 **E4 增补**回报主 agent 落表。</para>
+        /// <para>几何出处（片 u53-shopart 量法，两路互证；报告 §R2-a）：
+        /// ① 钮**居中在内凹区**后，钮下沿 = 原版 y **413**（= <see cref="SlotInnerBottom"/>，钮边长 28 落在 385..413）；
+        /// ② 钮下方可用带 = **414..429（16 原版px）**：越过雕槽下框线（414..417）与槽下阴影（418..420），
+        ///    止于**面板下边框**（429..430）之上 ⇒ 这是"钮居中 + 标签在钮正下方"唯一还剩的带（恰好 = 标签高）；
+        /// ③ 标签高 = `UiLayoutGame.FontPx16`（28.8 画布px = 16 原版px）、**gap = 0**（上沿紧贴钮下沿）；
+        /// ④ 框宽 = <see cref="SlotPitch"/>（原版 52）⇒ 相邻标签恰好相接、不重叠。
+        /// ⚠️ 已知代价（登记）：标签带 414..429 会**压过雕槽下框线**（414..417）。
+        ///    要避开它只能把标签放到面板外或钮上方 —— 二者都偏离 E4 裁定"钮外正下方"，留主 agent 裁。</para>
+        /// </summary>
+        public static Rect ButtonLabelRect(int slot)
+        {
+            var s = UiLayoutGame.ShopBottomSlotSize;
+            var h = UiLayoutGame.FontPx16;
+            var w = SlotPitch;
+            var cy = -(s + h) * 0.5f;              // gap = 0：标签上沿 == 钮下沿
+            return new Rect(-w * 0.5f, cy - h * 0.5f, w, h);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★ 片 u53-shopart：雕槽几何 = **底图逐像素实测的「内凹区」**（原版 px）
+        //
+        //  实测（`buysell_back.png` 320×432，量法 = 逐行/逐列亮度剖面，报告 §R2-a）：
+        //    · 槽的亮框线：上 = y **382..384**、下 = y **414..417**（行 429..430 是**面板下边框**，不是槽）；
+        //    · **内凹区 = y 385..413（29 行）**，x = 115..149 / 167..201 / 219..253 / 271..305（34 宽，pitch 52）；
+        //    · ⇒ 槽中心 y = **399**（内凹区中点）、x 中心 = 132 / 184 / 236 / 288。
+        //
+        //  ⛔ 与旧值 `UiLayoutGame.ShopBottomSlotY`（= 原版 y **381**）的差 = **18 原版px**，来路已查清：
+        //    **381 是槽的「顶沿」，不是槽中心** —— 底图上 381..384 正是那条亮上框线（实测），
+        //    而同一批材料在 `ShopPanel.cs` 的 B5 注释里记的是「槽内凹区 y386..411」（中心 398.5）。
+        //    两条记录**并存但从未对账** ⇒ 代码采用了 381 当中心 ⇒ 钮被抬高约半高(14)+框(4) = **18px**。
+        //    ⛔ 本文件现在**不再读** `UiLayoutGame.ShopBottomSlotY`（那条常量已陈旧，应由其归属者删除/改值；
+        //    本片不越权改 `UiLayoutGame.cs`，已登记进报告「残余」）。
+        //    X 不变：旧值 132/184/236/288 与实测内凹区中心逐槽相同（≤0.5px）。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>雕槽**内凹区**上沿（原版 y px，实测 = 亮上框线 382..384 之下第一行）。</summary>
+        public const float SlotInnerTop = 385f;
+
+        /// <summary>雕槽**内凹区**下沿（原版 y px，实测 = 亮下框线 414..417 之上最后一行）。</summary>
+        public const float SlotInnerBottom = 413f;
+
+        /// <summary>雕槽**内凹区**宽（原版 px，实测 34；同 B5 记录）。</summary>
+        public const float SlotInnerWidth = 34f;
+
+        /// <summary>雕槽内凹区中心 y（原版 **399**，= 385 与 413 的中点）；画布 y = (216 − 399) × K。</summary>
+        public static readonly float SlotInnerCenterY = (SlotInnerTop + SlotInnerBottom) * 0.5f;
+
+        /// <summary>
+        /// 第 <paramref name="slot"/> 个雕槽**内凹区**的矩形（**面板 local 空间**，原版 px 口径 ⇒ ×K）。
+        /// 判据（`ShopArtCheck` ⑥）用：钮矩形必须 ⊆ 它、且钮中心与它的中心距 ≤ 1 原版px。
+        /// </summary>
+        public static Rect SlotInnerRect(int slot)
+        {
+            var cx = UiLayoutGame.ShopBottomSlotX[slot];
+            var w = SlotInnerWidth * UiLayoutGame.K;
+            var h = (SlotInnerBottom - SlotInnerTop) * UiLayoutGame.K;
+            var cy = (216f - SlotInnerCenterY) * UiLayoutGame.K;
+            return new Rect(cx - w * 0.5f, cy - h * 0.5f, w, h);
+        }
+
+        /// <summary>
+        /// 第 i 个雕槽里方钮的**位点（面板 local 空间）** = 内凹区中心（越界 ⇒ 退回最后一个并告警，不静默）。
+        /// ⛔ 不再用 `UiLayoutGame.ShopBottomSlotY`（旧值 381 = 槽顶沿，会把钮抬高 18 原版px）。
+        /// </summary>
+        public static Vector2 SlotCenter(int i)
         {
             var xs = UiLayoutGame.ShopBottomSlotX;
-            if (xs == null || xs.Length == 0) return new Vector2(0f, UiLayoutGame.ShopBottomSlotY);
+            if (xs == null || xs.Length == 0)
+                return new Vector2(0f, (216f - SlotInnerCenterY) * UiLayoutGame.K);
             if (i < 0 || i >= xs.Length)
             {
                 UiLog.Warn($"商店底部雕槽下标 {i} 越界（底图只有 {xs.Length} 个）⇒ 退回最后一个");
                 i = xs.Length - 1;
             }
-            return new Vector2(xs[i], UiLayoutGame.ShopBottomSlotY);
+            return new Vector2(xs[i], (216f - SlotInnerCenterY) * UiLayoutGame.K);
         }
 
         /// <summary>

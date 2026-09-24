@@ -23,8 +23,9 @@
 //   还会触发 `NpcModule.TryAutoInteract` **自动开对话顶掉商店面板**。
 //   修法：`TryGetGroundClick` / `TryGetGroundHoldTarget` 两个取点入口在反投影**之前**
 //   先过 `UiEatsIntent(按下/按住, 指针是否在 UI 上)`（纯函数，离线宿主逐行断言）。
-//   ⛔ 判定源**不读裸 `UnityEngine.Input`**：走 `UnityEngine.EventSystems` 的指针命中
-//      （见本文件下方 `UiPointerProbe` 的说明：为什么走反射、为什么不能直接 using 那个类型）。
+//   ⛔ 判定源**不读裸 `UnityEngine.Input`**：转调**引擎探针** `Game.Input.PointerOverUi`
+//      （内部走 uGUI `UnityEngine.EventSystems` 的指针命中；离线宿主 / 无 EventSystem ⇒ 恒 false；
+//      见本文件下方 `UiPointerProbe` 的说明：为什么判定源归引擎、为什么本文件不出现 uGUI 类型名）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -95,8 +96,9 @@ namespace Diablo2.Module
         /// <summary>
         /// 「此刻指针是否压在 UI 上」的判定源（**本项目新增的非契约注入点**，做法与
         /// <see cref="HoverPicker.GroundItemAt"/> 完全同一套：默认实现 + 宿主可整体替换）。
-        /// <para>默认值 = <see cref="UiPointerProbe.PointerOverUi"/>（引擎/Unity 的
-        /// `UnityEngine.EventSystems.EventSystem` 指针命中）；离线自检宿主注入替身来断言两种情形。</para>
+        /// <para>默认值 = <see cref="UiPointerProbe.PointerOverUi"/>（**转调引擎探针**
+        /// `Game.Input.PointerOverUi` —— uGUI `EventSystem` 的指针命中，实现见
+        /// `Runtime/Presentation/Input.cs`）；离线自检宿主注入替身来断言两种情形。</para>
         /// <para>⛔ 本字段**不参与 <see cref="Reset"/>**：它可能是宿主/集成方注入的替身（同 `GroundItemAt` 的口径）。</para>
         /// </summary>
         public Func<bool> PointerOverUi { get; set; }
@@ -618,7 +620,7 @@ namespace Diablo2.Module
                 _uiBlockedLogged = true;
                 Log.Info(Tag, "[R1-E] S2 生效：指针压在 UI 上 ⇒ 左键不再当作「点地面 / 按住走」的"
                     + "地面意图（不发 MoveCommand、不触发 Npc 自动对话）；指针离开 UI 后照旧。"
-                    + "判定源 = UnityEngine.EventSystems 的指针命中（非裸 UnityEngine.Input）");
+                    + "判定源 = 引擎探针 Game.Input.PointerOverUi（内部走 uGUI 指针命中，非裸 UnityEngine.Input）");
             }
             return over;
         }

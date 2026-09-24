@@ -1,5 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Audio/SfxThrottle.cs
+// ⚠️ **本文件已改薄转发**：闸门本体已下沉到引擎 `Runtime/Presentation/Sound.cs` 的
+//   `CloverEngine.SoundRepeatGate`（音效播放闸门第 3 维：同一路径最小重播间隔）。
+//   本类只保留本项目自己的**公开面与调参常量** —— `MinRepeatSeconds` / `Clock` /
+//   `DropCount` / `ShouldDrop` / `ResetForTest`（签名与语义一字未改），内部一律转发，
+//   ⛔ 不再自持计时表与计数。调用点（`Module/Audio/AudioModule.cs`）与离线宿主**一行未动**
+//   （`patterns/engine-fix.md` §4.1 铁律 2：最小修复，不改调用点）。
 // **同一音效键的最小重播间隔**（接收侧防御闸门；本片 C4 新增，⛔ 不是原版口径 —— 原版没有这条闸门，
 //   它存在的唯一理由是"把刷屏挡在音源池之前"，见下）。
 //
@@ -22,89 +28,55 @@
 //     （与 `AudioLog.cs` 文件头记的 `Core/Log.cs:133` 同一个坑）⇒ 这里**读出失败就返回 0**；
 //   · **时间源不可用（now ≤ 0）时本闸门判"不丢弃"** —— 宁可漏节流，也⛔ 不许把正常音效吞掉
 //     （这也是离线宿主既有断言不受影响的原因）。
+//   ⇒ 下沉后这三级口径在引擎 `SoundRepeatGate` 内**逐条保留**（含"非 Unity 宿主不崩"），
+//     本文件只把 `Clock` 转发过去；本项目仍然只认 `MinRepeatSeconds` 这一个调参常量。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
-using System.Collections.Generic;
+using CloverEngine;
 
 namespace Diablo2.Module.Audio
 {
-    /// <summary>同一音效键的最小重播间隔闸门（纯逻辑 + 可注入时钟 ⇒ 离线可断言）。</summary>
+    /// <summary>
+    /// 同一音效键的最小重播间隔闸门 —— **引擎 <see cref="SoundRepeatGate"/> 的项目侧薄转发**
+    /// （公开签名与语义与下沉前逐字一致；⛔ 本类不再自持计时表 / 计数 / 默认时钟）。
+    /// </summary>
     internal static class SfxThrottle
     {
-        /// <summary>同一键的最小重播间隔（秒）。改这一个数就是改口径（见文件头推导）。</summary>
+        /// <summary>同一键的最小重播间隔（秒）。改这一个数就是改**本项目**口径（见文件头推导）。</summary>
         public const float MinRepeatSeconds = 0.10f;
 
-        /// <summary>时钟（秒）。生产 = Unity `unscaledTime`；离线宿主可注入假时钟逐毫秒推进。</summary>
-        internal static Func<float> Clock = DefaultClock;
-
-        /// <summary>每个键最近一次**被允许起播**的时刻。</summary>
-        private static readonly Dictionary<string, float> LastPlayAt = new Dictionary<string, float>(StringComparer.Ordinal);
-
-        /// <summary>累计被本闸门丢弃的次数（自检 / 排障用；生产只读）。</summary>
-        internal static int DropCount;
-
-        /// <summary>默认时钟：读引擎时间，读不到（离线宿主）返回 0（= 闸门惰性）。</summary>
-        private static float DefaultClock()
+        /// <summary>
+        /// 时钟（秒）。生产 = Unity `unscaledTime`；离线宿主可注入假时钟逐毫秒推进。
+        /// <para>转发到引擎闸门的可注入时钟（默认 <c>null</c> = Unity 时钟，读不到即惰性 ⇒ 放行）。</para>
+        /// </summary>
+        internal static Func<float> Clock
         {
-            try
-            {
-                return UnityEngine.Time.unscaledTime;
-            }
-            catch (Exception)
-            {
-                // 非 Unity 宿主（离线自检）/ 引擎时钟不可读 ⇒ 返回 0 ⇒ ShouldDrop 一律放行
-                return 0f;
-            }
+            get { return SoundRepeatGate.Clock; }
+            set { SoundRepeatGate.Clock = value; }
+        }
+
+        /// <summary>累计被本闸门丢弃的次数（自检 / 排障用；生产只读）。= 引擎闸门的计数。</summary>
+        internal static int DropCount
+        {
+            get { return SoundRepeatGate.DropCount; }
         }
 
         /// <summary>
-        /// 是否应丢弃本次请求。
+        /// 是否应丢弃本次请求（= 引擎 <see cref="SoundRepeatGate.ShouldDrop"/>，间隔取本项目的
+        /// <see cref="MinRepeatSeconds"/>）。
         /// <para>返回 true 时 <paramref name="sinceSeconds"/> = 距上一次**真正起播**的间隔（供日志/断言核数）。</para>
         /// <para>只有"允许起播"的那一次才刷新计时 ⇒ 被丢弃的请求不会把窗口越推越远（不会造成"永久静音"）。</para>
         /// </summary>
         public static bool ShouldDrop(string key, out float sinceSeconds)
         {
-            sinceSeconds = 0f;
-            if (string.IsNullOrEmpty(key)) return false;
-
-            float now;
-            try
-            {
-                now = Clock != null ? Clock() : 0f;
-            }
-            catch (Exception)
-            {
-                return false;                    // 时钟本身抛异常 ⇒ 放行（同"时间源不可用"口径）
-            }
-
-            if (now <= 0f) return false;         // 时间源不可用 ⇒ 闸门惰性（见文件头）
-
-            float last;
-            if (!LastPlayAt.TryGetValue(key, out last))
-            {
-                LastPlayAt[key] = now;
-                return false;                    // 该键首次请求 ⇒ 放行
-            }
-
-            var since = now - last;
-            if (since >= MinRepeatSeconds)
-            {
-                LastPlayAt[key] = now;
-                return false;                    // 已超过最小间隔 ⇒ 放行并刷新计时
-            }
-
-            sinceSeconds = since;
-            DropCount++;
-            return true;                         // 间隔不足 ⇒ 丢弃（⛔ 不刷新计时）
+            return SoundRepeatGate.ShouldDrop(key, MinRepeatSeconds, out sinceSeconds);
         }
 
         /// <summary>清空计时与计数。**仅供离线自检宿主**（同一进程里跑多个用例）。</summary>
         internal static void ResetForTest()
         {
-            LastPlayAt.Clear();
-            DropCount = 0;
-            Clock = DefaultClock;
+            SoundRepeatGate.Reset();
         }
     }
 }

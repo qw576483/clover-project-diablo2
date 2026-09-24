@@ -33,7 +33,8 @@
 #   ... -Item 35 -LogPath <ledger copy with a defect>   (swaps only the ledger path)
 #   ... -Item 35 -DumpSlice <file to write the slice to>
 #   ... -Item 07 -Gate <a COPY of verify.ps1>           (anchor-degradation self-test)
-# Items: 04 05 07 15 17 27 28 29 35
+# Items: 01 04 05 07 15 17 27 28 29 35   (anchors are regexes resolved at run time; see
+# $segments / $items below -- a line number rots on the next edit, an anchor does not)
 # Exit: 0 = the item reported PASS ; 1 = the item reported FAIL ; 2 = harness problem.
 # ASCII-only on purpose (verify-template.md pitfall 1: PS 5.1 reads a BOM-less .ps1
 # as ANSI, so CJK in source silently breaks).
@@ -98,6 +99,7 @@ function Lines-Of([string]$p) {
 # mode 'incl'   : slice = startLine .. stopLine               -- both anchors included
 # mode 'before' : slice = startLine .. (stopLine - 1)
 $segments = [ordered]@{
+    'item01'     = @('rule',   '^# 01 stray-temp-files',               '^# 02 hard-rules')
     'preludeA'   = @('incl',   '^function Cps\(',                      '^\$testDir\s*=')
     'preludeB'   = @('incl',   '^\$adj\s*=\s*@\{\}',                   '^function Adjudicated\(')
     'item0405'   = @('rule',   '^# 04 acceptance table',               '^# 06 allow-diff registry')
@@ -110,6 +112,7 @@ $segments = [ordered]@{
 }
 # item -> the segments to concatenate, in the gate's own dependency order
 $items = [ordered]@{
+    '01' = @('item01')
     '04' = @('preludeA', 'preludeB', 'item0405')
     '05' = @('preludeA', 'preludeB', 'item0405')
     '07' = @('preludeA', 'preludeB', 'item0405', 'item07')

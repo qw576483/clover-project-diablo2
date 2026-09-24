@@ -63,8 +63,8 @@
 | `MiniMapPanel` | `UI/MiniMapPanel.cs` | Normal | Tab 自动地图 |
 | `InventoryPanel` | `UI/InventoryPanel.cs` | Popup | 10×4 背包 + 装备栏 + 腰带 |
 | `CharacterPanel` | `UI/CharacterPanel.cs` | Popup | 四维属性与派生属性 |
-| `SkillTreePanel` | `UI/SkillTreePanel.cs` | Popup | 技能树 |
-| `QuestLogPanel` | `UI/QuestLogPanel.cs` | Popup | 任务日志 |
+| `SkillTreePanel` | `UI/SkillTreePanel.cs` | **Normal**（**U53/closefix 的改层**：原为 `Popup` —— 该层会让引擎插**全屏模态遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:443-461`，`raycastTarget=true`）盖住 `Normal` 的 HUD 且吃射线，而这一屏**没有任何关闭控件** ⇒ **纯鼠标玩家打开后关不掉**；原版没有模态遮罩 ⇒ 降层后由 HUD「技能樹 T」按钮 / T 键开合） | 技能树 |
+| `QuestLogPanel` | `UI/QuestLogPanel.cs` | **Normal**（**U53/closefix 的改层**：同上，原为 `Popup` ⇒ 纯鼠标玩家无出口） | 任务日志 |
 | `NpcDialogPanel` | `UI/NpcDialogPanel.cs` | **Normal**（**R1-E 的 S1 改层**：原为 `Popup` —— 与商店同层 ⇒ 引擎 `CloseMutexPanels()` 会把它 `Destroy`，且不发关闭事件；商店仍留 `Popup`） | NPC 对话（与商店并存；选项列常量见「核心常量与路径」） |
 | `ShopPanel` | `UI/ShopPanel.cs` | Popup | 买卖与修理 |
 | `PausePanel` | `UI/PausePanel.cs` | Top | 继续/选项/保存退出/回主菜单 |

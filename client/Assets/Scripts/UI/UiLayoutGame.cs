@@ -553,6 +553,11 @@ namespace Diablo2.UI
         public static readonly Vector2 ShopInfoBarSize = Size(183f, 20f);
 
         public static readonly float[] ShopBottomSlotX = { -28f * K, 24f * K, 76f * K, 128f * K };
+        // ⚠️ 已废弃（2026-09-24 只读复核，片 u52resist）：`UI/ShopPanel` 已改用 `ShopPanel.SlotCenter`
+        //    （槽心 = 原版 399；旧值 381 = 雕槽**顶沿**，差 18 原版px）。
+        //    ⛔ 但它**不是**"无人引用"：`tools/probes/hosts/uicheck/ShopArtCheck.cs:449/472/474`
+        //    仍把它当**期望值**（那 3 处用的是"旧口径中心"做对照）⇒ 删除必须与片 shopart 同步，
+        //    本片只做标记、**不改值也不删**（`ShopArtCheck.cs:606-613` 另有断言：ShopPanel 不再引用它）。
         public const float ShopBottomSlotY = (216f - 381f) * K;
 
         /// <summary>
@@ -773,12 +778,14 @@ namespace Diablo2.UI
         public static readonly Vector2 CharCloseSize = Size(32f, 31f);
 
         /// <summary>
-        /// 右上空框（原版 `charstat.png` 顶部右侧那个与 CharName 同高的空框，
-        /// 底图实测 art x 165..315、y 8..40 ⇒ 面板中心坐标 (80,191)、尺寸 150×26 → ×1.8）
-        /// → 本项目放「等级 / 经验」。
+        /// 右上空框 → 右上凹槽（**★ U3 已按底图逐像素实测更正**：art x 193..309、y 10..26
+        /// ⇒ 面板中心坐标 **(91,198)**、尺寸 **117×17**；旧值 (80,191)/150×26
+        /// 见本文件 §U3 的「右上凹槽」注释 —— 那组值是"扫描贴图的近似框"，
+        /// 比凹槽宽 33 art px 且左移 11，实机表现为那串文字越框）。
+        /// → 本项目放「等级」。
         /// </summary>
-        public static readonly Vector2 CharTopRightPos = S(80f, 191f);
-        public static readonly Vector2 CharTopRightSize = Size(150f, 26f);
+        public static readonly Vector2 CharTopRightPos = S(91f, 198f);
+        public static readonly Vector2 CharTopRightSize = Size(117f, 17f);
 
         /// <summary>
         /// 右下两个细长空框（底图实测 art x 180..310、y 403..415 / 418..430
@@ -806,6 +813,142 @@ namespace Diablo2.UI
 
         /// <summary>四系抗性行尺寸（原版行宽 74.3，高取 20 → ×1.8）。</summary>
         public static readonly Vector2 CharResistRowSize = Size(74.3f, 20f);
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ★★ U3（2026-09-24，charstat 片）：**底图凹槽的逐像素实测几何**
+        //
+        // 为什么必须补这一组（用户第三批投诉 ①「数值信息不对 / ui 显示不对」）：
+        //   上面那批 `Char*RowOrig/Size` 是**原版 prefab 的标签矩形**（逐节点实测，值没错），
+        //   但**标签矩形 ≠ 底图的数值凹槽** —— 底图每行是「一个行框」里**两个隔间**：
+        //     · 左隔间 = 标签（Strength / Defense …，prefab 的 Label 就画在这里）
+        //     · 右隔间 = **数值**（由一条亮色竖分隔条分开）
+        //   旧代码把**标签矩形**按 0.58/0.42 切成"名字 + 数字"两半 ⇒ 数字画在**标签隔间的右半**，
+        //   根本没有进数值隔间（实测：四维行数字中心在屏 x≈503，而分隔条在屏 x≈520.8、数值隔间
+        //   到 x≈589 ⇒ 数字**跨压在分隔条上**，用户看到的"数值与标签错位"就是它）。
+        //
+        // 出处（三份载体互证，全部可复算）：
+        //   ① 底图 `Assets/Resources/Clover/D2/UI/Panel/charstat.png`（320×432）**逐像素暗色连通域实测**
+        //      （脚本 `tools/probes/measure/charstat_slots.py`，读数落
+        //      `.ai-tmp/test/report-u3-charstat.md`）：
+        //        四维行：标签隔间 art x 11..74（中心 42）、分隔条 75..79、数值隔间 80..112（中心 96）
+        //        派生行 Defense：标签 161..269、数值 271..309（中心 290）
+        //        派生行 Stamina/Life/Mana：标签 161..229、**两个数值隔间** 231..270 + 272..309
+        //        （左=当前值、右=上限；本项目 `cur/max` 写成一串 ⇒ 用**跨这两格**的一个框）
+        //   ② 原版 prefab 的 Label 矩形（`参考工程_Diablerie/CharstatPanel.prefab`，
+        //      `Char*RowOrig/Size` 就是它）：矩形 **x 范围与①的「标签隔间」逐行吻合**
+        //      （如 Defense 矩形 node x 2.15..111.25 ↔ 标签隔间 art 161..269；
+        //       四维行矩形 node x −152.55..−78.25 ↔ 标签隔间 art 11..74）
+        //      ⇒ 数值列只能是**紧邻其右**的那（几）个暗色隔间。
+        //   ③ 原始坐标换算（面板中心 = art (160,216)，node x = art x − 160）：
+        //      数值列中心 = art 96 → node **−64**；Defense 数值 = art 290 → node **130**；
+        //      cur/max 框 = art 231..309 → node 71..149（中心 **110**）。
+        //
+        // 另：行框**净高** = art 18（不是 prefab 标签矩形的 27.9）—— prefab 的标签矩形
+        //   「上沿与凹槽上沿对齐、高 27.9」⇒ 矩形中心比凹槽中心**低 (27.9−18)/2 = 4.95 原版px**，
+        //   而文字是「在矩形内居中」画 ⇒ 字底会压到行框下沿的金线（实机放大图可见）。
+        //   故文字中心要按 **凹槽中心** 走：即 +`CharRowTextDy`（= 实测 4.9~5.5，取解析值 4.95）。
+        //   ⛔ 标签矩形的 y 常量**不动**（那是 prefab 真值，`uicheck` 逐条断言它），只修**文字**。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>属性面板行框的**凹槽净高**（原版 art px；四维/派生/补齐行实测同为 18）。</summary>
+        public const float CharRowSlotH = 18f;
+
+        /// <summary>
+        /// 行内文字中心相对 <see cref="CharStatRowOrig"/> 等 **prefab 标签矩形中心** 的 y 修正
+        /// （= (27.9 − 18) / 2 = 4.95 原版px；实测各行 4.9~5.5，取解析值）。
+        /// </summary>
+        public const float CharRowTextDy = 4.95f;
+
+        /// <summary>四维行·**数值**隔间中心 x（原版 art 80..112 ⇒ 中心 art 96 ⇒ 面板中心坐标 −64）。</summary>
+        public const float CharStatValueX = -64f;
+
+        /// <summary>四维行·数值隔间宽（原版 art 80..112 含端点 = **33**）。</summary>
+        public const float CharStatValueW = 33f;
+
+        /// <summary>派生行 Defense / 补齐行 命中·格挡 ·**数值**隔间中心 x（art 271..309 ⇒ 中心 art 290 ⇒ node 130）。</summary>
+        public const float CharDefValueX = 130f;
+
+        /// <summary>派生行 Defense / 补齐行的数值隔间宽（原版 art 271..309 含端点 = **39**）。</summary>
+        public const float CharDefValueW = 39f;
+
+        /// <summary>
+        /// 派生行 耐力/生命/法力 的 **cur/max** 框（横跨底图右侧那**两格**数值隔间
+        /// art 231..270 + 272..309 ⇒ node 71..149，中心 **110**，宽 **78**）。
+        /// </summary>
+        public const float CharCurMaxX = 110f;
+
+        /// <summary>耐力/生命/法力 cur/max 框宽（原版 art 231..309 含端点 = **79** = 两格 + 分隔条）。</summary>
+        public const float CharCurMaxW = 79f;
+
+        /// <summary>
+        /// 四系抗性行（本项目新增）的**标签框**：中心 node **−127**、宽 **66 art**（= art 0..66）。
+        /// <para>
+        /// **为什么必须这一组数（★ U52-resist，2026-09-24，用户投诉 D10「标签折行压住下一行」）**：
+        /// 标签框原来只有 **46 art**（art 0..46），而 4 个字的中文标签在 font16（字号取
+        /// `FontPx16` = 28 画布px）下**最少要 63 art** 才放得下一行 —— 实测口径见
+        /// `tools/probes/hosts/uicheck/U52ResistCheck.cs`（它从**同一份字模表**重算）：
+        ///   · 逐字 advance（`font16_chi_map.txt`，抗/火/焰/性 全是 13）= **52 art px**；
+        ///   · 生产折行口径 `D2Label.BuildBitmap`：`availPx = round(框画布px / scale)`、
+        ///     `scale = 字号 / 格高 = 28 / 13`；`D2Text.WrapLines` 的断点条件是
+        ///     **`next >= availPx`** ⇒ 「单行放得下」⇔ **52 &lt; availPx** ⇔ 框 ≥ **63 art**。
+        ///   · 旧值 46 art ⇒ availPx = 38 &lt; 52 ⇒ **折成 2 行**，4 行标签共 8 行交错
+        ///     （实机放大图 `.ai-tmp/test/u52run2_crop_left.png` 逐行可见）。
+        /// </para>
+        /// <para>
+        /// **文案出处（⛔ 不是自创）**：`ResistName` 的四个名字与**本项目配表**同源 ——
+        /// `client/Assets/StreamingAssets/Table/Affix.tsv:19-26`（`res-cold/res-fire/res-ltng/res-pois`
+        /// 四族词缀的显示名：`冰冷抗性/火焰抗性/闪电抗性/毒素抗性`，由
+        /// `tools/table-convert/cn_names.py` 从原版串表映射；原版长形 `4071..4074 火焰抵抗力…`
+        /// 为 5 字，advance 65 art ⇒ 需 76 art 框，与本行「值列不折行」在 art 0..112.5 的
+        /// 113 art 预算内**互斥**（76+42 &gt; 113）⇒ 只能取 4 字这一档）。
+        /// ⛔ 因此**不改文案**（改文案会让角色面板与物品 tooltip 两处词不一致）。
+        /// </para>
+        /// <para>
+        /// **左沿为什么是 art 0**（不是四维标签隔间的 art 10）：预算 = art 0..112.5，
+        /// 标签 ≥63、值列 ≥42（见 <see cref="CharResistValueW"/>）⇒ 标签+值列 ≥105，
+        /// 若左沿取 art 10 则可用只剩 102.5 art ⇒ **数学上放不下**（差 2.5 art）。
+        /// 底图左下 art x 0..81 是**空白大理石**（逐像素实测：无凹槽、无图元，
+        /// 量法 `tools/probes/measure/charstat_slots.py`；左侧金框在 art x 0..2），
+        /// 故 art 0 起框与旧实现（art 0..46）**同一起点**，本片不改这一条。
+        /// </para>
+        /// </summary>
+        public const float CharResistNameX = -127f;
+
+        /// <summary>抗性标签框宽（见 <see cref="CharResistNameX"/>：art 0..66 ⇒ 66；最小可放宽度 = 63）。</summary>
+        public const float CharResistNameW = 66f;
+
+        /// <summary>
+        /// 四系抗性行（本项目新增）的**数值列**：右沿与四维行数值列右沿对齐
+        /// （= `CharStatValueX + CharStatValueW/2` = node −47.5 = **art 112.5**），
+        /// 左沿退到 art 67.5 ⇒ 中心 node **−70**、宽 **45 art = 81 画布px**。
+        /// <para>为什么必须比四维那列宽（主 agent 2026-09-24 裁决的**目的**：`preferredWidth &lt;= rect.width`
+        /// 且单行）：抗性值是**带 % 的百分比**，最坏值 `-100%` 在 font16 下 advance = **47 art**
+        /// （拉丁字模：`-`5 `1`5 `0`12 `0`12 `%`13），而四维那种 33 art（59.4 画布px）的窄列
+        /// 连 `75%`（30 art）都压线 ⇒ 必然折行。</para>
+        /// <para>★ U52-resist 收窄（64 → 45 art）：**右沿不动**（仍对齐 art 112.5，主 agent 裁决的锚点），
+        /// 只把左沿从 art 48 退到 **art 67.5** —— 让位给上面那个 66 art 的标签框。
+        /// 45 art ⇒ availPx = `round(45×1.8 / (28/18))` = **52** &gt; 47 ⇒ `-100%` 仍**不折行**
+        /// （余量 5 art px，比原来的 64 art 少但不触底：最小可放宽度 = **42 art**）。
+        /// 两条几何（标签 [0,66)、值列 [67.5,112.5)）**不相交**（间隔 1.5 art px），
+        /// 且都在面板内 —— 判据见 `tools/probes/hosts/uicheck/U52ResistCheck.cs`。</para>
+        /// </summary>
+        public const float CharResistValueX = -70f;
+
+        /// <summary>抗性数值列宽（见 <see cref="CharResistValueX"/>：art 67.5..112.5 ⇒ 45；最小可放宽度 = 42）。</summary>
+        public const float CharResistValueW = 45f;
+
+        /// <summary>
+        /// 底图**第二排**（原版 art y 32..66，中心 art y 49 ⇒ node y **167**）的两个空框 ——
+        /// ★ U3 新增：原来「等级 + 经验 + 技能点」三段拼成一行塞进右上**一格**（实机越框），
+        /// 现在拆到三个框里 ——「等级」留在上方 `CharTopRightPos/Size`（已按实测更正为
+        /// node (91,198) / 117×17），「经验」「技能点」用本组。
+        /// 本项目放「经验 cur/next」（右框 art 192..309 ⇒ 中心 art 250.5 ⇒ node **90.5**）与
+        /// 「技能点 N」（中框 art 64..181 ⇒ 中心 art 122.5 ⇒ node **−37.5**）。宽高 = 实测 118×35。
+        /// </summary>
+        public static readonly Vector2 CharBand2RightPos = S(90.5f, 167f);
+        public static readonly Vector2 CharBand2RightSize = Size(118f, 35f);
+        public static readonly Vector2 CharBand2MidPos = S(-37.5f, 167f);
+        public static readonly Vector2 CharBand2MidSize = Size(118f, 35f);
 
         // ═════════════════════════════════════════════════════════════════════
         // ═════════════════════════════════════════════════════════════════════
@@ -959,10 +1102,29 @@ namespace Diablo2.UI
         /// </summary>
         public static readonly Vector2 LevelTitlePos = new Vector2(0f, UiArt.RefHeight * 0.5f - LevelTitleH * 0.5f);
 
+        /// <summary>
+        /// 怪物血条内标题的**宽度**（画布 px）= 原版 `EnemyBar.prefab` 的 Title `m_SizeDelta.x = 200`
+        /// （它的锚点是 (0.5,0)-(0.5,1) ⇒ x 是定宽、不是 stretch）⇒ ×1.8 = 360。
+        /// <para>★ u44（悬停选择表现）：消费方 = `UI/EnemyBarView`。它与 <see cref="EnemyBarTitleOffsetY"/> /
+        /// <see cref="EnemyBarTitleShrinkY"/> 一起把 Title 的矩形**完全定下来**（见 <see cref="EnemyBarTitleRect"/>）。</para>
+        /// </summary>
+        public const float EnemyBarTitleWidth = 200f * K;
+
         /// <summary>怪物血条矩形（纯函数；左上角 + 尺寸）。</summary>
         public static Rect EnemyBarRect()
             => new Rect(EnemyBarPos.x - EnemyBarSize.x * 0.5f, EnemyBarPos.y - EnemyBarSize.y * 0.5f,
                 EnemyBarSize.x, EnemyBarSize.y);
+
+        /// <summary>
+        /// 怪物血条内标题的矩形（纯函数；**与 <see cref="EnemyBarRect"/> 同一坐标系**：中心 + 尺寸）。
+        /// <para>逐值来自原版 `EnemyBar.prefab` 的 Title：`m_AnchorMin (0.5,0)` / `m_AnchorMax (0.5,1)` /
+        /// `m_AnchoredPosition (0,2)` / `m_SizeDelta (200,−4)` ⇒
+        /// 中心 = 血条中心 + (0, 2×1.8)，尺寸 = (200×1.8, (20−4)×1.8)。</para>
+        /// </summary>
+        public static Rect EnemyBarTitleRect()
+            => new Rect(EnemyBarPos.x - EnemyBarTitleWidth * 0.5f,
+                EnemyBarPos.y + EnemyBarTitleOffsetY - (EnemyBarSize.y - EnemyBarTitleShrinkY) * 0.5f,
+                EnemyBarTitleWidth, EnemyBarSize.y - EnemyBarTitleShrinkY);
 
         /// <summary>关卡标题矩形（纯函数）。</summary>
         public static Rect LevelTitleRect()

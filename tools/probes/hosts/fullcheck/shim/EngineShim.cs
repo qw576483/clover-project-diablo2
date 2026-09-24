@@ -4,7 +4,8 @@
 // 只提供 `Diablo2/Assets/Scripts/**` 实际引用到的引擎成员，**签名逐条对齐真实引擎**
 // （出处写在每条注释里）：一旦真实引擎改签名，本文件会**编译报错** —— 这就是它存在的意义
 // （覆盖率哨兵）。做法与 `tools/mapcheck/shim/EngineShim.cs`、`tools/flowcheck/shim/EngineShim.cs` 一致，
-// 本文件在其基础上增补 `WorldHpBar`（`Module/View/ViewModule.cs` 用它做头顶血条）。
+// 本文件在其基础上增补 `WorldHpBar` 替身（**已无生产消费方**：`Module/View/ViewModule.cs` 的头顶血条
+// 已按 U44-C4 删除，全工程只剩注释；替身保留 = 签名哨兵 —— 引擎若改它的签名，这里仍会编译报错）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -237,10 +238,14 @@ namespace CloverEngine
     }
 
     /// <summary>
-    /// `Runtime/Presentation/UIWidgets.cs:928` **世界空间头顶血条** —— 业务用它做怪物血条
-    /// （`Module/View/ViewModule.cs`）。常量与签名逐条对齐：`DefaultWidth=1.0` / `DefaultHeight=0.12` /
+    /// `Runtime/Presentation/UIWidgets.cs:928` world-space OVERHEAD hp bar (engine widget).
+    /// NOTE (u44-C4, 2026-09-24): there is NO production consumer any more -- the overhead bar was
+    /// deleted from `Module/View/ViewModule.cs`; the only remaining "monster name + hp" display is the
+    /// on-screen TOP `EnemyBar` (`client/Assets/Scripts/UI/EnemyBarView.cs`). This shim stays ONLY as a
+    /// signature sentinel: if the engine changes its signature, this file still fails to compile.
+    /// Constants / signature aligned 1:1: `DefaultWidth=1.0` / `DefaultHeight=0.12` /
     /// `DefaultYOffset=2.15` / `Create(Transform,float,float,float,string)` / `SetHp(float,float)` /
-    /// `SetRatio` / `SetVisible` / `SetYOffset`。
+    /// `SetRatio` / `SetVisible` / `SetYOffset`.
     /// <para>宿主里 `Create` 返回 null（非 Unity 进程建不了 Quad）⇒ 只用于**编译期**校验签名。</para>
     /// </summary>
     public sealed class WorldHpBar : MonoBehaviour

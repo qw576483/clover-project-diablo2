@@ -867,17 +867,26 @@ namespace V6
 
         private static string EntityState()
         {
-            var et = D.LiveComponent("Diablo2.UI.EntityTooltip");
-            if (et == null) return "EntityTooltip=NOT-INSTANTIATED";
+            // u44 closeout (select 9-6): `Diablo2.UI.EntityTooltip` (head-top name+hp) was DELETED
+            // (contract C4 -- the original only has the screen-top bar).  Reading it by that string
+            // now returns NOT-INSTANTIATED forever, i.e. a silent fake-green.  Point it at the new
+            // consumer and read its real public state (the bar is BITMAP font => `texts=` stays 0).
+            var et = D.LiveComponent("Diablo2.UI.EnemyBarView");
+            if (et == null) return "EnemyBarView=NOT-INSTANTIATED";
             var c = et as Component;
-            var sb = new StringBuilder("EntityTooltip inst active=");
+            var sb = new StringBuilder("EnemyBarView inst active=");
             sb.Append(c.gameObject.activeInHierarchy ? 1 : 0);
-            sb.Append(" showing=").Append(D.Prop(et, "Showing"));
+            sb.Append(" barVisible=").Append(D.Prop(et, "BarVisible"));
+            sb.Append(" plateVisible=").Append(D.Prop(et, "NameplateVisible"));
+            sb.Append(" title=\"").Append(D.Esc(D.Prop(et, "TitleText") as string)).Append("\"");
+            sb.Append(" plateText=\"").Append(D.Esc(D.Prop(et, "NameplateText") as string)).Append("\"");
+            sb.Append(" value=").Append(D.Prop(et, "BarValue"));
+            sb.Append(" max=").Append(D.Prop(et, "BarMaxValue"));
             sb.Append(" texts=").Append(c.gameObject.GetComponentsInChildren<Text>(true).Length);
             sb.Append(" canvases=").Append(c.gameObject.GetComponentsInChildren<Canvas>(true).Length);
             for (var k = 0; k < 2; k++)
             {
-                var nm = k == 0 ? "_name" : "_hp";
+                var nm = k == 0 ? "_title" : "_plate";
                 var lbl = D.Field(et, nm);
                 var root = lbl != null ? D.Prop(lbl, "Root") as RectTransform : null;
                 sb.Append(" |").Append(nm).Append(" root=");

@@ -252,8 +252,14 @@ namespace Diablo2.UI
         /// <list type="bullet">
         ///   <item>`Events.MapGenerated`（参数 `MinimapArgs.areaId`）——**进图**那次由
         ///     `AppSnapshots.Broadcast` 在 HUD 打开**之后**补发 ⇒ 覆盖"开局第一次进入某区域"。
-        ///     ⚠️ `Events.AreaChanged` 只在**过门**时发（`AppFlow.EnterArea`），进图那次不发 ——
-        ///     所以单靠 `AreaChanged` 会漏掉开局第一次（这是本项目必须两条都订的原因）。</item>
+        ///     ⚠️ **更正（2026-09-24，只改注释、不改行为）**：`Events.AreaChanged` 有**两个**发送方
+        ///     —— `Module/Map/MapModule.cs:581`（**生成地图时**，即**进图那次也会发**）
+        ///     与 `Module/Flow/AppFlow.cs:1569`（换区第二拍）⇒ 一次换区消费方会收到**两次**
+        ///     （`waypoint` 的 L3 实机实测：`AREA-CHANGED area=0 frame=75` 就是进图那一次）。
+        ///     ⇒ **消费方必须幂等**（本类这一路靠 `UI/LevelEntryTitle.cs` 的"本局首次去重"）；
+        ///     `waypoint` 已把 5 个消费方逐个核过：`AppWaypoint` HashSet 幂等 / `LevelEntryTitle`
+        ///     本局首次去重 / `AudioModule.Bgm` 同键 return / `MonsterModule` 0 只 / `QuestModule`
+        ///     多一条 Info —— **均无实害**。（原文"进图那次不发"与实机不符，故删。）</item>
         ///   <item>`Events.AreaChanged`（参数 `Def.AreaId`）——**过门换区**那次。</item>
         /// </list>
         /// <para>去重与淡入/停留/淡出都在 `UI/LevelEntryTitle.cs`（本类只触发 + 逐帧驱动）。</para>
@@ -1215,10 +1221,53 @@ namespace Diablo2.UI
             }
         }
 
+        /// <summary>
+        /// 「角色屏家族」= 共用 HUD 小面板入口（`I`/`C`/`T`/`Q`）的四个面板。
+        /// <para>★ R8-close（2026-09-24）**为什么必须显式补这一条**：这四个面板在本次修复前**全是
+        /// `UILayer.Popup`** ⇒ 「开另一个 ⇒ 旧的自动关掉」是引擎替我们做的
+        /// （`UIManager.Open&lt;T&gt;` 的 `CloseMutexPanels()`，`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159,431-441`）。
+        /// 而 `SkillTreePanel` / `QuestLogPanel` 本次**降到 `Normal`**（理由：原版没有全屏模态遮罩，
+        /// 遮罩会把 HUD 的鼠标出口整个掐掉 ⇒ 纯鼠标玩家关不掉面板；先例 = `NpcDialogPanel` 的 R1-E），
+        /// 降层之后 `CloseMutexPanels()` **不再覆盖它们** ⇒ 若不在这里补，按 `T` 会同时留下背包（面板中心
+        /// `(288,0)`）与技能树（`(0,0)`，两者矩形在 `x 0..288` 重叠）= 肉眼可见的排版退化。</para>
+        /// <para>只在**本入口**补「同族互斥」，⛔ 不改别的进入点的语义：NPC 点「交易」开商店、传送点开面板
+        /// 走的仍是引擎的 `Popup` 互斥（`InventoryPanel`/`CharacterPanel` 仍留 `Popup`，行为与修前一致）。</para>
+        /// </summary>
+        private static readonly string[] ScreenFamily =
+        {
+            nameof(InventoryPanel), nameof(CharacterPanel), nameof(SkillTreePanel), nameof(QuestLogPanel),
+        };
+
+        /// <summary>关掉「角色屏家族」里除了 <paramref name="except"/> 之外的屏（`Close&lt;T&gt;` 对未开面板是空操作）。</summary>
+        private static void CloseScreenFamily(string except)
+        {
+            for (var i = 0; i < ScreenFamily.Length; i++)
+            {
+                var other = ScreenFamily[i];
+                if (other == except) continue;
+
+                var open = other == nameof(InventoryPanel) ? Game.UI.IsOpen<InventoryPanel>()
+                    : other == nameof(CharacterPanel) ? Game.UI.IsOpen<CharacterPanel>()
+                    : other == nameof(SkillTreePanel) ? Game.UI.IsOpen<SkillTreePanel>()
+                    : Game.UI.IsOpen<QuestLogPanel>();
+                if (!open) continue;
+
+                UiLog.Info($"[R8-close] 同族互斥（由本入口显式补，引擎 `CloseMutexPanels` 已不覆盖 "
+                           + $"`Normal` 层的屏）：开「{except}」⇒ 关掉仍开着的「{other}」");
+                if (other == nameof(InventoryPanel)) Game.UI.Close<InventoryPanel>();
+                else if (other == nameof(CharacterPanel)) Game.UI.Close<CharacterPanel>();
+                else if (other == nameof(SkillTreePanel)) Game.UI.Close<SkillTreePanel>();
+                else Game.UI.Close<QuestLogPanel>();
+            }
+        }
+
         /// <summary>面板开关统一入口（参数 = 面板类名；`HudPanel` 自己也支持）。</summary>
         private void OnPanelToggle(string panelName)
         {
             var param = PanelParam(panelName, _stats, _inventory, _tree, _quest, _minimap);
+
+            // 同族互斥：见 `ScreenFamily` 的注释（`T`/`Q` 降层后引擎管不到它们了）。
+            CloseScreenFamily(panelName);
 
             switch (panelName)
             {

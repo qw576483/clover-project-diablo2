@@ -419,56 +419,48 @@ namespace Diablo2.Editor
         /// </summary>
         private static bool CreateScene(string path, string sceneName)
         {
-            Scene scene = default(Scene);
             try
             {
-                // 强制重建 / 自愈：先删旧文件（真场景由下面的 SaveScene 覆盖写）
+                // 强制重建 / 自愈：先删旧文件（真场景由 SceneScaffold 内部 SaveScene 覆盖写）
                 if (AssetDatabase.LoadAssetAtPath<SceneAsset>(path) != null)
                     AssetDatabase.DeleteAsset(path);
 
-                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
-
-                // 主相机（CameraRig/InputReader 都用 Camera.main，找不到会降级成"点不动"）
-                CreateMainCamera(scene, sceneName);
-
-                if (sceneName == "Stage")
+                // ★ 场景内容 = **引擎件生成**（`CloverEngine.Editor.SceneScaffold`，2026-09-24 接线）：
+                //   相机参数 / 根节点 / 入口脚本 / URP 相机数据 / Additive 模式 / 存完关闭 全部经参数传入；
+                //   本文件只保留**项目取值**（size=6、z=-10、黑底、各场景该有哪些节点、入口类型名）。
+                //   ⇒ 场景结构改了要改的是这里的参数，⛔ 不是再抄一份建场景代码。
+                var o = new CloverEngine.Editor.SceneScaffoldOptions
                 {
-                    CreateGlobalLight2D(scene);
-                    CreateEmpty(scene, "MapRoot");
-                    CreateEmpty(scene, "EntityRoot");
-                }
+                    OrthoSize = CameraOrthoSize,
+                    CameraZ = CameraDistance,
+                    NearClip = 0.3f,
+                    FarClip = 1000f,
+                    SolidColorBackground = true,
+                    ClearColor = Color.black,           // 原版暗黑：背景近黑，别用模板的天蓝
+                    AddUrpCameraData = true,
+                    AdditiveMode = true,                // 不替换用户当前打开的场景（避免弹保存框）
+                    CloseAfterSave = true,
+                    Create2DLight = sceneName == "Stage",
+                    MapRootName = sceneName == "Stage" ? "MapRoot" : null,
+                    EntityRootName = sceneName == "Stage" ? "EntityRoot" : null,
+                    EntryTypeName = sceneName == "Boot" ? BootstrapTypeName : null,
+                    ApplyBuildSettings = false,         // 由 ApplyBuildSettings() 统一写（③）
+                    SetPlayModeStartScene = false       // 由 EnsurePlayModeStartScene() 统一设（④）
+                };
 
-                if (sceneName == "Boot")
+                if (!CloverEngine.Editor.SceneScaffold.Create(path, o, out var err))
                 {
-                    var t = FindTypeByName(BootstrapTypeName);
-                    if (t == null)
-                    {
-                        Debug.LogError($"{Tag} 找不到 {BootstrapTypeName} ⇒ Boot 场景里的 Bootstrap 节点没挂脚本"
-                                       + "（点 Play 会什么都没发生）");
-                    }
-                    else
-                    {
-                        var go = CreateEmpty(scene, "Bootstrap");
-                        go.AddComponent(t);
-                    }
-                }
-
-                if (!EditorSceneManager.SaveScene(scene, path))
-                {
-                    Debug.LogError($"{Tag} 保存场景失败：{path}");
+                    Debug.LogError($"{Tag} 生成场景 {path} 失败：{err}");
                     return false;
                 }
+
+                Debug.Log($"{Tag} {sceneName} 场景已生成：{path}");
                 return true;
             }
             catch (Exception e)
             {
                 Debug.LogError($"{Tag} 生成场景 {path} 抛异常：{e.GetType().Name}: {e.Message}");
                 return false;
-            }
-            finally
-            {
-                if (scene.IsValid() && scene.isLoaded)
-                    EditorSceneManager.CloseScene(scene, true);
             }
         }
 
@@ -548,7 +540,7 @@ namespace Diablo2.Editor
         /// </summary>
         private static int ApplyBuildSettings(bool quiet)
         {
-            var want = new List<EditorBuildSettingsScene>();
+            var want = new List<string>();
             for (int i = 0; i < SceneOrder.Length; i++)
             {
                 string path = ScenePath(SceneOrder[i]);
@@ -557,33 +549,22 @@ namespace Diablo2.Editor
                     Debug.LogError($"{Tag} 场景缺失，Build Settings 不写它：{path}");
                     continue;
                 }
-                want.Add(new EditorBuildSettingsScene(path, true));
+                want.Add(path);
             }
 
-            var current = EditorBuildSettings.scenes;
-            bool same = current != null && current.Length == want.Count;
-            if (same)
+            if (want.Count == 0)
+                return 0;   // 一个场景都没生成 ⇒ 不动 Build Settings（引擎件也会拒空清单）
+
+            // ★ 写入 + 幂等判定都在引擎件里（`replace: true` = 结果只有这三个场景，与本文件原语义一致）
+            if (CloverEngine.Editor.SceneScaffold.ApplyBuildSettings(want, replace: true))
             {
-                for (int i = 0; i < want.Count; i++)
-                {
-                    if (current[i].path != want[i].path || !current[i].enabled)
-                    {
-                        same = false;
-                        break;
-                    }
-                }
+                Debug.Log($"{Tag} Build Settings 已写入：" + string.Join(" → ", want.ToArray()));
+                return 1;
             }
 
-            if (same)
-            {
-                if (!quiet)
-                    Debug.Log($"{Tag} Build Settings 已正确（Boot→Menu→Stage），无需改动");
-                return 0;
-            }
-
-            EditorBuildSettings.scenes = want.ToArray();
-            Debug.Log($"{Tag} Build Settings 已写入：" + string.Join(" → ", want.ConvertAll(s => s.path).ToArray()));
-            return 1;
+            if (!quiet)
+                Debug.Log($"{Tag} Build Settings 已正确（Boot→Menu→Stage），无需改动");
+            return 0;
         }
 
         // ─────────────────────────────────────────────────────────────────────────────────────
@@ -596,27 +577,28 @@ namespace Diablo2.Editor
         /// <param name="onlyIfNull">true = 只在当前为空时设置（自愈路径：不覆盖用户自己的选择）。</param>
         private static int EnsurePlayModeStartScene(bool onlyIfNull)
         {
-            var boot = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath("Boot"));
+            var path = ScenePath("Boot");
+            var boot = AssetDatabase.LoadAssetAtPath<SceneAsset>(path);
             if (boot == null)
                 return 0; // 场景还没生成（不应该发生：上面刚生成过）——不报错，BuildScenes 已经点过名
 
             try
             {
-                if (EditorSceneManager.playModeStartScene == boot)
-                    return 0; // 已指向 Boot：幂等，不打日志
-
-                if (onlyIfNull && EditorSceneManager.playModeStartScene != null)
+                // ★ 设置 + 幂等判定都在引擎件里；`onlyIfNull` = 自愈路径不覆盖用户自己的选择
+                var before = EditorSceneManager.playModeStartScene;
+                if (CloverEngine.Editor.SceneScaffold.SetPlayModeStartScene(path, onlyIfNull))
                 {
-                    Debug.Log($"{Tag} Play 模式起始场景已被指定为 "
-                              + $"{EditorSceneManager.playModeStartScene.name} ⇒ 不覆盖"
-                              + $"（想从 Boot 跑请点菜单「{MenuPath}」）");
-                    return 0;
+                    Debug.Log($"{Tag} Play 模式起始场景 = {path}"
+                              + "（点 ▶ Play 会从 Boot 启动；不需要手动切场景）");
+                    return 1;
                 }
 
-                EditorSceneManager.playModeStartScene = boot;
-                Debug.Log($"{Tag} Play 模式起始场景 = {ScenePath("Boot")}"
-                          + "（点 ▶ Play 会从 Boot 启动；不需要手动切场景）");
-                return 1;
+                if (onlyIfNull && before != null && before != boot)
+                {
+                    Debug.Log($"{Tag} Play 模式起始场景已被指定为 " + before.name + " ⇒ 不覆盖"
+                              + $"（想从 Boot 跑请点菜单「{MenuPath}」）");
+                }
+                return 0;
             }
             catch (Exception e)
             {

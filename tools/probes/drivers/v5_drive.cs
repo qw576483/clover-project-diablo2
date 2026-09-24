@@ -133,6 +133,20 @@ namespace V5
             sb.Append(" texts=").Append(txts.Length);
             for (var i = 0; i < txts.Length && i < 5; i++)
                 sb.Append(" [").Append(i).Append("]=\"").Append(Esc(txts[i].text)).Append("\"");
+            // u44 closeout: the hover consumer is now `Diablo2.UI.EnemyBarView`, whose bar title and
+            // NPC nameplate are BITMAP font (no UnityEngine.UI.Text children) => `texts=` alone would
+            // read as "nothing on screen" (fake-green).  Read its real public state when present.
+            var bar = t.GetProperty("BarVisible", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (bar != null)
+            {
+                sb.Append(" barVisible=").Append(bar.GetValue(arr[0], null));
+                var plate = t.GetProperty("NameplateVisible", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (plate != null) sb.Append(" plateVisible=").Append(plate.GetValue(arr[0], null));
+                var title = t.GetProperty("TitleText", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (title != null) sb.Append(" title=\"").Append(Esc(title.GetValue(arr[0], null) as string)).Append("\"");
+                var ptext = t.GetProperty("NameplateText", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (ptext != null) sb.Append(" plateText=\"").Append(Esc(ptext.GetValue(arr[0], null) as string)).Append("\"");
+            }
             return sb.ToString();
         }
 
@@ -704,7 +718,7 @@ namespace V5
 
                 case 14: // attack the monster (left click at its screen position)
                 {
-                    D.KV("T14-TIP", D.TooltipState("Diablo2.UI.EntityTooltip"));
+                    D.KV("T14-TIP", D.TooltipState("Diablo2.UI.EnemyBarView"));   // u44: EntityTooltip was deleted (contract C4)
                     if (_monsterId >= 0)
                     {
                         var wp = Iso.GridToWorld(_monsterGrid);
@@ -834,7 +848,7 @@ namespace V5
             var sp = Camera.main != null ? (Vector2)Camera.main.WorldToScreenPoint(wp) : Vector2.zero;
             D.MouseState(sp, false); _mouse = sp;
             D.KV("T13-HOVER", "screen=" + sp.x.ToString("0") + "," + sp.y.ToString("0")
-                + " " + D.TooltipState("Diablo2.UI.EntityTooltip"));
+                + " " + D.TooltipState("Diablo2.UI.EnemyBarView"));   // u44: EntityTooltip was deleted (contract C4)
         }
 
         // ============================================================ capture

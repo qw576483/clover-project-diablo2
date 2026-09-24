@@ -46,7 +46,19 @@ using UnityEngine.UI;
 
 namespace Diablo2.UI
 {
-    /// <summary>技能树面板。层：<see cref="UILayer.Popup"/>。</summary>
+    /// <summary>
+    /// 技能树面板。层：<see cref="UILayer.Normal"/>。
+    /// <para>★ R8-close（2026-09-24）：本屏原先声明 <see cref="UILayer.Popup"/>，而 `Popup` 层会让引擎
+    /// 插一块**全屏模态遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` 的
+    /// `Open&lt;T&gt;` ⇒ `:443-461` `ShowMask()`，`img.raycastTarget = true`，插在 `_layers[Popup]` 首位）
+    /// —— 遮罩画在 `Normal`（= HUD）之上、且吃射线 ⇒ **纯鼠标玩家打开技能树后点不到 HUD 的任何入口
+    /// （本屏自己也没有关闭控件）= 关不掉**。原版**没有**全屏模态遮罩（面板是叠在世界上的半透明页，
+    /// 鼠标仍能点地面与 HUD），所以「降层」才是贴近原版的做法；同一处先例 = `UI/NpcDialogPanel.cs`
+    /// 的 R1-E（对话条 Popup → Normal，理由同为"引擎的 Popup 语义与原版不符"）。
+    /// ⚠️ 降层后引擎的 `CloseMutexPanels()`（`UI.cs:431-441`，只关 `Layer == Popup` 的面板）
+    /// **不再覆盖本屏** ⇒ 「开另一个面板时旧面板关掉」由 HUD 入口处显式补上并留痕
+    /// （见 `UI/HudPanel.cs` 的 `CloseScreenFamily`）。</para>
+    /// </summary>
     public class SkillTreePanel : UIPanel, IPointerClickHandler, IPointerMoveHandler
     {
         /// <summary>面板尺寸（= 原版底图一页 320×432 ×1.8 = 576×777.6）。</summary>
@@ -104,7 +116,9 @@ namespace Diablo2.UI
         private int _shownSkill = -1;
 
         /// <inheritdoc/>
-        public override UILayer Layer => UILayer.Popup;
+        /// <remarks>R8-close：`Popup` → `Normal`（**遮罩消失 ⇒ HUD 的「技能樹 T」入口可点 = 同一入口开合**；
+        /// 理由/出处见类头注释与 `UI/NpcDialogPanel.cs` 的 R1-E）。</remarks>
+        public override UILayer Layer => UILayer.Normal;
 
         /// <inheritdoc/>
         public override void OnOpen(object param)

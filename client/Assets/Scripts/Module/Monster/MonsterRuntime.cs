@@ -12,6 +12,14 @@
 //   格 (gx,gy) 覆盖 [gx,gx+1]×[gy,gy+1]，**中心** = (gx+0.5, gy+0.5)；
 //   `world.x = (px - py) * Iso.HalfW`，`world.y = -(px + py + 1) * Iso.HalfH`。
 //   当 `pos == (gx+0.5, gy+0.5)` 时，其结果**逐位等于** `Iso.GridToWorld(gx, gy)`。
+//
+// ★ 片 eng2-path（引擎下沉）：**"连续位置 + 朝向 + 沿 A* 路径推进"的实现在引擎**
+//   `CloverEngine.PathFollower`（`Runtime/Core/PathFollower.cs`）—— 本类只做**薄转发**：
+//   · `Pos` / `Dir` / `Path` / `PathIndex` / `PathTarget` / `HasPathTarget` / `RepathTimer`
+//     与 `SnapTo` / `SetPath` / `ClearPath` / `HasRemainingPath` / `Advance` / `StepToward`
+//     **公开名字与签名一字未改**（调用点零改动），内部一律读写引擎件；
+//   · 两个项目数值（`MonsterTuning.MinMoveSpeed` / `RepathIntervalSeconds`）经构造参数注入。
+//   ⛔ 不要在本类里再写一份推进循环（那就是"平行再起一套"，见引擎 `结构规则.md` §4.4）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -56,28 +64,99 @@ namespace Diablo2.Module.Monster
             return Resists[i];
         }
 
+        // ── 路径跟随（**实现已下沉引擎** `CloverEngine.PathFollower`；本类只做薄转发）──────
+        /// <summary>
+        /// 引擎的等距布局（**只为取朝向**：`PathFollower` 只调它的 `DirectionTo`，
+        /// ⛔ 不读半格尺寸 —— 半格尺寸是项目语义，由 `Iso.HalfW/HalfH` 给）。
+        /// </summary>
+        private static readonly CloverEngine.IsoLayout DirectionLayout = new CloverEngine.IsoLayout(
+            Iso.HalfW, Iso.HalfH, GameConst.SortOrderStep, GameConst.SortOrderBase);
+
+        /// <summary>
+        /// 引擎路径跟随器：连续坐标 / 朝向 / 剩余路径 / 路径目标 / 重寻路计时**全在它里面**。
+        /// <para>
+        /// `Advance` / `StepToward` / `SetPath` / `ClearPath` / 朝向更新的算法**一字未改**地搬到了
+        /// 引擎 `Runtime/Core/PathFollower.cs`（那边是唯一真相）；本类只保留同样的公开名字转发。
+        /// 两个项目数值经构造参数注入（⛔ 引擎不预设任何业务数值）。
+        /// </para>
+        /// </summary>
+        private readonly CloverEngine.PathFollower _follow = new CloverEngine.PathFollower(
+            DirectionLayout, MonsterTuning.MinMoveSpeed, MonsterTuning.RepathIntervalSeconds);
+
         // ── 位置 ─────────────────────────────────────────────────────────────
-        /// <summary>连续格坐标（格中心制，见文件头）。</summary>
-        public Vector2 Pos;
+        /// <summary>连续格坐标（格中心制，见文件头；**存储与推进在引擎 `PathFollower` 里**）。</summary>
+        public Vector2 Pos
+        {
+            get { return _follow.Pos; }
+            set { _follow.Pos = value; }
+        }
 
-        /// <summary>当前朝向（8 方向）。</summary>
-        public Dir8 Dir = Dir8.S;
+        /// <summary>
+        /// 当前朝向（8 方向）。
+        /// <para>⛔ 引擎 `CloverEngine.Dir8` 与项目 `Diablo2.Def.Dir8` 是**逐值直转**的两个枚举
+        /// （顺序同为 `S=0 SW=1 W=2 NW=3 N=4 NE=5 E=6 SE=7`，见 `Core/Iso.cs` 的映射说明）——
+        /// 这里只转值，不做任何档位偏移。</para>
+        /// </summary>
+        public Dir8 Dir
+        {
+            get { return (Dir8)(int)_follow.Dir; }
+            set { _follow.Dir = (CloverEngine.Dir8)(int)value; }
+        }
 
-        // ── 路径（走 `IMapModule.FindPath`，本类只**沿路走**）──────────────────
+        // ── 路径（走 `IMapModule.FindPath`，本类只**沿路走**；存储与推进在引擎件里）──────
         /// <summary>剩余路径（格）；null = 无路径。</summary>
-        public List<Vector2Int> Path;
+        public List<Vector2Int> Path
+        {
+            get { return _follow.Path; }
+            set { _follow.Path = value; }
+        }
 
         /// <summary>下一个要到达的路点下标。</summary>
-        public int PathIndex;
+        public int PathIndex
+        {
+            get { return _follow.PathIndex; }
+            set { _follow.PathIndex = value; }
+        }
 
         /// <summary>上次寻路的目标格（用于"目标格变化 &gt; 1 才重算"的节流）。</summary>
-        public Vector2Int PathTarget;
+        public Vector2Int PathTarget
+        {
+            get { return _follow.PathTarget; }
+            set { _follow.PathTarget = value; }
+        }
 
         /// <summary>是否已经寻过一次路（`PathTarget` 是否有效）。</summary>
-        public bool HasPathTarget;
+        public bool HasPathTarget
+        {
+            get { return _follow.HasPathTarget; }
+            set { _follow.HasPathTarget = value; }
+        }
 
         /// <summary>距离下次允许重寻路的秒数（路径节流）。</summary>
-        public float RepathTimer;
+        public float RepathTimer
+        {
+            get { return _follow.RepathTimer; }
+            set { _follow.RepathTimer = value; }
+        }
+
+        // ── AI 状态骨架（引擎 `Game.NewFsm()`，由 `MonsterAi` 建与驱动）────────────────
+        /// <summary>
+        /// 本怪**自己的**状态机（`CloverEngine.Game.NewFsm()`，专为"每单位一棵"公开）。
+        /// <para>⛔ 引擎的 `Game.Fsm` 是**应用级单例**（登录 / 主城 / 战斗流程），多个实体共用一个
+        /// `Current` 会互相覆盖 ⇒ 不能给每只怪共用。</para>
+        /// <para>骨架 = `Idle→Aggro→Chase→Attack→Return/Flee`；⛔ **行为与数值的唯一真相仍是
+        /// `MonsterAi` 那 4 个 AI 函数**，状态回调只做骨架归位 / 转移留痕。</para>
+        /// </summary>
+        public CloverEngine.IFsm Ai;
+
+        /// <summary>本 tick 的玩家格中心（`MonsterAi` 每 tick 写入，供 `Ai` 的状态回调读）。</summary>
+        public Vector2 AiPlayerCenter;
+
+        /// <summary>本 tick 与玩家的连续距离（同上）。</summary>
+        public float AiDist;
+
+        /// <summary>本 tick 的决策结果（由 `Ai` 的 Chase 回调写入，`MonsterAi.Step` 读出返回）。</summary>
+        public MonsterAi.Action AiResult;
 
         // ── AI 计时器 ────────────────────────────────────────────────────────
         /// <summary>距离下次可出手的秒数。</summary>
@@ -151,13 +230,11 @@ namespace Diablo2.Module.Monster
             return new Vector3((pos.x - pos.y) * Iso.HalfW, -(pos.x + pos.y + 1f) * Iso.HalfH, 0f);
         }
 
-        /// <summary>落到某格中心（进图/复活/刷怪用），并清空路径。</summary>
+        /// <summary>落到某格中心（进图/复活/刷怪用），并清空路径（转发引擎件）+ 置视图脏。</summary>
         public void SnapTo(Vector2Int g)
         {
-            Pos = Center(g);
-            Path = null;
-            PathIndex = 0;
-            HasPathTarget = false;
+            // 引擎件的 SnapTo 做完全部四件事：Pos = Center(g) / Path = null / PathIndex = 0 / HasPathTarget = false
+            _follow.SnapTo(g);
             ViewDirty = true;
         }
 
@@ -178,111 +255,44 @@ namespace Diablo2.Module.Monster
             State.attacking = AttackAnimTimer > 0f;
         }
 
-        /// <summary>设为路径（跳过起点格；`FindPath` 的返回值含起点）。</summary>
+        /// <summary>
+        /// 设为路径（跳过起点格；`FindPath` 的返回值含起点）—— **转发引擎 `PathFollower`**。
+        /// <para>长度 ≤ 1（起点==终点）判为"无路径"，与 `AStar.Find` 的单元素返回对齐；
+        /// 同时把 `RepathTimer` 重置为注入的 `MonsterTuning.RepathIntervalSeconds`。</para>
+        /// </summary>
         public void SetPath(List<Vector2Int> path, Vector2Int target)
         {
-            PathTarget = target;
-            HasPathTarget = true;
-            RepathTimer = MonsterTuning.RepathIntervalSeconds;
-
-            if (path == null || path.Count <= 1)
-            {
-                Path = null;
-                PathIndex = 0;
-                return;
-            }
-
-            Path = path;
-            PathIndex = 1;      // 第 0 个是当前格，不用"到达"
+            _follow.SetPath(path, target);
         }
 
-        /// <summary>丢弃当前路径。</summary>
+        /// <summary>丢弃当前路径（**不动** `PathTarget` / `HasPathTarget`，与改动前一致）。</summary>
         public void ClearPath()
         {
-            Path = null;
-            PathIndex = 0;
+            _follow.ClearPath();
         }
 
         /// <summary>当前路径是否还剩余路点。</summary>
         public bool HasRemainingPath
         {
-            get { return Path != null && PathIndex < Path.Count; }
+            get { return _follow.HasRemainingPath; }
         }
 
         /// <summary>
-        /// 沿路径推进 <paramref name="tilesPerSecond"/> × <paramref name="dt"/> 格。
+        /// 沿路径推进 <paramref name="tilesPerSecond"/> × <paramref name="dt"/> 格 —— 转发引擎件。
         /// </summary>
         /// <returns>true = 路径已走完（或本来就没有路径）。</returns>
         public bool Advance(float tilesPerSecond, float dt)
         {
-            if (!HasRemainingPath) return true;
-
-            var speed = tilesPerSecond < MonsterTuning.MinMoveSpeed ? MonsterTuning.MinMoveSpeed : tilesPerSecond;
-            var step = speed * dt;
-            if (step <= 0f) return false;
-
-            var fromGrid = Grid;
-
-            while (step > 0f && PathIndex < Path.Count)
-            {
-                var wp = Center(Path[PathIndex]);
-                var d = wp - Pos;
-                var len = d.magnitude;
-
-                if (len <= 1e-4f)
-                {
-                    PathIndex++;
-                    continue;
-                }
-
-                if (len <= step)
-                {
-                    Pos = wp;
-                    step -= len;
-                    PathIndex++;
-                }
-                else
-                {
-                    Pos = Pos + d * (step / len);
-                    step = 0f;
-                }
-            }
-
-            UpdateDir(fromGrid);
-
-            if (PathIndex >= Path.Count)
-            {
-                Path = null;
-                PathIndex = 0;
-                return true;
-            }
-            return false;
+            return _follow.Advance(tilesPerSecond, dt);
         }
 
         /// <summary>
-        /// 朝某点**直线**走一步（逃跑/紧急脱身用；不做寻路）。
+        /// 朝某点**直线**走一步（逃跑/紧急脱身用；不做寻路）—— 转发引擎件。
         /// </summary>
         /// <returns>true = 已到达（距离 &lt; 0.05 格）。</returns>
         public bool StepToward(Vector2 target, float tilesPerSecond, float dt)
         {
-            var speed = tilesPerSecond < MonsterTuning.MinMoveSpeed ? MonsterTuning.MinMoveSpeed : tilesPerSecond;
-            var step = speed * dt;
-            var d = target - Pos;
-            var len = d.magnitude;
-            if (len <= 0.05f) return true;
-
-            var fromGrid = Grid;
-            Pos = len <= step ? target : Pos + d * (step / len);
-            UpdateDir(fromGrid);
-            return false;
-        }
-
-        /// <summary>按"格"变化更新朝向（**零增量不调 `Iso.DirectionTo`**：它会打限频日志）。</summary>
-        private void UpdateDir(Vector2Int fromGrid)
-        {
-            var to = Grid;
-            if (to.x == fromGrid.x && to.y == fromGrid.y) return;
-            Dir = Iso.DirectionTo(fromGrid, to);
+            return _follow.StepToward(target, tilesPerSecond, dt);
         }
     }
 }

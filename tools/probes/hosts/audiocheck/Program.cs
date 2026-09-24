@@ -9,7 +9,9 @@
 //     = 每步 2 格 ÷ `GameConst.PlayerWalkSpeed` 算出，⛔ 不写死数字；片 2b 起走速 3.0 ⇒ 间隔 0.667s）；
 //   · 静止不发声：不移动时 0 次脚步；
 //   · 缺文件只报一次：连续请求同一个不存在的键 100 次 → 「文件缺失」告警**恰好 1 条**、
-//     引擎**零调用**、探测**只发生 1 次**（不重复调用引擎）；
+//     引擎**零调用**；存在性接缝**每次请求都被问**（★ 片 d2-audio2：⛔ 无自维护"已探测"表 ——
+//     「不重复读盘」由引擎 `ResourceManager.Exists` 的按路径缓存承担，`Sound` 侧另有
+//     `LogThrottle.WarnOnce` 兜底）；
 //   · 音量持久化：`SetVolume` → `Game.Setting` 有值 → **重建模块**后读回一致；
 //   · BGM 切区域：Town→BloodMoor→DenOfEvil 三次 `AreaChanged` → 三次不同 `Bgm` 请求；
 //   · 生产探测实现 (`EngineAudioClipProbe`) 在资源取不到时能**降级**（不抛异常）。
@@ -276,9 +278,55 @@ namespace AudioCheck
                 "lines=" + logger.CountWarn("Audio", "音效文件缺失"));
             Check("缺失键**没有**重复调用引擎（100 次请求 → 0 次 PlaySFX）",
                 sound.Sfx2D.Count == 0, "PlaySFX 次数=" + sound.Sfx2D.Count);
-            Check("缺失键**只探测一次**（不重复调用资源系统）",
-                probeMissing.CallCount(ResPaths.Sfx(Diablo2.Module.Combat.SfxKeys.Hit)) == 1,
-                "探测次数=" + probeMissing.CallCount(ResPaths.Sfx(Diablo2.Module.Combat.SfxKeys.Hit)));
+            // ★ 片 d2-audio2（d2-audio 的收尾）：旧判据「缺失键**只探测一次**」已随 `_probedSfx/_probedBgm`
+            //   两张自维护表一起过期 —— `AudioModule` 不再自缓存"问过没"，而是每次请求都问一次存在性接缝；
+            //   「不重复读盘」改由**引擎** `ResourceManager.Exists` 的按路径缓存（`_existsCache`）保证。
+            //   ⇒ ⛔ 不是把这条删掉，而是换成下面四条**等强度**的真判据（含口径 5 要的「只出 1 行」）。
+            var hitPath = ResPaths.Sfx(Diablo2.Module.Combat.SfxKeys.Hit);
+            var hitProbes = probeMissing.CallCount(hitPath);
+            Check("缺失键不再自维护探测缓存：100 次请求 ⇒ 接缝被问 100 次（旧口径 1；缓存责任已交引擎）",
+                hitProbes == 100,
+                $"探测次数={hitProbes}（期望 100 = 请求数）");
+
+            // 口径 5 的「等强度真判据」：引擎对"真走到加载"的缺失用的就是这个闸门
+            // （`Runtime/Presentation/Sound.cs:286/350/375/401` 的 `LogThrottle.WarnOnce("Sound", "missing:"+path, …)`，
+            //  整进程每路径一条）。这里直接驱动**引擎闸门本体**（宿主编译的就是引擎源码 `Runtime/Core/LogThrottle.cs`），
+            //  不靠读源码文本：同一缺失路径连报 5 次 ⇒ 必须只出 1 行。
+            var engineMissingWarn = 0;
+            for (var i = 0; i < 5; i++)
+                if (LogThrottle.WarnOnce("Sound", "missing:" + hitPath, "音效加载失败（clip 为空）：" + hitPath))
+                    engineMissingWarn++;
+            Check("同一缺失路径连播 ≥2 次 ⇒ 引擎缺失兜底网（`LogThrottle.WarnOnce`）只出 1 行",
+                engineMissingWarn == 1, $"出线 {engineMissingWarn} 行（连报 5 次；= 引擎 Sound.cs 缺失分支的同一个闸门）");
+
+            // 「不重复读盘」的责任落在引擎侧：新接缝实现必须走 `Game.Res.Exists`，且该入口**按路径缓存**。
+            var repoRoot = ResolveRepoRoot();
+            var probeCs = repoRoot == null ? "" : Path.Combine(
+                repoRoot, "client", "Assets", "Scripts", "Module", "Audio", "EngineAudioClipProbe.cs");
+            var probeTxt = probeCs.Length > 0 && File.Exists(probeCs) ? File.ReadAllText(probeCs) : "";
+            var resCs = repoRoot == null ? "" : Path.Combine(
+                repoRoot, "..", "clover-client-unity-engine", "Runtime", "Resource", "ResourceManager.cs");
+            var resTxt = resCs.Length > 0 && File.Exists(resCs) ? File.ReadAllText(resCs) : "";
+            // ⚠️ 只在**去掉注释**后的代码上判——文件头注释要说明"原实现是 `LoadAsset`"，那是合法的
+            //   （与上面 `_missingSfx` 同一条口径：注释提到旧名字不算，代码式才算）。
+            Func<string, string> codeOnly = s =>
+            {
+                var sb = new System.Text.StringBuilder(s.Length);
+                foreach (var ln in s.Replace("\r\n", "\n").Split('\n'))
+                {
+                    var i = ln.IndexOf("//", StringComparison.Ordinal);
+                    sb.Append(i < 0 ? ln : ln.Substring(0, i)).Append('\n');
+                }
+                return sb.ToString();
+            };
+            var probeCode = codeOnly(probeTxt);
+            Check("生产探测走引擎**既有**存在性入口（`EngineAudioClipProbe` 调 `res.Exists(path)`，⛔ 不再自建 `LoadAsset`+自算缓存）",
+                probeCode.Contains("res.Exists(path)") && !probeCode.Contains("LoadAsset"),
+                $"EngineAudioClipProbe.cs 在盘={probeTxt.Length > 0}（判据只取代码行，注释里提到旧实现不算）");
+            Check("「不重复读盘」由引擎保证：`ResourceManager.Exists` 命中按路径缓存 `_existsCache`",
+                resTxt.Contains("_existsCache.TryGetValue(path, out var cached)")
+                && resTxt.Contains("_existsCache[path] = result;"),
+                $"ResourceManager.cs 在盘={resTxt.Length > 0}（{resCs}）");
             Check("BGM 缺失同样只报一次",
                 MissingBgmOnce(audio2, probeMissing, logger), "见实现（AreaChanged×50 → 1 条缺失告警）");
 
@@ -701,7 +749,10 @@ namespace AudioCheck
             var missing = AudioLog.MissingWarnCount;
             var calls = probe.CallCount(ResPaths.Bgm(SfxRegistry.BgmTown));
             probe.Available = true;
-            return missing == 1 && calls == 1;
+            // ★ 片 d2-audio2（与上面 SFX 那条同一个口径）：`_probedBgm/_missingBgm` 自维护表已删
+            //   ⇒ 50 次请求**每次都问**一次存在性接缝（旧口径 `calls == 1` 已过期）；
+            //   「不重复读盘」由引擎 `ResourceManager.Exists` 的按路径缓存兜。「只报一次」仍是 `missing == 1`。
+            return missing == 1 && calls == 50;
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -998,9 +1049,24 @@ namespace AudioCheck
             var modCs = Path.Combine(repo, "client", "Assets", "Scripts", "Module", "Audio", "AudioModule.cs");
             var logTxt = File.Exists(logCs) ? File.ReadAllText(logCs) : "";
             var modTxt = File.Exists(modCs) ? File.ReadAllText(modCs) : "";
-            Check("④ 缺文件分支存在（`AudioModule` 命中 `_missingSfx` 即短路返回，不再调引擎）",
-                modTxt.Contains("_missingSfx.Contains(key)") && modTxt.Contains("AudioLog.MissingSfx("),
-                "见 Module/Audio/AudioModule.cs");
+            // ★ 片 d2-audio2：旧断言找的是 `_missingSfx.Contains(key)` —— 那张**自维护表**已在
+            //   d2-audio 落盘时删除（见 AudioModule.cs 文件头 ★ 段）⇒ 改指**新落点**：
+            //   存在性问接缝（`probe.Probe(path, ok => …)`）+ 日志层 `AudioLog.MissingSfx` 负责告警，
+            //   并断言那 8 个**调用式**自维护表不再出现（⛔ 只查 `.Contains(` / `.Add(` 形式 ——
+            //   文件头注释里作为"已删清单"提到表名是允许的；`_missingSfx.Contains(key)` 这种代码式才是判据）。
+            var obsoleteSelfTables = new[]
+            {
+                "_missingSfx.Contains(", "_missingSfx.Add(", "_probedSfx.Contains(", "_probedSfx.Add(",
+                "_missingBgm.Contains(", "_missingBgm.Add(", "_probedBgm.Contains(", "_probedBgm.Add(",
+            };
+            var stillThere = new List<string>();
+            foreach (var p in obsoleteSelfTables) if (modTxt.Contains(p)) stillThere.Add(p);
+            Check("④ 缺文件分支存在（存在性接缝判假 ⇒ 短路返回、不调引擎；⛔ 无自维护「缺失/已探测」表）",
+                modTxt.Contains("probe.Probe(path, ok =>") && modTxt.Contains("AudioLog.MissingSfx(")
+                && stillThere.Count == 0,
+                stillThere.Count == 0
+                    ? "见 Module/Audio/AudioModule.cs（旧 `_missingSfx.Contains(key)` 口径已删）"
+                    : "残留=" + string.Join(",", stillThere));
             Check("④ 缺文件分支**会 Warn**（`AudioLog.MissingSfx` 体内调 `Log.Warn`，不是 `Debug.Log`）",
                 logTxt.Contains("public static void MissingSfx(") && logTxt.Contains("Log.Warn(Tag,")
                 && !logTxt.Contains("Debug.Log"),

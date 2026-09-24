@@ -36,10 +36,16 @@
 //
 //   ⚠️ 本表**只**提供纯函数（档↔completeness、节奏放行、引擎进度→档），可在离线宿主里逐条断言
 //      （`.ai-tmp/hosts/uicheck` 的 `LoadingCheck.cs`）。
+//
+//   ★ 片 eng-coreutil（2026-09-24）：三条算术的**实现**已下沉到引擎件
+//      `CloverEngine.LoadingPacing`（`clover-client-unity-engine/Runtime/Presentation/LoadingPacing.cs`）
+//      —— 档数 10 / 每档最短可见 0.07s / 各里程碑档号（档 4 = Stage 场景就位 …）**仍是本工程的取值**，
+//      本表只把它们喂给引擎的纯函数（公开成员签名一字未改）。
+//      离线宿主需把 `Runtime/Presentation/LoadingPacing.cs` 一并编入（与本工程其它下沉件同一做法）。
 // ─────────────────────────────────────────────────────────────────────────────
 
+using CloverEngine;
 using Diablo2.Core;
-using Diablo2.UI;
 
 namespace Diablo2.Module.Flow
 {
@@ -105,33 +111,23 @@ namespace Diablo2.Module.Flow
 
         /// <summary>
         /// 档号 → 交给 `LoadingPanel.SetProgress` 的 completeness（原版语义 [0,1]）。
-        /// <para>为什么取**区间中点**而不是 `index / (Count-1)`：`FrameIndex` 是 `(int)((Count-1) × c)`，
+        /// <para>★ 片 eng-coreutil：算术下沉到引擎件 `CloverEngine.LoadingPacing.CompletenessOf`
+        /// （`clover-client-unity-engine/Runtime/Presentation/LoadingPacing.cs`）—— 本工程只给「档数 = 10」。
+        /// 为什么取**区间中点**而不是 `index / (Count-1)`：`FrameIndex` 是 `(int)((Count-1) × c)`，
         /// 用端点值时浮点误差会把档 2（c=0.22222222 ×9 = 1.9999999）算成第 1 档。
         /// 中点 `(index+0.5)/(Count-1)` 距两端各半个档宽 ⇒ 浮点安全（末档夹到 1.0）。</para>
         /// </summary>
         public static float CompletenessOf(int index)
-        {
-            // `Count` 是 const（= 10）⇒ `Count - 1` 恒 ≥ 1，除法安全（不写 `Count <= 1` 的守卫，
-            // 否则编译器会报 CS0162「无法访问的代码」）。
-            if (index < 0) index = 0;
-            if (index >= Count) return 1f;
-
-            var c = (index + 0.5f) / (Count - 1);
-            return c > 1f ? 1f : c;
-        }
+            => LoadingPacing.CompletenessOf(index, Count);
 
         /// <summary>
         /// **原版节奏**：读条屏已显示 <paramref name="elapsedSeconds"/> 秒时，最多允许开到第几档。
         /// <para>纯函数（离线可断言）：`elapsed=0 → 0`；每 `FrameCadenceSeconds` 放行一档；上限 = `Count-1`。</para>
+        /// <para>★ 片 eng-coreutil：算术下沉到引擎件 `CloverEngine.LoadingPacing.MaxIndexAt`
+        /// —— 节奏下限 `0.07s/档` 与档数 `10` 仍是**本工程**的参数。</para>
         /// </summary>
         public static int MaxIndexAt(double elapsedSeconds)
-        {
-            if (elapsedSeconds <= 0d || double.IsNaN(elapsedSeconds)) return 0;
-
-            // elapsedSeconds > 0 且 FrameCadenceSeconds > 0 ⇒ n ≥ 0（无需再防负）
-            var n = (int)(elapsedSeconds / FrameCadenceSeconds);
-            return n >= Count ? Count - 1 : n;
-        }
+            => LoadingPacing.MaxIndexAt(elapsedSeconds, FrameCadenceSeconds, Count);
 
         /// <summary>
         /// 引擎场景加载真进度 → 门的档号（0..<see cref="SceneLoadedFrame"/>）。
@@ -140,17 +136,11 @@ namespace Diablo2.Module.Flow
         /// ⇒ 把 [0, 0.9] 线性映射到"门开到一半"（[0, 0.5] = 原版 `Show(0.5f)` 的位置）。</para>
         /// <para>⚠️ 修前的做法是把 [0,0.9] 映射到 **[0,1]**（整个门）—— 于是场景一加载完，
         /// 门就到第 10 帧（本轮的缺陷现场）。现在它**只**占前 5 档。</para>
+        /// <para>★ 片 eng-coreutil：映射与取档的算术下沉到引擎件
+        /// `CloverEngine.LoadingPacing.SceneLoadFrameIndex`（上限 0.9 / 占比 0.5 / `FrameIndex` 都在那里）；
+        /// 本工程只给「档数 10 + 档 4 = Stage 场景就位」这两个取值。</para>
         /// </summary>
         public static int SceneLoadFrameIndex(float engineProgress)
-        {
-            if (float.IsNaN(engineProgress)) return 0;
-
-            const float engineCeiling = 0.9f;                 // Runtime/Presentation/Scene.cs:40
-            var p = engineProgress <= 0f ? 0f : (engineProgress >= engineCeiling ? 1f : engineProgress / engineCeiling);
-            var completeness = 0.5f * p;                      // [0,0.9] → [0,0.5]（原版 Show(0.5f) 的位置）
-
-            var idx = LoadingPanel.FrameIndex(completeness, Count);
-            return idx > SceneLoadedFrame ? SceneLoadedFrame : idx;
-        }
+            => LoadingPacing.SceneLoadFrameIndex(engineProgress, Count, SceneLoadedFrame);
     }
 }

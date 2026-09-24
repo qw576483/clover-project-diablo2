@@ -23,6 +23,9 @@ namespace Table
 		public float LifePerVit; // 每点体力=生命（官方 LifePerVitality，已 ÷4）
 		public float ManaPerMag; // 每点精力=法力（官方 ManaPerMagic，已 ÷4）
 		public float StamPerVit; // 每点体力=耐力（官方 StaminaPerVitality，已 ÷4）
+		public int HpAdd; // 起始生命加成（官方 charstats.hpadd；与起始体力相加 = 1 级生命）
+		public int BaseStamina; // 起始耐力上限（官方 charstats.stamina）
+		public int BlockFactor; // 职业格挡系数（官方 charstats.BlockFactor）
 		public int ToHitFactor; // 命中修正（官方 ToHitFactor）
 		public int WalkVelocity; // 行走速度（官方 WalkVelocity）
 		public int RunVelocity; // 奔跑速度（官方 RunVelocity）
@@ -66,10 +69,13 @@ namespace Table
 				row.LifePerVit = TableParsers.ToFloat(TableParsers.Cell(rec, 12));
 				row.ManaPerMag = TableParsers.ToFloat(TableParsers.Cell(rec, 13));
 				row.StamPerVit = TableParsers.ToFloat(TableParsers.Cell(rec, 14));
-				row.ToHitFactor = TableParsers.ToInt(TableParsers.Cell(rec, 15));
-				row.WalkVelocity = TableParsers.ToInt(TableParsers.Cell(rec, 16));
-				row.RunVelocity = TableParsers.ToInt(TableParsers.Cell(rec, 17));
-				row.StartSkill = TableParsers.Cell(rec, 18);
+				row.HpAdd = TableParsers.ToInt(TableParsers.Cell(rec, 15));
+				row.BaseStamina = TableParsers.ToInt(TableParsers.Cell(rec, 16));
+				row.BlockFactor = TableParsers.ToInt(TableParsers.Cell(rec, 17));
+				row.ToHitFactor = TableParsers.ToInt(TableParsers.Cell(rec, 18));
+				row.WalkVelocity = TableParsers.ToInt(TableParsers.Cell(rec, 19));
+				row.RunVelocity = TableParsers.ToInt(TableParsers.Cell(rec, 20));
+				row.StartSkill = TableParsers.Cell(rec, 21);
 				rows.Add(row);
 				index[row.Id] = row;
 			}

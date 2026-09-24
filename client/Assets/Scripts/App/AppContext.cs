@@ -133,27 +133,19 @@ namespace Diablo2.App
                 return;
             }
 
-            var types = typeof(AppContext).Assembly.GetTypes();
-            for (var i = 0; i < types.Length; i++)
+            // 反射装配收敛到引擎 `CloverEngine.ServiceAutoWire`（本程序集内按接口找唯一实现并实例化）：
+            // 候选类型缓存 / 多实现可诊断警告 / 逐个降级尝试 / ReflectionTypeLoadException 兜底
+            // 都在引擎侧统一（见 ServiceAutoWire 类型注释）。此处只保留本项目的日志措辞。
+            T resolved;
+            string error;
+            if (ServiceAutoWire.TryResolve(typeof(AppContext).Assembly, out resolved, out error))
             {
-                var t = types[i];
-                if (t.IsAbstract || t.IsInterface || !typeof(T).IsAssignableFrom(t)) continue;
-
-                try
-                {
-                    field = (T)Activator.CreateInstance(t);
-                    Game.Logger?.Info("App", $"模块已装配：{name} ← {t.FullName}");
-                }
-                catch (Exception ex)
-                {
-                    Game.Logger?.Warn("App",
-                        $"实例化模块实现 {t.FullName}（{name}）失败：{ex.GetType().Name}: {ex.Message}（该模块保持未接入）");
-                    continue;
-                }
+                field = resolved;
+                Game.Logger?.Info("App", $"模块已装配：{name} ← {resolved.GetType().FullName}");
                 return;
             }
 
-            Game.Logger?.Warn("App", $"模块 {name} 尚无实现（程序集里找不到实现该接口的类型）⇒ 相关功能降级");
+            Game.Logger?.Warn("App", $"模块 {name} 尚无实现（{error}）⇒ 相关功能降级");
         }
 
         /// <summary>每帧转发给已注册模块（未注册的跳过；`IQuestModule` 无 Tick）。</summary>

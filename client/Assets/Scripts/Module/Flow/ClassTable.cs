@@ -60,6 +60,11 @@ namespace Diablo2.Module.Flow
                     lifePerVit = row.LifePerVit,
                     manaPerMag = row.ManaPerMag,
                     stamPerVit = row.StamPerVit,
+                    // ★ classcols 片（2026-09-24）：起始值两列也搬过去 —— 创角预览算 1 级
+                    //   生命/耐力要的就是它们（官方 `charstats.hpadd` / `stamina`），
+                    //   ⛔ 面板里不再有这两个数字的常量（真值只在表里）。
+                    hpAdd = row.HpAdd,
+                    baseStamina = row.BaseStamina,
                 });
             }
 

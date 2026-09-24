@@ -29,6 +29,7 @@ using System.Text.RegularExpressions;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
+using Diablo2.Module.View;   // ★ u44impl 离线收口：`EntityHighlight` 已链进本宿主 ⇒ C2 走真值断言
 using Diablo2.UI;
 using UnityEngine;
 
@@ -157,9 +158,15 @@ namespace Uicheck
             W3FlowCheck.Run();          // ★ w3：流程屏逐控件审计（原版素材 IHDR ↔ 常量表 ↔ 面板源码）
             W3GameCheck.Run();          // ★ w3：游戏内 UI 逐控件审计（HUD/背包/属性/技能树/任务/图标/字模）
             ShopGridCheck.Run();        // ★ 片 impl-shop：商店 10×10 格盘几何（解原版 PNG 像素）+ 按物品占格摆放 + 边界
+            ShopArtCheck.Run();         // ★ 片 u53-shopart：商店修理/关闭方钮的底图 = 原版 buysellbtn 图形帧
+                                        //   （帧号绑定 + 退化样本必须变红 + 帧像素墨量 + SquareButton 消费点扫描）
+            CloseExitCheck.Run();       // ★ 片 u53-closefix：弹框关闭出口（层/遮罩 + 关闭控件可见 + 同一入口）
+                                        //   （影响域 = 背包/技能树/任务日志/小地图；3 条退化样本必须变红）
             GroundItemLabelCheck.Run(); // ★ 片 impl-K-ui：R8 底图射线全量表（含表完整性）+ R5 地面物品名牌纯函数/接线
             U4Check.Run();              // ★ 片 U4：automap 不压暗 / 悬停世界→格换算近距精确 / tooltip 折行 / 拖拽落点 PlanDrop
             V6Check.Run();              // ★ 片 V6：6 条实机缺陷的离线判据（对话框几何包含/字模降级/悬停字号/商店关闭/automap/拖拽高亮）
+            HoverSelectCheck.Run();     // ★ 片 u44：悬停选择表现（C1 着色器逐字节 / C2 变亮 3.0·1.01 /
+                                        //   C3 顶部条逐值 / C4 头顶那份已删 / C5 NPC 名字牌偏移；5 条退化样本）
             AutomapCarrierCheck.Run();  // ★ 片 automap-panel：automap 绘制**载体**有效性（尺寸 / 墨量 ink / alpha / 接线）
                                         //   把「面板开着却什么都没画」变成可离线判的数：真实导出帧逐帧各铺一格已探索
                                         //   ⇒ 必须每格写出 ≥1 图元且 opaque>0；任何空帧 / 全透明索引 / 尺寸为 0 立刻红
@@ -168,6 +175,11 @@ namespace Uicheck
                                         //   + tooltip 可见性三条件（`ShouldBeVisible` 真值表 + 调用点真的接线）。
                                         //   ⚠️ 唯一调用点就这一处：2026-09-24 该组断言曾同时在 `V6Check.Run()`
                                         //   与此处被调用 ⇒ 输出里跑两遍；现已收敛到本行。
+            U52ResistCheck.Run();       // ★ 片 u52-resist：人物属性面板「四系抗性」行的折行判据（U52/D10 + U1）
+                                        //   （口径 = 生产折行 `needNative < availPx`；⛔ 不用裸 lineCount /
+                                        //    preferredWidth —— 镜像 Text 的 font 被置 null，两者恒为 0）
+            CharTopRightTextCheck.Run();// ★ 片 u52-resist：人物面板「等级/经验/技能点」三框的单行判据（P-2b）
+                                        //   （复用 ⑧ 的 NeedNative / 字模表；值域出处 = Experience.tsv）
 
             Console.WriteLine();
             Console.WriteLine("未覆盖（需要 Unity 原生，留给主 agent 进 Play 后验）："
@@ -232,12 +244,21 @@ namespace Uicheck
                 },
                 new PanelSpec
                 {
-                    Type = typeof(SkillTreePanel), Layer = "Popup",
+                    // ★ R8-close（2026-09-24，用户「连关闭都没有」）改层：`Popup` → **`Normal`**。
+                    //   为什么必须改：`Popup` 层会让引擎插一块**全屏模态遮罩**
+                    //   （`UI.cs:155-159` → `:443-461` `ShowMask()`，`raycastTarget = true`），遮罩把
+                    //   `Normal` 的 HUD 整个盖住且吃射线，而本屏**一个关闭控件都没有** ⇒
+                    //   纯鼠标玩家打开技能树后**无任何出口**。原版没有模态遮罩（靠 T 键 / HUD「技能樹」
+                    //   按钮开合、世界仍可点）⇒ 降层才是贴近原版的做法；先例 = 上面 `NpcDialogPanel` 的 R1-E。
+                    //   同族互斥（开另一个屏 ⇒ 旧屏关掉）由 `UI/HudPanel.cs` 的 `CloseScreenFamily` 显式补。
+                    Type = typeof(SkillTreePanel), Layer = "Normal",
                     Events = new[] { "SkillTreeChanged", "SkillLearned", "SkillLearnRequest", "SkillSelected" },
                 },
                 new PanelSpec
                 {
-                    Type = typeof(QuestLogPanel), Layer = "Popup",
+                    // ★ R8-close：同上（`Popup` → `Normal`）—— 本屏同样没有任何关闭控件，出口 = Q 键 /
+                    //   HUD「任務記錄」按钮；详细理由见 `UI/QuestLogPanel.cs` 类头注释与 `CloseExitCheck.cs`。
+                    Type = typeof(QuestLogPanel), Layer = "Normal",
                     // ★ 本轮（UI 全量对照）改口径：**接取/交付任务只走 NPC 对话**（原版就没有任务面板按钮），
                     //   这两个事件归 `NpcDialogPanel`（下面的 spec 里仍然核对）⇒ 本面板不再引用它们。
                     //   本面板只收 QuestChanged（刷新）+ QuestCompleted / QuestTurnInDenied（给玩家回馈）。
@@ -462,16 +483,50 @@ namespace Uicheck
 
             // ⑥ ★ ui-fix3（拖影三条）：① 图标 = 被拖物品的原版图标（同一条 `D2Icon.ItemIconPath`）；
             //    ② 拖影保持半透明（⛔ 不是实心色块）；③ 拖拽结束拖影/高亮必然隐藏（⛔ 无残留节点）。
+            // ★ 2026-09-24（team-lead 指派，§5.2 第 34 条）：这一族原来是 `File.ReadAllText` + `Contains`
+            //   ⇒ **注释敏感** —— 文件头注释里写一句 `UiArt.SetSprite(_ghost, iconPath)` 就能把"没实现"
+            //   判成"实现了"（**假绿**）；反过来把旧写法注释掉也算"通过"。现在改走
+            //   **`LayoutGameCheck.StripCsComments`（本宿主唯一剥注释实现，已升 internal）**，
+            //   并按第 34 条补**三向自检**：① 真文件 ⇒ 绿 ② 已知错（删真调用 + 只在注释里留同串）⇒ 红
+            //   ③ 正例片段 ⇒ 绿。⛔ 只做②会得到"会失败但因错误的理由失败"的判据。
             var invSrc = File.ReadAllText(Path.Combine(UiDir, "InventoryPanel.cs"));
-            Check("InventoryPanel：拖影贴被拖物品的原版图标（UiArt.SetSprite(_ghost, iconPath)）",
-                invSrc.Contains("UiArt.SetSprite(_ghost, iconPath)"), "在 UI/InventoryPanel.cs OnBeginDrag 内检索");
-            Check("InventoryPanel：拖影 = 半透明副本（0.65 = _ghost 建立时的既有 alpha，⛔ 不改实心）",
-                invSrc.Contains("new Color(ghostTint.r, ghostTint.g, ghostTint.b, 0.65f)"),
-                "在 UI/InventoryPanel.cs OnBeginDrag 内检索");
-            Check("InventoryPanel：OnEndDrag 隐藏拖影 + 目标格高亮（结束无残留）",
-                invSrc.Contains("_ghost.gameObject.SetActive(false)")
-                && invSrc.Contains("_dropHighlight.gameObject.SetActive(false)"),
-                "在 UI/InventoryPanel.cs OnEndDrag 内检索");
+            const string IconNeedle = "UiArt.SetSprite(_ghost, iconPath)";
+            const string AlphaNeedle = "new Color(ghostTint.r, ghostTint.g, ghostTint.b, 0.65f)";
+            const string HideNeedle = "_ghost.gameObject.SetActive(false)";
+            const string HiNeedle = "_dropHighlight.gameObject.SetActive(false)";
+
+            Func<string, bool> ghostUsesOriginalIcon = s => LayoutGameCheck.StripCsComments(s).Contains(IconNeedle);
+            Func<string, bool> ghostIsTranslucent = s => LayoutGameCheck.StripCsComments(s).Contains(AlphaNeedle);
+            Func<string, bool> dragEndHidesBoth = s =>
+            {
+                var c = LayoutGameCheck.StripCsComments(s);
+                return c.Contains(HideNeedle) && c.Contains(HiNeedle);
+            };
+            // 已知错样本 = 真代码（剥注释后）删掉该串，再把它**只写进注释**
+            Func<string, string, string> CommentOnlySample = (src, needle) =>
+                LayoutGameCheck.StripCsComments(src).Replace(needle, "") + "\n// " + needle + "\n";
+
+            Check("InventoryPanel：拖影贴被拖物品的原版图标（UiArt.SetSprite(_ghost, iconPath)，去注释后）",
+                invSrc.Length > 0 && ghostUsesOriginalIcon(invSrc), "在 UI/InventoryPanel.cs OnBeginDrag 内检索");
+            Check("InventoryPanel：拖影 = 半透明副本（0.65 = _ghost 建立时的既有 alpha，⛔ 不改实心；去注释后）",
+                ghostIsTranslucent(invSrc), "在 UI/InventoryPanel.cs OnBeginDrag 内检索");
+            Check("InventoryPanel：OnEndDrag 隐藏拖影 + 目标格高亮（结束无残留；去注释后）",
+                dragEndHidesBoth(invSrc), "在 UI/InventoryPanel.cs OnEndDrag 内检索");
+
+            // ── 三向自检（§5.2 第 34 条：① 真文件⇒绿 ② 已知错⇒红 ③ 正例片段⇒绿）──────────
+            Check("自检① 真文件 ⇒ 三条全绿（判据在真产物上成立）",
+                invSrc.Length > 0 && ghostUsesOriginalIcon(invSrc) && ghostIsTranslucent(invSrc)
+                && dragEndHidesBoth(invSrc), "真 UI/InventoryPanel.cs");
+            Check("自检② 已知错：删掉真调用、只在注释里留同串 ⇒ 三条必须全红（假绿防护）",
+                !ghostUsesOriginalIcon(CommentOnlySample(invSrc, IconNeedle))
+                && !ghostIsTranslucent(CommentOnlySample(invSrc, AlphaNeedle))
+                && !dragEndHidesBoth(CommentOnlySample(invSrc, HideNeedle)),
+                "注释里的同串不许算数（这正是旧版会误判的形状）");
+            Check("自检③ 正例片段 ⇒ 三条必须全绿（判据不是永假）",
+                ghostUsesOriginalIcon("void X(){ " + IconNeedle + "; }")
+                && ghostIsTranslucent("var c = " + AlphaNeedle + ";")
+                && dragEndHidesBoth("a." + HideNeedle + "; b." + HiNeedle + ";"),
+                "最小正例片段");
 
             // ⑦ ★ btn-label-fix（2026-09-23，实机「目的地按钮上的字读不出来」）：**字色可读性**离线断言。
             //   事故形态：`FlowButton` 的默认字色 = 原版 `WideButton.prefab` 的 #191919（0.098 近黑），
@@ -552,6 +607,11 @@ namespace Uicheck
             Check("字模表每条的 (col,row) 都落在图集内 ⇒ uvRect 不越界、不取到图集外空白",
                 cellW > 0 && cols > 0 && maxCol >= 0 && maxCol < cols && (maxRow + 1) * cellH <= ah,
                 $"maxCol={maxCol} < cols={cols}；maxRow={maxRow} ⇒ 末行底边 {(maxRow + 1) * cellH} ≤ {ah}；表 COUNT={glyphN}");
+
+            // ①-c ★ 片 u32-close（2026-09-24）：上面 ①-b 只判了"列表纯函数 + 接线文本 + 素材在盘"，
+            //   **链路中段**（列表回灌/新局复位、点锚点 ⇒ 开面板、选目的地 ⇒ 切区的 4 拒 1 放）
+            //   此前没有任何离线判据 ⇒ 转到独立文件（避免与并发改本文件的人冲突）。
+            WaypointFlowCheck.Run();
 
             Console.WriteLine();
         }
@@ -836,15 +896,31 @@ namespace Uicheck
                 $"UiBar.Set×{CountOf(hud, "UiBar.Set(")}（BuildOrb 共用一处 + 经验条一处），"
                 + $"裸 fillAmount×{CountOf(hud, "fillAmount")}");
 
+            // ★ 片 d2-bar（2026-09-24）：条状控件收敛 —— 横向锚点数学**只有引擎一份实现**
+            //   （`UIWidgetControls.cs` 的 `UIFactory.SetBarWidth`）；项目侧 `UiBar` 委托它、
+            //   `UiArt.SetBarRatio` 已整条删除。断言从"两处各有一套"改成"项目侧不再有那一套"。
             var bar = File.ReadAllText(Path.Combine(UiDir, "UiBar.cs"));
-            Check("UiBar 内部：Filled 分支与锚点分支并存，且 Filled 只在有 sprite 时走",
-                bar.Contains("img.type = Image.Type.Filled") && bar.Contains("anchorMax = state.Horizontal"),
-                "见 UI/UiBar.cs Apply()");
+            var uiArtSrc = File.ReadAllText(Path.Combine(UiDir, "UiArt.cs"));
+            var engineWidgetsPath = Path.GetFullPath(Path.Combine(Program.ProjectRoot, "..",
+                "clover-client-unity-engine", "Runtime", "Presentation", "UIWidgetControls.cs"));
+            var engineWidgets = File.Exists(engineWidgetsPath) ? File.ReadAllText(engineWidgetsPath) : "";
+            Check("条状控件：横向进度数学只有引擎一份（UiBar/UiArt 都委托 SetBarWidth）",
+                engineWidgets.Contains("public static void SetBarWidth(RectTransform fill, float progress01)")
+                && bar.Contains("UIFactory.SetBarWidth")
+                && uiArtSrc.Contains("UIFactory.SetBarWidth")
+                && !bar.Contains("anchorMax = new Vector2(ratio, 1f)")     // 项目侧不再自己写横向锚点
+                && !uiArtSrc.Contains("anchorMax = new Vector2(r, 1f)")
+                && !uiArtSrc.Contains("public static void SetBarRatio"),
+                $"engine={engineWidgets.Contains("SetBarWidth")} UiBar={bar.Contains("UIFactory.SetBarWidth")} "
+                + $"UiArt={uiArtSrc.Contains("UIFactory.SetBarWidth")} "
+                + $"残留SetBarRatio声明={uiArtSrc.Contains("public static void SetBarRatio")}");
 
             // 几何契约：锚点模式以**父节点**为基准 ⇒ 球/条必须有同尺寸容器，否则进度会变成整屏色块
-            Check("UiBar 两模式都先把矩形归一成「铺满父节点」",
-                bar.Contains("rt.anchorMax = Vector2.one;") && bar.Contains("rt.offsetMin = Vector2.zero;"),
-                "见 UI/UiBar.cs Apply()");
+            Check("UiBar 保留引擎缺口薄壳（Filled+sprite / 纵向锚点）并已标注缺口",
+                bar.Contains("img.type = Image.Type.Filled")
+                && bar.Contains("ApplyAnchorVertical")
+                && bar.Contains("引擎缺口"),
+                "见 UI/UiBar.cs Apply() / ApplyAnchorVertical()");
             Check("HUD 的球建了同尺寸容器（Holder），不是直接挂面板根",
                 hud.Contains("Holder") && hud.Contains("UIFactory.CreateCentered(name + \"Holder\""),
                 "见 HudPanel.BuildOrb()");
@@ -1647,10 +1723,13 @@ namespace Uicheck
             Check("★ 退化：摘掉订阅方（Off）⇒ 同一条派发不再进回调（断言不是摆设）",
                 received == afterOff, $"回调 {afterOff} → {received}");
 
-            var mi = typeof(EntityTooltip).GetMethod("OnHoverChanged",
+            // ★ 片 u44（悬停选择表现）：消费点从 `UI/EntityTooltip`（头顶 tooltip，已按契约 C4 删除）
+            //   换成 `UI/EnemyBarView`（屏幕顶部怪名血条 + NPC 名字牌，契约 C3/C5）。
+            //   反射查**编译产物** ⇒ 改签名 / 删订阅必红（这一条比 grep 文本强）。
+            var mi = typeof(EnemyBarView).GetMethod("OnHoverChanged",
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             var ps = mi != null ? mi.GetParameters() : new ParameterInfo[0];
-            Check("★ 消费点存在：`UI/EntityTooltip.OnHoverChanged(Diablo2.Def.HoverTarget)`",
+            Check("★ 消费点存在：`UI/EnemyBarView.OnHoverChanged(Diablo2.Def.HoverTarget)`",
                 mi != null && ps.Length == 1 && ps[0].ParameterType == typeof(Diablo2.Def.HoverTarget),
                 mi == null ? "找不到 OnHoverChanged 方法"
                            : $"{mi.Name}({(ps.Length == 1 ? ps[0].ParameterType.FullName : "参数个数=" + ps.Length)})");
@@ -3533,4 +3612,642 @@ namespace Uicheck
             return new Diablo2.Def.InventoryChangedArgs { gold = 0, inventory = inv };
         }
     }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // uicheck · 片 u44「悬停选择表现」机械判据
+    //   （顶部怪名血条 / NPC 名字牌 / 悬停变亮 / 头顶那份不再存在）
+    //
+    // 挡的是什么缺陷（用户原话：「为什么选中怪物没有什么选择效果啊！！！」）：
+    //   改动前 ① **完全没有"悬停变亮"**（全仓 `Brightness` 0 命中）；② 原版"屏幕顶部怪名+血条"在本工程
+    //   **只有布局常量与断言、零消费方**；③ NPC 悬停**没有任何名字牌**；④ 替代品是把「怪名+血量」画在
+    //   **怪物头顶**（`UI/EntityTooltip.cs`，自陈"原版无载体"）—— 原版对可击杀怪**只有顶部条**。
+    //
+    // 判据（**判过程**：读的是"接线/载体/几何在不在"，不是"某个数字被改绿"）：
+    //   · C1：着色器资产**逐字节**等于参考实现（git-blob-sha1 复算）+ 两个属性 + 两条 frag 行逐字；
+    //   · C2：数值（3.0/1.01/1.0/1.0）+ 属性名 + 手段（`MaterialPropertyBlock`/`sharedMaterial`，
+    //     ⛔ 0 处 `renderer.material` 克隆）+ 真被 `ViewModule` 调用；
+    //   · C3：顶部条几何/颜色/字体**逐值用原版数**（`EnemyBar.prefab` 的 150/20/22/200/2/−4）重算；
+    //   · C4：头顶那份**反向断言**（`EntityTooltip.cs` 必须不存在 + `UI/**` 下 0 处旧抬升算式）；
+    //   · C5：名字牌偏移 = `pixHeight / pixelsPerUnit`（MonStats2 实测 80 / Iso 的 80 = 1.0 世界单位）。
+    //
+    // 退化样本（**同一判据、同进程对立读数**，不是文字声明）：ⓐ 去掉 `* _Brightness` ⇒ C1 红；
+    //   ⓑ 高亮值喂 1.0/1.0 ⇒ C2 红；ⓒ Title 原版 px 未乘 K / 丢掉 (0,2) ⇒ C3 红（两条）；
+    //   ⓓ 头顶那份"存在" ⇒ C4 红；ⓔ 名字牌偏移喂 1.5（旧自陈值）⇒ C5 红。
+    //
+    // ⚠️ 为什么这个类写在 `Program.cs` 里（**不是**自己的 `HoverSelectCheck.cs`）：
+    //   `Uicheck.csproj` **不接受写入**（`replace_in_file` / `write_to_file` 都报成功，但磁盘上的
+    //   `<Compile Include>` 一行都没落盘 —— 片 font-scale 2026-09-24 实测同款，V6Check.cs 的
+    //   `FontScaleCheck` 也是因此写在同一文件里的）。⇒ 本宿主的编译清单只能靠**已列在清单里的文件**
+    //   承载新类。**若哪天 csproj 能写了**，请把这个类整体搬到 `HoverSelectCheck.cs` 并补一行
+    //   `<Compile Include="HoverSelectCheck.cs" />`。
+    //
+    // ⚠️ 离线边界（不夸大）：★ 2026-09-24 片 u44impl 离线收口后，`Module/View/EntityHighlight.cs`
+    //   （与它唯一的依赖 `ViewLog.cs`）**已链进本宿主**（见 `Uicheck.csproj`）⇒ C2 的数值现在是
+    //   **真值断言**（直接读 `EntityHighlight.BrightnessFor/ContrastFor` 与被引用的常量），
+    //   原先"从源码文本提取"那几条**保留**作互补（一条判值、一条判形状）。
+    //   **运行时真值**仍由实机日志回读（`[悬停变亮] … 回读 _Brightness=3.0 _Contrast=1.01`
+    //   = 被测程序自己写的 L3 标记）—— 离线判的是"代码里写的是不是 3.0/1.01"，判不了"那一刻真的生效了"。
+    //   本文件也不判**像素观感**（变亮的绝对亮度 / 名字牌黑底实际大小）——那是实机表现类。
+    // ═════════════════════════════════════════════════════════════════════════
+    public static class HoverSelectCheck
+    {
+        private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
+
+        /// <summary>浮点比较（画布 px / 颜色分量都用它）。</summary>
+        private static bool Near(float a, float b, float eps = 0.01f) => Mathf.Abs(a - b) <= eps;
+
+        private static string AssetsDir => Path.Combine(Program.ProjectRoot, "client", "Assets");
+
+        private static string ReadIfExists(string path) => File.Exists(path) ? File.ReadAllText(path) : null;
+
+        /// <summary>从源码文本里取一个 `名字 = 3.0f` 形状的浮点常量（取不到 ⇒ NaN）。</summary>
+        private static float ExtractFloat(string src, string pattern)
+        {
+            var m = Regex.Match(src ?? string.Empty, pattern);
+            if (!m.Success) return float.NaN;
+            float v;
+            return float.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out v) ? v : float.NaN;
+        }
+
+        public static void Run()
+        {
+            Console.WriteLine("── 片 u44：悬停选择表现（C1 着色器 / C2 变亮 / C3 顶部条 / C4 头顶已删 / C5 名字牌）──");
+            CheckC1Shader();
+            CheckC2Highlight();
+            CheckC3TopBar();
+            CheckC4NoHeadTop();
+            CheckC5Nameplate();
+            CheckU44Closeout();
+            Console.WriteLine();
+        }
+
+        // ── C1 · 着色器资产（逐字节搬运参考实现）────────────────────────────────
+        /// <summary>参考实现 `Sprite.shader` 的 git-blob-sha1（`mofr/Diablerie`，选择片按清单 sha 取回后复算）。</summary>
+        private const string ReferenceShaderBlobSha1 = "204985028e18f0dbefc5dc94e7aa948e124a86e6";
+
+        /// <summary>C1 判据本体（**纯函数**：能吃真资产文本，也能吃退化样本文本）。</summary>
+        private static bool ShaderTextOk(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+            if (!text.Contains("Shader \"Sprite\"")) return false;
+            if (!text.Contains("_Brightness(\"Brightness\", Float) = 1.0")) return false;
+            if (!text.Contains("_Contrast(\"Contrast\", Float) = 1.0")) return false;
+            if (!text.Contains("o.color.rgb *= o.color.a * _Brightness;")) return false;
+            if (!text.Contains("o.color.rgb = (o.color.rgb - 0.5) * _Contrast + 0.5;")) return false;
+            return true;
+        }
+
+        /// <summary>git-blob-sha1（= `sha1("blob &lt;len&gt;\0" + content)`），与 `git hash-object` 同口径。</summary>
+        private static string BlobSha1(byte[] bytes)
+        {
+            var header = Encoding.ASCII.GetBytes("blob " + bytes.Length + "\0");
+            using (var sha = System.Security.Cryptography.SHA1.Create())
+            {
+                sha.TransformBlock(header, 0, header.Length, null, 0);
+                sha.TransformFinalBlock(bytes, 0, bytes.Length);
+                var sb = new StringBuilder();
+                foreach (var b in sha.Hash) sb.Append(b.ToString("x2"));
+                return sb.ToString();
+            }
+        }
+
+        private static void CheckC1Shader()
+        {
+            // ⚠️ 位置在 2026-09-24 第 3 轮改过：`D2/**` 的语义是"原版素材"，着色器是**代码资产**
+            //   ⇒ 按 main 裁决挪出 `D2/` 树（`mapcheck` 的 `D2/** 空目录 = 0` 因此转绿）。
+            var path = Path.Combine(AssetsDir, "Resources", "Clover", "Shaders", "Sprite.shader");
+            if (!File.Exists(path))
+            {
+                Check("C1 着色器资产在位（`Resources/Clover/Shaders/Sprite.shader`）", false, "缺 " + path);
+                return;
+            }
+
+            var bytes = File.ReadAllBytes(path);
+            var sha = BlobSha1(bytes);
+            Check("C1 着色器**逐字节**等于参考实现 `Sprite.shader`（git-blob-sha1 == " + ReferenceShaderBlobSha1 + "）",
+                string.Equals(sha, ReferenceShaderBlobSha1, StringComparison.Ordinal),
+                $"本机 {bytes.Length} B sha1={sha}");
+
+            var text = Encoding.UTF8.GetString(bytes);
+            Check("C1 着色器名/属性/两条 frag 行与参考实现逐字一致（`Sprite` + `_Brightness` + `_Contrast` + `rgb *= a * _Brightness` + 对比度行）",
+                ShaderTextOk(text),
+                ShaderTextOk(text) ? "五处全命中" : "有一处不命中（属性名/数值被改过 ⇒ 与参考实现不再逐字相同）");
+
+            // 退化样本 ⓐ：把变亮因子摘掉（= 修前形状：着色器里根本没有变亮）⇒ 同一判据必须红
+            var degraded = text.Replace("o.color.rgb *= o.color.a * _Brightness;", "o.color.rgb *= o.color.a;");
+            Check("C1 退化ⓐ：frag 去掉 `* _Brightness`（修前 = 不变亮）⇒ 同一判据必须变红",
+                !ShaderTextOk(degraded), $"退化文本仍命中={ShaderTextOk(degraded)}（必须 False）");
+        }
+
+        // ── C2 · 悬停变亮（数值 + 属性名 + 手段 + 接线）──────────────────────────
+        /// <summary>
+        /// C2 判据本体（**纯函数**）：悬停档必须是 (3.0, 1.01)。
+        /// <para>出处 `Materials.cs:51-52`（`highlighted ? 3.0f : 1.0f` / `? 1.01f : 1.0f`）。</para>
+        /// </summary>
+        private static bool HighlightValuesOk(float brightness, float contrast)
+            => !float.IsNaN(brightness) && !float.IsNaN(contrast) && Near(brightness, 3f) && Near(contrast, 1.01f);
+
+        private static void CheckC2Highlight()
+        {
+            var hlPath = Path.Combine(AssetsDir, "Scripts", "Module", "View", "EntityHighlight.cs");
+            var hlSrc = ReadIfExists(hlPath);
+            if (hlSrc == null)
+            {
+                Check("C2 载体文件在位（`Module/View/EntityHighlight.cs`）", false, "缺 " + hlPath);
+                return;
+            }
+
+            // ⚠️ 离线边界：该文件不在本宿主白名单里（csproj 不可写）⇒ 数值只能从源码文本提取核对
+            var hoverB = ExtractFloat(hlSrc, @"HoverBrightness\s*=\s*([0-9.]+)f");
+            var hoverC = ExtractFloat(hlSrc, @"HoverContrast\s*=\s*([0-9.]+)f");
+            var normalB = ExtractFloat(hlSrc, @"NormalBrightness\s*=\s*([0-9.]+)f");
+            var normalC = ExtractFloat(hlSrc, @"NormalContrast\s*=\s*([0-9.]+)f");
+
+            Check("C2 悬停档 = `_Brightness` 3.0 / `_Contrast` 1.01（出处 `Materials.cs:51-52`）",
+                HighlightValuesOk(hoverB, hoverC), $"读到 HoverBrightness={hoverB} HoverContrast={hoverC}");
+            Check("C2 常规档 = 1.0 / 1.0（= 恒等变换，即「未悬停与改动前逐像素一致」的前提）",
+                Near(normalB, 1f) && Near(normalC, 1f), $"读到 NormalBrightness={normalB} NormalContrast={normalC}");
+            Check("C2 属性名 = `_Brightness` / `_Contrast`（原版 `Materials.cs:51-52` 的字符串逐字）",
+                hlSrc.Contains("BrightnessProperty = \"_Brightness\"") && hlSrc.Contains("ContrastProperty = \"_Contrast\""),
+                "BrightnessProperty/ContrastProperty 行");
+
+            // ★ 片 u44impl 离线收口（2026-09-24）：`EntityHighlight.cs` 已由 `Uicheck.csproj` 链进本宿主
+            //   ⇒ C2 从"源码文本提取"升级为**真值断言**（上面那几条读文本的判据**保留**：一条判值、一条判形状，互补）。
+            //   为什么要升级：**uicheck 判不到的文件 = 判据的盲区** —— 任何"改了但没接上"的错都会在这里显示为绿
+            //   （同族先例：`Shader.HasProperty` 的 CS1061 就是源码文本级判据绿、编译级才红）。
+            Check("C2 真值①：`EntityHighlight.BrightnessFor(true) == 3.0`（悬停档 `_Brightness`，出处 `Materials.cs:51`）",
+                Near(EntityHighlight.BrightnessFor(true), 3f), $"实读 {EntityHighlight.BrightnessFor(true)}");
+            Check("C2 真值②：`EntityHighlight.ContrastFor(true) == 1.01`（悬停档 `_Contrast`，出处 `Materials.cs:52`）",
+                Near(EntityHighlight.ContrastFor(true), 1.01f), $"实读 {EntityHighlight.ContrastFor(true)}");
+            Check("C2 真值③：`BrightnessFor(false) == 1.0` 且 `ContrastFor(false) == 1.0`（常规档 = 恒等变换）",
+                Near(EntityHighlight.BrightnessFor(false), 1f) && Near(EntityHighlight.ContrastFor(false), 1f),
+                $"实读 {EntityHighlight.BrightnessFor(false)} / {EntityHighlight.ContrastFor(false)}");
+            Check("C2 真值④：属性名常量 == `_Brightness` / `_Contrast`（引用真值，不是读源码文本）",
+                EntityHighlight.BrightnessProperty == "_Brightness" && EntityHighlight.ContrastProperty == "_Contrast",
+                $"实读 \"{EntityHighlight.BrightnessProperty}\" / \"{EntityHighlight.ContrastProperty}\"");
+            Check("C2 真值⑤：着色器名常量 == `Sprite`（原版 `Materials.cs:39` 的 `Shader.Find(\"Sprite\")` 逐字）",
+                EntityHighlight.ShaderName == "Sprite", $"实读 \"{EntityHighlight.ShaderName}\"");
+            // 退化样本 ⓕ：直接喂"修前形状"（1.0/1.0 的两档）⇒ 同一判据（值比较）必须红
+            Check("C2 退化ⓕ：真值判据喂 (1.0, 1.0)（悬停档 = 什么都不做）⇒ 必须变红",
+                !(Near(1f, 3f) && Near(1f, 1.01f)), "值比较 (1.0,1.0) 对 (3.0,1.01) ⇒ False（必须）");
+
+            // 退化样本 ⓑ：喂"修前形状"（什么都没做 ⇒ 1.0/1.0）⇒ 同一判据必须红
+            Check("C2 退化ⓑ：悬停档喂 1.0/1.0（修前 = 不做任何事）⇒ 同一判据必须变红",
+                !HighlightValuesOk(1f, 1f), $"HighlightValuesOk(1,1)={HighlightValuesOk(1f, 1f)}（必须 False）");
+
+            var usesBlock = hlSrc.Contains("MaterialPropertyBlock") && hlSrc.Contains("SetPropertyBlock(");
+            Check("C2 手段 = `MaterialPropertyBlock` + `SetPropertyBlock`（原版 `Materials.cs:50-53`），⛔ 不是改材质属性",
+                usesBlock, usesBlock ? "命中 MaterialPropertyBlock/SetPropertyBlock" : "0 命中 ⇒ 手段不对");
+
+            var cloneHits = Regex.Matches(hlSrc, @"(?<![A-Za-z])\.material\s*=").Count;
+            Check("C2 ⛔ 载体里 0 处 `renderer.material`（会克隆材质实例；必须用 `sharedMaterial`）",
+                cloneHits == 0, $"`.material =` 命中 {cloneHits} 处");
+
+            var viewPath = Path.Combine(AssetsDir, "Scripts", "Module", "View", "ViewModule.cs");
+            var viewSrc = ReadIfExists(viewPath);
+            if (viewSrc == null)
+            {
+                Check("C2 接线文件在位（`Module/View/ViewModule.cs`）", false, "缺 " + viewPath);
+                return;
+            }
+
+            var subscribed = viewSrc.Contains("Game.Event.On<Diablo2.Def.HoverTarget>(Events.HoverTargetChanged, OnHoverChanged)");
+            Check("C2 真接线①：`ViewModule` 订阅 `Events.HoverTargetChanged`（发送方 = `InputReader.Publish`）",
+                subscribed, subscribed ? "命中订阅行" : "0 命中（没订阅 ⇒ 悬停永远不会变亮）");
+            var applies = viewSrc.Contains("EntityHighlight.Apply(");
+            Check("C2 真接线②：`ViewModule` 真的调 `EntityHighlight.Apply(...)`（数值只有一个真源）",
+                applies, applies ? "命中 EntityHighlight.Apply" : "0 命中");
+            var attackOnly = viewSrc.Contains("t.cursor == CursorKind.Attack");
+            Check("C2 真接线③：只有 `CursorKind.Attack`（可攻击怪）参与点亮（原版 `MouseSelection.cs:139-167` 排除玩家/非可选实体）",
+                attackOnly, attackOnly ? "命中 CursorKind.Attack 判据" : "0 命中");
+        }
+
+        // ── C3 · 屏幕顶部怪名血条 ──────────────────────────────────────────────
+        /// <summary>
+        /// C3 判据本体（**纯函数**，只用原版数 + K 重算，不看 `UiLayoutGame` 的转发结果）：
+        /// Title 宽 = 200×K、高 = (20−4)×K、中心 = 血条中心 + (0, 2×K)、且完全落在血条矩形内。
+        /// </summary>
+        private static bool TitleGeometryOk(Rect bar, Rect title, float k)
+        {
+            if (!Near(title.width, 200f * k, 0.02f)) return false;
+            if (!Near(title.height, 16f * k, 0.02f)) return false;
+            if (!Near(title.center.x, bar.center.x, 0.02f)) return false;
+            if (!Near(title.center.y, bar.center.y + 2f * k, 0.02f)) return false;
+            // ⚠️ **不做"完全落在血条内"** —— 原版 Title 的框（200 原版px）本来**比血条（150）宽**：
+            //    每边溢出 (200−150)/2 = **25 原版px**（文字居中 ⇒ 只有超长名字才看得出溢出）。
+            //    改成断言"溢出量正好是 25×K" = 更贴原版、也更严（首版写成"包含"，实测红——那是判据错，不是代码错）。
+            if (!Near(title.xMin, bar.xMin - 25f * k, 0.02f)) return false;
+            if (!Near(title.xMax, bar.xMax + 25f * k, 0.02f)) return false;
+            if (!Near(title.yMin, bar.yMin + 4f * k, 0.02f)) return false;   // (20−4)/2=8 ⇒ 中心 +2K ⇒ 下沿 = 血条下沿 +10K+2K−8K
+            return Near(title.yMax, bar.yMax, 0.02f);                        // 上沿与血条上沿齐平
+        }
+
+        private static void CheckC3TopBar()
+        {
+            var k = UiLayoutGame.K;
+
+            var bg = EnemyBarView.BarBackgroundColor;
+            var fill = EnemyBarView.BarFillColor;
+            Check("C3 顶部条底色 = 原版 `EnemyBar.prefab:246` 的 RGBA(0,0,0,0.478)",
+                Near(bg.r, 0f) && Near(bg.g, 0f) && Near(bg.b, 0f) && Near(bg.a, 0.478f, 0.0005f), $"本工程 {bg}");
+            Check("C3 顶部条填充 = 原版 `EnemyBar.prefab:219` 的 RGBA(0.75,0.022058845,0.022058845,0.2509804)",
+                Near(fill.r, 0.75f, 0.0005f) && Near(fill.g, 0.022058845f, 0.0005f)
+                && Near(fill.b, 0.022058845f, 0.0005f) && Near(fill.a, 0.2509804f, 0.0005f), $"本工程 {fill}");
+
+            var bar = EnemyBarView.BarRect();
+            var title = EnemyBarView.TitleRect();
+            var barOk = Near(bar.width, 150f * k, 0.02f) && Near(bar.height, 20f * k, 0.02f)
+                && Near(bar.center.x, 0f, 0.02f) && Near(bar.yMax, UiArt.RefHeight * 0.5f - 22f * k, 0.02f);
+            Check("C3 血条矩形 = 原版 `EnemyBar.prefab:387-391`（anchor(0.5,1) pos(0,−22) size 150×20）×1.8", barOk, bar.ToString());
+            Check("C3 Title 矩形 = 原版 `:313-317`（anchor(0.5,0)-(0.5,1) pos(0,2) sizeDelta(200,−4)）×1.8：每边比血条宽 25 原版px、下沿 +4×K、上沿与血条齐平",
+                TitleGeometryOk(bar, title, k), title.ToString());
+
+            var degradedA = new Rect(bar.center.x - 75f, bar.center.y - 10f, 150f, 20f);
+            Check("C3 退化ⓒ-①：Title 用**原版 px 未乘 K / 未内缩**（修前形状）⇒ 同一判据必须变红",
+                !TitleGeometryOk(bar, degradedA, k), $"退化 A 仍合格={TitleGeometryOk(bar, degradedA, k)}（必须 False）");
+            var degradedB = new Rect(bar.center.x - 100f * k, bar.center.y - 8f * k, 200f * k, 16f * k);
+            Check("C3 退化ⓒ-②：Title 丢掉 `pos(0,2)` 偏移（与血条同心）⇒ 同一判据必须变红",
+                !TitleGeometryOk(bar, degradedB, k), $"退化 B 仍合格={TitleGeometryOk(bar, degradedB, k)}（必须 False）");
+
+            Check("C3 Title 字体 = font16（原版 `EnemyBar.prefab:132` 的 `m_Font` guid 1f4ed3b9… = `font16.fontsettings.meta` 的 guid）",
+                EnemyBarView.TitleFont == D2Text.D2Font.Font16, $"TitleFont={EnemyBarView.TitleFont}");
+            Check("C3 Title 对齐 = LowerCenter（原版 `m_Alignment: 7`）",
+                EnemyBarView.TitleAnchor == TextAnchor.LowerCenter, $"TitleAnchor={EnemyBarView.TitleAnchor}");
+
+            var fillSamplesOk = Near(EnemyBarView.FillAmount(2, 2), 1f) && Near(EnemyBarView.FillAmount(1, 4), 0.25f)
+                && Near(EnemyBarView.FillAmount(0, 4), 0f) && Near(EnemyBarView.FillAmount(3, 0), 0f);
+            Check("C3 `slider.value / maxValue` = hp / maxHp（原版 `EnemyBar.cs:32-33`；maxHp=0 退化为 0）",
+                fillSamplesOk, $"2/2={EnemyBarView.FillAmount(2, 2)} 1/4={EnemyBarView.FillAmount(1, 4)} 3/0={EnemyBarView.FillAmount(3, 0)}");
+
+            var enemyTarget = new Diablo2.Def.HoverTarget { hasTarget = true, cursor = CursorKind.Attack, id = 7, name = "堕落者" };
+            var npcTarget = new Diablo2.Def.HoverTarget { hasTarget = true, cursor = CursorKind.Interact, id = 3, name = "阿卡拉" };
+            var groundTarget = new Diablo2.Def.HoverTarget { hasTarget = true, cursor = CursorKind.Pickup, id = 9, name = "短剑" };
+            var none = new Diablo2.Def.HoverTarget { hasTarget = false, cursor = CursorKind.Default, id = -1 };
+            Check("C3 分派：`Attack` ⇒ 顶部条；`Interact` ⇒ 名字牌；`Pickup`/无目标 ⇒ 都不出（原版 `MouseSelection.cs:53-80` 三支）",
+                EnemyBarView.IsEnemyBarTarget(enemyTarget) && !EnemyBarView.IsNameplateTarget(enemyTarget)
+                && EnemyBarView.IsNameplateTarget(npcTarget) && !EnemyBarView.IsEnemyBarTarget(npcTarget)
+                && !EnemyBarView.IsEnemyBarTarget(groundTarget) && !EnemyBarView.IsNameplateTarget(groundTarget)
+                && !EnemyBarView.IsEnemyBarTarget(none) && !EnemyBarView.IsNameplateTarget(none),
+                "Attack⇒bar / Interact⇒plate / Pickup⇒无 / 无目标⇒无");
+
+            var st = new MonsterState { id = 7, name = "堕落者" };
+            Check("C3 Title 文案 = 怪物状态的名字（原版 `EnemyBar.cs:31` 的 `unit.title`），无状态时退回悬停载荷的名字",
+                EnemyBarView.TitleTextFor(st, enemyTarget) == "堕落者" && EnemyBarView.TitleTextFor(null, enemyTarget) == "堕落者",
+                $"有状态={EnemyBarView.TitleTextFor(st, enemyTarget)} / 无状态={EnemyBarView.TitleTextFor(null, enemyTarget)}");
+        }
+
+        // ── C4 · 头顶那份不再存在（反向断言，防复活）─────────────────────────────
+        /// <summary>
+        /// C4 判据本体（**纯函数**）："头顶 tooltip 不再存在" = 那个文件不在了 **且** UI 层里
+        /// 不再有旧的自陈抬升算式（`GameConst.IsoHalfH *` —— 旧 `EntityTooltip.cs:52/306` 的那条）。
+        /// </summary>
+        private static bool HeadTopDisplayAbsent(bool oldFileExists, int oldLiftFormulaHits)
+            => !oldFileExists && oldLiftFormulaHits == 0;
+
+        /// <summary>
+        /// ★ u44impl 第 7 轮 + 离线收口（2026-09-24）：**头顶血条（引擎件 `CloverEngine.WorldHpBar`）在生产代码里 0 处使用**。
+        /// <para>出处：原版对可击杀怪**只有**屏幕顶部 `EnemyBar`（`MouseSelection.cs:62-65` ⇒ `ShowEnemyBar`；
+        /// `EnemyBar.cs:26-35`），参考实现里**没有**头顶血条 ⇒ 头顶那条是本工程自加件，按 U44-C4
+        /// 「⛔ 不许两份并存」删掉（`EntityView.Bar` 字段与 `ViewModule` 的 4 处调用点）。</para>
+        /// <para>⛔ 只吃**代码行文本**（调用方先用 <see cref="CodeLinesOnly"/> 掩掉 `//` 注释行）——
+        /// 本工程刻意在注释里留了"已删"的说明；把注释当命中 = 假红。</para>
+        /// </summary>
+        private static bool OverheadHpBarAbsent(string codeText)
+        {
+            if (codeText == null) return false;   // fail-closed：文件读不到 ⇒ 不算"已删干净"
+            return Regex.Matches(codeText, @"WorldHpBar|\bv\.Bar\b").Count == 0;
+        }
+
+        /// <summary>把源码掩成"只看代码行"（整行 `//` 注释不算命中）。</summary>
+        private static string CodeLinesOnly(string src)
+            => string.Join("\n", Array.FindAll((src ?? string.Empty).Split('\n'),
+                l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+        /// <summary>
+        /// ★ u44impl（team-lead §63「待窗口项要拆半」）：台账 W3 的**离线那一半** ——
+        /// 每个「产生 `CursorKind.Attack`」的站点都必须配一个 `!m.alive ⇒ continue` 守卫；
+        /// 否则**死怪也能被悬停**（`Attack`）⇒ `EnemyBarView.IsEnemyBarTarget` 恒 true ⇒
+        /// 击杀后顶部条**不会**收起 = 正是 W3 那个「两次读数不一致」的症状。
+        /// <para>⛔ 边界（诚实，不夸大）：这是**源码形状**判据（判「守卫与站点**数量配对**」），
+        /// ⛔ 不判控制流先后；「那一刻事件真的按这个顺序到达」必须进 Unity 窗口连采 3 拍（台账 W3）。
+        /// 退化样本保证它**能失败**（喂「2 站点 / 1 守卫」⇒ 必须红）。</para>
+        /// </summary>
+        private static bool DeadMonsterGuardOk(int aliveGuards, int attackSites)
+            => aliveGuards > 0 && attackSites > 0 && aliveGuards == attackSites;
+
+        private static void CheckC4NoHeadTop()
+        {
+            var uiDir = Path.Combine(AssetsDir, "Scripts", "UI");
+            var oldFile = Path.Combine(uiDir, "EntityTooltip.cs");
+            var oldExists = File.Exists(oldFile);
+
+            var liftHits = 0;
+            var hitsByFile = new StringBuilder();
+            foreach (var f in Directory.GetFiles(uiDir, "*.cs"))
+            {
+                var n = Regex.Matches(File.ReadAllText(f), @"GameConst\.IsoHalfH\s*\*").Count;
+                if (n > 0)
+                {
+                    liftHits += n;
+                    if (hitsByFile.Length > 0) hitsByFile.Append(", ");
+                    hitsByFile.Append(Path.GetFileName(f)).Append("×").Append(n);
+                }
+            }
+
+            Check("C4 头顶那份**已删**：`UI/EntityTooltip.cs` 不存在（反向断言防复活）",
+                !oldExists, oldExists ? "文件仍在 ⇒ 两份并存" : "文件已删");
+            Check("C4 UI 层 0 处旧的「头顶抬升」算式 `GameConst.IsoHalfH *`（旧 `EntityTooltip` 的 1.5 格自陈值）",
+                liftHits == 0, liftHits == 0 ? "0 命中" : ("命中 " + hitsByFile));
+            Check("C4 合取判据：`HeadTopDisplayAbsent(文件不在, 0 处旧算式)` == true",
+                HeadTopDisplayAbsent(oldExists, liftHits), $"oldFileExists={oldExists} liftHits={liftHits}");
+
+            // 退化样本 ⓓ：喂"修前形状"（文件在 + 1 处旧算式）⇒ 同一判据必须红
+            Check("C4 退化ⓓ：喂修前形状（`EntityTooltip.cs` 在 + 1 处 `IsoHalfH *`）⇒ 同一判据必须变红",
+                !HeadTopDisplayAbsent(true, 1), $"HeadTopDisplayAbsent(true,1)={HeadTopDisplayAbsent(true, 1)}（必须 False）");
+
+            // ★ u44impl 第 7 轮（离线收口）：**头顶血条（引擎件 `WorldHpBar`）也必须有离线判据** ——
+            //   全仓 grep（`*.cs`）即可判：`Module/View` 生产代码里 `WorldHpBar` / `v.Bar` 必须 0 处**使用**。
+            //   只算**代码行**（掩掉 `//` 注释行）：本工程刻意在注释里留了"已删"的说明（假红陷阱）。
+            var viewDir = Path.Combine(AssetsDir, "Scripts", "Module", "View");
+            var overheadOk = true;
+            var overheadDetail = new StringBuilder();
+            foreach (var name in new[] { "ViewModule.cs", "EntityView.cs" })
+            {
+                var p = Path.Combine(viewDir, name);
+                var src = ReadIfExists(p);
+                var ok = src != null && OverheadHpBarAbsent(CodeLinesOnly(src));
+                overheadOk &= ok;
+                if (!ok) overheadDetail.Append(name).Append(src == null ? "=文件缺 " : "=有命中 ");
+            }
+            Check("C4 头顶血条（引擎件 `CloverEngine.WorldHpBar` / `EntityView.Bar`）在 `Module/View` 生产代码 **0 处使用**"
+                + "（只算代码行；注释里的\"已删\"说明不算；文件读不到 ⇒ fail-closed）",
+                overheadOk, overheadOk ? "0 命中（ViewModule.cs / EntityView.cs）" : ("命中：" + overheadDetail));
+            // 退化样本 ⓔ：喂"修前形状"（建头顶条 + 喂血 + 记账字段）⇒ 同一判据必须红
+            var degradedOverhead = "var bar = WorldHpBar.Create(v.Root.transform, 1f, 1f);\nbar.SetHp(state.hp);\nv.Bar = bar;\n";
+            Check("C4 退化ⓔ：喂修前形状（`WorldHpBar.Create(...)` + `v.Bar = …`）⇒ 同一判据必须变红",
+                !OverheadHpBarAbsent(degradedOverhead),
+                $"OverheadHpBarAbsent(修前形状)={OverheadHpBarAbsent(degradedOverhead)}（必须 False）");
+            // 反向混淆项：注释里的"已删"说明**不能**被当成命中（否则这条判据在真文件上恒红 ⇒ 假红）
+            var commentOnly = "// ★ U44-C4（第 7 轮）：这里原来建**头顶血条**（引擎件 `CloverEngine.WorldHpBar`）；已删。\n";
+            Check("C4 真值混淆项：整行 `//` 注释里的 `WorldHpBar` **不算**命中（`CodeLinesOnly` 掩注释）",
+                OverheadHpBarAbsent(CodeLinesOnly(commentOnly)),
+                $"掩注释后还剩 {Regex.Matches(CodeLinesOnly(commentOnly), @"WorldHpBar|\bv\.Bar\b").Count} 处（必须 0）");
+
+            var newFile = Path.Combine(uiDir, "EnemyBarView.cs");
+            var newSrc = ReadIfExists(newFile);
+            var newOk = newSrc != null && newSrc.Contains("IsEnemyBarTarget")
+                && newSrc.Contains("UiLayoutGame.EnemyBarSize") && newSrc.Contains("UiLayoutGame.EnemyBarPos");
+            Check("C4 消费方迁移到位：`UI/EnemyBarView.cs` 存在且消费 `UiLayoutGame.EnemyBar*`（不再是死常量）",
+                newOk, newSrc == null ? "缺 " + newFile : "命中 IsEnemyBarTarget + EnemyBarSize/Pos");
+        }
+
+        // ── C5 · NPC 世界内名字牌 ───────────────────────────────────────────────
+        /// <summary>
+        /// C5 判据本体（**纯函数**）：偏移 = `pixHeight / pixelsPerUnit`（参考实现 `Unit.cs:496-505` +
+        /// `MouseSelection.cs:123`；本工程 `Iso.GridToWorld` 给的是格中心 = 脚底 ⇒ 直接加这个 y）。
+        /// </summary>
+        private static bool LiftOk(float lift, float pixHeight, float pixelsPerUnit)
+            => pixelsPerUnit > 0f && Near(lift, pixHeight / pixelsPerUnit, 0.0001f);
+
+        private static void CheckC5Nameplate()
+        {
+            Check("C5 名字牌偏移 = pixHeight / pixelsPerUnit = 80 / 80 = 1.0 世界单位（`Unit.cs:496-505` + `MouseSelection.cs:123`）",
+                LiftOk(EnemyBarView.NpcTitleLiftWorld, EnemyBarView.NpcSpritePixHeight, EnemyBarView.ArtPixelsPerUnit),
+                $"{EnemyBarView.NpcSpritePixHeight}/{EnemyBarView.ArtPixelsPerUnit}={EnemyBarView.NpcTitleLiftWorld}");
+
+            // 退化样本 ⓔ：旧的"抬 1.5 格"自陈值（= 随 `EntityTooltip.cs` 一起删掉的那个）⇒ 必须红
+            Check("C5 退化ⓔ：偏移喂 1.5（旧的「抬 1.5 格」自陈值）⇒ 同一判据必须变红",
+                !LiftOk(1.5f, 80f, 80f), $"LiftOk(1.5,80,80)={LiftOk(1.5f, 80f, 80f)}（必须 False）");
+
+            var sfPath = Path.Combine(AssetsDir, "Scripts", "Module", "View", "SpriteFrames.cs");
+            var sfSrc = ReadIfExists(sfPath);
+            if (sfSrc == null)
+            {
+                Check("C5 跨文件核对需要 `Module/View/SpriteFrames.cs`（仓库源码）", false, "缺 " + sfPath);
+            }
+            else
+            {
+                var real = ExtractFloat(sfSrc, @"ArtPixelsPerUnit\s*=\s*([0-9]+(?:\.[0-9]+)?)f");
+                Check("C5 跨文件核对：本文件自持的 `ArtPixelsPerUnit`(80) == `Module/View/SpriteFrames.cs` 的真值（UI 层不许引用 Module ⇒ 靠这条钉住不漂移）",
+                    Near(real, EnemyBarView.ArtPixelsPerUnit, 0.0001f), $"SpriteFrames.ArtPixelsPerUnit={real}");
+            }
+
+            var g = new Vector2Int(11, 7);
+            var want = Iso.GridToWorld(g);
+            want.y += EnemyBarView.NpcTitleLiftWorld;
+            var got = EnemyBarView.NameplateWorld(g.x, g.y);
+            Check("C5 名字牌世界落点 = `Iso.GridToWorld(格)` + (0, 1.0)（参考实现 `MouseSelection.cs:123` 的 `position + titleOffset/ppu`）",
+                Near(got.x, want.x, 0.0001f) && Near(got.y, want.y, 0.0001f), $"{got}（期望 {want}）");
+
+            Check("C5 名字牌载体：半透明黑底 RGBA(0,0,0,0.95)（`ScreenLabel.cs:45`）+ padding(6,6,0,4)（`:29`）+ font16（`:41`）",
+                Near(EnemyBarView.NameplateBackColor.a, 0.95f, 0.0005f)
+                && Near(EnemyBarView.NameplatePadLeft, 6f) && Near(EnemyBarView.NameplatePadRight, 6f)
+                && Near(EnemyBarView.NameplatePadTop, 0f) && Near(EnemyBarView.NameplatePadBottom, 4f)
+                && EnemyBarView.NameplateFont == D2Text.D2Font.Font16,
+                $"a={EnemyBarView.NameplateBackColor.a} pad={EnemyBarView.NameplatePadLeft}/{EnemyBarView.NameplatePadRight}/{EnemyBarView.NameplatePadTop}/{EnemyBarView.NameplatePadBottom}");
+
+            // ⚠️ 用 **ASCII 样本**的原因 = 生产路径 `D2Text.MeasureNative(..., chi: true)` 在本宿主里**恒返 0**
+            //    （chi 字模异步加载、`EnsureChi` 要 `Game.Res`，本宿主 `Game.Res == null`）⇒ 中文样本喂进去
+            //    是**恒真断言**，当判据只会假绿（`popupaudit` 已实证同族两例）。
+            //    ★ 2026-09-24 更正（本片复核，台账 W9 的"数值半"）：**素材本身是能离线解析的** ——
+            //    `client/Assets/Resources/Clover/D2/Fonts/font16_chi_map.txt`（280 532 B）+ `font_chi_s2t.txt`
+            //    （39 055 B）都在盘上，且 `U52ResistCheck.cs` **已经**用它算出 chi 串的 `needNative`（口径 = `D2Text.ParseChiMap`/`HasGlyph`）。
+            //    ⇒ 所以本行下面那句"离线宿主里取不到 chi 宽度表"**不成立**；现状是**空档**：本宿主没有
+            //    中文名牌**绝对宽度**的判据（只有下面的 ASCII 相对判据）⇒ 需 1 个可复用的 chi 度量入口
+            //    （⛔ 本片不重写第二份解码 = 不做重复实现；⛔ 也不改别片的 `U52ResistCheck.cs`）⇒ 见报告 §32。
+            var sA = EnemyBarView.NameplateSizeFor("Akara");
+            var sB = EnemyBarView.NameplateSizeFor("Akara the Witch");
+            Check("C5 黑底尺寸 = 文本实测宽 + padding(6,6)×K（`ContentSizeFitter` 口径）：ASCII 样本必须严格变宽、行高不变",
+                sA.y > 0f && sB.x > sA.x && Near(sB.y, sA.y, 0.01f),
+                $"「Akara」={sA} / 「Akara the Witch」={sB}");
+            var sShort = EnemyBarView.NameplateSizeFor("阿卡拉");
+            var sLong = EnemyBarView.NameplateSizeFor("阿卡拉·女巫会首领");
+            Console.WriteLine($"      │ [登记·非失败] 中文样本：「阿卡拉」={sShort} /「阿卡拉·女巫会首领」={sLong}"
+                + "（离线宿主无 CJK 字模宽表 ⇒ 两者相等属预期；中文黑底实际宽度由实机采）");
+            // ★ u44impl（team-lead 裁定 (a)，2026-09-24）：W9「中文名牌黑底**绝对**宽度」——把能离线判的那半判掉。
+            //   ① 素材侧真值：`U52ResistCheck.NeedNative(...)`（它自己解 `font16_chi_map.txt` + `font_chi_s2t.txt`，
+            //      `internal` 已暴露、同程序集可直接调）⇒ 期望宽 = `chiNative × scale + (6+6) × K`。
+            //   ② **高度是可真判的**：生产 `NameplateSizeFor` 的行高走 `D2Text.ChiCellH`（来自 fontsettings，
+            //      宿主可读，实测 35.20）⇒ 判"生产行高 == `ChiCellH × scale + (0+4) × K`"。
+            //   ③ **宽度在宿主里不可真判**：生产 `D2Text.MeasureNative(..., chi:true)` 走**异步**字形步进表、
+            //      宿主 `Game.Res == null` ⇒ 恒 0（实测 `NameplateSizeFor("阿卡拉").x = 21.60 = 12 × K`，正是 padding-only）
+            //      ⇒ ⛔ 不许判"生产宽 == 期望宽"（那是把**宿主局限**当产品缺陷，会让共享闸门假红）。
+            //      改判**到期哨**：生产宽必须**恰好**等于 padding-only —— 哪天它在宿主里能算宽度了，这条**必红**，
+            //      那一刻就把判据升级成 ① 的真比较（⛔ 红 = 升级信号，不是"坏了"）。
+            //      像素半（编辑器里实际画多宽）仍进窗口，目标值 = 下面打印的 `期望宽`。
+            var chiText = "阿卡拉";
+            // 幂等：本检查可能早于 `U52ResistCheck.Run()` 执行 ⇒ 先确保素材已解析（否则 chiNative 会是 0 + 全字数缺字形）
+            var chiTablesOk = U52ResistCheck.LoadFontTables();
+            var chiNative = U52ResistCheck.NeedNative(chiText, out var chiScale, out var chiKind,
+                out var chiMissing, out var chiViaS2T);
+            var padSumK = (EnemyBarView.NameplatePadLeft + EnemyBarView.NameplatePadRight) * UiLayoutGame.K;
+            var chiExpectedW = chiNative * chiScale + padSumK;
+            Check("W9 离线半①：素材侧给出**非零**中文宽度（`font16_chi_map.txt` + `font_chi_s2t.txt` 经 `U52ResistCheck.NeedNative` 解析）"
+                + " —— 否则「期望宽」本身是假的",
+                chiTablesOk && chiNative > 0 && chiMissing.Count == 0,
+                $"tables={chiTablesOk} 「{chiText}」chiNative={chiNative} scale={chiScale} kind={chiKind} 缺字形={chiMissing.Count} 经S2T={chiViaS2T.Count}"
+                + $" ⇒ 期望宽 = {chiNative}×{chiScale} + 12×{UiLayoutGame.K} = {chiExpectedW:0.###} 画布px（= 窗口要核的目标值）");
+            var gotChi = EnemyBarView.NameplateSizeFor(chiText);
+            var chiExpectedH = D2Text.ChiCellH(D2Text.D2Font.Font16) * chiScale
+                + (EnemyBarView.NameplatePadTop + EnemyBarView.NameplatePadBottom) * UiLayoutGame.K;
+            Check("W9 离线半②：生产行高 == `D2Text.ChiCellH(font16) × scale + (0+4) × K`（字模**几何**来自 fontsettings ⇒ 宿主可读；"
+                + "这条是**真**判生产输出的一维）",
+                Near(gotChi.y, chiExpectedH, 0.01f),
+                $"「{chiText}」实读={gotChi} ；期望高={chiExpectedH:0.###}");
+            Check("W9 离线半③（**到期哨**）：生产宽在宿主里必须**恰好 = padding-only**（`(6+6)×K`）—— "
+                + "若这条红 = 「生产在宿主里能算中文宽度了」⇒ **升级信号**（换成与 `期望宽` 真比较），⛔ 不是缺陷",
+                Near(gotChi.x, padSumK, 0.01f),
+                $"「{chiText}」实读宽={gotChi.x:0.###} ；padding-only={padSumK:0.###} ；期望宽（编辑器内应得）= {chiExpectedW:0.###}");
+            Check("W9 退化③：喂一个**非** padding-only 的宽度（= 假装宿主能算出中文宽度）⇒ 同一判据必须变红",
+                !Near(padSumK + 40f, padSumK, 0.01f),   // 喂一个**假**的非 padding-only 宽度（⛔ 不用 chiExpectedW：表未加载时它恒等于 padSumK）
+                $"Near(假宽{padSumK + 40f:0.###}, padding-only{padSumK:0.###})={Near(padSumK + 40f, padSumK, 0.01f)}（必须 False ⇒ 退化样本成立）");
+
+            var root = Path.Combine(Program.ProjectRoot, "原版资源", "参考工程_Diablerie", "d2lod1.10txt",
+                "data", "global", "excel");
+            var ms1 = Path.Combine(root, "MonStats.txt");
+            var ms2 = Path.Combine(root, "MonStats2.txt");
+            if (!File.Exists(ms1) || !File.Exists(ms2))
+            {
+                // `原版资源/` 按约定不进 git ⇒ 不在位时打 [SKIP]、不计失败；在位而缺文件才是真缺陷
+                Program.CheckOriginalRes("C5 `MonStats2.pixHeight`（5 个 NPC 全 80）真值核对", ms2);
+                return;
+            }
+
+            var lines1 = File.ReadAllLines(ms1);
+            var head1 = lines1.Length > 0 ? lines1[0].Split('\t') : new string[0];
+            var codeIdx = Array.IndexOf(head1, "Code");
+            var idIdx = Array.IndexOf(head1, "Id");
+            var ids = new System.Collections.Generic.List<string>();
+            var npcCodes = new[] { "PS", "RC", "CI", "GH", "WA" };
+            for (var i = 1; i < lines1.Length; i++)
+            {
+                var c = lines1[i].Split('\t');
+                if (c.Length <= codeIdx || c.Length <= idIdx) continue;
+                foreach (var code in npcCodes)
+                    if (string.Equals(c[codeIdx], code, StringComparison.OrdinalIgnoreCase)) ids.Add(c[idIdx]);
+            }
+
+            var lines2 = File.ReadAllLines(ms2);
+            var head2 = lines2.Length > 0 ? lines2[0].Split('\t') : new string[0];
+            var pixIdx = Array.IndexOf(head2, "pixHeight");
+            var pixOk = pixIdx >= 0 && ids.Count == 5;
+            var detail = new StringBuilder($"MonStats Code 列={codeIdx} / MonStats2 pixHeight 列={pixIdx} / 命中 NPC {ids.Count}/5：");
+            foreach (var id in ids)
+            {
+                var found = false;
+                for (var i = 1; i < lines2.Length; i++)
+                {
+                    var c = lines2[i].Split('\t');
+                    if (c.Length <= pixIdx || c[0] != id) continue;
+                    float pix;
+                    float.TryParse(c[pixIdx], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out pix);
+                    pixOk &= Near(pix, EnemyBarView.NpcSpritePixHeight, 0.001f);
+                    detail.Append($"{id}={pix} ");
+                    found = true;
+                    break;
+                }
+                if (!found) { pixOk = false; detail.Append($"{id}=未找到 "); }
+            }
+
+            Check("C5 `MonStats2.pixHeight`（5 个 NPC）真值 == 本文件常量 80（`akara/kashya/charsi/gheed/warriv1`）",
+                pixOk, detail.ToString());
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 收口组（`select` §9 对账表提的 6 条；片 u44impl 第 2 轮）
+        // ═════════════════════════════════════════════════════════════════════
+        private static void CheckU44Closeout()
+        {
+            var hlPath = Path.Combine(AssetsDir, "Scripts", "Module", "View", "EntityHighlight.cs");
+            var hlSrc = ReadIfExists(hlPath) ?? string.Empty;
+
+            // ── ② 撞名静默失效：取着色器必须走 Resources 路径优先 + HasProperty 校验 ──
+            var byFind = hlSrc.Contains("Shader.Find(ShaderName)");
+            // ⚠️ 校验是 `Material.HasProperty`（本工程 Unity 的 `Shader` **没有** `HasProperty` ——
+            //   片 u44 第 2 轮实测由 `playercheck` 编译报 CS1061 才发现的）
+            var hasProp = hlSrc.Contains("mat.HasProperty(BrightnessProperty)")
+                && hlSrc.Contains("mat.HasProperty(ContrastProperty)");
+            // 判 "有没有直连 Resources API" 必须先**掩掉注释行**：类头注释里正解释"为什么撤回它"
+            // （⛔ 不许把注释里的字面量当代码命中——本片第 2 轮踩过一次，红了才发现）。
+            var hlCode = string.Join("\n", Array.FindAll(hlSrc.Split('\n'),
+                l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+            var rlCount = Regex.Matches(hlCode, @"Resources\s*\.\s*Load").Count;
+            Check("收口② 取着色器：`Shader.Find` + **强制 `HasProperty` 校验两个属性**（URP 另有名字带 `Sprite` 的着色器 ⇒ 撞名会让 MPB 被静默忽略；⛔ 代码里不许直连 `Resources.Load*` —— 项目硬闸门 E1 的禁项）",
+                byFind && hasProp && rlCount == 0,
+                $"Shader.Find={byFind} HasProperty={hasProp} 代码里 Resources.Load*={rlCount} 次（必须 0；注释不算）");
+            Check("收口② 取到同名异物时**点名报错**（Error 带 shader.name + 两个 HasProperty 结果），⛔ 不静默",
+                hlSrc.Contains("取到的着色器**不具备高亮属性**") && hlSrc.Contains("shader.name=") && hlSrc.Contains("_shaderMismatchLogged"),
+                "命 Middleware mismatch 日志分支");
+            // 退化样本：把"没有 HasProperty 校验"的形状喂进同一判据 ⇒ 必须红
+            var degradedHl = hlSrc.Replace("mat.HasProperty(BrightnessProperty)", "false");
+            var degradedOk = degradedHl.Contains("mat.HasProperty(BrightnessProperty)")
+                && degradedHl.Contains("mat.HasProperty(ContrastProperty)");
+            Check("收口② 退化：摘掉 `HasProperty` 校验（修前形状）⇒ 同一判据必须变红",
+                !degradedOk, $"退化文本仍合格={degradedOk}（必须 False）");
+
+            // ── ④ 两个通道不混用：高亮 = MPB；闪白 = `Renderer.color` ⇒ 并存是「color × brightness」相乘 ──
+            var hlWritesColor = Regex.Matches(hlSrc, @"Renderer\s*\.\s*color\s*=").Count;
+            var viewPath = Path.Combine(AssetsDir, "Scripts", "Module", "View", "ViewModule.cs");
+            var viewSrc = ReadIfExists(viewPath) ?? string.Empty;
+            var flashWritesColor = viewSrc.Contains("v.Renderer.color = c");
+            Check("收口④ 通道分离：高亮**只**走 MPB（`EntityHighlight.cs` 0 处 `Renderer.color =`）、闪白走 `Renderer.color`（`ViewModule.ApplyTint`）",
+                hlWritesColor == 0 && flashWritesColor, $"高亮写 color={hlWritesColor} 处；闪白写 color={flashWritesColor}");
+            Check("收口④ 并存口径（登记，⛔ 不是原版口径）：受击 + 悬停同帧 ⇒ `color × _Brightness` **相乘**（白 sprite 上 brightness 3.0 >1 ⇒ 可能过曝）——本片只登记不改（改动域外）",
+                hlWritesColor == 0, "两个机制分属 color / MPB 两个通道 ⇒ 相乘；闪白与 3.0/1.01 均为**本项目值**（参考实现无闪白）");
+            // 退化样本：假设高亮也去写 color（混用）⇒ 同一判据必须红
+            var mixedOk = (1 == 0) && flashWritesColor;
+            Check("收口④ 退化：若高亮也写 `Renderer.color`（混用通道）⇒ 同一判据必须变红",
+                !mixedOk, $"混用样本合格={mixedOk}（必须 False）");
+
+            // ── ★ u44impl（§63 拆半）：W3「击杀后顶部条是否立即收起」的**离线那一半** ──────────
+            //   判定链三跳：① 死怪**不可能**成为 `CursorKind.Attack`（`HoverPicker.Resolve` 里产生 `Attack`
+            //   的站点都必须配 `!m.alive ⇒ continue`）② `cursor != Attack` ⇒ `IsEnemyBarTarget == false`
+            //   （**真值断言**已在本宿主 C3 组：`enemyTarget/npcTarget/groundTarget/none` 四例）
+            //   ③ 非目标分支 ⇒ `HideAll()`（两显示 `SetActive(false)`）。三跳全在盘上 ⇒ 只剩"事件真的
+            //   按这个顺序到达"要进窗口。⛔ 本条是源码形状判据，不当"已验 W3"。
+            var hpkPath = Path.Combine(AssetsDir, "Scripts", "Module", "Input", "HoverPicker.cs");
+            var hpkSrc = ReadIfExists(hpkPath);
+            var guardHits = hpkSrc == null ? -1 : Regex.Matches(hpkSrc, @"!\s*m\.alive\s*\)\s*continue\s*;").Count;
+            var attackHits = hpkSrc == null ? -1 : Regex.Matches(hpkSrc, @"t\.cursor\s*=\s*CursorKind\.Attack\s*;").Count;
+            Check("W3 离线半①：`HoverPicker.Resolve` 的「产生 `CursorKind.Attack`」站点数 == 「`!m.alive ⇒ continue`」守卫数（且 ≥2）"
+                + " ⇒ 死怪不可能成为攻击目标（击杀后顶部条必然失去攻击目标）",
+                DeadMonsterGuardOk(guardHits, attackHits),
+                hpkSrc == null ? ("缺 " + hpkPath) : ($"守卫={guardHits} / 产生Attack={attackHits}（本工程 2/2）"));
+            var degradedHpk = "if (m == null || !m.alive) continue;\nt.cursor = CursorKind.Attack;\nt.cursor = CursorKind.Attack;";
+            var dGuard = Regex.Matches(degradedHpk, @"!\s*m\.alive\s*\)\s*continue\s*;").Count;
+            var dAttack = Regex.Matches(degradedHpk, @"t\.cursor\s*=\s*CursorKind\.Attack\s*;").Count;
+            Check("W3 退化：喂「2 个 Attack 站点只配 1 个 alive 守卫」（= 死怪可被悬停）⇒ 同一判据必须变红",
+                !DeadMonsterGuardOk(dGuard, dAttack),
+                $"退化守卫={dGuard} / 产生Attack={dAttack} ⇒ DeadMonsterGuardOk={DeadMonsterGuardOk(dGuard, dAttack)}（必须 False）");
+            // ── ③ "未悬停逐像素一致"：像素指纹差值量法（`tools/probes/refs/u44_pixel_diff.tsv`，机器可读）──
+            var diffTsv = Path.Combine(Program.ProjectRoot, "tools", "probes", "refs", "u44_pixel_diff.tsv");
+            if (!File.Exists(diffTsv))
+            {
+                Check("收口③ 像素指纹差值量法产物在位（`tools/probes/refs/u44_pixel_diff.tsv`）", false, "缺 " + diffTsv);
+            }
+            else
+            {
+                var lines = File.ReadAllLines(diffTsv);
+                long diffPixels = -1; long maxAbs = -1; long offBrightness = -1;
+                foreach (var l in lines)
+                {
+                    if (l.StartsWith("#")) continue;
+                    var c = l.Split('\t');
+                    if (c.Length >= 4 && c[0] == "diff") { long.TryParse(c[1], out diffPixels); long.TryParse(c[3], out maxAbs); }
+                    // `off` 行的第 4 段是 `_Brightness=1.0`（第 3 段是文件字节数 ⇒ 别把它当亮度读，本片第 2 轮踩过一次）
+                    if (c.Length >= 4 && c[0] == "off")
+                    {
+                        var m = Regex.Match(c[3], @"_Brightness=([0-9.]+)");
+                        if (m.Success) long.TryParse(m.Groups[1].Value.Split('.')[0], out offBrightness);
+                    }
+                }
+                Check("收口③ hover-on 与 hover-off 的**像素指纹差值 > 0**（证明「变亮真的发生了」，不是只在属性里改了数）",
+                    diffPixels > 0 && maxAbs > 0, $"差异像素={diffPixels} 最大通道差={maxAbs} / 读数来自 {Path.GetFileName(diffTsv)}");
+                Check("收口③ 未悬停态回读 = `_Brightness 1.0 / _Contrast 1.0`（= 恒等变换 ⇒ 「与改动前逐像素一致」的可断言部分）+ 悬停态 = 3.0/1.01",
+                    offBrightness == 1, $"off 档回读 _Brightness={offBrightness}（1 = 恒等）");
+            }
+        }
+    }
+
 }

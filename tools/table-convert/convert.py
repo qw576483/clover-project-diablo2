@@ -334,6 +334,15 @@ def build_class():
     s.col("life_per_vit", "float32", "每点体力=生命（官方 LifePerVitality，已 ÷4）")
     s.col("mana_per_mag", "float32", "每点精力=法力（官方 ManaPerMagic，已 ÷4）")
     s.col("stam_per_vit", "float32", "每点体力=耐力（官方 StaminaPerVitality，已 ÷4）")
+    # ★★ U3（2026-09-24，classcols 片）：官方 charstats 的**起始值**三列。
+    #   为什么必须导入：1 级角色的生命/耐力**不是**"起始四维 × 成长系数"，而是
+    #     · 生命 = `hpadd` + 起始体力（官方字段说明：hpadd 与 vit 列相加得起始生命）
+    #     · 耐力 = `stamina` 列（官方字段说明：Starting amount of Stamina）
+    #   ⇒ 缺这两列时运行期拿不到起始截距，只能退化（旧实现就是乘出 60/22/20 的错值）。
+    #   `block_factor` 同理：官方格挡式 `(dex-15)*(toblock+BlockFactor)/(2*clvl)` 里的职业项。
+    s.col("hp_add", "int", "起始生命加成（官方 charstats.hpadd；与起始体力相加 = 1 级生命）")
+    s.col("base_stamina", "int", "起始耐力上限（官方 charstats.stamina）")
+    s.col("block_factor", "int", "职业格挡系数（官方 charstats.BlockFactor）")
     s.col("to_hit_factor", "int", "命中修正（官方 ToHitFactor）")
     s.col("walk_velocity", "int", "行走速度（官方 WalkVelocity）")
     s.col("run_velocity", "int", "奔跑速度（官方 RunVelocity）")
@@ -350,6 +359,7 @@ def build_class():
               as_int(r, "StatPerLevel"),
               div4(r, "LifePerLevel"), div4(r, "ManaPerLevel"), div4(r, "StaminaPerLevel"),
               div4(r, "LifePerVitality"), div4(r, "ManaPerMagic"), div4(r, "StaminaPerVitality"),
+              as_int(r, "hpadd"), as_int(r, "stamina"), as_int(r, "BlockFactor"),
               as_int(r, "ToHitFactor"), as_int(r, "WalkVelocity"), as_int(r, "RunVelocity"),
               col(r, "StartSkill"))
         if col(r, "StartSkill") == "":

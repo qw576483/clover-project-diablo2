@@ -9,9 +9,10 @@
 //   · 物品 DTO = `Def.ItemStack`（名称/词缀/伤害/防御/需求/耐久/售价**全在里面**，
 //     所以 tooltip **不需要任何模块门面**，UI 层零耦合）；
 //   · 鼠标坐标 = `Game.Input.MousePosition`（屏幕坐标，`docs/步骤文档.md` §3.3，
-//     ⛔ 禁止直连 `UnityEngine.Input`）；屏幕 → Canvas 局部换算沿用引擎 `FloatTextLayer`
-//     的同一口径（`RectTransformUtility.ScreenPointToLocalPointInRectangle`，相机传 null
-//     因为引擎的 Canvas 是 ScreenSpaceOverlay，见 `Runtime/Presentation/UI.cs:49`）。
+//     ⛔ 禁止直连 `UnityEngine.Input`）；屏幕 → Canvas 局部换算 / 贴边翻转 / 显隐 / 复用**已下沉到引擎**
+//     `CloverEngine.PointerFloatLayer`（`CursorOffsetX/Y` = 22 / -18 与定位契约见
+//     `clover-client-unity-engine/Runtime/Presentation/PointerFloatLayer.cs`）——
+//     本文件只留 "D2 的物品文本怎么排版 / 怎么配色"（品质色、字模、行数测量）。
 //
 // 非 MonoBehaviour：由 `InventoryPanel` / `ShopPanel` 持有，在 `OnUpdate(dt)` 里 `Tick()`
 //（`UIPanel.OnUpdate` 由引擎 `UIManager.Tick` 驱动，见 `Runtime/Presentation/UI.cs:293-318`）。
@@ -107,16 +108,19 @@ namespace Diablo2.UI
         /// <summary>标题与正文之间的留白（单行标题时 `Padding+TitleLine+Gap` = 38 = 改动前的旧值，布局不变）。</summary>
         private const float GapUnderTitle = 2f;
 
-        private const float CursorOffsetX = 22f;
-        private const float CursorOffsetY = -18f;
+        // ⛔ 改动前的 `CursorOffsetX = 22f` / `CursorOffsetY = -18f` 已删除：这两个值下沉到引擎
+        //   `PointerFloatPlacement.DefaultCursorOffsetX/Y`（**唯一真源**）。项目侧再存一份 ⇒ 迟早漂移
+        //   （根因记录见 `Runtime/Presentation/UIWidgetControls.cs` 文件头"两份默认值悄悄分歧"同款）。
 
+        /// <summary>浮层容器（**引擎件**）：定位 / 显隐 / 复用都由它管；本文件只往 <see cref="_root"/> 里塞内容。</summary>
+        private readonly PointerFloatLayer _layer;
+
+        /// <summary>内容宿主（= <see cref="_layer"/> 的 `Content`；pivot = 左上角 ⇒ 从指针右下展开）。</summary>
         private readonly RectTransform _root;
-        private readonly RectTransform _canvas;
+
         private readonly Image _bg;
         private Text _title;
         private Text _body;
-        private bool _visible;
-        private bool _warnedNoInput;
 
         /// <summary>
         /// 上一次已打过日志的「物品指纹」（`itemId|品质|名字|数量|词缀`）。
@@ -125,15 +129,15 @@ namespace Diablo2.UI
         /// </summary>
         private string _loggedKey;
 
-        private ItemTooltip(RectTransform root, RectTransform canvas, Image bg)
+        private ItemTooltip(PointerFloatLayer layer, Image bg)
         {
-            _root = root;
-            _canvas = canvas;
+            _layer = layer;
+            _root = layer.Content;      // 内容宿主（pivot 左上，引擎已设好）
             _bg = bg;
         }
 
-        /// <summary>是否正在显示。</summary>
-        public bool IsVisible => _visible;
+        /// <summary>是否正在显示（真源在引擎容器的显隐态上，本项目不再自己存一份）。</summary>
+        public bool IsVisible => _layer != null && _layer.IsVisible;
 
         /// <summary>
         /// ★ dialog-options（2026-09-24）：tooltip **该不该可见**的唯一判据（纯函数 ⇒ 离线可断言）。
@@ -151,10 +155,18 @@ namespace Diablo2.UI
         /// 在 <paramref name="parent"/> 下造一个 tooltip（默认隐藏）。
         /// <paramref name="parent"/> 用面板根（铺满父层）即可 —— 位置按 Canvas 局部坐标算。
         /// </summary>
+        /// <remarks>
+        /// 容器 / 定位 / 显隐 / 复用**全是引擎件** <see cref="PointerFloatLayer"/> 的事：
+        /// 它建出"轴心 = 左上角"的空宿主、自己找画布与换算相机（Overlay ⇒ null）、
+        /// 每帧按 `Game.Input.MousePosition` 摆位并做贴边翻转。
+        /// <para>节点名仍是 <c>ItemTooltip</c>：既有实机驱动按名字 Find 它（`.ai-tmp/drivers/uifix*_dump.cs`）。
+        /// 画布取不到的降频留痕也由引擎件负责（tag = <c>PointerFloat</c>）。</para>
+        /// </remarks>
         public static ItemTooltip Create(Transform parent)
         {
-            var root = UIFactory.CreateCentered("ItemTooltip", parent, new Vector2(Width, 120f), Vector2.zero);
-            root.pivot = new Vector2(0f, 1f);            // 左上角为锚：从鼠标右下方向展开（原版手感）
+            // 初始尺寸交给引擎件：Create 建的是零尺寸宿主，真实尺寸每次 `Show` 由 `SetSize` 写入
+            var layer = PointerFloatLayer.Create(parent, "ItemTooltip");
+            var root = layer.Content;
 
             var bg = UiArt.Panel(root, "Bg", new Vector2(Width, 120f), Vector2.zero, UiArt.PanelBg, false);
             bg.rectTransform.anchorMin = Vector2.zero;
@@ -162,15 +174,9 @@ namespace Diablo2.UI
             bg.rectTransform.offsetMin = Vector2.zero;
             bg.rectTransform.offsetMax = Vector2.zero;
 
-            var canvas = root.GetComponentInParent<Canvas>();
-            if (canvas == null)
-                UiLog.WarnOnce("tooltip.canvas.missing",
-                    "ItemTooltip 找不到所属 Canvas ⇒ 位置换算退化为固定点（tooltip 仍可用，但不跟随鼠标）");
-
-            var tooltip = new ItemTooltip(root, canvas != null ? canvas.transform as RectTransform : null, bg);
+            var tooltip = new ItemTooltip(layer, bg);
             tooltip.BuildTexts();
-            root.gameObject.SetActive(false);
-            return tooltip;
+            return tooltip;     // Create 内部已把宿主 SetActive(false)
         }
 
         private void BuildTexts()
@@ -252,69 +258,30 @@ namespace Diablo2.UI
 
             // 高度 = 标题（可能多行）+ 正文行数 × 行高 + 上下留白（单行标题时与改动前完全相同）
             var height = Padding * 2f + titleH + GapUnderTitle + lines.Count * BodyLine;
-            _root.sizeDelta = new Vector2(Width, height);
-            if (_bg != null) _bg.rectTransform.sizeDelta = new Vector2(Width, height);
+            // 尺寸交给引擎容器（它负责把 `sizeDelta` 写进宿主，并据此做贴边翻转）
+            _layer.SetSize(new Vector2(Width, height));
+            // ★ 本轮修（同族已知缺陷，与用户报的「描述框超出边界」同源）：
+            //   底板 Bg 的锚点是**铺满**（`anchorMin=0 / anchorMax=1` + 四边 offset 0）⇒ 它的 `sizeDelta`
+            //   应当恒为 0（= 与宿主严格等大）。改动前这里写的是 `(Width, height)` —— 在铺满锚点下那表示
+            //   **比宿主再大一圈**（左右各多 `Width/2`、上下各多 `height/2`），实机表现为底板溢出到浮层外。
+            if (_bg != null) _bg.rectTransform.sizeDelta = Vector2.zero;
 
-            _root.gameObject.SetActive(true);
-            _visible = true;
-            Tick();      // 立刻摆到鼠标处，避免第一帧从旧位置飞过来
+            // 显示 + 立刻摆到鼠标处（避免第一帧从旧位置飞过来）：引擎容器内部就是"SetActive(true) + Tick"
+            _layer.Show();
         }
 
-        /// <summary>隐藏。</summary>
-        public void Hide()
-        {
-            _visible = false;
-            if (_root != null) _root.gameObject.SetActive(false);
-        }
+        /// <summary>隐藏（节点保留，下次 <see cref="Show"/> 复用）。</summary>
+        public void Hide() => _layer.Hide();
 
-        /// <summary>每帧跟随鼠标（由面板 `OnUpdate` 驱动）。</summary>
-        public void Tick()
-        {
-            if (!_visible || _root == null || _canvas == null) return;
-
-            if (Game.Input == null)
-            {
-                if (!_warnedNoInput)
-                {
-                    _warnedNoInput = true;
-                    UiLog.Warn("Game.Input 未挂载（CloverInput.Init 未调用）⇒ tooltip 不跟随鼠标（停在最后位置）");
-                }
-                return;
-            }
-
-            var screen = Game.Input.MousePosition;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _canvas, new Vector2(screen.x, screen.y), null, out var local))
-            {
-                UiLog.WarnOnce("tooltip.convert.fail", "屏幕点换算到 Canvas 局部坐标失败 ⇒ tooltip 位置不更新");
-                return;
-            }
-
-            var rect = _canvas.rect;
-
-            // ★ U4 修（用户报「背包里道具描述框也乱七八糟」）：
-            //   旧代码里 `halfW/halfH` 取的是 `sizeDelta`（**整宽/整高**），却被当"半宽/半高"用
-            //   ⇒ 贴边回收判据提前了整整一半尺寸：指针一进画布右侧/下侧 320px 内就把框**翻到左侧/上方**
-            //   （看起来"框乱跳、挡住别的格"）。这里改成真正的半尺寸。
-            var halfW = _root.sizeDelta.x * 0.5f;
-            var halfH = _root.sizeDelta.y * 0.5f;
-            var x = local.x + CursorOffsetX;
-            var y = local.y + CursorOffsetY;
-
-            // 贴边回收：超出画布就翻到另一侧（原版鼠标贴近右下角时 tooltip 会翻到左上）
-            if (x + halfW > rect.xMax - 4f) x = local.x - halfW - 8f;
-            if (y - halfH < rect.yMin + 4f) y = local.y + halfH + 8f;
-
-            _root.anchoredPosition = new Vector2(x, y);
-        }
+        /// <summary>
+        /// 每帧跟随鼠标（由面板 `OnUpdate` 驱动）。
+        /// <para>定位全在引擎容器里：`Game.Input.MousePosition` → 画布局部点（按画布模式取相机）→
+        /// 贴边**关于指针镜像**翻转 → 夹进画布。本方法只做转发（⛔ 项目侧不再自己算一遍）。</para>
+        /// </summary>
+        public void Tick() => _layer.Tick();
 
         /// <summary>销毁（面板关闭时调用）。</summary>
-        public void Destroy()
-        {
-            _visible = false;
-            if (_root != null)
-                UnityEngine.Object.Destroy(_root.gameObject);
-        }
+        public void Destroy() => _layer.Destroy();
 
         // ── 日志（验收表 #34 的证据行）──────────────────────────────────────────
         /// <summary>
