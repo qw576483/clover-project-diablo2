@@ -135,7 +135,7 @@
 
 ## 覆盖率闸门：`tools/verify.ps1` 第 25~29 项（T0 穷举覆盖）
 
-> 依据 `patterns/full-coverage-audit.md` §7 + `scaffold/coverage-matrix.md`。这 5 项原先只写在**提示词**里
+> （历史注：原先依据的 skill 文件 `patterns/full-coverage-audit.md` / `scaffold/coverage-matrix.md` 已于 2026-09-24 随"验收为辅"精简删除；本节保留为历史记录。）这 5 项原先只写在**提示词**里
 > ⇒ 结构上永远不会被执行；现在落成闸门里**能测红**的条目（SKILL §0.5「提示词是请求，闸门才是保证」）。
 > 列名按派活契约：`策划/实体清单.tsv`（维度/实体/载体·路径/出处/状态数/判据类型/归属片）、
 > `策划/状态矩阵.tsv`（维度/实体/状态·事件/边界值/期望表现(出处)/实测/结论/证据）、

@@ -1,8 +1,0 @@
-# 原版按钮底图「石牌亮度」实测（**生成物，不要手改**）
-# 生成命令：python tools/probes/measure/btn_plate_luma.py
-# 量法：内区 x 22%..78% / y 25%..75%（避开金色雕花外框与两侧宝石），只统计 alpha>200 的像素；
-#       亮度 = sRGB 相对亮度 0.2126R+0.7152G+0.0722B（分量 0..1，未做 gamma 线性化）
-# 列：art 	 mean_srgb 	 median_srgb 	 p90_srgb 	 pixels
-art	mean_srgb	median_srgb	p90_srgb	pixels
-D2/UI/Menu/btn_med_normal.png	0.376	0.361	0.460	1278
-D2/UI/Menu/btn_wide_normal.png	0.370	0.361	0.439	2754

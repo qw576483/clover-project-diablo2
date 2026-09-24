@@ -5,50 +5,51 @@
 #
 # CUT DOWN 2026-09-24 (team-lead ruling): this file used to carry ~40 items over
 # 2655 lines and took ~277 s, most of it re-proving things that a reader settles
-# with one look.  A judge survives only if it has caught a REAL defect.  Kept:
+# with one look.  Then the "gate trim" of 2026-09-24 cut it again: the gate is now
+# the THREE REQUIREMENTS a machine has to settle -- (1) a REAL build, (2) delivery
+# hygiene, (3) references reachable incl. image freshness -- plus sampler-selfcheck,
+# which is the precondition that the gate's own scripts are parseable at all.
+# Kept:
 #
 #   01 stray-temp-files    one-off / backup artifacts must not live in the project
 #                          tree (caught: *.bak products of the s-docs pass landed in
 #                          ce hua/ and client/ and rode along in a commit -- the very
 #                          failure SKILL 3 item 5 names)
-#   02 hard-rules          Debug.Log / PlayerPrefs / GameObject.Find / Instantiate(
-#                          / bare Input. / Resources.Load outside the E1 registry
-#   03 reference-table     ce hua/dui zhao biao.md: six 1:1 dims, every row
-#                          original | ours | delta, delta = 0 or a registry id,
-#                          and no fuzzy wording ("ji ben yi zhi" is not a delta)
-#   04 screenshot-refs     every Screenshots/<file> the acceptance table cites
+#   02 screenshot-refs     every Screenshots/<file> the acceptance table cites
 #                          resolves on disk (a citation pointing at a moved file
 #                          reads exactly like a live one until a machine checks).
 #                          It also prints path-reachability:reference-pictures --
 #                          the reference-side picture citations, same rule
-#   05 evidence-freshness  the evidence a row cites must be NEWER than the sources
+#   03 evidence-freshness  the evidence a row cites must be NEWER than the sources
 #                          that row observes -- machine-only judgement, since a
 #                          stale screenshot looks identical to a fresh one.  It
 #                          also prints freshness:u1-rows for the U-1 runtime-log
 #                          rows, whose names are read from the row, never pinned
-#   06 engine-credit       the live-UI label text carries "by clover-engine"
-#                          verbatim (a source grep cannot see a pixel font that
-#                          upper-cases it to BY CLOVER-ENGINE)
-#   07 sampler-selfcheck   every .ps1/.psm1 under the repo parses, and a file with
+#   04 sampler-selfcheck   every .ps1/.psm1 under the repo parses, and a file with
 #                          non-ASCII bytes carries a UTF-8 BOM (PS 5.1 decodes a
 #                          BOM-less non-ASCII file as ANSI: quotes get eaten and
 #                          the whole script dies while an OLD log still looks
 #                          like this run's output)
-#   08 compile             the Unity assembly recompiles clean; needs a running
+#   05 compile             the Unity assembly recompiles clean; needs a running
 #                          Editor -- with no Pipeline instance it reports
 #                          HUMAN-ONLY at once instead of a 120 s red wall
-#   09 offline-hosts       dotnet builds + runs every tools/probes/hosts/*check
+#   06 offline-hosts       dotnet builds + runs every tools/probes/hosts/*check
 #                          (offline, no Editor): a real compile of the client
 #                          sources.  Caught uicheck's Band2Right overflow --
 #                          "jing yan cur/next" needs 152 art inside 99 availPx
-#   10 d2codec:panels-pixels  project panel PNGs == an independent DC6+PL2 decode,
-#                          judged per frame on RGBA (0 mismatch required)
 #
 # Verdicts: PASS / FAIL / HUMAN-ONLY.  FAIL = fix it before anyone says "done";
 # HUMAN-ONLY = only a human / multimodal reader can settle it.
 #
-# Deleted in the same pass, with the reason: the coverage-matrix family (items
-# 25..29 -- 4971 matrix rows re-deriving what the manifest already states), the
+# Removed by the 2026-09-24 gate trim: hard-rules (the Debug.Log / PlayerPrefs /
+# GameObject.Find / Instantiate( / bare Input. / Resources.Load greps -- the bans
+# still stand, they are simply no longer machine-checked), reference-table (the
+# six 1:1 dimensions, the per-row original|ours|delta audit and the fuzzy-wording
+# scan), engine-credit (the rendered "by clover-engine" line), and
+# d2codec:panels-pixels (per-frame RGBA of the panel PNGs against an independent
+# DC6+PL2 decode).
+# Deleted earlier in the same day: the coverage-matrix family (items 25..29 -- 4971
+# matrix rows re-deriving what the manifest already states), the
 # summary/self-consistency family (row counts, summary text == row counts, registry
 # row-by-row cross-check), impl-by-executor and no-sync-subagents (dispatch-ledger
 # column audits), runner-static-traps and its c5 fixtures, the always-true-asserts
@@ -56,7 +57,7 @@
 # engine-issues.  Nothing here is "planned": a planned item always comes back.
 #
 # NOT ASCII-only on purpose: this file carries CJK in COMMENTS, so it MUST keep its
-# UTF-8 BOM -- item 07 flags exactly that.  Non-ASCII paths / words in CODE are
+# UTF-8 BOM -- item 04 flags exactly that.  Non-ASCII paths / words in CODE are
 # built from code points.
 # =============================================================================
 $ErrorActionPreference = 'Continue'
@@ -78,47 +79,16 @@ function Lines-Of([string]$p) {
     if (-not (Test-Path $p)) { return @() }
     return [System.IO.File]::ReadAllLines($p, [System.Text.Encoding]::UTF8)
 }
-# line numbers (1-based) whose text matches $re ; $skipComment drops // /// and * lines
-# ⚠️ 用 [regex]::IsMatch(...,'None') = **区分大小写**：PowerShell 的 `-match` 默认不区分大小写，
-#    会把 `input.targetGraphic` 这种局部变量名当成"裸 Input."（实测：54 条假阳性）。
-#    要忽略大小写就在模式里自己写 `(?i)`。
-function Grep([string]$p, [string]$re, [switch]$skipComment) {
-    $out = @()
-    $lines = Lines-Of $p
-    for ($i = 0; $i -lt $lines.Length; $i++) {
-        $t = $lines[$i]
-        if ($skipComment -and $t -match '^\s*(//|///|\*)') { continue }
-        if ([regex]::IsMatch($t, $re, [System.Text.RegularExpressions.RegexOptions]::None)) { $out += ($i + 1) }
-    }
-    return $out
-}
 function Cps([int[]]$codes) { return ([char[]]$codes -join '') }
 
-# -- non-ASCII names / words, built from code points (keeps this file ASCII) ----
+# -- non-ASCII names / words, built from code points (keeps CODE ASCII) --------
 $planDir   = Join-Path $root (Cps @(0x7B56, 0x5212))                                  # ce hua
-$cmpDir    = Join-Path $planDir (Cps @(0x81EA, 0x5BA1, 0x5BF9, 0x6BD4))               # zi shen dui bi
 $spec      = Join-Path $planDir ((Cps @(0x9A8C, 0x6536, 0x8868)) + '.md')             # yan shou biao
 $refDir    = Join-Path $root (Cps @(0x539F, 0x7248, 0x8D44, 0x6E90))                  # yuan ban zi yuan
 $refPicDir = Join-Path $refDir (Cps @(0x53C2, 0x8003, 0x56FE))                        # can kao tu
-$cNumeric  = Cps @(0x6570, 0x503C, 0x7C7B)                                            # shu zhi lei
-$cVisual   = Cps @(0x8868, 0x73B0, 0x7C7B)                                            # biao xian lei
-$cPerf     = Cps @(0x6027, 0x80FD, 0x7C7B)                                            # xing neng lei
-$cCategory = Cps @(0x7C7B, 0x522B)                                                    # lei bie
-$cProgress = Cps @(0x8FDB, 0x5EA6)                                                    # jin du
-$cHandoff  = Cps @(0x4EA4, 0x63A5)                                                    # jiao jie
-$cPass     = Cps @(0x901A, 0x8FC7)                                                    # tong guo
-$cMismatch = Cps @(0x4E0D, 0x4E00, 0x81F4)                                            # bu yi zhi
-$cReferTu  = Cps @(0x53C2, 0x8003, 0x56FE)                                            # can kao tu
-$cYuanBan  = Cps @(0x539F, 0x7248, 0x8D44, 0x6E90)                                    # yuan ban zi yuan
-$cPlanNm   = Cps @(0x7B56, 0x5212)
-$cUnfixed  = Cps @(0x672A, 0x4FEE)                                                    # wei xiu (unfixed) -- acceptance-table bucket
-$cUnfixedV = $cUnfixed + '(' + (Cps @(0x7F3A, 0x9677)) + ')'                           # wei xiu (que xian) -- the 4th legal matrix verdict                                                    # ce hua
 
 $client   = Join-Path $root 'client'
-$scripts  = Join-Path $client 'Assets\Scripts'
 $shots    = Join-Path $root '.ai-tmp\screenshots'
-$cfgDir   = Join-Path $client 'Assets\Configs'
-$setDir   = Join-Path $client 'setting'
 $tmpDir   = Join-Path $root '.ai-tmp'
 $hostsDir = Join-Path $tmpDir 'hosts'
 $testDir  = Join-Path $tmpDir 'test'
@@ -145,15 +115,6 @@ function Adjudicated([string]$checkName) { return $adj.ContainsKey($checkName) }
 # -----------------------------------------------------------------------------
 # inputs shared by the surviving items (hoisted out of the deleted blocks)
 # -----------------------------------------------------------------------------
-$env:PYTHONDONTWRITEBYTECODE = '1'                        # a verifier must not dirty the checkout it verifies
-# python child output must be decoded as UTF-8: with the local code page the CJK
-# statistics line of the panels judge comes back as mojibake and its CJK pattern
-# silently stops matching (measured 2026-09-24 -- the item went red on its own
-# read-back, not on the assets).
-try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
-$env:PYTHONIOENCODING = 'utf-8'
-$py = Get-Command python -ErrorAction SilentlyContinue
-$cMismatchWord = Cps @(0x4E0D, 0x4E00, 0x81F4)            # bu yi zhi
 $specText = Read-Text $spec                               # the acceptance table, read once
 # -----------------------------------------------------------------------------
 # 01 stray-temp-files: no one-off artifact outside .ai-tmp/test -- the criterion is about
@@ -208,127 +169,7 @@ if ($strayBad.Count -eq 0 -and $bakStray.Count -eq 0) {
 }
 
 # -----------------------------------------------------------------------------
-# 02 hard-rules (SKILL 1.11 item 2)
-# -----------------------------------------------------------------------------
-# "bare Input." = legacy UnityEngine.Input used directly. Correctly *excludes* the legal
-# wrappers (`Game.Input.` / `_input.` / `CloverInput.`) and any local variable named `input`
-# (case-sensitive match; see Grep). Direct `UnityEngine.Input.` is always a hit.
-$hardZero = @('Debug\.Log', 'PlayerPrefs', 'GameObject\.Find', 'FindObjectOfType', 'Instantiate\(',
-              'UnityEngine\.Input\.|(?<![A-Za-z0-9_\.])Input\.')
-$hardHits = @()
-foreach ($re in $hardZero) {
-    foreach ($f in @(Get-ChildItem $scripts -Recurse -Filter *.cs -ErrorAction SilentlyContinue)) {
-        foreach ($ln in @(Grep $f.FullName $re -skipComment)) {
-            $hardHits += ($f.FullName.Substring($root.Length + 1) + ':' + $ln + ' (' + $re + ')')
-        }
-    }
-}
-if ($hardHits.Count -eq 0) {
-    Say 'PASS' 'hard-rules' ('0 hit for ' + ($hardZero -join ' / '))
-} else {
-    Say 'FAIL' 'hard-rules' "$($hardHits.Count) hit(s) for the must-be-zero patterns"
-    $hardHits | ForEach-Object { Write-Output ('            ' + $_) }
-}
-
-# Resources.Load is allowed ONLY inside the files registered as exception E1.
-$resHits = @()
-foreach ($f in @(Get-ChildItem $scripts -Recurse -Filter *.cs -ErrorAction SilentlyContinue)) {
-    foreach ($ln in @(Grep $f.FullName 'Resources\.Load' -skipComment)) {
-        $resHits += [pscustomobject]@{ File = $f.Name; Rel = $f.FullName.Substring($root.Length + 1); Line = $ln }
-    }
-}
-$e1Row = ''
-foreach ($ln in @(Lines-Of $spec)) { if ($ln -match '^\|\s*\*?\*?E1\*?\*?\s*\|') { $e1Row = $ln; break } }
-$e1Files = @()
-if ($e1Row.Length -gt 0) {
-    foreach ($m in [regex]::Matches($e1Row, '([A-Za-z0-9_]+\.cs)')) { $e1Files += $m.Groups[1].Value }
-    $e1Files = @($e1Files | Sort-Object -Unique)
-}
-$resBad = @($resHits | Where-Object { $e1Files -notcontains $_.File })
-if ($resBad.Count -eq 0) {
-    Say 'PASS' 'hard-rules:Resources.Load' ("$($resHits.Count) hit(s), all inside the E1-registered files [" + ($e1Files -join ', ') + ']')
-} else {
-    Say 'FAIL' 'hard-rules:Resources.Load' "$($resBad.Count) hit(s) outside the E1 registry"
-    $resBad | ForEach-Object { Write-Output ('            ' + $_.Rel + ':' + $_.Line) }
-}
-# -----------------------------------------------------------------------------
-# 03 reference-table (SKILL 5): ce hua/dui zhao biao.md -- the six 1:1 hard-standard
-#     dimensions, every row "yuan ban zhi | wo men de zhi | cha zhi", with cha zhi in
-#     {0} U (registry ids from ce hua/cha yi deng ji.tsv), each dim >= 1 row, every row's
-#     three value columns non-empty, and NO fuzzy wording anywhere (SKILL 0.1 (2): those
-#     phrases ARE "not done").  ⛔ not adjudicable; a missing file FAILs.
-# -----------------------------------------------------------------------------
-$nmParity   = (Cps @(0x7B56, 0x5212)) + '/' + (Cps @(0x5BF9, 0x7167, 0x8868)) + '.md'   # ce hua/dui zhao biao.md
-$parityPath = Join-Path $planDir ((Cps @(0x5BF9, 0x7167, 0x8868)) + '.md')
-$diffNmLoc  = Join-Path $planDir ((Cps @(0x5DEE, 0x5F02, 0x767B, 0x8BB0)) + '.tsv')       # ce hua/cha yi deng ji.tsv
-$cDims = @(
-    (Cps @(0x5E03, 0x5C40, 0x6309, 0x539F, 0x7248, 0x50CF, 0x7D20)),                  # bu ju an yuan ban xiang su
-    ((Cps @(0x7D20, 0x6750, 0x5FC5, 0x987B)) + ' A ' + (Cps @(0x539F, 0x7248))),       # su cai bi xu A yuan ban
-    (Cps @(0x5B57, 0x4F53, 0x7167, 0x539F, 0x7248)),                                  # zi ti zhao yuan ban
-    (Cps @(0x8272, 0x8C03, 0x4E0D, 0x52A0, 0x6EE4, 0x955C)),                           # se diao bu jia lv jing
-    (Cps @(0x4EA4, 0x4E92, 0x53CD, 0x9988)),                                           # jiao hu fan kui
-    (Cps @(0x8282, 0x594F))                                                            # jie zou
-)
-$fuzzy = @(
-    (Cps @(0x57FA, 0x672C, 0x4E00, 0x81F4)),                                           # ji ben yi zhi
-    (Cps @(0x5927, 0x81F4, 0x50CF)),                                                  # da zhi xiang
-    (Cps @(0x7565, 0x6709, 0x5DEE, 0x5F02)),                                           # lue you cha yi
-    (Cps @(0x540E, 0x7EED, 0x53EF, 0x4F18, 0x5316))                                     # hou xu ke you hua
-)
-# leading registry ids (E + digits) of ce hua/cha yi deng ji.tsv -- read locally, since the
-# coverage block (which also reads it) is defined much further down.
-$regBase = @{}
-if (Test-Path $diffNmLoc) {
-    foreach ($nl in @(Lines-Of $diffNmLoc)) {
-        $rm = [regex]::Match($nl, '^\s*\*{0,2}(E[0-9]+)')
-        if ($rm.Success) { $regBase[$rm.Groups[1].Value] = 1 }
-    }
-}
-if (-not (Test-Path $parityPath)) {
-    Say 'FAIL' 'reference-table' ('missing: ' + $nmParity + ' -- the six 1:1 dimensions have no table (SKILL 5); this item is NOT adjudicable')
-} elseif ($regBase.Count -eq 0) {
-    Say 'FAIL' 'reference-table' ('no registry id could be read from ' + $diffNmLoc + ' -- the cha-zhi column cannot be judged')
-} else {
-    $pLines = @(Lines-Of $parityPath)
-    $ppi = @()
-    $fi = 0
-    foreach ($ln in $pLines) {
-        $fi++
-        foreach ($w in $fuzzy) { if ($ln.Contains($w)) { $ppi += ('fuzzy-wording L' + $fi) } }
-    }
-    foreach ($d in $cDims) {
-        $dRows = @()
-        $di = 0
-        foreach ($ln in $pLines) {
-            $di++
-            if ($ln -match ('^\|\s*' + [regex]::Escape($d) + '\s*\|')) { $dRows += [pscustomobject]@{ Line = $di; Text = $ln } }
-        }
-        if ($dRows.Count -eq 0) { $ppi += ('dim-with-no-row: ' + $d); continue }
-        foreach ($r in $dRows) {
-            $cells = @(($r.Text.TrimEnd().TrimEnd('|') -split '\|'))
-            if ($cells.Count -lt 5) { $ppi += ('row-too-short L' + $r.Line); continue }
-            $orig = ('' + $cells[2]).Trim()
-            $ours = ('' + $cells[3]).Trim()
-            $diff = ('' + $cells[4]).Trim()
-            if ($orig.Length -eq 0) { $ppi += ('empty-yuan-ban-value L' + $r.Line) }
-            if ($ours.Length -eq 0) { $ppi += ('empty-our-value L' + $r.Line) }
-            if ($diff.Length -eq 0) { $ppi += ('empty-cha-zhi L' + $r.Line) }
-            elseif ($diff -ne '0') {
-                $dm = [regex]::Match($diff, '^E[0-9]+')
-                if (-not $dm.Success) { $ppi += ('cha-zhi-not-0-or-registry-id L' + $r.Line + ' [' + $diff + ']') }
-                elseif (-not $regBase.ContainsKey($dm.Value)) { $ppi += ('cha-zhi-unknown-registry-id L' + $r.Line + ' [' + $diff + ']') }
-            }
-        }
-    }
-    if ($ppi.Count -eq 0) {
-        Say 'PASS' 'reference-table' ('6 dim(s), each >= 1 row ; every row has 3 non-empty value col(s) ; cha-zhi = 0 or a registry id in ' + $diffNmLoc + ' ; 0 fuzzy wording')
-    } else {
-        Say 'FAIL' 'reference-table' ($ppi.Count.ToString() + ' problem(s): ' + ((@($ppi | Select-Object -First 12)) -join ' ; '))
-    }
-}
-
-# -----------------------------------------------------------------------------
-# 04 screenshot-refs -- every Screenshots/<file> cited by the table resolves
+# 02 screenshot-refs -- every Screenshots/<file> cited by the table resolves
 # -----------------------------------------------------------------------------
 if ($specText -ne $null) {
     # 只认**完整文件名**（必须带 .png/.txt 后缀）——否则会把表格里的简写/范围写法
@@ -427,9 +268,9 @@ if ($specText -ne $null) {
 }
 
 # -----------------------------------------------------------------------------
-# 05 evidence-freshness for the rows THIS pass changed -- **row-scoped**
+# 03 evidence-freshness for the rows THIS pass changed -- **row-scoped**
 #    (SKILL 1.13 batch rule: a code change only invalidates the rows it really affects.
-#     The blunt "every screenshot vs newest source" version was item 09 -- deleted in the 2026-09-24 gate cut; only this row-scoped judge survives.)
+#     The blunt "every screenshot vs newest source" version was a separate judge -- deleted in the 2026-09-24 gate cut; only this row-scoped judge survives.)
 #
 #    U-2 (attack trio) = 表现类 -> the evidence must be newer than the files whose
 #         behaviour it observes.
@@ -455,17 +296,6 @@ function Newest-Of([string[]]$rels) {
         if ($t -eq $null -or $lt -gt $t) { $t = $lt }
     }
     return $t
-}
-# Editor.log is held open by the Editor -> plain reads throw; open with FileShare.ReadWrite
-function Read-Shared([string]$p) {
-    if (-not (Test-Path $p)) { return $null }
-    try {
-        $fs = New-Object System.IO.FileStream($p, [System.IO.FileMode]::Open,
-              [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
-        $sr = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8)
-        $txt = $sr.ReadToEnd(); $sr.Close(); $fs.Close()
-        return $txt
-    } catch { return $null }
 }
 
 # -- row-scoped evidence names: resolved from the acceptance table, never hard-coded -----
@@ -578,33 +408,8 @@ if ($u1Newest -eq $null) {
     }
 }
 
-$newestCode = Get-ChildItem $scripts -Recurse -Filter *.cs -ErrorAction SilentlyContinue |
-              Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
 # -----------------------------------------------------------------------------
-# 06 engine-credit -- the credit is judged on the RENDERED text, never on a source grep
-#    (SKILL 6 item 9: "the source has it" is not "the screen shows it").  HALF of it is
-#    machine-checkable offline: the text read back from the LIVE UI label, which a
-#    real-device probe writes to tools/probes/refs/engine_credit.txt.  The other half --
-#    "is that line on the first screen, at that size / colour / case" -- is a rendered
-#    judgement and stays HUMAN-ONLY.  The old engine-selfname item was a source grep
-#    over 201 files (HUMAN-ONLY forever, and it could not tell an alias from the real
-#    name); it is REPLACED, not relaxed, by this item.
-# -----------------------------------------------------------------------------
-$creditArt = Join-Path $root 'tools\probes\refs\engine_credit.txt'
-if (-not (Test-Path $creditArt)) {
-    Say 'HUMAN-ONLY' 'engine-credit' ('no runtime text read-back at ' + $creditArt + ' -- the credit label must be read from the live UI node tree; the rendered half (first screen / size / colour) is HUMAN-ONLY')
-} else {
-    $ct = [System.IO.File]::ReadAllText($creditArt, [System.Text.Encoding]::UTF8)
-    if ($ct.Contains('by clover-engine')) {
-        Say 'PASS' 'engine-credit' 'runtime label text carries "by clover-engine" verbatim (its placement / font / case on the first screen is still HUMAN-ONLY)'
-    } else {
-        Say 'FAIL' 'engine-credit' 'runtime label text does NOT carry "by clover-engine" verbatim -- a wrong alias or case (a pixel font upper-cases it to BY CLOVER-ENGINE) is a violation'
-    }
-}
-
-# -----------------------------------------------------------------------------
-# 07 sampler-selfcheck (SKILL 1.13 item 5): .ps1 syntax + ANSI trap
+# 04 sampler-selfcheck (SKILL 1.13 item 5): .ps1 syntax + ANSI trap
 # -----------------------------------------------------------------------------
 $badPs = @()
 $psRoots = @()
@@ -630,14 +435,14 @@ if ($badPs.Count -eq 0) { Say 'PASS' 'sampler-selfcheck' 'scripts under the repo
 else { Say 'FAIL' 'sampler-selfcheck' ($badPs -join '; ') }
 
 # -----------------------------------------------------------------------------
-# 08 compile -- the assembly must build before anything else is worth believing.
+# 05 compile -- the assembly must build before anything else is worth believing.
 #    The Editor-side recompile is the only true compile entry point.  With no
 #    Editor attached the unity CLI answers COMMAND_FAILED ("No Pipeline instance
 #    found for project"): that is neither a build failure nor a pass.  The old
 #    version polled recompile_status 60 times with a 2 s sleep (a 120 s red wall)
 #    and piped the empty answer into Out-String, which bound $null to InputObject
 #    and printed a parameter-binding error on every poll.  Offline build coverage
-#    lives in item 09 (offline-hosts): dotnet compiles + runs the client sources.
+#    lives in item 06 (offline-hosts): dotnet compiles + runs the client sources.
 # -----------------------------------------------------------------------------
 $unityOk = $null
 try { $unityOk = (Get-Command unity -ErrorAction Stop) } catch { $unityOk = $null }
@@ -663,7 +468,7 @@ if ($unityOk -eq $null) {
     else { Say 'HUMAN-ONLY' 'compile' 'no Unity Pipeline instance answered (Editor not running, or the CLI cannot reach it) -- start the project from Unity Hub and re-run; nothing is claimed about the assembly build' }
 }
 # -----------------------------------------------------------------------------
-# 09 offline-hosts (dotnet run, one process each)
+# 06 offline-hosts (dotnet run, one process each)
 # -----------------------------------------------------------------------------
 # The host runner + the host sources are JUDGED ASSETS (SKILL 1.8: "没有它就不能重新
 # 判定同一件事") -> they live in tools/probes/hosts/ and are committed. Prefer that copy;
@@ -681,63 +486,6 @@ if ((Test-Path $runAll) -and $null -ne (Get-Command dotnet -ErrorAction Silently
     }
 } else { Say 'HUMAN-ONLY' 'offline-hosts' 'run_all_hosts.ps1 or dotnet not available' }
 
-# -----------------------------------------------------------------------------
-# 10 d2codec:panels-pixels -- pixel-level asset self-proof (needs the original
-#    source pack; when it is absent this says BLOCKED with the exact paths).
-# -----------------------------------------------------------------------------
-if ($py -ne $null) {
-    # 19b) panels 组：按**像素**判（A 条 = 逐帧 RGBA 逐字节比对）
-    #   为什么单独一项：`verify_d2ui_export.py` 的 B 条（文件级 SHA256）对 panels 组会报 23 条不等 ——
-    #   根因是**命名/编码**不一致（`dialog_back.png` 而非约定的 `dialog_0.png`；`skltree_*_back_*`
-    #   的 PNG 字节与独立复算不同），而 A 条实测 **24/24 不一致 0**（像素与源帧全等）。
-    #   ⇒ 判据用 A 条（像素），B 条的差异**照原样打印**，登记在验收表 BL-12。
-    $panelsScript = Join-Path $root 'tools\d2codec\verify_d2ui_export.py'
-    if (Test-Path $panelsScript) {
-        # PRE-CONDITION PROBE (2026-09-22).  The A-cond is "project PNG RGBA == the
-        # original DC6 frame RGBA under that group's PL2", so it needs the original
-        # source pack.  Without it the verifier crashes BEFORE printing any
-        # statistics line, which used to surface as the sentence
-        # 'could not parse the panels A-cond line' -- a dead end: neither PASS nor
-        # FAIL, and it told nobody what was actually missing.
-        # Now the two situations are separated and both are named:
-        #   * input absent  -> BLOCKED, with the exact missing paths + who provides
-        #                      them + what happens the moment they arrive;
-        #   * verifier ran  -> PASS/FAIL by the A-cond number, and a missing
-        #                      statistics line is a FAIL (never a silent HUMAN-ONLY),
-        #                      because that would mean this judge stopped judging.
-        $panelsSrcOk = Test-Path (Join-Path $refDir 'd2dc6')
-        $panelsPl2Ok = Test-Path (Join-Path $refDir 'd2raw\data\global\palette\ACT1\Pal.PL2')
-        if ((-not $panelsSrcOk) -or (-not $panelsPl2Ok)) {
-            $miss = @()
-            if (-not $panelsSrcOk) { $miss += (Join-Path $refDir 'd2dc6') }
-            if (-not $panelsPl2Ok) { $miss += (Join-Path $refDir 'd2raw\data\global\palette\ACT1\Pal.PL2') }
-            Say 'HUMAN-ONLY' 'd2codec:panels-pixels' ('BLOCKED (missing input, NOT a parse failure): the A-cond compares project PNG pixels against the original DC6+PL2, and these are absent: ' +
-                ($miss -join ' ; ') + ' -- ' + $cYuanBan + '/ is .gitignore-excluded, so a clean checkout never has it. Provider = USER: restore ' +
-                $cYuanBan + '/d2dc6 + ' + $cYuanBan + '/d2raw, or d2data.mpq / patch_d2.mpq. On arrival this item becomes a real verdict with NO code change (PASS iff A-cond mismatch = 0, else FAIL); until then nothing is claimed about the pixels.')
-        } else {
-            Push-Location $root
-            $pout = & python $panelsScript ($refDir + '\d2dc6') $client --only panels 2>&1 | Out-String
-            Pop-Location
-            # 判定与语言无关：问题行都以 "x " 开头；带 "SHA256" 的属 B 条（文件级）、其余属 A 条（像素级）
-            # A 条（逐帧 RGBA 逐字节）那一行 = 以组名开头的统计行：`  panels   产物   24 个 / 帧   24  不一致 0`
-            $pa = [regex]::Match($pout, '(?m)^\s*panels\s+.*?' + $cMismatchWord + '\s+(\d+)')
-            $markLines = @(($pout -split "`r?`n") | Where-Object { $_ -match '^\s*x\s' })
-            $bBad = @($markLines | Where-Object { $_ -match 'SHA256' }).Count
-            $nBad = @($markLines | Where-Object { $_ -notmatch 'SHA256' }).Count
-            $statsLines = @(($pout -split "`r?`n") | Where-Object { $_ -match '^\s*panels\s' })
-            if ($pa.Success -and [int]$pa.Groups[1].Value -eq 0) {
-                Say 'PASS' 'd2codec:panels-pixels' ("A-cond (per-frame RGBA) = 0 mismatch ; B-cond (file-level SHA256) = $bBad ; naming-vs-frame mismatches = $nBad -- see BL-12")
-            } elseif ($pa.Success) {
-                Say 'FAIL' 'd2codec:panels-pixels' ("A-cond mismatches = " + $pa.Groups[1].Value)
-            } elseif ($pout -match 'Traceback \(most recent call last\)') {
-                Say 'FAIL' 'd2codec:panels-pixels' ('the verifier died with a traceback although its source pack is present -- a real red, never a silent HUMAN-ONLY')
-            } else {
-                Say 'FAIL' 'd2codec:panels-pixels' ('the verifier ran to completion but printed no A-cond statistics line -- the parse or the output format drifted; raw statistics lines printed below (never a silent HUMAN-ONLY)')
-            }
-            foreach ($sl in @($statsLines | Select-Object -First 4)) { Write-Output ('            stats: ' + $sl.Trim()) }
-        }
-    }
-} else { Say 'HUMAN-ONLY' 'd2codec:panels-pixels' 'python not on PATH -- the pixel-level asset judge cannot run (never a PASS)' }
 Write-Output ""
 Write-Output "===== summary: FAIL=$fail  HUMAN-ONLY=$human ====="
 if ($fail -gt 0) { Write-Output 'FAIL present -- nobody may say "done" while this is non-zero (SKILL 1.11)' }
