@@ -148,3 +148,4 @@
 2026-09-24 09:00	d2ui/finish-touches	ledger mirror sync (durability: .ai-tmp is gitignored, so the gate ledger is not version-controlled) + delete the 2 redundant srcdam artifacts	tools/probes/ledger,tools/probes/refs,.ai-tmp
 2026-09-24 09:05	d2ui/probe-and-doc-fixes	extend gate-item-probe.ps1 item registry (04/05/07/27/28/29 + coverage preamble) and fix the stale --check comment in gen_numeric_refs.py	tools/probes,.ai-tmp
 2026-09-24 09:10	d2ui/s-ledger-round2	S-ledger re-verification round 2 (docs/registration items only; no client/Assets) + numeric_refs regeneration + gate	ce hua,tools/probes/refs,.ai-tmp
+2026-09-24 09:17	d2ui/s-docs-batch	S-table docs batch (S-37 escaping + 51-vs-57 prose, S-33 driver-env wording, S-26 dead refs, S-35, S-38, S-70(3) resource-gap list) + refs regeneration	ce hua,client,tools/probes/refs,.ai-tmp

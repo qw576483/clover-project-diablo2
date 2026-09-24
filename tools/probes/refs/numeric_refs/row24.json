@@ -2,14 +2,14 @@
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 24,
   "spec_md_line": 120,
-  "spec_sha256": "457055c9067889b91066456c9e68054819aec00672cad0d0960ef8f1402c8f71",
+  "spec_sha256": "6cbfafe61d445b2bdaddf082b8a5639f1dc605b7c8170def51bc1edb2fcb46be",
   "category": "数值类",
   "system": "技能点",
   "method": "每级 +1，任务 +1",
   "criterion": "学技能消耗 1 点；日志与面板一致",
-  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row24.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
+  "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row24.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）\\",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 09:12:03",
+  "generated": "2026-09-24 09:29:21",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_combatcheck.txt": [

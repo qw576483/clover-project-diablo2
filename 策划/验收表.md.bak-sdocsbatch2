@@ -935,7 +935,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1
 
 ## 本轮穷举总清单（S-01 ~ S-70）—— 按维度归组（2026-09-23 片 W 回补）
 
-> 来源 = `.ai-tmp/test/AUDIT-SUMMARY.md` §2（汇总片 S）。**本节的 S 行是纯追加**，⛔ 不改本表既有任何一行、不动 51 条编号判定行。 ⚠️ **（2026-09-24 s-docs-batch 补注：不改数字、只标时点）** 上面那个「51」是 **2026-09-23 当时的快照** —— 表体编号判定行**今为 57**（= 51 行基线 + 6 行审计行 `52`~`57`；依据 = `.ai-tmp/test/sdocs-after.txt` 的 `table-rows  57 rows`）；数字按史料保留，规则本身（本节 S 行不动表体任一编号判定行）不变。
+> 来源 = `.ai-tmp/test/AUDIT-SUMMARY.md` §2（汇总片 S）。**本节的 S 行是纯追加**，⛔ 不改本表既有任何一行、不动 51 条编号判定行。
 > 列与原清单一致：`编号 | 来源 | 维度 | 实体/状态/边界 | 现象 | 判据/期望 | 当前状态 | 证据路径 | 严重度 | 建议归宿`。
 > ⛔ 键形 = `S-nn`（不是纯数字）⇒ 不参与 `table-rows` 的「表体恰好 51 行」计数，也不参与第 05 项 `acceptance-table` 的通过/不一致计数。
 > 状态词表（唯一取值）：`已修✅ / 部分修 / 未修 / BLOCKED / 已过期 / 待裁决 / 未采`；机械计数（`s_count_out.txt` 可复算；**2026-09-24 s-docs-batch 片收口后重算**）= **未修 38 / 已修✅ 19 / 部分修 3 / BLOCKED 4 / 已过期 1 / 待裁决 4 / 未采 1 = 70**（本片把 S-26 / S-33 / S-35 / S-37 / S-38 五条由「未修」据实改判「已修」）。
@@ -1252,5 +1252,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1
 
 ### 闸门口径边界（如实登记，⛔ 不放宽判据）
 
-- `coverage-acceptance`（第 28 项）**现行状态（2026-09-24 s-docs-batch 核）**：**0 条**不可解析 —— 闸门原文 `PASS  coverage-acceptance  all 57 judgement row(s) cite an on-disk path (.ai-tmp/screenshots/ | tools/probes/ | 策划/ | w1_host_*.txt) AND every backtick path token of every row resolves on disk`（整轮原文 `.ai-tmp/test/sdocs-after.txt`，`FAIL=0`）。**历史（当时快照，仅供追溯，⛔ 不当现行读数）**：`113 citation(s) do NOT resolve on disk (98 unique token(s))`、涉及 **37/51 行**（来源 `报告 P §3.1` 的 v2 计数；v3 已因 5 张归位降到 108 条）—— 该批缺口已由后续各片「改引在盘路径」逐条消掉。⛔ 本片**未**改 `tools/verify.ps1`、**未**放宽任何判据、**未**删判定行。
+- `coverage-acceptance`（第 28 项）现行状态：`113 citation(s) do NOT resolve on disk (98 unique token(s))`，涉及 **37/51 行**（来源 `报告 P §3.1` 的 v2 计数；v3 已因 5 张归位降到 108 条）。⛔ 本片**未**改 `tools/verify.ps1`、**未**放宽任何判据、**未**删判定行。
 - 上述缺口**只能**走两条路：① 改引在盘路径；② 登记本表（缺口行）。⛔ 不许删判定行、不许把悬空引用标成「通过」。

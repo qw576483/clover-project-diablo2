@@ -152,30 +152,30 @@ cast  cast_fire  cast_cold  cast_lightning  cast_poison  level_up
 
 | # | 键（= 文件名去扩展名） | 期望文件 | 触发点（谁在什么时候请求它） | 状态 |
 |---|---|---|---|---|
-| A-1 | `hit` | `hit.wav` | 命中（`Module/Combat/DamagePipeline.cs` 直连 `ctx.Audio.SfxAt`） | ✅ 已完成 |
-| A-2 | `miss` | `miss.wav` | 挥空 / 未命中（`DamagePipeline`） | ✅ 已完成 |
-| A-3 | `player_hurt` | `player_hurt.wav` | 玩家受击（`DamagePipeline`） | ✅ 已完成 |
-| A-4 | `player_die` | `player_die.wav` | 玩家死亡（`DamagePipeline`） | ✅ 已完成 |
-| A-5 | `player_revive` | `player_revive.wav` | 复活**完成**（`AudioHook` ← `Events.Revived`，由 `App/AppEventRouting.cs` 在复活成功后广播） | ✅ 已完成 |
-| A-6 | `monster_die` | `monster_die.wav` | 怪物死亡（`DamagePipeline`） | ✅ 已完成 |
-| A-7 | `monster_attack` | `monster_attack.wav` | 怪物挥击（`Module/Monster/MonsterModule.cs` 直连） | ✅ 已完成 |
-| A-8 | `monster_revive` | `monster_revive.wav` | 萨满复活同伴（`MonsterModule` 直连） | ✅ 已完成 |
-| A-9 | `cast` | `cast.wav` | 技能施放通用回落（`Module/Skill/SkillModule.cs` 直连） | ✅ 已完成 |
-| A-10 | `cast_fire` | `cast_fire.wav` | 火系技能（`SkillModule`，按 `DamageType` 选键） | ✅ 已完成 |
-| A-11 | `cast_cold` | `cast_cold.wav` | 冰系技能（同上） | ✅ 已完成 |
-| A-12 | `cast_lightning` | `cast_lightning.wav` | 电系技能（同上） | ✅ 已完成 |
-| A-13 | `cast_poison` | `cast_poison.wav` | 毒系技能（同上） | ✅ 已完成 |
-| A-14 | `level_up` | `level_up.wav` | 升级（`AudioHook` ← `Events.LevelUp`） | ✅ 已完成 |
-| A-15 | `footstep` | `footstep.wav` | 脚步（`AudioHook` ← `Events.PlayerGridChanged`，每 0.333s 一步、静止不发） | ✅ 已完成 |
-| A-16 | `item_pickup` | `item_pickup.wav` | 拾取物品（`AudioHook` ← `Events.ItemPicked`，非金币） | ✅ 已完成 |
-| A-17 | `gold_pickup` | `gold_pickup.wav` | 拾取金币（`AudioHook` ← `Events.ItemPicked`，`isGold=true`） | ✅ 已完成 |
-| A-18 | `item_use` | `item_use.wav` | 喝药 / 用卷轴（`AudioHook` ← `Events.ItemUsed`） | ✅ 已完成 |
-| A-19 | `ui_click` | `ui_click.wav` | UI 点击（`AudioHook` ← 面板开关 / 对话选项 / 买 / 卖按钮） | ✅ 已完成 |
-| A-20 | `dialog_open` | `dialog_open.wav` | NPC 对话开始（`AudioHook` ← `Events.DialogOpen`） | ✅ 已完成 |
-| A-21 | `shop_open` | `shop_open.wav` | 商店打开（`AudioHook` ← `Events.ShopOpen`） | ✅ 已完成 |
-| A-22 | `portal` | `portal.wav` | 传送 / 踩出入口（`AudioHook` ← `Events.ExitEntered`） | ✅ 已完成 |
-| A-23 | `area_enter` | `area_enter.wav` | 进图（`AudioHook` ← `Events.StageEntered`） | ✅ 已完成 |
-| A-24 | `quest_complete` | `quest_complete.wav` | 任务完成（`AudioHook` ← `Events.QuestCompleted`） | ✅ 已完成 |
+| A-1 | `hit` | `hit.wav` | 命中（`Module/Combat/DamagePipeline.cs` 直连 `ctx.Audio.SfxAt`） | ⬜ 待替换 |
+| A-2 | `miss` | `miss.wav` | 挥空 / 未命中（`DamagePipeline`） | ⬜ 待替换 |
+| A-3 | `player_hurt` | `player_hurt.wav` | 玩家受击（`DamagePipeline`） | ⬜ 待替换 |
+| A-4 | `player_die` | `player_die.wav` | 玩家死亡（`DamagePipeline`） | ⬜ 待替换 |
+| A-5 | `player_revive` | `player_revive.wav` | 复活**完成**（`AudioHook` ← `Events.Revived`，由 `App/AppEventRouting.cs` 在复活成功后广播） | ⬜ 待替换 |
+| A-6 | `monster_die` | `monster_die.wav` | 怪物死亡（`DamagePipeline`） | ⬜ 待替换 |
+| A-7 | `monster_attack` | `monster_attack.wav` | 怪物挥击（`Module/Monster/MonsterModule.cs` 直连） | ⬜ 待替换 |
+| A-8 | `monster_revive` | `monster_revive.wav` | 萨满复活同伴（`MonsterModule` 直连） | ⬜ 待替换 |
+| A-9 | `cast` | `cast.wav` | 技能施放通用回落（`Module/Skill/SkillModule.cs` 直连） | ⬜ 待替换 |
+| A-10 | `cast_fire` | `cast_fire.wav` | 火系技能（`SkillModule`，按 `DamageType` 选键） | ⬜ 待替换 |
+| A-11 | `cast_cold` | `cast_cold.wav` | 冰系技能（同上） | ⬜ 待替换 |
+| A-12 | `cast_lightning` | `cast_lightning.wav` | 电系技能（同上） | ⬜ 待替换 |
+| A-13 | `cast_poison` | `cast_poison.wav` | 毒系技能（同上） | ⬜ 待替换 |
+| A-14 | `level_up` | `level_up.wav` | 升级（`AudioHook` ← `Events.LevelUp`） | ⬜ 待替换 |
+| A-15 | `footstep` | `footstep.wav` | 脚步（`AudioHook` ← `Events.PlayerGridChanged`，每 0.333s 一步、静止不发） | ⬜ 待替换 |
+| A-16 | `item_pickup` | `item_pickup.wav` | 拾取物品（`AudioHook` ← `Events.ItemPicked`，非金币） | ⬜ 待替换 |
+| A-17 | `gold_pickup` | `gold_pickup.wav` | 拾取金币（`AudioHook` ← `Events.ItemPicked`，`isGold=true`） | ⬜ 待替换 |
+| A-18 | `item_use` | `item_use.wav` | 喝药 / 用卷轴（`AudioHook` ← `Events.ItemUsed`） | ⬜ 待替换 |
+| A-19 | `ui_click` | `ui_click.wav` | UI 点击（`AudioHook` ← 面板开关 / 对话选项 / 买 / 卖按钮） | ⬜ 待替换 |
+| A-20 | `dialog_open` | `dialog_open.wav` | NPC 对话开始（`AudioHook` ← `Events.DialogOpen`） | ⬜ 待替换 |
+| A-21 | `shop_open` | `shop_open.wav` | 商店打开（`AudioHook` ← `Events.ShopOpen`） | ⬜ 待替换 |
+| A-22 | `portal` | `portal.wav` | 传送 / 踩出入口（`AudioHook` ← `Events.ExitEntered`） | ⬜ 待替换 |
+| A-23 | `area_enter` | `area_enter.wav` | 进图（`AudioHook` ← `Events.StageEntered`） | ⬜ 待替换 |
+| A-24 | `quest_complete` | `quest_complete.wav` | 任务完成（`AudioHook` ← `Events.QuestCompleted`） | ⬜ 待替换 |
 
 > 规格建议：22.05 / 44.1 kHz 单声道 `wav`（原版 `.wav` 直接可用；引擎 `ResourceSize.Estimate` 按 `samples*channels*2` 估体积）。
 > `hit` / `miss` / `monster_*` / `cast_*` / `footstep` / `portal` 是**位置音**（走 `Game.Sound.PlaySFXAt`，3D 通道）；
@@ -515,18 +515,17 @@ cast  cast_fire  cast_cold  cast_lightning  cast_poison  level_up
 > 本行按白名单「只追加」落盘（⛔ 未就地改 A 表任何既有行）；A 表 ⬜ → ✅ 的就地更正请由本文件维护片执行。
 ## 2026-09-24 s-docs-batch 追加登记（S-70③ 收口；**只追加**）
 
-> 口径 = **只追加** + **主 agent 2026-09-24 单独授权的一处就地更正**：本节的正文是纯追加；A 表 `A-1` ~ `A-24` 的状态标记**已在同一授权下就地更正**（⛔ 仅把 `⬜` 换成 `✅`，行内其它文字一字未动 —— 逐字符证明见 ① 与 ③）。
+> 白名单口径 = **只追加**：⛔ **未就地改本文件任何既有行**（含 A 表 `A-1` ~ `A-24` 的状态列 —— 那一步归本文件维护片）。
 > 复核口径（2026-09-24，三条命令）= `Test-Path` / `Get-ChildItem -Recurse -Filter` / `Select-String`，只记**盘上事实**。
 > 触发：S-70 ③ 记「本文件 13 行 ⬜ 实为 ✅」；本片按盘复核后把范围扩到**本文件现有全部 ⬜ 行**。
 
-### ① A 表 `A-1` ~ `A-24`（24 行原写 `⬜ 待替换`）⇒ **全部过期；标记已就地更正为 `✅`**
+### ① A 表 `A-1` ~ `A-24`（24 行仍写 `⬜ 待替换`）⇒ **全部过期**
 
 - 出处 = 本文件 **#6 行**（`音效 SFX` ✅ 已到位：24 个原版 `.wav`、键名 = 文件名、触发点 19 处全接线）
   + `tools/probes/mpq/sfx-provenance.tsv`（24/24 与真实 `d2sfx.mpq` 内同名 `.wav` 逐字节 sha256 相同）
   + `tools/probes/hosts/audiocheck`（68 项通过 / 0 失败）+ 实机 `.ai-tmp/screenshots/sfx_evidence_sfx1.txt`（13 个 clip 真出声）。
 - 本片**独立抽查 4 个键**（`hit.wav` / `monster_die.wav` / `ui_click.wav` / `shop_open.wav`）：在 `client/Assets/Resources/Clover/Sound/SFX/` 下 `Get-ChildItem` **全部在盘**。
 - ⇒ A 表那 24 行 `⬜ 待替换` **全部过期**（s-ledger-docs 2026-09-24 已先行登记同一结论，本节复述并补抽查）。
-- **就地更正（主 agent 2026-09-24 授权，范围仅这 24 行）**：状态标记 `⬜` → `✅`（该行**只差这一个字符**，脚本 `.ai-tmp/test/sdocs_round2_edit.py` 的逐字符闸门 + 「除这 24 行外其余行逐字节相同」自证）。⛔ 行内其余文字（含「待替换」三字）**未动** —— 按本文件顶部 §状态图例，状态由 `✅/⬜/⏸/⛔` **标记本身**定义为「已完成」。**依据 = 抽查 4/4 在盘**（`hit` / `monster_die` / `ui_click` / `shop_open` 四键 `Test-Path=True`）+ 本节 ① 的出处链。
 
 ### ② 其余 6 条 `⬜` 逐条按盘复核（本片 2026-09-24）
 
@@ -541,5 +540,5 @@ cast  cast_fire  cast_cold  cast_lightning  cast_poison  level_up
 
 ### ③ 计数与归口
 
-- 本文件 `⬜` 行（2026-09-24 实测）：**更正前 35 行**（= A 表 24 + 本节 ② 的 6 条 + 状态图例/说明 3 行 + `s-ledger-docs` 更正节正文 2 行）；**更正后待办行 = 11 行**（= 35 − A 表 24），即本节 ② 的 6 条 + 图例/说明 3 行 + 那个更正节 2 行。（本更正节**自身正文**另有若干行**引用**了该标记字样，属说明性引用、不是待办——机械计数时别把它算进缺口。）
-- **归口**：A 表 24 行的 `⬜ → ✅` 就地更正**已由本片在授权下执行完毕**（见 ①）；本节 ② 里 `#25`（同样「`⬜` 已过期」）及其余 5 条的**就地更正**仍归**本文件维护片**。
+- 本文件 `⬜` 行 **35 行**（2026-09-24 实测）= A 表 24 行 + 本节 ② 的 6 条 + 状态图例/说明行 3 行 + 本文件内已有的 `s-ledger-docs` 更正节正文 2 行。
+- **归口**：A 表 24 行的 `⬜ → ✅` **就地更正**仍需**本文件维护片**执行 —— 本片白名单只有「只追加」，故**只能**在此登记事实（⛔ 未动既有行一个字）。

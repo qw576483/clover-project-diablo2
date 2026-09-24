@@ -152,30 +152,30 @@ cast  cast_fire  cast_cold  cast_lightning  cast_poison  level_up
 
 | # | 键（= 文件名去扩展名） | 期望文件 | 触发点（谁在什么时候请求它） | 状态 |
 |---|---|---|---|---|
-| A-1 | `hit` | `hit.wav` | 命中（`Module/Combat/DamagePipeline.cs` 直连 `ctx.Audio.SfxAt`） | ✅ 已完成 |
-| A-2 | `miss` | `miss.wav` | 挥空 / 未命中（`DamagePipeline`） | ✅ 已完成 |
-| A-3 | `player_hurt` | `player_hurt.wav` | 玩家受击（`DamagePipeline`） | ✅ 已完成 |
-| A-4 | `player_die` | `player_die.wav` | 玩家死亡（`DamagePipeline`） | ✅ 已完成 |
-| A-5 | `player_revive` | `player_revive.wav` | 复活**完成**（`AudioHook` ← `Events.Revived`，由 `App/AppEventRouting.cs` 在复活成功后广播） | ✅ 已完成 |
-| A-6 | `monster_die` | `monster_die.wav` | 怪物死亡（`DamagePipeline`） | ✅ 已完成 |
-| A-7 | `monster_attack` | `monster_attack.wav` | 怪物挥击（`Module/Monster/MonsterModule.cs` 直连） | ✅ 已完成 |
-| A-8 | `monster_revive` | `monster_revive.wav` | 萨满复活同伴（`MonsterModule` 直连） | ✅ 已完成 |
-| A-9 | `cast` | `cast.wav` | 技能施放通用回落（`Module/Skill/SkillModule.cs` 直连） | ✅ 已完成 |
-| A-10 | `cast_fire` | `cast_fire.wav` | 火系技能（`SkillModule`，按 `DamageType` 选键） | ✅ 已完成 |
-| A-11 | `cast_cold` | `cast_cold.wav` | 冰系技能（同上） | ✅ 已完成 |
-| A-12 | `cast_lightning` | `cast_lightning.wav` | 电系技能（同上） | ✅ 已完成 |
-| A-13 | `cast_poison` | `cast_poison.wav` | 毒系技能（同上） | ✅ 已完成 |
-| A-14 | `level_up` | `level_up.wav` | 升级（`AudioHook` ← `Events.LevelUp`） | ✅ 已完成 |
-| A-15 | `footstep` | `footstep.wav` | 脚步（`AudioHook` ← `Events.PlayerGridChanged`，每 0.333s 一步、静止不发） | ✅ 已完成 |
-| A-16 | `item_pickup` | `item_pickup.wav` | 拾取物品（`AudioHook` ← `Events.ItemPicked`，非金币） | ✅ 已完成 |
-| A-17 | `gold_pickup` | `gold_pickup.wav` | 拾取金币（`AudioHook` ← `Events.ItemPicked`，`isGold=true`） | ✅ 已完成 |
-| A-18 | `item_use` | `item_use.wav` | 喝药 / 用卷轴（`AudioHook` ← `Events.ItemUsed`） | ✅ 已完成 |
-| A-19 | `ui_click` | `ui_click.wav` | UI 点击（`AudioHook` ← 面板开关 / 对话选项 / 买 / 卖按钮） | ✅ 已完成 |
-| A-20 | `dialog_open` | `dialog_open.wav` | NPC 对话开始（`AudioHook` ← `Events.DialogOpen`） | ✅ 已完成 |
-| A-21 | `shop_open` | `shop_open.wav` | 商店打开（`AudioHook` ← `Events.ShopOpen`） | ✅ 已完成 |
-| A-22 | `portal` | `portal.wav` | 传送 / 踩出入口（`AudioHook` ← `Events.ExitEntered`） | ✅ 已完成 |
-| A-23 | `area_enter` | `area_enter.wav` | 进图（`AudioHook` ← `Events.StageEntered`） | ✅ 已完成 |
-| A-24 | `quest_complete` | `quest_complete.wav` | 任务完成（`AudioHook` ← `Events.QuestCompleted`） | ✅ 已完成 |
+| A-1 | `hit` | `hit.wav` | 命中（`Module/Combat/DamagePipeline.cs` 直连 `ctx.Audio.SfxAt`） | ✅ 待替换 |
+| A-2 | `miss` | `miss.wav` | 挥空 / 未命中（`DamagePipeline`） | ✅ 待替换 |
+| A-3 | `player_hurt` | `player_hurt.wav` | 玩家受击（`DamagePipeline`） | ✅ 待替换 |
+| A-4 | `player_die` | `player_die.wav` | 玩家死亡（`DamagePipeline`） | ✅ 待替换 |
+| A-5 | `player_revive` | `player_revive.wav` | 复活**完成**（`AudioHook` ← `Events.Revived`，由 `App/AppEventRouting.cs` 在复活成功后广播） | ✅ 待替换 |
+| A-6 | `monster_die` | `monster_die.wav` | 怪物死亡（`DamagePipeline`） | ✅ 待替换 |
+| A-7 | `monster_attack` | `monster_attack.wav` | 怪物挥击（`Module/Monster/MonsterModule.cs` 直连） | ✅ 待替换 |
+| A-8 | `monster_revive` | `monster_revive.wav` | 萨满复活同伴（`MonsterModule` 直连） | ✅ 待替换 |
+| A-9 | `cast` | `cast.wav` | 技能施放通用回落（`Module/Skill/SkillModule.cs` 直连） | ✅ 待替换 |
+| A-10 | `cast_fire` | `cast_fire.wav` | 火系技能（`SkillModule`，按 `DamageType` 选键） | ✅ 待替换 |
+| A-11 | `cast_cold` | `cast_cold.wav` | 冰系技能（同上） | ✅ 待替换 |
+| A-12 | `cast_lightning` | `cast_lightning.wav` | 电系技能（同上） | ✅ 待替换 |
+| A-13 | `cast_poison` | `cast_poison.wav` | 毒系技能（同上） | ✅ 待替换 |
+| A-14 | `level_up` | `level_up.wav` | 升级（`AudioHook` ← `Events.LevelUp`） | ✅ 待替换 |
+| A-15 | `footstep` | `footstep.wav` | 脚步（`AudioHook` ← `Events.PlayerGridChanged`，每 0.333s 一步、静止不发） | ✅ 待替换 |
+| A-16 | `item_pickup` | `item_pickup.wav` | 拾取物品（`AudioHook` ← `Events.ItemPicked`，非金币） | ✅ 待替换 |
+| A-17 | `gold_pickup` | `gold_pickup.wav` | 拾取金币（`AudioHook` ← `Events.ItemPicked`，`isGold=true`） | ✅ 待替换 |
+| A-18 | `item_use` | `item_use.wav` | 喝药 / 用卷轴（`AudioHook` ← `Events.ItemUsed`） | ✅ 待替换 |
+| A-19 | `ui_click` | `ui_click.wav` | UI 点击（`AudioHook` ← 面板开关 / 对话选项 / 买 / 卖按钮） | ✅ 待替换 |
+| A-20 | `dialog_open` | `dialog_open.wav` | NPC 对话开始（`AudioHook` ← `Events.DialogOpen`） | ✅ 待替换 |
+| A-21 | `shop_open` | `shop_open.wav` | 商店打开（`AudioHook` ← `Events.ShopOpen`） | ✅ 待替换 |
+| A-22 | `portal` | `portal.wav` | 传送 / 踩出入口（`AudioHook` ← `Events.ExitEntered`） | ✅ 待替换 |
+| A-23 | `area_enter` | `area_enter.wav` | 进图（`AudioHook` ← `Events.StageEntered`） | ✅ 待替换 |
+| A-24 | `quest_complete` | `quest_complete.wav` | 任务完成（`AudioHook` ← `Events.QuestCompleted`） | ✅ 待替换 |
 
 > 规格建议：22.05 / 44.1 kHz 单声道 `wav`（原版 `.wav` 直接可用；引擎 `ResourceSize.Estimate` 按 `samples*channels*2` 估体积）。
 > `hit` / `miss` / `monster_*` / `cast_*` / `footstep` / `portal` 是**位置音**（走 `Game.Sound.PlaySFXAt`，3D 通道）；
