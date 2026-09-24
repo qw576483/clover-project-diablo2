@@ -3,7 +3,7 @@
 // **血腥荒野（Blood Moor）**：用**原版 ACT1 野外预设块**拼出来的随机野外
 // （**每局不同，同 seed 可复现**）。
 //
-// ⛔ **为什么改成"拼原版块"**（上一版是自画的"随机崖壁带 + 随机撒尖刺栅栏"）：
+// **为什么改成"拼原版块"**（上一版是自画的"随机崖壁带 + 随机撒尖刺栅栏"）：
 //    原版血腥荒野**不是一张整图**，而是引擎 DRLG 按**8 格一块的网格**拼出来的 ——
 //    依据是原版自己的生成规则表（不是本项目猜的）：
 //      · `Levels.txt`「Blood Moor」：LevelType=2(Act 1 - Wilderness) **DrlgType=3**(户外随机)
@@ -15,13 +15,12 @@
 //      · `LvlTypes.txt` Id=2：野外地面 = `Act1/Town/Floor.dt1`，崖壁 = `Cliff1/Cliff2/Corner`，
 //        树丛 = `TreeGroups`，石墙 = `stonewall`，栅栏 = `Fence`，碎石 = `Stones`，水 = `River/pond/puddle`
 //
-//    于是本生成器的三层结构与原版一致：
 //      ① **基底草地**：每格一张原版 `TOWN/floor.dt1` 草地瓦片（原版引擎也是先把关卡铺满草）；
 //      ② **边界块**：周圈每格一块原版边界块（`Bord*` / `StnClf*` / `clfcave*`），
 //         按所在边**镜像**（原版对每条边用不同朝向的块）⇒ 崖壁永远贴在地图外圈；
 //      ③ **填充块 + 散落件**：`Wild*` / `Trees*` / `LvlSub Type=6` 的树丛、栅栏、石堆、水洼、沼泽、杂物，
 //         以**叠加**方式盖章（只写这些块真的有内容的格）—— 这就是原版"草地上长出一片树林"的做法。
-//      ⛔ 块里"纯可走"的格**不覆盖基底草地**：原版那几格本来就是引擎铺的草。
+//      块里"纯可走"的格**不覆盖基底草地**：原版那几格本来就是引擎铺的草。
 //
 //    每一格的**地面与物件瓦片键都来自原版 ds1**（逐格覆盖，见 `GridMap.SetTiles`）。
 //    洞穴入口 = 原版 `Act 1 - Cave Entrance` 块（`CAVES/CaveDr*.ds1`）+ 原版洞穴口瓦片。
@@ -29,7 +28,7 @@
 // 随机与可复现：块选择、镜像、散落件位置、土路拐点全部走注入的 `CloverEngine.Rng`
 //   ⇒ **同 seed ⇒ 同图；不同 seed ⇒ 不同图**（`MapCheck` 有断言）。
 //
-// ⛔ 怪物刷新点：契约写明「洞穴生成时产出；野外为空列表」⇒ 本生成器**不填**
+// 怪物刷新点：契约写明「洞穴生成时产出；野外为空列表」⇒ 本生成器**不填**
 //    `MonsterSpawns`，`MonsterModule` 用 `IMapModule.RandomWalkableTile(rng)` 撒点。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -50,7 +49,7 @@ namespace Diablo2.Module.Map
         /// **出处（原版自己的规则表，不是本项目定的）**：`原版资源/d2raw/data/global/excel/Levels.txt`
         /// 「Act 1 - Wilderness 1」（LevelName = Blood Moor）的 `SizeX = 80` / `SizeY = 80`、
         /// `DrlgType = 3`（户外随机）；块边长 8 = `LvlPrest.txt`「Act 1 - Wild Border *」的 `SizeX`。
-        /// ⛔ **复核入口（本行只记事实，不再指向已删脚本）**：早期那句 `python .ai-tmp/test/probe_levels.py`
+        /// **复核入口（本行只记事实，不再指向已删脚本）**：早期那句 `python .ai-tmp/test/probe_levels.py`
         /// 是**已删的一次性脚本、不可复跑**（全仓 `probe_levels*` = **0 命中**）—— 不要再把它当可复跑入口。
         /// **现行在盘判据** = `.ai-tmp/screenshots/w1_host_mapcheck.txt`（= `tools/probes/hosts/mapcheck` 的完整
         /// 输出，末行「MapCheck 结束：全部通过」）：上面两条出处（`原版资源/d2raw/data/global/excel/Levels.txt`
@@ -58,13 +57,10 @@ namespace Diablo2.Module.Map
         /// 由它逐条复核；尺寸断言见 `tools/probes/hosts/mapcheck` 的 80×80 段。
         /// </para>
         /// <para>
-        /// ⛔ **本轮之前**这里是 `rng.Next(6, 11)` ⇒ 每次开局随机 **48~80**（比原版小最多 40%）
         /// —— 用户报「野外地图太小」。原版**没有**这个随机：Wilderness 1 恒 80×80
         /// （`Levels.txt` 只给一组 SizeX/SizeY，没有尺寸范围列）。
         /// </para>
         /// <para>
-        /// ⚠️ `GameConst.WildernessMinSize`（48）**本轮起在本项目源码里不再被引用**
-        /// （只剩离线宿主 `mapcheck` 的区间断言在用）；按片 3 任务书的约定**不删**，仅回报。
         /// </para>
         /// </summary>
         private const int CellsPerAxis = GameConst.WildernessMaxSize / MapGenWildLayout.BorderPitch;
@@ -73,14 +69,14 @@ namespace Diablo2.Module.Map
         private const int RoadHalfWidth = 1;
 
         /// <summary>
-        /// ★ black-why2：**进区落点距地图边界的最小格数 = 8**。
-        /// <para>出处（**实测值**，⛔ 不是拍脑袋定的）：
+        /// black-why2：**进区落点距地图边界的最小格数 = 8**。
+        /// <para>出处（**实测值**，不是拍脑袋定的）：
         /// `.ai-tmp/test/bw_deep_bwy1.txt` 的 `corners=[-6,13..8,27]` 是在
         /// 玩家格 = (1,20)、相机 `ortho=3.75`、`screen=1920x1080` 下**实测的可见格 AABB**
         /// ⇒ 可见范围是玩家**左右各 7 格**（x∈[p−6, p+7]）、**上下各 7 格**。
         /// 落点距边界 ≥ 8 格 ⇒ 进区那一刻整屏（含等距投影后的屏幕四角）都落在地图内，
-        /// **不会露出图外 Void**（修前落点 x=1 ⇒ 屏幕左上 7 列在图外 = 那块"边界笔直的黑三角"）。</para>
-        /// <para>原版语义（⛔ **不是**"把落点钳到地图正中心"）：从罗格营地东侧过桥进荒野，
+        /// **不会露出图外 Void**。</para>
+        /// <para>原版语义（**不是**"把落点钳到地图正中心"）：从罗格营地东侧过桥进荒野，
         /// 落点仍在**荒野西侧那条土路上**（`PaintRoad` 铺的「回城口 → 洞穴口」土路，`gate.y` 那一行），
         /// 只是从"贴着西边界那一列"改成"沿土路往东走进荒野几步"。
         /// 依据：`MapSeam.cs` 文件头引的 `libd2/.../drlg/outdoors/OutRoom.zig:271`
@@ -91,8 +87,6 @@ namespace Diablo2.Module.Map
         /// <summary>散落件个数范围（原版 `LvlSub` Type=6 也是"少量随机撒"）。</summary>
         private const int ScatterMin = 3, ScatterMax = 8;
 
-        // ── 自检披露（供离线宿主 `.ai-tmp/hosts/mapcheck` §11 断言；每次 Generate 开头重置）──
-        //   为什么要有它：本轮把周圈/内部改成了**按原版块的"四边开口"拼接**
         //   （`MapGenWildLayout.Piece.OpenN/S/W/E`，由导出器从该块可走掩码的边带算出）。
         //   "拼接对不对"是数据层的事，宿主必须能直接断言，而不是靠读日志。
         /// <summary>周圈槽位数（= 4·cells − 4）。</summary>
@@ -138,7 +132,6 @@ namespace Diablo2.Module.Map
             }
 
             var pitch = MapGenWildLayout.BorderPitch;
-            // ★ 片 3：**固定 10 块/轴**（原版 `Levels.txt`「Act 1 - Wilderness 1」SizeX=SizeY=80）
             //   —— 不再随机 6~10 块（旧口径会生成 48~80，用户报「野外地图太小」）。
             var cells = CellsPerAxis;
             var w = cells * pitch;
@@ -164,7 +157,7 @@ namespace Diablo2.Module.Map
             }
 
             // ③ 周圈：原版边界块（崖壁 / 石墙 / 树线），按所在边镜像 ⇒ 崖壁贴外圈
-            //    ★ 西边界上正对回城口那一段改铺**原版城镇过渡带**（`GroupBand`，8×40 = 5 槽）：
+            //    西边界上正对回城口那一段改铺**原版城镇过渡带**（`GroupBand`，8×40 = 5 槽）：
             //      原版引擎就是这么铺的（`OutRoom.zig:251-275` 把 `Act 1 - Town 1 Transition E`
             //      放在野外关卡的西边界；`ActInit.zig:75-83` 只对 Act1 的 2..7 号户外关卡调用）。
             var covered = new bool[cells, cells];
@@ -187,11 +180,9 @@ namespace Diablo2.Module.Map
             var caveY = caveRow * pitch + pitch / 2;
             PaintRoad(map, rng, w, gateY, caveY);
 
-            // ★ 片 map-border：**边界环封闭**（可走区离四边界 ≥ `GridMap.BorderRingCells` 格）。
             //   原版语义：最外一圈 8 格块 = `LvlPrest`「Act 1 - Wild Border *」= 崖壁 + 树线，
-            //   **不可走**；本项目原来把周圈也标记为可走（"周圈能走通"）⇒ 玩家能走到离边界 1 格处，
             //   相机怎么夹都会露虚空（`camera-follow` 片已证：零虚空要求机位离边界 ≥ 7.083 格）。
-            //   ⇒ 封住外圈（⛔ 不缩地图：外圈瓦片照旧铺，画面 = 一圈树线/崖壁，不是黑虚空）。
+            //   ⇒ 封住外圈（不缩地图：外圈瓦片照旧铺，画面 = 一圈树线/崖壁，不是黑虚空）。
             var sealedCells = map.SealBorderRing(GridMap.BorderRingCells, TileKind.Tree);
             MapLog.Info($"MapGenWilderness: 边界环封闭 {sealedCells} 格" +
                         $"（n={GridMap.BorderRingCells} = 原版 `LvlPrest`「Act 1 - Wild Border *」块边长 8，" +
@@ -281,7 +272,7 @@ namespace Diablo2.Module.Map
                 {
                     if (i != 0 && j != 0 && i != cells - 1 && j != cells - 1) continue;
 
-                    // ★ 西边界正对回城口那一段 = **原版城镇过渡带**（不是崖壁边界块）。
+                    // 西边界正对回城口那一段 = **原版城镇过渡带**（不是崖壁边界块）。
                     //   整条带只在它的第一槽盖一次章（带本身 8×40 = 5 槽，一次铺满）。
                     if (i == 0 && j >= bandFrom && j <= bandTo)
                     {
@@ -483,7 +474,7 @@ namespace Diablo2.Module.Map
         /// 在**内部随机撒若干块原版填充块**（16×16 / 16×8 / 8×16 / 8×8 混搭，随机竖放或横放），
         /// 块从 `MapGenWildLayout` 的填充组里随机取 —— 这正是原版 `LvlPrest` 里
         /// 「Fence Fill 1..6 / Tree Fill」那几行的尺寸组合。
-        /// <para>⚠️ **不是把整个内部铺满**：这些块是装饰性的（树丛 / 木栅栏），原版野外是
+        /// <para>**不是把整个内部铺满**：这些块是装饰性的（树丛 / 木栅栏），原版野外是
         /// 「引擎铺满草地 + 零星几片树林」；逐格铺满会让整张图变成一片树林（实测可走率掉到 16%）。
         /// 也不覆盖"纯可走"格 ⇒ 不会把草地切成碎块。</para>
         /// </summary>
@@ -548,7 +539,7 @@ namespace Diablo2.Module.Map
                 var p = all[k];
                 if (p.Group != group) continue;
 
-                // ★ 内部填充块必须**四边全开**（`OpenN/S/W/E` 全 true）：这类块是"草地 +
+                // 内部填充块必须**四边全开**（`OpenN/S/W/E` 全 true）：这类块是"草地 +
                 //   树丛/木栅栏"的装饰块，四边全开才不会在场地中间形成一段"四面不通"的墙
                 //   —— 这正是"块与块按出口拼接"在内部落地的形式（原版野外内部就是开阔草地）。
                 if (!p.OpenN || !p.OpenS || !p.OpenW || !p.OpenE) continue;
@@ -687,10 +678,6 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 土路上第一个 3×3 全可走的格（**距四边界 ≥ <see cref="EntryMarginCells"/> 格**，仍尽量靠回城口那一侧）。
-        /// <para>★ black-why2：修前从 `gate.x + 1`（= 1，紧贴西边界那列）起扫 ⇒ 落点恒为 (1, gateY)，
-        /// 进区那一刻屏幕左侧 7 列在地图外（等距投影下表现为**左上那块笔直的黑三角**）。
-        /// 现在从 `max(gate.x + 1, EntryMarginCells)` 起扫 ⇒ 落点仍是「西门进来、站在土路上」，
-        /// 但已沿土路往东走进荒野，整屏都在图内。</para>
         /// </summary>
         private static Vector2Int? PickSpawn(GridMap map, Vector2Int gate)
         {

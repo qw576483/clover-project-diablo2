@@ -20,7 +20,7 @@
 # 复现（`cd <项目根>`）：
 #     python tools/probes/enumerate/d3_flatcolor.py            # 打印 + 写 .ai-tmp/test/d3-flatcolor.txt
 #
-# ⛔ 本脚本**只读盘**（PNG / 配表 / 布局源码），不改任何文件（除 .ai-tmp/test/ 的报告）。
+# 本脚本**只读盘**（PNG / 配表 / 布局源码），不改任何文件（除 .ai-tmp/test/ 的报告）。
 # ─────────────────────────────────────────────────────────────────────────────
 import io
 import os

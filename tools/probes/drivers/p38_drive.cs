@@ -1,9 +1,6 @@
-// p38_drive.cs -- one-off Pipeline probe for agent-38 (the "yellow placeholder flashes while walking"
-//                 defect, 2026-09-19 user report: "movement and many animations flash, movement flashes a
 //                 YELLOW SQUARE").
 // NOT shipped: lives in <project>/.ai-tmp/drivers/ and is deleted before delivery.
 //
-// Derived from the agent-34 probe (p34_drive.cs) -- same install/entry shape, same helpers. The tour here
 // is SHORT and targeted at ONE numeric assertion, plus ONE camera capture:
 //   Boot -> MainMenu -> SINGLE PLAYER -> roster row 0 ENTER -> Stage (town, Amazon)
 //     -> settle (let the first idle group finish loading)

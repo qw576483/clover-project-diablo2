@@ -117,9 +117,7 @@ namespace Diablo2.Module.Item
                 }
             }
 
-            // 2026-09-23（N2 复核）：**把"为什么放不下"写准** —— 原先无论哪种情况都打
             // "空格 N 但无连续块"，当 `N == 0`（背包真的 40/40 占满）时这句话会被读成
-            // "有空格但没法用"（实测就是这么被误判成缺陷的）。两种原因必须能区分。
             var free = FreeCellCount;
             if (free <= 0)
             {
@@ -193,7 +191,6 @@ namespace Diablo2.Module.Item
         /// <summary>
         /// 把某锚点格上的物品移到目标格（目标格被**另一件**物品占据 ⇒ 两件**互换**）。
         /// <para>
-        /// ★ 片 G1 新增（修用户报的「道具没法拖动！」的**落地**那一半）：UI 侧
         /// `UI/InventoryPanel.PlanDrop` 早就能判出 `DropKind.Move`，但**没有任何地方真的搬动物品** ——
         /// 本方法 = 那次拖放的落地实现（口径：**目标格 = 目标物品的锚点格**，被占用就整体互换，
         /// 与 `PlanDrop` / `AppEventRouting` 的注释同源）。
@@ -281,7 +278,6 @@ namespace Diablo2.Module.Item
 
             if (!movedOk || !swapOk)
             {
-                // 原样放回（两件都按**原来的格位**放，故必然成功）——⛔ 不许留下"东西不见了"的中间态
                 PlaceBlock(item, sx, sy, w, h);
                 if (targetItem != null) PlaceBlock(targetItem, tx, ty, tw, th);
                 Log.Warn("Item", $"Inventory.Move：{failReason} ⇒ 拒绝（两件均留在原格）");

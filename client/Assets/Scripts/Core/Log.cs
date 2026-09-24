@@ -3,7 +3,6 @@
 // 轻量日志门面：**全项目唯一的打日志入口**。
 //
 // 为什么还要一层：
-//   ① 硬约束（`_common.md` §3）：客户端一律 `Game.Logger.Info/Warn/Error(tag, msg)`，
 //      **禁止裸 `Debug.Log`**。这一层把「转发 + tag 规范化 + 防刷屏」收敛到一处；
 //   ② 高频回调（每帧碰撞/寻路失败/素材缺失）里裸打日志会**刷屏把日志文件打爆**，
 //      本层提供 <see cref="WarnThrottled"/> / <see cref="ErrorOnce"/> 两个降频入口。
@@ -12,7 +11,6 @@
 //   与验收要抄的日志格式一致：`[时间] [级别] [Flow] → MainMenu`。
 //   **不要**自己加 `D2.` 前缀（会破坏按 `[Flow]` 检索的验收脚本）。
 //
-// ★ 时钟与离线宿主（`docs/agents/agent-13-修复轮.md` §C 第 2 项）：
 //   降频入口（`WarnThrottled` / `ErrorThrottled` / `WarnOnce` / `ErrorOnce` / `ShouldLog`）需要一个
 //   「单调秒」。默认取 Unity 的 `Time.realtimeSinceStartup`；但那是**原生 ECall**，在非 Unity 进程
 //   （`tools/*check` 这类离线自检宿主）里调用会抛 `SecurityException`
@@ -23,11 +21,10 @@
 //   **离线宿主请注入时钟**（`Log.Clock = () => mySeconds;`）—— 注入后限频行为完全可复现（确定性），
 //   不注入也不会抛异常（走自动降级，只是时间原点不可控）。排障看 `Log.ClockSource`。
 //
-// ★★★ 实现位置（agent-32「引擎下沉 B1b」）：上面 ①②③ 那套「限频表 + 三级时钟」**已下沉到引擎**
 //   `CloverEngine.LogThrottle`（同源实现，自带离线断言 71/71 PASS）。本文件**只留门面**，分两类：
 //     · **保留在项目侧**（引擎刻意不做，属项目专属）：`KnownTags` 白名单 / `IsKnownTag` /
 //       `Normalize(tag)` / `Suppress` / 基础转发 `Info/Warn/Error/Debug`。
-//       ⛔ tag 规范化必须**先于**真正输出 —— 验收脚本按 `[tag]` 检索日志，而引擎版 `LogThrottle`
+//       tag 规范化必须**先于**真正输出 —— 验收脚本按 `[tag]` 检索日志，而引擎版 `LogThrottle`
 //       不做 tag 校验（它不认识本项目的模块名）。所以降频入口一律走本层 `Warn`/`Error` 输出。
 //     · **转发给引擎**（一行语义都不加）：限频窗口 /「只报一次」/ 三级时钟 / 注入时钟 / 清表
 //       ⇒ `LogThrottle.ShouldLog` / `Clock` / `ClockSource` / `Reset`。
@@ -56,26 +53,17 @@ namespace Diablo2.Core
             "App", "Flow", "Map", "Player", "Monster", "Combat", "Skill", "Item", "Quest",
             "Npc", "Input", "Camera", "View", "Audio", "Save", "Ui", "Table", "Cfg",
             "AStar", "Iso", "Rng", "D2",
-            // ★ R1-B：本轮修复的**证据 tag**（河面平色水墙瓦片不叠 / 点击不可走格的最近可走格回退）。
-            //   为什么单开一个 tag 而不是用 Map/Player：这两条修复的 Play 期数值证据要求「一条只报一次
             //   的 Info，内容写清生效口径」并按 tag 检索；混进 Map/Player 会与模块常规日志无法区分。
-            //   ⛔ 不加这一行不会报错，但首条 R1-B 日志会附带一条「tag 不在白名单」的 Warn（本文件 :201）。
+            //   不加这一行不会报错，但首条 R1-B 日志会附带一条「tag 不在白名单」的 Warn（本文件 :201）。
             "R1-B",
-            // ★ R1-C：本轮修复的**证据 tag**（创角屏「点击人物动画变形」+「名字输入粘连」）。
             //   同一理由（按 tag 检索"只报一次"的生效口径行）；三条日志分别在
             //   `UI/CharCreatePanel.OnOpen`（过渡逐帧矩形 / 名字输入由面板驱动）与 `UI/UiArt.SetSprite`（请求守卫）。
             "R1-C",
-            // ★ T0FIX：T0 缺陷修复片的**证据 tag**（同一理由，按 tag 检索各修复点的生效口径一条 Info）。
-            //   本片的行：`Module/Map/MapView.LogPacingOnce`（建块摊平 + 节点池的口径与预算推导）、
             //   `Module/Audio/AudioModule`（静音开关落盘 / 冷启动读回）、
             //   `Module/Flow/AppFlow.OnSaveDone`（`D2.Save.Done` 的消费账目）。
-            //   ⛔ 不加这一行不会报错，但首条 T0FIX 日志会附带一条「tag 不在白名单」的 Warn（本文件 :210）。
+            //   不加这一行不会报错，但首条 T0FIX 日志会附带一条「tag 不在白名单」的 Warn（本文件 :210）。
             "T0FIX",
-            // ★ T0GAP：T0 判据挖出的**两个真缺口**的修复证据 tag（同一理由：一条"只报一次"的 Info
-            //   把**生效口径**写清，按 tag 检索即可，不必截图）。
-            //   本片的行：`Module/Player/PlayerModule.ApplyDeathGoldPenalty`（死亡扣金币 10% 的取整口径 +
-            //   扣后不为负的论证）。另一处缺口（双武器组）走模块常规 tag `Item` —— 它是正常流程节点。
-            //   ⛔ 不加这一行不会报错，但首条 T0GAP 日志会附带一条「tag 不在白名单」的 Warn（本文件 :216）。
+            //   不加这一行不会报错，但首条 T0GAP 日志会附带一条「tag 不在白名单」的 Warn（本文件 :216）。
             "T0GAP",
         };
 
@@ -146,7 +134,7 @@ namespace Diablo2.Core
         }
 
         // ── 防刷屏（闸门与时钟转发 `CloverEngine.LogThrottle`；tag 规范化留在本层）──
-        // ⛔ 下面 4 个入口必须「先过闸门 → 再走本层 `Warn`/`Error` 输出」，**不许**直接调
+        // 下面 4 个入口必须「先过闸门 → 再走本层 `Warn`/`Error` 输出」，**不许**直接调
         //    `LogThrottle.WarnThrottled` / `ErrorOnce`：那一层不做 tag 校验，
         //    会绕过 `Normalize(tag)` ⇒ 验收脚本按 `[tag]` 检索日志会失效。
         /// <summary>

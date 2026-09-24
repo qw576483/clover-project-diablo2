@@ -1290,7 +1290,7 @@ namespace R1F
         }
 
         /// <summary>
-        /// True when the transition is over.  ⛔ The click is delivered over a few frames, so on the
+        /// True when the transition is over.  The click is delivered over a few frames, so on the
         /// frame right after it the transition has NOT started yet -- "not running" must therefore not
         /// be read as "finished" (that mistake let the Confirm click fire mid-transition once).
         /// </summary>
@@ -1429,7 +1429,7 @@ namespace R1F
         /// previous probe run on this machine may already own one of the candidates -- so the two
         /// digits come from the CLOCK and the first free candidate wins.  **Nothing in the save
         /// directory is ever deleted.**</para>
-        /// <para>★ R1-F: the name that will actually be created is EXACTLY the typed string -- the
+        /// <para>R1-F: the name that will actually be created is EXACTLY the typed string -- the
         /// default name is REPLACED by the first keystroke -- so the duplicate check must run on the
         /// typed string itself.  (The r1_drive.cs version checked `default + candidate`, i.e.
         /// "HeroAma..", which after the fix is NOT the name that gets created; the legacy form is
@@ -1509,7 +1509,7 @@ namespace R1F
                 + "\" visible_label=\"" + labelText + "\" display=\"" + display + "\""
                 + " caret=" + caret + " maxLen=15" + screen);
 
-            // ★ R1-F: the ONE derived value this cell is about -- is the typed string the WHOLE buffer
+            // R1-F: the ONE derived value this cell is about -- is the typed string the WHOLE buffer
             //   (glued=0) or is it still stuck behind the default name (glued=1, = the bug)?
             //   `defaultInBuffer` counts how many times the default name occurs inside the buffer.
             var defaultInBuffer = _defaultName.Length > 0

@@ -13,13 +13,11 @@
 //   `world.x = (px - py) * Iso.HalfW`，`world.y = -(px + py + 1) * Iso.HalfH`。
 //   当 `pos == (gx+0.5, gy+0.5)` 时，其结果**逐位等于** `Iso.GridToWorld(gx, gy)`。
 //
-// ★ 片 eng2-path（引擎下沉）：**"连续位置 + 朝向 + 沿 A* 路径推进"的实现在引擎**
 //   `CloverEngine.PathFollower`（`Runtime/Core/PathFollower.cs`）—— 本类只做**薄转发**：
 //   · `Pos` / `Dir` / `Path` / `PathIndex` / `PathTarget` / `HasPathTarget` / `RepathTimer`
 //     与 `SnapTo` / `SetPath` / `ClearPath` / `HasRemainingPath` / `Advance` / `StepToward`
 //     **公开名字与签名一字未改**（调用点零改动），内部一律读写引擎件；
 //   · 两个项目数值（`MonsterTuning.MinMoveSpeed` / `RepathIntervalSeconds`）经构造参数注入。
-//   ⛔ 不要在本类里再写一份推进循环（那就是"平行再起一套"，见引擎 `结构规则.md` §4.4）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -67,7 +65,7 @@ namespace Diablo2.Module.Monster
         // ── 路径跟随（**实现已下沉引擎** `CloverEngine.PathFollower`；本类只做薄转发）──────
         /// <summary>
         /// 引擎的等距布局（**只为取朝向**：`PathFollower` 只调它的 `DirectionTo`，
-        /// ⛔ 不读半格尺寸 —— 半格尺寸是项目语义，由 `Iso.HalfW/HalfH` 给）。
+        /// 不读半格尺寸 —— 半格尺寸是项目语义，由 `Iso.HalfW/HalfH` 给）。
         /// </summary>
         private static readonly CloverEngine.IsoLayout DirectionLayout = new CloverEngine.IsoLayout(
             Iso.HalfW, Iso.HalfH, GameConst.SortOrderStep, GameConst.SortOrderBase);
@@ -77,7 +75,7 @@ namespace Diablo2.Module.Monster
         /// <para>
         /// `Advance` / `StepToward` / `SetPath` / `ClearPath` / 朝向更新的算法**一字未改**地搬到了
         /// 引擎 `Runtime/Core/PathFollower.cs`（那边是唯一真相）；本类只保留同样的公开名字转发。
-        /// 两个项目数值经构造参数注入（⛔ 引擎不预设任何业务数值）。
+        /// 两个项目数值经构造参数注入（引擎不预设任何业务数值）。
         /// </para>
         /// </summary>
         private readonly CloverEngine.PathFollower _follow = new CloverEngine.PathFollower(
@@ -93,7 +91,7 @@ namespace Diablo2.Module.Monster
 
         /// <summary>
         /// 当前朝向（8 方向）。
-        /// <para>⛔ 引擎 `CloverEngine.Dir8` 与项目 `Diablo2.Def.Dir8` 是**逐值直转**的两个枚举
+        /// <para>引擎 `CloverEngine.Dir8` 与项目 `Diablo2.Def.Dir8` 是**逐值直转**的两个枚举
         /// （顺序同为 `S=0 SW=1 W=2 NW=3 N=4 NE=5 E=6 SE=7`，见 `Core/Iso.cs` 的映射说明）——
         /// 这里只转值，不做任何档位偏移。</para>
         /// </summary>
@@ -142,9 +140,9 @@ namespace Diablo2.Module.Monster
         // ── AI 状态骨架（引擎 `Game.NewFsm()`，由 `MonsterAi` 建与驱动）────────────────
         /// <summary>
         /// 本怪**自己的**状态机（`CloverEngine.Game.NewFsm()`，专为"每单位一棵"公开）。
-        /// <para>⛔ 引擎的 `Game.Fsm` 是**应用级单例**（登录 / 主城 / 战斗流程），多个实体共用一个
+        /// <para>引擎的 `Game.Fsm` 是**应用级单例**（登录 / 主城 / 战斗流程），多个实体共用一个
         /// `Current` 会互相覆盖 ⇒ 不能给每只怪共用。</para>
-        /// <para>骨架 = `Idle→Aggro→Chase→Attack→Return/Flee`；⛔ **行为与数值的唯一真相仍是
+        /// <para>骨架 = `Idle→Aggro→Chase→Attack→Return/Flee`；**行为与数值的唯一真相仍是
         /// `MonsterAi` 那 4 个 AI 函数**，状态回调只做骨架归位 / 转移留痕。</para>
         /// </summary>
         public CloverEngine.IFsm Ai;

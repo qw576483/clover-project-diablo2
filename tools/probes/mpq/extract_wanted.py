@@ -174,7 +174,7 @@ def main():
     pr = storm.SFileOpenPatchArchive(h, A(args.patch_archive), b"", 0)
     log("SFileOpenPatchArchive(%s) = %s" % (args.patch_archive, bool(pr)))
 
-    # 坑 4：⛔ 不 rmtree(tmp)（safe-delete 守门）—— 直接复用/覆盖
+    # 坑 4：不 rmtree(tmp)（safe-delete 守门）—— 直接复用/覆盖
     os.makedirs(tmp, exist_ok=True)
 
     done = fail = miss = 0

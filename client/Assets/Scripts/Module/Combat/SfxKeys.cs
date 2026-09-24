@@ -8,7 +8,6 @@
 // 战斗管线要在多处触发音效（命中 / 未命中 / 受击 / 死亡 / 复活 / 施法），
 // 若把 `"hit"` 这类字面量散落各处，改名必漏、检索不到 ⇒ 收敛到本文件一处。
 //
-// ⚠️ 这些键**必须与 agent-11（`Module/Audio`）的解包产物名一致**；
 //    素材未到位前 `IAudioModule` 是空实现，调用只留日志。
 //    真实文件名到位后：**只改本文件的常量值**，不动任何调用点。
 //    （已追加登记 `client/资源欠缺清单.md` → 音效一节的期望键名）
@@ -62,7 +61,6 @@ namespace Diablo2.Module.Combat
         public const string LevelUp = "level_up";
 
         // ═════════════════════════════════════════════════════════════════════
-        // 逐类怪物音效键（★ 片 monster-audio）
         //
         // 为什么要有这 30 个键：上面那 3 个通用键（`MonsterAttack`/`MonsterDie`/`MonsterRevive`）
         //   的素材源**全是堕落者 `fallen`** ⇒ 打僵尸、打血鹰听到的都是沉沦魔的叫声/死声，
@@ -72,11 +70,11 @@ namespace Diablo2.Module.Combat
         // 键名规则 = `monster_{hit|atk|die|step}_{原版 MonStats.Code 小写}`（8 类）：
         //   fa=Fallen / fs=FallenShaman / si=QuillRat(尖刺鼠) / zm=Zombie /
         //   ye=Brute(野兽) / cr=CorruptRogue / bk=BloodHawk(血鹰) / wr=Wraith。
-        //   ⚠ 代码 → 类别的**唯一出处** = `MonStats.txt` 的 `Code` 列 × `MonSound` 列
+        //   代码 → 类别的**唯一出处** = `MonStats.txt` 的 `Code` 列 × `MonSound` 列
         //     （`原版资源/d2lod1.10txt-1.10f/data/global/excel/MonStats.txt`），
-        //     ⛔ 不是凭名字猜的 —— 例：`bk` 是 **foulcrow（血鹰）**，`ye` 才是 brute。
+        //     不是凭名字猜的 —— 例：`bk` 是 **foulcrow（血鹰）**，`ye` 才是 brute。
         //   音效条目名出处 = `MonSounds.txt`；目标文件出处 = `Sounds.txt` 的 `FileName` 列
-        //     （受击音的真名是 `gethit1.wav`，⛔ **不是** `hit1.wav`）。
+        //     （受击音的真名是 `gethit1.wav`，**不是** `hit1.wav`）。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>沉沦魔受击（`fallen_hit_1`）。</summary>

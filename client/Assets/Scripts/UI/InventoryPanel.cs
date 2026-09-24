@@ -1,38 +1,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/InventoryPanel.cs（agent-09 · 1:1 轮）
 // 背包面板：原版 `inventory.png`(320×432) 底图 ×1.8 + **10×4 背包格** + 装备栏（`inv_*`）
 // + 底部「金币按钮 + 金币数字 + 关闭按钮」；支持拖放、点击装/卸、右键丢地上、悬停 tooltip。
 //
-// ★★ 本轮（1:1）改了什么：
 //   ① 面板与全部子元素一律 **×1.8 居中**（原版 800×600 → 本工程 1920×1080；口径见 `UiLayoutGame`）；
 //   ② 装备栏 10 个槽的矩形**改用 `InventoryPanel.prefab` 的节点实测值**
 //      （head/neck/tors/rarm/larm/glov/belt/rrin/lrin/feet —— 见 `UiLayoutGame.InvEquipOrig`），
-//      不再用上一轮"量底图"的近似值（差 2px 量级，但既然有精确值就用精确值）；
 //   ③ 底部补齐原版三个节点：`GoldButton`(20×17 @ -65.5,-184.1)、
 //      `CloseButton`(32×31 @ -125.8,-184.1)、`GoldText`(87.1×15.2 @ -7,-183.2)；
 //   ④ **删掉面板里那 4 格「腰带行」**——`InventoryPanel.prefab` **没有**这一行
 //      （原版腰带只在底部控制面板上，本项目的 HUD 已按原版位置画了 4 格）；
 //      留着它就会压住原版底图右下角那一片大理石底纹 ⇒ 1:1 要求删。
-//   ⑤ **★ agent-27：物品按自身尺寸占格（修用户报的「背包里道具占格子还是不对」）**：
 //      图标层不再固定成"1 格大小"，而是按 `item_c.grid_w/grid_h` 铺成 `w×h` 格的块，
 //      **左上角与锚点格左上角重合**（2×4 的盔甲就跨 2 列 4 行）。见 `ItemIconRect`。
 //      格网本身 = 原版底图实测 pitch（29.2 / 29.25 原版px → ×1.8 = 52.56 / 52.65），
 //      与原版 `InventoryPanel.prefab` 的 10×4 一致（`GameConst.InventoryCols/Rows`）。
-//   ⑥ **★ w4：装备槽底图不再被拉变形**（用户报「装备格被拉变形」）。
-//      旧实现 = 把整幅 `inv_*.png` 塞进 prefab 节点矩形里，而原版这些贴图**四周有透明边**
+//   ⑥ **w4：装备槽底图不再被拉变形**（用户报「装备格被拉变形」）。
 //      （`inv_armor.png` 64×128 里不透明内容只占 54×81）⇒ 横竖压缩比不同（84.4% vs 64.8%）；
 //      双槽拼图（`inv_helm_glove` / `inv_ring_amulet`）按"半宽"裁又会带出隔壁槽的图案。
 //      现口径 = **裁剪框（素材外接框 ×K）+ 整幅贴图（IHDR ×K，1:1 不缩放）**，
 //      实测常量在 `UiLayoutGame.InvEquipArt`（逐像素列投影求出的连通块），见 `BuildEquipFrame`。
 //
-// ★ 格子对齐：**格子必须和底图画出来的框重合**（这是肉眼判据），故格宽/格高取
+// 格子对齐：**格子必须和底图画出来的框重合**（这是肉眼判据），故格宽/格高取
 //   `inventory.png` 的**格线实测**（竖线 x=17,46,…,309 ⇒ 29.2；横线 y=252,281,310,339,369 ⇒ 29.25），
 //   首格左上角 = 贴图 (17,252) → 面板中心坐标 (-143, -36)。→ ×1.8 见 `UiLayoutGame`。
 //   （prefab 的 `Grid` 外框 287.8×114.9 与格线差 1.5%：外框是装饰边框，格线才是玩家看得见的格子。）
 //
-// ★ 分层：`UILayer.Popup`（引擎对 Popup 自动互斥 + 遮罩，见 `Runtime/Presentation/UI.cs:124-128`）。
-// ★ 数据：只吃 `Diablo2.Def.InventoryChangedArgs`；**零 `using Diablo2.Module`**（分层自检 ③）。
-// ★ 交互请求全部走 `Core/Events.cs` 的事件（**载荷打包以 `Events.cs` 的注释为准**）：
+// 分层：`UILayer.Popup`（引擎对 Popup 自动互斥 + 遮罩，见 `Runtime/Presentation/UI.cs:124-128`）。
+// 数据：只吃 `Diablo2.Def.InventoryChangedArgs`；**零 `using Diablo2.Module`**（分层自检 ③）。
+// 交互请求全部走 `Core/Events.cs` 的事件（**载荷打包以 `Events.cs` 的注释为准**）：
 //     EquipToggleRequest(int 锚点格) / ItemDropRequest(int 锚点格) / UseBeltRequest(int 0..3)；
 //     UnequipRequest(int = `((int)ItemSlot & 0xFF) | (slotIndex << 8)`)，
 //     MoveInInventoryRequest(int = `fromAnchor | (toAnchor << 16)`)。
@@ -50,7 +45,7 @@ using UnityEngine.UI;
 namespace Diablo2.UI
 {
     /// <summary>
-    /// 一次拖拽**落点判定**的结论（★ U4；由 <see cref="InventoryPanel.PlanDrop"/> 产出，纯函数、离线可断言）。
+    /// 一次拖拽**落点判定**的结论（U4；由 <see cref="InventoryPanel.PlanDrop"/> 产出，纯函数、离线可断言）。
     /// </summary>
     internal enum DropKind
     {
@@ -97,7 +92,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 拖拽时**目标格高亮**的颜色（半透明白）。
-        /// <para>⛔ 这不是"自选外观"：原版拖拽时目标格是**亮起的框**（`InvMoveOverFx`/格高亮），
+        /// <para>这不是"自选外观"：原版拖拽时目标格是**亮起的框**（`InvMoveOverFx`/格高亮），
         /// 而本机没有那一帧素材（登记 `client/资源欠缺清单.md`），故用半透明覆盖块替代；
         /// 语义（"这里会落下"）与原版一致，**取色**为本项目选定并在此登记。</para>
         /// </summary>
@@ -157,7 +152,7 @@ namespace Diablo2.UI
         /// 10 个装备槽（**中心** = `InventoryPanel.prefab` 的节点实测值 → ×1.8 居中；节点名见注释）。
         /// 戒指两枚分别取 `rrin` / `lrin` 两个原版节点。
         /// <para>
-        /// ★ w4：绘制几何（裁剪框 / 整幅贴图尺寸与偏移）**另有一张素材实测表**
+        /// w4：绘制几何（裁剪框 / 整幅贴图尺寸与偏移）**另有一张素材实测表**
         /// <see cref="UiLayoutGame.InvEquipArt"/>（逐像素列投影求出的本槽图形外接框）。
         /// 为什么必须分开：prefab 节点值 = **社区复刻工程**量的框（与素材实测相差 0～2 原版px），
         /// 而"贴图该怎么摆才不被拉变形/不带出隔壁槽的图案"只能由**素材自己**回答。
@@ -330,22 +325,21 @@ namespace Diablo2.UI
         private Image _ghost;
 
         /// <summary>
-        /// ★ U4：拖拽时**目标格高亮**（原版手感 = 拖影跟随鼠标 + 目标格高亮；见 `DragAndDrop` 注释）。
+        /// U4：拖拽时**目标格高亮**（原版手感 = 拖影跟随鼠标 + 目标格高亮；见 `DragAndDrop` 注释）。
         /// <c>null</c> / 未拖拽时不显示。
         /// </summary>
         private Image _dropHighlight;
         private int _dragAnchor = -1;
 
         /// <summary>
-        /// ★ 片 eng-drag-drop（2026-09-24）：**拖放机制**收敛到引擎件 `CloverEngine.DragDropLayer`
         /// （拖影取件/跟随指针 · 屏幕点 → 格坐标 · 目标格高亮回调 · 落点判定 + 可否放注入）。
         /// <para>
-        /// ⛔ **D2 语义全部留在本面板**，一个字都没下沉：
+        /// **D2 语义全部留在本面板**，一个字都没下沉：
         ///   · 「哪些格可放」= <see cref="CanPlaceInInventory"/>（本面板注入）；
         ///   · 「高亮怎么画」= <see cref="OnDropTargetChanged"/>（本面板回调里画 `DropHighlight`）；
         ///   · 「落点该怎么处理（装备槽 / 背包内移动 / 丢地面）」= <see cref="PlanDrop"/>（未改一字）。
         /// </para>
-        /// <para>屏幕点换算（含"按画布模式取相机"）走引擎 `ScreenPointUtil`，⛔ 本文件不再自写一份。</para>
+        /// <para>屏幕点换算（含"按画布模式取相机"）走引擎 `ScreenPointUtil`，本文件不再自写一份。</para>
         /// </summary>
         private DragDropLayer _drag;
 
@@ -429,9 +423,7 @@ namespace Diablo2.UI
             _tooltip?.Destroy();
             _tooltip = null;
             _dragAnchor = -1;
-            // ★ 片 eng-drag-drop：关面板时若拖拽还在进行，由引擎拖放层收表现
             //   （藏拖影 + 目标格回调一次"无格"= 取消高亮）——否则 `DragGhost` / `DropHighlight`
-            //   会以"还亮着"的状态留到下次打开（改前只清 `_dragAnchor`，两个节点没人收）。
             _drag?.HideGhost();
             UiLog.Info("背包面板已关闭");
         }
@@ -451,7 +443,6 @@ namespace Diablo2.UI
             if (_built) return;
             _built = true;
 
-            // ★ 片 K（R8）：底图**必须吃射线** —— 口径与 `ShopPanel.BuySellBg`（`raycastTarget=true`）一致。
             //   为什么：本图是**面板矩形**（576×777.6，非满屏）⇒ 它是"面板本体"。
             //   若不吃射线，点面板内部空白处时 `EventSystem.IsPointerOverGameObject()` 为 false
             //   ⇒ `Module/Input/InputReader.UiEatsIntent(pressed:true, pointerOverUi:false)` 返回 false
@@ -486,7 +477,6 @@ namespace Diablo2.UI
                     new Color(1f, 1f, 1f, 0f), true);
                 _cells[i] = cell;
 
-                // ★ agent-18 §B：原版物品图标层（`D2/Items/inv{code}.png`，由 d2data.mpq 的
                 //   `data/global/items/inv*.DC6` 解出）。空物品 ⇒ 隐藏（**不画色块**：原版空格就是空的，
                 //   格线由 `inventory.png` 底图提供）。
                 var icon = UiArt.Panel(cell.transform, "Icon", new Vector2(CellW, CellH), Vector2.zero,
@@ -495,8 +485,6 @@ namespace Diablo2.UI
                 icon.gameObject.SetActive(false);
                 _cellIcons[i] = icon;
 
-                // ★ 片 font-scale：补显式字号（原来默认 0 = 按原版 px 1:1 画 ⇒ 格上数量只有应有的
-                //   ~55%，用户报「文字太小」的 6 处之一）。字号唯一出处 = `UiLayoutGame.FontPx16`。
                 _cellCounts[i] = D2Label.Create(cell.transform, "Count", string.Empty, D2Text.D2Font.Font16,
                     TextAnchor.LowerRight, UiArt.ButtonText, new Vector2(CellW, CellH), Vector2.zero,
                     (int)UiLayoutGame.FontPx16);
@@ -524,13 +512,11 @@ namespace Diablo2.UI
         /// <summary>
         /// 装备槽底图 = **裁剪框（素材外接框 ×K）+ 整幅贴图（IHDR ×K，1:1 不缩放）**。
         /// <para>
-        /// 为什么必须这样（★ w4 修「装备格被拉变形」）：
+        /// 为什么必须这样（w4 修「装备格被拉变形」）：
         ///   ① 原版 `inv_*.png` **四周有透明边**（`inv_armor.png` 64×128 里内容只占 54×81）；
-        ///      旧实现把整幅塞进内容大小的矩形 ⇒ 横竖压缩比不同（84.4% vs 64.8%）= 非等比拉伸；
         ///   ② 双槽拼图（`inv_helm_glove` 128×64 / `inv_ring_amulet` 64×32）的两个图形
         ///      **不在半宽处切开**（实测在 x 54/55 与 x 23/24 两列空列处分开）——
         ///      按半宽裁会把隔壁槽的图案带进来 / 把自己切掉一块；
-        ///      现改成「裁剪框 = 本槽图形外接框」（实测常量见 `UiLayoutGame.InvEquipArt`）。
         /// </para>
         /// <para>位置：裁剪框中心 = prefab 节点中心（`def.center`）；整幅贴图按其外接框偏移摆进去。</para>
         /// <para>命中区 = 裁剪框（<c>_equipRects[i]</c>）⇒ tooltip / 拖放落点都只覆盖画出来的那块图形。</para>
@@ -547,7 +533,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 关闭按钮上的那个字（**原版字模的拉丁「X」**，不是自绘图形、也不是中文标签）。
-        /// <para>⚠️ 为什么不是中文「关闭」：本工程最小字模 = 原版 `font16`（画布 **28.8px**，
+        /// <para>为什么不是中文「关闭」：本工程最小字模 = 原版 `font16`（画布 **28.8px**，
         /// `UiLayoutGame.FontPx16`）⇒ 两个字 ≈ 57.6px **宽于本槽内区 ~48px**（槽 32×31 原版px ×1.8
         /// = 57.6×55.8，原版小方钮底图内区约 26 原版px = 46.8 画布px）⇒ 必然越框/折行。
         /// 单个拉丁 `X`（≈28.8px）居中放得下，且**语义与原版 `CloseButton` 的图形一致**。</para>
@@ -558,23 +544,19 @@ namespace Diablo2.UI
         /// 底部一行（原版 `InventoryPanel.prefab` 的三个节点，位置/尺寸逐条 ×1.8）：
         /// `CloseButton`(关闭) + `GoldButton`(金币按钮，原版帧 `goldcoinbtn.dc6.0` 0/1 = 常态/按下)
         /// + `GoldText`(金币数字，位图字体)。
-        /// <para>★ R8-close（2026-09-24）：关闭按钮**从"100% 透明的命中区"改成"可见的关闭标记"**
-        /// —— 修前 `new Color(1,1,1,0)` ⇒ 点得到、屏上**什么都看不见**（用户第三批投诉
+        /// <para>关闭按钮**从"100% 透明的命中区"改成"可见的关闭标记"**
         /// 「甚至连他妈的关闭都没有」在本格上是字面正确）。</para>
         /// <para>用什么补（**取件结果 + 为什么不自画 + 为什么不套方钮族**）：
         /// ① 原版那张「X」图形（Diablerie `InventoryPanel.prefab` 的 `CloseButton.m_Sprite` guid
         ///    `bd016b557dbd0934bbc9b79319d50729`，**32×31**）**不在盘**：片 `popupaudit` 按名 10 条 MISS；
-        ///    本片再加两路 —— mpq 按名 **42** 条 `close/exit/cancel/xbtn/esc/button` 名字族全 MISS
         ///    （4 条对照项命中 ⇒ 链路可信）；DC6 全集按**图形内容**扫 448 个文件、647 个落在 20..54px
         ///    尺寸带的帧，X 相似度最高只有 0.481（物品图标 `inv1x1.DC6`）⇒ **全集内没有任何 X 形帧**。
-        /// ② ⇒ 走「⛔ 不自画 + 只用原版素材」：**按钮底图不另贴**（本槽的按钮位就是原版底图自己画好的
+        /// ② ⇒ 走「不自画 + 只用原版素材」：**按钮底图不另贴**（本槽的按钮位就是原版底图自己画好的
         ///    凹槽 —— 贴一张外来的板反而会盖掉它），**文案 = 原版位图字模的拉丁「X」**
         ///    （见 <see cref="CloseMarkText"/>，字模文件 = 原版 `LOCAL/FONT/chi/font16`）。
-        /// ③ ⚠️ 为什么不套 `PANEL/buysellbtn.DC6` 那族 32×32 方钮帧（同尺寸族、且工程内已有用法）：
+        /// ③ 为什么不套 `PANEL/buysellbtn.DC6` 那族 32×32 方钮帧（同尺寸族、且工程内已有用法）：
         ///    本槽的原版图形是 **32×31 的独立 sprite**，而方钮族的帧尺寸是 **32×32** ⇒ 不是同一件东西；
         ///    且该族有图形的帧是「锤子+铁砧(2/3)＝修理」「⊘(10/11)＝商店关闭」**别的界面的语义**
-        ///    （出处 = 片 u53-shopart 按原版商店实机读图 + `策划/验收表.md` E4，见 `uicheck/ShopArtCheck.cs`），
-        ///    套到背包上要么是空板（帧 0/1，`ShopArtCheck` 明写"那是旧实现的错处"）要么是错的图标。
         /// ④ 残余（已登记 `client/资源欠缺清单.md` #22）：拿到原版「X」贴图后**只换这一处标记**
         ///    （把 `D2Label` 换成 `UiArt.SetSprite(close, "D2/UI/Panel/closebtn")`），
         ///    本段几何（原版 `CloseButton` 32×31 @(-125.8,-184.1)×1.8）与接线一个字都不动。</para>
@@ -582,7 +564,6 @@ namespace Diablo2.UI
         private void BuildBottomRow()
         {
             // ── 关闭按钮：原版命中区矩形（透明 ⇒ 露出原版底图自带的凹槽）+ 原版字模「X」──
-            //    命中区本身仍是原版矩形与原来那套接线；**新增的只有那个看得见的「X」**。
             var close = UiArt.Panel(transform, "CloseButton", CloseButtonSize, PanelPos + CloseButtonPos,
                 new Color(1f, 1f, 1f, 0f), true);
             var closeBtn = close.gameObject.AddComponent<Button>();
@@ -598,7 +579,7 @@ namespace Diablo2.UI
                 (int)UiLayoutGame.FontPx16);
 
             // ── 金币按钮：原版 `goldcoinbtn.dc6.0` 两帧（0=常态 1=按下），帧尺寸实测 20×17 ──
-            // ⚠️ 逐帧按名加载在本工程取不到（见 `UiArt.RequestStrip` 的实测注释）⇒ 一律走条带取帧。
+            // 逐帧按名加载在本工程取不到（见 `UiArt.RequestStrip` 的实测注释）⇒ 一律走条带取帧。
             var goldBtn = UiArt.Panel(transform, "GoldButton", GoldButtonSize, PanelPos + GoldButtonPos,
                 Color.white, true);
             var gb = goldBtn.gameObject.AddComponent<Button>();
@@ -628,7 +609,6 @@ namespace Diablo2.UI
             gb.onClick.AddListener(() => UiLog.Info("点金币按钮 ⇒ 原版是「把钱丢地上」；本项目未接线（回报「未接线」）"));
 
             // ── 金币数字（原版 GoldText）：位图字体、居中 ──
-            // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 金币数只有应有的 ~55%）。
             _goldText = D2Label.Create(transform, "Gold", "0", D2Text.D2Font.Font16, TextAnchor.MiddleCenter,
                 UiArt.TitleColor, GoldTextSize, PanelPos + GoldTextPos, (int)UiLayoutGame.FontPx16);
         }
@@ -666,7 +646,6 @@ namespace Diablo2.UI
                 // 格子本身**永远透明**（原版格线由 `inventory.png` 底图提供，不能被色块盖住）
                 _cells[i].color = new Color(1f, 1f, 1f, 0f);
 
-                // ★ agent-27：物品图标层按**物品自身的占格**（`item_c.grid_w × grid_h`）铺开，
                 //   左上角与锚点格的左上角重合 —— 原版就是"图占满它那几格"，不许缩进单格里。
                 //   其余被覆盖的格 `slot.item == null`（模块契约：只有锚点格挂 item）⇒ 天然不重复画。
                 var icon = _cellIcons[i];
@@ -703,7 +682,6 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// ★ agent-18 §B：把**原版物品图标**贴到某个图标层上（背包格 / 装备槽）。
         /// 实现收在 `UI/D2Icon.ApplyItemIcon`（HUD 腰带的图标层也调它，避免两处口径分叉）。
         /// </summary>
         private static void ApplyItemIcon(Image icon, string[] cache, int index, ItemStack item)
@@ -760,8 +738,6 @@ namespace Diablo2.UI
         {
             if (eventData == null) return;
 
-            // ★ U4 根因修复（用户报「道具没法拖动」+「点装备格没反应」）：
-            //   旧实现用 `eventData.pointerPress` 找被点的格子，但 uGUI 把 `pointerPress` 填成
             //   **收了 PointerDown 的那个 GameObject** —— 本面板把 `IPointerClickHandler` /
             //   `IDragHandler` 实现在 **面板根**（`InventoryPanel` 组件挂在根节点）上，格子只是
             //   子 `Image`（`Cell{N}`）⇒ `pointerPress` **恒 = 面板根**，而
@@ -805,7 +781,6 @@ namespace Diablo2.UI
             _dragAnchor = -1;
             if (eventData == null) return;
 
-            // ★ U4：与 `OnPointerClick` 同一处根因 —— 不再用 `eventData.pointerPress`
             //   （它恒 = 面板根，判别不出是哪个格），改用屏幕点矩形命中。
             var cell = CellAt(eventData.position);
             if (cell < 0)
@@ -825,9 +800,7 @@ namespace Diablo2.UI
 
             _dragAnchor = anchor;
             var item = _data != null && anchor < _data.inventory.Count ? _data.inventory[anchor]?.item : null;
-            // ★ agent-18 §B：拖影也用**原版物品图**（取不到才退回品质色块）
-            //   ★ ui-fix3 修（实机「拖出后残灰块 / 拖影没图标」的 UI 侧那一半）：
-            //   ① 拖影在贴图**异步在途**的那几帧画的是 `color` —— 原来先置成**不透明**品质色
+            //   ui-fix3 修（实机「拖出后残灰块 / 拖影没图标」的 UI 侧那一半）：
             //      （普通品质 = 纯白实心块，深色地皮上就是一块刺眼"灰白块"），图标到了才变成物品图
             //      ⇒ 实机每一拖都先闪一块纯色。现在**一路保持本拖影既定的 0.65 半透明**
             //      （该值 = 本文件 `_ghost` 建立时的既有常量，未新增数值），图标到位前后都
@@ -880,8 +853,6 @@ namespace Diablo2.UI
             var cell = CellAt(screen);
             if (cell < 0)
             {
-                // ★ V6：这条分支原来**静默**（实机只看到"目标格高亮没出现"，查不出是"没命中格"
-                //   还是"高亮没画出来"）⇒ 补一条**只在状态变化时**报点名的日志（非预期分支必须留痕，
                 //   且不逐帧刷屏）。判据：V6 的 Play 日志里 `[Ui] 拖拽目标格` / `拖拽指针下无格`。
                 if (_loggedDropCell != -1)
                 {
@@ -916,7 +887,7 @@ namespace Diablo2.UI
             var mouse = Game.Input != null ? Game.Input.MousePosition : Vector3.zero;
             var screen = new Vector2(mouse.x, mouse.y);
 
-            // ★ U4：落点判定收进**纯函数** `PlanDrop`（离线宿主可逐行断言"按下→移动→松手"
+            // U4：落点判定收进**纯函数** `PlanDrop`（离线宿主可逐行断言"按下→移动→松手"
             //   这一序列的判定结果；见 `tools/probes/hosts/uicheck`）。
             var plan = PlanDrop(_data, anchor, CellAt(screen), EquipAt(screen), InsidePanel(screen));
 
@@ -949,7 +920,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// **落点判定**（★ U4）：纯函数，判"按下 → 移动 → 松手"里的**落点**该做什么。
+        /// **落点判定**（U4）：纯函数，判"按下 → 移动 → 松手"里的**落点**该做什么。
         /// 判据口径（与原版一致）：装备槽 → 装备；背包格 → 背包内移动/交换（被占用则与该物品的锚点格互换）；
         /// 面板外 → 丢地面；面板内空白 → 忽略。
         /// <para>抽成静态纯函数的理由：拖拽的手感只能进 Play 看，但"落点判对没有"必须**离线可断言**
@@ -986,7 +957,6 @@ namespace Diablo2.UI
         {
             if (_tooltip == null) return;
 
-            // ★ dialog-options2（2026-09-24）：`ShouldBeVisible` 的三条件在这里**逐条用真实状态喂**，
             //   任一条不成立就 `Hide()`（口径见 `ItemTooltip.ShouldBeVisible` 的注释）。
             //   ① 面板还开着：本方法只由存活面板的 `OnUpdate` 驱动；面板销毁走 `OnClose` 的 `Destroy`
             //      （⇒ 这里恒 true，写出来是为了让"三条件"在同一处可读、可离线断言）。
@@ -994,9 +964,8 @@ namespace Diablo2.UI
 
             if (Game.Input == null || !Game.Input.Available)
             {
-                // ⚠️ 非预期分支（旧写法在这里**直接 return、不 Hide**）：输入不可用 ⇒ **指针位置不可知**，
+                // 非预期分支（旧写法在这里**直接 return、不 Hide**）：输入不可用 ⇒ **指针位置不可知**，
                 //   按"指针不在面板内"处理 ⇒ 必须隐 —— 否则 tooltip 停在上一帧的位置不动，就是用户报的
-                //   「离开背包后残留一块空框」那一族（`.ai-tmp/test/report-playverify.md` §1.2）。
                 if (!ItemTooltip.ShouldBeVisible(panelOpen, false, false)) _tooltip.Hide();
                 UiLog.WarnOnce("tooltip.hover.noinput",
                     "悬停判定时 `Game.Input` 不可用（未挂载 / 未就绪）⇒ tooltip 强制隐藏（指针位置不可知）");
@@ -1045,7 +1014,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 屏幕点命中的装备槽下标（未命中 = -1）。
-        /// <para>★ U4：与 <see cref="CellAt"/> 同一套屏幕点矩形命中 —— 取代原先
+        /// <para>与 <see cref="CellAt"/> 同一套屏幕点矩形命中 —— 取代原先
         /// 「比 `eventData.pointerPress` 是不是某个格节点」的做法（那个做法恒不命中，见
         /// <see cref="OnPointerClick"/> 的根因注释）。</para>
         /// </summary>

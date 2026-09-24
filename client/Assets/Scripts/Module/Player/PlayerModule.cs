@@ -9,11 +9,9 @@
 //   收：`EquipChanged`（装备生效 → 重算派生）、`StatAllocateRequest`（人物面板加点）
 //   发：`HudDirty` / `PlayerStatsChanged`（数值变化）、`LevelUp`、`PlayerDied`、
 //       `PlayerGridChanged`（小地图揭迷雾 / 已探索）、`ExitEntered`（踩到出入口 → Flow 切区域）、
-//       `MoveCommand`（移动意图，契约 §3.5）、`AttackRequest`（左键点怪 → 交 `ICombatModule` 结算）
 //   不发：`PlayerDamaged` / `DamageDealt`（属 `ICombatModule` 的结算产物）、
 //         `ReviveRequest`（`ICombatModule.RevivePlayer()` 的入口，Player 不重复订阅）
 //
-// ── 交互（`docs/agents/agent-13-修复轮.md` §A；**补上 `AttackRequest` 的发送方**）──────
 //   原版左键语义：点怪 → `Emit(AttackRequest, id)`（并走过去）；点空地/物品/NPC → `MoveCommand` 意图。
 //   `Shift` 按住 = **站立攻击**（只发 `AttackRequest`，不产生移动目标）。
 //   走位说明：`ICombatModule.RequestAttack` 超距时**不结算也不走位**（只 Warn「先靠近」）⇒
@@ -21,21 +19,17 @@
 //   拉不到怪物 id 时**不改契约、不改 App**：经组合根 `AppContext.I.Monster`（**接口**，非 `Module.Monster`
 //   实现类型）读取 —— 详见 `Module/Input/HoverPicker.cs` 头注释（分层 ②/③ 仍 0 命中）。
 //
-// ── 走 / 跑切换（原版 R 键，§A 第 5 项）──────────────────────────────────────
 //   `_running` 缩放 `PlayerMotor.SpeedScale`（跑 = `GameConst.PlayerWalkSpeed`，
 //   走 = `GameConst.PlayerWalkSpeedFactor` = **原版 7/15**，见该常量注释），
 //   并 `Emit(HudDirty)`（HUD 侧只切贴图，见 `UI/HudPanel.cs` 的 runbutton）。
-//   ★ 片 2b：`_running` 同时经契约 `IPlayerModule.IsRunning` 暴露给表现层
 //     （`Module/View/ViewModule` 据此选 `ViewAnim.Run` / `ViewAnim.Walk`）。
 //
-// ── ★ R1-B：「点不可走处 ⇒ 走向最近合法点」（用户报「为什么不是从桥上走？」）──────
-//   原版 D2 点不可走处会走向**最近合法点**；本模块此前是**直接拒绝**（只 Warn 一行、角色不动）
-//   ⇒ 桥的栏杆与桥面相邻 1 格（`MapGenTownLayout.Rows` 第 25..28 行 `d`/`s` 交替），
+// ── R1-B：「点不可走处 ⇒ 走向最近合法点」（用户报「为什么不是从桥上走？」）──────
 //   "看着点的是桥、逻辑格其实是栏杆/水"的点击就表现为「点了没反应 / 不走桥」。
 //   现在：**图上有地形、只是阻挡** ⇒ 半径 `MoveFallbackRadius`（= 2 格，口径见该常量）内挑最近可走格
 //         并走过去；图外（越界）与 `TileKind.Void`（没地形、也不画 ⇒ 视觉=关卡外那片黑）⇒ 仍直接拒绝；
 //         半径内无可走格 / 走不到 ⇒ 仍按不可达拒绝。
-//   ⛔ 不放宽可走性、不改地形：`IMapModule.Walkable` 与 `GridMap` 一个字未动。
+//   不放宽可走性、不改地形：`IMapModule.Walkable` 与 `GridMap` 一个字未动。
 //   生效口径由一条只报一次的 `R1-B` Info 日志给出（tag 便于 Play 期按数值取证，不必截图）。
 
 // ── 契约歧义（**已回报主 agent，未擅自改契约**）─────────────────────────────
@@ -50,7 +44,6 @@ using System.Collections.Generic;      // ★ R1-B：MoveTo 的最近可走格�
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// ★ agent-33 引擎下沉 A2：引擎侧新增了**同名**枚举 `CloverEngine.Dir8`（`Runtime/Core/Dir8.cs`），
 //   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
 //   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
 using Dir8 = Diablo2.Def.Dir8;
@@ -63,7 +56,6 @@ namespace Diablo2.Module.Player
     /// <summary>主角门面实现（属性 / 移动 / 死亡复活 / 经验升级）。</summary>
     internal sealed class PlayerModule : IPlayerModule
     {
-        /// <summary>等级上限（官方 `experience.txt` 的 `MaxLvl` 行 = 99，见 `docs/配表说明.md` §2）。</summary>
         public const int MaxLevel = 99;
 
         /// <summary>升一级给的技能点（原版：每级 +1；任务奖励另算，见 `IQuestModule`）。</summary>
@@ -71,11 +63,7 @@ namespace Diablo2.Module.Player
 
         /// <summary>
         /// 「走」的速度倍率。
-        /// <para>★ 片 2b：**值已迁到** `GameConst.PlayerWalkSpeedFactor`（= 原版 `walkSpeed 7 / runSpeed 15`；
-        /// 旧值 0.5「走 ≈ 跑的一半」**无出处**）。这里保留同名常量只为兼容既有引用方
-        /// （离线宿主 `tools/probes/hosts/playercheck/Program.cs` 读它 —— ★ 2026-09-23 更正：原文写
-        /// `tools/playercheck/Program.cs`，**该目录不存在**，`tools/` 下宿主已全部迁到 `tools/probes/hosts/`；
-        /// 由 audit-C-logic-num §13 的引用可达性复核抓出），**不含第二份字面量**。</para>
+        /// <para>值在 <c>GameConst.PlayerWalkSpeedFactor</c>（= 原版 <c>walkSpeed 7 / runSpeed 15</c>），本文件**不含第二份字面量**。</para>
         /// </summary>
         public const float WalkSpeedFactor = GameConst.PlayerWalkSpeedFactor;
 
@@ -86,13 +74,13 @@ namespace Diablo2.Module.Player
         private const string EvidenceTag = "R1-B";
 
         /// <summary>
-        /// ★ T0GAP：软核死亡惩罚的证据 tag（`Core/Log.cs` 的 KnownTags 白名单内）。
+        /// T0GAP：软核死亡惩罚的证据 tag（`Core/Log.cs` 的 KnownTags 白名单内）。
         /// 用途 = 一条只报一次的 Info，写清**生效口径**（扣多少 / 取整口径 / 为什么不会为负）。
         /// </summary>
         private const string DeathGoldTag = "T0GAP";
 
         /// <summary>
-        /// ★ T0GAP：死亡时扣除**当前金币**的百分比。
+        /// T0GAP：死亡时扣除**当前金币**的百分比。
         /// <para>
         /// **出处（不是本项目自创）**：`策划/验收表.md` 第 33 行 · 金币行的判据原文 =
         /// 「金币｜拾取 + **死亡掉 10%**｜死亡前后金币数变化」⇒ 10 是本项目的规格值。
@@ -106,16 +94,15 @@ namespace Diablo2.Module.Player
         /// 推论（**边界行为，断言里逐条验**）：金币 0 ⇒ 损失 0（不扣 + 留一条 Info）；
         /// 金币 1~9 ⇒ 损失 0（同理，因为 9/10 = 0）。
         /// </para>
-        /// <para>⛔ 本常量只描述"扣多少"；**死因/复活语义**一字未改（`Events.PlayerDied` 是无参契约，
+        /// <para>本常量只描述"扣多少"；**死因/复活语义**一字未改（`Events.PlayerDied` 是无参契约，
         /// 未加参数，见本片回报）。</para>
         /// </summary>
         private const int DeathGoldPercent = 10;
 
         /// <summary>
-        /// ★ R1-B：点击落点**图内但不可走**时的「最近可走格」回退半径（Chebyshev，格）。
+        /// R1-B：点击落点**图内但不可走**时的「最近可走格」回退半径（Chebyshev，格）。
         /// <para>
         /// 用户原始投诉：「为什么不是从桥上走？」—— 原版 D2 点不可走处会**走向最近合法点**，
-        /// 而本项目此前是**直接拒绝**（`MoveTo` 只 Warn 一行，角色原地不动），于是"看着点的是桥、
         /// 其实点到栏杆/水"的点击就表现为「点了没反应 / 不走桥」。
         /// </para>
         /// <para>取值口径（为什么恰好是 2，逐条都有依据）：</para>
@@ -152,29 +139,24 @@ namespace Diablo2.Module.Player
         private bool _running = true;             // 跑/走切换（原版默认跑；R 键切换）
         private int _lastAttackTargetId = int.MinValue;   // 上一次打日志的攻击目标（防按住时刷屏）
         /// <summary>
-        /// ★ 片 C4：出口/接缝的**触发闩锁**（唯一判据 = `Module/Map/ExitLatch`，纯值类型，离线宿主可断言）。
         /// 旧口径是"记住上一格"（`_lastExitGrid`）—— 停在出口格上确实只发一次，但**沿出口格逐格挪动**
-        /// （出口列 / 东边接缝那一列）会**每格各发一次**（同一族缺陷）。闩锁口径 = "在出口区只在进入时发一次、
         /// 离开出口格后重新武装"；两种口径都不许让角色卡住（离开再进仍能真的触发切换区域）。
         /// </summary>
         private Diablo2.Module.Map.ExitLatch _exitLatch;
         private bool _unreachableLogged;
         private bool _moveFallbackLogged;         // R1-B：最近可走格回退的生效口径只报一次
 
-        // ★ impl-I-input（审计 R1）：右键施放的三个非预期分支各只报一次。
+        // impl-I-input（审计 R1）：右键施放的三个非预期分支各只报一次。
         //   降频用**私有 bool 标志位**（不是 `WarnOnce`）：① `Module/Player/PlayerLog.cs` 这个项目侧薄封装
         //   只暴露 `Info/Warn/Error/Move`（没有 `WarnOnce/WarnThrottled` 重载，加三参版本更是越层用
         //   `Core/Log` 的底层实现）② 本模块既有约定就是私有标志位（见 `_unreachableLogged` /
         //   `_moveFallbackLogged`）。
-        //   ⚠️ 【审计 R-engine 2026-09-23 更正】`PlayerLog.cs:15-17` 那句"降频依赖
         //   `Time.realtimeSinceStartup` ⇒ 离线宿主会抛 SecurityException"**已过期**：行号已随
         //   `Core/Log.cs` 重写平移（真闸门现在在 `Core/Log.cs:195-204` = `ShouldLog(...)`），且时钟机制
         //   **已下沉到引擎仓** `clover-client-unity-engine/Runtime/Core/LogThrottle.cs:278-308`（= `Now()`；
         //   客户端**无**同名文件 ⇒ 引用基准必须含引擎仓），它对非 Unity 进程的 ECall 是 try/catch 接住 +
         //   自动降级 `Stopwatch`（语义约束见该文件头 :30-31「永不抛异常」）。
-        //   ★ 2026-09-23：以上两处出处由 audit-A-matrix §10.10 逐条复核为**可达**（前提 = 引擎仓在位）；
         //     按"路径 + 符号名"写法登记（行号会漂、裸行号会被"仓内查不到"误判为失效）。
-        //   ⇒ 本片**不据**那条过期理由下结论，只用"约定一致 + 无可用重载"这条理由。
         private bool _secNoCtxLogged;             // AppContext 未装配
         private bool _secNoSkillLogged;           // ISkillModule 未接入
         private bool _secUnboundLogged;           // 右键未绑技能且指针下没怪
@@ -204,7 +186,6 @@ namespace Diablo2.Module.Player
 
             Game.Event.On<InventoryChangedArgs>(Events.EquipChanged, OnEquipChanged);
             Game.Event.On<StatAllocArgs>(Events.StatAllocateRequest, OnStatAllocateRequest);
-            // 契约 §3.5 的「点击移动命令」：**唯一的移动命令通道**（InputReader 点击 → 本事件 → MoveTo）。
             // Combat / UI 也能借此让角色走位（例如「点怪 → 走过去」）；`MoveTo` 本身**不再回发**本事件（防环）。
             Game.Event.On<Vector2Int>(Events.MoveCommand, OnMoveCommand);
             _equipSubscribed = true;
@@ -283,7 +264,6 @@ namespace Diablo2.Module.Player
         public bool IsMoving => _motor.IsMoving;
 
         /// <summary>
-        /// ★ 片 2b 契约成员（`IPlayerModule.IsRunning`）：原版走/跑状态，供表现层选
         /// `ViewAnim.Run` / `ViewAnim.Walk`。实现直接用已有的 `_running`（默认跑，原版 R 键切换）。
         /// </summary>
         public bool IsRunning => _running;
@@ -430,21 +410,15 @@ namespace Diablo2.Module.Player
                 PlayerLog.Warn($"存档位置 ({saved.x},{saved.y}) 不可走 ⇒ 落在出生点 " +
                                $"({_motor.Grid.x},{_motor.Grid.y})（存档数据/地图 seed 不一致？）");
 
-            // ★ u52cur（缺陷 A）：**旧口径档必须迁移**，不能只做 `Min(cur, max)`。
-            //   根因（`文件:行`）：上面的 `_stats.Recompute()`（`PlayerModule.cs:408`）用的是**新**口径
             //   （`PlayerStats.Max*` ← `class_c.hp_add/base_stamina`，官方 `charstats` 起始量），
-            //   而**旧口径**（charstat 片修前）写进档的 `life/mana/stamina` 是"起始四维 × 成长系数"那套
             //   式子的产物 —— 两者**不同源**。实测活档 `client/setting/saves/S2203805.json`：
             //   `life=60 / mana=22 / stamina=20`（＝旧公式），`version=1`，`cls=1, lvl=1, 四维 20/25/20/15`；
             //   实机读数（`u52play` 11:38:35 那批，.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99）
             //   `life=50/50 mana=15/15 stamina=**20/84**` ⇒ 与 `Min(60,50)/Min(22,15)/Min(20,84)` **逐值对得上**：
-            //   生命/法力因旧值偏大被夹到上限（**看着像满的**），而**耐力旧值 20 < 新上限 84 ⇒ 卡在 20/84**，
             //   这就是用户看到的「人物状态框数值不对」那一格。
-            //   裁决（team-lead 缺陷 A）：**版本更旧的档 ⇒ 三资源按当前口径补满**（旧口径下它们当时本就是
-            //   对应旧上限的满值；1 级起始量即满值起步：`charstats.hpadd+起始体力=50` / 起始精力=15 / `stamina=84`）
             //   + **一次 Info**（不是每条资源一条）。
             //   现行版本档**保持原语义**："存了就沿用（钳到上限），没存（0）则满" —— 实测活档 `SAArea1.json`
-            //   的 `life=34`（中局受伤时存的档）证明**沿用**是既定行为，⛔ 不许把"沿用"改成"补满"。
+            //   的 `life=34`（中局受伤时存的档）证明**沿用**是既定行为，不许把"沿用"改成"补满"。
             if (save.version < GameConst.SaveVersion)
             {
                 _life = _stats.MaxLife;
@@ -580,9 +554,8 @@ namespace Diablo2.Module.Player
                 return;
             }
 
-            // 目标格不可走：★ R1-B 起改成「最近可走格回退」（原版 D2 点不可走处走向最近合法点），
+            // 目标格不可走：R1-B 起改成「最近可走格回退」（原版 D2 点不可走处走向最近合法点），
             //   而**不是**直接拒绝 —— 直接拒绝正是用户报的「为什么不是从桥上走？」
-            //   （桥的栏杆与桥面相邻 1 格，点在栏杆/水面上的视觉误点以前会让角色原地不动）。
             //   图外（越界）仍直接拒绝：点关卡外本来就不该产生移动。
             var path = (List<Vector2Int>)null;
             if (!map.Walkable(target))
@@ -650,14 +623,14 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// ★ R1-B：在 <paramref name="target"/> 的 Chebyshev 半径 <see cref="MoveFallbackRadius"/> 内，
+        /// R1-B：在 <paramref name="target"/> 的 Chebyshev 半径 <see cref="MoveFallbackRadius"/> 内，
         /// 找**最近的可走格**并算出从 <paramref name="from"/> 走到它的路径（原版 D2「点不可走处 →
         /// 走向最近合法点」的口径）。
         /// <para>挑格口径（**确定性**，同一输入永远同一结果，可离线复跑）：按
         /// ① 离点击点最近（格距平方）→ ② 离角色最近（格距平方）→ ③ 遍历顺序 (dx 升序 → dy 升序)
         /// 取唯一一个候选格；再对它求路径，**求不到就返回 false**（调用方按不可达拒绝，绝不硬塞）。
         /// </para>
-        /// <para>⛔ 只**挑格 + 求路径**：不改地形、不写键、不放宽可走性；⛔ 半径外一律不找。</para>
+        /// <para>只**挑格 + 求路径**：不改地形、不写键、不放宽可走性；半径外一律不找。</para>
         /// </summary>
         /// <param name="map">当前地图（调用方已确认 <c>IsGenerated</c>）。</param>
         /// <param name="from">角色当前格。</param>
@@ -748,7 +721,7 @@ namespace Diablo2.Module.Player
             // ② 悬停 / 光标（每帧；目标变化才发事件）+ 走/跑切换（原版 R）+ 切换武器组（原版 W）
             _input.UpdateHover(!_dead);
 
-            // ②b ★ impl-I-input（审计 R5）：地面物品名牌（原版：悬停单件显示名 / 按住 **Alt** 常显全部）。
+            // ②b impl-I-input（审计 R5）：地面物品名牌（原版：悬停单件显示名 / 按住 **Alt** 常显全部）。
             //    `_input.ShowGroundItems` 是本属性的**唯一消费点**（改动前它全仓 0 消费 ⇒ Alt 永不生效；
             //    审计 B 的静态对账要求消费点在 `InputReader` 之外，故读键放在这一行）。
             if (!_dead) _input.PublishGroundItemLabels(_input.ShowGroundItems);
@@ -767,7 +740,7 @@ namespace Diablo2.Module.Player
             // ④ 输入 → 移动 / 攻击意图
             if (!_dead) HandleMoveIntent(map);
 
-            // ④b ★ impl-I-input（审计 R1）：右键 → **右手技能**施放（原版「右键 = 使用右键技能」）。
+            // ④b impl-I-input（审计 R1）：右键 → **右手技能**施放（原版「右键 = 使用右键技能」）。
             //   与左键**互不干扰**（两个键各自判 Down/held），故单列一步而不是插进 HandleMoveIntent。
             if (!_dead) HandleSecondaryIntent();
 
@@ -778,7 +751,7 @@ namespace Diablo2.Module.Player
         /// <summary>
         /// 点击 / 按住 → 移动或攻击意图（顺序：单击优先 → 持续按住）。
         /// 左键指向怪物的分支走 <see cref="AttackFrame"/>（发 `AttackRequest`）；其余仍走 `MoveCommand`。
-        /// ⛔ **没有**方向键备选移动：原版 D2 只有鼠标点地面移动（验收表 U-1）。
+        /// **没有**方向键备选移动：原版 D2 只有鼠标点地面移动（验收表 U-1）。
         /// </summary>
         private void HandleMoveIntent(IMapModule map)
         {
@@ -805,9 +778,7 @@ namespace Diablo2.Module.Player
                 if (InputReader.ShouldRetarget(_motor.Grid, _holdTarget, held))
                 {
                     _holdTarget = held;
-                    // ⚠️ 2026-09-23 主 agent 修文案（**措辞过时，行为早已不同**）：旧文案写「变化超过 1 格才重算路径」，
             //   那是 `InputReader.ShouldRetarget` 旧口径（差 1 格 / 点到脚下就忽略 ⇒ 用户报的「鼠标在人附近
-            //   移动时候没效果，必须要远」）的遗留措辞。现口径见 `InputReader.cs:297`：**第一次按下必下发；
             //   目标格没变才节流；只要目标格变了就跟着光标重算（脚下格 / 相邻格同样算）**。
             //   ⇒ 文案与代码不一致会误导下一棒（以为"近处忽略"是设计），故同步为实际行为。
             PlayerLog.Move($"按住左键改目标 held=({held.x},{held.y})（目标格变了就重算，含脚下格 / 相邻格）");
@@ -845,7 +816,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// **右键意图**（原版 D2：右键 = 使用**右手技能**）。★ impl-I-input（审计 R1）。
+        /// **右键意图**（原版 D2：右键 = 使用**右手技能**）。impl-I-input（审计 R1）。
         /// <list type="bullet">
         /// <item>右键技能格绑了技能（`ISkillModule.GetButtonSkill(1) &gt;= 0`）⇒ 走**已有的施放入口**
         /// `ISkillModule.TryCast(skillId, 目标格)`：扣蓝 / 冷却 / 伤害 / 投射物全由 `Module/Skill` 结算，
@@ -853,7 +824,7 @@ namespace Diablo2.Module.Player
         /// <item>没绑（-1）⇒ 原版左右键默认都是**普通攻击**：指针下有怪物就发 `Events.AttackRequest`
         /// （与左键点怪同一条链路）；没有则**不产生任何动作**（原版右键不移动角色）并留一条 WarnOnce。</item>
         /// </list>
-        /// ⛔ 本方法**不发** `Events.MoveCommand`（右键不移动）；指针压在 UI 上时
+        /// 本方法**不发** `Events.MoveCommand`（右键不移动）；指针压在 UI 上时
         /// `InputReader.TryGetSecondaryClick` 已把这次右键吃掉 ⇒ 面板按钮不会顺手放技能。
         /// </summary>
         private void HandleSecondaryIntent()
@@ -864,7 +835,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// 以某格派发一次**右键意图**（★ impl-I-input）。**非契约入口**（自证 / 集成走它，与
+        /// 以某格派发一次**右键意图**（impl-I-input）。**非契约入口**（自证 / 集成走它，与
         /// <see cref="HandlePrimaryClick"/> 完全同一处置）—— 离线自检宿主拿不到相机，
         /// 无法经 `TryGetSecondaryClick` 反投影 ⇒ 由宿主直接给格坐标来驱动同一条链路。
         /// </summary>
@@ -991,7 +962,6 @@ namespace Diablo2.Module.Player
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 走 / 跑切换（原版 R 键，agent-13 §A 第 5 项）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>当前是否「跑」（false = 走）。</summary>
@@ -1021,8 +991,8 @@ namespace Diablo2.Module.Player
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ★ 双武器组：**读键**（`InputReader.SwapWeaponPressed` → 键位唯一来源
-        /// `Def/GameKeyAlias.KeySwapWeapon`，⛔ 本文件不出现 `GameKey.W`）→ 发
+        /// 双武器组：**读键**（`InputReader.SwapWeaponPressed` → 键位唯一来源
+        /// `Def/GameKeyAlias.KeySwapWeapon`，本文件不出现 `GameKey.W`）→ 发
         /// <see cref="Events.SwapWeaponRequest"/>（**无参**）。
         /// <para>
         /// 为什么本模块只"发请求"不自己切：双武器组的**状态与装备数据在 `IItemModule`**
@@ -1050,16 +1020,14 @@ namespace Diablo2.Module.Player
             if (map == null || !map.IsGenerated) return;
 
             var g = _motor.Grid;
-            // ★ 片 M3（2026-09-23）：**东边界接缝**也当出城口 —— 原版城镇关卡的东边界列与野外第 0 列
             //   是同一条「共享边列」（出处 `OutRoom.zig:271`，见 `Module/Map/MapSeam` 文件头），
             //   玩家过桥踏上关卡最后一列 = 进入野外。用户实测「穿过桥去不了下一张地图」即此缺。
             //   判据唯一出处 = `MapSeam.IsTownEastSeam`（纯函数）⇒ 离线宿主可断言，不在本类里重写条件。
             var onExit = map.TileAt(g) == TileKind.Exit ||
                          Diablo2.Module.Map.MapSeam.IsTownEastSeam(map.Area, map.Width, g, map.IsDeckGrid(g));
 
-            // ★ 片 C4：**什么算出口**照旧（上面这一行，形状一行未动）；"要不要发"改由**唯一判据**
             //   `Module/Map/ExitLatch`（纯值类型）决定 —— 在出口区**只在进入时**发一次（同一格 / 沿出口列
-            //   逐格挪动都只算一次），离开出口格后重新武装（⛔ 出口仍能真的触发切换，不会把角色卡住）。
+            //   逐格挪动都只算一次），离开出口格后重新武装（出口仍能真的触发切换，不会把角色卡住）。
             //   旧口径 `_lastExitGrid`（记住上一格）在"沿出口格逐格走"时会每格各发一次。
             if (!_exitLatch.ShouldEmit(onExit, g)) return;
 
@@ -1075,7 +1043,6 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// 出入口 → 目标区域（`docs/agents/_common.md` §3.5 已冻结的规则）：
         /// `Town`→`BloodMoor`；`BloodMoor`→ 该格 == 洞穴入口 ? `DenOfEvil` : `Town`；`DenOfEvil`→`BloodMoor`。
         /// </summary>
         private static AreaId ExitTargetArea(IMapModule map, Vector2Int grid)
@@ -1183,11 +1150,11 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// ★ w7 契约新增（`IPlayerModule.TrySpendMana`）：**扣蓝**（技能消耗）。
+        /// w7 契约新增（`IPlayerModule.TrySpendMana`）：**扣蓝**（技能消耗）。
         /// 成功扣减返回 true；<paramref name="amount"/> ≤ 0 或法力不足 ⇒ false 且**不改值**。
         /// 数值变更走与 <see cref="RestoreMana"/>/<see cref="Heal"/> 同一条属性刷新路径
         /// （<see cref="EmitStats"/> ⇒ `Events.HudDirty` + `Events.PlayerStatsChanged`）。
-        /// ⛔ 与 <see cref="RestoreMana"/> 相反：本方法**只做消耗**，不承担回复语义。
+        /// 与 <see cref="RestoreMana"/> 相反：本方法**只做消耗**，不承担回复语义。
         /// </summary>
         /// <inheritdoc />
         public bool TrySpendMana(int amount)
@@ -1248,7 +1215,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// ★ T0GAP：**死亡惩罚** —— 死亡时扣当前金币的 <see cref="DeathGoldPercent"/>%（软核规则）。
+        /// T0GAP：**死亡惩罚** —— 死亡时扣当前金币的 <see cref="DeathGoldPercent"/>%（软核规则）。
         /// <para>
         /// 为什么实现点在**这里**（而不是 UI / Combat）：`_gold` 的唯一归属是本模块
         /// （`Contracts.cs` 的 `IPlayerModule.Gold`；`ItemModule.Gold/AddGold` 在 Player 接入时全部转发过来），
@@ -1553,7 +1520,6 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// `Events.MoveCommand`：移动命令（契约 §3.5，参数 = 目标格）。
         /// 点击/按住（`HandleMoveIntent`）走这条通道；Combat（点怪走位）、UI 也可直接发。
         /// </summary>
         private void OnMoveCommand(Vector2Int target)
@@ -1674,8 +1640,7 @@ namespace Diablo2.Module.Player
             }
         }
 
-        // ⛔ 这里**没有**「方向键备选移动」开关属性：原版 D2 只有鼠标点地面移动，
-        //   曾经那一族（`Game.Setting` 读开关 + 回退 `Cfg`）已按全局 skill §0「A 没有 ⇒ 不加」删除
+        // 这里**没有**「方向键备选移动」开关属性：原版 D2 只有鼠标点地面移动，
         //   （验收表 U-1；本项目 bug 表 B35 记了同一件事）。
     }
 }

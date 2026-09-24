@@ -4,7 +4,7 @@
 // 为什么需要：
 //   · `Runtime/Core/LogThrottle.cs` 引用 `Game.Logger`（引擎门面）与 `UnityEngine.Time`；
 //   · 真身 `UnityEngine.Time` 是原生 ECall，非 Unity 进程读它会抛 SecurityException。
-// ⛔ 被测逻辑（`IsoLayout.DirectionTo/DirectionDelta`）**一行都没有替身** —— 用的是真实源码。
+// 被测逻辑（`IsoLayout.DirectionTo/DirectionDelta`）**一行都没有替身** —— 用的是真实源码。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;

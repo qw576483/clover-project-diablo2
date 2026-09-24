@@ -1,5 +1,4 @@
 // =============================================================================
-// finalclose_hoverdiag.cs -- final-close (2026-09-24): runtime read-out for the
 // NPC dialog option button hover state.  PROBE ONLY (it reads product state; its
 // only side effect is queueing a mouse position, which the evidence needs).
 //

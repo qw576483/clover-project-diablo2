@@ -137,7 +137,7 @@ def check_atlas_png(rec, workdir):
         if bytes(got) != bytes(dc6.frame_rgba(f, rec["pal"])):
             bad.append("帧 %d（格 %d,%d）像素不一致" % (i, i % cols, i // cols))
 
-    # 定名复用，⛔ 不用 tempfile.mkdtemp（随机名 ⇒ 每跑留一个新目录，而删它又会撞 safe-delete 守门）
+    # 定名复用，不用 tempfile.mkdtemp（随机名 ⇒ 每跑留一个新目录，而删它又会撞 safe-delete 守门）
     stem = "chi" + os.path.basename(rec["src"]).lower().replace(".dc6", "")
     tmp = os.path.join(workdir, stem)
     os.makedirs(tmp, exist_ok=True)
@@ -155,7 +155,7 @@ def check_atlas_png(rec, workdir):
         if _sha256(mine) != _sha256(os.path.join(tmp, "%s_%d.png" % (stem, i))):
             bad.append("帧 %d：图集格子 vs `dc6.py png` 复算 SHA256 不同" % i)
         checked += 1
-    # ⛔ 不 rmtree(tmp)：见文件头「临时文件」段（safe-delete 守门 / 原地复用）
+    # 不 rmtree(tmp)：见文件头「临时文件」段（safe-delete 守门 / 原地复用）
     return bad, checked, n
 
 
@@ -231,7 +231,7 @@ def main():
         print("  %-10s 图集 4 张 / 帧 %d（全帧内存比对）；`dc6.py png` 抽样复算 SHA256 比对 %d 帧"
               % ("chifont", groups["chifont"]["frames"], groups["chifont"]["cli"]))
 
-    # ⛔ 不 rmtree(work)：那是一次 700+ 文件的批量删除，必被宿主 safe-delete 守门拦下
+    # 不 rmtree(work)：那是一次 700+ 文件的批量删除，必被宿主 safe-delete 守门拦下
     #    （实测 count=726 / threshold=500 / scope=turn），让"内容全等"变成非 0 退出。
     #    目录按确定性文件名原地复用，大小有界；残留物留在 .ai-tmp/test/ 内。
     n_files = 0

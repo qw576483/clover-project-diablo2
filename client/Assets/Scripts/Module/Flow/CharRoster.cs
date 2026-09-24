@@ -3,13 +3,11 @@
 // 「有哪些角色可进图」的**唯一问询点**：主菜单「继续」可用性、选角屏列表、建角、删角。
 //
 // 数据来源分两级（**不重复实现存档**）：
-//   ① `ISaveModule`（`Module/Save/SaveModule.cs`，agent-08）已接入 ⇒ **全部委托给它**
 //      （档 = 引擎 `FileSlotStore` 的槽位 `saves/{角色名}.json`，A6 下沉；创建先后索引
 //       `char/index` 见 `GameConst.SaveIndexKey`）；
 //   ② 未接入（`AppContext.Save == null`） ⇒ 退化为**本次会话内存**并把角色列表照常服务，
 //      但**不落盘**、并打一条 Warn（明确告知"重进会丢"）。
 //      —— 这是「null 容忍 + 日志」的降级，**不是**给别模块写假实现：本类不碰任何
-//         存档键、不落盘、不假装成功（见 `docs/agents/_common.md` §4 与回报「未决」）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;

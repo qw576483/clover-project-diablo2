@@ -1,5 +1,4 @@
 ﻿// =============================================================================
-// loadonlycove_probe.cs -- 片 loadonly-cove 的一次性 Play 驱动（命名空间 LOC）。
 //   **只取证**：本文件不改任何产品代码，只发**既有**事件 + 反射读面板私有读数。
 //
 //   为什么必须进 Play（play-log 第 4 列的理由）：
@@ -10,7 +9,7 @@
 //     离线宿主（tools/probes/hosts/savecheck）只能判"字段往返 + 旧档兼容"，
 //     判不了"面板的画面上真有那批格"。
 //
-//   两段式（⛔ 一条链跑完，不逐项进 Play）：
+//   两段式（一条链跑完，不逐项进 Play）：
 //     Phase A（mode=walk）    ：创角 → 进营地 → 走到距起点 9 格（> 半径 6）→ 开图采图 → 保存并退出
 //     Phase B（mode=loadonly）：**新一局 Play**、BootDone → CharSelectRequest → 开图 → 读数 + 采图
 //
@@ -18,10 +17,9 @@
 //     · 骨架/plumbing 抄 `.ai-tmp/drivers/saveprogress_probe.cs`（含 `loadonly` 那条链、
 //       "启动屏停在 Boot 必须补发 Events.BootDone"、"面板 IsOpen 为真 ≠ 已画出来，要等 1.5s" 两个坑）
 //     · 走步 + automap 读数抄 `.ai-tmp/drivers/automappanel_probe.cs`（ChooseFarWalkable / ReadAutomap）
-//     · 本片新增：**判别器** Judge() —— 用产品自己的纯函数 `MiniMapPanel.Reveal`
 //       算出"本局新算的半径 6 兜底圈"，与面板 `_explored` 求差 ⇒
 //       "超出兜底圈的格数"（= 只可能来自读档回灌的那批），并把其中距玩家 >6 格的格
-//       换算成**屏幕像素坐标**（用于在图上画框指认）。⛔ 判据与产品同源，不造第二份画法。
+//       换算成**屏幕像素坐标**（用于在图上画框指认）。判据与产品同源，不造第二份画法。
 // =============================================================================
 using System;
 using System.Collections.Generic;
@@ -204,7 +202,6 @@ namespace LOC
             }
         }
 
-        /// <summary>存档里与本片判据相关的字段（写侧外证：读档回灌的来源到底有没有落盘）。</summary>
         internal static string Fields(string json)
         {
             if (json == null) return "file=(missing) len=0";
@@ -226,9 +223,8 @@ namespace LOC
     }
 
     /// <summary>
-    /// 本片新增的**判别器**：把"面板真正持有的已探索集"与"本局新算的半径 6 兜底圈"并排给数，
     /// 并按产品的贴图几何把"超出兜底圈且距玩家 >6 格"的格换算成 PNG 像素坐标。
-    /// ⛔ 兜底圈用产品自己的纯函数 <see cref="MiniMapPanel.Reveal"/> 算，不复制第二份口径。
+    /// 兜底圈用产品自己的纯函数 <see cref="MiniMapPanel.Reveal"/> 算，不复制第二份口径。
     /// </summary>
     public static class Judge
     {
@@ -597,7 +593,7 @@ namespace LOC
                     }
                     break;
 
-                // ⚠️ 前片实测：`Shot()` 与 `Emit(SaveAndExitRequest)` 同帧会采到全黑
+                // 前片实测：`Shot()` 与 `Emit(SaveAndExitRequest)` 同帧会采到全黑
                 //    （`BackToMain` → `LeaveStage` 立刻清场，而 CaptureScreenshot 在帧末读回缓冲）
                 //    ⇒ 截图与保存必须**隔帧**（上面 case 8 已隔，这里再隔一次）。
                 case 10:
@@ -633,7 +629,7 @@ namespace LOC
             switch (_step)
             {
                 // 0) 启动屏**等任意键**（UI/BootPanel.OnAnyKey → Events.BootDone）——
-                //    ⚠️ 前片实测：不补这一下，站点永远停在 Boot，CharSelectRequest 会被丢掉。
+                //    前片实测：不补这一下，站点永远停在 Boot，CharSelectRequest 会被丢掉。
                 case 0:
                     if (Fsm() == Events.Fsm.StateMainMenu || MenuOpen())
                     {
@@ -681,9 +677,9 @@ namespace LOC
                     }
                     break;
 
-                // ⚠️ 前片实测：面板 `IsOpen` 为真 ≠ **已经画出来** ——
+                // 前片实测：面板 `IsOpen` 为真 ≠ **已经画出来** ——
                 //    面板懒创建 + `OnOpen` 之后 AppSnapshots 才补发「地图回声 + 已探索集合快照」，
-                //    开面板当帧截图会采到背后那张世界画面 ⇒ 必须等 1.5s（等待期⛔不许 Next）。
+                //    开面板当帧截图会采到背后那张世界画面 ⇒ 必须等 1.5s（等待期不许 Next）。
                 case 4:
                     if (MapPanelOpen())
                     {

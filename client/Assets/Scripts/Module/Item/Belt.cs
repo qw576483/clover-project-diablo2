@@ -57,7 +57,7 @@ namespace Diablo2.Module.Item
 
         /// <summary>
         /// 是不是药水（`item_c.source = misc` 且 `item_c.type` ∈ hpot/mpot/spot/rpot）。
-        /// ⚠️ 药剂的细分类在 **`type`** 列（`subtype` 为空），别读错列。
+        /// 药剂的细分类在 **`type`** 列（`subtype` 为空），别读错列。
         /// </summary>
         public static bool IsPotion(ItemStack item)
         {

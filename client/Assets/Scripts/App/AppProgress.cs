@@ -1,32 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · App/AppProgress.cs   ★ 片 save-progress 新增（2026-09-24）
 //
 // 作用：**读档后把"进度类状态"灌回去 / 存盘时把它们收进来**。管两块：
 //   ① 传送点已激活列表（`App/AppWaypoint.Visited`，进程内 static）；
 //   ② 小地图已探索格（权威 = 渲染层 `Module/Map/MapView._explored`，经 `IMapModule.ExploredCells`
 //      对外投影；**作用域 = 当前区域**）。
 //
-// 为什么需要这一层（链条断在哪，逐条对齐片 save-areaid 的《同族穷举表》）：
 //   · 存盘：`Module/Save/SaveModule.Save()`（无参）在**新造**的 `CharacterSave` 上逐字段从 Live 收集
 //     ⇒ 凡"没被显式收集"的字段就恒为默认值。上面两项的**持有者不在模块侧**（一个在 App 交互类、
 //     一个在渲染层）⇒ `SaveModule` 发 `Events.SaveCollect`，**本类**把两块填进去（同一个收集阶段）。
 //   · 读档：`SaveModule.Load()` 把数据装回 Player/Item/Quest/Skill/Npc，但上面两块**没人装**
-//     （⛔ 也不能在 Load 里装：那一刻地图还没生成、面板还没建，而且 Player 的落格是 Flow 在进图时做的）
+//     （也不能在 Load 里装：那一刻地图还没生成、面板还没建，而且 Player 的落格是 Flow 在进图时做的）
 //     ⇒ 本类在 `Events.LoadDone` 时**暂存**，在**进图装配完成之后**（`AppWiring.OnStageEntered`）与
 //     **换区铺装完成之后**（`Events.MapAreaReady`）再回灌。
 //
 // 口径（逐条）：
-//   ① **每区域一份**：格坐标是区域局部的（`IMapModule.ExploredCells` 注释原文：「⛔ 跨区域合并成一个集合
+//   ① **每区域一份**：格坐标是区域局部的（`IMapModule.ExploredCells` 注释原文：「跨区域合并成一个集合
 //      在语义上是错的」）⇒ 本类按 `areaId` 分别累积（会话内跨区域），落盘 = `exploredByArea` 列表；
 //   ② **累积来源**：`Events.MapExplored`（Map 的唯一增量出口，"走过即记忆"）**加上**存盘那一刻从
 //      `IMapModule.ExploredCells` 抄一遍当前区域（权威对齐，避免"某格被标了但事件没收全"）；
 //   ③ **回灌 = 并入（幂等）**：走 `Events.MapExploredRestore`（收方 `MapModule` 把格并进已探索位图）；
-//      ⛔ 不新增第二条"设置已探索"的路（权威只有渲染层位图那一份）。
+//      不新增第二条"设置已探索"的路（权威只有渲染层位图那一份）。
 //   ④ **尺寸不同 ⇒ 不套用**：野外/洞穴的尺寸是随机生成的，而本项目按原版口径**每局重掷 seed**
 //      （`AppFlow.RollEntrySeed`）⇒ 上一局那张图的已探索掩码套到本局另一张尺寸/布局不同的图上**是错的**
 //      ⇒ 尺寸不符时**点名 Warn 并跳过**（营地是固定布局 ⇒ 正常能对上，正是"读档后 automap 记得范围"的场景）。
 //
-// ⛔ 无 Unity 依赖的调用面（AppContext / 事件总线都是引擎门面）：本类只读接口 + 发事件。
+// 无 Unity 依赖的调用面（AppContext / 事件总线都是引擎门面）：本类只读接口 + 发事件。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -289,7 +287,7 @@ namespace Diablo2.App
 
         /// <summary>
         /// 把某区域的已探索格**下发地图**（`Events.MapExploredRestore`）。
-        /// <para>⛔ 尺寸不符（本局 seed 重掷 ⇒ 另一张图）⇒ 点名 Warn 并**不套用**上一局的掩码（见文件头 ④）。</para>
+        /// <para>尺寸不符（本局 seed 重掷 ⇒ 另一张图）⇒ 点名 Warn 并**不套用**上一局的掩码（见文件头 ④）。</para>
         /// </summary>
         private static void RestoreArea(int area, string why)
         {

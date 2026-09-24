@@ -69,7 +69,6 @@ RAW_ROOT = None      # <d2raw>（非 DC6 的原始产物：字体 `.tbl` 等）
 #              （= `data\global\palette\loading\Pal.PL2`，见 Diablerie
 #              `Engine/IO/D2Formats/PaletteType.cs:13` + `Palette.cs:20`）⇒ 读条图**必须**用这张，
 #              与 ACT1 不是同一套色。
-#   EndGame —— **只用于 `MENU/EndGame.dc6`**（片 1 新增）。依据三条：
 #              ① 命名惯例（**有已坐实的先例**）：原版确实带 `data/global/palette/EndGame/Pal.PL2`
 #                 （`PaletteType.cs:10` `EndGame = 5` / `Palette.cs:17` 给出该路径）。而
 #                 `loading/Pal.PL2 ↔ Loading/loadingscreen.dc6` 这一对已由参考物源码坐实
@@ -87,10 +86,8 @@ RAW_ROOT = None      # <d2raw>（非 DC6 的原始产物：字体 `.tbl` 等）
 #                 （16.8 vs EndGame 26.7；与 Diablerie 同图 PNG 逐像素全等）。但在**小差距**
 #                 （约 <20%）样例上会挑错（`PANEL/ctrlpnl7.DC6` 12.9 vs ACT1 14.4 会挑成 loading）
 #                 ⇒ **只在大差距时才用它下结论**。
-#   ⛔ 不要因为"看着像另一套色"就换调色板：换之前必须按②③带自证。
+#   不要因为"看着像另一套色"就换调色板：换之前必须按②③带自证。
 #
-#   ⚠️ **BLOCKED 的部分（片 1 提出、片 5 收口一半）**：
-#      ★ **已定案（片 5）**：`MENU/endgameok.dc6` → **`EndGame/Pal.PL2`**。
 #        依据 = 与 `EndGame.dc6` 同一套判据且方向一致：麻点度量 ACT1 **84.5** vs EndGame **28.8**
 #        （2.9 倍 = 大差距）+ 肉眼复核（@ACT1 满屏彩色噪点 / @EndGame 干净深灰石板按钮）。
 #        落地见 `group_menu`（`stem == "endgameok"` 走 `endgame_pal`）。
@@ -99,7 +96,6 @@ RAW_ROOT = None      # <d2raw>（非 DC6 的原始产物：字体 `.tbl` 等）
 #        但幅度不够）⇒ 按"只在大差距时才用麻点判据"的口径**不许下结论**，
 #        暂用参考物一侧的 DC6 默认口径 ACT1（Diablerie `EditorTools.cs:99` / `Spritesheet.cs:14`）。
 #      **定案需要**：原版这些屏的实机截图，或 D2 客户端的「文件→调色板」表。
-#   fechar —— **前端职业半身像 + D2 logo**（片 4 新增）。依据三条（逐条可复核）：
 #              ① 参考物源码 `Diablerie/.../Menu/ClassSelect/ClassSelector.cs:168-175`：
 #                 `Spritesheet.Load($"{classPath}NU1", PaletteType.Fechar)`（三态 + logo 同族）；
 #              ② 路径出处 `Engine/IO/D2Formats/Palette.cs:19` → `data\global\palette\fechar\Pal.PL2`
@@ -191,12 +187,9 @@ def group_buttons(pal):
         one(d.frames[1], out("UI", "Menu", "btn_med_pressed.png"), pal,
             "原版 MediumButtonBlank.dc6 帧 1（按下）", "buttons")
 
-    # ★★ dialog-options（2026-09-24 定案）：**这一组的调色板与其他按钮不同** —— 别改回 `pal`(ACT1)。
     #   依据（可复跑：`tools/probes/measure/probe_med_sel_palette.py`，麻点判据 = 孤立高饱和像素占比）：
     #     · 同目录的**共享**按钮只有 ACT1 干净：WideButtonBlank 0.017 / MediumButtonBlank 0.040 /
     #       CancelButtonBlank 0.045，用 `fechar` 反而 0.104~0.177 起麻点；
-    #     · 而 **FrontEnd 专属的 `MediumSelButtonBlank.dc6` 反过来**：ACT1 解出 **0.424**（麻点，历史缺陷：
-    #       一悬停就把中等按钮的文案糊掉），**`fechar` 解出 0.054 / 0.055**（干净）。
     #     · 与本文件开头「frontend 组用 PL2_FECHAR」的既有惯例一致（类选人像那组就是 fechar）。
     #     · 曾猜过的 `menu1` 已被 15 套全量扫描**证伪**（0.271）。
     #   ⇒ 口径 =「同一个 DC6 目录里，共享按钮 ACT1 / FrontEnd 专属按钮 fechar」。
@@ -384,11 +377,9 @@ MISC = [
     ("data/global/ui/PANEL/buyselltabs.DC6", "UI/Panel/buyselltabs", "商店页签（79×31 ×8）"),
     ("data/global/ui/PANEL/tradebtn.DC6", "UI/Panel/tradebtn", "交易小按钮（77×17 ×2）"),
     ("data/global/ui/PANEL/clickbox.dc6", "UI/Panel/clickbox", "勾选框"),
-    # ★ 本轮补：`overlap.DC6` 实测 dir=1 fpd=2、两帧 82×88（球高光遮罩）。
-    #   此前工程里只有一张手工导的**整张** `overlap.png`（`FrameCountOverlap=2`
+    # 本轮补：`overlap.DC6` 实测 dir=1 fpd=2、两帧 82×88（球高光遮罩）。
     #   声明两帧）⇒ 代码请求 `overlap_0/1` 必然 MISS，每次进 Play 2 条
     #   `[Error] [Resource] 加载失败：D2/UI/Panel/overlap_0/_1`。
-    #   按其它素材同口径**逐帧落位**，两个请求都命中（修复该 Error）。
     ("data/global/ui/PANEL/overlap.DC6", "UI/Panel/overlap", "球高光遮罩 82×88 ×2"),
 ]
 
@@ -400,7 +391,7 @@ def group_misc(pal):
             continue
         parts = stem.split("/")
         for i, f in enumerate(d.frames):
-            # ⚠️ `stem` 已经是 `UI/...` 开头 ⇒ **不要再加一层 `UI`**（加了会落到 `D2/UI/UI/**`）
+            # `stem` 已经是 `UI/...` 开头 ⇒ **不要再加一层 `UI`**（加了会落到 `D2/UI/UI/**`）
             one(f, out(*parts[:-1], "%s_%d.png" % (parts[-1], i)), pal,
                 "原版 %s 帧 %d（%s）" % (path, i, note), "misc")
 
@@ -431,12 +422,10 @@ def group_loading(pal):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 组 8：技能树大屏底图（片 1 新增）—— 逐帧 1:1 落位
 # ═════════════════════════════════════════════════════════════════════════════
 #  实测（`dc6.py info`，5 个职业各一份，16 帧完全同构）：
 #    `SPELLS/skltree_{a,b,n,p,s}_back.DC6`  dir=1 fpd=16
 #    帧尺寸循环 = 256×256 / 64×256 / 256×176 / 64×176（×4）⇒ 标准的 D2「整屏切 tile」打包
-#    ⇒ 4 帧一排 = 320×432 的一"页"。**片 1 不拼页**（拼装语义见文件头：留给后续片），
 #      只把 16 帧逐帧落位，帧号 = DC6 帧号（0..15）。
 #  调色板 ACT1 的依据：同目录 `SPELLS/Skillicon.DC6` 用 ACT1 解出的**帧 2** 与 Diablerie 自己
 #    从 MPQ 导出的 `Images/Skills/SkilliconAttack.png` **逐像素全等（差异 0/2304）** ⇒
@@ -456,7 +445,6 @@ def group_skilltree(pal):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 组 9：自动地图标记（片 1 新增）—— `ui/MINIMAP/**`（该目录只有这一个 DC6）
 # ═════════════════════════════════════════════════════════════════════════════
 #  实测：`MINIMAP/mapicons.DC6` dir=1 fpd=8，8 帧全 16×16。
 #  调色板：**实测该图不影响像素** —— 8 帧只用到**索引 32** 一个值，而 15 张 PL2 在索引 32 上
@@ -481,7 +469,6 @@ def group_automap(pal):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 组 10：中文位图字体（片 1 新增）—— 整幅图集 + 帧→字符映射表
 # ═════════════════════════════════════════════════════════════════════════════
 #  实测：`data/LOCAL/FONT/chi/{Font16,font24,font30,font42}.DC6`
 #        全是 dir=1 fpd=**13806**，每帧同尺寸：font16=13×13 / font24=19×19 / font30=24×24 / font42=37×37。
@@ -616,7 +603,6 @@ def group_chifont(pal):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 组 11：MENU/ 下"项目曾登记为无出处"的那批（片 1 新增）—— 逐帧 1:1 落位
 # ═════════════════════════════════════════════════════════════════════════════
 #  实测帧数/尺寸（`dc6.py probe`）：
 #    boxpieces.DC6        22 帧 14×15      —— 九宫格黑框的拼装块
@@ -654,11 +640,9 @@ def group_menu(pal):
         d = read_dc6(*path.split("/"))
         if not d:
             continue
-        # ★ 片 5 定案（原 BLOCKED 收口）：`endgameok.dc6` 是**死亡屏（EndGame）那一屏自己的按钮**
-        #   ⇒ 用 `EndGame/Pal.PL2`（片 1 用的 ACT1 是错的）。两条独立判据：
         #     ① 麻点度量（相邻不透明像素对的平均颜色跳变）ACT1 = **84.5** vs EndGame = **28.8**
         #        （2.9 倍差距、方向明确；与 `EndGame.dc6` 定案时同一口径同一方向）；
-        #     ② 肉眼复核（⛔ 原一次性联络图 `.ai-tmp/test/sheet_deathui.png` 与探针 `.ai-tmp/test/p5_probe.py` **均已删、在盘无替代** ⇒ 不可复跑；口径见本文件 `:80-89` 与定案登记行 `策划/验收表.md:433`（BL-4））：
+        #     ② 肉眼复核（原一次性联络图 `.ai-tmp/test/sheet_deathui.png` 与探针 `.ai-tmp/test/p5_probe.py` **均已删、在盘无替代** ⇒ 不可复跑；口径见本文件 `:80-89` 与定案登记行 `策划/验收表.md:433`（BL-4））：
         #        @ACT1 = 满屏彩色噪点（错色）、@EndGame = 干净的深灰石板按钮。
         #   其余 `MENU/**` 文件仍是 **BLOCKED** —— 它们的麻点度量差距 < 2 倍（判据不成立）：
         #     `okcancelbtn` 30.3(ACT1) vs 30.9(EndGame) 基本持平；
@@ -688,7 +672,6 @@ def group_menu(pal):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 组 12：前端**职业半身像**（片 4 新增）—— 创角/选角屏上那一排站着的人物
 # ═════════════════════════════════════════════════════════════════════════════
 #  源：`data/global/ui/FrontEnd/{cls}/{CLS}{NU1,NU2,NU3}.DC6`（**逐帧 1:1**，一帧一个 PNG）。
 #  「哪三个序列是屏上那三态」的依据 = **参考物源码**（社区复刻工程 mofr/Diablerie）：
@@ -700,7 +683,7 @@ def group_menu(pal):
 #    `:258  ChangeState(ClassSelectorState.BackIdle);`  ⇒ **屏上默认态 = NU1**
 #    `:116-122 ToggleHover()`                            ⇒ **悬停态 = NU2**
 #    `:53-70 MainAnimatorOnFinish` + `:208-233` 的状态表  ⇒ 点选后转到 `FrontIdle` = **NU3**
-#  ⛔ 本轮**只落 NU1/NU2/NU3 三态**：`{CLS}FW`（正面转身过渡，如 AMFW 54 帧）、`{CLS}BW`（背面转身过渡）、
+#  本轮**只落 NU1/NU2/NU3 三态**：`{CLS}FW`（正面转身过渡，如 AMFW 54 帧）、`{CLS}BW`（背面转身过渡）、
 #     以及 `{CLS}FWs`/`{CLS}BWs`/`{CLS}NU3s`（叠加层，需要 SoftAdditive 混合材质）**本轮不落位**，
 #     因为它们属于"逐帧播放器 + 叠加材质 + 选人音效"那一整块（登记为范围边界，见回报）。
 #  PL2 = **fechar/Pal.PL2**（**逐条核实过，不是照抄**）：
@@ -709,13 +692,10 @@ def group_menu(pal):
 #       （`PaletteType.cs:12` `Fechar = 7`），本地实测该文件存在（`<d2raw>/data/global/palette/fechar/`）；
 #    ③ 实测佐证（可复现）：同族 `SONU1.DC6` 分别按 fechar / menu1 解出同一帧 —— fechar 是
 #       深绿斗篷 + 紫水晶法杖的正常配色，menu1 是"高亮到发白"的错色（判别口径见下条注释）。
-#    ④ 不采用 `Menu1`：任务书提示"前端选人屏另有 Menu1 口径"，但**该口径在参考物源码里没有对应** ——
-#       `ClassSelector.cs` 是本项目唯一能拿到的"前端选人屏实现"，它写的是 Fechar。按 §0.5"出处优先"取 Fechar。
-# ★★ 片 22（**用户 2026-09-19 直接决策**）：**只做 Amazon + Barbarian 两个职业** ——
 #    其余三个（Necromancer / Paladin / Sorceress）**素材不再落位**（工程侧目录也已删）。
 #    第 4 列 = 是否落位（`True` 才解）。保留全部 5 行的名字与前缀是为了：
 #    ① 工具自身仍能完整表达"原版有哪 5 个职业"；② 将来恢复某个职业只改这一个布尔。
-#    ⛔ **注意**：`Def.PlayerClass` 的枚举值**一个都不许删**（存档 `cls` 字段与配表 `class` 列依赖它）
+#    **注意**：`Def.PlayerClass` 的枚举值**一个都不许删**（存档 `cls` 字段与配表 `class` 列依赖它）
 #       —— 这里是**素材/UI 层面的收窄**，不是"这个职业不存在"。
 FRONTEND_CLASSES = (
     # (目录名, 文件名前缀（照磁盘原样，大小写可能混用）, 输出子目录, 是否落位)
@@ -729,7 +709,6 @@ FRONTEND_CLASSES = (
 # 三态：屏上默认（背面待机）/ 悬停 / 选中后转正面待机。键 = 输出文件名里的状态码。
 FRONTEND_STATES = (("NU1", "nu1"), ("NU2", "nu2"), ("NU3", "nu3"))
 
-# ★ 片 22 新增：**转身过渡**两段（原版创角屏"人物走上前 / 转回背面"那一整块动画）。
 #   出处 = 参考物源码（社区复刻工程）`Diablerie/.../Menu/ClassSelect/ClassSelector.cs:207-233`：
 #     · `FrontTransition`：`Sprites = {CLS}FW`、`Loop = false`、`HideOnFinish = true`、
 #       `SortingOrderShift = 10`、**`Fps = 25`**、`SfxPath = data\global\sfx\cursor\intro\{cls} select.wav`；
@@ -738,8 +717,8 @@ FRONTEND_STATES = (("NU1", "nu1"), ("NU2", "nu2"), ("NU3", "nu3"))
 #   状态机全貌（同文件 `:53-76 MainAnimatorOnFinish`）：
 #     `BackIdle(NU1, loop) --点选--> FrontTransition(FW, 25fps, 播完隐藏) --> FrontIdle(NU3, loop)`
 #     `FrontIdle --再点--> BackTransition(BW, 25fps) --> BackIdle`
-#   ⚠️ 另有一套**叠加层** `{CLS}FWs` / `{CLS}BWs` / `{CLS}NU3s`（需 SoftAdditive 材质 + 排序 +10），
-#      本轮**仍不落位**（登记为范围边界）—— ⛔ 不许拿它当"过渡"的替代品。
+#   另有一套**叠加层** `{CLS}FWs` / `{CLS}BWs` / `{CLS}NU3s`（需 SoftAdditive 材质 + 排序 +10），
+#      本轮**仍不落位**（登记为范围边界）—— 不许拿它当"过渡"的替代品。
 FRONTEND_TRANSITIONS = (("FW", "fw"), ("BW", "bw"))
 
 
@@ -773,7 +752,6 @@ def group_frontend(pal):
             print("  MISSING  %s" % src_dir)
             continue
         if not keep:
-            # ★ 片 22：用户决策只做 2 个职业 ⇒ 其余三个素材**不落位**（工程侧目录也已删）
             print("  SKIP     %-12s（用户决策：只做 Amazon + Barbarian）" % cls_dir)
             continue
         kept += 1
@@ -796,13 +774,12 @@ def group_frontend(pal):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 组 13：启动屏 / 标题 logo（片 4 新增）
 # ═════════════════════════════════════════════════════════════════════════════
 #  源：`data/global/ui/Logo/logo.DC6`（实测 dir=1 fpd=1，单帧 **319×177**）。
 #  内容（读图确认，不是看文件名猜的）：`DIABLO II` 火焰字标（红金+黑边）—— 原版前端／启动画面上的主 logo。
 #  为什么用 fechar：与组 12 同源同族（都是 `ui/FrontEnd` 的前端画面家族）。判别口径 =
 #    `dc6.py` 的调色板判定（同上 docstring 的 ③）。
-#  ⚠️ 本项目**没有** `FrontEnd/blizno.DC6`（Blizzard North 开机 logo，640×480 整屏 tile 打包）
+#  本项目**没有** `FrontEnd/blizno.DC6`（Blizzard North 开机 logo，640×480 整屏 tile 打包）
 #     的接入需求登记 —— 启动屏用的是这张 D2 logo（见回报「未决」）。
 def group_logo(pal):
     bar = dc6.read_pl2(res(*PL2_FECHAR.split("/")))

@@ -67,7 +67,6 @@ namespace FlowCheck
 
     /// <summary>
     /// `IUIManager` 替身：**真的维护"当前开着哪些面板"**（`Opened` = 开着的集合，`EverOpened` = 历史）。
-    /// 为什么要维护开闭真值：`agent-14 §B 现象 1` 就是"面板没关"，
     /// 而它**只有看 `IsOpen` 才能测出来**（看"打开过"的列表永远看不出来）。
     /// </summary>
     internal sealed class RecUI : IUIManager
@@ -127,7 +126,6 @@ namespace FlowCheck
         public readonly List<string> LoadedScenes = new List<string>();
         public string CurrentScene { get; private set; }
 
-        // agent-17 §A：与引擎同序 —— `OnSceneLoaded` 的处理器在 `onDone` **之前**逐个回调
         // （`Runtime/Presentation/Scene.cs:54-65`）。`AppFlow` 靠它识别"Stage 场景被重载"。
         private readonly List<Action<string>> _loaded = new List<Action<string>>();
         private readonly List<Action<string>> _unloaded = new List<Action<string>>();
@@ -229,7 +227,6 @@ namespace FlowCheck
         public void LoadAsset<T>(string path, Action<T> cb) where T : UnityEngine.Object { cb?.Invoke(null); }
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
 
-        // ★ agent-34：宿主无素材 ⇒ `Exists` 恒 false、`LoadAll` 恒空数组（引擎契约的"取不到"口径）。
         //   这两个成员是引擎新长的（`Contracts.cs` 的 Exists / LoadAll），业务源码已经改调它们。
         public bool Exists(string path) => false;
         public T[] LoadAll<T>(string path) where T : UnityEngine.Object => Array.Empty<T>();
@@ -244,10 +241,8 @@ namespace FlowCheck
 
     public static class Program
     {
-        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
-        //   原先写死 `@"client\Assets"`（cwd 相对）⇒ `tools/probes/hosts/run_all_hosts.ps1`
+        // 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
         //   用 `Push-Location <宿主目录>` 驱动时被解析成 `<宿主目录>\client\Assets`（不存在）
-        //   ⇒ 配表 0 行 ⇒ 断言红、exit 1（实测 2026-09-20 复现）。
         private static readonly string ClientDataPath = ResolveProjectRoot() + @"\client\Assets";
 
         /// <summary>
@@ -270,7 +265,6 @@ namespace FlowCheck
         private static readonly List<string> StationLog = new List<string>();
 
         /// <summary>
-        /// ★§A 「调用顺序磁带」：把清场各步（`Module/Flow/AppFlow.LeaveStage` 的 ①~⑤）与 `Game.Scene.Load`
         /// 按真实调用顺序记下来 —— 用来断言「不同区进图必须先清场再加载场景」，光看计数看不出顺序。
         /// 写入方：`RecUI.CloseAll` / `FakeEntities.ClearAll` / `FakePool.ClearAll` /
         /// `FakeTimer.StopScope` / `FakeSound.StopAll` / `RecScene.Load`。
@@ -290,7 +284,7 @@ namespace FlowCheck
         private static double _flowSeconds;
 
         /// <summary>
-        /// ★load 把 Loading 站点**逐帧推到底** —— 「经典 load 动画」轮之后，进图不再一步到位：
+        /// load 把 Loading 站点**逐帧推到底** —— 「经典 load 动画」轮之后，进图不再一步到位：
         /// `AppFlow` 在 Loading 站点里**每帧推一档真实装配**，并按 `LoadingSteps.FrameCadenceSeconds`
         /// （0.07s/档）逐档呈现，最后「世界就绪 + 门开满第 10 帧 + 再等一帧」才关屏进 Stage。
         /// <para>所以离线宿主必须像引擎一样**逐帧驱动**（`Game.Tick → Fsm.Tick → 站点 onTick`），
@@ -348,12 +342,10 @@ namespace FlowCheck
             // 站点迁移日志（与生产同一出口：Fsm.OnChange）—— 用于断言"序列完整"
             fsm.OnChange((from, to) => StationLog.Add(to));
 
-            // ★ 注入 `Log.Clock`（agent-13 §C 第 2 项的推荐做法）：降频入口不再碰
             //   `Time.realtimeSinceStartup`（原生 ECall）⇒ **不必再 `Log.Suppress`**，
-            //   于是全程都能捕获真实日志行，才能**数字符站日志**（agent-14 §B 现象 2 的验收口径）。
             Log.Clock = () => _clockSeconds += 0.016f;
 
-            // ★load 同源做法：给 `AppFlow` 也注入**假墙钟**（读条分档的节奏下限认墙钟，
+            // load 同源做法：给 `AppFlow` 也注入**假墙钟**（读条分档的节奏下限认墙钟，
             //   宿主不推进时间 ⇒ 门永远开不满 ⇒ 站点永远留在 Loading）。
             //   刻意**不用 Unity 的 `Time`**：那是原生 ECall，本进程里会抛 SecurityException
             //   （`Core/Log.cs` 的文件头记了同一条教训）。
@@ -380,7 +372,6 @@ namespace FlowCheck
             ctx.Flow.Enter();
             Check("站点 = Boot", ctx.Flow.CurrentState == Events.Fsm.StateBoot, ctx.Flow.CurrentState);
 
-            // ★§B 现象 2 的回归断言：`[Flow] → Boot` **恰好 1 条**
             //   （修前：`Bootstrap.Force(Boot)` 打一条 + `Enter()` 的 else 分支又打一条 = 2 条）
             //   计数用 `"[INFO ] [Flow] → "`（**带级别前缀**）：面板自己的
             //   `[Ui] [Flow] → Boot：启动画面已显示` 是另一条日志，不能混进来。
@@ -394,8 +385,6 @@ namespace FlowCheck
             Check("主菜单面板已打开（无存档 ⇒ 继续置灰）", ui.Opened.Contains("MainMenuPanel"), string.Join(",", ui.Opened));
 
             // 阶段二（原写法是 `Log.Suppress = true`：因为 `Core/Log.cs` 的降频闸门会碰原生
-            // `Time.realtimeSinceStartup`。现在宿主注入了 `Log.Clock` ⇒ 不再需要静默，
-            // 于是**全程都能数字符站日志**）。
 
             // ⑤ MainMenu → 单人游戏（无存档 ⇒ 直接创角）
             bus.Emit(Events.Fsm.TriggerNewGame);
@@ -409,13 +398,11 @@ namespace FlowCheck
             Check("建角后回 CharSelect", ctx.Flow.CurrentState == Events.Fsm.StateCharSelect, ctx.Flow.CurrentState);
             Check("创角已给出本局 seed", save.mapSeed != 0, save.mapSeed.ToString());
 
-            // ★§B 现象 1 的回归断言：`CharCreate → CharSelect` 后**创角面板必须关掉**
             //   （修前会被误判为"两个面板叠加"；真值看 `IsOpen`，不是看"打开过"的列表）
             Check("★CharCreate → CharSelect 后 CharCreatePanel 已关闭（不与选角屏叠加）",
                 !ui.IsOpen<Diablo2.UI.CharCreatePanel>() && ui.IsOpen<Diablo2.UI.CharSelectPanel>(),
                 "当前开着=" + string.Join(",", ui.Opened));
 
-            // ★§B 兜底清扫自证：故意在 CharSelect 站点留一个"主菜单面板"，迁移后必须被关掉 + Warn
             ui.Open<Diablo2.UI.MainMenuPanel>();
             bus.Emit(Events.Fsm.TriggerNeedCreate);          // CharSelect → CharCreate
             Check("★兜底清扫：非本站点面板被关掉，并留下可检索 Warn（漏关不再静默）",
@@ -429,7 +416,7 @@ namespace FlowCheck
             entities.Seed(3);                                   // 模拟 Stage 内已有实体
             bus.Emit(Events.CharSelectRequest, "HeroCheck");
 
-            // ★load：进图不再一步到位 —— 读条屏分档推进要求**逐帧驱动** Loading 站点。
+            // load：进图不再一步到位 —— 读条屏分档推进要求**逐帧驱动** Loading 站点。
             Check("★load 进图请求后先停在 Loading 站点（读条屏在屏幕上有机会显示）",
                 ctx.Flow.CurrentState == Events.Fsm.StateLoading || ctx.Flow.CurrentState == Events.Fsm.StateStage,
                 ctx.Flow.CurrentState);
@@ -450,7 +437,6 @@ namespace FlowCheck
             Check("Stage 场景被加载", scene.LoadedScenes.Contains(SceneNames.Stage), string.Join(",", scene.LoadedScenes));
             Check("模块未接入时仍能进 Stage（null 容忍）", ctx.Flow.CurrentState == Events.Fsm.StateStage, ctx.Flow.CurrentState);
 
-            // ⑧ 区域切换（出入口事件）—— 同时验 agent-14 §B 现象 3 的计数
             //    生产的链路是「`ExitEntered` 的派发里 `AppFlow.EnterArea` 重生成地图」，
             //    本宿主用**同序的临时订阅者**模拟那次生成（本宿主没有 Map 模块，见 csproj 的编译集）。
             var beforeSwitch = StationLog.Count;
@@ -469,10 +455,7 @@ namespace FlowCheck
             Check("★过门/进图全程没有「重复生成」假警报",
                 ConsoleLogger.CountOf("重复生成") == 0, "count=" + ConsoleLogger.CountOf("重复生成"));
 
-            // ⑧-2 ★ 片 T（S-08）：**自环过门请求不许刷屏，但不许静默**
             //     现场：上游（探针/回声）在"已经在 BloodMoor"时重复发 `ExitEntered(BloodMoor)`，
-            //     旧实现每一条都写一行 Warn ⇒ 09-23 日志 12 分钟 39069 条（≈54 条/秒）。
-            //     修复口径 = 第一次 Warn 说清、之后每 1000 次汇总一条（⛔ 不是把铃声拆掉）。
             //     判据打在**日志条数**上（判过程）：2001 次自环请求 ⇒ Warn 恰好 1 条 + 汇总恰好 2 条。
             const int dupRepeats = 2001;
             var doorSerialBeforeDup = AppDoorGuard.DoorSerial;
@@ -498,7 +481,6 @@ namespace FlowCheck
                 "switchLines=" + ConsoleLogger.CountOf("[Stage] 区域已切换为"));
             bus.Emit(Events.ExitEntered, AreaId.BloodMoor);   // 复位现场（后续用例假定在 BloodMoor）
 
-            // ⑧b ★§B 现象 1（同类漏关）：暂停里的「选项」是子面板 ⇒ `Pause → Stage` 必须把它一起关掉
             //     （修前 Play 实测：`fsm=Stage PausePanel=False SettingsPanel=True` ⇒ 选项面板一直叠在 HUD 上）
             //     兜底 Warn 的基线：上面那个"故意留面板"的用例已经打过 1 条，这里只断言"**没有新增**"，
             //     即本次是 `onExit` 关掉的，而不是靠兜底清扫兜的。
@@ -519,10 +501,7 @@ namespace FlowCheck
                 " 兜底Warn=" + sweepWarnsBefore + "→" + ConsoleLogger.CountOf("兜底关闭"));
 
             // ══════════════════════════════════════════════════════════════════
-            // ⑧c ★§A（agent-17 §A）进图可重入 —— 三条回归断言
-            //   缺陷：已在 Stage 时再发进图请求 ⇒ 原 `GoStage` 会 `Scene.Load(Stage)` **重载场景**
             //   （销毁全部视图节点），而 `OnEnterStage` 因 `_stageActive==true` 提前 return ⇒ 引用悬空。
-            //   修法：`GoStage` 重入守卫（同区忽略 / 不同区先清场再进图）+ `OnEnterStage` 一致性核对后补清场重建。
             //   注：此刻 `_area == BloodMoor`（⑧ 的过门已切过区域，且会话内名册返回同一实例 ⇒ areaId 同步）。
             // ══════════════════════════════════════════════════════════════════
 
@@ -576,15 +555,12 @@ namespace FlowCheck
                 scene.LoadedScenes[scene.LoadedScenes.Count - 1] == SceneNames.Stage,
                 $"loads={loadsBeforeSwitch}→{scene.LoadedScenes.Count} scenes={string.Join(",", scene.LoadedScenes)}");
 
-            // ★load：换区进图同样要走读条分档 ⇒ 逐帧推完再断言站点（Tape 断言在上面已经取过，
+            // load：换区进图同样要走读条分档 ⇒ 逐帧推完再断言站点（Tape 断言在上面已经取过，
             //         分档推进不写 Tape，顺序断言不受影响）。
             PumpLoading(fsm, ctx.Flow);
             Check("★§A-② 换区后仍在 Stage 站点（不换站点、只换区域）",
                 ctx.Flow.CurrentState == Events.Fsm.StateStage, ctx.Flow.CurrentState);
 
-            // ⑧c-③ 「场景被重载」的兜底：绕过 `GoStage` 直接把 Stage 场景再加载一次（= 缺陷现场：
-            //     有代码重载了场景且没有清场），读条完成后照常触发 StageReady ⇒ `OnEnterStage` 重入。
-            //     ⇒ 必须**补一次清场 + 重建**，而不是静默 return（否则视图引用永久悬空）。
             var closeAllBeforeReload = ui.CloseAllCount;
             var clearAllBeforeReload = entities.ClearAllCount;
             var cleanedBeforeReload = ConsoleLogger.CountOf("清场完成：");
@@ -631,10 +607,9 @@ namespace FlowCheck
                 setting.Get<float>(GameConst.SettingKeyBgmVolume, 1f).ToString("0.00"));
 
             // ⑫ 退出
-            // ★ 片 assert-audit：原为硬编码 `true`，且文案自称「打包分支 Application.Quit 不执行」——
             //   但离线宿主**编的是 #else 分支**（没有 `UNITY_EDITOR` 宏）⇒ `Application.Quit()` 真会被走到，
             //   而它是 Unity ECall（同 `new GameObject`：非 Unity 进程必抛 SecurityException）⇒ 见下方 SKIP。
-            //   能离线判的那一半**改成真判**：`QuitGame` 的第一件事是 `Game.Setting.Save()`（⛔ 不静默丢设置）。
+            //   能离线判的那一半**改成真判**：`QuitGame` 的第一件事是 `Game.Setting.Save()`（不静默丢设置）。
             var saveBefore = setting.SaveCount;
             string quitBoundary = null;
             try { ctx.Flow.QuitGame(); }
@@ -654,7 +629,6 @@ namespace FlowCheck
             var probe = Activator.CreateInstance(typeof(ProbeOnly));
             Check("AutoWire 机制：可反射创建 internal 实现类型", probe != null, typeof(ProbeOnly).FullName);
 
-            // ★§B 现象 2 的强断言：站点日志条数 == 站点迁移次数（每条迁移恰好一行，不多不少）
             var stationLines = ConsoleLogger.CountOf("[INFO ] [Flow] → ");
             Check("★站点日志条数 == 站点迁移次数（每条迁移恰好一行）",
                 stationLines == StationLog.Count, $"lines={stationLines} transitions={StationLog.Count}");
@@ -731,8 +705,7 @@ namespace FlowCheck
         }
 
         /// <summary>
-        /// ★ 片 assert-audit：**显式跳过**（离线环境判不了的项）。与 `uicheck._skip` / `mapcheck.Defect` 同口径：
-        /// 单独打印 `[SKIP]` + 单独计数 ⇒ ⛔ 既不占"通过"计数、也不伪装成 FAIL。
+        /// 单独打印 `[SKIP]` + 单独计数 ⇒ 既不占"通过"计数、也不伪装成 FAIL。
         /// </summary>
         private static void Skip(string what, string why)
         {

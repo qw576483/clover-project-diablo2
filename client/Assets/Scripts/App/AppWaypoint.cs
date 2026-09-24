@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · App/AppWaypoint.cs   ★ 片 g1-resume 新增（验收表 S-40 / 用户报「传送点没效果」）
 //
 // 为什么需要它（链条断在哪）：传送点的三件事**一件都没有** ——
 //   ① 世界里没有物件（`IMapModule` 上也没这个点位）；② 没有人判"走到/点到传送点"；
@@ -8,7 +7,7 @@
 //
 // 装配契约（与 `AppDoorGuard` / `AppSnapshots` 同形）：
 //   `internal static class AppWaypoint` + `Install(AppContext)`，由 `AppWiring.Install` 调。
-//   ⛔ 不持有任何模块的**实现类型**：一律走 `AppWiring.Ctx` 的接口 + `Core/Events` 的事件。
+//   不持有任何模块的**实现类型**：一律走 `AppWiring.Ctx` 的接口 + `Core/Events` 的事件。
 //
 // 事件口径（只增不改，都是**已有的**）：
 //   · 收 `Events.MoveCommand`(Vector2Int)  —— 判"点的是不是传送点那一格"（与 `NpcModule`
@@ -19,17 +18,15 @@
 //   · 收 `Events.WaypointTravelRequest`(int) —— 面板选了目的地；
 //   · 发 `Events.ExitEntered`(AreaId) —— **只走这一条**切区域（`AppFlow.EnterArea`：
 //     重生成地图 / 移怪 / 挪玩家 / 关面板 / 发 `AreaChanged` 全在那条链上）。
-//     ⚠️ 口径说明（已写进 `Core/Events.cs` 的常量注释）：`ExitEntered` 在引擎侧被
+//     口径说明（已写进 `Core/Events.cs` 的常量注释）：`ExitEntered` 在引擎侧被
 //     `AppDoorGuard`（过门计数）/ `AudioHook`（传送音效，其注释原文就是"传送 ← ExitEntered"）/
 //     `QuestModule`（换区）/ `AppFlow`（切区）共同消费 —— 传送点换区在语义上正是"一次区域切换"
-//     ⇒ 复用它是**语义一致**的，且不新增一条与它对等的旁路（⛔ 旁路必然漂移）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// ⚠️ 2026-09-23 主 agent 补（`g1-resume` 落卡时漏的 using）：`IMapModule` / `IPlayerModule` 定义在
 //    `Module/Contracts.cs` 的 **`Diablo2.Module`** 命名空间里（该文件另有一个 `Diablo2.Def` 段），
 //    漏这一行 ⇒ CS0246 ×4 ⇒ **Unity 整棵树编不过**（`AppWaypoint.cs:179,236,247,252`）。
 using Diablo2.Module;
@@ -83,12 +80,11 @@ namespace Diablo2.App
             _target = Vector2Int.zero;
         }
 
-        // ── 读档回灌 / 存盘收集（★ 片 save-progress 2026-09-24）────────────────
 
         /// <summary>
         /// 当前"已激活区域"的快照（**升序** int）—— 存档写侧用（`Events.SaveCollect` 的收方
         /// `App/AppProgress` 调它，见 `Module/Save/SaveModule.CollectAppProgress`）。
-        /// <para>⛔ 只读快照：返回**新列表**，调用方改它不影响本集合。</para>
+        /// <para>只读快照：返回**新列表**，调用方改它不影响本集合。</para>
         /// </summary>
         internal static List<int> SnapshotVisited()
         {
@@ -101,12 +97,11 @@ namespace Diablo2.App
         /// <summary>
         /// 读档回灌"已激活区域"（**并入 / 幂等**）。返回本次真正新增的区域数。
         /// <para>
-        /// 缺口（修前）：`Visited` 是**进程内 static**、只由 `StageEntered`/`AreaChanged` 增
         /// ⇒ 读档后它只含"本次会话进过的那一个区域" ⇒ 传送面板永远只认当前区域、其余目的地全灰
         /// （玩家看到的就是原版字串「尚未啟動其他傳送點」，见 `BuildArgs`）。
         /// </para>
-        /// <para>⛔ 兼容旧档：`areas == null` 或空集合 ⇒ 什么都不做（**不报错**：旧档没有该字段是正常情形）；
-        /// ⛔ 非法区域号（不在 `AreaId` 登记表里）⇒ 跳过 + Warn（⛔ 不把坏值塞进集合，否则面板会列出非法目的地）。</para>
+        /// <para>兼容旧档：`areas == null` 或空集合 ⇒ 什么都不做（**不报错**：旧档没有该字段是正常情形）；
+        /// 非法区域号（不在 `AreaId` 登记表里）⇒ 跳过 + Warn（不把坏值塞进集合，否则面板会列出非法目的地）。</para>
         /// </summary>
         internal static int RestoreVisited(IEnumerable<int> areas)
         {
@@ -131,7 +126,7 @@ namespace Diablo2.App
             }
             if (added > 0 || (areas is ICollection<int> c && c.Count > 0))
             {
-                // ⛔ 空集合（旧档）不打这条 —— 那是正常情形，打了会让人以为回灌失败
+                // 空集合（旧档）不打这条 —— 那是正常情形，打了会让人以为回灌失败
                 Game.Logger.Info(Tag, $"读档回灌传送点已激活列表：本次新增 {added} 个 ⇒ 共 {Visited.Count} 个"
                     + $"［{string.Join(",", SnapshotVisited())}］（来源 = 存档 `visitedWaypoints`）");
             }
@@ -233,7 +228,6 @@ namespace Diablo2.App
 
         /// <summary>
         /// 组装打开参数。目的地集合 = `WaypointPanel.PlanDests(已去过, 当前区域)`
-        /// （纯函数；离线宿主 `uicheck` 逐项断言，⛔ 本类不再自己算一份，避免两处口径漂移）。
         /// </summary>
         private static WaypointArgs BuildArgs(IMapModule map)
         {

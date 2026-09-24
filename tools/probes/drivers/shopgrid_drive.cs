@@ -1,5 +1,4 @@
 // =============================================================================
-// shopgrid_drive.cs -- Play-mode probe for the buy/sell GRID OCCUPANCY (片 impl-shop)
 //
 //   run_script --file tools/probes/drivers/shopgrid_drive.cs --entry ShopGrid.Tour.Install
 //              --args '["<raw shot dir>|<done marker>"]'
@@ -673,7 +672,6 @@ namespace ShopGrid
         }
 
         /// <summary>
-        /// 片 u53-shopart: read the two bottom-bar square buttons as they actually are in Play —
         /// node present / sprite name / Image colour / transition / pressed sprite / rect.
         /// The placeholder shape (no sprite + flat UiArt.ButtonBg colour) shows up here as
         /// sprite=none, which is exactly what the offline check (uicheck ShopArtCheck) forbids.
@@ -708,7 +706,6 @@ namespace ShopGrid
         }
 
         /// <summary>
-        /// 片 u53-shopart: the label must sit OUTSIDE the button rect (the original square button is a
         /// pure glyph -- repair = hammer+anvil, close = circled slash -- so a label on top of it hides
         /// the very art that makes the button self-explanatory). Reads, live: the button rect, the
         /// Label child's rect in BUTTON-LOCAL space (directly comparable to ShopPanel.ButtonRect /

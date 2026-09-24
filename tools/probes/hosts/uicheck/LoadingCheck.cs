@@ -140,9 +140,8 @@ namespace Uicheck
                 $"0→{LoadingPanel.FrameIndex(0f, 10)} 0.5→{LoadingPanel.FrameIndex(0.5f, 10)} "
                 + $"1→{LoadingPanel.FrameIndex(1f, 10)}（-5→{LoadingPanel.FrameIndex(-5f, 10)}、5→{LoadingPanel.FrameIndex(5f, 10)} 夹取）");
 
-            // ── ★load 分档表（`Module/Flow/LoadingSteps.cs`，本轮新增）──────────
-            // ⚠️ 修前这里断言的是 `LoadingPanel.MapProgress`（引擎 [0,0.9] → 整个门 [0,1]）。
-            //    **那个映射本身就是本轮修掉的缺陷**：场景一加载完门就到第 10 帧
+            // ── load 分档表（`Module/Flow/LoadingSteps.cs`，本轮新增）──────────
+            // 修前这里断言的是 `LoadingPanel.MapProgress`（引擎 [0,0.9] → 整个门 [0,1]）。
             //    （Play 日志 20:36:40.229 → :40.231，2ms 走完 10 帧）。现在引擎那一段只喂门的前 5 档。
             Check("LoadingSteps：档数 = 原版读条图帧数 10",
                 LoadingSteps.Count == 10 && LoadingSteps.Count == ResPaths.FrameCountLoadingScreen,
@@ -170,8 +169,7 @@ namespace Uicheck
             Check("LoadingSteps：档号 → completeness → 帧号 往返一致（端点会吃浮点误差，故取档位区间中点）",
                 roundTrip, string.Join(" ", rtDetail.ToArray()));
 
-            // ⚠️ 边界刻意取"档宽 ±1ms"而不是正好 `FrameCadenceSeconds`：后者是 float 常量，
-            //    `0.07d / (double)0.07f = 0.99999999...` ⇒ 正好卡在边界上会因浮点差 1 档（不是产品缺陷）。
+            // 边界刻意取"档宽 ±1ms"而不是正好 `FrameCadenceSeconds`：后者是 float 常量，
             var cad = LoadingSteps.FrameCadenceSeconds;
             Check("LoadingSteps：原版节奏 —— elapsed 0→档0 / (档宽−1ms)→档0 / (档宽+1ms)→档1 / 9×档宽+1ms→档9 / 超长夹到档9 / 负值→档0",
                 LoadingSteps.MaxIndexAt(0d) == 0
@@ -235,7 +233,7 @@ namespace Uicheck
             Console.WriteLine("── a3-② 区域名弹出（原版 Prefabs/LevelEntryTitle.prefab + Engine/UI/LevelEntryTitle.cs）──");
 
             // ── 几何：满宽 ×300 贴顶，文字中心 = 顶边下 150 原版px ────────────
-            //   ⚠️ 位图字模按**原版 px** 排版 ⇒ 内层标签用"等效原版尺寸"建、再整体 ×K：
+            //   位图字模按**原版 px** 排版 ⇒ 内层标签用"等效原版尺寸"建、再整体 ×K：
             //      等效原版宽 = 画布宽 / K = 1920 / 1.8 = 1066.67（原版是 anchor(0,1)-(1,1) 铺满父层
             //      ⇒ 我们铺满 1920 画布，等效原版宽就是 1066.67；**不是** 800 —— 800 是原版**画布**宽，
             //      而原版 prefab 的满宽也是 800，两者只在 800×600 基准下相等）。
@@ -366,14 +364,11 @@ namespace Uicheck
                 "见 LevelEntryTitle.ShowForFirstEntry");
 
             // ── 字模冷启动：首次用 font30 时不能先画出一整条实心色块 ──────────────
-            //   实测（Play 2026-09-17）：逐字形 `LoadAsset` 在本工程**必然失败**，失败回调 ~1.8s 才回，
             //   期间 `Image.sprite == null` ⇒ uGUI 把**整格**画成实心色块（第一张区域名截图就是一条红块）。
-            //   修法 = `D2Text.ApplyGlyph` **先同步试整图集 LoadAll**（几毫秒），再退到异步逐字形。
             var fontSrc = File.ReadAllText(UiSrc("D2Text.cs"));
             Check("字模冷启动：ApplyGlyph 先同步试整图集 LoadAll（不再先画实心色块）",
                 fontSrc.Contains("BulkTried") && fontSrc.Contains("TryBulkLoad(font, false)"),
                 "见 UI/D2Text.cs::ApplyGlyph（agent-a3）");
-            // ★ 片 4b 修：断言里写的 `RebuildLive()` 这个名字**在代码里从来不存在**（`D2Text.cs` 里
             //   重建入口叫 `RebuildAll()`）⇒ 这条断言恒 FAIL。改按真实的实现断言（语义不变：
             //   渲染循环里那次 LoadAll 传 `rebuildLive:false` ⇒ **不**触发重建）。
             Check("字模冷启动：渲染循环里那次 LoadAll **不**触发重建（防重入销毁正在建的字形节点）",

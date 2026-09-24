@@ -55,13 +55,13 @@ import os
 import re
 import sys
 
-# ── 路径常量（⛔ 一律相对"仓库根"，不许写死盘符）───────────────────────────────
+# ── 路径常量（一律相对"仓库根"，不许写死盘符）───────────────────────────────
 SKIP_DIRS = {"原版资源", ".ai-tmp", ".git", "Library", "obj", "bin", "Temp", "Logs",
              "Packages_cache", "node_modules", ".vs", ".idea", "__pycache__"}
 FEXTS_CODE = (".cs", ".py", ".ps1", ".shader")
 FEXTS_DATA = (".tsv", ".json", ".txt", ".asset", ".prefab")
 FEXTS_DOC = (".md",)
-# ⛔ `strip_comments` 只许作用于**代码**扩展名：`.md` 里出现的 `/*` 不是注释开始
+# `strip_comments` 只许作用于**代码**扩展名：`.md` 里出现的 `/*` 不是注释开始
 #   （实测：拿它去剥 `client/资源欠缺清单.md`，21701 B → 418 B，几乎整篇被吃掉）。
 
 
@@ -77,7 +77,7 @@ def find_root(start):
         d = parent
 
 
-# ── R2：路径正则（⛔ 字符类里**不含空格**）────────────────────────────────────
+# ── R2：路径正则（字符类里**不含空格**）────────────────────────────────────
 PATH_RE = re.compile(
     r"data[\\/]+(?:global|local|LOCAL)[\\/]+[A-Za-z0-9_\\/\-.]+?\.(?:dc6|pl2|tbl|dt1|ds1|dcc|cof|txt)",
     re.IGNORECASE)
@@ -251,7 +251,7 @@ def collect_d2ui(root):
         pals.append(path)
         return []
 
-    # ⛔ 必须同时把 `one()` / `write_fontmap_tsv()` 打成空操作：
+    # 必须同时把 `one()` / `write_fontmap_tsv()` 打成空操作：
     #   解包产物已在盘 ⇒ group_items / group_chifont 会真的走到 `one()` ⇒ **会往 client/Assets 写 PNG**。
     ex.read_dc6 = spy_read
     dc6.read_pl2 = spy_pl2
@@ -280,7 +280,7 @@ def collect_d2ui(root):
         for state, _stem in tuple(ex.FRONTEND_STATES) + tuple(ex.FRONTEND_TRANSITIONS):
             out.setdefault(norm("data/global/ui/FrontEnd/%s/%s%s.DC6" % (cls_dir, prefix, state)),
                            set()).add("d2ui-table:export_d2ui.py:FRONTEND_CLASSES")
-    # ⚠️ spy 的盲区（实测踩到）：`group_menu` 在 `MENU_ENDGAME` 读不到时**提前 return**
+    # spy 的盲区（实测踩到）：`group_menu` 在 `MENU_ENDGAME` 读不到时**提前 return**
     #   ⇒ spy 模式下 `MENU_QUESTS` 那 21 张任务说明图一个都记不到 ⇒ 直接读它的表常量补齐。
     for q in ex.MENU_QUESTS:
         out.setdefault(norm("data/global/ui/MENU/" + q + ".dc6"), set()).add("d2ui-table:export_d2ui.py:MENU_QUESTS")
@@ -371,7 +371,7 @@ def main():
     #  散文（`.md`/`.tsv`/`.txt` 里的说明性文字）与一次性手写清单正是"按 Bord1..4 的字母后缀
     #  外推出 Bord5..12{b,c,o,oe}"那 32 个假名的来源 ⇒ 这两类一律必须**被官方表声明**才算数。
     #  `code-literal` 例外：那是**活代码在问包要文件**（如 `export_tiles.py:65` 的 warp.dt1），
-    #  ⛔ 不是外推 —— 它照旧保留，但会被记进 `wanted-undeclared.tsv` 供主 agent 裁。
+    #  不是外推 —— 它照旧保留，但会被记进 `wanted-undeclared.tsv` 供主 agent 裁。
     dropped, undeclared = {}, {}
     for p in list(merged):
         low = p.lower()

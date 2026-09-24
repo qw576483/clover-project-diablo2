@@ -2,9 +2,7 @@
 // Item / Quest / Npc / Save 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
 //
 // 目的：在没有 Unity 编辑器的情况下（用户尚未打开编辑器 ⇒ 禁止跑 `unity run/test`），
-//       把 agent-08 的四个模块**真跑一遍**并断言验收表要求的行为，打印可抄进回报的数字。
 //
-// 覆盖（对应 agent-08 任务书 §5 验收标准）：
 //   ① 配表加载（与 Bootstrap 同一条链路 `Table.TableLoader`）
 //   ② AppContext.AutoWire 真能反射装配四个 `internal sealed ... : IXxxModule`
 //   ③ 物品生成：品质判定 + 词缀（1~2 个、等级 ≤ 物品等级）+ 3 个样例的完整属性行
@@ -20,7 +18,6 @@
 //
 // 不覆盖（需要 Unity 原生，留给主 agent 进 Play）：面板像素布局、真人手感、Unity 原生序列化。
 // 桩（Stub*）是**宿主用的替身**，不是本项目实现：真实现分别在
-//   `Module/Map`(agent-04) / `Module/Player`(agent-06) / `Module/Monster`(agent-07) / `Module/Skill`(agent-07)。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -28,7 +25,6 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// agent-33 引擎下沉 A2：`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` 同名 ⇒ 裸 Dir8 会 CS0104。
 using Dir8 = Diablo2.Def.Dir8;
 using Diablo2.Module;
 using Diablo2.Module.Save;
@@ -128,10 +124,8 @@ namespace ItemCheck
         public Vector2Int? CaveEntrance => Area == AreaId.BloodMoor ? new Vector2Int(40, 40) : (Vector2Int?)null;
         public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
 
-        /// <summary>桩地图无传送点（契约成员见 `Module/Contracts.cs` 的 `IMapModule.WaypointPoints`，2026-09-23 新增）。</summary>
         public IReadOnlyList<Vector2Int> WaypointPoints => new List<Vector2Int>();
 
-        /// <summary>桩地图不记已探索（契约成员见 `Module/Contracts.cs` 的 `IMapModule.ExploredCells`，2026-09-23 新增）。</summary>
         public IReadOnlyCollection<Vector2Int> ExploredCells => new List<Vector2Int>();
 
         public readonly List<Vector2Int> NpcGrids = new List<Vector2Int>
@@ -157,7 +151,6 @@ namespace ItemCheck
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 桩：玩家（派生值按 `Events.EquipChanged` 的载荷重算 —— 与 agent-06 的 RealPlayer 同一机制）
     // ═════════════════════════════════════════════════════════════════════════
     internal sealed class StubPlayer : IPlayerModule
     {
@@ -180,7 +173,6 @@ namespace ItemCheck
             if (a != null && a.equip != null) _equip.AddRange(a.equip);
         }
 
-        // 装备词缀 → 属性的映射（**桩内示例实现**：真正的派生公式在 agent-06 的 PlayerModule）
         private int ModSum(string mod)
         {
             var sum = 0;
@@ -258,7 +250,6 @@ namespace ItemCheck
         public bool IsMoving => false;
 
         /// <summary>
-        /// ★ 片 2b 新增的契约成员（`IPlayerModule.IsRunning`）：原版走/跑状态。
         /// 本宿主不测表现层 ⇒ 固定 `true`（= 原版默认跑，与 `PlayerModule._running` 的默认值一致）。
         /// </summary>
         public bool IsRunning => true;
@@ -291,7 +282,7 @@ namespace ItemCheck
         public void Heal(int amount) { _life = Mathf.Min(MaxLife, _life + amount); }
         public void RestoreMana(int amount) { _mana = Mathf.Min(MaxMana, _mana + amount); }
 
-        /// <summary>★ w7 契约新增（`IPlayerModule.TrySpendMana`）的桩：成功扣减 true；≤0 或不足 false 且不扣。</summary>
+        /// <summary>w7 契约新增（`IPlayerModule.TrySpendMana`）的桩：成功扣减 true；≤0 或不足 false 且不扣。</summary>
         public bool TrySpendMana(int amount)
         {
             if (amount <= 0 || _mana < amount) return false;
@@ -447,11 +438,9 @@ namespace ItemCheck
     {
         public static bool Verbose;
 
-        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
-        //   原先写死 `@"client\Assets"`（cwd 相对）⇒ `tools/probes/hosts/run_all_hosts.ps1`
+        // 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
         //   用 `Push-Location <宿主目录>` 驱动时被解析成 `<宿主目录>\client\Assets`（不存在）
         //   ⇒ 配表 0 行 ⇒ 物品造不出来、断言红，并在 Program.cs:734 抛 NullReferenceException
-        //   （进程以 exit=-1073741819 结束；实测 2026-09-20 复现）。
         private static readonly string ClientDataPath = ResolveProjectRoot() + @"\client\Assets";
 
         /// <summary>
@@ -477,7 +466,6 @@ namespace ItemCheck
         /// `Module/Save/SaveModule.cs:96-98` 在 `Game.Config` 为空时回落**相对目录** `"setting"`
         /// ⇒ 槽位档落在 `&lt;调用方 cwd&gt;/setting/saves/`。于是：① 从仓库根跑
         /// `dotnet run --project tools/probes/hosts/itemcheck` 就在**仓库根**留一份
-        /// `setting/saves/*.json`（实测 2026-09-20：仓库根 `setting/` 未入仓、违 skill §1.8
         /// 「一次性产物只许 `.ai-tmp/test/`」）；② `run_all_hosts.ps1`（`Push-Location`）则写进
         /// **宿主目录**下那份**已入仓**的 `setting/saves/` ⇒ **验证器每次跑都改脏它验证的检出**；
         /// ③ 上一次跑剩下的槽位文件会让"旧键懒迁移"这条断言**假通过**（先读到存在的槽位档就不再迁移）。
@@ -522,8 +510,6 @@ namespace ItemCheck
             Game.Event = new ConsoleEventBus();
             Game.Setting = _setting;
             Game.IsRunning = true;
-            // ★ 槽位档沙盒（2026-09-20 闸门/卫生对齐轮）：显式给 SaveModule 一个绝对 `SettingDir`
-            //   ⇒ 不再跟随 cwd 在仓库根 / 宿主目录留 `setting/saves/` 残留（详见 HostSandboxSettingDir）。
             Game.Config = new GameConfig { SettingDir = HostSandboxSettingDir("itemcheck") };
 
             // ① 配表（与 Bootstrap 同一条链路：TableLoader → Tables.Default）
@@ -532,7 +518,6 @@ namespace ItemCheck
             Check("item_c 行数 > 100", Table.Tables.Default.Item.Count > 100, "item_c=" + Table.Tables.Default.Item.Count);
             Check("affix_c 行数 = 301（源表 302 行含表头）", Table.Tables.Default.Affix.Count == 301,
                 "affix_c=" + Table.Tables.Default.Affix.Count);
-            // ★ 片 O（R3）：58 → **59**（把 `monster_c` 引用的 `Quill 1` 并入闭包根 ⇒ 官方 TC 第 59 行）。
             Check("treasureclass_c 行数 = 59（片 O R3：+Quill 1）", Table.Tables.Default.Treasureclass.Count == 59,
                 "treasureclass_c=" + Table.Tables.Default.Treasureclass.Count);
 
@@ -556,7 +541,6 @@ namespace ItemCheck
                 _ctx.Npc == null ? "null" : _ctx.Npc.GetType().FullName);
             Check("SaveModule 已自动装配", _ctx.Save != null && _ctx.Save.GetType().Name == "SaveModule",
                 _ctx.Save == null ? "null" : _ctx.Save.GetType().FullName);
-            // ★ 片 assert-audit：原为硬编码 `true` ⇒ 等于没判（`_ctx.Describe()` 只是打印）。
             //   改成**真的用反射问一遍**每个已装配的实现类型（`AutoWire` 靠 `Activator` 建它 ⇒
             //   必须 `internal sealed`：public 会漏出装配面、非 sealed 可被继承改行为）。
             var implTypes = new[] { _ctx.Item.GetType(), _ctx.Quest.GetType(), _ctx.Npc.GetType(), _ctx.Save.GetType() };
@@ -602,8 +586,7 @@ namespace ItemCheck
             Check("普通药水无词缀（非装备不挂词缀）", plainPotion != null && plainPotion.affixes.Count == 0,
                 "affixes=" + (plainPotion != null ? plainPotion.affixes.Count : -1));
 
-            // ── 3. 掉落表完整性（★ 片 O 新增：R3 尖刺鼠零掉落 / R4 资料片 token / R6 精英 TC）──
-            //    ⚠️ 这一节**必须排在 1000 次掉落之前**：`LootRoller.WarnOnce` 有 64 条上限，
+            //    这一节**必须排在 1000 次掉落之前**：`LootRoller.WarnOnce` 有 64 条上限，
             //       先跑大循环会把后面的点名告警压掉，断言就变成"永远不过"而不是"判据生效"。
             Section("3) 掉落表完整性（片 O：R3 / R4 / R6）");
             var tcAll = Table.Tables.Default.Treasureclass.All();
@@ -639,11 +622,10 @@ namespace ItemCheck
                 quill != null && TcIdOfName(quillTc) > 0,
                 quill == null ? "monster_c 无 id=3（配表未加载？）" : $"TC=\"{quillTc}\" id={TcIdOfName(quillTc)}");
 
-            // R3：逐怪抽样（固定 seed）⇒ 8 只怪都必须出过掉落（旧版 id=3 尖刺鼠永久 0）
-            //   ⚠️ 第一个参数是 **treasureClassId**（`IItemModule.DropLoot(treasureClassId, …)`，见
+            //   第一个参数是 **treasureClassId**（`IItemModule.DropLoot(treasureClassId, …)`，见
             //     `ItemModule.cs:263`）⇒ 必须用 `TcIdOfMonsterKind`（与 `DeathFlow.TreasureClassIdOf`
             //     同一口径）换算；直接把怪物 id 当 tcId 传，测到的是"表里第 N 行"而不是这只怪的 TC。
-            //   ⚠️ 抽取次数 200：TC 自带 `NoDrop`（`Act 1 H2H A`=100、`Quill 1`=125）⇒ 单次"无掉落"是
+            //   抽取次数 200：TC 自带 `NoDrop`（`Act 1 H2H A`=100、`Quill 1`=125）⇒ 单次"无掉落"是
             //     正常配表行为，断言只要求"200 次里出过东西"（零掉落 TC 才会 0 命中）。
             var perKind = new System.Text.StringBuilder();
             var noDropKinds = new List<string>();
@@ -675,7 +657,6 @@ namespace ItemCheck
                 + "；" + perKind);
             item.Reset();
 
-            // R4：抽中被"经典版"过滤掉的资料片 token ⇒ 必须**点名** Warn（TC 名 + token + 原因），⛔ 不静默
             var jewelryId = TcIdOfName("Jewelry A");
             Check("R4 前置：TC \"Jewelry A\" 在 treasureclass_c 里", jewelryId > 0, "id=" + jewelryId);
             var rngJ = new Rng(20260923);
@@ -842,22 +823,16 @@ namespace ItemCheck
             var okOnFull = item.AddToInventory(oneMore);
             Check("满包再入包 ⇒ 返回 false（不假装成功）", !okOnFull, "AddToInventory=" + okOnFull);
             Check("满包时有可读日志（放不下/背包）", _log.Contains("Item", "放不下"), "见 [WARN] [Item] ...放不下...");
-            // ★ 片 assert-audit：这里原是一条**硬编码 `true`** 的 Check（文案自称「由 Pickup 路径发（见下一步）」）
-            //   ⇒ 它什么都不判，只把"通过"计数抬高。而 `Events.InventoryFull` 真的只在 `ItemModule.Pickup`
-            //   的满包分支里发（`ItemModule.cs:352`）⇒ 断言**移到 §5 的满包拾取处**并改成真比（订阅计数）。
-            //   ⛔ 断言未删、覆盖未减：原来那条根本不产生判据。
             Console.WriteLine("  （「背包满事件 InventoryFull」的判据在 §5 满包拾取处 —— 事件只在 Pickup 路径发）");
 
             // ── 5. 拾取：格邻接判定 + 满包留在原地 ───────────────────────────────
             //
-            // ★ 2026-09-23 判据口径修正（impl-invfix，N1 阻断级缺陷的回归用例）：
             //   旧断言把「斜邻（√2≈1.414）> PickupRange 1.4 ⇒ 必须拒绝」写成了期望 ——
-            //   **那条断言本身就是缺陷**（`report-inspect.md` §1 N1：站在斜对角永远捡不到）。
             //   现口径 = **格邻接（Chebyshev ≤ 1，含 8 邻域）**，与「最近可走格回退」
             //   （`Module/Player`，Chebyshev）和 `Iso.IsAdjacent` 同一套。
             //   本节按"判过程"重写成双向穷举：**8 个邻域逐格必须能捡**（含 4 个斜角）、
             //   **Chebyshev 2 格（2 正交 + 2 斜向）逐格必须拒绝且留在原地**。
-            //   ⛔ 不是放宽成"任意距离都能捡"。
+            //   不是放宽成"任意距离都能捡"。
             Section("5) 拾取（格邻接 Chebyshev ≤ 1 / Chebyshev 2 拒绝 / 背包满 ⇒ 物品留在原地）");
             item.Reset();
             _player.TeleportTo(new Vector2Int(10, 10));
@@ -928,8 +903,6 @@ namespace ItemCheck
             item.DropToGround(onGround, new Vector2Int(11, 10));
             var fullId = LastGroundId(item);
             var fullBefore = item.GroundItems.Count;
-            // ★ 片 assert-audit：`Events.InventoryFull` 的**唯一发送点**就是这里（`ItemModule.Pickup` 满包分支）
-            //   ⇒ 真判：订阅计数，事件必须**恰好发一次**（不判的话 UI 的"背包已满"提示永远不亮）。
             var invFullHits = 0;
             Game.Event.On(Events.InventoryFull, () => invFullHits++);
             var pickedFull = item.Pickup(fullId);
@@ -1100,11 +1073,8 @@ namespace ItemCheck
             {
                 var state = (QuestState)stage;
                 SetQuestStage(quest, state);                       // 通过公开流程把状态推到该阶段
-                // ★ 片 T（修宿主崩在 :1075 的真因）：`SetQuestStage` 为把任务推到"进行中/可交付"
                 //   会把 `_map.Area` 推到 **DenOfEvil**；而"NPC 只在城镇存在"是**产品特性**
-                //   （agent-26 的城镇门禁 + 片 T 的 S-19「非城镇 ⇒ 不装配」）⇒ 洞里 `GetDialog(0)`
                 //   合法地返回 null。本段判的是「任务阶段 → 台词」，**区域不是本段的变量** ⇒
-                //   取台词前把场景钉回城镇（与下面 §9b 的 `_map.Area = AreaId.Town` 同一口径）。
                 _map.Area = AreaId.Town;
                 var d = npc.GetDialog(0);
                 Check($"阶段 {state}：城镇内能取到阿卡拉对话（非 null）", d != null,
@@ -1113,7 +1083,6 @@ namespace ItemCheck
                 texts.Add(d.text);
                 Console.WriteLine($"   阶段 {state}：{d.text}");
             }
-            // ★ 本片改口径：台词换成**原版串表**的原句（原有出处逐条在断言里点名）；
             //   「已完成」与「可交付」**故意共用**同一句（原版串表里阿卡拉在任务 1 之后没有独立的
             //   "已完成"台词 —— `A1Q1SuccessfulAkara` 就是她关于本任务的最后一句），
             //   所以 distinct 是 **3/4** 而不是 4/4；下面把它写成显式断言，防止以后有人"顺手"编一句新词。
@@ -1131,8 +1100,6 @@ namespace ItemCheck
             Check("非任务 NPC（瓦瑞夫）也能对话", npc.GetDialog(4) != null && !npc.GetDialog(4).hasShop,
                 "warriv.hasShop=" + npc.GetDialog(4).hasShop);
 
-            // ★ 片 T：把"洞里取不到阿卡拉"从**宿主崩溃**改成**判过的行** —— 这是产品特性（城镇门禁 +
-            //   S-19 非城镇不装配），不是缺陷：洞里必须**拿不到**台词，否则就是"洞里误开阿卡拉对话"。
             _map.Area = AreaId.DenOfEvil;
             Check("★非城镇：`GetDialog(0)` 返回 null（不编台词 ⇒ 洞里拿不到阿卡拉台词）",
                 npc.GetDialog(0) == null, "GetDialog(0) = null（原因由 [Npc] 的 WarnOnce 点名）");
@@ -1141,9 +1108,8 @@ namespace ItemCheck
                 npc.Get(0) == null, "Get(0) = null");
             _map.Area = AreaId.Town;                                  // 复位：下面的 §9b 依赖城镇场景
 
-            // ★ 片 T（同族穷举）：**台词表本身不许有空格** —— 5 NPC × 4 任务阶段 = 20 格。
             //   这样"某状态没有台词"就永远不会以 `null` 的形式出现在 `GetDialog` 上
-            //   （`GetDialog` 的唯一 null 出口 = `Get` 拿不到定义，见其 ★ 注）。
+            //   （`GetDialog` 的唯一 null 出口 = `Get` 拿不到定义，见其 注）。
             var textGaps = 0;
             var gapWhere = "";
             for (var id = 0; id < 5; id++)
@@ -1161,9 +1127,7 @@ namespace ItemCheck
 
             // 9b) 「点击 NPC → 走过去 → 自动对话」（当前无人发 `NpcInteractRequest`，本模块用 `MoveCommand` 兜底）
             //
-            // ★ 2026 修正（**宿主场景过期，不是产品缺陷**）：agent-26 给 `NpcModule` 加了**城镇门禁**
             //   （`InTownForNpc()`：只有 `IMapModule.Area == AreaId.Town` 才允许交互/自动对话 —— 修的是
-            //   "进邪恶洞穴后 MoveCommand 落点靠近 (0,0) 会误开阿卡拉对话" 那条实机缺陷，见验收表 #38）。
             //   而本宿主在上面第 7~8 节把 `_map.Area` 推到了 BloodMoor / DenOfEvil 就没再复位 ⇒
             //   到这里区域仍是洞穴 ⇒ `FindNearest/Interact` 全部被门禁拦掉、下面两条断言必然失败。
             //   NPC 站位（阿卡拉 (10,10) / 瓦瑞夫 (18,10)）本来就是**城镇**坐标 ⇒ 这里复位回 Town 才是对场景。
@@ -1252,7 +1216,6 @@ namespace ItemCheck
             var savedOk = save.Save();
             Check("Save() 成功（无参，走 Player/Item/Quest/Skill）", savedOk, savedOk ? "ok" : save.LastError);
 
-            // ★ agent-38 补（`# direct-fix:`）：agent-37 的引擎下沉 A6 把角色档从
             //   `Game.Setting` 的 `char/{名}` 键改成**一角色一文件** ——
             //   `<SettingDir>/saves/<名>.json`，读写走引擎 `CloverEngine.FileSlotStore`
             //   （口径见 `Module/Save/SaveModule.cs:3-11`）。本宿主的存档断言仍按旧键读 ⇒ 必然 0 字节
@@ -1301,7 +1264,6 @@ namespace ItemCheck
             Check("删除后 HasAny = false", !save.HasAny, "HasAny=" + save.HasAny);
             Check("重复删除返回 false", !save.Delete("CheckHero"), "第二次 Delete=false");
 
-            // 11b) 与 agent-05 `CharRoster` 的**调用形态逐条对齐**（Flow 侧不改一行代码）
             //      CharRoster: HasAny / ListAll() / Load(name) / Exists(name) / Save(data) / Delete(name)
             //      AppFlow   : Save() / LastError
             var roster = new CharacterSave
@@ -1332,7 +1294,7 @@ namespace ItemCheck
             Check("读不存在的角色 ⇒ null（不抛异常）", emptyData == null, "null");
             Check("损坏 JSON ⇒ null + LastError", BreakJsonRoundTrip(save), "见 [ERROR] [Save]");
 
-            // ── 12. ★ 本轮新增：双武器组（原版 W 键切换；T0 判据缺口 2）──────────────
+            // ── 12. 本轮新增：双武器组（原版 W 键切换；T0 判据缺口 2）──────────────
             //   断言打在**真实** `ItemModule`（不是桩）上；数据面 = `Equipment` 的武器槽（最多 2 件 = 两套组）。
             Section("12) 双武器组（真实 ItemModule：切换 / 主手互换 / 切回 / 存档往返 / 旧档兼容）");
             item.Reset();
@@ -1363,7 +1325,7 @@ namespace ItemCheck
             item.AddToInventory(wB);
             Check("装上第 2 把武器（Ⅱ组）", item.EquipFromInventory(FindAnchor(item, wB)),
                 "equip=" + item.Equipment.Count);
-            // ★ 双武器组的"另一半"：`IItemModule.Equipment` 现在是**生效集**（只含生效组那把武器）
+            // 双武器组的"另一半"：`IItemModule.Equipment` 现在是**生效集**（只含生效组那把武器）
             //   ⇒ `CombatModule.GetWeaponDamage` 不再把两把武器的伤害相加（原版只有当前那套生效）。
             //   而"两套都存得住"由 `WriteTo` 的全集保证（下面存档断言里按 JSON 逐件核对）。
             Check("两把武器都装着（组数 = 2），但**生效集只含生效组那 1 把**",
@@ -1411,7 +1373,7 @@ namespace ItemCheck
             Check("存档 JSON 里 activeWeaponIndex = 1（生效组 Ⅱ）",
                 wgJson != null && wgJson.Contains("\"activeWeaponIndex\":1"),
                 "字段片段=" + FieldSnippet(wgJson, "activeWeaponIndex"));
-            // ★ 写档写**全集**（两套武器都落盘）—— 否则"切回来"就切不回另一把了。
+            // 写档写**全集**（两套武器都落盘）—— 否则"切回来"就切不回另一把了。
             Check("存档 JSON 里**两把武器都在**（写档写全集，切组才切得回来）",
                 wgJson != null && wgJson.Contains("\"itemId\":" + wA.itemId) && wgJson.Contains("\"itemId\":" + wB.itemId),
                 $"itemId {wA.itemId} 与 {wB.itemId} 都在存档文本里");
@@ -1429,7 +1391,6 @@ namespace ItemCheck
             Check("读档摘要写清了武器组口径", _log.Contains("Item", "读档恢复武器组"), "见 [INFO] [Item]");
             save.Delete(wgName);
 
-            // ⑤ 向后兼容：**旧档没有 activeWeaponIndex 字段**（§11 的 `legacy` 那份就是）⇒ 默认 0、不崩
             Check("旧档（无 activeWeaponIndex 字段）解析默认 = 0（Ⅰ组）",
                 legacyData != null && legacyData.activeWeaponIndex == 0,
                 legacyData == null ? "null" : $"activeWeaponIndex={legacyData.activeWeaponIndex}");
@@ -1443,7 +1404,7 @@ namespace ItemCheck
             Check("旧档兼容口径留了 Info 日志（旧档无该字段 ⇒ 默认 Ⅰ组）",
                 _log.Contains("Item", "旧档没有该字段"), "见 [INFO] [Item] [SwapWeapon] 读档恢复武器组");
 
-            // ── 13. ★ 本轮新增：死亡扣金币 10%（真实 `PlayerModule.Kill`；T0 判据缺口 1）──
+            // ── 13. 本轮新增：死亡扣金币 10%（真实 `PlayerModule.Kill`；T0 判据缺口 1）──
             //   为什么必须用**真实** PlayerModule：金币的唯一归属是 `IPlayerModule`（本文件的 StubPlayer
             //   的 Kill() 只把生命置 0）—— 打在桩上等于没测。
             Section("13) 死亡扣金币 10%（真实 PlayerModule.Kill；边界 0 / 5 / 12345 / 连续两次）");
@@ -1480,20 +1441,13 @@ namespace ItemCheck
                 _log.Contains("T0GAP", "向下取整") && _log.Contains("T0GAP", "不会为负"),
                 "见 [INFO] [T0GAP]");
 
-            // 13b) ★ u52cur（缺陷 A/B）：三资源 cur/max —— 新建即满 / 旧档迁移 / 现行档"沿用"
-            //   ⚠️ **本段是 `playercheck` §9c 的镜像（有意的重复，main 已批）**：
             //      ① `playercheck` 编 `Module/View` ⇒ 别的片把 View 改坏时整宿主编不过（本轮 12:13~12:2x
             //         真实发生过：`EntityHighlight.cs` 用了 Unity 6000.6 不存在的 `Shader.HasProperty(string)`）；
             //      ② 本节不编 View ⇒ 这组**存档语义**断言在这里有**独立的可跑副本**。
-            //      ⛔ **两处改动必须同步**（`playercheck §9c` ↔ 本节）；本节用**真实 PlayerModule** 取证。
             //
-            //   实机症状（`u52play` 11:38:35 那批，判为有效）：
             //     `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`
             //     `[D2U3C] DTO name=S2203805 … life=50/50 mana=15/15 stamina=20/84`
-            //   活档（**只读**）`client/setting/saves/S2203805.json`（mtime 2026-09-23 20:38 = charstat 片修前）：
             //     `version:1, cls:1, level:1, 四维 20/25/20/15, life:60, mana:22, stamina:20`
-            //   ⇒ 与 `Min(60,50)/Min(22,15)/Min(20,84)` **逐值对得上**：life/mana 因旧值偏大被夹到上限，
-            //     **stamina 旧值 20 < 新上限 84 ⇒ 卡在 20/84**。
             //   出处（起始量 = 满值）：`charstats.txt:2..6` 的 `hpadd`(30)+起始体力(20)=50 / 起始精力(15) /
             //     `stamina`(84)；表内落位 = `class_c.hp_add / base_stamina`。
             Section("13b) ★ u52cur 三资源 cur/max（新建即满 / 旧档迁移 / 现行档沿用 / 退化样本）");
@@ -1545,8 +1499,7 @@ namespace ItemCheck
                 cur.Life == cur.MaxLife && cur.Stamina == cur.MaxStamina,
                 $"生命 {cur.Life}/{cur.MaxLife} 耐力 {cur.Stamina}/{cur.MaxStamina}");
 
-            // ⛔ 边界：**未来版本**档**不许**被迁移（迁移只对"更旧"生效）—— 反过来说，
-            //    旧客户端（`SaveVersion=1`）读本片之后写出的新档（=2）走的正是这条 `else` 分支。
+            // 边界：**未来版本**档**不许**被迁移（迁移只对"更旧"生效）—— 反过来说，
             var futureSave = CurLegacySave();
             futureSave.version = GameConst.SaveVersion + 1;
             futureSave.stamina = 40;                   // 已是当前口径的"当前值" ⇒ 必须原样保留
@@ -1554,7 +1507,7 @@ namespace ItemCheck
             Check("未来版本档（version = 当前 + 1）⇒ 走 else 沿用 cur、**不迁移**（迁移只对更旧生效）",
                 cur.Stamina == 40, $"耐力 {cur.Stamina}/{cur.MaxStamina}（要求 40）");
 
-            // ── 15. ★ 起始装备（`start_item_c` ← 官方 charstats.txt；用户报「创建角色后徒手打不动怪」）──
+            // ── 15. 起始装备（`start_item_c` ← 官方 charstats.txt；用户报「创建角色后徒手打不动怪」）──
             //   断言打在**生产实现** `Module/Item/StartItems.cs` 上；期望值由本宿主**自己解析官方
             //   `charstats.txt`**（不读我们自己的配表）⇒ 判的是"我们抽的表 == 官方表"这条**过程**，
             //   不是"函数返回 true"。
@@ -1596,7 +1549,7 @@ namespace ItemCheck
                     exp.Add(f[2] + "x" + f[4]);
                 }
                 var got = PairsOfSave(sv);
-                // ⚠️ 口径：不可堆叠品会被**拆成 count 格**（规格：`item_c.stackable == 0` ⇒ 占 count 格）
+                // 口径：不可堆叠品会被**拆成 count 格**（规格：`item_c.stackable == 0` ⇒ 占 count 格）
                 // ⇒ 必须先按 code **汇总总量**再比，否则"1 叠 4 个"与"4 格各 1 个"会被误判为不等。
                 Check($"{cls}: 装备+背包逐条等于官方期望（{exp.Count} 条 / 共 {sv.equip.Count + CountAnchorsInSave(sv)} 件）",
                     TotalsOf(exp) == TotalsOf(got), $"期望[{TotalsOf(exp)}] 实得[{TotalsOf(got)}]");
@@ -1680,16 +1633,14 @@ namespace ItemCheck
                         : $"stack={w.dmgMin}-{w.dmgMax} item_c={wRow.DmgMin}-{wRow.DmgMax}");
             }
 
-            // 15d) ★ u52block（R6）：盾牌**基材**格挡（`item_c.block` ← 官方 `Armor.txt` 第 11 列）
-            //   「玩家侧把它算进总格挡」的接线由 `playercheck` §9b 把守；本节判**物品侧**那一半：
+            // 15d) u52block（R6）：盾牌**基材**格挡（`item_c.block` ← 官方 `Armor.txt` 第 11 列）
             //     ① 盾牌识别：`item_c` 里 block ≠ 0 的行必须**全部**是官方盾类（`shie`/`ashd`/`head`）
             //     ② 基材取值：`item_c.block` == 官方公布格挡（Paladin 档）− 职业固有值（30）
-            //        官方公布值出处（2026-09-24 实取）：`https://www.diablo-2.net/items/shields`
             //        + `https://d2grail.com/items/bases/armor/shields/normal/buckler`
             //        职业固有值出处：`charstats.txt:2..6` 第 32 列 `BlockFactor`（Pal 30，打表 ⇒ `class_c`）
             //     ③ 起始盾落位：classes 1/4/5 的 `buc` 必须进 Shield 槽、且能在 `item_c` 里查到
-            //   ⚠️ 为什么 Buckler 的 block=0 也算盾：官方公布的 Buckler 格挡（Pal 30 / Ama·Bar 25 /
-            //      Sor·Nec 20）**恰好等于**职业固有值 ⇒ 它的基材项就是 0（原值，⛔ 不是缺列）。
+            //   为什么 Buckler 的 block=0 也算盾：官方公布的 Buckler 格挡（Pal 30 / Ama·Bar 25 /
+            //      Sor·Nec 20）**恰好等于**职业固有值 ⇒ 它的基材项就是 0（原值，不是缺列）。
             Section("15d) ★ R6 盾牌基材 block（item_c.block ↔ 官方公布格挡；盾类识别；起始盾落位）");
             const int palBlockFactor = 30;                       // charstats.txt 列 32（Paladin）
             var officialPaladinShieldBlock = new Dictionary<string, int>
@@ -1763,9 +1714,7 @@ namespace ItemCheck
                 startShieldOk == 5, string.Join("；", startShieldDetail));
             Console.WriteLine("   " + string.Join("；", startShieldDetail));
 
-            // ── 16. ★ impl-invfix：N2「背包空格」复核（`report-inspect.md` §1 N2）──────────
             //
-            //   实机症状：面板 `occupied=14`（40 格）却报「空格 0 但无连续块」⇒ 被读成"两个口径自相矛盾"。
             //   本节的判法是**判过程**：把两件事分别算出来 ——
             //     ① **件数**（锚点数，= UI 图标数 = 驱动打印的 `occupied`）
             //     ② **占用格数**（40 格里真的被盖住几格，逐格数 + 按 `item_c` 的 w×h 复核 footpint 和）
@@ -1811,7 +1760,6 @@ namespace ItemCheck
             Check("16a 入包日志写清了锚点格与剩余空格", _log.Contains("Item", "入包「短剑」"), "见 [INFO] [Item] 入包");
 
             // 16b) 复现**实机那一格**：14 件按 `item_c` 的真实占格恰好铺满 40 格
-            //      （格位/物品 id 逐条抄自实机存档 `client/setting/saves/g66.json`，2026-09-22 23:54:58）
             var fullSpec = new (Vector2Int cell, int id)[]
             {
                 (new Vector2Int(0, 0), 47), (new Vector2Int(2, 0), 1), (new Vector2Int(3, 0), 60),
@@ -1868,7 +1816,6 @@ namespace ItemCheck
                 _log.Contains("Item", "空格 1 但无") && !_log.Contains("Item", "背包已满"),
                 "见 [WARN] [Item]");
 
-            // ── 17. 片 G1：道具**拖拽放下 / 交换**的落地（用户报的「道具没法拖动！」）────────
             //    这一节只**加断言**，不改任何既有判据。被测入口 = 生产实现
             //    `IItemModule.MoveItem(from, to, out reason)`（`App/AppEventRouting` 转发的就是它）
             //    与真实事件链 `Events.ItemDropRequest`（面板外放下 ⇒ 丢地上）。
@@ -1991,7 +1938,7 @@ namespace ItemCheck
             Console.WriteLine($"{(ok ? "[ OK ]" : "[FAIL]")} {what}   ({detail})");
         }
 
-        /// <summary>（★ 本轮新增）取装备载荷里的武器（`ItemStack.type == ItemType.Weapon`）。</summary>
+        /// <summary>（本轮新增）取装备载荷里的武器（`ItemStack.type == ItemType.Weapon`）。</summary>
         private static List<ItemStack> WeaponsIn(List<ItemStack> equip)
         {
             var res = new List<ItemStack>();
@@ -2003,7 +1950,7 @@ namespace ItemCheck
             return res;
         }
 
-        /// <summary>（★ 本轮新增）装备载荷里各武器的名字+id（断言失败时的可读详情）。</summary>
+        /// <summary>（本轮新增）装备载荷里各武器的名字+id（断言失败时的可读详情）。</summary>
         private static string weaponsNames(List<ItemStack> equip)
         {
             var w = WeaponsIn(equip);
@@ -2018,7 +1965,7 @@ namespace ItemCheck
         }
 
         /// <summary>
-        /// （★ 本轮新增）`StubPlayer.DamageText` 的期望值。口径见该属性本体
+        /// （本轮新增）`StubPlayer.DamageText` 的期望值。口径见该属性本体
         /// （`1 + dmgMin`-`2 + dmgMax`，再乘 `dmg%` 词缀百分比）——
         /// **仅在该武器无词缀时成立**，所以调用点同时断言了两把武器的 `affixes.Count == 0`。
         /// </summary>
@@ -2028,7 +1975,7 @@ namespace ItemCheck
             return $"{1 + weapon.dmgMin}-{2 + weapon.dmgMax}";
         }
 
-        /// <summary>（★ 本轮新增）取某字段在 JSON 里的片段（自证/失败详情用）。</summary>
+        /// <summary>（本轮新增）取某字段在 JSON 里的片段（自证/失败详情用）。</summary>
         private static string FieldSnippet(string json, string field)
         {
             if (string.IsNullOrEmpty(json)) return "json 为空";
@@ -2060,7 +2007,6 @@ namespace ItemCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════════
-        // §15 起始装备的助手（断言口径见该节注释）
         // ═════════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -2266,9 +2212,7 @@ namespace ItemCheck
 
         /// <summary>第一个武器槽装备（+ 它的 `item_c` 行）。</summary>
         /// <summary>
-        /// ★ u52cur：**旧口径活档的逐值副本**（`client/setting/saves/S2203805.json`，**只读**抄写）。
-        /// `version` 取 `GameConst.SaveVersion - 1` ⇒ 走"更旧版本"的迁移分支（**与常量当前值无关**，
-        /// 这样断言在常量 1→2 前后都成立）。
+        /// u52cur：**旧口径活档的逐值副本**（`client/setting/saves/S2203805.json`，**只读**抄写）。
         /// </summary>
         private static CharacterSave CurLegacySave()
         {
@@ -2290,7 +2234,7 @@ namespace ItemCheck
         private static int CurPreFix(int savedCur, int max)
             => savedCur > 0 ? Mathf.Min(savedCur, max) : max;
 
-        /// <summary>★ u52block（R6）：起始装备里的**盾**（官方盾类 `shie`/`ashd`/`head`）。</summary>
+        /// <summary>u52block（R6）：起始装备里的**盾**（官方盾类 `shie`/`ashd`/`head`）。</summary>
         private static ItemStack FirstShield(CharacterSave sv, out Table.BaseItemRow row)
         {
             row = null;
@@ -2449,7 +2393,6 @@ namespace ItemCheck
         }
 
         /// <summary>
-        /// 复刻 agent-07 `DeathFlow` 的调用链（`monster_c.treasure_class` → 1 基行序 tcId），
         /// 以便本宿主用**与真实游戏同一条编码**驱动 `IItemModule.DropLoot`。
         /// </summary>
         private static int TcIdOfMonsterKind(int monsterKindId)
@@ -2482,10 +2425,9 @@ namespace ItemCheck
         }
 
         /// <summary>
-        /// （★ impl-invfix）**占用格数** —— 40 格里真的被盖住几格（`occupied = true`）。
-        /// ⚠️ 与"件数"（锚点数）是**两个不同的量**：实机 `/GRID ... occupied=14` 打的是**件数**
+        /// （impl-invfix）**占用格数** —— 40 格里真的被盖住几格（`occupied = true`）。
+        /// 与"件数"（锚点数）是**两个不同的量**：实机 `/GRID ... occupied=14` 打的是**件数**
         /// （驱动数的是 UI 图标数，而按契约只有锚点格挂图标），把它当"占用格数"就会得出
-        /// "面板说占 14 格、模块说空格 0 ⇒ 自相矛盾"的错误结论（`report-inspect.md` §1 N2）。
         /// </summary>
         private static int CountOccupiedCells(IReadOnlyList<InventorySlot> inv)
         {
@@ -2498,7 +2440,7 @@ namespace ItemCheck
             return n;
         }
 
-        /// <summary>（★ impl-invfix）所有锚点物品的 `gridW×gridH` 之和（应当 = 占用格数）。</summary>
+        /// <summary>（impl-invfix）所有锚点物品的 `gridW×gridH` 之和（应当 = 占用格数）。</summary>
         private static int FootprintSum(IReadOnlyList<InventorySlot> inv)
         {
             if (inv == null) return -1;
@@ -2513,8 +2455,8 @@ namespace ItemCheck
         }
 
         /// <summary>
-        /// （★ impl-invfix）造一份"背包已按格摆好"的存档（`CharacterSave.inventory` = 40 格，含空格），
-        /// 供 `ItemModule.LoadFrom` 走**生产读档路径**灌进模块（⛔ 不直接改 `Inventory._slots`）。
+        /// （impl-invfix）造一份"背包已按格摆好"的存档（`CharacterSave.inventory` = 40 格，含空格），
+        /// 供 `ItemModule.LoadFrom` 走**生产读档路径**灌进模块（不直接改 `Inventory._slots`）。
         /// <paramref name="anchors"/> 每项 = (锚点格, 该格上的物品)；覆盖格按 `item_c` 的 w×h 铺满。
         /// </summary>
         private static CharacterSave BuildBagSave(string name, List<KeyValuePair<Vector2Int, ItemStack>> anchors)
@@ -2691,7 +2633,6 @@ namespace ItemCheck
             Game.Event.Emit(Events.AreaChanged, AreaId.DenOfEvil);
             _monster.KillOneInDen();
             quest.NotifyMonsterKilled(1);
-            // ★ 片 T：台词只在城镇取（`GetDialog` 在洞里合法返回 null，见 §9 的说明）
             _map.Area = AreaId.Town;
             var d = npc.GetDialog(0);
             if (d == null)

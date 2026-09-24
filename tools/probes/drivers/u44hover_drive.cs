@@ -1,12 +1,10 @@
 // =============================================================================
-// u44hover_drive.cs -- ONE Play session for 片 u44 "hover selection feedback"
 //                      (top enemy bar / hover brighten / NPC nameplate).
 //
 //   run_script --file tools/probes/drivers/u44hover_drive.cs --entry U44Hover.Tour.Install
 //   (zero-arg: the paths below are absolute; no --args quoting needed)
 //
 // WHAT ONLY A LIVE SESSION CAN TELL (everything else is pinned offline by uicheck's
-// HoverSelectCheck -- constants / colours / geometry / dispatch / reverse assertions):
 //   A. Does the reference shader (copied verbatim as `Sprite.shader`) ACTUALLY RENDER
 //      under this project's URP 17.6 pipeline? The offline host can only prove the file
 //      bytes; if URP refuses the legacy CG pass, sprites would go invisible -> that is
@@ -285,7 +283,6 @@ namespace U44Hover
                 return true;
             });
 
-            // ---- P0: PROVE THE READ-BACK 口径 FIRST (main, 2026-09-24) ----------------
             //   "先证明读数口径对（同一个 MPB 上先用已知写入值往返一次：写 2.5 读回 2.5）再判恒等"
             //   Without this, a "1.0" reading could be a wrong-key artefact just as well as the truth.
             _plan.Add(() =>
@@ -343,7 +340,6 @@ namespace U44Hover
             });
 
             // ---- TRAVEL: the town has 0 monsters, so walk out to the wilderness FIRST ----
-            //   main (2026-09-24): "the top-bar cells are NOT a user blocker -- x_drive / d2u32
             //   already walk the player out of town; reuse that instead of calling it blocked".
             //   Cheapest faithful route: the town's exit tile is `IMapModule.Exits` (TileKind.Exit)
             //   and `PlayerModule` emits `Events.ExitEntered` the moment the player stands on one
@@ -421,7 +417,7 @@ namespace U44Hover
                 }
                 var p = Drive.Player();
                 var pg = p != null ? p.Grid : Vector2Int.zero;
-                // ★ pick the alive monster NEAREST the player, then make sure it is ON SCREEN:
+                // pick the alive monster NEAREST the player, then make sure it is ON SCREEN:
                 //   the 12:30 run hovered a monster at screen (-1920,-1044) -- far off-screen, so the
                 //   injected mouse could not possibly be the cause of whatever the bar did
                 //   (the reading was real but NOT attributable).  Fix: approach it first.
@@ -457,7 +453,7 @@ namespace U44Hover
 
             _plan.Add(() =>
             {
-                // ★ ISSUE here, READ on the NEXT step: the 12:28/12:30 runs showed the injected mouse
+                // ISSUE here, READ on the NEXT step: the 12:28/12:30 runs showed the injected mouse
                 //   state only lands on the frame AFTER the queue call, so reading in the same frame
                 //   reported the previous state (looked like "hover did nothing").
                 if (_shotAt >= 0f && !ShotDone()) return false;

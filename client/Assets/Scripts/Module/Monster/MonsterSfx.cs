@@ -1,22 +1,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Monster/MonsterSfx.cs
-// **逐类怪物音效键的解析表**（★ 片 monster-audio）。
 //
 // 为什么要有这一层：
 //   `Module/Combat/SfxKeys.cs` 只登记**键名常量**（`monster_hit_fa` 之类），它不知道怪物是哪一类；
 //   而契约 `Def.MonsterState` 里**没有**「原版 `MonStats.Code`」这一列（只有 `kindId`/`name`/`ai`，
-//   ⛔ 契约冻结不许加字段）⇒ 需要一个「`kindId` ⇒ 原版 Code ⇒ 音效键」的解析点。
+//   契约冻结不许加字段）⇒ 需要一个「`kindId` ⇒ 原版 Code ⇒ 音效键」的解析点。
 //   原版 Code 的唯一在库来源 = `Module/View/SpriteFrames.SpriteCodeOf(kindId)`
 //   （它读 `monster_c` 的 `sprite` 列，值就是 `MonStats.Code` 小写：`fa`/`fs`/`si`/`zm`/`ye`/`cr`/`bk`/`wr`）。
 //
-// ⚠ 代码 → 类别的**唯一出处** = `原版资源/d2lod1.10txt-1.10f/data/global/excel/MonStats.txt`
-//   的 `Code` 列 × `MonSound` 列（⛔ **不是**凭显示名猜的 —— 实测反例：
+// 代码 → 类别的**唯一出处** = `原版资源/d2lod1.10txt-1.10f/data/global/excel/MonStats.txt`
+//   的 `Code` 列 × `MonSound` 列（**不是**凭显示名猜的 —— 实测反例：
 //   `bk` 是 **foulcrow（血鹰）**、`ye` 才是 **brute（野兽）**，按名字猜会整套错位）。
 //   音效条目名出处 = `MonSounds.txt` 的 `HitSound` / `Attack1` / `DeathSound` / `Footstep` /
 //   `FootstepLayer` 列；目标文件出处 = `Sounds.txt` 的 `FileName` 列。
 //
 // 未登记 / 取不到 Code ⇒ 返回 **null**（调用方回落到通用键，并**打一次** Warn 留痕），
-// ⛔ 不许返回"听起来差不多"的别的键（那等于用别的音效凑，违反 1:1 口径）。
+// 不许返回"听起来差不多"的别的键（那等于用别的音效凑，违反 1:1 口径）。
 //
 // 跨模块引用走**限定名**（不写 `using Diablo2.Module.*`）：`Combat.SfxKeys.*` / `View.SpriteFrames.*`
 // （与 `Module/Audio/SfxRegistry.cs` 引用 `Combat.SfxKeys` 的写法一致）。
@@ -61,8 +60,7 @@ namespace Diablo2.Module.Monster
             };
 
         // ═════════════════════════════════════════════════════════════════════
-        // 原版时序（★ 片 monster-audio 第四轮）：逐条取自 `MonSounds.txt` 的对应列，
-        //   ⛔ **没有一个数是凭空写的**。
+        //   **没有一个数是凭空写的**。
         //
         //   列 → 含义（原版 `MonSounds.txt` 表头逐字）：
         //     `HitDelay` = 受击音**延迟多少帧**才响（fallenshaman/zombie/brute/corruptrogue/
@@ -79,7 +77,7 @@ namespace Diablo2.Module.Monster
 
         /// <summary>
         /// 下标：0=`HitDelay`（帧） 1=`FsCnt`（一个走路循环几步；0 = 原版无移动音） 2=`DeaDelay`（帧）。
-        /// 全部**逐条抄自 `MonSounds.txt` 的对应列**（⛔ 没有一个数是估的）。
+        /// 全部**逐条抄自 `MonSounds.txt` 的对应列**（没有一个数是估的）。
         /// </summary>
         private static readonly System.Collections.Generic.Dictionary<string, float[]> Timing =
             new System.Collections.Generic.Dictionary<string, float[]>(
@@ -118,7 +116,7 @@ namespace Diablo2.Module.Monster
 
         /// <summary>
         /// 该怪物**每走多少格出一次脚步** = `1 / MonSounds.FsCnt`（6 类都是 2 ⇒ 0.5 格一步）。
-        /// 原版无移动音（`FsCnt` 为空）⇒ 返回 0（调用方不出声，⛔ 不许拿别的类凑）。
+        /// 原版无移动音（`FsCnt` 为空）⇒ 返回 0（调用方不出声，不许拿别的类凑）。
         /// </summary>
         public static float StepPeriodTiles(MonsterState s)
         {
@@ -147,7 +145,7 @@ namespace Diablo2.Module.Monster
 
         /// <summary>
         /// 该怪物的**脚步**音键（原版 `MonSounds.Footstep`；飞行怪取 `FootstepLayer`）；
-        /// 原版该类没有移动音 ⇒ 返回 null（⛔ 不许拿别的怪的脚步音凑）。
+        /// 原版该类没有移动音 ⇒ 返回 null（不许拿别的怪的脚步音凑）。
         /// </summary>
         public static string StepOf(MonsterState s) { return Pick(s, 3, "step"); }
 

@@ -78,7 +78,7 @@ ALL_OFFICIAL_FILES = sorted({f for fs in TABLE_DEPS.values() for f in fs})
 #         "formula"  = 官方若干列经公式/映射求值
 #         "none"     = **官方 txt 里没有对应对手** ⇒ 天然 `缺官方值`（见 NO_OFFICIAL_CARRIER）
 #   判据 ∈ {"数值相等", "公式求值相等"}
-# ⚠️ 本表必须与 convert.py 的 Sheet.cols **逐列同序**（s1_common.assert_field_map 会机械校验）。
+# 本表必须与 convert.py 的 Sheet.cols **逐列同序**（s1_common.assert_field_map 会机械校验）。
 # ─────────────────────────────────────────────────────────────────────────────
 FIELD_MAP = {
     # convert.py:315-353 build_class()  —— charstats.txt
@@ -459,7 +459,7 @@ def logical_of_matrix_entity(entity):
 # 官方载体
 # ─────────────────────────────────────────────────────────────────────────────
 # 官方 txt 的**项目内默认落点**（与 convert.py:89-90 的 DEFAULT_SRC_DIR 逐字一致；
-# ⛔ 该目录在 .gitignore 里 ⇒ 干净检出必然没有，只有用户放进来才有）
+# 该目录在 .gitignore 里 ⇒ 干净检出必然没有，只有用户放进来才有）
 DEFAULT_SRC_REL = os.path.join("原版资源", "参考工程_Diablerie", "d2lod1.10txt",
                                "data", "global", "excel")
 

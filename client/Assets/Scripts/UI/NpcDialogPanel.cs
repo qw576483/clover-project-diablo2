@@ -2,43 +2,40 @@
 // Diablo2 · UI/NpcDialogPanel.cs
 // NPC 对话面板（原版 `MENU/dialogbackground.DC6` 石框 + 原版串表的台词与菜单项）。
 //
-// ★★ 本片（2026「对话面板 = 原版石框分区 + 原版串」轮）**删掉了三处没有出处的自造件**：
 //   ① 名字行之外还画了一行「（点下方『交易 / 修理』打开商店）」提示 —— 原版串表里没有这句，
 //      石框里也没有它的槽位；② 两排动作按钮（「接受任务」/「交付任务」/「结束对话」/「交易 / 修理」）
 //      —— 这些**中文原版串表里一个都没有**（原版是"点了 NPC 就算接下任务"，没有这两个按钮；
 //      `原版资源/d2text/chi_string.txt` 里 `NPCMenu*` 全族只有「交易/修理 / 交易 / 離開 / 閒話 /
-//      再說一點 / 雇用 / 重要消息…」这类菜单项）；③ 旧版还有一颗跑到屏幕最左边缘的孤儿按钮。
-//   ⇒ 现在：**台词 + 菜单项都由 `Module/Npc` 给，且都是原版串**；面板只负责摆位置。
 //
-// ★ 底图分区（**逐像素扫描实测**，口径与逐行数据见 `策划/自审对比/UI对照.md` §③）：
+// 底图分区（**逐像素扫描实测**，口径与逐行数据见 `策划/自审对比/UI对照.md` §③）：
 //   `Panel/dialog_back.png`（原版 `MENU/dialogbackground.DC6`，210×158）：
 //     · 外沿金线 x 0/1 与 208/209、y 0/1 与 156/157 ⇒ 可见内容区 = 原版 x 2..207 / y 2..155；
 //     · **金框长槽**：竖金线 x 29..30 与 196..197、横金线 y 67 与 91 ⇒ 净内 x 31..195 / y 68..90
 //       （= 全场唯一一条"正文位"形状的槽）；
 //     · **下带** y 93..155，里面有一对**雕出来的方槽 34×34**：左 x 34..67、右 x 139..172、y 115..148。
-//   ⚠️ **那两个 34×34 方槽原版放什么控件/什么文案，本批材料里查不到出处**（穷尽记录见
+//   **那两个 34×34 方槽原版放什么控件/什么文案，本批材料里查不到出处**（穷尽记录见
 //      `UI对照.md` §⑥ BLOCKED：libd2 0 命中、参考工程 0 命中、素材里没有随附配置，
 //      `buysellbtn`(32×32)/`questlast`(30×30)/`okcancelbtn`(96×32) 都对不上 34×34）
 //      ⇒ 本项目**不往那两个方槽里塞控件**（保持底图原样），菜单项排在**下带**里。
 //
-// ★ 文本排版口径（**有出处**）：libd2 `packages/formats/src/font.zig`
+// 文本排版口径（**有出处**）：libd2 `packages/formats/src/font.zig`
 //   `:141-146` 行高 = 该字体最高字形、`:239-259` 每行 `baseline += line_height` 且**左对齐**、
 //   `:188-216` `D2WINTEXTBOX_WordWrapAndSetText @0x4fcda0` = 换行规则；
 //   本工程 `UI/D2Text` 的 `pitch = 字号（画布px）`（`D2Text.cs:D2Label.BuildBitmap` 的
 //   `cellH * scale`，而 `scale = 字号 / cellH`）⇒ 行距 = 字号。
 //
-// ★ 数据：只吃 `Diablo2.Def.NpcDialogArgs`（`OnOpen` 参数 + `Events.DialogOpen`）：
+// 数据：只吃 `Diablo2.Def.NpcDialogArgs`（`OnOpen` 参数 + `Events.DialogOpen`）：
 //     npcId / npcName / text（**随任务阶段变化，由 Npc 模块给**）/ options /
 //     hasShop / canAcceptQuest / canTurnInQuest / questId
 //   ⇒ 本面板**不做任何任务阶段判断**，全部按 DTO 的布尔位渲染（数据由模块算）。
-// ★ 请求（全部走 `Core/Events.cs`）：options[i] 点击 → `Events.DialogOptionChosen`（int 下标）
+// 请求（全部走 `Core/Events.cs`）：options[i] 点击 → `Events.DialogOptionChosen`（int 下标）
 //   —— 下标语义由 `Module/Npc/NpcModule.ChooseOption` 反解（0 = 关闭、1 = 任务动作、其余 = 商店），
 //   **本面板不直接发 `QuestAcceptRequest` / `QuestTurnInRequest` / `ShopOpenRequest`**
 //   （那些由模块在 `ChooseOption` 里发 ⇒ 只有一条路径，不会出现"两条路径打同一个动作"）。
-// ⛔ 零 `using Diablo2.Module`（分层自检 ③）。
+// 零 `using Diablo2.Module`（分层自检 ③）。
 //
 // ═══════════════════════════════════════════════════════════════════════════
-// ★★ R1-E「人物对话时 UI 逻辑乱七八糟」本面板改的 5 处（S1 / S3 / S4 / S6 / S7）
+// R1-E「人物对话时 UI 逻辑乱七八糟」本面板改的 5 处（S1 / S3 / S4 / S6 / S7）
 //    每处都在实现处写了依据；日志里各有一条 `[R1-E] S<n>` 的**只报一次** Info 供实机对账。
 //
 //  S1 **层 Popup → Normal：商店与对话条共存**（原版行为：点「交易」商店打开、对话条仍在）
@@ -53,20 +50,15 @@
 //       商店留在 `Popup`（它要在遮罩**之上**才点得动），对话条降到 `Normal`（它在遮罩**之下**：
 //       商店开着时被压暗/不可点，正是"模态商店"该有的样子；关掉商店（`HideMask`）后立刻恢复可点）。
 //       反过来（商店降级到 Normal）会让商店自己被遮罩挡住 ⇒ 整屏点不动（已排除）。
-//     副作用（登记在回报里）：商店开着时对话条被 0.5 黑遮罩压暗 —— 遮罩是引擎内建、无开关；
-//       且它是"关商店后对话条仍在、可继续说话/交付"的**前提**，不是缺陷。
+// 副作用（登记在回报里）：商店开着时对话条被 0.5 黑遮罩压暗 —— 遮罩是引擎内建、无开关。
 //
 //  S3 **`OnClose` 补发 `Events.DialogClose`：面板被引擎销毁时模块侧状态必须归零**
 //     问题链：引擎 `Close` 只调 `OnClose`（见上），而 `NpcModule._currentNpcId` 只由
 //     `Events.DialogClose` 清（`Module/Npc/NpcModule.cs:746-749`）⇒ 面板被"互斥 / `CloseAll` /
 //     换站"销毁后 `_currentNpcId` 残留 ⇒ 之后任何 `Events.QuestChanged` 都会**凭空再弹一次对话**
 //     （`NpcModule.OnQuestChanged` 的唯一门槛就是它），且 `ResolveNpcId` 会拿陈旧 NPC 兜底。
-//     修法：`OnClose` 里**先** `Unsubscribe()` **再** `Emit(Events.DialogClose)`（顺序重要：
-//     先退订 ⇒ 不会收到自己发的那条 ⇒ 无回环；模块侧清理是幂等的）。
-//     ⇒ 不变式：**`_currentNpcId` 的非 None 区间 == 本面板实例的存活区间**。
 //
 //  S4 **去掉重复订阅：一次 `Events.DialogOpen` 只 `Rebuild` 一次**
-//     原先 `HudPanel`（`:823` + `:1056-1064`）与本面板（`:336` + `:348-357`）**都**订阅了
 //     `Events.DialogOpen` ⇒ 同一次刷新走两遍（`Open<T>` 已开 ⇒ 再 `OnOpen` 一次 + 本面板再
 //     `Rebuild` 一次）。面板**开不了自己**（它只有被 `Open<T>` 实例化之后才有实例）⇒
 //     权威路径唯一 = `HudPanel.OnDialogOpen` → `Game.UI.Open<NpcDialogPanel>(args)` → `OnOpen(param)`。
@@ -74,7 +66,6 @@
 //     （模块侧要关面板时的回程，唯一的）。
 //
 //  S6 **菜单项挪出那两个 34×34 雕花方槽**（几何重叠 = S6）
-//     实测：改前选项行宽 = `ContentW`(347.4 画布px = 193 原版px)，行心换算回原版坐标
 //     y ≈ 100.9 / 116.7 / 132.6 ⇒ 第 2、3 行落在雕槽 `y 115..148` 里（第 3 行整行在内）。
 //     下带（原版 y 93..155 = 62px 高）里，被雕槽占掉 `y 115..148` 后剩下的缝只有 22px（上）+ 7px（下）
 //     —— 放不下 3 行（每行 14.17 原版px、步进 15.83）。**唯一放得下的位置** = 两个雕槽**之间**的
@@ -82,11 +73,10 @@
 //     （118.8 画布px），中心 = 原版 x 103（≈ 底图中线 105）。
 //     硬约束全部保持：① 落在石框可见区 `x[-185.4,183.6] × y[-314.7,-30.3]` 内；
 //     ② 三行两两不重叠；③ 不越石框底沿；④（新增）与两个雕槽**二维矩形不相交**。
-//     ⚠️ 行宽变窄 ⇒ 文案必须放得下：最长的一条是原版串 3334「交易/修理」= 84.6 画布px
+//     行宽变窄 ⇒ 文案必须放得下：最长的一条是原版串 3334「交易/修理」= 84.6 画布px
 //     （实量：`font16_chi_map.txt` 的 advance 求和 × 20/13，见 `uicheck` 的 ④-3 断言）≤ 118.8 ✓。
 //
 //  S7 **`OnOpen` 漏参数 ⇒ 明确 Warn + 不复用上一次数据**
-//     改前 `if (dialog != null) _dialog = dialog;` ⇒ 漏传 param 时会**静默复用**上一次的
 //     台词/选项（残留路径）。现在：param 为空 ⇒ `_dialog = null` + Warn（点名原因是"不复用"）。
 // ═══════════════════════════════════════════════════════════════════════════
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,9 +94,7 @@ namespace Diablo2.UI
     public class NpcDialogPanel : UIPanel
     {
         /// <summary>
-        /// ★★ U3（2026-09-23，用户报「文字框太小了，我记得原版也不是这样的」）：
         /// **原版对话框底图是按 2× 画的** ⇒ 本工程画布尺寸 = `210×158 × DialogArtScale × K`
-        /// = **756 × 568.8**（旧值 378×284.4 只有原版的一半）。
         /// <para>
         /// 判据（可复核，逐条给出）：在用户给的原版截图（阿卡拉那一屏）里量同一张图上**两个**原版图元
         /// 占屏宽的比例 —— ①「NPC 語音」标题条（`LOCAL/UI/chi/npcspeech.dc6` 原生 **95×34**）≈ 屏宽 **21.7%**；
@@ -116,8 +104,8 @@ namespace Diablo2.UI
         /// ③ 正文行高 ≈ 屏宽 2.0% ⇒ 800 下 ≈16px = **原版 font16 的 1× 行距** ⇒ **字不放大、框放大**
         /// （所以原版看过去是"大字框、小正文字"）。
         /// </para>
-        /// <para>⚠️ 这是**量化推断**（原版没有该屏的坐标表，`参考工程_Diablerie` 本机只有 txt、无 prefab）
-        /// ⇒ ★ 登记为「用户可一眼纠正」的一条：若原版实际是 1×，把 <see cref="DialogArtScale"/> 改回 1 即可，
+        /// <para>这是**量化推断**（原版没有该屏的坐标表，`参考工程_Diablerie` 本机只有 txt、无 prefab）
+        /// ⇒ 登记为「用户可一眼纠正」的一条：若原版实际是 1×，把 <see cref="DialogArtScale"/> 改回 1 即可，
         /// 其余所有换算都挂在它上面（不会有第二处需要改）。</para>
         /// </summary>
         public const float DialogArtScale = 2f;
@@ -130,7 +118,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 石框**下沿**画布 y = HUD 控制面板的**上沿**
         /// （控制面板底图 948×160 ×1.8 = 1706.4×288 贴画布底边 ⇒ 上沿 = −540 + 288 = **−252**）
-        /// ⇒ 对话框坐在 HUD 正上方的一块大理石上（原版观感；旧值把框心放在 −172.5 且框小一半）。
         /// </summary>
         public const float FrameBottom = -252f;
 
@@ -142,7 +129,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 对话条**命中区**尺寸（透明板，只吃点击、不画像素；比底图四周各宽 30 画布px，
-        /// 保证点到石框边上也不穿透到 HUD）—— ★ U3 起随底图一起按 <see cref="DialogArtScale"/> 放大。
+        /// 保证点到石框边上也不穿透到 HUD）—— U3 起随底图一起按 <see cref="DialogArtScale"/> 放大。
         /// </summary>
         public static readonly Vector2 FrameSize = new Vector2(DialogArtSize.x + 60f, DialogArtSize.y + 60f);
 
@@ -161,7 +148,7 @@ namespace Diablo2.UI
         public const float LowerBandY1 = 155f;
 
         /// <summary>下带里那对**雕出来的方槽**（34×34）：左 x 34..67 / 右 x 139..172，y 115..148。
-        /// ⚠️ 原版拿它放什么**无出处** ⇒ 本项目不占用（保持底图原样），见文件头。</summary>
+        /// 原版拿它放什么**无出处** ⇒ 本项目不占用（保持底图原样），见文件头。</summary>
         public const float SlotCellSize = 34f;
         public const float SlotCellLeftX0 = 34f;
         public const float SlotCellLeftX1 = 67f;
@@ -217,7 +204,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 台词字号（画布px）= 原版 **font16** 的原生档 = <see cref="UiLayoutGame.FontPx16"/> = **28.8**
-        /// （旧值 12 只有原版的 42% —— 用户报「字也小」的根因）。
         /// 行距 = 字号 ⇒ 文本区 313.2 可容 **10 行**（最长一条台词折行 8~9 行 ⇒ 放得下）。
         /// </summary>
         public const int BodyFont = 28;      // = (int)UiLayoutGame.FontPx16
@@ -234,14 +220,13 @@ namespace Diablo2.UI
         // ═════════════════════════════════════════════════════════════════════
         // 菜单项（`NpcDialogArgs.options`，最多 3 项）—— 排在下带里、**两个雕花方槽之间的中央列**（S6），
         //   逐行居中。顺序由模块给：0 = 关闭（原版串 `NPCMenuLeave`「離開」）→ 任务动作 → 商店入口。
-        //   ⛔ 行宽/列心**不要**改回 `ContentW` / `ContentCx`：那样第 2、3 行会压进雕槽
+        //   行宽/列心**不要**改回 `ContentW` / `ContentCx`：那样第 2、3 行会压进雕槽
         //      （几何断言在 `tools/probes/hosts/uicheck` 的 ⑬ S6；依据见文件头 S6）。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// 菜单项**宽度**（原版px）= 两个雕花方槽之间的净宽 72 再各留 3 的呼吸位 ⇒ **66**
         /// （×1.8 = 118.8 画布px）。见文件头 **S6**：行宽必须落在这条中央列里，否则会与雕槽几何重叠
-        /// （旧值 = 内容行宽 193 原版px ⇒ 第 2/3 行压进雕槽）。
         /// </summary>
         public const float OptionW = 66f;
 
@@ -271,7 +256,6 @@ namespace Diablo2.UI
         private bool _subscribed;
         private NpcDialogArgs _dialog;
 
-        // ── R1-E：每条修复点的「只报一次」标志（本类没有逐帧高频路径，就地一次性标志足够）──
         /// <summary>`[R1-E] S1` 层语义（商店/对话共存）已说明过。</summary>
         private static bool _loggedS1;
 
@@ -323,12 +307,9 @@ namespace Diablo2.UI
             }
 
             // S7 的「生效口径」**无条件**报一次（只报一次），不放进入 null 的那一支 ——
-            // 否则正常玩一局永远不会出现这条，取证批次就看不到这个修复点的实机证据。
             if (!_loggedS7)
             {
                 _loggedS7 = true;
-                // ⚠️ 这条日志里**不**写改前那行源码：写成字面量会被 uicheck 的 S7 断言（剥注释后仍看字面量）扫到
-                //    ⇒ 假 FAIL。改前写法见文件头 S7 那段注释（注释会被断言剥掉，不参与判定）。
                 UiLog.Info("[R1-E] S7 生效：`OnOpen` 拿不到 `NpcDialogArgs` 时置**空态**"
                     + "（`_dialog = null`，**不复用**上一次的台词/选项；同时打一条 WarnOnce 点名）"
                     + "—— 旧版漏参数会静默复用旧数据（改前写法见 NpcDialogPanel 文件头 S7）");
@@ -368,7 +349,7 @@ namespace Diablo2.UI
                     + "⇒ 之后 `Events.QuestChanged` 不会再凭空弹出对话；模块侧清理幂等，无回环");
             }
 
-            // ★ S3：引擎 `UIManager.Close` **只**回调 `OnClose`、不补发任何事件（`UI.cs:199-229`）
+            // S3：引擎 `UIManager.Close` **只**回调 `OnClose`、不补发任何事件（`UI.cs:199-229`）
             //   ⇒ 模块侧的状态（`_currentNpcId`）只能由这里补一条 `DialogClose` 才清得掉。
             //   面板此刻已从 `_panels` 摘除（`Close` 先摘表再回调）⇒ 不会再被 `Game.UI.Close` 二次触发。
             Game.Event?.Emit(Events.DialogClose);
@@ -380,7 +361,7 @@ namespace Diablo2.UI
             if (_built) return;
             _built = true;
 
-            // ★ 底图 = **原版对话框**（`MENU/dialogbackground.DC6` = 210×158，按原版像素 1:1 ×1.8 = 378×284.4，
+            // 底图 = **原版对话框**（`MENU/dialogbackground.DC6` = 210×158，按原版像素 1:1 ×1.8 = 378×284.4，
             //   **不拉伸/不九宫格** —— 实测该图没有同质中段（逐列/逐行比对最长同质段 = 1px），拉伸会把石纹拉花）。
             //   命中区单独一块透明板（比底图宽），保证点到空白处也能吃掉点击、不穿透到 HUD。
             UiArt.Art(transform, "DialogArt", ResPaths.PanelDialogBack, DialogArtSize,
@@ -390,8 +371,8 @@ namespace Diablo2.UI
 
             // 标题条 = 原版**中文**位图（`data/local/ui/chi/npcspeech.dc6` 95×34，位图实测逐字「NPC 語音」）；
             // 外框 = 原版尺寸 ×1.8 = 171×61.2，整条落在石框**上方**（底沿贴 FrameTop）。
-            // ⚠️ 原版**没有这条的坐标出处**（石框里没有标题槽）⇒ 登记 `策划/验收表.md` 的 E17（BLOCKED 部分）。
-            // ★ U3：标题条同样按 `DialogArtScale`（截图实测它也是 ~1.9×，与石框同倍 ⇒ 两者相对比例不变）。
+            // 原版**没有这条的坐标出处**（石框里没有标题槽）⇒ 登记 `策划/验收表.md` 的 E17（BLOCKED 部分）。
+            // U3：标题条同样按 `DialogArtScale`（截图实测它也是 ~1.9×，与石框同倍 ⇒ 两者相对比例不变）。
             UiArt.Banner(transform, "SpeechBanner", ResPaths.Banner("npcspeech_0"),
                 new Vector2(L(95f), L(34f)), new Vector2(0f, FrameTop + L(34f) * 0.5f));
 
@@ -455,8 +436,6 @@ namespace Diablo2.UI
                 var button = EnsureOption(i);
                 var label = options[i] ?? string.Empty;
 
-                // ★ dialog-options（2026-09-24）：**空文案不再静默** —— 原版 `NPCMenu*` 每一条都有字，
-                //   而"按钮建出来了但一个字都没有"在画面上与"label 没建/被盖住"长得一样、且不报错
                 //   （主 agent 的读图报告正是把这种形状当成"选项按钮无文字"）。
                 //   判据 = `uicheck` 的 Ⓐ-1/Ⓐ-2（纯函数退化对）+ 实机图。
                 if (!IsReadable(label, (int)UiLayoutGame.FontPx16, UiArt.ButtonText))
@@ -509,9 +488,9 @@ namespace Diablo2.UI
                         $"对话选项超过 {MaxOptions} 个 ⇒ 第 {MaxOptions + 1} 个起会越过石框底沿"
                         + "（本项目最多 3 项：关闭 / 任务动作 / 商店入口）");
                 }
-                // ★ S6：列中心是 `OptionX`（两雕槽之间的中央列），**不是** `ContentCx`（内容行宽会压进雕槽）
+                // S6：列中心是 `OptionX`（两雕槽之间的中央列），**不是** `ContentCx`（内容行宽会压进雕槽）
                 //
-                // ★ U3：`UiArt.Button(size, …)` 的 `size` 被用来**选底图帧**，而阈值是**原版px**
+                // U3：`UiArt.Button(size, …)` 的 `size` 被用来**选底图帧**，而阈值是**原版px**
                 //   （`UiArt.WideButtonMinWidth = 200`；`UiLayoutFlow.FlowButton.Create` 也是这么用的：
                 //   先按原版尺寸建、再 `sizeDelta = Px(origSize)` 放大）。框放大到 2× 后
                 //   `OptionSize.x = 237.6` 会被**误判成宽按钮**（272×35 的前端菜单按钮）⇒ 这里照同一做法
@@ -550,9 +529,7 @@ namespace Diablo2.UI
         // 事件
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// 订阅（**只剩 `DialogClose` 一条**）。R1-E 的 **S4**：`Events.DialogOpen` 的订阅已删除 ——
         /// 打开/刷新对话的唯一权威路径 = `HudPanel.OnDialogOpen` → `Game.UI.Open<NpcDialogPanel>(args)`
-        /// → `OnOpen(param)`。本面板**开不了自己**（没有实例就没有订阅者）⇒ 原先那条订阅纯属重复
         /// （同一次 `DialogOpen` 会 `Rebuild` 两遍）。依据见文件头 **S4**。
         /// </summary>
         private void Subscribe()

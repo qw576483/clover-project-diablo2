@@ -3,10 +3,8 @@
 // **区域衔接接缝（seam）的唯一判据**（纯函数，不碰地图数据、不碰渲染）。
 //
 // 为什么单独一个文件（与 `DeckTiles` 同一口径）：同一条判据会被**三个地方**用到
-//   —— 生产路径（`PlayerModule.CheckExit` 判"该不该切区域"）、离线断言（`mapcheck §24`、
-//   `movecheck §9`）—— ⛔ 不许各写一份（"改了口径没扫全路径"是本项目已踩过的坑）。
 //
-// 出处（⛔ 不是本项目自己编的语义）：
+// 出处（不是本项目自己编的语义）：
 //   · `原版资源/d2lod1.10txt-1.10f/.../Levels.txt`：`Act 1 - Town` = SizeX 56 / SizeY 40
 //     （DrlgType 2 = 预设块；`Act 1 - Wilderness 1` = 80×80 / DrlgType 3），与
 //     `MapGenTownLayout` 的 56×40 一致。
@@ -27,11 +25,10 @@ namespace Diablo2.Module.Map
     internal static class MapSeam
     {
         /// <summary>
-        /// 该格是否是「城镇 → 野外」的**东边接缝**（用户实测「穿过桥去不了下一张地图」的修复点）。
         /// <para>判据 = ①区域是罗格营地；②在关卡**东边界列**（x = Width-1，= 原版共享边列）；
         /// ③该格是 **deck 可走格**（桥面，`IMapModule.IsDeckGrid`，登记见 `Module/Map/DeckTiles`）
-        /// —— 三个条件都是数据，⛔ 不按坐标硬编码。</para>
-        /// <para>⛔ 只读、无副作用 ⇒ 离线宿主可逐格断言（不依赖 Unity 运行时）。</para>
+        /// —— 三个条件都是数据，不按坐标硬编码。</para>
+        /// <para>只读、无副作用 ⇒ 离线宿主可逐格断言（不依赖 Unity 运行时）。</para>
         /// </summary>
         public static bool IsTownEastSeam(AreaId area, int width, Vector2Int g, bool isDeckGrid)
             => area == AreaId.Town && g.x == width - 1 && isDeckGrid;

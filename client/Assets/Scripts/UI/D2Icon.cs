@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/D2Icon.cs   ★ agent-18 §B 新增
 //
 // 唯一职责：**物品/技能 → 原版图标路径**（把 `Table/**` 的配表 id 翻成 DC6 解出的 PNG 路径）。
 // 为什么要这个文件：UI 里三个地方（背包格 / 装备栏 / 腰带 / 技能树 / tooltip）都要按 id 取图标，
@@ -17,7 +16,7 @@
 //   · 职业码（`ama`/`sor`/`nec`/`pal`/`bar`）出处：`Table/Class.tsv` 的 `code` 列
 //     （`Table/Base/BaseClass.cs:13` `public string Code;`）。
 //
-// ⛔ 本文件在 UI 层：只允许引用 `Diablo2.Core` / `Table` / 引擎；**不得引用 `Diablo2.Module`**。
+// 本文件在 UI 层：只允许引用 `Diablo2.Core` / `Table` / 引擎；**不得引用 `Diablo2.Module`**。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -53,9 +52,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// ★ agent-22 §B3 修复：技能图标**文件名**里的职业码 = `class_c.skill_class`（`ama/sor/nec/pal/bar`）。
         /// <para>
-        /// **实测根因**（不是推断）：`SPELLS/{ama,bar,nec,pal,sor}Skillicon.DC6` 解出的 PNG 文件名前缀是
         /// **3 字母**（`amaSkillicon_0.png` …，共 5 组），而配表 `class_c` 的 **`code` 列是官方 charstats 的
         /// 职业名**（`Amazon`/`Sorceress`/…，见 `Table/Base/BaseClass.cs:13`）；3 字母码在**另一列** `skill_class`
         /// 上（`BaseClass.cs:14` 明文「skills.txt 的 charclass 标识（ama/sor/nec/pal/bar）」）。
@@ -85,11 +82,10 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 配表 `code` → 图标文件后缀的别名表（★ 本表逐条来自**原版 D2 数据表**，
+        /// 配表 `code` → 图标文件后缀的别名表（本表逐条来自**原版 D2 数据表**，
         /// **不是猜的**：`原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/`
         /// 的 `Weapons.txt` / `Armor.txt` / `Misc.txt` 的 **`invfile` 列**）。
         /// <para>
-        /// **为什么必须有这张表**（Play 实测病根）：原版物品图标的文件名**不等于** item code ——
         /// 图标名出自 `invfile` 列（例：`bax`=Broad Axe → `invbrx`；`qui`=Quilted Armor → `invqlt`；
         /// `hpo`=Healing Potion → `invrps`）。旧代码一律按 `inv{code}` 拼路径
         /// ⇒ 137 个物品里 **50 个拼错**（磁盘上没有那个文件）⇒
@@ -98,7 +94,7 @@ namespace Diablo2.UI
         /// 另有 **14 个原版图标本身不在本批素材里**（刺客/德鲁伊/野蛮人/圣骑士/死灵的专属装备，
         /// 见 `client/资源欠缺清单.md`）。
         /// </para>
-        /// <para>⚠️ 旧表里的 `qui → quil` 是**错的**（`invquil` 不存在，`invqlt` 才是 Quilted Armor）。</para>
+        /// <para>旧表里的 `qui → quil` 是**错的**（`invquil` 不存在，`invqlt` 才是 Quilted Armor）。</para>
         /// </summary>
         private static readonly Dictionary<string, string> IconFileAlias = new Dictionary<string, string>
         {
@@ -139,8 +135,8 @@ namespace Diablo2.UI
         /// <para>为什么不用 `TryGet`：它只取**已驻留**的（没装进来就返回 null，会把"在"误答成"不在"）；
         /// 也不用 `LoadAsset`：那是异步的，回答不了"现在在不在"。三者语义差别见
         /// `clover-client-unity-engine/Runtime/Core/Contracts.cs` 的 `IResourceManager.Exists` 注释。</para>
-        /// <para>⚠️ 路径是**相对 `CloverRes` 根前缀**的写法（`D2/Items/invbrx`），
-        /// 根前缀由后端拼 —— ⛔ 别再写 `ResPaths.Root + "/" + path`（那是 Unity `Resources` 的拼法）。
+        /// <para>路径是**相对 `CloverRes` 根前缀**的写法（`D2/Items/invbrx`），
+        /// 根前缀由后端拼 —— 别再写 `ResPaths.Root + "/" + path`（那是 Unity `Resources` 的拼法）。
         /// `Game.Res` 未初始化（`CloverRes.Init` 未调用）⇒ 恒 false（引擎没起来 = 什么都取不到）。</para>
         /// </summary>
         public static bool ItemIconExists(int itemId)
@@ -211,7 +207,6 @@ namespace Diablo2.UI
         /// </summary>
         public static string SkillTreeBackPath(int classId, int page)
         {
-            // ★ agent-22 §B3：文件名前缀 = `skill_class` 的**首字母**（ama→a / bar→b / nec→n / pal→p / sor→s）。
             // 实测磁盘：`Resources/Clover/D2/UI/Panel/skltree_{a,b,n,p,s}_back_0..3.png`（本项目按 tile 拼装后纵切）。
             var cls = IconClassCodeOf(classId);
             if (string.IsNullOrEmpty(cls)) return null;
@@ -256,7 +251,7 @@ namespace Diablo2.UI
             }
 
             icon.gameObject.SetActive(true);
-            // ★ 原版物品图是**像素画**：图标框与图的原生比例不一致时按比例内缩，
+            // 原版物品图是**像素画**：图标框与图的原生比例不一致时按比例内缩，
             //   绝不把原版像素拉长/压扁（`UiArt.SetSprite` 不会改 preserveAspect）。
             icon.preserveAspect = true;
 
@@ -272,10 +267,10 @@ namespace Diablo2.UI
 
             if (cache[index] == path) return;           // 同一个图标，已经在（或正在）加载
 
-            // ★ 非预期分支：**可加载源里没有这张原版图**（本批 348 张里确实缺这 14 个 code，
+            // 非预期分支：**可加载源里没有这张原版图**（本批 348 张里确实缺这 14 个 code，
             //   见 `client/资源欠缺清单.md`）⇒ 给一个**看得出来的暗色占位**，
             //   而不是让 Image 停在初始白色（Play 实测：商店第 10 格就是一块白方块）。
-            //   ⚠️ `Game.Res == null`（引擎没起来）时**不在这里断言"素材缺"**：那是启动顺序问题、
+            //   `Game.Res == null`（引擎没起来）时**不在这里断言"素材缺"**：那是启动顺序问题、
             //      不是素材问题，混成同一句话会把排查方向带偏 ⇒ 交给下面 `UiArt.SetSprite` 的
             //      `res.null` 分支去报（那条分支原地保留）。
             if (Game.Res != null && !Game.Res.Exists(path))
@@ -306,8 +301,7 @@ namespace Diablo2.UI
             return new Color(1f - (1f - c.r) * 0.38f, 1f - (1f - c.g) * 0.38f, 1f - (1f - c.b) * 0.38f, 1f);
         }
 
-        // ⚠️ w3 审计删除：`DistinctClasses(IEnumerable<int>)` —— 全仓（含 13 个离线宿主）
+        // w3 审计删除：`DistinctClasses(IEnumerable<int>)` —— 全仓（含 13 个离线宿主）
         //   **零调用方**（「定义了但没人用」）。技能树面板现在按 `Def/SkillTreeLayout` 的
-        //   `cell.tree` 分组（原版 `skilldesc.txt` 的 SkillPage），不再需要按 class 归并。
     }
 }

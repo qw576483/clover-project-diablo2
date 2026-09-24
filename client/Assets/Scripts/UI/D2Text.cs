@@ -7,11 +7,10 @@
 //   · 拉丁（数字 / 英文 / 半角符号）：`D2/Fonts/font{16,24,30,42}.png`
 //     —— 已有的多子 sprite 图集（`AssetImporter.FontGrids` 切分），口径**未改**。
 //   · 中文（汉字 / 全角标点）：`D2/Fonts/font{N}_chi.png`
-//     —— 片 1 解出的**整幅图集**（每字号 13806 帧按行主序规则网格摆放），
 //        帧→字符 + 排版度量在 `D2/Fonts/font{N}_chi_map.txt`（运行期数据资产，
 //        不是 `.cs` 常量：13806×4 条写死不可维护，也无法"换素材不动逻辑"）。
 //
-// ★ 排版口径**全部有出处**（libd2 `packages/formats/src/font.zig`，同目录 `原版资源/
+// 排版口径**全部有出处**（libd2 `packages/formats/src/font.zig`，同目录 `原版资源/
 //   参考工程_Diablerie/libd2/`）：
 //   · 步进 advance = 表里的 `width`（L67 注释原话："How far to advance after drawing it.
 //     This is the whole reason the table exists."）⇒ 不猜字距。
@@ -22,7 +21,7 @@
 //   · 换行：L188-216 `breakLine`（走一遍、停在"量到 ≥ 框宽"的那一字；路过空格就在空格断，
 //     没空格就按能塞下的最后一个字断）。
 //
-// ⚠️ 一个**必须写明的事实**（本文件的中文回退表就是为它存在的）：
+// 一个**必须写明的事实**（本文件的中文回退表就是为它存在的）：
 //   原版 chi 字模是**繁体**字集（13800 个码位：含 個/為/買/羅/營，不含 个/为/买/罗/营），
 //   而本工程配表文本是**简体** ⇒ 简体字直接查**查不到字模**。
 //   处理：查不到时按 `D2/Fonts/font_chi_s2t.txt`（简体→原版字形 码位映射，
@@ -123,7 +122,6 @@ namespace Diablo2.UI
                 case D2Font.Font30: return AdvFont30;
                 case D2Font.Font42: return AdvFont42;
                 default:
-                    // 新增字号却忘了登记 advance ⇒ 退回 Font16 并点名（不让排版静默错位）
                     UiLog.WarnOnce("font.unknown." + (int)font,
                         $"D2Text 未登记字号 {(int)font} 的 advance 表 ⇒ 退回 font16（请在 D2Text 补一行）");
                     return AdvFont16;
@@ -354,9 +352,6 @@ namespace Diablo2.UI
 
             if (Game.Res == null)
             {
-                // ★★ V6 修（**全项目文字降级的唯一根因**，实机日志可复跑）：
-                //   改前这里调 `OnAtlasFailure` ⇒ `D2Label.MarkBitmapUnavailable`
-                //   ⇒ **`_bitmapUnavailable` 是一局之内不再恢复的静态开关** ⇒ 整个 Play 里
                 //   所有文字都退化成引擎默认 TTF（原版位图字模再也回不来）。
                 //   而这次触发点**每次进 Play 都会命中**（实测 11:57:46 / 12:04:27 / 12:54:41 /
                 //   13:05:58 / 13:12:39 五局五次）：`Game.Launch` 期间就有业务面板建了中文标签
@@ -479,7 +474,7 @@ namespace Diablo2.UI
 
             if (Game.Res == null)
             {
-                // ★ V6：与 `EnsureChi` 同一处置 —— 启动期（`CloverRes.Init` 之前）不把"暂时取不到"
+                // V6：与 `EnsureChi` 同一处置 —— 启动期（`CloverRes.Init` 之前）不把"暂时取不到"
                 //   当成"永久缺失"，只记延迟，等 `RetryDeferred()` 再取。
                 _s2tDeferred = true;
                 UiLog.WarnOnce("chifont.s2t.nores",
@@ -828,11 +823,10 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 强制整条走 **chi（原版中文）字模**，即使文案全是 ASCII。
-        /// <para>★ 为什么需要这个开关（根因，2026 品牌署名轮实测）：
+        /// <para> 为什么需要这个开关（根因，2026 品牌署名轮实测）：
         /// **原版拉丁字模 `font{16,24,30,42}.png` 是不分大小写的** —— 码位 97..122（a..z）的格子里
         /// 放的是**缩小号的同形大写**（实测 `font24_98`＝小号 B、`font24_121`＝小号 Y，
         /// 且 g/p/q/y 一律**没有降部**：底边与基线齐平）。于是 `by clover-engine` 经拉丁字模画出来
-        /// 是 `BY CLOVER-ENGINE`（小型大写），**不是逐字小写** —— 违反全局 skill §1.6 的判据。
         /// 原版**中文**字模 `font{N}_chi` 里 ASCII 是**真小写**（实测 `font24_chi` 码位 97＝真 a、
         /// 103＝带降部的 g、121＝带降部的 y）⇒ 只有它能把这一行画成逐字小写。</para>
         /// </summary>
@@ -1002,8 +996,6 @@ namespace Diablo2.UI
                     D2Text.EnsureChi(_font);      // 中文/混合：整条走 chi 字模
                     D2Text.EnsureS2T();
 
-                    // ★★ V6 修（缺陷 1：实机图 `v5_03_npc_dialog.png` 里「標題 + 正文」整行画在石框**之外**）：
-                    //   根因 = 「字模**在途**」这一瞬被当成了「字模**不可用**」——
                     //   chi 字模是异步加载的（`EnsureChi`），到货前 `BuildBitmap` 返回 false，
                     //   于是下面 `BuildFallback()` **用系统 TTF 顶上**画了一帧；而系统字体那条路的
                     //   排版框是坏的（见 `BuildFallback` 的 sizeDelta 注释）⇒ 字被画到框外半屏处；
@@ -1049,8 +1041,8 @@ namespace Diablo2.UI
             var cellH = chi ? D2Text.ChiCellH(_font) : D2Text.CellHeight(_font);
 
             // 「缩到框里」：宽度超框就整体缩一档（对应 uGUI 的 resizeTextForBestFit）。
-            // 判据与缩放下限口径在引擎件 `BitmapFont.BestFitScale`（装得下 ⇒ 原样返回，⛔ 不放大、
-            // ⛔ 不逐行缩 —— 同一列标签的字号必须一致）。
+            // 判据与缩放下限口径在引擎件 `BitmapFont.BestFitScale`（装得下 ⇒ 原样返回，不放大、
+            // 不逐行缩 —— 同一列标签的字号必须一致）。
             if (_bestFit && size.x > 0f)
             {
                 var need = D2Text.MeasureNative(_font, _text, chi) * scale;
@@ -1067,10 +1059,7 @@ namespace Diablo2.UI
             var pitch = _linePitch > 0f ? _linePitch : cellH * scale;
             var blockH = lines.Count * pitch;
 
-            // ⚠️ **符号口径**（★ 片 4b 修）：`VerticalOrigin` 返回的是「首行顶端相对框顶边**向下**的偏移」，
-            //   而下面摆字用的 anchor/pivot 都是 `(0,1)`（左上）⇒ 在 Unity 里
             //   `anchoredPosition.y` 是**向上为正**的，所以这里的 y 必须**取负**。
-            //   修之前直接把 y0 当 upward 用 ⇒ **所有** Middle*/Lower* 对齐的位图文本被整体顶到框顶**以上**。
             //   实测证据（两处，都可复跑）：
             //     ① 拍①最小实验（同为 anchor(0,1)/pivot(0,1)，容器顶边 world.y = +50）：
             //        `apos.y = +8.5` ⇒ 字块中心 world.y = **49.5**（跑到框外上方）；
@@ -1078,7 +1067,6 @@ namespace Diablo2.UI
             //     ② 实机 dump（主菜单 `Single` 按钮，1920×1080 画布，探针 `[PDUMP]`）：
             //        文字字模中心 canvas y = **539.1**，而按钮中心 = **508.5**
             //        （偏高 30.6 = 2×8.5×1.8）⇒ 实机图上文字骑在按钮上沿、一半溢出。
-            //   多行同理：修前各行沿**向上**递增（顺序倒过来且与框重叠），修后自上而下、行距 = pitch。
             var yDown = VerticalOrigin(size.y, blockH);
             for (var li = 0; li < lines.Count; li++)
             {
@@ -1148,7 +1136,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 默认字体模式。
-        /// ⚠️ 只可能在"字模资源缺失"时走到（<see cref="MarkBitmapUnavailable"/> 已打 **Error**）；
+        /// 只可能在"字模资源缺失"时走到（<see cref="MarkBitmapUnavailable"/> 已打 **Error**）；
         /// 正常工程里这一支**永不触发**（验收：实机日志无 `bitmap.unavailable`）。
         /// </summary>
         private void BuildFallback()
@@ -1162,12 +1150,9 @@ namespace Diablo2.UI
             UIFactory.Stretch(_fallback.rectTransform);
             _fallback.raycastTarget = false;
 
-            // ★★ V6 修（缺陷 1 的第二半：系统字体这条兜底路把字画到了框外）：
-            //   原来这里还有一句 `if (size.x > 0f) _fallback.rectTransform.sizeDelta = size;` ——
             //   `Stretch` 之后子节点的矩形**已经** == 标签节点（= 排版框），再设一次 `sizeDelta`
             //   会在**拉伸锚点**下把矩形从锚框**再向外撑大** `size` ⇒ 矩形左上角跑到
             //   （节点中心 − 半宽, 节点中心 + 半高）之外 ⇒ 左上对齐的文本整行画到**框外**、
-            //   居中的文本被整体上抬半框。实机证据（V6 逐节点 dump，2026-09-23 13:06）：
             //   `body` 节点 screen=(607,533)-(1302,774)，而画面上那行字出现在 screen y≈187..213
             //   （= 石框之外、屏幕上方），偏移量正是 (±W/2, ±H/2)。
             //   ⇒ 删掉这一句：兜底文本与位图文本**共用同一个框**（节点矩形），位置口径从此只有一套。
@@ -1178,7 +1163,6 @@ namespace Diablo2.UI
                 _fallback.resizeTextMinSize = _bestFitMin > 0 ? _bestFitMin : 8;
                 _fallback.resizeTextMaxSize = _bestFitMax > 0 ? _bestFitMax : pt;
             }
-            // ⛔ V6 已删除本方法末尾那句"给兜底文本再设一次框尺寸"的赋值（见上一条注释的实机证据）：
             //    `Stretch` 之后它的矩形**就是**标签节点的框，再设一次只会在拉伸锚点下把框撑大一倍。
             _fallback.horizontalOverflow = _wrap ? HorizontalWrapMode.Wrap : HorizontalWrapMode.Overflow;
         }
@@ -1234,7 +1218,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 首行顶端（相对根节点顶边的**向下**偏移）。
-        /// <para>⚠️ **返回值是「向下为正」的偏移**，与子节点 `anchoredPosition.y`（Unity 里向上为正）
+        /// <para>**返回值是「向下为正」的偏移**，与子节点 `anchoredPosition.y`（Unity 里向上为正）
         /// **符号相反** ⇒ 调用点必须取负（见 <see cref="BuildBitmap"/> 的「符号口径」注释与实测）。</para>
         /// </summary>
         private float VerticalOrigin(float box, float content)
@@ -1307,23 +1291,19 @@ namespace Diablo2.UI
 
         private static bool TryBulkLoad(D2Text.D2Font font, bool rebuildLive)
         {
-            // ★★ hud-redo3 修（**`D2Text 兜底 LoadAll 异常 … NullReferenceException` 警告洪水的根因**）：
             //   本函数是 `ApplyGlyph` 的**第一步**（`D2Text.cs:1188`），而它比后面那句
             //   `if (Game.Res == null)`（:1204）**先跑** ⇒ 启动期 `CloverRes.Init` 之前（`Game.Res == null`）
             //   每一次 `SetText` 都会在这里对 null 调 `Game.Res.LoadAll<Sprite>` ⇒ **NRE** ⇒
             //   被下面的 catch 打成一条 Warn（实测：12ms 内 3 条同文 `seq 738/739/740`，图集 `D2/Fonts/font24`）。
-            //   这是**真缺陷**：一条"资源加载异常"的 Warn 在表达"资源模块还没就绪"（后者是正常启动时序，
-            //   且 `EnsureChi`/`EnsureS2T` 都已按"延迟、等 `RetryDeferred()` 重试"处理）。
-            //   ⇒ 这里补上判空：**没就绪就安静返回 false**（不是失败、不刷 Warn、不改 `BulkTried`），
             //     字模由 `D2Text.RetryDeferred()` 在 `Game.Res` 就绪后重新发起。
-            //   ⚠️ 这不是"关日志掩盖"：真正取不到图的那条路（`all == null || all.Length == 0`、
+            //   这不是"关日志掩盖"：真正取不到图的那条路（`all == null || all.Length == 0`、
             //   以及 `ApplyGlyph` 末尾的 `MarkBitmapUnavailable`）**原地保留且照旧报错**。
             //   判据：进一次 Play 后 `console_status` 里 `D2Text 兜底 LoadAll 异常` **0 条**，
             //   且 `bitmapUnavailable=0`（V6 的降级修不得回退）。
             if (Game.Res == null) return false;
 
-            // ⚠️ 路径口径：引擎（`Game.Res.LoadAll`）会自己拼 `CloverRes.Init("Clover")` 的根前缀
-            //   ⇒ 这里传**相对路径**（`D2/Fonts/font42`）；⛔ 不要再加 `ResPaths.Root + "/"`
+            // 路径口径：引擎（`Game.Res.LoadAll`）会自己拼 `CloverRes.Init("Clover")` 的根前缀
+            //   ⇒ 这里传**相对路径**（`D2/Fonts/font42`）；不要再加 `ResPaths.Root + "/"`
             //   （那是 Unity `Resources` 的拼法，加了就变成 `Clover/Clover/…` 取不到）。
             var atlas = D2Text.AtlasPath(font);
             Sprite[] all;

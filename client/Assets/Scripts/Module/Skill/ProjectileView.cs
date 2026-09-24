@@ -11,7 +11,7 @@
 //   原版投射物图在 `d2data.mpq` 的 `.dcc` 里（`missile_c.cel_file` 给了名字，如 `Firebolt`/`Icebolt`），
 //   本体未到手 ⇒ **按素材规定用纯色占位**（按伤害类型上色：火=橙、冰=蓝、电=黄、毒=绿、物理=灰白），
 //   并已登记 `client/资源欠缺清单.md`（投射物一节）。
-//   ⚠️ 换真图时**只需**：`Core/ResPaths.cs` 增一个 `D2Missiles` 常量 + 本文件 `TryLoadRealSprite` 一行，
+//   换真图时**只需**：`Core/ResPaths.cs` 增一个 `D2Missiles` 常量 + 本文件 `TryLoadRealSprite` 一行，
 //      **不动** `Projectile`（逻辑）与 `SkillModule`。
 //
 // 离线自检宿主说明：非 Unity 进程里 `new GameObject(...)` 会抛异常 ⇒ `TryCreate` **捕获并返回 false**
@@ -33,12 +33,10 @@ namespace Diablo2.Module.Skill
         private static Sprite _placeholder;
         private static bool _createFailedLogged;
 
-        // ── U26/U36 **同族**：投射物的第三键（z 次级排序键）—— team-lead 2026-09-24 裁决 P1 ──────
         // 为什么需要：`Projectile.WorldOf` 的 z **恒 0**（`Projectile.cs:141-144`；那是**逻辑层**的
-        //   返回值语义，⛔ 按裁决不许改）⇒ 同 `gx+gy` 的两个投射物「主键（`EntitySortOrder`）相等
-        //   且第三键也相等」⇒ 次序未定义，交给渲染器内部提交顺序（就是 U26/U36 那条根因的同族）。
+        //   返回值语义，按裁决不许改）⇒ 同 `gx+gy` 的两个投射物「主键（`EntitySortOrder`）相等
         // 口径：给投射物一个**纯函数**第三键（沿用 `ViewModule.SortTieZ` 的「档底 + id × 步长」形状），
-        //   ⛔ 不动 `Module/View/**`、⛔ 不改 `Projectile.cs` 的返回值语义。
+        //   不动 `Module/View/**`、不改 `Projectile.cs` 的返回值语义。
         // 取值带 = (0, 0.9]：实体档 `ViewModule.SortTieZ` 恒 ≥ 1.0001 ⇒ **投射物与实体的先后关系不变**
         //   （仍画在实体之前），只把「投射物之间」这条**无键带**补上 —— 要改"投射物 vs 实体"的遮挡
         //   关系是**表现类**，留给台账「待 Unity 窗口」总表 **W7**（看同格 / 相邻格两态各一图）。
@@ -53,7 +51,7 @@ namespace Diablo2.Module.Skill
         /// <para>原先项目侧那段 `n = id % Mod; if (n &lt; 0) n += Mod; return n * step;`
         /// 与引擎件 <c>TiebreakOffset</c> 的实现**逐字同源**（含负值折回）⇒ 本工程不再保留第二份，
         /// 值**逐位不变**（数值等价证据：`.ai-tmp/test/d2view-sortkey/`）。</para>
-        /// <para>⛔ <c>fieldHeightTiles</c> 是引擎构造必填项、本处用不到（深度序是等距格口径，
+        /// <para><c>fieldHeightTiles</c> 是引擎构造必填项、本处用不到（深度序是等距格口径，
         /// 见 `ViewModule.EntitySortOrder`）⇒ 填有出处的 `GameConst.MapMaxSize`。</para>
         /// </summary>
         private static readonly SortingLayers SortZTiebreak = new SortingLayers(
@@ -74,7 +72,7 @@ namespace Diablo2.Module.Skill
         /// <summary>
         /// 投射物节点的世界坐标 = `Projectile.WorldOf(p.pos)` + **第三键**（z = `SortZFor(p.id)`）。
         /// <para>本文件是投射物表现层位置的**唯一产地**（同 `ViewModule.EntityWorld` 之于实体）：
-        /// ⛔ `TryCreate` / `Sync` 都必须走这里，不许各自拼 z。</para>
+        /// `TryCreate` / `Sync` 都必须走这里，不许各自拼 z。</para>
         /// </summary>
         public static Vector3 WorldPosOf(Projectile p)
         {
@@ -93,18 +91,17 @@ namespace Diablo2.Module.Skill
             try
             {
                 var go = new GameObject($"Projectile_{p.id}_{p.skillName}");
-                // ⛔ 不许直接写 `Projectile.WorldOf(p.pos)`（它的 z 恒 0 = 无第三键）⇒ 走唯一产地
+                // 不许直接写 `Projectile.WorldOf(p.pos)`（它的 z 恒 0 = 无第三键）⇒ 走唯一产地
                 go.transform.position = WorldPosOf(p);
 
                 var sr = go.AddComponent<SpriteRenderer>();
                 sr.sprite = ResolveSprite(p);
                 sr.color = ColorOf(p.type);
                 // 深度排序随格子变化（`constraints.md` #5）：**与实体层同一口径** ——
-                // 走 `ViewModule.EntitySortOrder`（内含 deck / 桥面抬档），⛔ 不许自己写
+                // 走 `ViewModule.EntitySortOrder`（内含 deck / 桥面抬档），不许自己写
                 // `Iso.SortOrder(g, LayerOffsetEntity)`：那正是审计 B 红行 R2 ——
                 // 桥面格上普通实体档 `4D+102` 必被正南一格栏杆 `4D+105` 盖住。
                 sr.sortingOrder = ViewModule.EntitySortOrder(p.Grid);
-                // 占位体不能有 Collider（否则相机探针会打到它，见 `docs/步骤文档.md` §3.4）
                 // —— SpriteRenderer 本身不生成 Collider，这里无需额外处理。
 
                 p.View = go;
@@ -129,9 +126,9 @@ namespace Diablo2.Module.Skill
         public static void Sync(Projectile p)
         {
             if (p == null || p.View == null) return;
-            // 同 `TryCreate`：位置走唯一产地 `WorldPosOf`（含第三键），⛔ 不写裸 `Projectile.WorldOf`
+            // 同 `TryCreate`：位置走唯一产地 `WorldPosOf`（含第三键），不写裸 `Projectile.WorldOf`
             p.View.transform.position = WorldPosOf(p);
-            // 排序口径走 `ViewModule.EntitySortOrder`（含 deck 抬档），⛔ 不写裸实体档
+            // 排序口径走 `ViewModule.EntitySortOrder`（含 deck 抬档），不写裸实体档
             if (p.Renderer != null) p.Renderer.sortingOrder = ViewModule.EntitySortOrder(p.Grid);
         }
 
@@ -147,7 +144,7 @@ namespace Diablo2.Module.Skill
         /// <summary>
         /// 取投射物贴图：先按 `missile_c.cel_file` 找真图，取不到就用纯色占位。
         /// <para>
-        /// ⚠️ 真图路径需要一个**尚未登记**的 `ResPaths` 常量（`Core/` 冻结，本项目不许改）
+        /// 真图路径需要一个**尚未登记**的 `ResPaths` 常量（`Core/` 冻结，本项目不许改）
         /// ⇒ 当前**一律返回占位**，并在首次调用时说明一次。换真图时在此加一行 `Game.Res.TryGet`。
         /// </para>
         /// </summary>

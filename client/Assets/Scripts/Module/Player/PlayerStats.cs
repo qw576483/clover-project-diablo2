@@ -2,7 +2,7 @@
 // Diablo2 · Module/Player/PlayerStats.cs
 // 主角**四维 + 派生属性**的唯一计算处（生命/法力/耐力/防御/命中 AR/格挡/四抗）。
 //
-// ⛔ 三条硬规则
+// 三条硬规则
 //   ① **数值全部来自配表**（`Table.Tables.Default.Class/…`），本文件不出现任何职业硬编码数字；
 //   ② **公式必须能指出出处**（逐条写在 <see cref="Recompute"/> 的注释里）；
 //   ③ 生命/法力/耐力公式必须与 `UI/CharCreatePanel.LifeOf/ManaOf/StaminaOf` **完全一致**
@@ -27,13 +27,12 @@ namespace Diablo2.Module.Player
         /// <summary>
         /// 格挡上限（原版 75%）。
         /// <para>出处：Arreat Summit「Basics: Character Information → Blocking」
-        /// （`https://classic.battle.net/diablo2exp/basics/characters.shtml`，2026-09-24 实取原文）：
         /// "The block value itself is a combination of a value inherent to that particular player class,
         /// and any other block bonuses from items. <b>This value is capped at 75%.</b>"</para>
-        /// <para>⚠️ **已登记的歧义（B3）**：上句"This value"指代不明 —— 可读作"钳 `Blocking`（职业项+装备项之和）"
+        /// <para>**已登记的歧义（B3）**：上句"This value"指代不明 —— 可读作"钳 `Blocking`（职业项+装备项之和）"
         /// 或"钳**最终百分比**"。本工程数据域内 `Blocking ≤ class 30 + 盾 24 + 词缀 20 = 74 < 75`
         /// ⇒ **两种读法等价**，故本实现钳的是**最终百分比**（`Mathf.Clamp(chance, 0, MaxBlock)`），
-        /// 位置不动。⛔ **若将来接入圣骑士 Holy Shield**（`原版资源/…/excel/skills.txt:119`，
+        /// 位置不动。**若将来接入圣骑士 Holy Shield**（`原版资源/…/excel/skills.txt:119`，
         /// `aurastat1=toblock`、`Param5=10`/`Param6=40` ⇒ `Blocking` 可越 75）**必须回来重判**这条歧义。</para>
         /// </summary>
         public const int MaxBlock = 75;
@@ -45,9 +44,7 @@ namespace Diablo2.Module.Player
         private const int MinVital = 1;
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★★ U3（2026-09-24，charstat 片）：**起始值**列 —— 官方 charstats 的 `hpadd` / `stamina`
         //
-        // 用户第三批投诉 ①「人物状态框，数值信息不对」的**真根因**就在这里：
         //   旧 `Recompute` 把「每点体力/精力给多少」直接乘到**起始**的体力/精力上
         //   （`MaxLife = vit × life_per_vit`），于是 1 级角色拿到的是 `起点×成长系数`，
         //   而官方 1 级值 = **`hpadd` + 起始体力**（不是乘积）。
@@ -55,7 +52,6 @@ namespace Diablo2.Module.Player
         // 出处（两份互证，均可复算）：
         //   ① `原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/charstats.txt:2..6`
         //      （= `convert.py` 的默认输入；与 `原版资源/d2raw/data/global/excel/charstats.txt`
-        //       **逐字节相同**，SHA256 = BFD28714…BFF51F，2026-09-24 实核）：
         //      · 第 7 列 `stamina` = 该职业**起始耐力**（84 / 74 / 79 / 89 / 92）
         //      · 第 8 列 `hpadd`   = 起始生命加成（**5 职业同为 30**）
         //      · 第 32 列 `BlockFactor` = 职业格挡系数（25 / 20 / 20 / 30 / 25）
@@ -74,10 +70,9 @@ namespace Diablo2.Module.Player
         //         且每级/每点成长与该页 "Each Character Level / Attribute Point Effect"
         //         完全一致（本工程的 `class_c` 成长列已按此导入 ✓）。
         //
-        // ✅ **降级已消除**（2026-09-24，classcols 片）：`class_c` 已导入 `hp_add` / `base_stamina`
         //    / `block_factor` **三列**（生成器 = `tools/table-convert/convert.py` 的 build_class()，
         //    映射 `hp_add ← charstats.hpadd`、`base_stamina ← charstats.stamina`、
-        //    `block_factor ← charstats.BlockFactor`；值逐条由脚本从官方原始表抽取，⛔ 无手抄）
+        //    `block_factor ← charstats.BlockFactor`；值逐条由脚本从官方原始表抽取，无手抄）
         //    ⇒ 本文件**不再有**这些数字的常量，起始截距与职业格挡系数一律读 `Row`。
         //    收口判据：全仓 0 命中那两个旧常量名（防常量复活）；命令逐字写在 classcols 片报告里。
         // ═════════════════════════════════════════════════════════════════════
@@ -169,7 +164,7 @@ namespace Diablo2.Module.Player
         /// <summary>
         /// 装备提供的格挡值（官方 Blocking 的"装备项"）＝ **盾牌基材 `item_c.block`** ＋ 词缀 `block`
         /// （官方 `toblock`）之和。
-        /// <para>★ u52block（R6）修的就是前一环：`class_c.block_factor`（职业项）早已读表，但盾牌**基材**
+        /// <para>u52block（R6）修的就是前一环：`class_c.block_factor`（职业项）早已读表，但盾牌**基材**
         /// 的 `block` 从未接入 ⇒ 装盾后格挡恒 0%。</para>
         /// </summary>
         public int BonusBlock;
@@ -180,12 +175,12 @@ namespace Diablo2.Module.Player
         /// "…you will see a percentage to block if you are carrying a <b>Shield</b> or Necromancer
         /// Shrunken Heads. <b>If you do not have a shield or Shrunken Heads you will not see this
         /// listed.</b>" ⇒ 徒手 / 只穿甲（无盾）恒 0%。</para>
-        /// <para>⚠️ 为什么闸门**不能**写成旧版的"装备格挡值 &lt;= 0"：`Buckler`（本项目 5 职业里
+        /// <para> 为什么闸门**不能**写成旧版的"装备格挡值 &lt;= 0"：`Buckler`（本项目 5 职业里
         /// 亚马逊/圣骑士/野蛮人的**起始盾**，`策划/数值文档/start_item_c.txt` 第 2/15/20 行）在官方
         /// 数据里 `block = 0`（`原版资源/d2lod1.10txt-1.10f/data/global/excel/Armor.txt:24` 第 11 列），
         /// 但它照样格挡 —— 官方公布的 Buckler 格挡 = 圣骑士 30% / 亚马逊·野蛮人 25% / 法师·死灵 20%
         /// （恰等于 `charstats.BlockFactor` + 0，逐职业对上）。用"装备格挡值"当闸门会把**起始盾**
-        /// 判成 0%（用户报的"装盾格挡仍是 0%"原样残留）。</para>
+        /// 判成 0%。</para>
         /// </summary>
         public bool HasShield;
 
@@ -202,9 +197,8 @@ namespace Diablo2.Module.Player
         public int BonusResPoison;
 
         /// <summary>
-        /// 魔法抗性（★ 片 16 / 【消除 E27】）：官方 `itemstatcost` 的 `res-magic`。
         /// <para>
-        /// ⚠️ 本项目 Act I 的 `affix_c` 里**没有** `res-magic` 词缀（低等级词缀集只有 火/冰/电/毒 与
+        /// 本项目 Act I 的 `affix_c` 里**没有** `res-magic` 词缀（低等级词缀集只有 火/冰/电/毒 与
         /// `res-all`）⇒ 该字段当前**无来源、恒为 0**。留着是为了：① `ResistOf(DamageType.Magic)`
         /// 有确定返回（不再走 `default` 的 Warn 分支）；② 将来配表补 `res-magic` 时只改这一处。
         /// </para>
@@ -276,13 +270,11 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// 重算全部派生属性。**公式与出处**（改动前先读 `docs/配表说明.md` §4）：
         /// <list type="bullet">
-        /// <item>★ U3 更正（2026-09-24）：**起始值必须按官方起始口径取，不是"起始四维 × 成长系数"**：
+        /// <item>**起始值必须按官方起始口径取，不是"起始四维 × 成长系数"**：
         ///       生命 = `class_c.hp_add` + 起始体力 + `life_per_vit` × (体力 − 起始体力) + `life_per_lvl` × (等级−1)；
         ///       法力 = 起始精力 + `mana_per_mag` × (精力 − 起始精力) + `mana_per_lvl` × (等级−1)；
         ///       耐力 = `class_c.base_stamina` + `stam_per_vit` × (体力 − 起始体力) + `stam_per_lvl` × (等级−1)。
-        ///       出处与逐职业对照见本文件 §U3 注释块（charstats.txt 列语义 + Arreat Summit 起始属性）。
         ///       与 `UI/CharCreatePanel.LifeOf/ManaOf/StaminaOf` 同一式子（验收 #17，两处由 playercheck §1 把守）。</item>
         /// <item>防御 = 护甲值 + 敏捷/4，再乘 `item_armor%` 加成
         ///       —— 出处：`_assets_tmp/d2src/libd2/packages/game/src/combat.zig:43-50`（`GetDefense`，
@@ -295,8 +287,8 @@ namespace Diablo2.Module.Player
         ///       —— 出处：Arreat Summit「Blocking」（`classic.battle.net/diablo2exp/basics/characters.shtml`）：
         ///       `Total Blocking = (Blocking * (Dexterity - 15)) / (Character Level * 2)`，
         ///       `Blocking` = 职业固有值 + 所有装备上的格挡值，`capped at 75%`；
-        ///       职业项 = `class_c.block_factor`（官方 `charstats.BlockFactor`，列 32；★ classcols 片起读表）、
-        ///       **装备项 = 盾牌基材 `item_c.block` + 词缀 `block`**（★ u52block 片补齐基材那一环）。
+        ///       职业项 = `class_c.block_factor`（官方 `charstats.BlockFactor`，列 32；classcols 片起读表）、
+        ///       **装备项 = 盾牌基材 `item_c.block` + 词缀 `block`**（u52block 片补齐基材那一环）。
         ///       详见 <see cref="ComputeBlockChance"/>。</item>
         /// <item>抗性：装备词缀求和，夹在 [-100, 75]（原版普通难度上限 75）。</item>
         /// </list>
@@ -314,15 +306,13 @@ namespace Diablo2.Module.Player
             var stamPerVit = row != null ? row.StamPerVit : 0f;
             var stamPerLvl = row != null ? row.StamPerLvl : 0f;
 
-            // ★★ U3 修（真根因）：起始值必须走**官方起始口径**，不是"起始四维 × 成长系数" ——
             //   官方：生命 = hpadd + 起始体力（亚马逊 30+20 = **50**）、法力 = 起始精力（**15**）、
             //   耐力 = `charstats.stamina`（**84**）。旧式 `vit × life_per_vit` 给出 60/22/20
             //   （实机 `playercheck` 与属性面板都显示这三个错值）。公式与出处逐条见
-            //   `MaxLifeOf/MaxManaOf/MaxStaminaOf` 上方的 §U3 注释块；成长系数（每级/每点）**未改**
             //   —— 它们本来就与官方一致，错的只有**截距**。
             var startVit = row != null ? row.Vit : 0;
             var startEng = row != null ? row.Eng : 0;
-            // ★ classcols 片：起始截距与职业格挡系数一律**读表**（`class_c.hp_add` / `base_stamina`
+            // classcols 片：起始截距与职业格挡系数一律**读表**（`class_c.hp_add` / `base_stamina`
             //   / `block_factor`），代码里不再有第二份真值。
             var hpAdd = row != null ? row.HpAdd : 0;
             var baseStamina = row != null ? row.BaseStamina : 0;
@@ -344,7 +334,6 @@ namespace Diablo2.Module.Player
         /// <summary>
         /// 格挡率（%，[0,75]）。**有盾才有格挡**（<paramref name="hasShield"/>）。
         /// <para>**公式出处**（Arreat Summit「Basics: Character Information → Blocking」，
-        /// `https://classic.battle.net/diablo2exp/basics/characters.shtml`，2026-09-24 实取）：
         /// <c>Total Blocking = (Blocking * (Dexterity - 15)) / (Character Level * 2)</c>，
         /// 其中 <c>Blocking</c> = "a value inherent to that particular player class"（职业固有值）
         /// + "any other block bonuses from items"（装备项之和），且该值 <c>capped at 75%</c>。</para>
@@ -354,10 +343,9 @@ namespace Diablo2.Module.Player
         /// `toblock`，见 `Properties.txt:18` / `ItemStatCost.txt:22`）。
         /// 整数除法与钳制口径与官方一致（钳的是**最终百分比**；本工程数据域内 Blocking ≤ 75
         /// ⇒ "钳 Blocking"与"钳结果"两种读法等价）。</para>
-        /// <para>⛔ 没有盾 ⇒ 恒 0%（官方：无盾/无死灵头骨时角色屏**不显示**格挡率这一行）：
+        /// <para>没有盾 ⇒ 恒 0%（官方：无盾/无死灵头骨时角色屏**不显示**格挡率这一行）：
         /// 职业 <c>BlockFactor</c> **不单独**产生格挡率（否则 1 级徒手亚马逊会算出
-        /// (25−15)×25/2 = 125% ⇒ 钳成 75%，而官方 1 级徒手 = 0%，见 `playercheck` §1 的 DumpStats 行）。
-        /// ⚠️ 闸门判的是"**有没有盾**"，不是"装备格挡值是否 &gt; 0" —— 官方 `Buckler` 的 `block = 0`
+        /// 闸门判的是"**有没有盾**"，不是"装备格挡值是否 &gt; 0" —— 官方 `Buckler` 的 `block = 0`
         /// 但照样格挡（详见 <see cref="HasShield"/> 的注释）。</para>
         /// </summary>
         public static int ComputeBlockChance(bool hasShield, int dex, int toBlock, int classBlockFactor, int level)
@@ -436,16 +424,12 @@ namespace Diablo2.Module.Player
                     ArmorClass += (item.defMin + item.defMax) / 2;
                 }
 
-                // ★ u52block（R6）根因：**盾牌基材**的格挡值从来没进过 `BonusBlock`
-                //   —— 旧版只有词缀 `block`（官方 `toblock`）进得来，而盾牌本身的 `block` 丢在配表里
-                //   ⇒ 「装了盾格挡仍是 0%」。
                 //   出处：`原版资源/d2lod1.10txt-1.10f/data/global/excel/Armor.txt` 第 11 列 `block`
                 //        （表头 :1；盾牌行 :24..204，逐行核过全目录只有 `shie`/`ashd`/`head` 三类非 0）
                 //        → 打表链 `tools/table-convert/convert.py` 的 `s.col("block", …)`（Armor.txt `block`）
                 //        → `client/Assets/Scripts/Table/Base/BaseItem.cs:33 public int Block`
                 //        → `策划/数值文档/item_c.txt` 第 22 列。
                 //   为什么回表取而不是读 `ItemStack`：`ItemStack`（`Module/Contracts.cs`，契约文件）里
-                //   没有这一格，本片⛔ 不改契约 ⇒ 按 `itemId` 回 `item_c` 取基材值。
                 var baseRow = Table.TableLoader.Item(item.itemId);
                 if (baseRow == null)
                 {
@@ -545,7 +529,6 @@ namespace Diablo2.Module.Player
                 case "res-cold": BonusResCold += value; return;
                 case "res-ltng": BonusResLight += value; return;
                 case "res-pois": BonusResPoison += value; return;
-                // ★ 片 16（E27）：官方 `res-magic`（魔法抗性）。⚠️ 本条**不顺手改** `res-all` 的语义 ——
                 //   原版 `res-all` 是否含魔法抗性，本项目**没有出处** ⇒ 保持旧的 4 元素口径不动。
                 case "res-magic": BonusResMagic += value; return;
                 case "res-all":

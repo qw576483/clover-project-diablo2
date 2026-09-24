@@ -12,21 +12,18 @@
 //          （生成物，禁止手改）。
 //
 // 尺寸：**生成物与契约常量同值 = 原版关卡尺寸 56×40**。
-//   上一版只取 `TownW1` 的营地本体并裁成 32×32 ⇒ **营地外的河被裁掉了**（只剩 1 列）；
-//   agent-41 改成"整关"，agent-42 按主 agent 裁决把 `GameConst.TownWidth/TownHeight`
-//   一并同步为 56/40 ⇒ 这里**不再有尺寸漂移**，两者不一致时直接报错拒绝生成（不静默）。
+// 上一版只取 `TownW1` 的营地本体并裁成 32×32 ⇒ **营地外的河被裁掉了**（只剩 1 列）。
 //
-// ★ 木桥：河上那一座桥只有原版 `TownE1.ds1` 有（`OUTDOORS/bridge.dt1`）。生成器给桥
+// 木桥：河上那一座桥只有原版 `TownE1.ds1` 有（`OUTDOORS/bridge.dt1`）。生成器给桥
 //   单开了一条规则（桥面可走 / 栏杆阻挡），所以本生成器铺出来的图里河是**可以走过去的**
 //   —— 见 `MapGenTownLayout.Rows` 第 20/22 行的 `dddddddddd`。
 //
-// ★ 片 4（窗口原点）：关卡窗口**不再**取参考块的本地 [0,0)，而是「营地本体 39 列 + 出城口
 //   外面 17 列」= 56 列（行同理：营地南围栏那行就是关卡南边界）。依据见生成器
 //   `tools/d2codec/export_town_layout.py` 的 `WIN_X0/WIN_Y0` 注释。**效果**：出城口
 //   （现在是内陆格 `(17,26..28)`）西边 17 列是"出城口外面那片地"（原版瓦片）⇒ 不再出现
 //   "出口外面一片黑"（旧口径下地图西边界正好压在营地西围栏上，出城口就在地图边界上）。
 //
-// ⛔ 布局是**固定**的 ⇒ 不使用 `rng`（保留参数只为与其它生成器**签名一致**，
+// 布局是**固定**的 ⇒ 不使用 `rng`（保留参数只为与其它生成器**签名一致**，
 //    这样 `MapModule` 可以用同一段重试逻辑驱动三个区域）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -45,7 +42,6 @@ namespace Diablo2.Module.Map
     /// <summary>
     /// 罗格营地的**传送点交互锚点**（关卡格 = 原版 DS1 的预设单位坐标换算而来的**关卡坐标**）。
     /// <para>
-    /// ★ 片 g1-resume 新增（修用户报的「传送点没效果」；验收表 S-40）。出处逐条：
     /// </para>
     /// <list type="number">
     /// <item>`Levels.txt`「Act 1 - Town」的 `Waypoint` 列 = **0**（= 本关有传送点，编号 0；
@@ -62,11 +58,9 @@ namespace Diablo2.Module.Map
     ///   —— 四块给出同一个关卡格 ⇒ 它是**关卡级的标记单位**（不是某一块的装饰）。</item>
     /// </list>
     /// <para>
-    /// ⚠️ **已登记的差异（未决项，见本轮报告）**：该预设单位在 `Objects.txt` 里的行名是
     /// `not used`（Id=110 / Token=n5）—— 这是原版美术在 DS1 里留的**占位单位**，引擎在运行时
     /// 用 Id=119 的 Waypoint 替换它；而**世界里的传送点本体艺术**（`data/global/objects/wp/*.dc6`）
     /// 本工程没有解包（`原版资源/d2dc6` 里只有物品图标 `invwpl/invwps.DC6`）。
-    /// 因此本片**只用它做交互锚点**，不新增任何自创贴图；视觉差异已登记到报告里等主 agent 裁决。
     /// </para>
     /// </summary>
     public static readonly Vector2Int Waypoint = new Vector2Int(31, 26);
@@ -172,57 +166,37 @@ namespace Diablo2.Module.Map
                             "几格在原版里没有瓦片，渲染层不会画任何东西");
             }
 
-            // ★ 片 map-border：**边界环封闭**（可走区离四边界 ≥ `GridMap.BorderRingCells` 格）。
             //   出处同 `GridMap.BorderRingCells`：原版 `LvlPrest` 边界块边长 8 > 相机实测可见格半跨 7.083。
             //   营地外圈的树线/围栏在原版就是不可走的边界 ⇒ 封掉它既不缩水也不露虚空。
-            // ⛔ 片 map-border2（接力片）结论：**城镇不能走 `SealBorderRing`** —— 实测证据（见
             //   `.ai-tmp/test/report-mapborder2.md`）：
             //   ① 城镇关卡 56×40 是**原版 `Levels.txt`「Act 1 - Town」的整关**（= 营地本体 39 列
-            //      + 出城口外 17 列，见本文件头片 4 注释），营地**围栏那一行就是关卡的最后一行**
-            //      ⇒ 营地内部格（如 NPC 基德 (22,33)）离边界只有 6 格、紧贴围栏的格只有 1 格；
             //   ② 封 8 格边界环 ⇒ (22,33) 被埋成树 ⇒ 必需可达目标不可达 ⇒ 连通性自检失败 ⇒
             //      `MapModule` 换 seed 重试（本图是**固定布局**，8 次全败）⇒ 落保底布局
-            //      ⇒ mapcheck §10/§14/§15/§24 等 **16 项既有判据连带变红**（实测：47 项失败）；
-            //   ③ 而 §31 要求的"所有可走格距边界 ≥ 8"与 §24 的**冻结判据**「关卡东边界列
             //      （x=Width-1）上存在可走桥面格」（原版木桥东端 = 与野外的共享边列，玩家从那里
             //      过桥进野外）在数学上互斥：x=Width-1 的可走格距边界恒 = 0。
-            //   ⇒ 本片**不改动城镇封环**，把冲突交主 agent 裁决（选项：① 城镇豁免 §31；
-            //     ② 城镇关卡扩为 56+2×8 × 40+2×8 并整体内移，同时 §24 / NPC 坐标 / 传送点
             //     (31,26) / 河东岸 (54,27) / 西北角 30 格 Void 等**绝对坐标判据**一并改为
-            //     "布局坐标系"，那是契约级改动）。野外与洞穴两侧已封环（§31 全绿）。
-            // ★ 片 map-border2 第二轮（主 agent **二次裁决 2026-09-23：A′ 做 / A″ 保留差异**）：
             //   A′：把**营地外**的边界带（距任一地图边 < `BorderRingCells` **且**位于营地内框之外
             //       的可走格）封成**原版树线**（物件键取自布局表自身的 't' 格 = 原版 `town_trees` 瓦片；
-            //       ⛔ 不新增素材、⛔ 不用纯色块）。为什么只封营地外：
-            //       · 实测（`mapcheck §32`）"过了生产相机夹制仍露地图外"的 310 格里，**营地外 157 格**
+            //       不新增素材、不用纯色块）。为什么只封营地外：
             //         是普通可行走草地（`TileKind.Grass` + `town_floor/028`）—— 原版 Rogue Encampment
-            //         外围不长这样 ⇒ 这 157 格属**生成缺陷**（玩家能从出生点一路走出去）；
             //         封掉之后 `CameraBounds` 的角格回退（"让位给主角可见"，`CameraBounds.cs:31`）
             //         才有东西可遮。
             //       · **营地内框那 153 格**（贴围栏内沿）**不封**：封它就得裁原版营地本体
-            //         （会埋掉 NPC 基德 (22,33)），且 §24 的东边界接缝桥面格恒在 `x=Width-1`
-            //         ⇒ 保留为**已登记差异**（`策划/差异登记.tsv` E57）。
-            //   ⛔ 封环**必须跳过**这些格（否则连锁变红）：`map.Exits`（围栏西侧 3 格出城口）、
-            //      桥面/deck（§24 冻结判据：`x=Width-1` 上必须有可走桥面格）、
+            //   封环**必须跳过**这些格（否则连锁变红）：`map.Exits`（围栏西侧 3 格出城口）、
             //      `RequiredReachable`（NPC / 传送点 / 出生点）。
             // （A′ 的实际封环调用放在下面 `RequiredReachable` 填好之后 —— 封环要按
             //   「必需可达目标」做保护，早调会看不到那份清单。）
 
-            // ★ 片 M3 说明（为什么这里**不**动 `map.Exits`）：
             //   原版城镇关卡的**东边界列与野外第 0 列是同一条「共享边列」**（出处
             //   `libd2/.../drlg/outdoors/OutRoom.zig:271`；本仓库 `tools/d2codec/export_town_layout.py`
             //   文件头 line 98-106 已逐条复核）⇒ 原版「过桥向东 = 进入野外」。
-            //   但这条接缝**不写进 `map.Exits`**：`mapcheck` §10 的既有判据「城镇出口恰 3 格
-            //   （= 围栏西侧 `warp.dt1` 的 3 格缺口）」是**已冻结的判据**，⛔ 不许为了新功能放宽它
-            //   （片 M3 约束 = 只加断言、别改判据）。⇒ 接缝改在**触发侧**判定，判据唯一出处 =
-            //   `Module/Map/MapSeam.IsTownEastSeam`（纯函数；`mapcheck §24` 与 `movecheck §9` 都已断言）。
+            //   （= 围栏西侧 `warp.dt1` 的 3 格缺口）」是**已冻结的判据**，不许为了新功能放宽它
 
             // ② 出生点 / NPC 站位：由生成器在原版布局上算好（出生点 8 邻全可走；NPC 全在可达区）
             map.SpawnPoint = MapGenTownLayout.Spawn;
             for (var i = 0; i < MapGenTownLayout.Npcs.Length; i++) map.NpcPoints.Add(MapGenTownLayout.Npcs[i]);
 
-            // ★ 片 g1-resume：传送点交互锚点（出处见 `MapGenTown.Waypoint` 的注释）。
-            //   ⛔ 不新增任何贴图：原版世界里那座传送台的本体艺术本工程未解包（见该常量的注释）。
+            //   不新增任何贴图：原版世界里那座传送台的本体艺术本工程未解包（见该常量的注释）。
             //   硬要求：锚点必须**可走且在围栏内**（否则玩家走不到 / 点不到）——不合格就点名报错，
             //   而不是静默地登记一个点不到的位置。
             map.WaypointPoints.Add(Waypoint);
@@ -237,20 +211,13 @@ namespace Diablo2.Module.Map
             map.RequiredReachable.AddRange(map.NpcPoints);
             map.RequiredReachable.AddRange(map.WaypointPoints);
 
-            // ★ 片 map-border2 第二轮（主 agent **二次裁决 2026-09-23：A′ 做 / A″ 保留差异**）：
             //   A′：把**营地外**的边界带（距任一地图边 < `BorderRingCells` **且**位于营地内框之外
             //       的可走格）封成**原版树线**（物件键取自布局表自身的 't' 格 = 原版 `town_trees` 瓦片；
-            //       ⛔ 不新增素材、⛔ 不用纯色块、⛔ 不缩地图）。为什么只封营地外：
-            //       · 实测（`mapcheck §32`）"过了生产相机夹制仍露地图外"的 310 格里，**营地外 157 格**
+            //       不新增素材、不用纯色块、不缩地图）。为什么只封营地外：
             //         是普通可行走草地（`TileKind.Grass` + `town_floor/028`）—— 原版 Rogue Encampment
-            //         外围不长这样 ⇒ 这 157 格属**生成缺陷**（玩家能从出生点一路走出去）；
             //         封掉之后 `CameraBounds` 的角格回退（"让位给主角可见"，`CameraBounds.cs:31`）
             //         才有东西可遮。
             //       · **营地内框那 153 格**（贴围栏内沿）**不封**：封它就得裁原版营地本体
-            //         （会埋掉 NPC 基德 (22,33)），且 §24 的东边界接缝桥面格恒在 `x=Width-1`
-            //         ⇒ 属**已登记差异**（`策划/差异登记.tsv` E57）。
-            //   ⛔ 封环必须放过：`map.Exits`（围栏西侧 3 格出城口）、`map.IsDeck`（§24 要求
-            //      `x=Width-1` 上有可走桥面格）、`RequiredReachable`（NPC / 传送点 / 出生点）。
             var sealedCells = SealOutOfCampBorderBand(map);
             MapLog.Info($"MapGenTown: 边界环封闭 {sealedCells} 格（**仅营地外**；n={GridMap.BorderRingCells}，" +
                         $"用原版 `town_trees` 瓦片 ⇒ 不新增素材）⇒ 营地外可走区离四边界恒 ≥ " +
@@ -275,13 +242,12 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ 片 map-border2 第二轮（裁决 A′）：把**营地外**的边界带封成原版树线。
         /// <para>封哪些格：可走 **且** 距任一地图边 &lt; <see cref="GridMap.BorderRingCells"/> **且**
         /// **不在营地内框**（`x∈(17,47) × y∈(16,39)`，口径同 `mapcheck §10/§32` 的 campInterior）。</para>
-        /// <para>⛔ 跳过（否则连锁变红，见调用点注释）：`map.Exits` / `map.IsDeck`（§24）/
+        /// <para>跳过（否则连锁变红，见调用点注释）：`map.Exits` / `map.IsDeck`（§24）/
         /// `map.RequiredReachable`（NPC / 传送点 / 出生点）。</para>
         /// <para>地形 = <see cref="TileKind.Tree"/>；**物件键**取布局表自身 't' 格的**原版**物件键
-        /// （轮换），**地面键保持原样**（草地）⇒ 与原版树线格一个样子；⛔ 不新增素材、⛔ 不用纯色块。</para>
+        /// （轮换），**地面键保持原样**（草地）⇒ 与原版树线格一个样子；不新增素材、不用纯色块。</para>
         /// </summary>
         /// <returns>实际封掉的格数。</returns>
         private static int SealOutOfCampBorderBand(GridMap map)
@@ -324,7 +290,6 @@ namespace Diablo2.Module.Map
             return sealedCount;
         }
 
-        /// <summary>营地**内框**（围栏环以内；口径同 `mapcheck §10/§32` 的 campInterior）。</summary>
         private static bool IsCampInterior(Vector2Int g) => g.x > 17 && g.x < 47 && g.y > 16 && g.y < 39;
 
         /// <summary>封边界带时必须放过的格（放过原因见 <see cref="SealOutOfCampBorderBand"/>）。</summary>
@@ -386,14 +351,11 @@ namespace Diablo2.Module.Map
                 case 'w': return TileKind.Wall;    // 兼容别名（旧生成物用过）
                 case 't': return TileKind.Tree;
                 case 's': return TileKind.Rock;    // 营地内的石矮墙（原版 wall 层的 stonewall.dt1）
-                // ★ 片 L / R12：水 = **独立 `TileKind.Water`**（原版 river.dt1 的水面）。
-                //   此前与水边的石头同归 `Rock` ⇒ 光标 / 小地图 / tooltip 无法把"水"与"石头"分开。
-                //   ⛔ 不许把水改成可走（原版不可涉水）：可走性仍是 `false`（`TileKindInfo.IsWalkable`）。
+                //   不许把水改成可走（原版不可涉水）：可走性仍是 `false`（`TileKindInfo.IsWalkable`）。
                 case 'r': return TileKind.Water;   // 水（河/水塘，原版 river.dt1）—— 不可涉水
                 case 'x': return TileKind.Exit;
-                // ★ 片 4：'v' = 原版**四块都没有瓦片**的格（实测只有西北角 3×10 一块）。
                 //    原版那几格什么都不画、也没有 walk 标志 ⇒ 不画 + 不可走（= TileKind.Void）。
-                //    ⛔ 不许当草地（当草地会变成"可走的隐形格"，玩家能走到纯黑背景上去）。
+                //    不许当草地（当草地会变成"可走的隐形格"，玩家能走到纯黑背景上去）。
                 case 'v': return TileKind.Void;
                 default:
                     // 非预期：生成物里出现了没登记的分类字符 ⇒ 留痕，并按草地处理（不静默）

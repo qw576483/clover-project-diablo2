@@ -6,10 +6,8 @@
 //   · 登记表自检：`SfxRegistry` 无重复键；`Module/Combat/SfxKeys.cs` 的**每个键都已登记**；
 //   · 触发点覆盖：逐个 Emit 事件 → 断言 `Game.Sound` 收到**期望的音效键**（贴映射表）；
 //   · 脚步节流：模拟移动 2 秒 → 脚步请求次数 = 2/间隔（间隔由 `AudioHook.FootstepIntervalSeconds`
-//     = 每步 2 格 ÷ `GameConst.PlayerWalkSpeed` 算出，⛔ 不写死数字；片 2b 起走速 3.0 ⇒ 间隔 0.667s）；
 //   · 静止不发声：不移动时 0 次脚步；
 //   · 缺文件只报一次：连续请求同一个不存在的键 100 次 → 「文件缺失」告警**恰好 1 条**、
-//     引擎**零调用**；存在性接缝**每次请求都被问**（★ 片 d2-audio2：⛔ 无自维护"已探测"表 ——
 //     「不重复读盘」由引擎 `ResourceManager.Exists` 的按路径缓存承担，`Sound` 侧另有
 //     `LogThrottle.WarnOnce` 兜底）；
 //   · 音量持久化：`SetVolume` → `Game.Setting` 有值 → **重建模块**后读回一致；
@@ -133,8 +131,6 @@ namespace AudioCheck
             => callback?.Invoke(null);
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
 
-        // ★ agent-34（引擎下沉 A3）：引擎新增的两个**同步**入口 —— 本替身"永远取不到"，
-        //   于是 `ClientConfig` 走它的引擎分支时拿到空数组、照旧退回文件 / 默认值（离线可复现）。
         public bool Exists(string path) => false;
         public T[] LoadAll<T>(string path) where T : UnityEngine.Object => Array.Empty<T>();
     }
@@ -250,7 +246,6 @@ namespace AudioCheck
             Section("BGM 切区域");
             BgmChecks(bus, sound, audio);
 
-            // ★ 片 C4：接收侧节流闸门 + 发送侧出口闩锁（两条新判据；⛔ 上面各节的判据一条未改）
             Section("片 C4 · 出口触发闩锁（发送侧去重：同一出口/接缝只在进入时发一次）");
             ExitLatchChecks();
 
@@ -278,10 +273,9 @@ namespace AudioCheck
                 "lines=" + logger.CountWarn("Audio", "音效文件缺失"));
             Check("缺失键**没有**重复调用引擎（100 次请求 → 0 次 PlaySFX）",
                 sound.Sfx2D.Count == 0, "PlaySFX 次数=" + sound.Sfx2D.Count);
-            // ★ 片 d2-audio2（d2-audio 的收尾）：旧判据「缺失键**只探测一次**」已随 `_probedSfx/_probedBgm`
             //   两张自维护表一起过期 —— `AudioModule` 不再自缓存"问过没"，而是每次请求都问一次存在性接缝；
             //   「不重复读盘」改由**引擎** `ResourceManager.Exists` 的按路径缓存（`_existsCache`）保证。
-            //   ⇒ ⛔ 不是把这条删掉，而是换成下面四条**等强度**的真判据（含口径 5 要的「只出 1 行」）。
+            //   ⇒ 不是把这条删掉，而是换成下面四条**等强度**的真判据（含口径 5 要的「只出 1 行」）。
             var hitPath = ResPaths.Sfx(Diablo2.Module.Combat.SfxKeys.Hit);
             var hitProbes = probeMissing.CallCount(hitPath);
             Check("缺失键不再自维护探测缓存：100 次请求 ⇒ 接缝被问 100 次（旧口径 1；缓存责任已交引擎）",
@@ -307,7 +301,7 @@ namespace AudioCheck
             var resCs = repoRoot == null ? "" : Path.Combine(
                 repoRoot, "..", "clover-client-unity-engine", "Runtime", "Resource", "ResourceManager.cs");
             var resTxt = resCs.Length > 0 && File.Exists(resCs) ? File.ReadAllText(resCs) : "";
-            // ⚠️ 只在**去掉注释**后的代码上判——文件头注释要说明"原实现是 `LoadAsset`"，那是合法的
+            // 只在**去掉注释**后的代码上判——文件头注释要说明"原实现是 `LoadAsset`"，那是合法的
             //   （与上面 `_missingSfx` 同一条口径：注释提到旧名字不算，代码式才算）。
             Func<string, string> codeOnly = s =>
             {
@@ -516,7 +510,6 @@ namespace AudioCheck
             Check("进图未收到过 AreaChanged ⇒ 按 Town 起 BGM", sound.LastBgm() == SfxRegistry.BgmTown, sound.LastBgm());
 
             // 空载荷 / 空键：不得抛异常
-            // ★ 片 assert-audit：原为硬编码 `true` ⇒ 等于没判。改成**真的判两件事**：
             //   ① 抛没抛（异常会被下面 catch 记下）；② 空键是否真的走了 Warn 降级分支（日志里有那句）。
             string emptyThrew = null;
             try
@@ -552,10 +545,9 @@ namespace AudioCheck
                 Math.Abs(interval - 2f / GameConst.PlayerWalkSpeed) < 1e-6,
                 $"{interval:0.000}s = 2 格 / {GameConst.PlayerWalkSpeed} 格每秒");
 
-            // ★ 片 Y（R3）：脚步口径 = **按走过的格数**累计（每步格数由常量算出，⛔ 不写死 2）——
             //   修前是"只在格变化那一帧按 dt 累加、其余帧清零" ⇒ 每换一格只累加 ≈1 帧时间
             //   ⇒ 数学上永远到不了阈值 ⇒ 实机 `footstep` 播放 0 次（审计 D 的 R3）。
-            //   ⛔ 这里不再按"模拟 N 秒"断言（那是旧口径），改成按**走过的格数**断言。
+            //   这里不再按"模拟 N 秒"断言（那是旧口径），改成按**走过的格数**断言。
             var tilesPerStep = AudioHook.FootstepIntervalSeconds * GameConst.PlayerWalkSpeed;   // = 每步格数
             sound.Clear();
             bus.Emit(Events.PlayerGridChanged, new Vector2Int(0, 0));      // 首帧：只记位，不计距离
@@ -574,7 +566,7 @@ namespace AudioCheck
                 sound.Sfx3D.Count == steps && sound.Sfx2D.Count == 0,
                 $"3D={sound.Sfx3D.Count} 2D={sound.Sfx2D.Count}");
 
-            // ★ 帧率无关：再走同样 60 格、但帧长取 0（极端低帧率）⇒ 步数必须**一样**
+            // 帧率无关：再走同样 60 格、但帧长取 0（极端低帧率）⇒ 步数必须**一样**
             //   （口径是"走过的格数"，不是"每帧累加 dt" —— 修前正是后者导致永远触发不了）
             sound.Clear();
             for (var i = walkTiles + 1; i <= walkTiles * 2; i++)
@@ -601,7 +593,6 @@ namespace AudioCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ 片 C4：出口触发闩锁（发送侧去重）—— 判据的唯一出处 = `Module/Map/ExitLatch`
         //   用的是**生产同一个类型**（`PlayerModule.CheckExit` 调的就是它），不是宿主里另写一份模拟。
         // ═════════════════════════════════════════════════════════════════════
         private static void ExitLatchChecks()
@@ -616,13 +607,12 @@ namespace AudioCheck
                 fired == 1, $"60 帧判定 ⇒ 发出 {fired} 次");
 
             // ② 沿出口列/东边接缝**逐格挪动**（每帧一个新格，从未离开出口区）⇒ 仍只 1 次
-            //    （旧口径 `_lastExitGrid` 在这里会每格各发一次 = 同一族缺陷）
             fired = 0;
             for (var y = 11; y <= 70; y++) if (latch.ShouldEmit(true, new Vector2Int(55, y))) fired++;
             Check("沿出口/接缝逐格走 60 格（每帧换格，始终在出口区）⇒ 仍只 1 次（旧口径会发 60 次）",
                 fired == 0, $"逐格 60 次判定 ⇒ 又发出 {fired} 次（首格那次已在上一项里发掉）");
 
-            // ③ 离开出口格 ⇒ 重新武装 ⇒ 再进入可再发 1 次（⛔ 不许把出口"闩死"导致角色卡住）
+            // ③ 离开出口格 ⇒ 重新武装 ⇒ 再进入可再发 1 次（不许把出口"闩死"导致角色卡住）
             var left = latch.ShouldEmit(false, new Vector2Int(54, 10));
             fired = 0;
             for (var i = 0; i < 3; i++) if (latch.ShouldEmit(true, cell)) fired++;
@@ -645,7 +635,6 @@ namespace AudioCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ 片 C4：接收侧节流（`SfxThrottle`，闸门挂在 `AudioModule` 的唯一播放出口上）
         //   时钟由宿主注入（纯 .NET 进程读不到 Unity 时钟）⇒ 逐毫秒可控、可复现。
         // ═════════════════════════════════════════════════════════════════════
         private static void SfxThrottleChecks(RecSound sound, AudioModule audio, CountingLogger logger)
@@ -697,7 +686,6 @@ namespace AudioCheck
             logger.Clear();
         }
 
-        /// <summary>统计录音里某个键出现次数（本片 C4 新增的小工具）。</summary>
         private static int Count(List<string> played, string key)
         {
             var n = 0;
@@ -749,8 +737,6 @@ namespace AudioCheck
             var missing = AudioLog.MissingWarnCount;
             var calls = probe.CallCount(ResPaths.Bgm(SfxRegistry.BgmTown));
             probe.Available = true;
-            // ★ 片 d2-audio2（与上面 SFX 那条同一个口径）：`_probedBgm/_missingBgm` 自维护表已删
-            //   ⇒ 50 次请求**每次都问**一次存在性接缝（旧口径 `calls == 1` 已过期）；
             //   「不重复读盘」由引擎 `ResourceManager.Exists` 的按路径缓存兜。「只报一次」仍是 `missing == 1`。
             return missing == 1 && calls == 50;
         }
@@ -803,7 +789,6 @@ namespace AudioCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 片 monster-audio · 怪物音效挂载核对
         //
         // 判据（**只判"已挂载的键仍然在位"**，缺的键是**登记项**、不当 FAIL）：
         //   ① 怪物音效三键（`monster_attack` / `monster_die` / `monster_revive`）
@@ -814,7 +799,7 @@ namespace AudioCheck
         // 出处：怪物类别 = `MonsterSpawner` 的 AI 映射表（`MonStats.Code`）；
         //       逐类音效条目名 = `原版资源/d2lod1.10txt-1.10f/data/global/excel/MonSounds.txt`
         //       （`Attack1` / `HitSound` / `DeathSound` / `Footstep` 四列）。
-        // ⛔ 只加断言，既有各节的判据一条未改。
+        // 只加断言，既有各节的判据一条未改。
         // ═════════════════════════════════════════════════════════════════════
         private static void MonsterAudioMountChecks()
         {
@@ -890,7 +875,6 @@ namespace AudioCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 素材溯源（本片新增）：台账 = tools/probes/mpq/sfx-provenance.tsv
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -939,9 +923,7 @@ namespace AudioCheck
                 rows.Add(r);
             }
 
-            // ★ 片 monster-audio：**唯一一处被改动的既有判据**（原字面量 `== 24`，登记表已由
             //   24 键增到 54 键 ⇒ 字面量过时）。改成**关系式** `rows.Count == AllSfxKeys.Count`
-            //   后判据变**更强**（原来只验"恰好 24"，现在验"与登记表一一对应"），⛔ 不是放宽。
             Check($"台账行数 == 登记表的 SFX 键数（{SfxRegistry.AllSfxKeys.Count} 个，一个不多一个不少）",
                 rows.Count == SfxRegistry.AllSfxKeys.Count,
                 "rows=" + rows.Count + " 登记表=" + SfxRegistry.AllSfxKeys.Count);
@@ -1009,7 +991,6 @@ namespace AudioCheck
             if (File.Exists(mpq))
             {
                 var text = File.Exists(vlog) ? File.ReadAllText(vlog) : "";
-                // ★ 片 monster-audio：原字面量 `24/24` 随登记表增长过时 ⇒ 改成按**台账实际行数**
                 //   拼期望串（判据更强：日志里的比值必须与台账行数对得上）。
                 var want = "sfx_sha256_match=" + rows.Count + "/" + rows.Count;
                 Check($"② mpq 在盘 ⇒ 真包深比对须已跑且 PASS（.ai-tmp/test/sfx-verify.log: RESULT=PASS {want}）",
@@ -1049,10 +1030,9 @@ namespace AudioCheck
             var modCs = Path.Combine(repo, "client", "Assets", "Scripts", "Module", "Audio", "AudioModule.cs");
             var logTxt = File.Exists(logCs) ? File.ReadAllText(logCs) : "";
             var modTxt = File.Exists(modCs) ? File.ReadAllText(modCs) : "";
-            // ★ 片 d2-audio2：旧断言找的是 `_missingSfx.Contains(key)` —— 那张**自维护表**已在
-            //   d2-audio 落盘时删除（见 AudioModule.cs 文件头 ★ 段）⇒ 改指**新落点**：
+            //   d2-audio 落盘时删除（见 AudioModule.cs 文件头 段）⇒ 改指**新落点**：
             //   存在性问接缝（`probe.Probe(path, ok => …)`）+ 日志层 `AudioLog.MissingSfx` 负责告警，
-            //   并断言那 8 个**调用式**自维护表不再出现（⛔ 只查 `.Contains(` / `.Add(` 形式 ——
+            //   并断言那 8 个**调用式**自维护表不再出现（只查 `.Contains(` / `.Add(` 形式 ——
             //   文件头注释里作为"已删清单"提到表名是允许的；`_missingSfx.Contains(key)` 这种代码式才是判据）。
             var obsoleteSelfTables = new[]
             {
@@ -1077,9 +1057,8 @@ namespace AudioCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // BGM 溯源（本片新增）：台账 = tools/probes/mpq/bgm-provenance.tsv
         // 台账由 `tools/probes/mpq/bgm_provenance.py` 用**真实 D2music.mpq** 生成（345,223,076 B）。
-        // ⛔ mpq 未取回时该文件不存在 ⇒ ② 是**未判定**（红），⛔ 不许当绿（见 bgm_provenance.py 的 PENDING）。
+        // mpq 未取回时该文件不存在 ⇒ ② 是**未判定**（红），不许当绿（见 bgm_provenance.py 的 PENDING）。
         // ═════════════════════════════════════════════════════════════════════
 
         private static void BgmProvenanceChecks()
@@ -1254,7 +1233,7 @@ namespace AudioCheck
         /// BGM 键的**活调用点**（与 `bgm_provenance.py::scan_triggers` 同口径）：
         /// ① `SfxRegistry.cs` 的 `case AreaId.&lt;X&gt;: return &lt;Ident&gt;;`（区域→键 的唯一映射点）；
         /// ② `AudioHook.cs` 的 `PlayAreaBgm()` / `SfxRegistry.BgmKeyOf(` / `_audio.Bgm(key)`（消费链）。
-        /// ⛔ 整行注释不算引用。
+        /// 整行注释不算引用。
         /// </summary>
         private static List<string> BgmSitesFor(string repo, string key)
         {
@@ -1382,7 +1361,6 @@ namespace AudioCheck
                 case "portal": return "Portal";
                 case "area_enter": return "AreaEnter";
                 case "quest_complete": return "QuestComplete";
-                // ★ 片 monster-audio：逐类怪物键的 C# 常量标识符
                 // （与 `tools/probes/mpq/sfx_provenance.py` 的 IDENT 表同口径；调用点在
                 //   `Module/Monster/MonsterSfx.cs`（解析表）+ `DamagePipeline` / `MonsterModule`）
                 case "monster_hit_fa": return "MonsterHitFa";

@@ -37,9 +37,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))   # <项目根>
 SPEC = os.path.join(ROOT, "\u7b56\u5212", "\u9a8c\u6536\u8868.md")   # 策划/验收表.md
 OUTDIR = os.path.join(HERE, "numeric_refs")
 
-# 首批 13 个「数值类」行（2026-09-23 早先那一片）
 ROWS = [5, 8, 17, 18, 19, 20, 21, 22, 24, 31, 35, 41, 46]
-# 2026-09-23 gate-close2 追加：闸门第 28 项 `coverage-acceptance` 报这 4 行「cite no on-disk path」、
 # 第 37 项 `numeric-log-only` 报这 4 行「cite no on-disk artifact at all」——两者同源：
 # 这 4 行的证据格只写了 `.ai-tmp/test/*.txt`，既不落进第 28 项的行级四选一正
 # （`.ai-tmp/screenshots/` | `tools/probes/` | `策划/` | `w1_host_*.txt`），也没有 `png/tsv/csv/json` 结尾的产物。
@@ -54,21 +52,18 @@ MAX_PER_SNIPPET = 10
 MAX_CHECKS_PER_SOURCE = 60
 NUMRE = re.compile(r"-?\d+(?:\.\d+)?")
 CITEDRE = re.compile(r"(\.ai-tmp/screenshots/w1_host_[A-Za-z0-9_]+\.txt)")
-# 2026-09-23 gate-close2：第 52/53/54/57 行的读数挂在 `.ai-tmp/test/*.txt`（离线宿主/探针的输出）。
 # 老 CITEDRE 只认 `w1_host_*.txt` ⇒ 这 4 行抽不到任何 source。追加一个「本仓 `.ai-tmp/test/` 下的 .txt」模式，
-# 口径与老的完全一致（**只取该行已引用、且在盘的产物**），⛔ 不新造数值、⛔ 不把不在盘的引用当 source。
+# 口径与老的完全一致（**只取该行已引用、且在盘的产物**），不新造数值、不把不在盘的引用当 source。
 CITEDRE_LOCAL = re.compile(r"(\.ai-tmp/test/[A-Za-z0-9_\-]+\.txt)")
-# 2026-09-24 rows-52-56：第 52 行的枚举产物从 `.ai-tmp/test/`（一次性区 ⇒ 已被清空、悬空）
 # 迁到**判据资产区** `tools/probes/refs/n3_srcdam-out.txt`（生产者 = `gen_n3_srcdam.py`）。
 # 老的两个模式都不认这个落点 ⇒ 第 52 行抽不到任何 source。口径完全一致（**只取该行已引用、
-# 且在盘的产物**），⛔ 不新造数值、⛔ 不把不在盘的引用当 source。
+# 且在盘的产物**），不新造数值、不把不在盘的引用当 source。
 CITEDRE_REFS = re.compile(r"(tools/probes/refs/[A-Za-z0-9_\-]+\.txt)")
 
 # `--check` 的比对口径：把每一处 `generated`（生成时刻戳）的值换成占位符 `"<ignored>"`
 # 之后**逐字节**比（见 cmp_text）——时间戳本身不参与比对，所以 `--check` **不是**恒红。
-# ⛔ 只影响**比对**：写盘内容 / 字段名 / 路径一律不变（`generated` 照旧写进产物）。
+# 只影响**比对**：写盘内容 / 字段名 / 路径一律不变（`generated` 照旧写进产物）。
 #
-# 真实语义与使用口径（2026-09-24 按代码校对；此处原先写着「连它一起比 ⇒ 两次运行之间恒报
 # STALE」，与实现不符，已改正）：
 #   * 逐字节比的是「**除 `generated` 外**」的全部内容；
 #   * 而 `spec_sha256` / `spec_md_line` 取自**整份 `策划/验收表.md`** ⇒ **表一被编辑，
@@ -234,9 +229,8 @@ def select_lines(lines, anchors, snippets):
         if idx >= 1 and idx not in picked and lines[idx - 1].strip():
             picked[idx] = tag
 
-    # 2026-09-23 gate-close2：该行**既没写 `第 N 行` 锚点、也没写反引号片段**时（实测第 52 行就是这样），
     # 上面只会落 head / tail 两条 —— 产物虽然"在盘"，却几乎没夹带读数。这里退化为
-    # **逐字抽『含数字的非空行』**（⛔ 仍是"从该行已引用的产物里机械抄"，不新造任何数值），
+    # **逐字抽『含数字的非空行』**（仍是"从该行已引用的产物里机械抄"，不新造任何数值），
     # 上限沿用 MAX_CHECKS_PER_SOURCE。有锚点/片段的行（首 13 个产物）**完全不受影响**。
     if matched == 0 and not anchors and not snippets:
         for i, ln in enumerate(lines, start=1):

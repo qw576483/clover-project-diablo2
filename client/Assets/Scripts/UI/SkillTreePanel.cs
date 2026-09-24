@@ -5,13 +5,11 @@
 // 技能图标按**原版底图画出的节点框内径**贴上去，点右侧原版页签切系（一屏一系）。
 // 左键学技能 / 右键设为按钮技能，数据仍吃 `Def.SkillTreeArgs`。
 //
-// ★★ 本轮（"删掉全部自绘"）改了什么 —— 上一版的以下东西**全部删除**（原版底图里都有）：
 //   ① `SkillFrame` 自绘外框（原版有页边框） ② `SkillBg` 纯色底（原版有石纹底）
 //   ③ `Link*` 自绘连线（原版画好了管线 + 箭头） ④ 自绘标题条（原版右列顶部就是说明窗）
 //   ⑤ 格下技能名（原版格下**没有**文字，名字在悬停提示/说明窗里）⑥ 节点自绘边框与色调
 //   ⑦ 由 `AvailableSkillsPanel.prefab` 反推的 `SkillPanelW/H` / `SkillNodeX/Y` / `SkillCols` …
 //
-// ★ 本轮的**唯一依据**（三份权威载体，逐项可查）：
 //   · 底图：`D2/UI/Panel/skltree_{cls}_back_{0..3}.png` —— **原版 PNG 未改一个字节**；
 //     页 0 = 共用右列（顶部木框说明窗 + 3 个系页签，5 职业逐像素相同）；
 //     页 k（k=1,2,3）= 系 k 的完整屏。
@@ -19,21 +17,21 @@
 //     全部由 `tools/d2codec/export_skilltree_layout.py` 从上面那批 PNG 逐像素解析。
 //   · 页↔系：底图第 k 页 ↔ 原版 `skilldesc.txt` 的 `SkillPage = k`（15/15 页两条独立特征互证）。
 //
-// ★ 层序（**实测定的，不是猜的**）：先铺**页 0**、再铺**页 k**。
+// 层序（**实测定的，不是猜的**）：先铺**页 0**、再铺**页 k**。
 //   依据：① 页 k 在 x 230..319 上只不透明于「被选中页签」那一槽（其余透明）；
 //        ② 页 k 的树区右边框（原版 x 225..229）在**被选中页签**处断开；
 //        ③ 页 0 叠在页 k 之上时选中页签是"暗的"，页 k 叠在页 0 之上时是"亮（高亮）的"。
 //   ⇒ 只铺这两张**未改动的原版 PNG**，高亮页签 / 断口 / 右列三件事**全部自动成立**。
 //
-// ★ 技能图标尺寸 = 原版**位图原生 48×48**（`UiLayoutGame.SkillIconCell` = 48×48 原版px → 86.4 画布px），
+// 技能图标尺寸 = 原版**位图原生 48×48**（`UiLayoutGame.SkillIconCell` = 48×48 原版px → 86.4 画布px），
 //   中心 = 节点框（`SkillTreeCell.box`，L 形管线的外接矩形）的中心；`preserveAspect` 在正方形框里
 //   是恒等变换（不拉变形、不放大、不加色调 —— 原版没有色调）。
-//   ⚠️ 旧口径「框内径 41×46」把图标缩到 85.4% 并让底图管线露在图标外一圈，w3 审计已按
+//   旧口径「框内径 41×46」把图标缩到 85.4% 并让底图管线露在图标外一圈，w3 审计已按
 //      「控件矩形 == 原版像素 ×1.8」改成原生尺寸（出处见 `UiLayoutGame.SkillIconCell`）。
 //   「能不能学」用**原版灰化帧**表达（`D2Icon.SkillIconPath(def.id, dull:true)`），不画任何自绘标记。
 //
-// ⛔ 零 `using Diablo2.Module`（分层自检 ③；`conventions.md` 硬性）。
-// ⛔ 本文件**不画**任何原版底图里已有的东西（边框 / 连线 / 底 / 标题条）。
+// 零 `using Diablo2.Module`（分层自检 ③；`conventions.md` 硬性）。
+// 本文件**不画**任何原版底图里已有的东西（边框 / 连线 / 底 / 标题条）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -48,14 +46,14 @@ namespace Diablo2.UI
 {
     /// <summary>
     /// 技能树面板。层：<see cref="UILayer.Normal"/>。
-    /// <para>★ R8-close（2026-09-24）：本屏原先声明 <see cref="UILayer.Popup"/>，而 `Popup` 层会让引擎
+    /// <para>本屏原先声明 <see cref="UILayer.Popup"/>，而 `Popup` 层会让引擎
     /// 插一块**全屏模态遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` 的
     /// `Open&lt;T&gt;` ⇒ `:443-461` `ShowMask()`，`img.raycastTarget = true`，插在 `_layers[Popup]` 首位）
     /// —— 遮罩画在 `Normal`（= HUD）之上、且吃射线 ⇒ **纯鼠标玩家打开技能树后点不到 HUD 的任何入口
     /// （本屏自己也没有关闭控件）= 关不掉**。原版**没有**全屏模态遮罩（面板是叠在世界上的半透明页，
     /// 鼠标仍能点地面与 HUD），所以「降层」才是贴近原版的做法；同一处先例 = `UI/NpcDialogPanel.cs`
     /// 的 R1-E（对话条 Popup → Normal，理由同为"引擎的 Popup 语义与原版不符"）。
-    /// ⚠️ 降层后引擎的 `CloseMutexPanels()`（`UI.cs:431-441`，只关 `Layer == Popup` 的面板）
+    /// 降层后引擎的 `CloseMutexPanels()`（`UI.cs:431-441`，只关 `Layer == Popup` 的面板）
     /// **不再覆盖本屏** ⇒ 「开另一个面板时旧面板关掉」由 HUD 入口处显式补上并留痕
     /// （见 `UI/HudPanel.cs` 的 `CloseScreenFamily`）。</para>
     /// </summary>
@@ -69,7 +67,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 技能图标层尺寸（= 原版**位图原生 48×48** 原版px → **86.4×86.4** 画布px）。
-        /// <para>★ w3 审计修正：旧值是「节点框内径 41×46」，会把 48×48 的位图缩到 41（= 原版
+        /// <para> 审计修正：旧值是「节点框内径 41×46」，会把 48×48 的位图缩到 41（= 原版
         /// 像素的 85.4%）—— 依据与出处见 `UiLayoutGame.SkillIconCell`。图标中心不变。</para>
         /// </summary>
         public static readonly Vector2 IconCellSize = UiLayoutGame.SkillIconCell;
@@ -149,8 +147,7 @@ namespace Diablo2.UI
             _built = true;
 
             // ── 底图**两张原版页**：先页 0（右列：木框说明窗 + 3 个系页签）、再页 k（树）──
-            //    层序依据见文件头「★ 层序」。此处**只建两个 Image**，贴图在 `ApplyBackdrop` 里按系换。
-            // ★ 片 K（R8）：两张底图都**必须吃射线** —— 面板矩形（576×777.6，非满屏）⇒ 面板内空白吃点击、
+            //    层序依据见文件头「层序」。此处**只建两个 Image**，贴图在 `ApplyBackdrop` 里按系换。
             //   面板外仍可点地面走（原版语义）。若不吃射线，点面板内部空白会被反投影成"点地面"⇒ 角色走动。
             //   两张图**互斥显示**（`ApplyBackdrop` 按系切帧），故两张都要吃（哪张在台上就由哪张吃）。
             _bgTabs = UiArt.Panel(transform, "TreeBackPage0", PanelSize, PanelPos, UiArt.PanelBg, true);

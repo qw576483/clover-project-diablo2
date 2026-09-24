@@ -8,26 +8,22 @@
 //   ③ `Shaman`  —— 萨满：**优先复活已死的同伴**（有冷却、要吃尸体），其余时间与 `Range` 同。
 //   ④ `Coward`  —— 低血逃跑（原版堕落者）：血量 ≤ `CowardFleeHpRatio` 就背向玩家逃一段时间。
 //
-// 硬要求（`docs/agents/agent-07-*.md` §4）：
 //   1. **寻路一律走 `IMapModule.FindPath`**（本文件不实现任何寻路），并做**路径节流**：
-//      已有路径 + 目标格未漂移（`> RepathOnGoalDrift` 才重算）+ 冷却未到 ⇒ 直接沿原路走。
 //   2. **仇恨有时效**：一段时间没挨打/没看见玩家就遗忘（`MonsterTuning.AggroMemorySeconds`），
 //      玩家离图/死亡时立刻脱战。遗忘后**回原位**（`Home`），不原地卡住。
 //
-// ⛔ 所有"没按预期走"的分支都留日志（找不到路 / 目标格非法 / 退无可退 / 未登记的 AI 类型）。
-// ⛔ 高频分支用 `MonsterLog.WarnThrottled`（**自己想做的无时钟降频**，见该文件头）。
+// 所有"没按预期走"的分支都留日志（找不到路 / 目标格非法 / 退无可退 / 未登记的 AI 类型）。
+// 高频分支用 `MonsterLog.WarnThrottled`（**自己想做的无时钟降频**，见该文件头）。
 //
-// ★ 片 eng2-path（引擎下沉 + 骨架显式化）：
 //   1. **推进下沉**：`Advance` / `StepToward` / 路径状态已下沉引擎 `CloverEngine.PathFollower`
 //      （本文件经 `MonsterRuntime` 薄转发调用，**语义一行未改**）。
 //   2. **状态骨架显式化**：每只怪一棵引擎状态机（`CloverEngine.Game.NewFsm()`；引擎全局那份是
-//      应用级流程，⛔ 不能共用），骨架 = `Idle → Aggro → Chase → Attack → Return / Flee`。
+//      应用级流程，不能共用），骨架 = `Idle → Aggro → Chase → Attack → Return / Flee`。
 //      · **归位**：每 tick 由 `PhaseOf` 算一次（`Fsm` 忽略自环 ⇒ 不会重跑 OnEnter/OnExit）；
 //      · **事件点显式转移**：出手成功 ⇒ `Attack`（`TryAttack`）；进入逃跑 ⇒ `Flee`（`Coward`）；
 //        脱战 ⇒ `Return`（`Disengage`）。
-//   ⛔ **行为与数值的唯一真相仍是本文件那 4 个 AI 函数**（Melee / Range / Shaman / Coward）：
-//      状态回调只做"骨架归位 + 转移留痕"，⛔ 不许把射程 / 距离 / 冷却等数值搬进状态回调或
-//      `PhaseOf`（那会让同一份判定出现两个产地，必然漂移）。
+//   **行为与数值的唯一真相仍是本文件那 4 个 AI 函数**（Melee / Range / Shaman / Coward）：
+//      状态回调只做"骨架归位 + 转移留痕"，不许把射程 / 距离 / 冷却等数值搬进状态回调或
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Diablo2.Core;
@@ -49,7 +45,7 @@ namespace Diablo2.Module.Monster
             Attack = 1,
         }
 
-        // ── 状态骨架的状态名（引擎 `Fsm` 的 key；**字符串常量**，⛔ 不散落字面量）──────────
+        // ── 状态骨架的状态名（引擎 `Fsm` 的 key；**字符串常量**，不散落字面量）──────────
         /// <summary>待机：未交战、也不在回原位。</summary>
         private const string PhaseIdle = "Idle";
 
@@ -111,7 +107,7 @@ namespace Diablo2.Module.Monster
 
             // ── 骨架归位 + 驱动 ──
             // 归位（自环被 `Fsm` 忽略 ⇒ 不重跑回调）；真正的行为在 Chase / Return / Flee / Aggro / Idle
-            // 的状态回调里（`DispatchTick` / `ReturnHome`），⛔ 这里不做任何 AI 判定。
+            // 的状态回调里（`DispatchTick` / `ReturnHome`），这里不做任何 AI 判定。
             fsm.Transition(PhaseOf(m));
             fsm.Tick(dt);
             return m.AiResult;
@@ -126,7 +122,7 @@ namespace Diablo2.Module.Monster
         /// <para>
         /// `Attack` / `Flee` 是"事件点"显式转移的目标，这里**不复算**它们的条件 ——
         /// `Attack` 只活到下一 tick 归位为止；`Flee` 由 `FleeTimer` 决定何时交回 `Chase`
-        /// （该计时器仍由 `Coward` 维护，⛔ 本方法不碰）。
+        /// （该计时器仍由 `Coward` 维护，本方法不碰）。
         /// </para>
         /// </summary>
         private static string PhaseOf(MonsterRuntime m)
@@ -179,8 +175,7 @@ namespace Diablo2.Module.Monster
         }
 
         /// <summary>
-        /// 状态回调的**唯一行为入口**：调 <see cref="Dispatch"/>（那 4 个 AI 函数），把结果写回
-        /// <see cref="MonsterRuntime.AiResult"/>。⛔ 这里不做任何数值判断 —— 判定全在 4 个 AI 函数里。
+        /// <see cref="MonsterRuntime.AiResult"/>。这里不做任何数值判断 —— 判定全在 4 个 AI 函数里。
         /// </summary>
         private static void DispatchTick(MonsterModule owner, MonsterRuntime m, float dt)
         {
@@ -243,7 +238,7 @@ namespace Diablo2.Module.Monster
                 }
 
                 // ② 玩家仍在"发现半径"内（或刚被打过 ⇒ `NotifyAttacked` 已把记忆刷满）⇒ 续上记忆。
-                //    ⚠️ 这里**必须**刷新：否则速度慢的怪（僵尸 speed=1）在 7 格外追击时会在半路
+                //    这里**必须**刷新：否则速度慢的怪（僵尸 speed=1）在 7 格外追击时会在半路
                 //    因为记忆耗尽而"遗忘"，来回拉锯永远到不了玩家身边（实测踩到过）。
                 if (dist <= GameConst.MonsterAggroRange)
                 {
@@ -310,7 +305,6 @@ namespace Diablo2.Module.Monster
         /// 而 `MonsterRuntime.Pos` 是**连续**格坐标（`Advance` 会把它推进到两格之间）。
         /// </para>
         /// <para>
-        /// ★ 片 melee-ai-why 的缺陷根因（实测）：僵尸沿轴逼近，连续距离停在 **1.60**（= `GameConst.MeleeRange`）
         /// 时所在格距玩家 **2 格**（`(8,58)` vs `(8,56)` ⇒ 格欧氏 **2.00**）⇒
         /// AI 认为"已在射程内"⇒ `TryAttack` ⇒ 结算层判 `2.00 > 1.60` **拒绝**；
         /// 而 AI 自己那条已满足，于是**永不再靠近**（死锁）⇒ 怪物一辈子打不到玩家。
@@ -330,12 +324,11 @@ namespace Diablo2.Module.Monster
         /// **出手前自检：本次攻击的线段是否通畅** —— 与结算层**同一把尺子**。
         /// <para>
         /// 尺子本体 = `Diablo2.Module.Combat.CombatModule.AttackLineClear`（内部就是
-        /// `MeleeShape.LineClear` + 同一份 `WalkableProbe`），⛔ 本文件**不另写一份**判定。
+        /// `MeleeShape.LineClear` + 同一份 `WalkableProbe`），本文件**不另写一份**判定。
         /// 跨模块只取这一句纯判定、不 `using` 对方的具体类型（与 `SkillModule` 取
         /// `Combat.DamagePipeline` 同一写法，见 `DamagePipeline.cs` 文件头）。
         /// </para>
         /// <para>
-        /// ★ 片 lineclear-fix 的缺陷（前片 `melee-ai-why` §7 登记③，用户可见"怪物隔墙反复挥空"）：
         /// 结算层 `RequestMonsterAttack` 判"线段被不可走地形阻断"时**只打日志就 return**，
         /// 而 `TryAttack` 在**发起前**已经把出手动画 / 出手音效 / 出手计时器都写好了
         /// （`m.AttackTimer` / `m.AttackAnimTimer` / `m.ViewDirty`，见 `TryAttack`）⇒
@@ -344,7 +337,7 @@ namespace Diablo2.Module.Monster
         /// 不会原地挥空）。
         /// </para>
         /// <para>
-        /// ⛔ 这不是"把 `LineClear` 放宽"（那是让怪穿墙打人，与原版语义相反）：判据一字未动，
+        /// 这不是"把 `LineClear` 放宽"（那是让怪穿墙打人，与原版语义相反）：判据一字未动，
         /// 只是把"结算层的拒绝"提前到"发起前"，两侧仍然同一句。
         /// </para>
         /// <para>
@@ -364,7 +357,6 @@ namespace Diablo2.Module.Monster
         {
             if (AttackDistance(owner, m) <= GameConst.MeleeRange)
             {
-                // ★ 片 lineclear-fix：够得着还不够 —— **线段必须通畅**（与结算层同一把尺子）。
                 //   隔墙/隔水时不发起（否则每次都在结算层被拒 = 挥空），落到下面**绕路**那一支。
                 if (AttackLineClear(owner, m)) return TryAttack(owner, m);
             }
@@ -382,17 +374,14 @@ namespace Diablo2.Module.Monster
             {
                 if (StepAway(owner, m, playerCenter, dt)) return Action.None;
                 // 退无可退（角落里）：只能就地射击，而不是站着不动被白打
-                // ★ 片 lineclear-fix：**仍要过线段那一关**（与结算层同一把尺子）——
                 //   被墙挡住时"就地射击"同样会被结算层拒 ⇒ 不发起（原版怪物不隔墙放枪）。
                 if (AttackLineClear(owner, m)) return TryAttack(owner, m);
                 return Action.None;
             }
 
-            // ★ 片 melee-ai-why：靠近的上限改成**结算层实际放行的距离**（`RangedAttackDistanceCap`，
             //   与 `CombatModule.cs:418-420` 同式）。旧写法用 `GameConst.RangedRange`(8) ⇒ 怪在
             //   5 < 格距 ≤ 8 时会"反复请求出手 → 每次被结算层以 `> 射程 5.00` 拒绝，又因为
             //   自己那条不满足靠近条件而**永远不靠近**" ⇒ 站着不动、一枪不发的死区。
-            // ★ 片 lineclear-fix：**同一族**的第二个死区 —— 格距已在射程内但**线段被地形挡住**
             //   （隔墙/隔水）时，旧写法照常 `TryAttack` ⇒ 每次被结算层拒、又永不移动（站着放空枪）。
             //   现在"够不着 **或** 看不见"一律走**靠近**那一支（挪到有视线的格子）。
             if (AttackDistance(owner, m) > RangedAttackDistanceCap || !AttackLineClear(owner, m))
@@ -421,8 +410,6 @@ namespace Diablo2.Module.Monster
             if (dist < MonsterTuning.RangedKeepDistance && StepAway(owner, m, playerCenter, dt))
                 return Action.None;
 
-            // ★ 片 melee-ai-why：同 ② 远程 —— 靠近上限对齐结算层（`RangedAttackDistanceCap`）。
-            // ★ 片 lineclear-fix：同 ② —— "够不着 **或** 看不见"一律靠近（别隔墙放法术）。
             if (AttackDistance(owner, m) > RangedAttackDistanceCap || !AttackLineClear(owner, m))
             {
                 if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
@@ -456,8 +443,6 @@ namespace Diablo2.Module.Monster
                 return Action.None;
             }
 
-            // ★ 片 melee-ai-why：非逃跑路径 = "等同近战" ⇒ 出手判定必须与 ① 同一把尺子。
-            // ★ 片 lineclear-fix：同 ① —— 线段不通不发起（落到下面的绕路支）。
             if (AttackDistance(owner, m) <= GameConst.MeleeRange && AttackLineClear(owner, m))
                 return TryAttack(owner, m);
 
@@ -513,7 +498,6 @@ namespace Diablo2.Module.Monster
         }
 
         /// <summary>
-        /// 走到某个**可走**格：带路径节流（目标漂移 &gt; `RepathOnGoalDrift` 或冷却到才重算）。
         /// </summary>
         /// <returns>true = 已有可用路径（可以继续 `Advance`）。</returns>
         private static bool TryPathTo(MonsterModule owner, MonsterRuntime m, Vector2Int goal)

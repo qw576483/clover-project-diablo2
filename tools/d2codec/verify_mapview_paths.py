@@ -51,11 +51,9 @@ def _check_town(d2):
     with open(path, encoding='utf-8') as fh:
         src = fh.read()
 
-    # ⚠️ 必须按**块**取，不能全文件扫 `"xxx",`：kind 表的某一行（整行都是小写字母，例如
+    # 必须按**块**取，不能全文件扫 `"xxx",`：kind 表的某一行（整行都是小写字母，例如
     #    栅栏整行 `"fffff...fr"`）也会被 `"([a-z]+)",` 匹配到，导致 packId 整体错位
-    #    （第一版校验就踩了这个坑：Packs 被读成 15 项而不是 13 项）。
     packs = _block(src, 'Packs') or []
-    # ★ 片 4：宽度/行数**从表里读**，不再写死 32×32（写死的那版在长度筛选里把 56×40 的
     #   行全过滤掉了 ⇒ 这张表实际一格都没检查，"PASS" 是假的）。出处：`Levels.txt`
     #   「Act 1 - Town」= 56×40，见生成器 `export_town_layout.py`。
     ground_rows = _block(src, 'GroundRows')

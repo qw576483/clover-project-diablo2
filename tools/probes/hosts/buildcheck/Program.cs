@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  tools/buildcheck/Program.cs —— agent-10 离线自检（用户尚未打开 Unity ⇒ 只做离线可验的事）
 //
 //  跑法：dotnet run --project tools/buildcheck/BuildCheck.csproj
 //  退出码：0 = 全部断言通过；1 = 有断言失败（明细逐条打印）
@@ -105,8 +104,7 @@ internal static class Program
         Check(ProjectBuilder.MenuPath == "Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）",
             "菜单名逐字等于契约：Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）");
 
-        // ★ 本轮 17 → 18：新增 `WaypointPanel`（原版「傳送點」屏；见 `UI/WaypointPanel.cs`
-        //   与 `Assets/Editor/ProjectBuilder.cs` 里 `PanelNames` 的 "★ 片 g1-resume 新增" 三项）。
+        // 本轮 17 → 18：新增 `WaypointPanel`（原版「傳送點」屏；见 `UI/WaypointPanel.cs`
         Check(ProjectBuilder.PanelNames.Length == 18,
             "面板清单 = 18 个（实测 " + ProjectBuilder.PanelNames.Length + "）");
 
@@ -390,7 +388,6 @@ internal static class Program
         }
 
         // ② 与 frame_probe.py 的实测输出逐条比对（代码 == 实测，不许有转录误差）
-        // ★ 2026 修正（第二次）：宿主最终落点是 `tools/probes/hosts/buildcheck/`（判据资产入仓，skill §1.8），
         //   探针 `frame_probe.py` 把产物写在 **HERE = 它自己所在目录** = 本宿主源码目录
         //   ⇒ 两侧口径必须都指这里。上一版写的 `.ai-tmp/hosts/buildcheck/frame_probe_out.txt`
         //   是宿主「中间站」的位置，该目录已随迁移整体删除 ⇒ 断言恒红（实测：`[FAIL] frame_probe_out.txt（实测输出）存在`）。
@@ -430,7 +427,7 @@ internal static class Program
 
     // ═════════════════════════════════════════════════════════════════════════
     //  F 「第二次运行」离线模拟（幂等自证）
-    //  ⚠️ 这不是"跑了生成器"：生成器只能在活着的编辑器里跑（用户尚未打开 ⇒ 禁止 unity run）。
+    //  这不是"跑了生成器"：生成器只能在活着的编辑器里跑（用户尚未打开 ⇒ 禁止 unity run）。
     //     这里用**与生成器同口径的判据**在离线侧评估「若现在再跑一次，它会做什么」：
     //     生成器 `PrefabLooksGood` = `AssetDatabase.LoadAssetAtPath<GameObject>` 非空 +
     //     根节点挂着该面板组件；`SceneLooksGood` = `LoadAssetAtPath<SceneAsset>` 非空；
@@ -511,7 +508,7 @@ internal static class Program
                && Mathf.Approximately(a.width, b.width) && Mathf.Approximately(a.height, b.height);
     }
 
-    /// <summary>解析 frame_probe_out.txt：「文件：UI/xxx.png ...」+ 其后「★ C# 字面量：」行的 new Rect 列表。</summary>
+    /// <summary>解析 frame_probe_out.txt：「文件：UI/xxx.png ...」+ 其后「C# 字面量：」行的 new Rect 列表。</summary>
     private static Dictionary<string, ProbeEntry> ParseProbe(string[] lines)
     {
         var map = new Dictionary<string, ProbeEntry>(StringComparer.OrdinalIgnoreCase);

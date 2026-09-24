@@ -46,7 +46,6 @@ import re
 import sys
 import tempfile
 
-# team contract (README 67 / 68(c), team-lead 2026-09-24): one meaning per exit code, and a
 # crashing tool must never look green.  NOTE: the SUSPECT-DECLARED *verdict* is 10, not 3,
 # because the contract reserves 3 for TOOL-ERROR.
 VERDICT_EXIT = {

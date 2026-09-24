@@ -1246,7 +1246,7 @@ namespace R1
         }
 
         /// <summary>
-        /// True when the transition is over.  ⛔ The click is delivered over a few frames, so on the
+        /// True when the transition is over.  The click is delivered over a few frames, so on the
         /// frame right after it the transition has NOT started yet -- "not running" must therefore not
         /// be read as "finished" (that mistake let the Confirm click fire mid-transition once).
         /// </summary>

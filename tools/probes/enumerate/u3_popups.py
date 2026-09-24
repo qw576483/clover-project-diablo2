@@ -5,7 +5,7 @@
 # 「弹框/面板全集」**脚本枚举器**（片 `popupaudit`，用户第三批投诉：
 #   「你检查所有弹框，认真一点好吗？？？？？」／「甚至连他妈的关闭都没有。。。」）
 #
-# ⛔ 硬要求：面板名**一条都不许手写** —— 全部来自下面 4 路扫盘结果：
+# 硬要求：面板名**一条都不许手写** —— 全部来自下面 4 路扫盘结果：
 #   ① prefabs   client/Assets/Resources/UI/*.prefab          （磁盘上的面板壳）
 #   ② code      client/Assets/Scripts/UI/*.cs 里 `class X : UIPanel` 的子类
 #   ③ builder   client/Assets/Editor/ProjectBuilder.cs 的 `PanelNames` 数组（buildcheck 的 18 口径）
@@ -179,7 +179,6 @@ def panel_text_sites(code, code_path):
 #   other      其它出口（Esc / 右键 / 再点 / 热键）
 #   num        数值列来源（模块:行）
 #   disp       显示问题
-#   verdict    OK / 缺陷(a)关闭 / 缺陷(b)数值 / 缺陷(c)显示 / BLOCKED
 #   src        本条结论的出处
 # ═══════════════════════════════════════════════════════════════════════════════
 JUDGE = {

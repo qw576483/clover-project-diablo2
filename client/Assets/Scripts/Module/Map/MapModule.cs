@@ -7,13 +7,11 @@
 //   · 可走查询 / A* 寻路转发 / 随机可走格
 //   · 渲染入口（`ShowArea`）与怪物刷新点 / NPC 点 / 出口 / 洞穴入口的对外暴露
 //   · 发 `Events.MapGenerated`（小地图）与 `Events.AreaChanged`
-//   · ★ 2026-09-23（S2）发 `Events.MapExplored`（**只在某格首次被记为已探索时**，载荷 = 新增格集合）
 //   · 订阅 `Events.PlayerGridChanged` → 揭迷雾 / 记已探索 / 发 `Events.MapExplored`
 //
-// ⛔ 契约（`Module/Contracts.cs` 的 `IMapModule`）冻结：本文件**不新增/不改**接口签名。
-//   ★ 例外（2026-09-23，主 agent 追加)：契约新增只读成员 `ExploredCells` ⇒ 本文件必须实现它
+// 契约（`Module/Contracts.cs` 的 `IMapModule`）冻结：本文件**不新增/不改**接口签名。
 //     （实现 = 从 `MapView._explored` 投影，见该属性的注释）。
-// ⛔ 不重写 `CloverEngine.{AStar,IsoLayout}` 与 `CloverEngine.Rng`；不碰 `Game.Map`（引擎地图，本项目不使用）。
+// 不重写 `CloverEngine.{AStar,IsoLayout}` 与 `CloverEngine.Rng`；不碰 `Game.Map`（引擎地图，本项目不使用）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -36,10 +34,9 @@ namespace Diablo2.Module.Map
         private bool _exploreSubscribed;
 
         /// <summary>
-        /// ★ 2026-09-23（S2）`IMapModule.ExploredCells` 的**投影缓存**。
         /// <para>**唯一权威仍是 `MapView._explored`**：本表只是"上次被问到时从渲染层抄下来的一份快照"，
         /// 任何可能改变已探索集合的操作（新格 / 换区 / 清场）都把它置脏
-        /// ⇒ ⛔ 不存在第二份可与渲染层漂移的状态（两份状态必然漂移）。</para>
+        /// ⇒ 不存在第二份可与渲染层漂移的状态（两份状态必然漂移）。</para>
         /// </summary>
         private readonly List<Vector2Int> _exploredCache = new List<Vector2Int>();
 
@@ -90,8 +87,6 @@ namespace Diablo2.Module.Map
         public IReadOnlyList<Vector2Int> WaypointPoints { get { return _grid.WaypointPoints; } }
 
         /// <summary>
-        /// ★ 2026-09-23（S2）**记忆式已探索格**（Tab 自动地图的数据源；契约注释见
-        /// `Module/Contracts.cs` 的 `IMapModule.ExploredCells`）。
         /// <para>实现口径（逐条）：</para>
         /// <list type="number">
         /// <item>**数据源唯一** = 渲染层 `MapView` 的 `_explored` 位图（`CollectExplored` 抄出）
@@ -132,9 +127,8 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 「该格是否是可走上方的结构（桥面/平台）」—— 契约见 `Module/Contracts.cs` 的
-        /// `IMapModule.IsDeckGrid`（2026-09-22 为修「营地出门的桥，还是从桥下走」新增）。
         /// <para>实现 = **从 `GridMap` 转发**（登记口径 = 该格地面瓦片键取自 deck 类包 `moor_bridge`
-        /// **且该格可走**，见 `DeckTiles` / `GridMap.SetTiles` 的登记点；⛔ 视图层不猜几何）。
+        /// **且该格可走**，见 `DeckTiles` / `GridMap.SetTiles` 的登记点；视图层不猜几何）。
         /// 图外 / 未生成 / 未登记 ⇒ false。</para>
         /// </summary>
         public bool IsDeckGrid(Vector2Int g) { return _grid.IsDeck(g); }
@@ -327,7 +321,6 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 二次调用：让渲染节点挂到场景里已有的「地图根」上（`Stage` 场景自带，
-        /// 见 `docs/步骤文档.md` §3.6）。**本项目新增的非契约方法**；不调也能跑
         /// （那时 `ShowArea` 会自己 `new GameObject("MapRoot")`）。
         /// </summary>
         public void AttachRoot(Transform root)
@@ -358,10 +351,10 @@ namespace Diablo2.Module.Map
             }
             EnsureView();
             _view.ShowArea(area);
-            // ★ S2：`MapView.ShowArea` 在换区（或尺寸不符）时会按新图重建已探索位图
+            // S2：`MapView.ShowArea` 在换区（或尺寸不符）时会按新图重建已探索位图
             //   ⇒ 投影缓存必须作废，否则 `ExploredCells` 会把上一张图的格报给自动地图。
             _exploredDirty = true;
-            // ★ revive-chunk：换区后**第一格**不算"大跨度跳变"（那次整图重铺由 travel-black 的落点口径负责）
+            // revive-chunk：换区后**第一格**不算"大跨度跳变"（那次整图重铺由 travel-black 的落点口径负责）
             _hasLastPlayerGrid = false;
         }
 
@@ -378,7 +371,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 标记某格已探索（**非契约方法**；正常情况下由 `Events.PlayerGridChanged` 自动驱动）。
-        /// <para>★ S2：与自动订阅那条路径**同一口径** —— 只有"首次"才发 `Events.MapExplored`
+        /// <para>S2：与自动订阅那条路径**同一口径** —— 只有"首次"才发 `Events.MapExplored`
         /// 并作废投影缓存（两条入口都不许绕开这个判定，否则"每帧发事件"会从后门回来）。</para>
         /// </summary>
         public void MarkExplored(Vector2Int g)
@@ -389,7 +382,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 某格**首次**被记为已探索：作废投影缓存 + 发 `Events.MapExplored`（载荷 = 本次新增的格集合）。
-        /// <para>⛔ 只在这一处发（`OnPlayerGridChanged` 与公开的 `MarkExplored` 都走它），
+        /// <para>只在这一处发（`OnPlayerGridChanged` 与公开的 `MarkExplored` 都走它），
         /// 且只在 `MapView.MarkExplored` 回 true（真·首次）时被调 ⇒ 走过同一格不会重复发。</para>
         /// <para>载荷给的是**新数组**（不是复用的可变集合）⇒ 收方可以安全持有引用。</para>
         /// </summary>
@@ -434,7 +427,7 @@ namespace Diablo2.Module.Map
         /// <summary>
         /// 自证：本模块持有的 `GridMap`（**非契约方法**，`IMapModule` 上没有）。
         /// <para>用途 = 离线自检宿主能拿**生产同一份**格数据去复算 `MapView.PlanCell`（T0FIX-H 的
-        /// "逐格判定同源 / 不露空"断言必须跑在真实地图上，而不是宿主自己再生成一张）；⛔ 业务代码不要用它。</para>
+        /// "逐格判定同源 / 不露空"断言必须跑在真实地图上，而不是宿主自己再生成一张）；业务代码不要用它。</para>
         /// </summary>
         public GridMap Grid { get { return _grid; } }
 
@@ -486,15 +479,11 @@ namespace Diablo2.Module.Map
                 width = _grid.Width,
                 height = _grid.Height,
                 seed = _grid.Seed,
-                // ★ automap-panel（2026-09-24）：这两个字段的**契约**是「玩家所在格」（`Module/Contracts.cs`
-                //   的 `MinimapArgs.playerX/Y` 注释），**不是**出生点。实测（片 automap-panel，L3）：
                 //   填 `SpawnPoint` 时，玩家走到 (22,26) 按 Tab 打开 automap ⇒ 面板读数
                 //   `livePlayerGrid=(22,26) mapPlayer==livePlayer=0`，且叠加层位移 `anchored=(57.60,115.20)`
                 //   与"玩家站在出生点旁"那一局**逐字节相同** ⇒ 自动地图**完全以出生点为中心**：
                 //   按半径揭示的是出生点周围那圈（玩家身边是空的）、画面中心也不在玩家身上
                 //   —— 用户看到的就是"地图没画出来 / 画得不对"。
-                //   修法（源头）：填**玩家当前格**；玩家还没换过格（`ShowArea`/`Clear` 后的第一格前，
-                //   含 `_view == null` 的离线宿主）才回落到出生点，行为与改动前一致。
                 playerX = _hasLastPlayerGrid ? _lastPlayerGrid.x : _grid.SpawnPoint.x,
                 playerY = _hasLastPlayerGrid ? _lastPlayerGrid.y : _grid.SpawnPoint.y,
             };
@@ -504,11 +493,11 @@ namespace Diablo2.Module.Map
                 for (var x = 0; x < _grid.Width; x++) args.tiles.Add(CodeOf(_grid.Get(x, y)));
             }
 
-            // ★ 逐格 **原版 automap Cel**（`AutoMapCel.generated.cs` = 原版 `AutoMap.txt` + `MaxiMap.dc6`
+            // 逐格 **原版 automap Cel**（`AutoMapCel.generated.cs` = 原版 `AutoMap.txt` + `MaxiMap.dc6`
             //   + ACT1 调色板 + 原版 DS1 的解析产物；口径见 `MinimapArgs.cels` 的 `# contract:` 注释）：
             //   按该格的**原版瓦片键**（`GridMap.TryGetTiles`，罗格营地/洞穴/野外三个生成器都逐格登记）
             //   查表。查不到键 ⇒ `-1`（原版这一格不画 automap）。
-            //   ⚠️ 非预期分支：本图**没有**逐格瓦片覆盖（生成失败的保底布局 `BuildFallback`）⇒ 整幅
+            //   非预期分支：本图**没有**逐格瓦片覆盖（生成失败的保底布局 `BuildFallback`）⇒ 整幅
             //      查不到 Cel，自动地图会是空的 —— 留一次 Warn（不静默），并在回报里点名。
             var celOk = 0;
             for (var y = 0; y < _grid.Height; y++)
@@ -520,12 +509,11 @@ namespace Diablo2.Module.Map
                     if (_grid.TryGetTiles(x, y, out gk, out ok))
                     {
                         g = AutoMapCel.Cel((int)_grid.Area, false, gk);
-                        // ★ 片 L / R12：`Objects/moor_river/028` 是**原版平色水墙瓦片**，它在
                         //   `AutoMapCel` 的物件表里和石墙（`moor_stonewall/*`）映射到**同一个 Cel 60**
                         //   ⇒ 水格在小地图上看着就是石头，这正是 R12 报的"小地图分不出水与石头"。
                         //   判据与主视图 R1-B **完全同一条**（`MapView.IsPaletteCycledFlatWallOverlay`）：
                         //   它不是墙、是水面，水面已由 floor 层的水 Cel 呈现 ⇒ 物件层在这个 Cel 上**不叠**。
-                        //   ⛔ 只影响小地图画不画这一张物件；`TileKind` / 可走性 / 逐格键一个字不动。
+                        //   只影响小地图画不画这一张物件；`TileKind` / 可走性 / 逐格键一个字不动。
                         o = MapView.IsPaletteCycledFlatWallOverlay(gk, ok)
                             ? AutoMapCel.None
                             : AutoMapCel.Cel((int)_grid.Area, true, ok);
@@ -562,9 +550,8 @@ namespace Diablo2.Module.Map
             if (kind == TileKind.Void) return MinimapArgs.TileVoid;
             if (kind == TileKind.Exit) return MinimapArgs.TileExit;
             // 注意：NPC 点会在 BuildMinimap 里被 marker 单独标出（面板画在交互层）
-            // ★ 片 L / R12：`TileKind.Water` **显式登记**为阻挡（水不可涉水）—— 它落到 `TileBlocking`
             //   是**判定出来的**，不是"忘了登记掉到 default"。
-            //   ⚠️ 真正的"水 / 石头可区分"发生在 `BuildMinimap` 的物件 Cel 那一层（见那里的 ★ 注释）：
+            //   真正的"水 / 石头可区分"发生在 `BuildMinimap` 的物件 Cel 那一层（见那里的 注释）：
             //      面板画的是**原版逐格 automap Cel**，本数组只用于日志计数，不参与画面。
             if (kind == TileKind.Water) return MinimapArgs.TileBlocking;
             return TileKindInfo.IsWalkable(kind) ? MinimapArgs.TileWalkable : MinimapArgs.TileBlocking;
@@ -590,8 +577,6 @@ namespace Diablo2.Module.Map
                 return;
             }
             Game.Event.On<Vector2Int>(Events.PlayerGridChanged, OnPlayerGridChanged);
-            // ★ 片 save-progress（2026-09-24）：读档回灌"已探索格"的入口（发方 = `App/AppProgress`，
-            //   在进图装配完成 / 换区铺装完成后发，此刻 `ShowArea` 已跑过 ⇒ 位图已是本区域那张）。
             Game.Event.On<IReadOnlyCollection<Vector2Int>>(Events.MapExploredRestore, OnExploredRestore);
             _exploreSubscribed = true;
         }
@@ -608,15 +593,14 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ 片 save-progress（2026-09-24）：把读档带回的"已探索格"**批量并入**渲染层位图
         /// （收 `Events.MapExploredRestore`，见 `Core/Events.cs` 的常量注释）。
         /// <para>
         /// 为什么落在这里（而不是 App 层直接改渲染层）：已探索的**唯一权威**是 `MapView._explored`
-        /// （`IMapModule.ExploredCells` 只是它的投影）⇒ 回灌必须走这条同源路径，⛔ 否则会多出第二份状态。
+        /// （`IMapModule.ExploredCells` 只是它的投影）⇒ 回灌必须走这条同源路径，否则会多出第二份状态。
         /// </para>
         /// <para>
         /// 语义 = **并入（幂等）**：只有真的新增了格才发**一条** `Events.MapExplored`（载荷 = 本次新增格），
-        /// 让 automap 侧按既有增量口径并入；⛔ 不每格发一条（几千格会刷屏）。
+        /// 让 automap 侧按既有增量口径并入；不每格发一条（几千格会刷屏）。
         /// </para>
         /// </summary>
         private void OnExploredRestore(IReadOnlyCollection<Vector2Int> cells)
@@ -655,20 +639,18 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// `Events.PlayerGridChanged` 回调（**同一个方法引用**才能注销，见 `Core/Events.cs` 注释）。
-        /// <para>★ S2：**这里就是 `Events.MapExplored` 的发方**（`Events.cs` 的常量注释与本行一一对应）：
+        /// <para>S2：**这里就是 `Events.MapExplored` 的发方**（`Events.cs` 的常量注释与本行一一对应）：
         /// 玩家每换一格 ⇒ 若该格是**第一次**被探索，`MapView.MarkExplored` 回 true ⇒ 发一次事件；
-        /// 重复走过同一格回 false ⇒ **0 次**发出（⛔ 不是每帧 / 不是每格无脑发）。</para>
+        /// 重复走过同一格回 false ⇒ **0 次**发出（不是每帧 / 不是每格无脑发）。</para>
         /// </summary>
         private void OnPlayerGridChanged(Vector2Int g)
         {
             if (_view == null) return;
 
-            // ★ revive-chunk（2026-09-24）：**大跨度位移**（Chebyshev ≥ 2 块）⇒ 落位**当帧**预建落点范围的块。
             //   为什么需要：同区域内一步大跨度位移（死亡重生 `Revive` → `Teleport(SpawnPoint)`、
             //   `IPlayerModule.TeleportTo`）**不走** `Generate`/`ShowArea`/`StartRebuild`，而落点周围的块
             //   **早已被 `ReleaseFarChunks` 回收** ⇒ 实测 `T+0.5s MISSING=2`、`T+1.5s` 才自愈。
-            //   放在这里（而不是 `Revive()` 里）= **公共路径**：任何"玩家格坐标一步大跨度变化"都受益；
-            //   反例由 `MapView.IsLargeShift` 把住 —— 走路（1 格/步）**一次都不触发**（mapcheck §34）。
+            // 放在这里（而不是 `Revive()` 里）= **公共路径**：任何"玩家格坐标一步大跨度变化"都受益。
             if (_hasLastPlayerGrid && MapView.IsLargeShift(_lastPlayerGrid, g))
                 _view.PrimeLanding(g, $"格跳变 {_lastPlayerGrid} -> {g}");
             _lastPlayerGrid = g;
@@ -678,9 +660,9 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ revive-chunk：上一位玩家格 + 是否有效 —— 判"这一步是不是**大跨度位移**"用。
+        /// revive-chunk：上一位玩家格 + 是否有效 —— 判"这一步是不是**大跨度位移**"用。
         /// <para>`ShowArea`（换区：那次重铺由 travel-black 的落点口径负责）与 `Clear`（退场）都复位
-        /// ⇒ 换区后的**第一格**不算跳变（⛔ 否则会在换区重铺期间又插一次预建）。</para>
+        /// ⇒ 换区后的**第一格**不算跳变（否则会在换区重铺期间又插一次预建）。</para>
         /// </summary>
         private Vector2Int _lastPlayerGrid;
         private bool _hasLastPlayerGrid;

@@ -2,7 +2,6 @@
 // Diablo2 · Core/GameConst.cs
 // 全项目**唯一**的常量来源（`tools/ai-skill/conventions.md`「常量类：静态类 + const，不写裸字面量」）。
 //
-// ⛔ 契约冻结：带「契约」标记的常量逐字来自 `docs/步骤文档.md` §3.5，**不许改值**。
 //    本文件只放「手感参数且永不增长的」常量；**同质化数值一律走配表**（不在此处硬编码）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -11,7 +10,6 @@ namespace Diablo2.Core
     /// <summary>项目级常量（格子 / 投影 / 速度 / 背包尺寸 / 距离 / 排序 / id 约定）。</summary>
     public static class GameConst
     {
-        // ── 契约 §3.5：格子与等距投影（**不许改值**）──────────────────────────
         /// <summary>契约：逻辑格子边长 = 1 世界单位。</summary>
         public const int TileSize = 1;
 
@@ -25,9 +23,7 @@ namespace Diablo2.Core
         public const int PixelsPerUnit = 64;
 
         /// <summary>
-        /// 契约：玩家**跑**速（格/秒）。名字里的 `Walk` 是历史（契约 §3.5 已定名，不改名）。
-        /// <para>★ **片 2b 修正：原值 6.0 是原版的 2 倍**（旧注释自称"原版基础跑速"，但无出处）。
-        /// 出处推导（三条都在参考工程里）：</para>
+        /// <para>出处推导（三条都在参考工程里）：</para>
         /// <list type="bullet">
         /// <item>原版 → `unit.runSpeed = 15`（**map 单位/秒**）：
         /// `原版资源/参考工程_Diablerie/Diablerie/Assets/Scripts/Diablerie/Engine/Player.cs:48-49`
@@ -44,8 +40,7 @@ namespace Diablo2.Core
         /// <para>出处：`Player.cs:48-49` 的 `unit.walkSpeed = 7; unit.runSpeed = 15;`
         /// ⇒ 走速 = <see cref="PlayerWalkSpeed"/> × 7/15 = 3.0 × 7/15 = **1.4 格/秒**
         /// （原版"走"的绝对速度）。</para>
-        /// <para>★ 片 2b：本常量**迁到此处**（原在 `Module/Player/PlayerModule.WalkSpeedFactor`，值 0.5
-        /// = "走 ≈ 跑的一半"，**无出处**）——全项目只保留这一份字面量，`PlayerModule` 改为引用它。</para>
+        /// <para>全项目只保留这一份字面量（`PlayerModule` 引用它）。</para>
         /// </summary>
         public const float PlayerWalkSpeedFactor = 7f / 15f;
 
@@ -178,7 +173,7 @@ namespace Diablo2.Core
         /// `tools/probes/measure/measure_bridge_deck.py` 实测：栏杆内容自本格底边**向上溢出 ≈2 格**）
         /// ⇒ 桥面上的实体按普通档 `4D+102` 排，必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
         ///
-        /// <para><b>数值推导</b>（⛔ 不写裸数字；D = gx+gy）：
+        /// <para><b>数值推导</b>（不写裸数字；D = gx+gy）：
         ///   `物件(D+1) = (D+1)*SortOrderStep + SortOrderBase + LayerOffsetObject = 4D+105`；
         ///   `物件(D+2) = (D+2)*SortOrderStep + SortOrderBase + LayerOffsetObject = 4D+109`。
         ///   桥面实体必须 **&gt; 物件(D+1)**（才不被正南栏杆盖住）、
@@ -186,7 +181,7 @@ namespace Diablo2.Core
         ///   ⇒ `LayerOffsetObject + SortOrderStep &lt; X &lt; LayerOffsetObject + 2*SortOrderStep`
         ///   ⇒ `5 &lt; X &lt; 9` ⇒ 取**满足约束的最小值** `LayerOffsetObject + SortOrderStep + 1`
         ///   （改动量最小；= 6，桥面实体 = `4D+106` > 物件(D+1)=4D+105 且 &lt; 物件(D+2)=4D+109）。</para>
-        /// <para>⚠️ `4D+106` 与 `实体(D+1)` 同值：桥面格的正南恒为栏杆（**不可走** ⇒ 不会有实体）
+        /// <para>`4D+106` 与 `实体(D+1)` 同值：桥面格的正南恒为栏杆（**不可走** ⇒ 不会有实体）
         /// ⇒ 实际不会出现并列；`mapcheck` 有断言守着这条（逐桥面格都要求正南是栏杆）。</para>
         /// </summary>
         public const int LayerOffsetDeckEntity = LayerOffsetObject + SortOrderStep + 1;
@@ -207,26 +202,22 @@ namespace Diablo2.Core
         // ── 存档 ─────────────────────────────────────────────────────────────
         /// <summary>
         /// 存档格式版本（`CharacterSave.version` 应写本值；版本不一致时按需迁移）。
-        /// <para>★ **2026-09-24 `u52cur` 片：1 → 2**（**`Core/**` 属冻结区，本次由 main 明确授权改这一行**）。
-        /// 变更内容 = **只把常量 +1**，**不改任何字段布局**（存档 schema 一字未动）。</para>
         /// <para>**为什么必须 +1**：`charstat` 片把 1 级"生命/法力/耐力"的**起始量**口径改对了
         /// （`PlayerStats.Max*` ← `class_c.hp_add` / `base_stamina` ← 官方 `charstats.txt`），
-        /// 而**改前创建**的档里 `life/mana/stamina` 是"起始四维 × 成长系数"那套旧式子的产物
         /// （活档实证 `client/setting/saves/S2203805.json`：`life=60 / mana=22 / stamina=20`）——
         /// 与现在的上限**不同源**。磁盘上 **74/74** 个现存档都是 `version == 1`
         /// （普查 = `.ai-tmp/test/u52block-save-census.txt`；其中 69 档是旧口径）
         /// ⇒ **不 +1**，`PlayerModule.LoadFrom` 的 `save.version &lt; GameConst.SaveVersion` **永不成立**，
         /// 那 69 档迁不动 ⇒ 实机残留「耐力 cur = 20 / max = 84」（用户报的"人物状态框数值不对"那格）。</para>
         /// <para>**消费方**：`Module/Player/PlayerModule.LoadFrom`（更旧版本 ⇒ 三资源按当前口径补满 +
-        /// 一条 Info，并在档里旧值打出来）；`Module/Save/SaveModule.cs` 的"版本不符 ⇒ Warn + 兼容路径"。
-        /// ⛔ **旧客户端读新档**：走既有"降级处理"（`fileVersion != SaveVersion` ⇒ Warn + 尽力读）
+        /// **旧客户端读新档**：走既有"降级处理"（`fileVersion != SaveVersion` ⇒ Warn + 尽力读）
         /// —— 因为本变更**不动字段**，所以旧客户端读到的是完整数据（`itemcheck §11` 的 `version:99` 用例覆盖该路径）。</para>
         /// </summary>
         public const int SaveVersion = 2;
 
         /// <summary>
         /// 存档的键前缀（`char/{角色名}`）。
-        /// <para>⚠️ **A6 起角色档已改为「一角色一文件」**（`&lt;SettingDir&gt;/saves/&lt;角色名&gt;.json`，
+        /// <para>**A6 起角色档已改为「一角色一文件」**（`&lt;SettingDir&gt;/saves/&lt;角色名&gt;.json`，
         /// 走引擎 `CloverEngine.FileSlotStore`）⇒ 这个前缀现在**只用于旧档懒迁移与清理**
         /// （见 `SaveModule.ReadRaw`：读到老键才搬进槽位，**搬成功就删旧键**）。</para>
         /// </summary>
@@ -234,7 +225,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 存档**创建先后**索引键（角色名清单）。
-        /// <para>⚠️ 它只表达「选角屏的排列顺序」、**不再是"有哪些角色"的权威来源**（权威 = 槽位目录里的文件）：
+        /// <para>它只表达「选角屏的排列顺序」、**不再是"有哪些角色"的权威来源**（权威 = 槽位目录里的文件）：
         /// 引擎 `FileSlotStore.List()` 是**字典序**、不是插入序（其文件头已裁决"要创建先后就自己维护索引键"），
         /// 而选角屏卡片顺序是**可见行为** ⇒ 顺序仍留在这里维护。</para>
         /// </summary>
@@ -267,7 +258,7 @@ namespace Diablo2.Core
         // ── UI ───────────────────────────────────────────────────────────────
         /// <summary>
         /// UI 参考分辨率宽 = **1920**（`CanvasScaler` ScaleWithScreenSize, match 0.5）。
-        /// <para>★ **出处（不是估的，是引擎写死的）**：引擎 `UIManager` 构造函数里
+        /// <para>**出处（不是估的，是引擎写死的）**：引擎 `UIManager` 构造函数里
         /// `scaler.referenceResolution = new Vector2(1920f, 1080f)` 且 `matchWidthOrHeight = 0.5f`
         /// —— `clover-client-unity-engine/Runtime/Presentation/UI.cs:52-56`。
         /// 引擎**不接受业务覆盖** ⇒ 项目侧若按 1280×720 布点，所有面板在真机上整体放大 1.5 倍并错位。</para>

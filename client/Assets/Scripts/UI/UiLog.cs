@@ -3,20 +3,17 @@
 // UI 层日志门面（tag 恒为 `Ui`）+ `OnOpen(param)` 参数校验。
 //
 // 为什么要这一层（而不是每个面板各写 `Log.Warn("Ui", …)`）：
-//   ① `_common.md` §3 要求「凡是没按预期走的分支必须留一条日志」，且 tag 用模块名；
-//      面板里散写 tag 字符串必然出现拼写漂移（验收脚本按 `[Ui]` 检索日志）；
 //   ② `constraints.md` #7 要求「面板状态值只能由调用方传入，漏传参数要打 Warn」——
 //      `Require<T>` 把「判空 + 打 Warn + 返回 null 让面板降级」收敛成一处，
 //      于是每个面板的 `OnOpen` 都长一样，且**漏参数时不会静默退回默认值**。
 //
-// ★ 参数校验那一段已**下沉到引擎**（`CloverEngine.UIPanelGuards`，
+// 参数校验那一段已**下沉到引擎**（`CloverEngine.UIPanelGuards`，
 //   `clover-client-unity-engine/Runtime/Presentation/UIPanelGuards.cs`）：判定 / 降级口径 /
 //   留痕闸门（走 `LogThrottle`，同一面板同一原因只报一次）都归引擎，本文件只做**薄转发**并钉死
 //   UI 层 tag（`[Ui]`）。**公开签名与调用点零改动**。
 //
-// ⛔ 本文件在 UI 层：只允许引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def`，
+// 本文件在 UI 层：只允许引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def`，
 //    不得引用 `Diablo2.Module` 下任何类型（分层自检 ③）。
-//    本项目新增（agent-09）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -48,7 +45,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 限频警告（同一 key 在 interval 秒内只输出一条）。
-        /// ⚠️ 内部会读 `Time.realtimeSinceStartup`（引擎原生 API）⇒ **离线自检宿主不要走这条路径**
+        /// 内部会读 `Time.realtimeSinceStartup`（引擎原生 API）⇒ **离线自检宿主不要走这条路径**
         /// （`Core/Log.cs:133`，与 `tools/flowcheck` 的说明同一原因）。
         /// </summary>
         public static bool WarnThrottled(string key, string msg, float intervalSeconds = 5f)
@@ -58,7 +55,7 @@ namespace Diablo2.UI
         /// 校验 `OnOpen(param)` 的载荷：类型不符/为空 ⇒ **留痕 + 返回 null**（面板按空数据打开，不崩）。
         /// <para>**薄转发**到引擎件 <c>CloverEngine.UIPanelGuards.Require</c>
         /// （`clover-client-unity-engine/Runtime/Presentation/UIPanelGuards.cs`）——
-        /// 判定 / 降级口径 / 留痕闸门（走 `LogThrottle`，同一面板同一原因**只报一次**，⛔ 不刷屏）都归引擎；
+        /// 判定 / 降级口径 / 留痕闸门（走 `LogThrottle`，同一面板同一原因**只报一次**，不刷屏）都归引擎；
         /// 本方法只钉死 UI 层 tag（`[Ui]`，验收脚本按它检索日志）。**公开签名与调用点零改动**。</para>
         /// </summary>
         /// <typeparam name="T">期望的载荷类型（`Diablo2.Def` 里的 DTO）。</typeparam>

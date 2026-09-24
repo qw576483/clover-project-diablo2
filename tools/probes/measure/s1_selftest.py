@@ -135,7 +135,7 @@ def main():
     for p in prob:
         print("       %s" % p)
 
-    # ── 守卫 3：无官方载体 ⇒ 821 行全 `缺官方值`，⛔ 一个 `一致` 都不许有 ──────
+    # ── 守卫 3：无官方载体 ⇒ 821 行全 `缺官方值`，一个 `一致` 都不许有 ──────
     print("\n===== [guard-3] 无官方载体 ⇒ 必须全 `缺官方值`（一个 `一致` 都不许有）=====")
     g3dir = os.path.join(base, "out_nosrc")
     pr = subprocess.run([sys.executable, DIFF, "--outdir", g3dir, "--no-cross"],
@@ -151,7 +151,7 @@ def main():
     else:
         print("[OK] guard-3：821 行全 `缺官方值`、一致=0（无官方值就绝不写一致）")
 
-    # ── 守卫 4：给了 mpq ⇒ 必须明说"先解包"且不比对，⛔ 不许假装能读 ──────────
+    # ── 守卫 4：给了 mpq ⇒ 必须明说"先解包"且不比对，不许假装能读 ──────────
     print("\n===== [guard-4] 官方载体是 *.mpq ⇒ 必须明说需要先解包、且不产出任何 `一致` =====")
     fake_mpq = os.path.join(base, "not-a-real.mpq")
     with io.open(fake_mpq, "w", encoding="ascii", newline="\n") as f:
@@ -195,7 +195,6 @@ def main():
                  sum(1 for r in flds if r[6] == "一致"),
                  sum(1 for r in flds if r[6] != "一致")))
 
-    # ── 自检 ②③：注入缺陷 ⇒ 不一致 + 指出列 ────────────────────────────────
     # (标签, 注入后的官方 LifePerLevel, 期望的官方 life_per_lvl, 期望差值 = 我们的值 - 官方值)
     for tag, newval, want_exp, sign in (("②", "12", "3", "-1"), ("③", "4", "1", "+1")):
         print("\n===== 自检%s 注入缺陷（Amazon LifePerLevel 8 → %s）⇒ 应判 不一致 =====" % (tag, newval))

@@ -1,5 +1,4 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  V6Check.cs（uicheck 宿主的一个检查节，片 V6 新增）
 //
 //  判什么（V5 实机裁定暴露的 6 条「代码改了但表现仍不对」，逐条留一条**离线**判据）：
 //   ① **对话框几何**：`NpcDialogPanel` 的常量推出的「石框矩形 / 名字行矩形 / 正文矩形」
@@ -7,7 +6,6 @@
 //   ①b **降级路径几何**：`D2Label.BuildFallback` 不许再对已 `Stretch` 的框再设 `sizeDelta`
 //      （那会把兜底文本撑到框外半屏 —— 实机证据见 V6 报告）。
 //   ①c **字模在途不画**：`D2Label.Render` 在 chi 字模**在途**时必须直接返回，
-//      **不许**用系统 TTF 顶上（那是 V5 图 03 里"跑出框的字"的另一半根因）。
 //   ①d **全项目字模降级**：`D2Text.EnsureChi` 在 `Game.Res == null` 时**不许**调
 //      `OnAtlasFailure`（那是"一进 Play 就把全项目文字切成系统字体"的静态开关；
 //      实测 11:57/12:04/12:54/13:05/13:12 五局五次都命中）。
@@ -16,10 +14,9 @@
 //      （实机 `v5_14` 的"散落小黄字"）。
 //   ④ **商店关闭**：`ShopPanel.OnClose` 里**不许**再 `Game.UI.Open`（"关了又被重开"）；
 //      `HudPanel` 里打开商店的唯一入口是 `OnShopOpen`（订阅 `Events.ShopOpen`）。
-//   ⑤b **automap 注入集合渲染**（★ U46，本轮 S1）：集合由**判据自己造**（不经过 `Reveal`），
+//   ⑤b **automap 注入集合渲染**（U46，本轮 S1）：集合由**判据自己造**（不经过 `Reveal`），
 //      判 空集合⇒0 图元 / 只注入一格⇒图元数==单格 blit / 确定性 / 相邻格 bbox 平移 (+8,−4)。
 //   ⑤ **automap 绘制口径**：不压暗（`BackdropAlpha == 0`）+ 贴图尺寸非退化 + 绘制源非空
-//      （逐格 Cel 像素表）+ 已探索 = **记忆式**（片 g2-resume 把 E23 ④ 从"本格 + 8 邻域"改成
 //      半径 `MiniMapPanel.RevealRadius` 的可通行 BFS + 相邻墙轮廓；本条断言**行为**：
 //      不穿墙 / 同屏覆盖 / 墙轮廓 / 记忆单调 / 每个有 cel 的已探索格 ≥1 图元）。
 //   ⑥ **拖拽目标格高亮**：`DropHighlightColor.a > 0` + `OnDrag` 里命中格时**确实**置 active
@@ -28,7 +25,7 @@
 //  为什么能离线判：① 是常量算术；①b/①c/①d/③/④/⑥ 是对**产品源码**的字符级断言
 //  （本宿主既有的同类做法：P5Check / W3GameCheck 都用"声明形状命中数"判源码口径）；
 //  ③ 还带一条纯函数判据（`D2Text.ScaleFor`）。
-//  ⚠️ 源码断言的口径：只判"**必须存在的写法**"与"**必须消失的写法**"，不判风格。
+//  源码断言的口径：只判"**必须存在的写法**"与"**必须消失的写法**"，不判风格。
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System;
@@ -41,7 +38,6 @@ using UnityEngine;
 
 namespace Uicheck
 {
-    /// <summary>片 V6：6 条实机缺陷的离线判据（见文件头）。</summary>
     internal static class V6Check
     {
         private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
@@ -54,7 +50,7 @@ namespace Uicheck
 
         /// <summary>
         /// 去掉注释（源码断言不该被注释里的示例写法骗到）。
-        /// <para>⚠️ 实现口径（V6 实测踩过）：**逐行**丢注释行 + 去行尾注释，⛔ 不用
+        /// <para>实现口径（V6 实测踩过）：**逐行**丢注释行 + 去行尾注释，不用
         /// `/*…*/` 正则整段匹配 —— 文件里只要有一处"字符串或注释里出现的 `/*`"，
         /// 那个正则就会把**后面一大片代码**当成注释吃掉（实测：`D2Text.cs` 的注释被吞掉 82%，
         /// 连 `RetryDeferred` / `OnAtlasFailure` 都被吞 ⇒ 断言假 FAIL）。</para>
@@ -130,7 +126,6 @@ namespace Uicheck
                 $"option=({optL:0.#}..{optR:0.#}) midColumn=({midL:0.#}..{midR:0.#})");
         }
 
-        // ── ①b 兜底文本不许再撑大自己的框（那就是"字跑到石框外"的根因）──────────
         private static void CheckFallbackRect()
         {
             var raw = Ui("D2Text.cs");
@@ -179,8 +174,6 @@ namespace Uicheck
         }
 
         // ── ③ 怪物悬停：字号必须显式给（否则按原版 px 1:1 = 其它 UI 的 ~45%）────
-        //   ★ 片 u44（契约 C4）：承载它的文件从 `UI/EntityTooltip.cs`（头顶 tooltip，已删）
-        //     换成 `UI/EnemyBarView.cs`（顶部条 + NPC 名字牌）。③ 这条缺陷的**回归保护**随载体迁移，
         //     口径不变：两条 `D2Label.Create` 必须显式给字号；只是第二条"框单位"改成新载体的形状
         //     （名字牌尺寸 = 文本实测 × 画布字号 + padding×K ⇒ 同样不许混进世界格 px）。
         private static void CheckEntityTooltipFont()
@@ -195,7 +188,6 @@ namespace Uicheck
                 boxCanvas, boxCanvas ? "命中 ×UiLayoutGame.K 且 0 处 GameConst.IsoTilePxW"
                                      : "未命中（排版框与世界单位混用 ⇒ 换行/黑底尺寸错）");
 
-            // 纯函数判据：fontSize = 0 就是"原版 px 1:1"（这正是缺陷的量级来源）
             var scale0 = D2Text.ScaleFor(0, true, D2Text.D2Font.Font16);
             var scaleUi = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, true, D2Text.D2Font.Font16);
             Check("③ `D2Text.ScaleFor(0,…) == 1`（0 = 原版 px 1:1）而 `(int)FontPx16` 的缩放 > 2（差 2 倍以上）",
@@ -244,8 +236,6 @@ namespace Uicheck
                 AutoMapCel.CelPixels != null && AutoMapCel.CelPixels.Count > 0,
                 $"CelPixels={AutoMapCel.CelPixels?.Count ?? -1} 格 = {AutoMapCel.W}x{AutoMapCel.H}");
 
-            // ★ 片 g2-resume：口径由「本格 + 8 邻域」改为**记忆式已探索**（E23 ④ 内容本轮已更新）
-            //   ⇒ 旧断言（grep 源码里的 ±1 双循环）判的是**已经删掉的旧写法**（判结果不判过程），
             //     换成**行为断言**：直接调产品侧纯函数 `MiniMapPanel.Reveal` / `CountDrawn`
             //     判 不穿墙 / 同屏覆盖 / 墙轮廓 / 记忆单调 / 图元不丢。测试文件头「口径」一节。
             CheckRevealRubric();
@@ -352,13 +342,13 @@ namespace Uicheck
                 $"有 cel 的已探索格={withCel}，真正画出={drawn}，不透明像素={opaque}"
                 + $"（tex={texW}x{texH}，cel 底={celFloor}/墙={celWall}）");
 
-            // ★ U46（本轮 S1）：把"已探索集合"做成**注入集合**后，渲染侧必须满足的三条
+            // U46（本轮 S1）：把"已探索集合"做成**注入集合**后，渲染侧必须满足的三条
             //   （判据自己造集合 ⇒ 与"揭示口径"解耦；入口 = `MiniMapPanel.ApplyExplored` / 核心 = `RenderExplored`）
             CheckInjectedRender();
         }
 
         /// <summary>
-        /// ★ U46：**注入集合 ⇒ 图元**（纯函数渲染侧断言；⛔ 不经过 `Reveal`，集合由判据自己造）。
+        /// U46：**注入集合 ⇒ 图元**（纯函数渲染侧断言；不经过 `Reveal`，集合由判据自己造）。
         /// <para>① 空集合 ⇒ 0 格 / 0 图元；只注入 (0,0) ⇒ 图元数 == 该格 cel 单独 blit 的图元数（没有多画别的格）。</para>
         /// <para>② 确定性：同一集合渲染两次逐像素一致；超集 ⇒ drawn 格数 = 注入格数（图元只增不减）。</para>
         /// <para>③ cel 几何：相邻格 (0,0)→(1,0) 的图元 bbox 正好平移 **(+8, −4)** 纹理（列,行）
@@ -433,7 +423,7 @@ namespace Uicheck
                 $"两次单格 drawn={drawnA}/{drawnA2}（逐像素一致={same}）；两格 drawn={drawnB}");
 
             // ③ cel 几何：bbox(1,0) − bbox(0,0) 必须正好 (+stepX, −stepY)
-            //   ⚠️ bbox 必须取自**只含 (1,0) 的集合**（拿两格的并集去比，比出来是并集范围、不是平移量）
+            //   bbox 必须取自**只含 (1,0) 的集合**（拿两格的并集去比，比出来是并集范围、不是平移量）
             var onlyB = new bool[w * h];
             onlyB[1] = true;
             var bufC = new Color32[texW * texH];
@@ -459,22 +449,19 @@ namespace Uicheck
                 + $"ExploredInjected={(flag != null ? flag.PropertyType.Name : "(缺失)")}"
                 + "（`Events.MapExplored` 的注释点名这个收方）");
 
-            // ★ 片 automap-panel2（2026-09-24）：把「面板开着、数据非空却一笔不画」变成**可离线判的数**
             //   （前片只能靠截图目视 ⇒ 那次判定不成立：实机读数 DrawnCells=86 CellsWithCel=86
             //    OpaquePixels=1887 texOpaqueTexels=1772/313344，画了、只是稀）。两条：
             //     ⑤-新1 **不静默丢像素**：写出图元数 == 已探索格数 × cel 稀疏像素数（判「过程」：
             //           越界裁剪 / 漏帧都会让这条变红；既有 ⑤ 只判「不丢**格**」，这条判「不丢**像素**」）；
             //     ⑤-新2 **可见度比值**：不透明 texel 数 > 0（= 「真的画出了东西」）+ 比值 ≤ 数据上限
             //           （「画了数据里没有的图元」/重复绘制会变红）。
-            //   ⚠️ **覆盖率下限（阈值）缺出处**：原版「一屏该被 automap 覆盖多少」在本机没有载体
+            //   **覆盖率下限（阈值）缺出处**：原版「一屏该被 automap 覆盖多少」在本机没有载体
             //      （`策划/基线图/原版_automap_实机截图_20260923.png` 是别的场景、别的探索量，不可当阈值）
             //      ⇒ 本条**只判 >0 与 ≤数据上限，不设下限**；要设下限必须先有出处。
             CheckNoSilentPixelLoss();
         }
 
         /// <summary>
-        /// ★ 片 automap-panel2：**不静默丢像素** + **可见度比值**（纯函数层，与实例 `Redraw` 同一条
-        /// `RenderExplored` ⇒ 判据与产品同源，不是第二份画法）。
         /// <para>为什么需要：`MiniMapPanel` 的「面板开着、数据非空」到「屏上有图」之间隔着
         /// 裁剪 / 帧缺像素 / 载体不可见三层，既有断言只覆盖「格数」这一层。</para>
         /// </summary>
@@ -546,13 +533,10 @@ namespace Uicheck
                 $"缩纹理 tex={smallW}x{texH}：opaque={op2} < 期望 {expect}（drawn={drawn2}）"
                 + " ⇒ 该判据确实在判「过程」（有裁剪就会红）");
 
-            // ★ **与「覆盖率」分开的一条**：automap 有**两个独立根因**，⛔ 不许合成一个数：
             //   ① 覆盖率（画了多少格 / 多少墨）= 上面 ⑤-新1/⑤-新2 与 `DrawnCells/OpaquePixels`；
             //   ② **中心**（叠加层以谁为中心平移）= 本条。两条互不代偿：覆盖率上去 ≠ 居中对了。
             //   口径出处 = `Module/Contracts.cs` 的 `MinimapArgs.playerX/playerY` 注释「玩家所在格」
             //   ⇒ 渲染层的平移**只许**读 `_map.playerX/_map.playerY`；面板里**不许出现**出生点字段
-            //   （片 automap-panel 实测：`MapModule.BuildMinimap` 曾把这两个字段填成 `SpawnPoint`，
-            //    表现 = 走到别处开图，`anchoredPosition` 与"站在出生点旁"逐字节相同）。
             var src = Ui("MiniMapPanel.cs");      // ⚠️ 不脱注释：该文件**连注释**里也零 `spawn`（实测）
             var hasPx = src.Contains("_map.playerX");
             var hasPy = src.Contains("_map.playerY");
@@ -614,14 +598,11 @@ namespace Uicheck
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  FontScaleCheck（片 font-scale 新增；**放在本文件内**的理由见下）
     //
-    //  判什么 —— 用户连报「文字太小」的**第 2 层根因**：`D2Label.Create` 调用**没给字号**
     //  （`fontSize` 默认 0 = 按原版 px 1:1 画 ⇒ chi 格只有 16 画布px，是本画布应有字号的
-    //   16/28.8 ≈ 55%）。V6 报告 §4-② 机械列出的 6 处就在其中。
     //
     //   ① **全仓零处漏字号**：`client/Assets/Scripts/UI/**` 下**每一处** `D2Label.Create(...)`
-    //      调用都必须显式传第 9 个实参 `fontSize`。⛔ 不许靠"我以为只有 6 处"—— 本检查**机械扫
+    //      调用都必须显式传第 9 个实参 `fontSize`。不许靠"我以为只有 6 处"—— 本检查**机械扫
     //      全部调用点**（含将来新增的）。唯一允许的例外 = 放大由**根节点** `localScale = K`
     //      承担的两处（`UiLayoutFlow.cs` / `LevelEntryTitle.cs`）；例外必须**同域内**出现
     //      `localScale` 的 ×`K`，否则照样 FAIL（例外不可滥用）。
@@ -634,22 +615,16 @@ namespace Uicheck
     //      且上面的两处例外**必须仍然没传** fontSize（传了 = 54 → 97.2 的双重放大，
     //      见 V6 报告对 `UiLayoutFlow.cs:1806` 的警告）。
     //   ⑤ **框单位**：`GroundItemLabelView.LabelSize` 必须换算到**画布 px**（×`K`）——
-    //      与 V6 给 `EntityTooltip` 的修法同一口径；世界格 px 混进画布单位会让文字**提前折行**
-    //      （"字变大了但框没变大"这一类缺陷）。
     //
     //  为什么能离线判：①②④⑤ 是对**产品源码**的字符级断言（本宿主既有同类做法：V6Check /
     //  W3GameCheck / P5Check）；③ 是对**已编译常量与纯函数**的真值断言。
-    //  ⚠️ 口径：只判"**必须存在的写法**"与"**必须消失的写法**"，不判风格、不判字号审美。
+    //  口径：只判"**必须存在的写法**"与"**必须消失的写法**"，不判风格、不判字号审美。
     //
-    //  ⚠️ 为什么这个类写在 `V6Check.cs` 里（而不是自己的 .cs）：片 font-scale 实测
     //  **对 `Uicheck.csproj` 的写入不落盘**（两次 `replace_in_file` 都报成功，但磁盘上的
     //  `Uicheck.csproj` mtime 一直是 13:49:06、内容里没有新增的 `<Compile Include>`，
     //  `dotnet run` 因此报 `Program.cs(161,13): error CS0103: FontScaleCheck`）。
     //  本宿主是**白名单**工程（`EnableDefaultCompileItems=false`）⇒ 新 .cs 必须登记进 csproj。
-    //  为了不依赖那个会被复位的文件，本片把检查类放进**已在清单里**的 V6Check.cs（同一命名空间）。
-    //  ⇒ 下一步若有人能稳定改 csproj，可把本类原样挪回 `FontScaleCheck.cs` 并删掉这一节。
     // ═══════════════════════════════════════════════════════════════════════
-    /// <summary>片 font-scale：`D2Label.Create` 字号唯一出处的离线判据（见上）。</summary>
     internal static class FontScaleCheck
     {
         private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
@@ -802,7 +777,7 @@ namespace Uicheck
 
         /// <summary>
         /// 该调用点前后 20 行内是否有**根节点放大**（例外必须自证），且**本文件**确有 ×1.8 的出处。
-        /// <para>口径（实测修正）：⛔ 不能要求那一行里出现 `K` ——
+        /// <para>口径（实测修正）：不能要求那一行里出现 `K` ——
         /// `UiLayoutFlow.cs:1816` 写的是 `localScale = new Vector3(s, s, 1f)`（`s = Scale * _fontScale`，
         /// 而 `Scale` 是该文件自己的 `public const float Scale = 1.8f`，与 `UiLayoutGame.K` 同一口径）
         /// ⇒ 原来那条"行里必须有 K"会让它假 FAIL（实测：run3 报 2 项红）。</para>
@@ -830,7 +805,6 @@ namespace Uicheck
         }
 
         /// <summary>
-        /// 闸门自检（SKILL §8 第 3 条：新检查项必须各验一次"已知正确样本 PASS / 已知错误样本 FAIL"）。
         /// 这里验的是**决定每个调用点判红的那个计数器**（`SplitTop` 的顶层切参 + 实参个数口径）。
         /// </summary>
         private static void SelfTest()
@@ -970,7 +944,7 @@ namespace Uicheck
         }
 
         /// <summary>
-        /// 把注释掩成**等长空格**（⛔ 不删行、不缩短 —— 行号/列号必须与真实文件一致，
+        /// 把注释掩成**等长空格**（不删行、不缩短 —— 行号/列号必须与真实文件一致，
         /// 报告里的 `文件:行` 才能直接打开复核）。字符串/字符字面量原样保留（注释符在里面不是注释）。
         /// </summary>
         private static string Mask(string src)

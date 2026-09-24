@@ -1,17 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  ShopArtCheck.cs（uicheck 宿主的一个检查节，片 u53-shopart 新增）
 //
-//  判什么（用户症状：「商店的修理/关闭按钮底板是纯色占位（不是原版按钮图形）」）：
 //   ① **帧号绑定**（源码文本，判「过程」不判「结果」）：`UI/ShopPanel.cs` 里
 //      · `_repairButton` 的底图帧必须是 `2`（常态，按下 = 3），`close` 的必须是 `10`（按下 = 11）；
 //      · **每个** `UiArt.SquareButton(...)` 调用点都必须在后随几行内有 `ApplyBuySellButtonArt(<同一接收者>, <帧>)`
 //        —— `SquareButton` 的契约就是"底图由调用方贴"（它自己只给 `UiArt.ButtonBg` 占位色），
 //        漏贴 = 纯色块上图，正是本条要挡的形状；
-//      · `ApplyBuySellButtonArt` 的帧参数**不许**是 `0/1`（= 空白石钮，旧实现的错处）。
 //   ② **判据自检（退化样本必须变红，同一判据函数不吃偏袒）**：
 //      · 退化 A：把帧 `2/10` 换回 `0/0`（修前形状）⇒ `Judge` 必须判为不合格；
 //      · 退化 B：删掉 `ApplyBuySellButtonArt` 整行 ⇒ 未绑定数 ≥ 1 ⇒ 必须判为不合格；
-//      · **正例片段（第三向，README §5.2 #34）：最小合成源码 ⇒ 必须合格** ——
 //        防"判据其实在吃真文件的偶然排版/注释"（只跑真文件+负样本时，这两向都可能同真同假）。
 //   ③ **帧素材**：`Resources/Clover/D2/UI/Panel/buysellbtn_{0,1,2,3,10,11}.png` 在盘、
 //      导入设置与已验证可加载的 `buyselltabs_0.png` 逐项一致（Sprite/Single/Point）、
@@ -21,15 +17,13 @@
 //  为什么能离线判：① 是源码文本断言（与 `V6Check` 同口径：去注释后再判）；
 //  ③ 是解 PNG 像素（宿主已链 Unity 托管 DLL，不需要 Unity 运行时）。
 //
-//  实测数字出处（本片 2026-09-24 自己量的：一次性脚本 `.ai-tmp/test/u53_frames_measure.py`，
 //  **结论已硬编码在下面常量里，判据不依赖该脚本存在**；原始输出 `.ai-tmp/test/u53_frames_measure.txt`）：
 //    frame  32x32  不透明 992(常态)/900(按下)  内区墨量 = 0:21  1:45  2:228  3:237  10:264  11:284
 //    两两差异 = diff(0,2)=217  diff(0,10)=277  diff(2,10)=265  diff(2,3)=352  diff(10,11)=358
 //    ⇒ 阈值取 150 / 80 / 100（图形帧最低 186、空白帧 21 ⇒ 双向余量都很大）。
-//  ⚠️ 「帧 2/3 = 锤子+铁砧（修理）、帧 10/11 = 禁止符 ⊘（关闭）」这一层**语义**来自片 10 的读图
 //     （`策划/验收表.md` E4 行 / `策划/差异登记.tsv` E4 条，8× 最近邻放大联络图）；
 //     本条判据只机械证明"这四帧**确实带图形**、且与空白石钮/彼此都不同"，
-//     语义命名仍引 E4 的既有出处，⛔ 不在这里替它下结论。
+//     语义命名仍引 E4 的既有出处，不在这里替它下结论。
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System;
@@ -43,7 +37,6 @@ using UnityEngine;
 
 namespace Uicheck
 {
-    /// <summary>商店买卖屏底部方钮（修理 / 关闭）的底图 = 原版方钮对应图形帧（片 u53-shopart）。</summary>
     internal static class ShopArtCheck
     {
         private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
@@ -61,7 +54,6 @@ namespace Uicheck
         private const int RepairFrame = 2;
         private const int CloseFrame = 10;
 
-        /// <summary>空白石钮的常态/按下帧（旧实现的错处：一律贴这两帧 ⇒ 屏上两个没有图形的空方块）。</summary>
         private static readonly int[] BlankFrames = { 0, 1 };
 
         public static void Run()
@@ -81,7 +73,7 @@ namespace Uicheck
         // ① 帧号绑定（源码文本断言；纯函数 ⇒ ② 的退化样本能喂进同一判据）
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>`Judge` 的判据结果（每个字段都是"从源码里读出来的事实"，⛔ 不含任何自评）。</summary>
+        /// <summary>`Judge` 的判据结果（每个字段都是"从源码里读出来的事实"，不含任何自评）。</summary>
         private sealed class JudgeResult
         {
             public readonly List<string> SquareButtons = new List<string>();      // 接收者（无法判定时 = "?"）
@@ -118,7 +110,7 @@ namespace Uicheck
         /// <summary>
         /// **判据本体（纯函数）**：从 `ShopPanel.cs` 源码文本里读出
         /// 「方钮调用点 / 各自的底图帧 / 是否用了空白帧 / 按下帧是不是从常态帧 +1 推出来的」。
-        /// ⛔ 同一份函数必须对"修后源码"绿、对"退化样本"红（见 <see cref="CheckPolarity"/>）。
+        /// 同一份函数必须对"修后源码"绿、对"退化样本"红（见 <see cref="CheckPolarity"/>）。
         /// </summary>
         private static JudgeResult Judge(string source)
         {
@@ -207,11 +199,9 @@ namespace Uicheck
                 + "（本例必须先绿，否则下面的样本没有意义）",
                 real.Ok, $"unbound={real.Unbound} blankFrame={real.UsesBlankFrame}");
 
-            // 第三向（README §5.2 #34）：**正例片段 ⇒ 绿** —— 一段最小的**合成**源码，不是真文件文本。
             // 为什么必须有这一向：只跑「真文件 + 负样本」时，判据完全可能在**吃真文件的偶然排版/注释**
             // （真文件恰好带某种格式才匹配 ⇒ 换一份等价写法就假红，或负样本红是因为另一条无关规则）。
             // 本向用的接收者名 `fake`、帧号 `4` 都是**真文件里不存在**的字面量 ⇒ 绿只能来自判据本身正确。
-            // ⚠️ 样本变量与断言写在同一段（README §5.2 #28）：`pos` 定义后立刻断言，不跨函数取局部量。
             var pos = string.Join("\n", new string[] {
                 "        private static void ApplyBuySellButtonArt(Image img, int normalFrame)",
                 "        {",
@@ -394,7 +384,7 @@ namespace Uicheck
         // ═════════════════════════════════════════════════════════════════════
         // ④ 消费点扫描：全仓"按钮底板"这条路必须都落到原版帧上
         //    （`UiArt.ButtonBg` 是**唯一**的占位色常量；它只允许作为异步在途/缺图时的兜底，
-        //     ⛔ 不允许有哪条按钮工厂"只给占位色、不贴原版帧"）
+        //     不允许有哪条按钮工厂"只给占位色、不贴原版帧"）
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckConsumerScan()
         {
@@ -403,7 +393,7 @@ namespace Uicheck
             var s = Strip(src);
 
             // SquareButton 自己**不**贴图（契约：调用方贴）⇒ 全仓每个调用点都必须在 ShopPanel 里被 art 应用。
-            // ⚠️ 口径：`UiArt.cs` 内是**定义**（`public static Image SquareButton(`），定义里**不许**再出现
+            // 口径：`UiArt.cs` 内是**定义**（`public static Image SquareButton(`），定义里**不许**再出现
             //   `UiArt.SquareButton(`（那会是自己调自己的死循环）；调用点只应出现在 ShopPanel。
             var squareCall = Regex.Matches(s, @"UiArt\.SquareButton\(").Count;
             var scripts = Directory.GetFiles(Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts"),
@@ -434,7 +424,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑤ 标签必须在**钮外**（片 u53-shopart：原版方钮是纯图形自明，标签不许压住图形）
         //   判据本体 = 纯函数 `JudgeLabelOutside(button, label, panel)`；退化样本喂同一函数必须变红。
         //   坐标口径：`button` / `label` 都在**按钮 local 空间**（以按钮中心为原点），
         //   `panel` 在**面板 local 空间**（以面板中心为原点）—— 故比较前把 label 平移到面板空间。
@@ -442,13 +431,13 @@ namespace Uicheck
 
         /// <summary>
         /// **判据本体（纯函数）**：标签矩形既要**与按钮矩形不相交**，又要**整块落在面板矩形内**。
-        /// ⛔ 同一函数必须对"现在的几何"绿、对"修前形状（标签 = 铺满按钮）"与"标签上移压住钮"红。
+        /// 同一函数必须对"现在的几何"绿、对"修前形状（标签 = 铺满按钮）"与"标签上移压住钮"红。
         /// </summary>
         private static bool JudgeLabelOutside(Rect button, Rect label, Rect panel)
             => !label.Overlaps(button) && ContainsAll(panel, label);
 
         /// <summary>
-        /// 矩形包含（`outer` 完整包住 `inner`）。⚠️ 为什么不用 `Rect.Contains(Rect)`：
+        /// 矩形包含（`outer` 完整包住 `inner`）。为什么不用 `Rect.Contains(Rect)`：
         /// 本机 Unity 托管 DLL 里 `Rect.Contains` **只有 `Vector2` / `Vector3` 重载**，
         /// 没有 rect 版（实测 CS1503）⇒ 这里自己写四边比较（含 0.001 容差）。
         /// </summary>
@@ -507,7 +496,7 @@ namespace Uicheck
             Check($"⑤ 四个槽的标签两两不重叠（框宽 = 相邻雕槽 pitch = {ShopPanel.SlotPitch:0.#}）",
                 pairBad.Count == 0, pairBad.Count == 0 ? "6 对全不重叠" : "重叠：" + string.Join(",", pairBad.ToArray()));
 
-            // ③ 字号/框尺寸的**唯一真源**：标签高 == UiLayoutGame.FontPx16（⛔ 不许写死数字）
+            // ③ 字号/框尺寸的**唯一真源**：标签高 == UiLayoutGame.FontPx16（不许写死数字）
             var lh = ShopPanel.ButtonLabelRect(2).height;
             var lw = ShopPanel.ButtonLabelRect(2).width;
             Check("⑤ 标签高 == `UiLayoutGame.FontPx16`（字号单一真源）、框宽 == 相邻雕槽 pitch"
@@ -533,8 +522,8 @@ namespace Uicheck
             //    （否则纯函数再对也没接上 —— 判"过程"）
             var src = Strip(File.ReadAllText(Path.Combine(Program.UiDir, "ShopPanel.cs")));
             var passed = Regex.Matches(src, @"ButtonLabelRect\(\s*[0-9]+\s*\)").Count;
-            // ⚠️ 口径：实参链**跨行**（`SquareButton(\n …, ButtonLabelRect(2));`），故用"后随 4 行内"找，
-            //   ⛔ 不用 `SquareButton\([^)]*ButtonLabelRect\(` —— `[^)]*` 会在第一个内层 `)` 处截断（实测假红）。
+            // 口径：实参链**跨行**（`SquareButton(\n …, ButtonLabelRect(2));`），故用"后随 4 行内"找，
+            //   不用 `SquareButton\([^)]*ButtonLabelRect\(` —— `[^)]*` 会在第一个内层 `)` 处截断（实测假红）。
             var srcLines = src.Split('\n');
             var wired = 0;
             for (var i = 0; i < srcLines.Length; i++)
@@ -552,7 +541,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑥ 钮必须**居中在雕槽内凹区**里（片 u53-shopart R2-a：旧中心 = 槽顶沿 ⇒ 钮被抬高 18 原版px）
         //   判据本体 = 纯函数 `JudgeSlotFit`；退化样本（修前形状 / 艺术 1:1 形状）必须变红。
         //   坐标口径：全部在**面板 local 空间**（面板中心 = 原点，画布单位）。
         // ═════════════════════════════════════════════════════════════════════
@@ -560,7 +548,7 @@ namespace Uicheck
         /// <summary>
         /// **判据本体（纯函数）**：钮矩形 ⊆ 槽内凹区矩形 + 钮中心与槽中心距 ≤ <paramref name="tol"/>（画布px）
         /// + 钮整块在面板内。
-        /// ⛔ 同一函数必须对"现在的几何"绿、对"修前（中心=槽顶沿 381）/ 艺术 1:1（32px 塞 29px 内凹区）"红。
+        /// 同一函数必须对"现在的几何"绿、对"修前（中心=槽顶沿 381）/ 艺术 1:1（32px 塞 29px 内凹区）"红。
         /// </summary>
         private static bool JudgeSlotFit(Rect button, Rect inner, float tol, Rect panel)
             => ContainsAll(inner, button)

@@ -1,32 +1,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ★ 片 dialog-options2（2026-09-24）：对话选项「可读性」+ 物品 tooltip「可见性」的离线判据
 //
-// 这一节判什么（对应用户/主 agent 报的两条表现类缺陷，把它们的**可离线部分**钉成真值表）：
 //   ① 「NPC 对话选项按钮**一个字都没有**」（主 agent 读图
 //      `.ai-tmp/screenshots/btnlabel_recap_g1_dialog_options.png` 的结论）。
-//      ⇒ 本片实机复核后**部分推翻**：文案链没问题（运行时日志
-//        `[Ui] 对话面板已刷新：NPC=阿卡拉 台词 54 字 选项 3 项=[離開 / 重要消息 / 交易]`），
 //        按钮**有字**（第一项「離開」在实机图上清晰可读）；被糊住的是**鼠标悬停那一颗** ——
-//        中等按钮的悬停底图 `D2/UI/Menu/btn_med_sel.png` 是**麻点图**（用错调色板的典型症状），
 //        底板花斑把文案盖住。⇒「没字」与「被盖住」在画面上长得一样、且都不报错，
 //        所以这里把**两类判据都钉住**：文案侧（Ⓐ-1/Ⓐ-2/Ⓐ-4c）+ 底图侧（Ⓐ-5）。
-//      ⚠️ 2026-09-24 收口（片 **final-close**）：麻点图的**根因已修**（资产按 `fechar` 调色板重出
-//        `0.424 → 0.054`；`UI/UiArt.cs` 中等分支的 `highlight` 已接回 `ResPaths.BtnMedSel`）
-//        ⇒ Ⓐ-5 那一节**前提消失**，其三条判据已由「**记录缺陷**（坏图未接线 / 降级为常态帧）」
-//           翻成「**守护修复**（悬停必须用高亮帧 / 接线的图必须是干净图）」，见下面 Ⓐ-5 节头。
-//   ② 「离开背包后残留一块空框」（`.ai-tmp/test/report-playverify.md` §1.2）
-//      ⇒ `ItemTooltip.ShouldBeVisible(panelOpen, pointerInsidePanel, hasItem)` 三条合取（Ⓐ-3），
 //        并且**必须真被调用点用起来**（Ⓐ-4：防"孤立纯函数"—— 前片把这两个纯函数写完就死了，
 //        正是这种失败模式）。
 //
-// ⚠️ 本文件是「**同一交付的唯一实现**」：2026-09-24 02:4x 出现过一次**并发互删**——
-//    `V6Check.cs` 里曾有过一个**同名**类（由 `V6Check.Run()` 调用），本片为去重删了自己的文件，
 //    对方随后也把 `V6Check.cs` 那份删了（两份都消失）⇒ 本文件重新落地，并且
 //    `Program.cs` 的调用**放回 `Main` 的 Check 列表**（见 `DialogOptionsCheck.Run()` 那一行）。
-//    ⛔ 若再有人要在别处实现同名类，请**先**删本文件的 Compile 行再动手，别让两份同时消失。
+//    若再有人要在别处实现同名类，请**先**删本文件的 Compile 行再动手，别让两份同时消失。
 //
-// ⛔ 本文件只**新增**断言，不改既有判据（`Program.cs` 里已有的 S1~S7 / ⑬ 节一个字都不动）。
-// ⛔ 也不是"把断言写松"：下面每条都给了**具体的期望值**，并自带"已知错误样本必须红"的自证（Ⓐ-5c）。
+// 本文件只**新增**断言，不改既有判据（`Program.cs` 里已有的 S1~S7 / ⑬ 节一个字都不动）。
+// 也不是"把断言写松"：下面每条都给了**具体的期望值**，并自带"已知错误样本必须红"的自证（Ⓐ-5c）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -190,39 +177,33 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // Ⓐ-5 中等按钮悬停底图：**接线 + 资产双守护**（极性：记录缺陷 ⇒ 守护修复）
         //
-        //  历史（片 `dialog-options2`，2026-09-24 前半段）：`D2/UI/Menu/btn_med_sel.png`
         //  （= 原版 `FrontEnd/MediumSelButtonBlank.dc6` 帧 0 按 **ACT1** 调色板解出）是**麻点图**
         //  —— 与 `tools/d2codec` 解码器输出**逐像素全等**（maxdiff=0）⇒ 不是写坏，是**调色板错**；
         //  实机后果 = 悬停时底板花斑糊住按钮文案（`.ai-tmp/screenshots/btnlabel_recap_g1_dialog_options.png`）。
         //  ⇒ 那一片把悬停帧**降级为常态帧**，并钉「坏图**没有**被任何 UI 代码接线」——
-        //     那三条是**缺陷记录**（旧前提 = 资产坏、只能降级）。
         //
-        //  现状（片 `dialog-options` **定稿**，2026-09-24 后半段）：**前提已消失** ——
         //    · 资产：`btn_med_sel` 按 **`fechar`** 调色板重出（`regen_med_sel_fechar.py`；
         //      15 套 palette 逐套量同一麻点判据，只有 `fechar` 落进干净带）⇒ **0.424 → 0.054**；
         //    · 接线：`UI/UiArt.cs` 的 `ButtonSpritesFor` 中等分支 `highlight` **已接回** `ResPaths.BtnMedSel`。
-        //  ⇒ 本节三条判据极性**翻转**（fail-to-pass 的正向形式，⛔ 不是放宽、不是删掉、更不是永真）：
+        //  ⇒ 本节三条判据极性**翻转**（fail-to-pass 的正向形式，不是放宽、不是删掉、更不是永真）：
         //    · `Ⓐ-5a`「悬停**必须**用高亮帧 `BtnMedSel`」（旧前提「降级为常态帧」作废）；
         //    · `Ⓐ-5c` helper 自证的两侧换成 已接线(`BtnMedSel`)/未接线(`BtnMedSelPressed`)；
         //    · `Ⓐ-5d` 由「坏图未接线」改为「**量接线的图**」：麻点比 ≤ 0.10（旧图 0.424 必红）
         //      **且** 高饱和像素 ≥ 50（防「换成全透明图 ⇒ hot=0 ⇒ 比值恒 0」的假绿）。
         //
-        //  退化自证（片 final-close **实跑过**，见 `.ai-tmp/test/report-finalclose.md`）：
         //    ① 把 `UiArt` 的 highlight 临时改回常态帧 ⇒ Ⓐ-5a / Ⓐ-5c 变红，还原后回绿；
         //    ② 把 PNG 临时换回 HEAD 旧图（麻点 0.424）⇒ Ⓐ-5d 变红，还原后回绿（`git diff` 干净）。
         //  独立交叉核对（宿主外，PIL）：`.ai-tmp/test/finalclose_speckle.py`
         //    `btn_med_normal 0.040 / btn_med_pressed 0.066 / btn_med_sel 0.054 / sel_pressed 0.055`；
         //    HEAD 旧图 `btn_med_sel 0.424 (128/302)` / `sel_pressed 0.410 (120/293)`。
-        //  ⚠️ 残留资产 `btn_med_sel_pressed.png`（同族干净，0.055）**无消费方** ⇒ 仍钉「未接线」。
+        //  残留资产 `btn_med_sel_pressed.png`（同族干净，0.055）**无消费方** ⇒ 仍钉「未接线」。
         // ═════════════════════════════════════════════════════════════════════
         private static void MediumHighlightBadArt()
         {
             UiArt.ButtonSpritesFor(new Vector2(128f, 35f), out var mn, out var mp, out var mh);
             UiArt.ButtonSpritesFor(new Vector2(272f, 35f), out var wn, out var wp, out var wh);
 
-            // ★ final-close（2026-09-24）：极性**翻转** —— 旧断言是「悬停降级为常态帧」（前提 = 资产坏）。
             //   资产已重出 + `UiArt` 已接线 ⇒ 现在必须钉住「悬停**真的**用了高亮帧」。
             Program.Check("Ⓐ-5a：中等按钮悬停**必须**用原版高亮帧 `BtnMedSel`（常态/按下仍走单帧原版图）；"
                 + "旧极性「降级为常态帧」随资产修复作废",
@@ -241,9 +222,9 @@ namespace Uicheck
             var resPaths = NoComments(File.ReadAllText(
                 Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts", "Core", "ResPaths.cs"), Encoding.UTF8));
 
-            // ★ final-close：极性翻转后的**守护式**断言 —— 接线那半条落在 `BtnMedSel`（必须已接线），
+            // final-close：极性翻转后的**守护式**断言 —— 接线那半条落在 `BtnMedSel`（必须已接线），
             //   未接线那半条落在无消费方的 `BtnMedSelPressed`（helper 两向都动 ⇒ 不是恒真/恒假）。
-            // 三个探针各算一次、detail 由**实得值**合成（⛔ 不写死一句话：判红时那句会撒谎）
+            // 三个探针各算一次、detail 由**实得值**合成（不写死一句话：判红时那句会撒谎）
             var wiredNormal = IsWired("BtnMedNormal", sources);
             var wiredSel = IsWired("BtnMedSel", sources, resPaths);
             var wiredSelPressed = IsWired("BtnMedSelPressed", sources, resPaths);
@@ -254,7 +235,7 @@ namespace Uicheck
                 + $"BtnMedSel=>{(wiredSel ? "已接线" : "未接线")}（接线点应见 UiArt.ButtonSpritesFor 中等分支）；"
                 + $"BtnMedSelPressed=>{(wiredSelPressed ? "已接线" : "未接线")}（只剩 ResPaths.cs 的定义，已摘出）");
 
-            // ★ final-close：由「坏图未接线」翻成「**量接线的图**」—— 判据从"路径没被引用"变成
+            // final-close：由「坏图未接线」翻成「**量接线的图**」—— 判据从"路径没被引用"变成
             //   "被引用的那张图本身干净"，这才是资产的守护（路径对、图坏 ⇒ 旧口径照样绿）。
             var sel = MeasureSpeckle(Path.Combine(Program.ResourceRoot, "Clover",
                 "D2", "UI", "Menu", "btn_med_sel.png"));
@@ -275,7 +256,6 @@ namespace Uicheck
                 && File.Exists(Path.Combine(Program.ResourceRoot, "Clover", "D2", "UI", "Menu", "btn_med_normal.png")),
                 "Resources/Clover/D2/UI/Menu/btn_med_{sel,normal}.png");
 
-            // ★ final-close：**判据自检**（skill §8 第 3 条）——麻点度量本身必须能被已知样本证伪，
             //   否则 Ⓐ-5d 可能是"常数比大小"式的假绿。
             //   合成脏样本 = 纯灰底板 + 每 4×4 一个**孤立**高饱和像素（正是"麻点"的定义形态 ⇒ 比值≈1）；
             //   合成干净样本 = 纯灰板（hot=0 ⇒ 比值 0，但必须被 Ⓐ-5d 的 `hot ≥ 50` 挡下）。
@@ -522,7 +502,6 @@ namespace Uicheck
 
         /// <summary>
         /// 去掉 `//…` 与 `/*…*/`（**字符串字面量里的不算**）。
-        /// 为什么必须剥：本片在注释里**引用**了坏图路径 `ResPaths.BtnMedSel` / 改前的做法
         /// （说明为什么禁用）⇒ 扫原文会把"说明"当成"接线"，假阳性。
         /// </summary>
         private static string NoComments(string src)

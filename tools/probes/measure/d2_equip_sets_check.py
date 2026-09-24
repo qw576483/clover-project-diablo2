@@ -55,7 +55,7 @@ ACTIONS = ('idle', 'walk', 'attack', 'cast', 'hit', 'death', 'run')
 DIRS = ('s', 'sw', 'w', 'nw', 'n', 'ne', 'e', 'se')
 
 
-# ── 极简 PNG 读回（纯 Python：只用 zlib；⛔ 不引入第三方依赖）────────────────────
+# ── 极简 PNG 读回（纯 Python：只用 zlib；不引入第三方依赖）────────────────────
 def read_rgba(path):
     """读 8 位 RGBA 非隔行 PNG → `(w, h, bytes)`（行序自顶向下）。其它格式抛 ValueError。"""
     with open(path, 'rb') as fh:
@@ -152,14 +152,8 @@ def union(a, b):
 
 
 # ── 产物扫描 ─────────────────────────────────────────────────────────────────
-#: `--classes` 过滤：本片只管这两职业（`CharCreatePanel.SlotClassIds` 里在用的那两个）。
-#: ⚠️ 只影响**判定范围**，不改任何产物 —— 并发写同一 `equip/` 区的其它片（其它 3 职业）不该
-#: 让本片的判定变红（也不能让本片替它们背书）。
 ONLY_CLASSES = None
 
-#: `--only-sets "amazon/equip/jav,…"` 过滤：**本片自己的 4 套**。
-#: ⚠️ 必需：并发片正在往同一个 `equip/` 区写（甚至同名职业的别的命名，如 `barbarian/equip/hax_buc`），
-#: 不 scope 就会把别人的产物算进本片的幂等/数量判定。
 ONLY_SETS = None
 
 
@@ -385,7 +379,6 @@ def check(baseline_path, bottom_tol, grow_min):
         # 帧集（徒手 + 各装备套）必须用**同一张画布**（w/h/origin 全等），否则同一实体换装备时
         # 会因为画布尺寸不同而整体偏移/缩放不一致。
         # 实测依据：并发片把 5 职业徒手套改成"共画布"（amazon 158x214 / barbarian 142x178），
-        # 本片的 4 套必须与之一致（`export_chars.py --canvas amazon:158:214;barbarian:142:178`）。
         ca, cb = m.get('canvas') or {}, bm.get('canvas') or {}
         for k in ('w', 'h', 'originX', 'originY'):
             if ca.get(k) != cb.get(k):
@@ -423,7 +416,7 @@ def check(baseline_path, bottom_tol, grow_min):
         changed = sorted(k for k in set(base) & set(now) if base[k] != now[k])
         # 新增文件只在**受保护区**里才算违规；若它落在 `Chars/{职业}/equip…` 下
         # （本轮新增的交付目录 / Unity 给新目录生成的 `.meta`）⇒ 是预期产物。
-        # ⚠️ 判据是"路径在 equip 段之下"，不是"后缀是 .meta"（后者会把真·误改放过去）。
+        # 判据是"路径在 equip 段之下"，不是"后缀是 .meta"（后者会把真·误改放过去）。
         stray = [k for k in added if '/Chars/' not in k or '/equip' not in k]
         if removed or changed or stray:
             fails.append('A9 受保护文件变了：删除 %d / 内容变 %d / 受保护区外新增 %d（例 %s）'

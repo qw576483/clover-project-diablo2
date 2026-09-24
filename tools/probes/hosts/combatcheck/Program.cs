@@ -1,10 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Monster / Combat / Skill / View 离线自检（`docs/agents/agent-07-*.md` §5 的验收项逐条自证）
 //
 // 运行：
 //   dotnet run --project <项目根>/tools/combatcheck/CombatCheck.csproj -c Release
 //
-// ⛔ 这只是**类型层 + 逻辑层**的验证；画面（精灵/贴图/飘字/血条像素位置）必须在用户打开
+// 这只是**类型层 + 逻辑层**的验证；画面（精灵/贴图/飘字/血条像素位置）必须在用户打开
 //    Unity 编辑器后进 Play 由主 agent 看图验收。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -14,7 +13,6 @@ using System.Reflection;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// agent-33 引擎下沉 A2：`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` 同名 ⇒ 裸 Dir8 会 CS0104。
 using Dir8 = Diablo2.Def.Dir8;
 using Diablo2.Module;
 using Diablo2.Module.Combat;
@@ -29,10 +27,8 @@ namespace CombatCheck
 {
     internal static class Program
     {
-        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
-        //   原先写死 `@"client\Assets"`（cwd 相对）⇒ `tools/probes/hosts/run_all_hosts.ps1`
+        // 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
         //   用 `Push-Location <宿主目录>` 驱动时被解析成 `<宿主目录>\client\Assets`（不存在）
-        //   ⇒ 配表 0 行 ⇒ 24 项断言红、exit 1（实测 2026-09-20 复现）。
         private static readonly string ClientAssets = ResolveProjectRoot() + @"\client\Assets";
 
         /// <summary>
@@ -188,7 +184,6 @@ namespace CombatCheck
             // ① 物理 = 武器 + 武器 × (力量×StrBonus/100 + 敏捷×DexBonus/100 + 技能ED%) / 100
             //    （官方 DAMAGE_CalculatePhysicalDamage @0057b420；参考实现 combat.zig:149-180）。
             //    **整数截断**（D2ApplyPercent），不是四舍五入。
-            //    ★ 片 14：签名多了 `strBonus`/`dexBonus`（= 该武器的官方 StrBonus/DexBonus）——
             //    近战 100/0、**弓弩 0/100**（见下面新增的弓用例）。
             var p1 = DamageFormula.PhysicalDamage(10, 100, 0, 100, 0, 1f);
             var p2 = DamageFormula.PhysicalDamage(10, 100, 0, 100, 0, 1.5f);
@@ -201,8 +196,6 @@ namespace CombatCheck
             Check("物理伤害 = 武器 + 武器 × (力×StrBonus/100 + 敏×DexBonus/100 + 技能ED%)/100（官方整数截断口径）",
                 p1 == 20 && p2 == 25 && p3 == 9 && p4 == 17, $"{p1}/{p2}/{p3}/{p4}");
 
-            // ①b ★ 片 14（消除 E25）：弓/弩的官方系数是 **StrBonus=0 / DexBonus=100**
-            //    ⇒ 力量**完全不参与**、敏捷全参与。旧实现写死 StrBonus=100 ⇒ 拿弓会按力量算（错）。
             var pBow = DamageFormula.PhysicalDamage(10, 0, 100, 0, 100, 1f);      // 弓：力0 敏100
             var pBowStr = DamageFormula.PhysicalDamage(10, 100, 0, 0, 100, 1f);   // 弓：力100 敏0 ⇒ 力量不该生效
             Console.WriteLine($"物理伤害（弓 0/100）：武器10 力0  敏100 → {pBow}（期望 20：dmg% = 100×100/100）");
@@ -255,7 +248,6 @@ namespace CombatCheck
                 var m3 = DamageFormula.SkillManaCost(fb, 3);
                 Console.WriteLine($"火弹：1 级伤害 {d1Min}-{d1Max}（表 dmg_min/dmg_max={fb.DmgMin}/{fb.DmgMax}），" +
                                   $"3 级伤害 {d3Min}-{d3Max}；1 级法力 {m1}（表 mana={fb.ManaCost}/每级 {fb.ManaPerLvl}），3 级法力 {m3}");
-                // ★ 片 12（消除 E26）：断言从"线性放大"改为**官方分段式**的**独立手算期望值**。
                 //   火弹的官方列（skills.txt）：EMin=6 / EMax=12 / EMinLev1=3 / EMaxLev1=3 / HitShift=7
                 //   官方口径 = (base + 各段增量) × 2^HitShift / 256，整数截断：
                 //     1 级：6  ×128/256 = 3  .. 12×128/256 = 6
@@ -402,7 +394,7 @@ namespace CombatCheck
             MonsterDeathDelay();
 
             // ── 4.2 邪恶洞穴：Shaman(堕落萨满) 复活同伴 ──
-            // ★ 本轮改：洞穴布点是随机的，**"萨满 + 复活半径内的同伴"这一对不是每张图都有**
+            // 本轮改：洞穴布点是随机的，**"萨满 + 复活半径内的同伴"这一对不是每张图都有**
             //   ⇒ 按固定 seed 取图的旧写法会偶发"这张图没有可测场景"而误报失败。
             //   改成：在若干 seed 里找**第一张能测的图**测到底；一张都找不到才判失败（如实报）。
             var seeds = new[] { 424343, 20250916, 555001, 12345, 987654321, 424242 };
@@ -425,21 +417,18 @@ namespace CombatCheck
         /// <summary>
         /// Melee（僵尸）行为：会靠近 → 进近战范围 → 出手。
         /// <para>
-        /// ★ 片 3 改：刷怪口径改成**原版逐格抽样**（怪种+落点都随机）⇒ "随便挑一只近战怪 + 固定 6 秒窗口"
         /// 会因为**地形**（怪在墙后 / 要绕远）量到"几乎没靠近"，那是地形不是 AI。
         /// 本步要测的是 **AI 行为**，所以遍历若干只近战怪，取第一只"真的靠近并出手"的
-        /// （与本宿主 §4.4 Shaman 的候选 seed 循环同一风格：候选循环，命中即通过）。
-        /// ⚠️ 只放宽"用哪一只来演"，**判据本身没放宽**（靠近 > 1.0 格 + 出手 > 0 次，逐字未改）。
+        /// 只放宽"用哪一只来演"，**判据本身没放宽**（靠近 > 1.0 格 + 出手 > 0 次，逐字未改）。
         /// </para>
         /// </summary>
         private static void AiMelee()
         {
             const int maxTries = 6;
             var tried = 0;
-            // ★ 片 assert-audit：原兜底判据 = `tried > 0`（只证明"有候选怪"）⇒ **一只都没满足判据时仍然记 OK**
             //   （实测：`[ OK ] Melee：候选里的近战怪会靠近并出手 (试了 6 只…没有一只同时满足…)`），
             //   且上面「会靠近 / 出手」两条真判据因此**永不执行**（死代码）⇒ 这是"没判的看起来像判了"。
-            //   改成真比：走到兜底 = 没有任何一只满足 ⇒ 必须变红（⛔ 不为变绿而放宽判据）。
+            //   改成真比：走到兜底 = 没有任何一只满足 ⇒ 必须变红（不为变绿而放宽判据）。
             var satisfied = 0;
 
             foreach (var m in _ctx.Monster.All)
@@ -451,7 +440,6 @@ namespace CombatCheck
                 PlacePlayerAtDistance(m.Grid(), 5, 7.5f);   // 5 格起步、欧氏 ≤7.5 ⇒ 必在发现半径(8)内
                 var before = DistanceToPlayer(m.Grid());
 
-                // ★ 片 melee-ai-why：窗口**由算式给出**（旧值 `6f` 是拍的 ⇒ 必然量不到出手，推导如下）
                 //   窗口 = ⌈闭合到出手距离所需秒数⌉ + 事件余量（= 2 × 出手间隔 1.10s = 2.20s，至少 2 次机会）
                 //   ① 闭合需求 = (起步欧氏距离 − 出手门槛) / 该怪的**格每秒**速度
                 //      · 出手门槛 = `GameConst.MeleeRange` = 1.60 格
@@ -460,12 +448,11 @@ namespace CombatCheck
                 //      · 格每秒速度 = `monster_c.speed` × `MonsterTuning.SpeedToTilesPerSecond`
                 //        出处 **生产实现** `MonsterModule.SpeedOf`（`Module/Monster/MonsterModule.cs:531-536`）
                 //        × 0.2（`MonsterTuning.cs:120`，1 格 = 5 map 单位的换算）；下限钳 `MinMoveSpeed`
-                //      ⚠️ 日志里那只 `speed=1` 是**配表原值**（官方 `MonStats.Velocity`，单位 = map 单位/秒），
+                //      日志里那只 `speed=1` 是**配表原值**（官方 `MonStats.Velocity`，单位 = map 单位/秒），
                 //         **不是格/秒** —— 僵尸 `Velocity`=1 ⇒ **0.20 格/秒**（`MonsterTuning.cs:117` 逐行注明）。
                 //   ② 僵尸实测代入：闭合需求 = (5.00 − 1.60) / 0.20 = **17.00s**；旧窗口 `6f` 只能走
                 //      0.20 × 6 = **1.20 格**（且 `Grid()` 是**格取整** ⇒ 日志显示成 Δ1.00 格，实测 5.00→4.00 吻合）
-                //      ⇒ 离出手还差 2.20 格 ⇒ **旧窗口下"出手"判据一次都不可能成立**（§5 现象的真因）
-                //   ⛔ 本改动只把**窗口**对上"到出手距离所需帧数"，判据行（`after < before - 1.0f` /
+                //   本改动只把**窗口**对上"到出手距离所需帧数"，判据行（`after < before - 1.0f` /
                 //      `attacks > 0`）**一字未改**，也**没有**放宽任何阈值。
                 var tileSpeed = TilesPerSecondOf(m);
                 var needSeconds = Mathf.Max(0f, (before - GameConst.MeleeRange) / tileSpeed);
@@ -483,7 +470,6 @@ namespace CombatCheck
 
                 if (after < before - 1.0f && attacks > 0)
                 {
-                    // ★ 片 assert-audit：原为硬编码 `true`（永真 ⇒ 等于没判）。改成**真的把量到的数比一遍**
                     //   （值就是上面日志里的 before/after/attacks）⇒ 判据可失败，且与文案逐字对应。
                     Check("Melee：会靠近（距离显著减小）", after < before - 1.0f,
                         $"{before:0.00} → {after:0.00}（m#{m.id}；判据 = 减小 > 1.0 格）");
@@ -509,7 +495,7 @@ namespace CombatCheck
                 return;
             }
 
-            // ⚠️ 摆位口径必须用**真实出手上限** `MonsterTuning.RangedAttackMaxRange`（= **5.0**，C3 新增：
+            // 摆位口径必须用**真实出手上限** `MonsterTuning.RangedAttackMaxRange`（= **5.0**，C3 新增：
             //   用户「屏幕外都能打我」⇒ 出手距离由 `GameConst.RangedRange`(8) 收到 5.0，见该常量注释）。
             //   旧写法按"射程(8)"把玩家摆到欧氏 7 格 ⇒ 怪**合理地不出手**（实测日志
             //   `RequestMonsterAttack: 距离 7.07 > 射程 5.00 ⇒ 本次攻击取消`；5 格环上也实测 5.83 > 5.00）。
@@ -517,19 +503,16 @@ namespace CombatCheck
             PlacePlayerAtDistance(m.Grid(), 4, MonsterTuning.RangedAttackMaxRange - 0.2f);
             var before = DistanceToPlayer(m.Grid());
 
-            // ★ 片 melee-ai-why（同族穷举）：旧值 `6f` 同样是**拍的**（无算式出处）。
             //   所需秒数 = **最坏情况下把距离拉回 `RangedKeepDistance` 的时间**：怪被摆到欧氏 ≤4.8 的环 4 上
             //   （见上一条注释的出处），`MonsterAi.Ranged` 在格距 < `MonsterTuning.RangedKeepDistance`(4.0)
             //   时先后撤、**后撤期间不射击** ⇒ 窗口必须覆盖"从 0 格撤到 4.0 格"这一段：
             //   4.0 格 ÷ 该怪的格每秒速度（出处见 `TilesPerSecondOf`） + 出手余量。
             //
-            // ★ 片 melee-ai-why ②（主 agent 裁决的登记项①）：`attacks` 改成**窗口内差值**口径。
             //   `Trace` 是**全局累计**且全程从不 `Clear()` ⇒ 累计量会把"本窗口内实际出手 **0** 次"
             //   报成"有出手"（= "跳过却记 OK" 的同类隐患）。与 `AiCowardFlees` 那条（:555-560）同款。
-            //   ⚠️ 实测（退化校验 B，`.ai-tmp/test/maw_degB_range_oldcount.txt`）：本场景这只尖刺鼠
-            //   在窗口**前**的累计量恰为 **0** ⇒ 两种口径当前**同值**（⛔ 不存在"本来红、被修绿"）。
-            //   但本片已把 `AiMelee` 的窗口从 6s 拉长到 ~19s/候选，上游任一改动让怪在窗口前出手，
-            //   累计口径就会立刻误判 ⇒ 本条是**隐患消除**；⛔ 判据行与阈值一字未改，⛔ 不是放宽。
+            //   实测（退化校验 B，`.ai-tmp/test/maw_degB_range_oldcount.txt`）：本场景这只尖刺鼠
+            //   在窗口**前**的累计量恰为 **0** ⇒ 两种口径当前**同值**（不存在"本来红、被修绿"）。
+            //   累计口径就会立刻误判 ⇒ 本条是**隐患消除**；判据行与阈值一字未改，不是放宽。
             var atkBefore = Trace.AttacksBy(m.id);
             TickSim(EventWindowSeconds(MonsterTuning.RangedKeepDistance / TilesPerSecondOf(m)));
 
@@ -552,7 +535,6 @@ namespace CombatCheck
 
             PlacePlayerAtDistance(m.Grid(), 2, 4f);     // 贴到 2 格（欧氏 ≤4）⇒ 必触发后撤
             var before = DistanceToPlayer(m.Grid());
-            // ★ 片 melee-ai-why（同族穷举）：旧值 `4f` 是**拍的**。所需秒数 = 判据要求的位移 ÷ 该怪的格每秒速度
             //   （判据 = `after > before + 0.5f` ⇒ 0.5 格；速度算法同 `TilesPerSecondOf` 的出处注释）。
             TickSim(EventWindowSeconds(0.5f / TilesPerSecondOf(m)));
             var after = DistanceToPlayer(m.Grid());
@@ -571,10 +553,9 @@ namespace CombatCheck
             }
 
             // 打到 35% 血以下。
-            // ⚠️ 片 13（**E30 取整口径**：monster_c 改官方向零截断）之后，Act I 唯一的 Coward 怪
             //   「堕落者」的 maxHp 从 3 变 **2** ⇒ 走生产入口 `ApplyDamage` **无法**构造"低血但不死"
             //   （打 1 点只剩 50%、打 2 点就死）。⇒ 这里**把血量夹具调大**（**只动测试夹具**，
-            //   ⛔ 不改生产代码）：本断言测的是**逃跑 AI 逻辑**，与具体血量数值无关。
+            //   不改生产代码）：本断言测的是**逃跑 AI 逻辑**，与具体血量数值无关。
             m.maxHp = 100;
             m.hp = 30;
             Check("Coward：已被打到低血（≤35%）", m.hp <= m.maxHp * 0.35f, $"{m.hp}/{m.maxHp}");
@@ -583,18 +564,13 @@ namespace CombatCheck
             var before = DistanceToPlayer(m.Grid());
             var hpBefore = m.hp;
 
-            // ★ 片 monster-audio（修 Coward 那条红）：**测量窗口**修正，判据行一字未改。
             //   `Trace` 是**全局累计**且全程从不 `Clear()`；本段之前 `AiMelee` / `AiRangeKeepsDistance`
             //   / `AiRangeBacksOff` 已在同一张图上跑过若干秒，而这只 Coward **满血时走的正是近战分支**
             //   （`MonsterAi.Coward` 的非逃跑路径 = `if (dist <= MeleeRange) TryAttack`）⇒ 它在那几段里
             //   打出的伤害事件**全部**被 `AttacksBy` 算进本段。
-            //   实测（本片临时诊断，已撤）：窗口开始前累计 **5** 次、逃跑窗口内新增 **0** 次
-            //   ⇒ 生产代码是对的（逃跑分支 `if (m.FleeTimer > 0f) { StepAway; return Action.None; }`），
-            //   ⛔ 正确的修法不是去改生产代码"把攻击压掉"，而是把量尺对上判据标签的语义。
-            //   ⛔ 这不是放宽：改成**差值口径**后，逃跑窗口内只要真出手一次，照样判红。
+            //   这不是放宽：改成**差值口径**后，逃跑窗口内只要真出手一次，照样判红。
             var atkBefore = Trace.AttacksBy(m.id);
 
-            // ★ 片 melee-ai-why（同族穷举）：旧值 `3f` 是**拍的**。所需秒数 = 判据要求的位移(0.5 格)
             //   ÷ 该怪的格每秒速度（算法出处见 `TilesPerSecondOf`）；余量见 `EventWindowSeconds`。
             //   代入堕落者（`fallen` Velocity=5 ⇒ 1.0 格/秒）= 0.5s + 2.2s = 2.7s
             //   ⇒ 仍落在 `MonsterTuning.CowardFleeSeconds`(3.0s) 的一次逃跑期内（"逃跑窗口内出手"语义不变）。
@@ -610,8 +586,7 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// ★ 片 monster-audio 第四轮：**逐类怪物音效时序**（脚步 `FsCnt` / 受击延迟 `HitDelay`）
-        /// 必须**从 `MonSounds.txt` 取值**，⛔ 不许凭空写常量。这里把生产侧的解析结果
+        /// 必须**从 `MonSounds.txt` 取值**，不许凭空写常量。这里把生产侧的解析结果
         /// 与表里的原值逐类对账（值写死在本函数里，但每条都标了 `MonSounds.txt` 的 Id + 列名）。
         /// </summary>
         private static void MonsterVoiceTiming()
@@ -686,8 +661,7 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// ★ 片 monster-audio：**死亡音延迟的行为判据** —— 死亡**同帧**不许响，要等 `DeaDelay` 帧才响。
-        /// 期望值 `wantDelay` **从表经 `MonsterSfx.DeathDelaySeconds` 算**（⛔ 不硬编码）。
+        /// 期望值 `wantDelay` **从表经 `MonsterSfx.DeathDelaySeconds` 算**（不硬编码）。
         /// </summary>
         private static void MonsterDeathDelay()
         {
@@ -731,11 +705,10 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// ★ 片 monster-audio 第四轮：**脚步节奏的行为判据**（不是查表值，是"真走一遍数次数"）。
         /// <para>
         /// 判的到底是什么：`FsCnt=2` ⇒ 每 **0.5 格**一步。若哪天被改回"跨格一次"，
         /// 脚步次数会掉到 ≈ 跨格次数（比值 ≈ 1）⇒ 本条立刻判红。
-        /// ⛔ 期望值**不是硬编码的 2**：比值门槛 1.5 来自「0.5 格/步 vs 1 格/步」这两档之间的空隙，
+        /// 期望值**不是硬编码的 2**：比值门槛 1.5 来自「0.5 格/步 vs 1 格/步」这两档之间的空隙，
         ///   具体每类的 `FsCnt` 仍由 `MonSsounds.txt` 经 `MonsterSfx.StepPeriodTiles` 给。
         /// </para>
         /// </summary>
@@ -808,7 +781,6 @@ namespace CombatCheck
         /// <summary>
         /// 4.2 萨满复活：**配对必须按系统自己的距离口径找**。
         /// <para>
-        /// ★ 2026-09-24 修正（本片）：本方法原按 `WorldDistance`（= `Iso.GridToWorld` 的**等距世界单位**）
         /// 选配对，注释声称"世界单位 ≤ `ShamanReviveRange`"。**那是错的** —— 生产口径的出处：
         /// `Module/Monster/MonsterModule.cs::FindRevivableCorpse` 比的是
         /// `Vector2.Distance(shaman.Pos, corpse.Pos)`，而 `MonsterRuntime.Pos` 是
@@ -857,7 +829,7 @@ namespace CombatCheck
                 return false;
             }
 
-            // ★ 本行原为硬编码 `true`（只当"场景构造成功"的打印）⇒ 改成真的比一遍：判据更严，不是放宽。
+            // 本行原为硬编码 `true`（只当"场景构造成功"的打印）⇒ 改成真的比一遍：判据更严，不是放宽。
             Check($"Shaman(seed={seed})：复活半径（{MonsterTuning.ShamanReviveRange:0.#} 格）内有同伴可复活",
                 nearestD <= MonsterTuning.ShamanReviveRange, $"最近一对 = {nearestD:0.00} 格（格欧氏）");
 
@@ -874,7 +846,6 @@ namespace CombatCheck
                 $"m#{companion.id} alive={companion.alive} corpseUsable={companion.corpseUsable}");
 
             PlacePlayerAtDistance(shaman.Grid(), 5, 7f);
-            // ★ 片 melee-ai-why（同族穷举）：旧值 `6f` 是**拍的**。所需秒数 = 萨满的复活冷却
             //   `MonsterTuning.ShamanReviveCooldownSeconds`（0.6s，= 官方 aidel 15 帧 ÷ 25fps，见其注释）
             //   + 出手余量 ⇒ 覆盖"首个思考帧就复活"与"冷却后才复活"两种情形。
             TickSim(EventWindowSeconds(MonsterTuning.ShamanReviveCooldownSeconds));
@@ -996,7 +967,6 @@ namespace CombatCheck
             Check("日志顺序 = 死亡 → 经验 → 掉落", iDeath >= 0 && iExp > iDeath && iDrop > iExp,
                 $"{iDeath} < {iExp} < {iDrop}");
 
-            // ── Item 模块未接入（agent-08 未落地）时的降级 ──
             Section("6b. IItemModule 为 null 时的降级（必须有明确告警，不静默）");
             _ctx.Item = null;
             var warnBefore = _log.Count("⇒ 本次掉落丢失");
@@ -1158,7 +1128,6 @@ namespace CombatCheck
             Check("已学技能镜像到存档 skillIds/skillLevels",
                 save2.skillIds.Count == save2.skillLevels.Count && save2.skillIds.Count > 0,
                 $"{save2.skillIds.Count} 条");
-            // ★ 片 assert-audit：原为硬编码 `true` + 文案只说"拒绝路径见日志提示" ⇒ 等于没判。
             //   改成**真的绑一次被动技能**：`AssignToButton` 内部 `ValidateSelectable` 判 `passive` 拒
             //   ⇒ 原绑定必须**一字不变**，且拒绝日志必须出现（两处任缺 ⇒ 变红）。
             Table.BaseSkillRow passiveRow = null;
@@ -1189,7 +1158,7 @@ namespace CombatCheck
         // 9. 施放：扣法力 + 冷却
         // ═════════════════════════════════════════════════════════════════════
         // ═════════════════════════════════════════════════════════════════════
-        // 16. ★ R4（impl-I）：F1~F8 技能槽 → 左右键技能格绑定（真 SkillModule）
+        // 16. R4（impl-I）：F1~F8 技能槽 → 左右键技能格绑定（真 SkillModule）
         // ═════════════════════════════════════════════════════════════════════
         private static void Step16_SkillSlotBinding()
         {
@@ -1355,7 +1324,7 @@ namespace CombatCheck
             _player.SetMana(1);
             Check("法力不足时 = false 且法力不变", !_ctx.Skill.TryCast(fb.id, grid) && _player.Mana == 1, $"mana={_player.Mana}");
 
-            // ★ w7：扣蓝契约入口本体（`IPlayerModule.TrySpendMana`）—— 成功扣减 / 不足 / 非正数
+            // w7：扣蓝契约入口本体（`IPlayerModule.TrySpendMana`）—— 成功扣减 / 不足 / 非正数
             _player.SetMana(20);
             var spent = _player.TrySpendMana(5);
             Check("TrySpendMana(5) = true 且 -5（扣蓝入口生效）", spent && _player.Mana == 15,
@@ -1439,10 +1408,9 @@ namespace CombatCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 15. ★ 审计 B 红行 R2/R3：投射物 × 地形碰撞 / 投射物 × 桥栏杆排序
+        // 15. 审计 B 红行 R2/R3：投射物 × 地形碰撞 / 投射物 × 桥栏杆排序
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// 审计 B（`.ai-tmp/test/audit-B-geo-input.md` §3）两条**高**严重度红行：
         ///   R3 = `Projectile.Step` / `TickProjectiles` 全无地形判定 ⇒ 隔墙/隔水/隔树射杀；
         ///   R2 = 投射物表现用**裸实体档**（`ProjectileView.cs:50,77`）⇒ 桥面射出的投射物被
         ///        正南一格桥栏杆盖住（"桥下走"同族，上一轮只修了实体一条路径）。
@@ -1453,7 +1421,7 @@ namespace CombatCheck
             Section("15. ★ 审计 B R2/R3：投射物撞地形消散（不穿墙）+ 投射物排序走 deck 口径");
 
             // ── 15.1 逐类裁决表（口径唯一出处 = `SkillModule.BlocksProjectile`）───────
-            // 期望值**独立写**（⛔ 不是把 `IsWalkable` 抄一遍）：新增 TileKind 却忘了裁决 ⇒ 当场变红
+            // 期望值**独立写**（不是把 `IsWalkable` 抄一遍）：新增 TileKind 却忘了裁决 ⇒ 当场变红
             var expect = new Dictionary<TileKind, bool>
             {
                 { TileKind.Void,      true  },   // 图外 / 未生成
@@ -1468,10 +1436,9 @@ namespace CombatCheck
                 { TileKind.CaveWall,  true  },   // 洞穴岩壁
                 { TileKind.Exit,      false },   // 出入口（可走）
                 { TileKind.TownFloor, false },   // 城镇地面
-                // ★ 2026-09-23 片 L 把「水」从 Rock 拆成独立值 12 后**回来重判**：
                 //   水 = 占满整格 + 不可走；项目对 TileKind 只有一个"可走性"轴（没有"仅挡行走不挡弹道"
                 //   的数据位）；拆值前水就是 Rock ⇒ 判"挡"= 零行为回归。
-                //   ⚠️ 仍待参考物：原版 ds1 的 BlockWalk / BlockMissile 是两个位；若水只置 BlockWalk，
+                //   仍待参考物：原版 ds1 的 BlockWalk / BlockMissile 是两个位；若水只置 BlockWalk，
                 //   投射物应飞过水面 ⇒ 那时改 SkillModule 一行 + 本表一行。
                 { TileKind.Water,     true  },   // 水（本片裁决：挡；待参考物复核）
             };
@@ -1655,7 +1622,7 @@ namespace CombatCheck
             Console.WriteLine();
         }
 
-        /// <summary>找 P(可走) → W(阻挡) → T(可走) 的三连格（东向优先；⛔ 不写死坐标，从当前地图搜）。</summary>
+        /// <summary>找 P(可走) → W(阻挡) → T(可走) 的三连格（东向优先；不写死坐标，从当前地图搜）。</summary>
         private static bool FindWallAlley(out Vector2Int p, out Vector2Int w, out Vector2Int t)
         {
             var dirs = new[] { new Vector2Int(1, 0), new Vector2Int(0, 1) };
@@ -1725,7 +1692,7 @@ namespace CombatCheck
 
         /// <summary>
         /// 该段直线是否**全程可被投射物穿过**（判据口径 = `SkillModule.PassableForProjectile`，
-        /// 与运行时同一份实现；⛔ 宿主里不另写一份地形判定）。
+        /// 与运行时同一份实现；宿主里不另写一份地形判定）。
         /// </summary>
         private static bool TerrainClear(Vector2Int from, Vector2Int to)
         {
@@ -1794,7 +1761,6 @@ namespace CombatCheck
 
             // 换方向 = 换整套帧键
             //
-            // ★ agent-20 §A 修正：原断言把帧数写成常量 8（**素材到位前的占位常量**）。
             //   本轮接上原版 `.dcc` 后帧数是**逐单位真实值**（`SpriteFrameCounts.cs` 生成物）：
             //   亚马逊 walk=8（正好也是 8）、堕落者 attack=10（**不是** 8）。
             //   ⇒ 断言改为"对着真实帧数表断言"，这样它验的是**帧键与帧数表一致**（真正的契约），
@@ -1824,13 +1790,9 @@ namespace CombatCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 14. 视图空引用防护（agent-16）
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// 复现 `docs/agents/agent-16-视图空引用刷屏.md` 的缺陷路径并断言已修好：
         /// 实体根随 Stage 场景卸载（`_root` 的 Unity 引用判为 null）之后，`AppContext.Tick` 仍每帧调
-        /// `ViewModule.Tick` ⇒ 修复前在 `_player.Root.transform` 上抛 `MissingReferenceException`（每帧刷屏，
-        /// 并把 `View` 之后的所有模块一起中断）。
         /// <para>离线进程建不了 `GameObject`（`new GameObject()` 会抛异常），而 Unity 里「已销毁对象」
         /// 的 `== null` 恰好就是 true ⇒ 这里直接把 `Root` 置 null 来构造**同一条代码路径**。</para>
         /// </summary>
@@ -1988,7 +1950,6 @@ namespace CombatCheck
             // 注意：AutoWire 是在**本宿主程序集**里找实现 ⇒ 它会把本文件的替身
             // （RecordingItem / FakePlayer / RecordingAudio）也装配进去 —— 这恰好证明
             // "按接口找唯一实现 + 反射实例化" 这条机制是通的。真实游戏里这三个位置分别是
-            // agent-08 / agent-06 / agent-11 的 ItemModule / PlayerModule / AudioModule。
             Check("按接口找实现：宿主里的 Item/Player/Audio 替身也被 AutoWire 装了（机制自证）",
                 ctx2.Item != null && ctx2.Player != null && ctx2.Audio != null,
                 $"Item={Name(ctx2.Item)} Player={Name(ctx2.Player)} Audio={Name(ctx2.Audio)}");
@@ -2026,7 +1987,7 @@ namespace CombatCheck
         /// = 2.20s，即至少给 2 次出手机会）。
         /// <para>★ 片 melee-ai-why：本宿主原有多处"固定 N 帧"窗口是**拍的**（无算式出处），
         /// 其中 `AiMelee` 的 `6f` 用了**足以证伪**的短窗口（慢怪 17s 才到出手距离 ⇒ 判据必然量不到出手）。
-        /// 统一改成"所需秒数（各调用点标明出处）+ 余量"，⛔ 判据本身不动、阈值不放宽。</para>
+        /// 统一改成"所需秒数（各调用点标明出处）+ 余量"，判据本身不动、阈值不放宽。</para>
         /// </summary>
         private static float EventWindowSeconds(float requiredSeconds)
             => requiredSeconds + MonsterTuning.AttackIntervalSeconds * 2f;
@@ -2060,7 +2021,6 @@ namespace CombatCheck
 
         /// <summary>
         /// 按**复活判定用的距离口径**取最近的活怪 —— 与 `MonsterModule.FindRevivableCorpse` 同一把尺子。
-        /// ★ 2026-09-24 修正：原实现用 `WorldDistance`（等距世界单位）并声称"口径与 FindRevivableCorpse 一致"，
         /// 那是错的（生产比的是 `MonsterRuntime.Pos`，单位 = **格**；见 `AiShamanRevives` 的出处说明）。
         /// </summary>
         private static MonsterState NearestMonsterByReviveMetric(MonsterState from, float maxDistance, int exceptId)
@@ -2082,14 +2042,14 @@ namespace CombatCheck
         /// **复活判定的唯一距离口径** = `MonsterModule.FindRevivableCorpse` 里那句
         /// `Vector2.Distance(shaman.Pos, corpse.Pos)`（`MonsterRuntime.Pos` = 连续格坐标，格中心制）
         /// ⇒ 等价于两格中心的**格欧氏距离**（单位 = 格，与 `MonsterTuning.ShamanReviveRange` 同量纲）。
-        /// ⛔ 不要用 `WorldDistance`（`Iso.GridToWorld` 的等距世界单位）或 `Iso.GridDistance`（Chebyshev）替代。
+        /// 不要用 `WorldDistance`（`Iso.GridToWorld` 的等距世界单位）或 `Iso.GridDistance`（Chebyshev）替代。
         /// </summary>
         private static float ReviveScanDistance(MonsterState a, MonsterState b)
             => Iso.GridDistanceEuclidean(a.Grid(), b.Grid());
 
         /// <summary>
         /// 两怪之间的**等距世界单位**距离（`MonsterState` 只有格坐标 ⇒ 用格中心 `Iso.GridToWorld` 换算）。
-        /// ⛔ 这**不是**复活判定的口径（易与格欧氏混淆：同一对实测 6.32 世界 vs 8.60 格），
+        /// 这**不是**复活判定的口径（易与格欧氏混淆：同一对实测 6.32 世界 vs 8.60 格），
         /// 仅用于人读参考 / 与相机可见范围打交道的地方。
         /// </summary>
         private static float WorldDistance(MonsterState a, MonsterState b)
@@ -2138,10 +2098,8 @@ namespace CombatCheck
         private static void PlacePlayerAtDistance(Vector2Int monsterGrid, int distance,
             float maxEuclidean = float.MaxValue)
         {
-            // ★ C3 之后「线段不得被不可走地形阻断」对**怪物出手**同样生效
+            // C3 之后「线段不得被不可走地形阻断」对**怪物出手**同样生效
             //   （`CombatModule.RequestMonsterAttack` → `MeleeShape.LineClear`，与玩家侧同一把尺子）
-            //   ⇒ 玩家被摆到墙/水后面时，怪"在射程内却不出手"是**正确行为**，不是缺陷。
-            //   本方法原先只按「可走 + 欧氏距离达标」挑格 ⇒ 会把玩家摆到视线被挡的位置
             //   （Range 用例实测出手 0 次）。现在**优先挑视线通畅**的格（同一把 `MeleeShape.LineClear`），
             //   环上找不到才退回旧口径并留一行披露 —— 断言本身（在射程内必须出手）一字未改。
             if (TryPlacePlayerAtDistance(monsterGrid, distance, maxEuclidean, true)) return;
@@ -2265,8 +2223,8 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// 配表**原值** `monster_c.speed`（= 官方 `MonStats.Velocity`，单位 **map 单位/秒**，⛔ 不是格/秒）。
-        /// ⚠️ 打印时请标清量纲；要拿"格/秒"请用 <see cref="TilesPerSecondOf"/>。
+        /// 配表**原值** `monster_c.speed`（= 官方 `MonStats.Velocity`，单位 **map 单位/秒**，不是格/秒）。
+        /// 打印时请标清量纲；要拿"格/秒"请用 <see cref="TilesPerSecondOf"/>。
         /// </summary>
         private static float SpeedOf(MonsterState s)
         {
@@ -2370,14 +2328,13 @@ namespace CombatCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 17. ★ 片 N（审计 R1/R2）：武器伤害类技能（官方 skills.txt `SrcDam`≠0）
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
         /// 审计 R1（21 个武器伤害类技能"零效果"，含用户报的「重击#121」）+ R2（30 行次要投射物槽未导出）
         /// 的**回归断言**。判**过程**、不判"调用了一次函数"：
         /// <list type="number">
         /// <item><description>配表：`skill_c` 里 `src_dam>0` = 33 行；其中"自身无伤害值(dmg_max=0) ∧ 无主投射物"
-        /// = 21 行，**逐个列出** `calc1` 原文 / `*calc1 desc` / 解析出的倍率（⛔ 不抽样）。</description></item>
+        /// = 21 行，**逐个列出** `calc1` 原文 / `*calc1 desc` / 解析出的倍率（不抽样）。</description></item>
         /// <item><description>生产入口：21 行逐个过 `DamageFormula.PhysicalDamageEd`（与技能结算**同一入口**），
         /// 用 `item_c` 里**真实的两把武器**（最小/最大 `dmg_max`）做对照 ⇒ 伤害必须 >0 且随武器单调变化、
         /// 随技能等级变化。</description></item>
@@ -2389,7 +2346,7 @@ namespace CombatCheck
         {
             Section("17. ★ 片 N（审计 R1/R2）：武器伤害类技能（官方 SrcDam≠0）—— 配表 + 生产入口 + 徒手/武器对照");
 
-            // ── 17.1 配表（21 行逐个，⛔ 不抽样）────────────────────────────────
+            // ── 17.1 配表（21 行逐个，不抽样）────────────────────────────────
             var all = Table.Tables.Default.Skill.All();
             var srcRows = new List<Table.BaseSkillRow>();
             var armed = new List<Table.BaseSkillRow>();
@@ -2531,7 +2488,6 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// 片 N 用：刷怪 → 摆武器（或不摆）→ 放「重击」→ 从**运行时自己的日志**取 `⇒ raw=`
         /// （L3 锚点：由被测程序在结算时写出，不是断言方自己算的）。
         /// 返回 -1 表示没读到 ⇒ 断言必红，不会假绿。
         /// </summary>
@@ -2573,7 +2529,6 @@ namespace CombatCheck
             return LastWeaponRaw(since);
         }
 
-        /// <summary>片 N 用：取 `since` 之后最后一条 `⇒ raw=N` 里的 N（只认 SkillModule 武器结算那条）。</summary>
         private static int LastWeaponRaw(int since)
         {
             for (var i = _log.Lines.Count - 1; i >= 0 && i >= since; i--)
@@ -2590,10 +2545,10 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// 18. ★ C3：**攻击判定形状**（正面扇形 + 矩形走廊 + 线段通畅）——
+        /// 18. C3：**攻击判定形状**（正面扇形 + 矩形走廊 + 线段通畅）——
         /// 起因 = 用户本轮原话「你是圆形判断的打击范围」「为什么打击范围这么奇怪」「屏幕外都能打我？？？？？」。
         /// <para>纯函数逐例驱动（不埋 MonoBehaviour、不依赖 AppContext 与真实地图）。</para>
-        /// <para>⛔ 只**新增**断言，不动 1~17 节的任何判据。</para>
+        /// <para>只**新增**断言，不动 1~17 节的任何判据。</para>
         /// </summary>
         private static void Step18_AttackShape()
         {
@@ -2603,7 +2558,7 @@ namespace CombatCheck
             Check("判据用到的 reach 与契约常量一致", Math.Abs(reach - GameConst.MeleeRange) < 0.001f,
                 $"reach={reach:0.00} GameConst.MeleeRange={GameConst.MeleeRange:0.00}");
 
-            // 朝向取 N。格增量走**引擎权威表** `Iso.DirectionDelta(Dir8.N)`（⛔ 宿主与 MeleeShape 都不另写映射表）
+            // 朝向取 N。格增量走**引擎权威表** `Iso.DirectionDelta(Dir8.N)`（宿主与 MeleeShape 都不另写映射表）
             var nv = Iso.DirectionDelta(Dir8.N);
             float fx, fy;
             var got = MeleeShape.ToUnit(nv.x, nv.y, out fx, out fy);
@@ -2637,7 +2592,7 @@ namespace CombatCheck
                 $"沿轴 2.5 > reach {reach:0.00}");
 
             // ⑤ 8 向量化误差（22.5°）下的斜向贴身不许被丢掉（否则"打不到贴身的怪"）
-            //   ⚠️ 偏差偏移必须**以引擎权威朝向向量 (fx,fy) 为轴**旋转，不许假定"N 的格增量 = (0,-1)"：
+            //   偏差偏移必须**以引擎权威朝向向量 (fx,fy) 为轴**旋转，不许假定"N 的格增量 = (0,-1)"：
             //   `Iso.DirectionDelta(Dir8.N)` = (-1,-1)（`IsoLayout.DirectionDelta` 的表；屏幕正上）——
             //   旧写法按 (0,-1) 口径摆偏移 ⇒ 沿轴/垂距两项都算错（实测把"实际垂距 1.30 > 半宽 1.20"
             //   错报成"沿轴 1.30 ≤ 1.60、垂距 0.54 ≤ 1.20"）。这里改为现算轴与投影。
@@ -2682,11 +2637,8 @@ namespace CombatCheck
                 MonsterTuning.RangedAttackMaxRange > GameConst.MeleeRange,
                 $"{MonsterTuning.RangedAttackMaxRange:0.00} > {GameConst.MeleeRange:0.00}");
 
-            // ⑧ ★ melee-samecell（2026-09-23 缺陷修复，新增断言；① ~ ⑦ 一字未改）：
             //   **同格（偏移 (0,0)）⇒ 必命中**。
             //   起因 = 实测 40 次真实左键**全部**被"判定形状拒绝（锥半角 60°）偏移=(0,0) 距离 0.00"
-            //   （`.ai-tmp/test/report-audioverify2.md` §2.3）：玩家沿 `MoveCommand` 会走到怪所在那一格，
-            //   而旧实现把零偏移判成"不在锥内" ⇒ **贴身永远打不到怪**（`hit` 音效也从未响过）。
             //   原版口径 = 近战触及是**距离 / 外接框**比较，不是角度比较：
             //     · `原版资源/d2lod1.10txt-1.10f/data/global/excel/Weapons.txt` 第 20 列 `rangeadder`
             //       （Short Sword / Hand Axe = 空(=0)，War Staff = 1）⇒ 触及 = 1 + rangeadder **格**；
@@ -2701,7 +2653,7 @@ namespace CombatCheck
                 + " ∧ 线段通（无中间格）");
 
             // ⑨ ⑧ 是"只补退化点"的负向对照：正侧方 90° 仍必须被拒 ——
-            //   若这一条翻了，说明 ⑧ 的改法把扇形放宽成了圆形（⛔ C3 定稿口径不许推翻）。
+            //   若这一条翻了，说明 ⑧ 的改法把扇形放宽成了圆形（C3 定稿口径不许推翻）。
             Check("同格特例**没有**把扇形放宽：正侧方 1.5 格仍不命中（= ② 的修复后复核）",
                 !MeleeShape.InFrontCone(fx, fy, 1.5f, 0f, MeleeShape.FrontConeCos)
                 && !MeleeShape.InMeleeRect(fx, fy, 1.5f, 0f, reach, MeleeShape.MeleeHalfWidth),
@@ -2710,11 +2662,9 @@ namespace CombatCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 19. ★ melee-samecell：**真实链路**同格攻击（不是纯函数）
+        // 19. melee-samecell：**真实链路**同格攻击（不是纯函数）
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// 缺陷复现/回归：把玩家摆到**怪所在的那一格**（真实玩法里 `MoveCommand` 就会走到怪格上），
-        /// 然后走**生产入口** `ICombatModule.RequestAttack` ⇒ 必须造成伤害，且日志里**不许**出现
         /// "被**判定形状**拒绝"。
         /// <para>
         /// 为什么不能只靠第 18 节的纯函数断言：形状闸门是**接线**（`CombatModule.ShapeGate` 调
@@ -2765,10 +2715,9 @@ namespace CombatCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 20. ★ lineclear-fix：**线段被地形阻断 ⇒ 怪不许出手**（"隔墙反复挥空"的回归）
+        // 20. lineclear-fix：**线段被地形阻断 ⇒ 怪不许出手**（"隔墙反复挥空"的回归）
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// 缺陷（前片 `melee-ai-why` §7 登记③，用户可见）：结算层 `RequestMonsterAttack` 判"线段被不可走
         /// 地形阻断"时**只打日志就 return**，而发起方 `MonsterAi.TryAttack` 在发起前已经把
         /// **出手动画 / 出手音效 / 出手计时器**都写好了 ⇒ 怪每 `AttackIntervalSeconds` 挥一次空，
         /// 且永不知道自己被拒（死循环）。
@@ -2782,12 +2731,11 @@ namespace CombatCheck
         /// ③ 断言两者都 == 0（修前：每 1.10s 一次 ⇒ 必然 > 0）。
         /// </para>
         /// <para>
-        /// ⛔ 为什么不数 `Trace.AttacksBy`：被拒的出手**不会**产生 `DamageDealt` 事件（结算层在
-        /// `LineClear` 就 return 了）⇒ 用伤害事件数**看不见**本缺陷（这正是它藏了这么久的原因）。
+        /// 为什么不数 `Trace.AttacksBy`：被拒的出手**不会**产生 `DamageDealt` 事件（结算层在
         /// 可观测的"挥手"只有两处：出手音效（在结算之前播）与结算层拒绝日志。
         /// </para>
         /// <para>
-        /// ⛔ 判据/阈值一字未放宽：本用例只**新增**断言，不改任何既有用例。
+        /// 判据/阈值一字未放宽：本用例只**新增**断言，不改任何既有用例。
         /// </para>
         /// </summary>
         private static void Step20_MeleeLineBlocked()
@@ -2806,7 +2754,7 @@ namespace CombatCheck
             //     （用"全不可走"的地形委托也打不通）。近战触及 `GameConst.MeleeRange` = 1.60 ⇒ 只可能落在
             //     8 邻 ⇒ **近战出手永远不可能被地形拒**（所以用户看到的"隔墙挥空"不可能出在近战身上）。
             //   · 步长 ≥ 2 格（远程上限 `RangedAttackMaxRange` = 5.0 ⇒ 2~5 格）⇒ 有中间格 ⇒ 可被拒。
-            //   ⛔ 本条只**量事实**，不改任何判据。
+            //   本条只**量事实**，不改任何判据。
             var probeWall = new Func<Vector2Int, bool>(g => false);
             var adjacentAlwaysClear = true;
             for (var i = 0; i < n8.Length; i++)
@@ -2987,7 +2935,6 @@ namespace CombatCheck
             Console.WriteLine();
         }
 
-        /// <summary>数一数 `RecordingAudio` 里某个音效键被播了几次（= 本片"挥了几次手"的计数器）。</summary>
         private static int SfxCount(string key)
         {
             var needle = "sfxAt:" + key;

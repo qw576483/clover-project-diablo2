@@ -1,9 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// SaveCheck · agent-37（引擎下沉 A6 · 原子槽位存储）离线自检宿主
 //
-// 覆盖的判据（对应任务书 `docs/agents/agent-37-引擎下沉A6-原子槽位存储.md` §5，全离线可判，0 次 Play）：
 //   1) 引擎新增 `CloverEngine.FileSlotStore` 的**公开面与契约一致**（反射打印 + 逐条比对）；
-//   2) **改前手法取证**：项目存档的原子写/损坏留档**不在 SaveModule 里，而在引擎 `Setting`** ——
 //      本宿主链真实 `Runtime/Core/Setting.cs` 实测（`settings.json.tmp` → `File.Replace`、坏 json ⇒
 //      `.corrupt` 留档、目录非法 ⇒ 退内存不抛），并**只读**打开项目真实存档
 //      `client/setting/settings.json` 打印 `char/*` 槽位与 `char/index` 口径；
@@ -14,24 +11,17 @@
 //   6) **损坏留档有据**：坏 JSON ⇒ `Read` null + `LastCorruptPath` 非空 + 留档内容 = 原坏内容 +
 //      原文件不丢 + 不抛 + **之后仍能正常写**（`Read` 路径与 `Write` 路径各一条）；
 //   7) **失败路径有据**：目录不可写 / key 非法（null、空、空白、含分隔符、`../`、通配符）/ 内容 null
-//      ⇒ `false`/`null` + error（⛔ 不抛、⛔ 不静默）。
-//   8) ★ **片 Q（R7 读档失败静默，缺陷出处 `.ai-tmp/test/audit-C-logic-num.md` §2 红行 R7）**：
+//      ⇒ `false`/`null` + error（不抛、不静默）。
 //      `SaveModule.Load/TryLoad` 的**三情况可判别** —— ① 档不存在 ⇒ `false` + `LastError==""`（正常、不报错）；
 //      ② 档在但解析失败/损坏 ⇒ `false` + `LastError!=""`（含档名+原因）+ `Events.LoadDone` 发 **null**
 //      （= 用户可见反馈的触发点，唯一消费者 `AppFlow.OnLoadDone` → 复用 `UI/D2ConfirmPanel`）；
 //      ③ 版本不符 / 缺字段 ⇒ 兼容读**成功** + Info（值取默认值）；
-//         ★ 契约（2026-09-24 起，`u52cur` 修 U52）：兼容读**保留档内原版本号**（⛔ 不再抬到当前 ——
-//           那是下游 `PlayerModule.LoadFrom` 判"旧档资源迁移"的唯一输入），**回写磁盘时才写当前版本**。
-//         ⇒ 判据两半齐：`③a`（读=保留原值）+ `③a-2`（写=抬到当前，实测落盘 JSON 版本）。
-//      ⛔ 本步骤**只加断言**，
+//      本步骤**只加断言**，
 //      并把**被验证对象本身**（`Module/Save/SaveModule.cs`，与 Assets/ 同一份文件）编进宿主。
 //
-// 已知边界（不是缺陷）：
-//   · 本宿主不驱动 Unity 原生（不 `new GameObject`）：本片判据全是文件 + 数据层，离线即可判完；
 //   · 对项目真实存档目录**只调 `Get`、从不 `Save()`** ⇒ 不重写玩家存档
 //     （shell 侧另比 `settings.json` 的 SHA256 作为外部证据）；
 //   · 本宿主**不在** `.ai-tmp/hosts/run_all_hosts.ps1` 的 10 个名额里（`TOTAL_HOSTS=10` 保持不变）：
-//     它是本片的独立复检入口，跑法 = `cd .ai-tmp/hosts/savecheck; dotnet run -v q --nologo`。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -83,7 +73,7 @@ namespace SaveCheck
 
     public static class Program
     {
-        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
+        // 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
         private static readonly string ProjectRoot = ResolveProjectRoot();
         private static readonly string ClientRoot = ProjectRoot + @"\client";
         private const string BadJson = "{{{ this is not json";
@@ -97,7 +87,6 @@ namespace SaveCheck
         /// 从宿主自己的可执行目录向上找“含 client/Assets 的那一层” = 仓库根。
         /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；若按调用方 cwd 定位，
         /// 从仓库根运行时会被拼成 &lt;仓库根&gt;/clover-project-diablo2/client/...（一个文件都找不到）。
-        /// 找不到就回退成原来的相对写法，保持“从仓库上一级目录运行”的老用法不变。
         /// </summary>
         private static string ResolveProjectRoot()
         {
@@ -204,9 +193,7 @@ namespace SaveCheck
             };
             expected.Sort(StringComparer.Ordinal);
 
-            // ★ 已登记的引擎漂移（2026-09-21 主 agent 实测）：引擎 `FileSlotStore.LastCorruptPath` 是
             //   `{ get set }`（公开 setter），而本宿主契约列写的是 `{ get }`。断言**不放宽**：
-            //   先把这条漂移从实测里摘掉、再要求"剩下的逐字等于契约 8 项"，且**摘掉的必须恰好只有这一条**。
             //   （引擎侧是否该收起这个公开 setter 待裁决；本宿主只如实记录，不替它拍板。）
             const string KnownDrift = "String LastCorruptPath { get set }";
             const string ContractCorrupt = "String LastCorruptPath { get }";
@@ -225,7 +212,6 @@ namespace SaveCheck
             Console.WriteLine();
         }
 
-        // ── 2. 改前手法：`Setting`（原子写 + 损坏留档） ──────────────────────
         private static void Step2_BeforeAtomicWrite()
         {
             Section("2. 改前手法取证：项目存档的原子写/损坏留档**在引擎 `Setting` 里**（实测，不是读源码下结论）");
@@ -316,7 +302,6 @@ namespace SaveCheck
                 stray.Count == 0,
                 stray.Count == 0 ? "0 个孤儿" : stray.Count + " 个孤儿：" + string.Join(",", stray));
 
-            // ★ 片 assert-audit：原为硬编码 `true`（只是一句结论陈述 ⇒ 不产生判据、却占"通过"计数）。
             //   改成**真的问一次引擎 `FileSlotStore`**：它必须能认出同一批槽位（口径同源 = 这条结论本身）。
             //   出处：`Module/Save/SaveModule.cs:4-7`（槽位目录 `saves` / 全部走引擎 FileSlotStore）
             //        + `Module/Save/SaveJson.cs:5`（旧键 `char/{名}` 已作废）。
@@ -358,7 +343,6 @@ namespace SaveCheck
             Console.WriteLine("      引擎 `FileSlotStore.List()`（同三个键、同写入序）= " + got);
             Check("引擎新类：`List()` = **字典序**（alpha,mid,zeta）—— 与项目插入序**不同**",
                 got == "alpha,mid,zeta", got);
-            // ★ 片 assert-audit：原为硬编码 `true`（只写"上两条即证据"）⇒ 不产生判据。
             //   改成**把上面两条量到的顺序真的比一遍**（两者必须不同 = 转发会改变选角列表顺序）。
             Check("⇒ 结论：把 `SaveModule.List()` 直接转发给 `FileSlotStore.List()` 会**改变选角列表顺序**（行为不等价）",
                 string.Join(",", back) != got,
@@ -645,18 +629,16 @@ namespace SaveCheck
             Console.WriteLine();
         }
 
-        // ── 12. ★ 片 Q（R7 读档失败静默）：`SaveModule.Load/TryLoad` 的三情况 ──
 
         /// <summary>`Events.LoadDone` 的发出账（参数 null = 读档失败）。</summary>
         private static readonly List<CharacterSave> LoadDoneArgs = new List<CharacterSave>();
 
         /// <summary>
-        /// ★ 片 Q（缺陷出处 `.ai-tmp/test/audit-C-logic-num.md` §2 红行 R7）：
         /// 修前 `SaveModule.Load()` 的"档不存在"与"解析失败"**都返回 null**（`:238-242` / `:244-250`），
         /// 且 `LastError` 的唯一消费者是**保存**失败分支（`AppFlow.cs:1379`）⇒ 损坏档读失败**无用户可见反馈**。
         /// <para>本步骤把**被验证对象本身**（`SaveModule.cs`，与 Assets/ 同一份文件）编进来，断言三种情况**可判别**
         /// 且失败时"用户可见反馈"的那条代码路径（`Events.LoadDone` 发 null ⇒ 唯一消费者 `AppFlow.OnLoadDone`
-        /// → 复用 `UI/D2ConfirmPanel`）**被触发**。⛔ 判过程不判结果：断言的是"判别位 / 事件 / 日志"，不是"提示长什么样"。</para>
+        /// → 复用 `UI/D2ConfirmPanel`）**被触发**。判过程不判结果：断言的是"判别位 / 事件 / 日志"，不是"提示长什么样"。</para>
         /// </summary>
         private static void Step12_LoadFailureClassification()
         {
@@ -741,27 +723,18 @@ namespace SaveCheck
             Check("③a 旧版本档（version=" + (GameConst.SaveVersion - 1) + " ≠ 当前 " + GameConst.SaveVersion +
                   "）⇒ 兼容读**成功**（`TryLoad` = true，⛔ 不因版本不符而失败）",
                 legacyOk && legacyData != null, "TryLoad=" + legacyOk);
-            // ⚠️ **契约变更 ⇒ 本条判据必须同步**（2026-09-24 · `u52cur` 修 U52「耐力 20/84」）：
-            //   旧契约 = `SaveModule.Load` **把 `data.version` 抬到当前**（原来这条断言就是这么写的）；
             //   新契约 = **只报不改**：读档返回的数据**保留档内原版本号**，让下游
             //     `PlayerModule.LoadFrom`（`Module/Player/PlayerModule.cs:448` 的
             //     `save.version < GameConst.SaveVersion`）能判出"这是旧口径档" ⇒ 触发三资源迁移；
-            //     **回写磁盘时才写当前版本**。修法注释出处 = `Module/Save/SaveModule.cs:343-376`。
-            //   ⇒ 判据必须**两半都判**（读=保留 / 写=抬到当前）—— 只判一半会各放过一类真缺陷：
-            //     ① 只判"读=保留" ⇒ 放过"档永远停在旧版本、每次进游戏都重跑一遍迁移"；
             //     ② 只判"写=抬到当前" ⇒ 放过"读档时版本已被改掉 ⇒ 迁移永不触发"（**就是本次那个 bug 本身**）。
-            //   ★ "能失败"的实证：本条在改契约后**真的红过一次**（`version=1`，实测），现在按新契约转绿。
-            //   # direct-fix: d2fix/team-lead（2026-09-24）—— 判据侧单文件同步；越界披露与复核去向见
-            //     `.ai-tmp/test/dispatch-log.tsv` 末段的 team-lead 那行（净增 31 行 > skill §2.6 的 20 行）。
+            //   "能失败"的实证：本条在改契约后**真的红过一次**（`version=1`，实测），现在按新契约转绿。
             Check("③a ⇒ ★ 读档**保留档内原版本号**（`data.version == " + (GameConst.SaveVersion - 1) +
                   "`，⛔ 不再被抬到当前 —— 这是下游判「旧档资源迁移」的唯一输入）",
                 legacyData != null && legacyData.version == GameConst.SaveVersion - 1,
                 "version=" + (legacyData == null ? -1 : legacyData.version));
-            // ★ 段序即输入（README §57(a)）：③a 的三条收尾断言**必须在本段（③a 段内）判定** ——
             //   ③a-2 自己会再发一次 `Events.LoadDone`（成功读档）+ 留下自己的 `LastError` 与
             //   「兼容路径」日志 ⇒ 若把这三条排在 ③a-2 **之后**，它们读到的就是 ③a-2 之后的全局状态
             //   （实测：`LoadDoneArgs.Count` 2、`兼容路径` 日志 4、`LastError` 是 ③a-2 那次 `Save` 留下的空串）。
-            //   修前靠 `loadDoneKeep` 先存后复原兜住 —— 那是**症状级补丁**（§54），正解 = 插到断言块末尾。
             Check("③a ⇒ **值不丢**（金币 777 / 等级 7 / seed 原样读回）",
                 legacyData != null && legacyData.gold == 777 && legacyData.level == 7 && legacyData.mapSeed == 20260919,
                 legacyData == null ? "(null)" : ("gold=" + legacyData.gold + " level=" + legacyData.level + " seed=" + legacyData.mapSeed));
@@ -771,7 +744,7 @@ namespace SaveCheck
                 save.LastError == "" && LoadDoneArgs.Count == 1 && LoadDoneArgs[0] != null,
                 "LastError=\"" + save.LastError + "\" LoadDone=" + LoadDoneArgs.Count);
 
-            // ── ③a-2 另一半：**回写磁盘时抬到当前**（⛔ 用独立槽位，不动 ③a 的夹具 ⇒ 后面 R7 结论不受影响）──
+            // ── ③a-2 另一半：**回写磁盘时抬到当前**（用独立槽位，不动 ③a 的夹具 ⇒ 后面 R7 结论不受影响）──
             var wb = BuildSave();
             wb.name = "OldVersionWriteBack";
             wb.version = GameConst.SaveVersion - 1;
@@ -810,7 +783,6 @@ namespace SaveCheck
                 LoadDoneArgs.Count == 1 && LoadDoneArgs[0] != null && save.LastError == "",
                 "LoadDone=" + LoadDoneArgs.Count + " LastError=\"" + save.LastError + "\"");
 
-            // ★ 片 assert-audit：原为硬编码 `true`（一句结论陈述 ⇒ 不产生判据却占"通过"计数）。
             //   改成**把三种情况在同一入口上重跑一遍**（档都还在盘上）⇒ 这条结论本身变成可失败的判据：
             //   任一情况退化成"与另一情况不可判别"（例如 LastError 不回归空串 / LoadDone 不发）就变红。
             LoadDoneArgs.Clear();
@@ -835,18 +807,16 @@ namespace SaveCheck
             Console.WriteLine();
         }
 
-        // ── 13. ★ 片 save-areaid：`SaveModule.Save()`（无参 / Live 收集）必须落盘"当时所在区域" ──
 
         /// <summary>
-        /// ★ 片 save-areaid（缺陷出处：前片 `rebuild-entries` 实测 + 本片 49/49 存档全量反证）。
         /// <para>缺陷：`AppFlow.SaveCurrentCharacter`（`AppFlow.cs:1602`）调的是**无参** `ISaveModule.Save()`，
         /// 而它在 `SaveModule.cs:167` **新造**一个 `CharacterSave` 逐字段收集 —— `areaId` **全仓没有写者**
         /// （`PlayerModule.WriteTo:473` 明文「areaId … 这里不碰」，`SaveModule.cs:179-180` 只落了 `mapSeed`）
         /// ⇒ 落盘 `"areaId":0` ⇒ 读档 `GoStage(ToArea(save.areaId))` **一律回营地**。
         /// 注意 `AppFlow._selected.areaId` 是对的（`EnterArea:1463`）—— 它**不是**落盘对象，这就是
         /// "谁把 areaId 改回 0"查不出来的原因。</para>
-        /// <para>⛔ 断言放**入口本身**（真 `SaveModule.Save()` + 桩模块），⛔ 不复制 SaveModule.cs、
-        /// ⛔ 不新造"算 areaId"的第二条路径（否则测的是测试自己的算术）。</para>
+        /// <para>断言放**入口本身**（真 `SaveModule.Save()` + 桩模块），不复制 SaveModule.cs、
+        /// 不新造"算 areaId"的第二条路径（否则测的是测试自己的算术）。</para>
         /// </summary>
         private static void Step13_SavedAreaIdMatchesLiveArea()
         {
@@ -862,7 +832,7 @@ namespace SaveCheck
             const int LiveY = 60;
             const int LiveSeed = 20260924;
 
-            // 独立上下文（⛔ 不串 Step12 那个 `ctx`：那里没有 Map/Player）
+            // 独立上下文（不串 Step12 那个 `ctx`：那里没有 Map/Player）
             Diablo2.App.AppContext.ResetStaticForNewPlaySession();
             Game.Event = new ConsoleEventBus();
             Game.Launch(new GameConfig { SettingDir = dir });
@@ -945,12 +915,9 @@ namespace SaveCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 14. ★ 片 save-progress：进度类状态（传送点已激活列表 / 小地图已探索格）
         //     必须**随档往返**，且**旧档缺这两个字段时读档不崩、取空集合**。
-        //     判据（任务书 §3.1/§3.2）：① 存→读→再存 幂等；② 旧档兼容；③ 退化 ⇒ 变红。
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>本片新增的两个字段在旧档里的样子（**没有** `visitedWaypoints` / `exploredByArea`）。</summary>
         private const string OldSaveWithoutProgress =
             "{\"version\":1,\"name\":\"OldHero\",\"cls\":1,\"level\":3,\"exp\":10,\"str\":20,\"dex\":25," +
             "\"vit\":20,\"eng\":15,\"life\":60,\"mana\":22,\"stamina\":20,\"statPoints\":0,\"skillPoints\":0," +
@@ -1229,7 +1196,7 @@ namespace SaveCheck
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
-            // ★ 只有当宿主是 `dotnet(.exe)` 时才需要显式带上入口 dll。
+            // 只有当宿主是 `dotnet(.exe)` 时才需要显式带上入口 dll。
             //   apphost（`SaveCheck.exe`）**自己就是应用**：再塞一个 dll 参数会被当普通参数传进来，
             //   于是子进程认不出模式 ⇒ 又跑一遍完整 Main（= 雪崩）。旧写法就是漏了这道判断。
             var hostName = Path.GetFileNameWithoutExtension(exe ?? string.Empty);

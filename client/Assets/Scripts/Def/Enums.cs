@@ -2,17 +2,14 @@
 // Diablo2 · Def/Enums.cs
 // 纯枚举与纯数据（**无逻辑、无 Unity 依赖**）。
 //
-// ⛔ 契约冻结：本文件的枚举名与取值即契约（`docs/步骤文档.md` §2/§3.5）。
 //    落盘后不许改；需要新增请回报主 agent。
 //
-// 取值为整数时，**可直接作为配表主键**（见 `docs/步骤文档.md` §2 配表清单）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace Diablo2.Def
 {
     /// <summary>
     /// 5 个职业。取值 = 配表 `class_c` 的主键（职业 id 1-5）。
-    /// 顺序与 `docs/步骤文档.md` §2 / 验收表一致，**不许重排**。
     /// </summary>
     public enum PlayerClass
     {
@@ -26,14 +23,10 @@ namespace Diablo2.Def
     /// <summary>
     /// 伤害/抗性类型。**前 5 系与官方一致**；数组下标即本枚举值（抗性表按元素数组存）。
     /// <para>
-    /// ★ **片 16（消除【例外 E27】）**：新增第 6 系 <see cref="Magic"/> —— 官方 `skills.txt` 的
     /// `EType=mag`（「魔法」伤害）走**独立的 `ResMa` 抗性**（`MonStats.txt` 的 `ResMa` 列；
     /// 本项目配表 `monster_c.res_magic` **早就导出了**，只是一直没人消费）。
-    /// 旧实现把它**按物理通道结算**（`DamageFormula.DamageTypeOf` 的 `mag` 分支打限频 Warn 降级），
-    /// 于是带魔法伤害的技能会吃到怪的**物理抗性**、拿不到魔法抗性。
     /// </para>
     /// <para>
-    /// ⚠️ **加在末尾、值 = 5**：绝不改前 5 系的数值 —— 抗性数组下标（`MonsterRuntime.Resists`）、
     /// 已落盘的 tsv、离线断言都依赖它。
     /// </para>
     /// </summary>
@@ -115,7 +108,6 @@ namespace Diablo2.Def
         /// <summary>
         /// 水（河 / 水塘 / 水域地面）—— **不可走**（原版不可涉水）。
         /// <para>
-        /// ★ 片 L / 缺陷 **R12**：此前「水 = 石头 = 崖壁 = 碎石 = 杂物」全归 `Rock`
         /// （`MapGenTown.KindOf('r')` / `MapGenWilderness.KindOf('X')`），于是「水」在
         /// `TileKind` 层**没有语义**。本值把**城镇布局的 `'r'`**（= 原版 `Levels.txt` /
         /// `LvlTypes.txt` 的水域地形）单独摘出来。
@@ -128,7 +120,6 @@ namespace Diablo2.Def
         /// ⇒ 可走性必须保持 `false`（`TileKindInfo.IsWalkable`）。
         /// </para>
         /// <para>
-        /// ⚠️ 值取 **12**（追加在末尾）：既有值 0..11 一个都不动（改值会让存档 / 哈希漂移）。
         /// </para>
         /// </summary>
         Water = 12,
@@ -199,7 +190,6 @@ namespace Diablo2.Def
 
     /// <summary>
     /// 交互光标形态（原版 `Cursor.png` 多帧）。取值顺序 = 光标帧顺序，
-    /// **实际帧号由 agent-03 的切分报告为准**，若相反只改 `ResPaths.Cursor`。
     /// </summary>
     public enum CursorKind
     {
@@ -212,7 +202,6 @@ namespace Diablo2.Def
 
     /// <summary>
     /// 8 方向朝向。**编号沿用暗黑2 的顺时针序（0 = 南）**，
-    /// 与角色 `.dcc` 的 8 个方向帧一一对应（帧序以 agent-03 解包报告为准）。
     /// 逻辑含义见 <c>Core/Iso.DirectionTo</c> 的方向 ↔ 格增量映射表。
     /// </summary>
     public enum Dir8
@@ -252,7 +241,6 @@ namespace Diablo2.Def
                 case TileKind.Fence:
                 case TileKind.Wall:
                 case TileKind.CaveWall:
-                // ★ 片 L / R12：水**显式登记为不可走**（原版不可涉水）。⛔ 不许让它掉到 default ——
                 //   default 只是"忘了登记"的兜底，不代表"水本来就该这么判"。
                 case TileKind.Water:
                     return false;
@@ -269,8 +257,6 @@ namespace Diablo2.Def
         /// <summary>是否为地面层地形（渲染时画在 GroundLayer）。</summary>
         public static bool IsGroundLayer(TileKind kind)
         {
-            // ★ 片 L / R12：水是**地面层**（原版 `river.dt1` 的水面属于 floor 层；
-            //   城镇水格的 floor 键就是 `moor_river/*`）⇒ 归 ground，⛔ 不是物件（`MapView.IsObjectKind`）。
             return kind == TileKind.Grass || kind == TileKind.Dirt || kind == TileKind.Road
                 || kind == TileKind.CaveFloor || kind == TileKind.TownFloor || kind == TileKind.Exit
                 || kind == TileKind.Water;

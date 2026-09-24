@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// 地图模块自证宿主（`docs/agents/agent-04-地图模块.md` §5 的验收项逐条自证）
 //
 // 运行：dotnet run --project <项目根>/tools/mapcheck/MapCheck.csproj -c Release
 //
@@ -11,7 +10,7 @@
 //   ⑤ 连续生成 5 次血腥荒野 → 5 个 seed 互不相同且障碍数不同
 //   ⑥ NPC 点 / Exit 点 / 洞穴入口点 / 怪物刷新点的确切 API 与取值
 //
-// ⛔ 这只是**类型层 + 逻辑层**的验证；渲染（MapView）必须进 Play 由主 agent 看图验收。
+// 这只是**类型层 + 逻辑层**的验证；渲染（MapView）必须进 Play 由主 agent 看图验收。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -27,7 +26,6 @@ internal static class MapCheckProgram
 {
     private static int _failures;
 
-    /// <summary>fail-to-pass 复现项（已确诊、待在**产品代码**里修的缺陷）。⛔ 不计入 `_failures`。</summary>
     private static int _defects;
 
     private static void Main()
@@ -47,50 +45,35 @@ internal static class MapCheckProgram
         Run(Step9_CaveUsesOriginalPieces);
         Run(Step10_TownFixedAndOriginalTiles);
         Run(Step11_WildernessLayoutShape);
-        // ── 片 3（「野外地图太小 / 怪物太少」）新增 ─────────────────────────────
         Run(Step13_WildernessFixedSize);
         Run(Step14_BorderSealGaps);
-        // ── ★ R1-B（用户报「为什么有奇怪的蓝条图片占位」）新增 ────────────────────
+        // ── R1-B（用户报「为什么有奇怪的蓝条图片占位」）新增 ────────────────────
         Run(Step15_FlatWaterWallNotOverlaid);
-        // ── ★ 本轮（「走图跨分块边界的单帧尖峰」离线量化）新增 ──────────────────────
+        // ── 本轮（「走图跨分块边界的单帧尖峰」离线量化）新增 ──────────────────────
         Run(Step16_ChunkRebuildSpike);
-        // ── ★ T0FIX-A（单帧尖峰修复：对象池 + 增量新块分帧）新增 ────────────────────
         Run(Step17_BuildPacingAndPool);
-        // ── ★ T0FIX-E/F/G（实心单色 PNG 定性 / 空素材目录）新增 ─────────────────────
+        // ── T0FIX-E/F/G（实心单色 PNG 定性 / 空素材目录）新增 ─────────────────────
         Run(Step18_FlatArtAndEmptyDirs);
-        // ── ★ T0FIX-H（整图重铺分帧双缓冲：单帧预算 / 逐格同源 / 不露空）新增 ─────────────
+        // ── T0FIX-H（整图重铺分帧双缓冲：单帧预算 / 逐格同源 / 不露空）新增 ─────────────
         Run(Step19_RepavePacingPixelsUnchanged);
-        // ── ★ T0FIX-I（T0FIX-H 的 Stage 黑屏回归：activeSelf 无人复位）新增 ─────────────
+        // ── T0FIX-I（T0FIX-H 的 Stage 黑屏回归：activeSelf 无人复位）新增 ─────────────
         Run(Step20_StageVisibilityActiveSelf);
-        // ── ★ 2026-09-22（用户「营地出门的桥，还不是从桥上走，还是桥下」）新增 ────────────
         Run(Step21_BridgeDeckOrdering);
-        // ── ★ 审计 B（离线片：D2 几何与场景 / D9 物理与碰撞）新增（只加断言，⛔ 不改既有步骤）──
+        // ── 审计 B（离线片：D2 几何与场景 / D9 物理与碰撞）新增（只加断言，不改既有步骤）──
         Run(Step22_AuditBGeoInput);
-        // ── ★ 片 L / R12（水 = 石头 = 崖壁 = 碎石 = 杂物 同 kind）新增（只加断言）────────────
         Run(Step23_WaterKind);
-        // ── ★ 片 M3（2026-09-23：桥的可走性 / 东边界接缝 / 缺瓦片）只加断言，⛔ 不动既有步骤 ──
         Run(Step24_TownBridgeWalkableAndSeam);
-        // ── ★ 片 S2（2026-09-23：用户「传送点没效果」）只加断言，⛔ 不动既有步骤 ──────────
         Run(Step25_WaypointAnchor);
-        // ── ★ 片 S2（2026-09-23：主 agent 追加「Tab 自动地图的记忆式已探索」）只加断言 ──────
         Run(Step26_ExploredCellsContract);
-        // ── ★ 片 chunk-hole2（2026-09-23：血沼泽「大片黑底」）只加断言，⛔ 不动既有步骤 ────
         Run(Step27_PlannedChunksEqualVisibleRange);
         Run(Step28_ChunkHoleSelfHeal);
-        // ── ★ 片 black-why（2026-09-23：chunk-ctl 已证伪「缺块」，改查「块建完屏仍黑」）
-        //    只加断言，⛔ 不动既有步骤、⛔ 不放宽任何既有断言 ────────────────────────
+        //    只加断言，不动既有步骤、不放宽任何既有断言 ────────────────────────
         Run(Step29_CameraClampMapEdge);
-        // ── ★ 片 black-why2（2026-09-23）：进区落点的边界余量（只加断言）─────────
         Run(Step30_EntryLandingMargin);
-        // ── ★ 片 map-border（2026-09-23）：「可走区铺到地图最外圈」根治（只加断言）────────
         Run(Step31_WalkableBorderRing);
-        // ── ★ 片 map-border2（2026-09-23）：城镇豁免 §31 的**实测证据**（贴边可走格清单）──────
         Run(Step32_TownBorderWalkableInventory);
-        // ── ★ 片 travel-black（2026-09-24）：传送落地整屏黑 —— 「换区后**首个可玩帧**的已建块 ⊇ 屏上可见块」
-        //    只加断言，⛔ 不动既有步骤、⛔ 不放宽任何既有断言 ──────────────────────────────
+        //    只加断言，不动既有步骤、不放宽任何既有断言 ──────────────────────────────
         Run(Step33_LandingRangeCoversViewport);
-        // ── ★ 片 revive-chunk（2026-09-24）：**同区域内**大跨度落位（死亡重生 / TeleportTo）的落点预建
-        //    只加断言，⛔ 不动 §0~§33、⛔ 不放宽任何既有断言（与 §33 的"换区重铺"是两条不同路径）──────
         Run(Step34_PrimeLandingTrigger);
         Run(Step35_LargeShiftPrimeCoversViewport);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
@@ -548,13 +531,11 @@ internal static class MapCheckProgram
             "罗格营地是**固定布局**：4 个不同 seed 的布局指纹完全一致（与 seed 无关）");
         Check(town.HasTileOverrides, "营地启用了逐格原版瓦片键（渲染用 TOWN/townW1.ds1）");
 
-        // ★ NPC 站位 = **原版坐标**（不再允许启发式）：值取自原版 `TownW1.ds1` 的 objects 层
+        // NPC 站位 = **原版坐标**（不再允许启发式）：值取自原版 `TownW1.ds1` 的 objects 层
         //   kind=1 预设单位（id 索引 `MonPreset.txt` 的 Act 1 块：0=gheed 2=akara 5=kashya
         //   7=warriv1 8=charsi），子格 ÷5 换成格。下标 = (int)Def.NpcId。
         //   依据见 `tools/d2codec/export_town_layout.py` 文件头 ③-a。
         Check(town.NpcPoints.Count == 5, "5 个 NPC 站位（阿卡拉/卡夏/恰西/基德/瓦瑞夫）");
-        //   ★ 片 4：关卡窗口原点改了（窗口 = 合并帧 x∈[-17,38] × y∈[-5,34]），
-        //     ⇒ 同一批原版坐标在新窗口里整体 +17/+5 格（值仍逐条来自原版 DS1，只是换了帧）。
         var expectNpcs = new[]
         {
             new Vector2Int(41, 19),   // 0 Akara    （原版 MonPreset Act1 idx 2 = akara）
@@ -584,9 +565,8 @@ internal static class MapCheckProgram
             }
         }
         Check(noKey == 0, $"每一格都在原版布局表范围内（越界 = {noKey}）");
-        // ★ 片 4：窗口改为"营地 39 列 + 出城口外面 17 列"后，西北角 3×10 那 30 格**原版四块
         //   都没有瓦片**（原版那几格本来就不画）。它们必须 = `TileKind.Void` 且**不可走**；
-        //   ⛔ 不许当草地（当草地 = 可走的隐形格，玩家能走到纯黑背景上）。
+        //   不许当草地（当草地 = 可走的隐形格，玩家能走到纯黑背景上）。
         Check(noGround == 30, $"地面层空的格 = {noGround}（片 4 起应为 30 = 原版没覆盖的西北角 3×10）");
         var voidOk = 0;
         for (var y = 0; y < town.Height; y++)
@@ -604,12 +584,12 @@ internal static class MapCheckProgram
         Check(obj > 100, $"wall 层原版瓦片格数 = {obj}（栅栏/帐篷/树/石矮墙，>100 才算铺上了）");
         Check(town.Width == 56 && town.Height == 40,
             $"网格 = 原版 `Levels.txt`「Act 1 - Town」的 SizeX/SizeY（56×40），实测 {town.Width}x{town.Height}");
-        // ★ E12 收口：契约常量与生成物**必须同值**（主 agent 裁决：两侧都同步成原版 56×40）。
+        // E12 收口：契约常量与生成物**必须同值**（主 agent 裁决：两侧都同步成原版 56×40）。
         Check(town.Width == GameConst.TownWidth && town.Height == GameConst.TownHeight,
             $"契约常量 `GameConst.TownWidth/TownHeight` = {GameConst.TownWidth}x{GameConst.TownHeight} " +
             $"与生成物一致（E12 ⇒ 已消除，`MapGenTown` 不再有尺寸漂移 Warn）");
 
-        // ── ★ 本轮新增：**方形围栏合围 / 营地外的河（水=阻挡）/ 出城口可达** ────────
+        // ── 本轮新增：**方形围栏合围 / 营地外的河（水=阻挡）/ 出城口可达** ────────
         //  用户报的是"元素都在但散落成一片、没有方形合围、没有河" ⇒ 这三条就是本轮的验收口径。
         var fence = 0;          // wall 层 = town_fence
         var riverGround = 0;    // floor 层 = moor_river（原版 OUTDOORS/river.dt1）
@@ -646,7 +626,6 @@ internal static class MapCheckProgram
                         if (!town.Walkable(new Vector2Int(x, y))) badDeck++;
                     }
                 }
-                // 营地内框（片 4 起围栏环 = x[17,47] × y[16,39] ⇒ 内框 x[18,46] × y[17,38]）
                 if (x > 17 && x < 47 && y > 16 && y < 39) campInterior++;
             }
         }
@@ -656,7 +635,6 @@ internal static class MapCheckProgram
         Check(riverBlocked == riverGround,
             $"河/水**全部阻挡**（可走的水 = {riverGround - riverBlocked} 格，必须为 0）");
 
-        // ★ 木桥（agent-42）：原版只有 `TownE1.ds1` 有 `<OUTDOORS/bridge.dt1>` 的 40 格
         //   （floor x∈[47,56] y∈[15,18]、wall x∈[47,56] y∈{16,18}），换算到关卡坐标 =
         //   `x∈[29,38] y∈[20,23]`，正好横跨河带 `x∈[30,36]`。桥面可走、栏杆阻挡 ⇒ 河**能过去**。
         Check(bridgeGround >= 20,
@@ -666,14 +644,12 @@ internal static class MapCheckProgram
             $"桥面**可走**：{bridgeDeck} 格全可走（不可走的桥面 = {badDeck}）");
         Check(bridgeRail >= 10 && badRail == 0,
             $"桥栏杆**阻挡**：{bridgeRail} 格全阻挡（可走的栏杆 = {badRail}）");
-        //   片 4 起河带在 x∈[47,53]（桥在 x∈[46,55] y∈[25,28]）⇒ 河东岸取 (54,27)：
         //   它只可能有桥地砖（无栏杆）⇒ 必须可走，且出生点能沿桥走到。
         var eastBank = new Vector2Int(54, 27);
         Check(town.Walkable(eastBank) && town.FindPath(town.SpawnPoint, eastBank) != null,
             $"能沿木桥走到**河东岸**（出生点 {town.SpawnPoint} → {eastBank}：过桥，不再被水挡死）");
 
         // 围栏环必须是"合围"的：北/南两条横边整条是栅栏；西边**只有出城口那几格**是缺口。
-        //   片 4 起围栏环在关卡窗口坐标 x[17,47] × y[16,39]（= 合并帧 x[0,30] × y[11,34] + 窗口原点）
         var ringTop = 16;
         var ringBottom = 39;
         var ringLeft = 17;
@@ -695,7 +671,6 @@ internal static class MapCheckProgram
         Check(westGap is >= 1 and <= 5,
             $"西侧只有出城口那几格是缺口（实测缺口 {westGap} 格，应为 1..5）");
 
-        // ── ★ 片 4：**出城口不再是地图边界**（用户报"营地出口是黑色的一个口"）─────────
         //  旧窗口把地图西边界压在营地西围栏那一列 ⇒ 出城口正好落在地图边界上，出口外面
         //  什么都没有（黑）。原版关卡 56 列 = 营地本体 39 列 + **出城口外面 17 列**
         //  （依据见 `tools/d2codec/export_town_layout.py` 的 `WIN_X0/WIN_Y0`）⇒ 三格内陆。
@@ -773,13 +748,11 @@ internal static class MapCheckProgram
                 }
             }
 
-            // ★ 片 3：口径从「落在区间内」收紧为**恒等**原版 `Levels.txt`「Act 1 - Wilderness 1」的
             //   SizeX/SizeY = 80（旧口径 48~80 随机 ⇒ 用户报「野外地图太小」）。
             Check(m.Width == GameConst.WildernessMaxSize && m.Height == GameConst.WildernessMaxSize,
                 $"seed={seed}：尺寸 {m.Width}x{m.Height} **恒 = 原版 80×80**" +
                 "（= `GameConst.WildernessMaxSize`；口径是**恒等**，不是落在区间内）");
-            // ★ 本轮改口径：野外现在是**原版块拼出来的** ⇒ 每一格的地面/物件瓦片都来自原版 ds1，
-            //   所以"逐格覆盖"必须为 true（旧断言要求 false，那是"按 TileKind 分类抽一张近似瓦片"的老做法）。
+            // 本轮改口径：野外现在是**原版块拼出来的** ⇒ 每一格的地面/物件瓦片都来自原版 ds1，
             Check(m.HasTileOverrides,
                 $"seed={seed}：启用逐格原版瓦片键（原版 8 格块拼出来的图 ⇒ 每格地面/物件都来自原版 ds1）");
             Check(m.Width % 8 == 0 && m.Height % 8 == 0,
@@ -816,13 +789,12 @@ internal static class MapCheckProgram
             var comps = m.CountWalkableComponents();
             Check(comps == 1, $"seed={seed}：可走格连通片数 = {comps}（障碍不该把场地切碎）");
 
-            // ── ★ 本轮新增：**块与块按"出口（四边开口）"拼接**（不是逐格随机、也不是随便挑块）──
+            // ── 本轮新增：**块与块按"出口（四边开口）"拼接**（不是逐格随机、也不是随便挑块）──
             //  口径：`MapGenWildLayout.Piece.OpenN/S/W/E` = 该块的边界中段有没有可走格，
             //  由导出器从块自己的可走掩码算出（`export_wild_layout.py::edge_open`）。
             //    · 周圈：每块的**朝外那条边必须是闭的**（崖壁朝外），且**沿环/朝内的边是开的**
             //      ⇒ 整圈崖壁连续、内部接得上（生成器里是四条件精确匹配，匹配不到会放宽 + 留日志）；
             //    · 内部：放下的填充块必须**四边全开** ⇒ 不把场地中间的通道掐断。
-            // ★ 城镇过渡带（agent-42）：西边界正对回城口那 5 槽不铺崖壁边界块，改铺原版
             //   「Act 1 - Town 1 Transition E」(8×40)。断言口径 = 把这几槽从"按开口拼接"里减掉。
             var blockSlots = MapGenWilderness.AuditBorderSlots - MapGenWilderness.AuditBandSlots;
             Check(MapGenWilderness.AuditBorderSlots > 0,
@@ -859,12 +831,10 @@ internal static class MapCheckProgram
         }
     }
 
-    // ── 14. 外围环「封边」检查（片 3 · 用户报「地图连接处都是黑边」）────────────────
     //   两个问题分开答：
     //   ① **四边是否都铺满边界块** —— 生成器日志已给（周圈 31/31 + 西边界 5 槽过渡带）；
     //      这里再从**结果**侧复核：外围环上还有没有"可走且不是出口"的格（有 ⇒ 站在那格往图外看就是黑）。
     //   ② 若①有缺口，**能不能不重生成生成物就修** —— 看拼块库里有没有"外沿整条实心"的候选。
-    //      ⛔ 本步只**披露**，不据此判失败（判失败会与"本片不修生成物"的结论冲突，见回报）。
     private static void Step14_BorderSealGaps()
     {
         Section("14. 血腥荒野外围环封边检查（可走格是否露到图外）");
@@ -966,8 +936,7 @@ internal static class MapCheckProgram
         Console.WriteLine();
     }
 
-    // ── 15. ★ R1-B：河面 wall 层「平色水墙瓦片」不叠（用户报「奇怪的蓝条图片占位」）──────
-    //   根因（离线判据 `tools/probes/measure/r1b_water_tiles.py`，扫 `MapGenTownLayout` 引用到的
+    // ── 15. R1-B：河面 wall 层「平色水墙瓦片」不叠（用户报「奇怪的蓝条图片占位」）──────
     //   **295 个**瓦片键 → 逐张 PNG 采样像素）：**唯一色数 = 1（平色）的只有一个** ——
     //   `Objects/moor_river/028`（160×128，不透明 6400 px = 恰好一格，全图同色 RGBA(0,32,68) 深蓝），
     //   铺在河带 x=47 / x=54 两列共 **49 格**。原版靠 `ACT1/Pal.PL2` **调色板循环**把它变成水波，
@@ -1002,7 +971,6 @@ internal static class MapCheckProgram
                 if (!cols.Contains(x)) cols.Add(x);
                 // 只影响渲染：这 49 格**依然是水 = 阻挡**（可走性一个字没动）
                 // 【R12 重判·受影响行】本行原判 `TileKind.Rock`（那时水与石头同归 Rock）。
-                //   片 L 把水的 kind 摘成 `TileKind.Water` ⇒ 这里改为判 `Water`：
                 //   判的仍是同一件事（"这 49 格还是水、还是不可走"），只是水的 kind 有了自己的名字。
                 if (town.TileAt(new Vector2Int(x, y)) == TileKind.Water
                     && !town.Walkable(new Vector2Int(x, y))) blockedKept++;
@@ -1056,7 +1024,6 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 16. ★ 走图跨分块边界的单帧尖峰（**离线静态量**；⛔ 本片不许进 Play）
     //
     //   背景（主 agent 侦察 + 本步复验）：用户报过「人物移动抖动」，本轮已由另一片修了帧节奏
     //   （`Core/FramePacing.cs`）与动画复位。本步回答**剩下的那一问**：走图跨分块边界时
@@ -1070,11 +1037,9 @@ internal static class MapCheckProgram
     //       `RefreshVisibleChunks`（节流；小图 `!_chunked` 直接 return）。
     //     · `MapView.RefreshVisibleChunks:373-407` —— 可见块集合没变 ⇒ 直接 return（`:391-395`）；
     //       变了 ⇒ **同一帧**把范围内**所有缺块**建完（`:401-404` 的双层 for），随后回收远处块
-    //       （`:406`）。⇒ ⛔「每帧最多 1 块」与代码不符：一次刷新是「本帧把新进范围的块全建完」。
+    //       （`:406`）。⇒ 「每帧最多 1 块」与代码不符：一次刷新是「本帧把新进范围的块全建完」。
     //     · `MapView.ComputeVisibleChunkRange:410-444` —— 视口四角 → 格范围（**外扩 1 块**，
     //       `:439-443`）→ 块范围。
-    //   ⛔ 本步只出**离线静态量**；任何帧时间/性能结论必须同时给渲染设备名，而本片不允许进 Play
-    //     ⇒ 本步**不写"实测帧时间"**，只给「单帧新增节点数 × 每 GO 成本」的**阈值**（见回报）。
     // ═════════════════════════════════════════════════════════════════════════
     private static void Step16_ChunkRebuildSpike()
     {
@@ -1283,12 +1248,9 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 17. ★ T0FIX-A：单帧尖峰修复（对象池 + 增量新块分帧）的离线断言
     //
-    //   缺陷（T0 量到）：`MapView.ShowArea→RebuildLayers` 单帧 **46.3~73.9 ms / 1768~2607 节点**
     //   （≫ 一帧预算 16.67 ms）；`RefreshVisibleChunks` 增量口径一次 **3~7 块**（同帧建完）。
-    //   修法：① 节点池（复用 ⇒ 不再 Destroy + 不再 new）② 增量新块**分帧**（每帧 ≤ 1 块）
-    //        ③ 块根先 `SetActive(false)`、块内建完才激活（⛔ 不出现"半块地图"）
+    //        ③ 块根先 `SetActive(false)`、块内建完才激活（不出现"半块地图"）
     //        ④ 整图重铺（`RebuildLayers`）**保留一帧铺完**（拆帧必露空），只拿池化收益。
     //
     //   本步逐条断言上面 4 件事（能离线判的全判；帧时间必须进 Play 由主 agent 另采 ⇒ 本步不写帧时间）。
@@ -1298,9 +1260,8 @@ internal static class MapCheckProgram
         Section("17. ★ T0FIX-A：单帧尖峰修复 —— 增量分帧（每帧 ≤ 1 块）/ 块根建完才激活 / 池化逐项相等");
 
         const string ViewRel = "client/Assets/Scripts/Module/Map/MapView.cs";
-        // ★ eng-tile 片（2026-09-24）：`TileNodePool` 已**下沉到引擎**（项目侧只剩薄转发）⇒
         //    结构断言（"瓦片节点的唯一创建点" / `Take`/`Return` 的 activeSelf 配对）改读**引擎源码**。
-        //    ⛔ 不许把判据改回项目侧那份 —— 那会变成"实现搬走了、判据还在原地"的假闸门。
+        //    不许把判据改回项目侧那份 —— 那会变成"实现搬走了、判据还在原地"的假闸门。
         const string PoolRel = "../clover-client-unity-engine/Runtime/Presentation/TileNodePool.cs";
         var view = System.IO.File.ReadAllText(System.IO.Path.Combine(ResolveProjectRoot(),
             ViewRel.Replace('/', System.IO.Path.DirectorySeparatorChar)));
@@ -1376,7 +1337,7 @@ internal static class MapCheckProgram
             "且**零分支**（没有「是不是复用节点」的判定 ⇒ 逐项相等是结构性保证；`enabled` 必须复位，" +
             "否则迷雾节点被 `MarkExplored` 置 false 后复用到别的格会静默不可见）");
 
-        // ── ③ 块根先失活、块内建完才激活（⛔ 不出现"半块地图"）──────────────────────────
+        // ── ③ 块根先失活、块内建完才激活（不出现"半块地图"）──────────────────────────
         var buildBody = MethodBody(view, "private void BuildChunk(Vector2Int chunk)");
         var offIdx = buildBody.IndexOf("SetActive(false)", StringComparison.Ordinal);
         var onIdx = buildBody.LastIndexOf("SetActive(true)", StringComparison.Ordinal);
@@ -1390,10 +1351,9 @@ internal static class MapCheckProgram
             $"三个层根（Ground/Object/Overlay）各一次 false / 一次 true（实测 " +
             $"{CountIn(buildBody, "SetActive(false)")} / {CountIn(buildBody, "SetActive(true)")}）");
 
-        // ── ④ 整图重铺的**队列口径**（★ T0FIX-H 改写）────────────────────────────────
+        // ── ④ 整图重铺的**队列口径**（T0FIX-H 改写）────────────────────────────────
         //   旧断言（T0FIX-A）："RebuildLayers 体内 0 次入队"（= 一帧同步建完）。
         //   T0FIX-H 把它改成分帧双缓冲 ⇒ 该断言的**结论**失效，但**意图**（不许有偷偷入队的地方）
-        //   必须保住 ⇒ 换成"逐队列、逐调用点"的结构断言：见 §19 与本段。
         var rebuildBody = MethodBody(view, "private void RebuildLayers()");
         var rebuildIdx = LineOf(view, "private void RebuildLayers()");
         var startIdx = LineOf(view, "private void StartRebuild(string why)");
@@ -1413,7 +1373,6 @@ internal static class MapCheckProgram
         Console.WriteLine($"  `_pendingChunks.Enqueue(`：RefreshVisibleChunks {CountIn(inRefresh, "_pendingChunks.Enqueue(")} / " +
                           $"DropFarPendingChunks {CountIn(inDropFar, "_pendingChunks.Enqueue(")} / 全文件 {CountIn(view, "_pendingChunks.Enqueue(")}；" +
                           $"`_retireChunks.Enqueue(`：EnqueueRetire {CountIn(inEnqRetire, "_retireChunks.Enqueue(")} / 全文件 {CountIn(view, "_retireChunks.Enqueue(")}");
-        //   ★ 2026-09-24（片 revive-chunk）：新增第三条入队点 = `PrimeLanding`（大跨度落位预建）。
         //     它同样是**增量路径**（落点范围缺块入队，单帧预算一个字未改）⇒ 本断言**不放松**，
         //     只是从"总数 2"改成"逐入队点指名 + 整图重铺三条路径体内**恒 0**"（原意一条不少）。
         var inPrime = MethodBody(view, "public int PrimeLanding(");
@@ -1445,7 +1404,6 @@ internal static class MapCheckProgram
             "「缓冲层根被判空」分支里）—— 它**不是**常规路径的一部分");
 
         // ── ⑤ 池化收益的**算术证明**（纯函数 SplitDemand，不建 GameObject）──────────────
-        // ★ eng-tile 片（2026-09-24）：实现已下沉 ⇒ 这两处写全 `CloverEngine.` 前缀
         //    （本文件同时 `using CloverEngine;` 与 `using Diablo2.Module.Map;` ⇒ 简单名会 CS0104 二义）。
         CloverEngine.TileNodePool.SplitDemand(0, 7, out var f1, out var c1);
         CloverEngine.TileNodePool.SplitDemand(7, 7, out var f2, out var c2);
@@ -1499,8 +1457,6 @@ internal static class MapCheckProgram
             "（⚠️ 冷池首帧仍要新建全图节点：既要「一帧铺满不露空」就不可能零新建 —— 取舍见回报）");
 
         // ── ⑥ 一格瓦片渲染状态是**格的纯函数**（与节点/池无关）⇒ 逐项相等不靠"记得重设"────
-        // ★ eng-tile 片（2026-09-24）：`TileRenderState` 的**真身**已下沉到引擎（项目侧是薄转发 struct）
-        //    ⇒ 这条"恰 5 个 public readonly 字段"的断言必须打在**引擎类型**上，否则打在转发层上恒 0 字段。
         var stFields = typeof(CloverEngine.TileRenderState).GetFields(
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
         var names = new List<string>();
@@ -1517,7 +1473,6 @@ internal static class MapCheckProgram
             "`TileRenderState` 恰 5 个 public 实例字段（Sprite/Color/LocalScale/Position/SortingOrder）" +
             "且**全 readonly** ⇒ 一格的渲染状态**只**由这 5 项构成（⛔ 夹带不了上一次的残留状态）");
 
-        // 纯函数数值（与改前公式逐项同值 —— 画面逐像素不变）
         var center = Iso.GridToWorld(new Vector2Int(7, 9));
         var floor80 = MapView.PlaceOfPx(center, 80, true);            // 地砖（图高 80：顶边贴格中心上方半格）
         var floor160 = MapView.PlaceOfPx(center, 160, true);
@@ -1568,21 +1523,17 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 19. ★ T0FIX-H：整图重铺（`RebuildLayers`）的**分帧双缓冲**
+    // 19. T0FIX-H：整图重铺（`RebuildLayers`）的**分帧双缓冲**
     //
-    //   缺陷（T0E 实机实测）：整图重铺单帧建 2824 个节点 = 77423 µs（一帧预算 16666.7 µs ⇒ 4.65×），
     //   且 5 次触发里 4 次落在玩家可操作期（fsm=Stage / uiLoading=0）⇒ 掉 3~5 帧。
-    //   修法：新图整幅建在**隐藏的缓冲集**上（每帧 ≤ `MaxTileNodesPerFrame` 个节点），
     //         建满后**一帧原子切换**（6 次层根 `SetActive`），旧集按同一预算分帧归还池。
     //
-    //   本步逐条断言（⛔ 全部离线可复算；帧时间本身必须由下一批实机重采，本步不写帧时间当实测）：
+    //   本步逐条断言（全部离线可复算；帧时间本身必须由下一批实机重采，本步不写帧时间当实测）：
     //     ① 预算算式（预算 × 实测每节点成本 ≤ 一帧预算；含反解出的画线上限）；
     //     ② `FrameAccepts` 两条闸门的边界（生产分帧循环与本节**共用**这一条纯函数）；
     //     ③ 真实三区域的逐格成本序列 + 帧序模拟（生产纯函数 `PlanCell` + `FrameAccepts`）：
     //        单帧节点 ≤ 预算 / 每帧至少一格 / 全格恰访问一次 / 访问顺序 = 计划顺序；
     //     ④ **不露空**（显式模拟）：任何一帧的可见格集合要么 == 旧集、要么 == 新集，
-    //        两者相等且非空 ⇒ 恒 ⊇ 旧集合（这正是任务书第 2 条硬约束的可判形式）；
-    //     ⑤ 逐格渲染字段（6 个字段值）逐项相等 ⇒ 双缓冲不改变渲染结果（承 §17 ⑥ 的纯函数口径）；
     //     ⑥ 结构性：`SwapToBuilt` 体内**0 个逐节点操作** + 恰 6 次层根 `SetActive`。
     // ═════════════════════════════════════════════════════════════════════════
     private static void Step19_RepavePacingPixelsUnchanged()
@@ -1593,11 +1544,10 @@ internal static class MapCheckProgram
         var view = System.IO.File.ReadAllText(System.IO.Path.Combine(ResolveProjectRoot(),
             ViewRel.Replace('/', System.IO.Path.DirectorySeparatorChar)));
 
-        // ── ① 预算算式：预算 × 实测每节点成本 ≤ 一帧预算（⛔ 不是「应该快了」）──────────────
+        // ── ① 预算算式：预算 × 实测每节点成本 ≤ 一帧预算（不是「应该快了」）──────────────
         var fps = FramePacing.TargetFrameRate;
         var frameBudgetUs = 1000000.0 / fps;
         // 实测基线（出处 = `策划/状态矩阵.tsv` 的 `perf:帧时间(ms/frame)` 行 = T0E 的 town-rebuild 实测：
-        //   nodes=2824 p50=58714us max=77423us）。⛔ 实测值不来自代码，只能引判据行（与 §16 的 nodesPerCell 同例）。
         const double measuredWorstUsPerNode = 27.416;
         const double measuredP50UsPerNode = 20.786;
         var budget = MapView.MaxTileNodesPerFrame;
@@ -1663,7 +1613,6 @@ internal static class MapCheckProgram
             var chunks = new List<Vector2Int>();
             MapView.PlannedChunks(true, 0, 0, chunksX - 1, chunksY - 1, chunksX, chunksY, chunks);
 
-            // 独立复算「改前的块序」= cx 外层、cy 内层（`PlannedChunks` 必须与它逐项相等）
             var expectChunks = new List<Vector2Int>();
             for (var cx = 0; cx < chunksX; cx++)
             {
@@ -1759,7 +1708,7 @@ internal static class MapCheckProgram
             var sameCellSet = oldSet.SetEquals(nodeCells) && oldSet.Count > 0;
 
             // 「不露空」的显式模拟：帧 1..N-1 屏幕上还是**完整旧图**（切换发生在末帧末）
-            //   ⇒ 任一时点可见集 = 旧集 或 新集（两者相同且非空 ⇒ 恒 ⊇ 旧集合，⛔ 不存在半张/空白）。
+            //   ⇒ 任一时点可见集 = 旧集 或 新集（两者相同且非空 ⇒ 恒 ⊇ 旧集合，不存在半张/空白）。
             var visibleNeverEmpty = true;
             var visibleOk = true;
             for (var f = 0; f < frames; f++)
@@ -1876,7 +1825,7 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 20. ★ T0FIX-I：T0FIX-H 引入的**致命回归 = Stage 黑屏**（双缓冲建出的地图从未被渲染）
+    // 20. T0FIX-I：T0FIX-H 引入的**致命回归 = Stage 黑屏**（双缓冲建出的地图从未被渲染）
     //
     //   实机（上一棒 DIAG，同机位全屏，几何/贴图一字未改）：
     //     进图就绪后 `wholeMapView_totalSR=5134` 而 **`activeSR=0`**、`gRoot_activeChildren=0`、
@@ -1884,20 +1833,15 @@ internal static class MapCheckProgram
     //     把同一子树强制 `SetActive(true)` ⇒ `ground_activeSR=2210 / object_activeSR=357`、
     //     **`mean_lum=31.63/255`**（地形出现）。
     //
-    //   根因 = 两处「`activeSelf` 残留」（Unity 语义：激活父节点**不**复活 `activeSelf=false` 的子节点）：
     //     · `EnsureJobChunk` 把缓冲块根 `SetActive(false)`，`SwapToBuilt` 只激活**层根**；
     //     · `TileNodePool.Return` 失活瓦片，而 `Take`/`ApplyTileState` 只复位 `SpriteRenderer.enabled`。
     //
-    //   本步逐条判据（⛔ 全部离线可复算；画面/帧时间由本片 Play 链路实测，不在此处写死）：
     //     ① 结构：`Take` 恰 1 次 `SetActive(true)`（对**取出的那个节点**）/ `Return` 恰 1 次
     //        `SetActive(false)`，且 `Take` 的复活发生在 `SetParent(` 之后、`return` 之前；
     //     ② 结构：块根复活**逐块显式**发生（`MarkJobChunkBuilt` 恰 3 次 `SetActive(true)`），
     //        并在 `PumpRebuild` 的"块建满"处调用恰 1 次；
     //     ③ 结构：`SwapToBuilt` 切换前对新集**每个块根**逐块兜底（`ActivateChunkRoots(` 恰 1 次，
-    //        且在层根 `SetActive(true)` **之前**）；体内仍 0 个逐节点操作（承 §19⑥，未放宽）；
     //        同时 `EnsureBufferRoots` 仍 3 次 `SetActive(false)`（"缓冲集恒隐藏"这条不露空约束未失效）；
-    //     ④ 模型（复现回归）：块根若不复活（改前行为）⇒ 切换后新集可见节点数 = **0**（黑屏）；
-    //        修复后 == **计划节点数**（> 0）；`SwapToBuilt` 后逐块 `activeInHierarchy` 全 true；
     //     ⑤ 模型（不露空 / 不黑屏）：任一帧"旧集或新集**至少一个整体可见**"，且可见集合非空。
     // ═════════════════════════════════════════════════════════════════════════
     private static void Step20_StageVisibilityActiveSelf()
@@ -1905,9 +1849,8 @@ internal static class MapCheckProgram
         Section("20. ★ T0FIX-I：Stage 黑屏回归 —— 瓦片/块根 activeSelf 复位（池配对 / 逐块复活 / 不露空）");
 
         const string ViewRel = "client/Assets/Scripts/Module/Map/MapView.cs";
-        // ★ eng-tile 片（2026-09-24）：`TileNodePool` 已**下沉到引擎**（项目侧只剩薄转发）⇒
         //    结构断言（"瓦片节点的唯一创建点" / `Take`/`Return` 的 activeSelf 配对）改读**引擎源码**。
-        //    ⛔ 不许把判据改回项目侧那份 —— 那会变成"实现搬走了、判据还在原地"的假闸门。
+        //    不许把判据改回项目侧那份 —— 那会变成"实现搬走了、判据还在原地"的假闸门。
         const string PoolRel = "../clover-client-unity-engine/Runtime/Presentation/TileNodePool.cs";
         var view = System.IO.File.ReadAllText(System.IO.Path.Combine(ResolveProjectRoot(),
             ViewRel.Replace('/', System.IO.Path.DirectorySeparatorChar)));
@@ -1997,7 +1940,6 @@ internal static class MapCheckProgram
             "`EnsureBufferRoots` 仍 3 次 `SetActive(false)`（三个缓冲层根**恒隐藏**）" +
             " ⇒ 「缓冲集在切换前任何时刻都不可见」这条**不露空约束未失效**（本片的修复只复活块根，不动层根）");
 
-        // ── ④⑤ 模型：块根 activeSelf 时间线 → 可见集（复现黑屏 / 验证修复 / 不露空）─────────────
         var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
         var budget = MapView.MaxTileNodesPerFrame;
         var cellBudget = MapView.MaxTileCellsPerFrame;
@@ -2107,7 +2049,7 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 18. ★ T0FIX-E/F/G：素材侧「实心单色 PNG」逐类定性 + 「空素材目录」
+    // 18. T0FIX-E/F/G：素材侧「实心单色 PNG」逐类定性 + 「空素材目录」
     //
     //   T0 的 D3 判出 6 条「存在 N 张实心单色 PNG」（唯一色 = 1）与 1 条「素材目录是空目录」。
     //   本步把**定性**做成脚本判据（可复跑），三条口径：
@@ -2121,7 +2063,6 @@ internal static class MapCheckProgram
     //     ③ **SkillIcon 的 100 张**还要看帧号：帧号公式（`UI/D2Icon.SkillIconPath`）=
     //        `(official_id − (6 + 30×(class−1))) × 2`，每职业 30 技能 ⇒ 帧号 ≤ 58，+1 灰化帧 ⇒ ≤ 59
     //        ⇒ 帧号 ≥ 60 的帧**从不被请求**。
-    //   ⛔ 本步不改素材、不改 `tools/d2codec/**`（本片定性结论 = 不是导出错 ⇒ 无可修之处）。
     // ═════════════════════════════════════════════════════════════════════════
     private static void Step18_FlatArtAndEmptyDirs()
     {
@@ -2369,7 +2310,7 @@ internal static class MapCheckProgram
 
     /// <summary>
     /// **地形布局/代码真正引用的瓦片键集合**（`pack/idx`，不含 `Tiles/`|`Objects/` 前缀）。
-    /// 三个来源（都在生产文件里，⛔ 不手写清单）：
+    /// 三个来源（都在生产文件里，不手写清单）：
     ///   · `MapGenTownLayout.cs`：`Packs[]`（下标 = 3 位 packId）+ `GroundRows`/`ObjectRows`（每格 6 字符）
     ///   · `MapGenWildLayout.cs`：每条 14 字符码 = `&lt;kind&gt;&lt;class&gt;&lt;ground6&gt;&lt;object6&gt;`
     ///   · `MapView.cs`：字面键常量表（`"pack/idx"`）
@@ -2434,7 +2375,6 @@ internal static class MapCheckProgram
         return true;
     }
 
-    /// <summary>`XXX = { ... };` 的体内文本（找不到返回空串）。</summary>
     private static string SectionBody(string text, string name)
     {
         var i = text.IndexOf(name + " =", StringComparison.Ordinal);
@@ -2745,7 +2685,6 @@ internal static class MapCheckProgram
         }
     }
 
-    // ── 13. 血腥荒野恒 80×80（片 3：「野外地图太小」）+ MonDen 逐格抽样的期望群数/怪数 ──
     //   两件事必须一起看：
     //   ① 尺寸：原版 `Levels.txt`「Act 1 - Wilderness 1」SizeX=SizeY=80 ⇒ 本图**恒 80×80**，
     //      连跑 20 个 seed 一个都不许例外（旧的 `rng.Next(6,11)` 会生成 48~80）。
@@ -2753,7 +2692,6 @@ internal static class MapCheckProgram
     //      `sample = Random.Range(0,100000); if (sample >= density) continue;`）
     //      ⇒ 期望群数 = 可走格数 × MonDen/100000，期望怪数 = 期望群数 × 平均群大小
     //      （群大小 = `monster_c.min_grp..max_grp`，**从配表源文件现读**，不在这里手抄）。
-    //      片 3 的规矩：算出来 > 200 只 ⇒ **先停下回报**，不许直接落地。
     private static void Step13_WildernessFixedSize()
     {
         Section("13. 血腥荒野恒 80×80（20 个 seed）+ MonDen 逐格抽样的期望群数/怪数");
@@ -2836,7 +2774,6 @@ internal static class MapCheckProgram
                           $"（片 3 的安全线 = 200 只）");
         Check(expMon <= 200.0, $"期望怪数 {expMon:F1} ≤ 200（片 3 的安全线；超过就要停下回报）");
 
-        // ── 出口格现在到底铺的是什么瓦片（片 3 验收 §2 第 3 项）──────────────
         var wild = NewMap();
         wild.Generate(AreaId.BloodMoor, firstSeed);
         for (var i = 0; i < wild.Exits.Count; i++)
@@ -2861,11 +2798,10 @@ internal static class MapCheckProgram
     /// <summary>读一张制表符分隔的配表源文件（跳过「类型 / 后缀 / 中文说明」三行表头）。</summary>
     private static TsvTable ReadTsv(string projRel)
     {
-        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot）。
+        // 仓库根改为**运行期推导**（见 ResolveProjectRoot）。
         //   旧写法是「AppContext.BaseDirectory 上数 6 层」——那是宿主还在 `.ai-tmp/hosts/<名>/bin/<cfg>/<tfm>/`
         //   时的层数；宿主迁到 `tools/probes/hosts/<名>/bin/<cfg>/<tfm>/` 后**少了一层**，
         //   6 层落点变成 `<仓库根>\tools` ⇒ `策划/数值文档/*.txt` 读不到，Step13 那两条断言恒红
-        //   （实测 2026-09-20：`读不到 策划/数值文档/{level_c,monster_c}.txt`）。
         var root = ResolveProjectRoot();
         var p = System.IO.Path.Combine(root, projRel.Replace('/', System.IO.Path.DirectorySeparatorChar));
         if (!System.IO.File.Exists(p)) { Console.WriteLine($"  [WARN] 配表源文件不存在：{p}"); return null; }
@@ -2945,15 +2881,12 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 23. ★ 片 L / R12：水 = 独立 `TileKind.Water`
     //
-    // 缺陷（R12）：`MapGenTown.KindOf('r')` 把**水**与石头/崖壁/碎石/杂物一起归到 `TileKind.Rock`
-    //   ⇒ 光标 / 小地图 / tooltip 无法把"水"与"石头"分开（水与石矮墙在小地图上映射到同一个 Cel 60）。
     // 出处：① `MapGenTownLayout.cs:28`（`'r'` = 水，生成物，源 `ACT1/TOWN/*.ds1`）；
     //       ② 水格 floor 键全是 `moor_river/*`（= `OUTDOORS/river.dt1` 的水瓦片）；
     //       ③ 原版不可涉水 ⇒ 可走性保持 false。
     // 本步的口径（只加断言）：
-    //   ① 逐格**双向**核对 `'r'` ↔ `Water`（⛔ 不靠总数相等）
+    //   ① 逐格**双向**核对 `'r'` ↔ `Water`（不靠总数相等）
     //   ② 水格仍**不可走**；水格 floor 键仍是原版水瓦片
     //   ③ 非水区域一格都没变成水（`'X'` 等阻挡码按合同**保持原分类**）
     //   ④ **消费者穷举**：`TileKind` 的每个 switch/判定点对 `Water` 都有显式分支或已登记的 default
@@ -2963,7 +2896,7 @@ internal static class MapCheckProgram
     {
         Section("23. ★ 片 L / R12：水 = 独立 TileKind.Water（逐格双向核对 / 仍不可走 / 消费者穷举）");
 
-        // ── ① 期望集 = **从 `MapGenTownLayout.Rows` 逐格推**（生成物 = 原版数据，⛔ 不靠总数）──
+        // ── ① 期望集 = **从 `MapGenTownLayout.Rows` 逐格推**（生成物 = 原版数据，不靠总数）──
         var expected = new HashSet<Vector2Int>();
         for (var y = 0; y < MapGenTownLayout.Rows.Length; y++)
         {
@@ -3049,7 +2982,7 @@ internal static class MapCheckProgram
             Console.WriteLine($"    [枚举] {areas[i]} 盘上实际出现的地形：{string.Join(" / ", ps)}");
             Check(water == 0, $"{areas[i]}：`TileKind.Water` = 0 格（合同：本片只摘城镇 `'r'`，`'X'` 等**保持原分类**；实测 {water}）");
             // 野外有 `Rock`（崖壁/碎石/杂物/水都归它，按合同未改）；洞穴**没有** `Rock`（用 `CaveWall`）
-            // ⇒ 期望值分区域给，⛔ 不许用一句"Rock>0"套三张图（那在洞穴上必然假红）。
+            // ⇒ 期望值分区域给，不许用一句"Rock>0"套三张图（那在洞穴上必然假红）。
             var blockerKept = areas[i] == AreaId.BloodMoor ? rock : counts2.ContainsKey(TileKind.CaveWall) ? counts2[TileKind.CaveWall] : -1;
             Check(blockerKept > 0,
                 $"{areas[i]}：原地形分类仍在（{(areas[i] == AreaId.BloodMoor ? "Rock" : "CaveWall")} = {blockerKept} 格 ⇒ 阻挡码没有被顺手改成水）");
@@ -3102,10 +3035,7 @@ internal static class MapCheckProgram
         Check(Count(caveGen, "TileKind.Water") == 0,
             "MapGenCave.cs：洞穴里**没有** Water（洞穴的 `'X'` = 实心岩体 `CaveWall`，⛔ 不许当水）");
 
-        // ★ 消费者穷举（**全仓扫描，⛔ 不写死文件清单**；2026-09-23 补：片 J 的 `SkillModule.cs` 是
-        //   在我加 `Water` **之后**才出现的第 4 个 `case TileKind.` 消费者 —— 写死清单会漏掉它）。
         //   判据：凡文件里出现 `case TileKind.` 的，都必须对 `Water` 有显式分支，
-        //   否则新值会**静默 fallthrough 到 default**（= 当石头处理，正是 R12 的病根）。
         var scriptsRoot = System.IO.Path.Combine(ResolveProjectRoot(), "client", "Assets", "Scripts");
         var switchFiles = new List<string>();
         var risky = new List<string>();
@@ -3130,8 +3060,7 @@ internal static class MapCheckProgram
             "MapModule.BuildMinimap：水格的**物件 Cel 不叠**（`moor_river/028` 与石墙同 Cel 60 ⇒ " +
             "不叠之后水格只剩 floor 水 Cel，小地图上水 ≠ 石头）");
 
-        // ★ 小地图的**数据层**判据（比看像素硬）：`moor_river/028` 与石墙在 `AutoMapCel` 物件表里
-        //   是**同一个 Cel 60** ⇒ 修复前水格在小地图上带着"墙"的印记（= 看着就是石头）。
+        // 小地图的**数据层**判据（比看像素硬）：`moor_river/028` 与石墙在 `AutoMapCel` 物件表里
         //   逐格核对：水格**不许**有物件 Cel；`Rock`（石矮墙）格**必须**有。
         var mm = town.BuildMinimap();
         var waterWithOver = 0;
@@ -3195,13 +3124,11 @@ internal static class MapCheckProgram
 
     // ── 21. 桥面(deck)排序：站在桥上不被栏杆盖住 ────────────────────────────────
     /// <summary>
-    /// 用户症状「营地出门的桥，还不是从桥上走，还是桥下。」的**离线判据**（数值类，不截图）。
     /// <para>根因（像素级 before 证据见 `tools/probes/measure/measure_bridge_deck.py`）：
     /// 排序值 = `(gx+gy)*4 + 100 + 层偏移`；桥面格的正南一格恒是桥栏杆物件（图形自本格底边
     /// 向上溢出 ≈2 格）⇒ 桥面实体 `4D+102` 必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
-    /// <para>覆盖口径 = 影响域穷举：① 期望 deck 集合**从布局数据推**（⛔ 不写坐标区间）
+    /// <para>覆盖口径 = 影响域穷举：① 期望 deck 集合**从布局数据推**（不写坐标区间）
     /// ② 逐格双向核对（漏/多）③ 栏杆行地面（同图集但不可走）必须不算桥面
-    /// ④ 纯函数排序断言逐格算 ⑤ 正南确实是栏杆（否则断言空跑）⑥ 改前档位确实被盖（反证根因）
     /// ⑦ 换图 / Clear 后标记不残留。</para>
     /// </summary>
     private static void Step21_BridgeDeckOrdering()
@@ -3252,7 +3179,6 @@ internal static class MapCheckProgram
         foreach (var c in railGround) if (m.IsDeckGrid(c)) railTrue++;
         Check(railTrue == 0, $"栏杆行地面（同图集、不可走）不算桥面：{railGround.Count} 格全 false（实测 true = {railTrue}）");
 
-        // ④⑤⑥ 逐格纯函数断言 + 正南确实是栏杆 + 改前档位确实被盖
         var badLow = 0;
         var badHigh = 0;
         var beforeCovered = 0;
@@ -3300,8 +3226,7 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // 22. ★ 审计 B（离线片：D2 几何与场景 / D9 物理与碰撞 / D11 交互输入）
-    //     口径：**只加断言**（⛔ 不改动 §0~§21 的任何一行）；本步自身全绿，
+    // 22. 审计 B（离线片：D2 几何与场景 / D9 物理与碰撞 / D11 交互输入）
     //     红行以 `【红行证据·…】` 前缀的行输出（可复核、可 grep）。
     // ═════════════════════════════════════════════════════════════════════
     private static void Step22_AuditBGeoInput()
@@ -3311,11 +3236,8 @@ internal static class MapCheckProgram
         // ── ① 谁还在用「普通实体档」？（出处 = 生产代码 grep；宿主只做数值断言）──────
         //   走 IsDeckGrid 抬档的路径 = Module/View/ViewModule.cs:1191 `EntitySortOrder(g)`
         //     ⇒ 玩家(731) / 怪物(355) / 地面物品(492) / NPC(199) 全走它；
-        //   ✅ 2026-09-23 修：Module/Skill/ProjectileView.cs 原先自己写
         //     `sr.sortingOrder = Iso.SortOrder(p.Grid, GameConst.LayerOffsetEntity);`（投射物 =
-        //     审计 B 红行 R2 的漏网路径），现改调 `ViewModule.EntitySortOrder(g)` ⇒ **全仓已无
         //     裸实体档路径**（`grep LayerOffsetEntity` 只剩 Iso 定义与"无地图"兜底分支）。
-        //     该口径的**生产路径断言**在 `tools/combatcheck` §15.4（本宿主不编 Module/View+Skill）。
         var tm = NewMap();
         tm.Generate(AreaId.Town, 0);
         var deck = new List<Vector2Int>();
@@ -3380,7 +3302,7 @@ internal static class MapCheckProgram
             Check(oobVoid == oobIn.Length, $"{areas[i]}：图外一格 TileAt == Void（{oobVoid}/{oobIn.Length}）");
             Check(oobThrew == 0, $"{areas[i]}：图外一格不抛异常（{oobThrew}）");
 
-            // 四角 + 四边中点：`Walkable` 必须与 `TileKindInfo.IsWalkable` 同源（⛔ 宿主不另写判等表）
+            // 四角 + 四边中点：`Walkable` 必须与 `TileKindInfo.IsWalkable` 同源（宿主不另写判等表）
             var edge = new[] { new Vector2Int(0, 0), new Vector2Int(w - 1, 0), new Vector2Int(0, h - 1), new Vector2Int(w - 1, h - 1),
                                new Vector2Int(w / 2, 0), new Vector2Int(w / 2, h - 1), new Vector2Int(0, h / 2), new Vector2Int(w - 1, h / 2) };
             var mismatch = 0; var edgeWalk = 0;
@@ -3399,7 +3321,6 @@ internal static class MapCheckProgram
             Console.WriteLine($"    [信息] {areas[i]}：{edge.Length} 个边缘/角格中可走 {edgeWalk} 个" +
                               "（>0 ⇒ 边界存在可走格，需确认它的外邻不是「露到图外」）");
 
-            // 出口格：全部可走 + 全部从出生点可达（§3 只测单点，这里逐出口）
             var exitBad = 0; var exitUnreachable = 0;
             for (var k = 0; k < m.Exits.Count; k++)
             {
@@ -3419,7 +3340,7 @@ internal static class MapCheckProgram
             Check(exitBad == 0, $"{areas[i]}：{m.Exits.Count} 个出口格全部可走（不可走 {exitBad}）");
             Check(exitUnreachable == 0, $"{areas[i]}：全部出口格从出生点可达（不可达 {exitUnreachable}）");
 
-            // 逐 TileKind 计数（"行数是数出来的"：脚本产出实体表，⛔ 不手写）
+            // 逐 TileKind 计数（"行数是数出来的"：脚本产出实体表，不手写）
             var count = new Dictionary<TileKind, int>();
             for (var x = 0; x < w; x++)
                 for (var y = 0; y < h; y++)
@@ -3439,7 +3360,7 @@ internal static class MapCheckProgram
                 $"{areas[i]}：逐格枚举出的可走格数 == WalkableCount（{walkCount} vs {m.WalkableCount}）");
         }
 
-        // ── ③ 八邻域距离阈值矩阵（**反射枚举** GameConst，⛔ 不手写常量清单）────────
+        // ── ③ 八邻域距离阈值矩阵（**反射枚举** GameConst，不手写常量清单）────────
         var sqrt2 = Math.Sqrt(2.0);
         var fields = typeof(GameConst).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
         var rangeFields = new List<System.Reflection.FieldInfo>();
@@ -3484,11 +3405,9 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // 25. ★ 片 S2（2026-09-23）：传送点锚点（用户报「传送点没效果」）
     //     判据 1/3 = **生成 1 个且坐标与原版表一致**（数值类 ⇒ 断言，不截图）。
     //     出处逐条写在 `MapGenTown.Waypoint` 的注释里（Levels.txt 的 Waypoint 列 /
     //     Objects.txt Id=119 / LvlPrest 四块城镇 ds1 的 kind=2 预设单位重合于 (31,26)）。
-    //     ⛔ 只加断言：本步不改任何既有判据（§10「出口恰 3 格」等一律原样）。
     // ═════════════════════════════════════════════════════════════════════
     private static void Step25_WaypointAnchor()
     {
@@ -3531,9 +3450,8 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // 26. ★ 2026-09-23（S2）：Tab 自动地图的「记忆式已探索」数据源
     //     `IMapModule.ExploredCells` + `Events.MapExplored`（主 agent 追加的离线活）。
-    //     ⚠️ 本宿主**没有 Unity 运行时** ⇒ 造不出 `MapView`（`new GameObject()` 会炸）
+    //     本宿主**没有 Unity 运行时** ⇒ 造不出 `MapView`（`new GameObject()` 会炸）
     //     ⇒ 这里只断言"可离线判"的那一半：契约成员存在/类型对/无 view 时是空且不抛，
     //     外加**源码级守卫**（发事件必须被"首次"判定守住 —— 这正是"定义了但没人查"的高发形态）。
     // ═════════════════════════════════════════════════════════════════════
@@ -3566,7 +3484,7 @@ internal static class MapCheckProgram
         Check(evtField != null && evtValue == "D2.Map.Explored",
             "事件常量 Events.MapExplored 存在且值 = \"D2.Map.Explored\"");
 
-        // ④ 源码级守卫：发事件必须被"首次"判定守住（⛔ 不许每帧/每格无脑发）
+        // ④ 源码级守卫：发事件必须被"首次"判定守住（不许每帧/每格无脑发）
         var repo2 = FindRepoRoot();
         if (repo2 == null)
         {
@@ -3639,8 +3557,6 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // 24. ★ 片 M3（2026-09-23）：营地那座桥的**可走性** + **东边界接缝** + 缺瓦片
-    //     用户症状：①「桥的上面过不去」②「穿过桥去不了下一张地图」
     //              ③「地图边界斜切黑三角 / 石墙缺一段瓦片」
     //     判据（数值类，不进 Play，秒级）：
     //       ① 桥面格（地面键取自 deck 类包；唯一判据 = `DeckTiles`）里的**全部可走格**必须
@@ -3650,8 +3566,6 @@ internal static class MapCheckProgram
     //          与野外第 0 列是同一条共享边列，出处 `libd2/.../drlg/outdoors/OutRoom.zig:271`，
     //          见 `MapGenTown.cs` ①.7）—— 且 `VerifyConnectivity` 必须通过（出口列必须从出生点可达，
     //          否则 `MapModule` 会换 seed 重试，用户看到的会是另一张图）；
-    //       ④ 布局引用的**每个瓦片键**都必须有对应 PNG（缺图 = 露黑底 =「墙缺一段」的候选根因）。
-    // ⛔ 只加断言、不改既有判据（片 M3 约束）。
     // ═════════════════════════════════════════════════════════════════════
 
     private static void Step24_TownBridgeWalkableAndSeam()
@@ -3720,11 +3634,8 @@ internal static class MapCheckProgram
         Check(steps >= 0 && steps <= (east.x - west.x) + 4,
             $"路径长度合理（不绕远）：{steps} 步，直线 {east.x - west.x} 步（允许 ≤ +4）");
 
-        // ③ 东边界接缝（用户症状「穿过桥去不了下一张地图」）：
         //    原版口径 = 城镇东边界列与野外第 0 列是同一条共享边列（`OutRoom.zig:271`），
         //    过河那条路就是桥 ⇒ 判据 = `MapSeam.IsTownEastSeam`（区域 = Town && x == Width-1 && 桥面 deck）。
-        //    ⛔ 本片**不**把接缝写进 `map.Exits`（那会让 §10 已冻结的「出口恰 3 格」判据失效 = 改判据），
-        //      触发侧判据由 `PlayerModule.CheckExit` + `MapSeam` 承担（`movecheck §9` 断言该纯函数）。
         var eastDeck = 0;
         var seamOk = 0;
         var seamCell = new Vector2Int(-1, -1);
@@ -3799,7 +3710,6 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // 27. ★ 片 chunk-hole2（2026-09-23：血沼泽「大片黑底」）
     //
     //     判据 = 「期望可见块范围 == 实际建块集（差集为空）」对 **分块**（80×80）与
     //            **不分块**（56×40）两种区域尺寸**都成立**。
@@ -3813,7 +3723,7 @@ internal static class MapCheckProgram
     //         `(buildX0, buildY0, _chunkMax.x, _chunkMax.y)`，其中 `buildX0 = Mathf.Max(0, min.x)`
     //         ⇒ **登记范围与建块清单同源**，二者差集必须恒为空。
     //
-    //     ⛔ 只加断言：不改任何既有步骤的判据，不改 MapView。
+    //     只加断言：不改任何既有步骤的判据，不改 MapView。
     // ═════════════════════════════════════════════════════════════════════
     private static void Step27_PlannedChunksEqualVisibleRange()
     {
@@ -3907,7 +3817,6 @@ internal static class MapCheckProgram
     }
 
     /// <summary>
-    /// 28. ★ chunk-hole（2026-09-23，血沼泽大片黑）：登记范围与实际建块集**脱钩**时必须能自愈。
     /// <para>实测现场（`tools/probes/drivers/s2_drive.cs` 的 CHUNK-ENTER 读数 + `.ai-tmp/test/chh_deep_chh2.txt`）：
     /// `chunkMin/chunkMax=(0,0)-(2,3)`（12 块）而建块集是**另一个**矩形（(0,3)(1,3) 未建）、
     /// `PendingChunks=0` ⇒ 旧口径 `RefreshVisibleChunks` 只比范围就早退 ⇒ 洞永远没人补。
@@ -3952,7 +3861,6 @@ internal static class MapCheckProgram
     }
 
     /// <summary>
-    /// 29. ★ 片 black-why（2026-09-23，血沼泽「块都建完了、屏还是黑的」）：根因不在建块链，
     /// 而在**相机边界钳制的坐标系**。
     /// <para>实测锚点（L2/L3，`.ai-tmp/test/bw_deep_bwy1.txt` 第 6/8 行 T1 读数）：
     /// `map=80x80 area=1 chunkMin/Max=(0,0)-(1,2) MISSING=0 job=null`（⇒ 不是缺块），
@@ -3973,7 +3881,7 @@ internal static class MapCheckProgram
     {
         Section("29. ★ black-why：相机钳制用世界 AABB ⇒ 地图外虚空可见（血沼泽黑窗根因）");
 
-        // ① 等距常数：生产值现算（HalfTilePx / PixelsPerUnit），⛔ 不写裸数字
+        // ① 等距常数：生产值现算（HalfTilePx / PixelsPerUnit），不写裸数字
         Console.WriteLine($"  Iso.HalfW/HalfH = ({Iso.HalfW}, {Iso.HalfH})  ← GameConst.IsoTilePxW/H={GameConst.IsoTilePxW}/{GameConst.IsoTilePxH}, PPU={GameConst.PixelsPerUnit}");
         Check(Iso.HalfW == GameConst.IsoHalfW && Iso.HalfH == GameConst.IsoHalfH && Iso.HalfH * 2f == Iso.HalfW,
             "等距半格 = 生产常量（宽 : 高 = 2 : 1）");
@@ -4005,7 +3913,6 @@ internal static class MapCheckProgram
         Console.WriteLine($"  实测机位 {camObs} 的可见矩形里『地图外』占比 = {fracObs * 100f:0.#}%");
 
         // ④ 生产的放行区间 —— **直接调生产** `CameraBounds.ClampFocusGrid`
-        //    （camera-clamp 片：原先这里是「CameraRig.cs:484-495 的 6 行镜像」，镜像的坏处是
         //     生产改了而探针照旧 ⇒ 判据永远停在旧行为上。改成调生产后，**判据 = 生产行为本身**。
         //     判据本体一字未改：仍是「生产夹制放行该机位 ⇒ 夹制后仍有 X% 屏幕是图外虚空」。）
         var prod = CameraBounds.ClampFocusGrid(new Vector2(camObs.x, camObs.y), mw, mh, halfW, halfH);
@@ -4013,10 +3920,8 @@ internal static class MapCheckProgram
         var fracProd = OffMapFraction(new Vector3(prod.x, prod.y, -10f), halfW, halfH, mw, mh);
         Console.WriteLine($"  生产格空间夹制后机位 = ({prod.x:0.##},{prod.y:0.##})（Δ=({prod.x - camObs.x:0.##}," +
                           $"{prod.y - camObs.y:0.##})），同口径地图外占比 = {fracProd * 100f:0.#}%");
-        // ⚠️ 实参语义（camera-clamp 片）：`Defect(ok, …)` 里 **ok =「缺陷已消除 / 判据通过」**
-        //    （helper 内 `if (!ok) _defects++`，打印 ✅CLEARED ⇔ ok=true）。
-        //    ⇒ 下面两处传进去的**必须是"修好后成立"**的那一面，⛔ 不是"缺陷仍然存在"。
-        //    退化校验：把生产改回旧 AABB 夹制 ⇒ 两处同时回 ❌DEFECT-REPRO（不会变成豁免）。
+        //    （helper 内 `if (!ok) _defects++`，打印 CLEARED ⇔ ok=true）。
+        //    退化校验：把生产改回旧 AABB 夹制 ⇒ 两处同时回 DEFECT-REPRO（不会变成豁免）。
         Defect(prodMoved && fracProd == 0f,
             $"生产夹制**不再放行**该机位（{nameof(CameraBounds)}.{nameof(CameraBounds.ClampFocusGrid)} 把机位 " +
             $"({camObs.x:0.#},{camObs.y:0.#}) 移到 ({prod.x:0.#},{prod.y:0.#})，" +
@@ -4031,10 +3936,9 @@ internal static class MapCheckProgram
         var fracSpec = OffMapFraction(spec, halfW, halfH, mw, mh);
         Console.WriteLine($"  格空间夹制（规格）后机位 = ({spec.x:0.##},{spec.y:0.##})，同口径地图外占比 = {fracSpec * 100f:0.#}%");
         Check(fracSpec == 0f, "★ 规格：格空间夹制后可见格范围 ⊆ 地图（地图外占比 = 0）");
-        // ★ camera-clamp 片追加：生产实现必须与规格函数**同一个数**（判"生产"不判"另一套算法"）
+        // camera-clamp 片追加：生产实现必须与规格函数**同一个数**（判"生产"不判"另一套算法"）
         Check(Mathf.Abs(prod.x - spec.x) < 1e-3f && Mathf.Abs(prod.y - spec.y) < 1e-3f,
             $"★ 生产 == 规格：同一落点机位差 ({prod.x - spec.x:0.####},{prod.y - spec.y:0.####})（> 1e-3 ⇒ 生产走的不是格空间夹制）");
-        // ⚠️ 实参语义（同上）：ok = **「缺陷已消除」**。本项原来传的是「规格 ≠ 现状」（缺陷仍存在的那一面），
         //    与 helper 的 ok 语义相反 —— 但**直接取反会让它永远为 false**（`spec` 是规格解、`camObs` 是修前
         //    实测机位，二者恒不相等）⇒ `_defects` 会被永久钉在 1，与「`_defects` 必须归 0」冲突。
         //    ⇒ 取它的**等价 fail-to-pass 形式**：「现状（生产机位）已经 == 规格解」（修好后成立、修前不成立），
@@ -4047,17 +3951,13 @@ internal static class MapCheckProgram
         var mid = Iso.GridToWorld(40, 40);
         var midCam = new Vector3(mid.x, mid.y, -10f);
         Check(OffMapFraction(midCam, halfW, halfH, mw, mh) == 0f, "图心机位（格 40,40）可见矩形全部在图内（对照组，两种夹制等价）");
-        // ★ camera-clamp 片追加（回归哨兵）：图心机位必须**不被夹制**（夹制只在贴边处生效）
+        // camera-clamp 片追加（回归哨兵）：图心机位必须**不被夹制**（夹制只在贴边处生效）
         var prodMid = CameraBounds.ClampFocusGrid(new Vector2(mid.x, mid.y), mw, mh, halfW, halfH);
         Check(Mathf.Abs(prodMid.x - mid.x) < 1e-4f && Mathf.Abs(prodMid.y - mid.y) < 1e-4f,
             $"★ 生产：图心机位 ({mid.x:0.##},{mid.y:0.##}) 不被夹制（中间地带零回归）⇒ 实际 ({prodMid.x:0.##},{prodMid.y:0.##})");
         Console.WriteLine();
     }
 
-    // ── ★ black-why2（2026-09-23 接力 black-why）：**进区落点**的边界余量 ─────────
-    //    只加断言：⛔ 不动 §0~§29 的任何一行、⛔ 不放宽任何既有断言。
-    //    判据口径 = 主 agent 任务书 §3 第 1 条（从营地东侧出口进入 Blood Moor ⇒
-    //    落点在地图内且距四边界 ≥ N 格 + 落点所在格可走）。
     private static void Step30_EntryLandingMargin()
     {
         Section("30. ★ black-why2：营地东侧出口 → 血腥荒野，落点距四边界 ≥ N 格且整屏在图内");
@@ -4098,7 +3998,7 @@ internal static class MapCheckProgram
             Check(frac == 0f,
                 $"seed={seed}：落点机位可见矩形的『地图外』占比 = {frac * 100f:0.#}%（= 0 ⇒ 进区那一刻不露图外 Void）");
 
-            // 反证（只打印，⛔ 不计入判据）：修前落点 = 回城口东侧第 1 列 (gate.x+1, gate.y)
+            // 反证（只打印，不计入判据）：修前落点 = 回城口东侧第 1 列 (gate.x+1, gate.y)
             var og = Iso.GridToWorld(gate.x + 1, gate.y);
             var oldFrac = OffMapFraction(new Vector3(og.x, og.y, -10f), halfW, halfH, w, h);
             Console.WriteLine($"      反证：修前落点 ({gate.x + 1},{gate.y}) 的同口径地图外占比 = {oldFrac * 100f:0.#}%" +
@@ -4107,12 +4007,9 @@ internal static class MapCheckProgram
         Console.WriteLine();
     }
 
-    // ── ★ 片 map-border（2026-09-23）：**可走区**离地图四边界 ≥ N 格 ────────────
-    //    为什么这条判据能同时判住以前互相打架的两条（camera-follow 片结论）：
     //      · 「零虚空」要求机位离边界 ≥ 7.083 格（可见格包围盒半跨 = halfW/(2·HalfW) + halfH/(2·HalfH)）；
     //      · 「玩家跟随」要求机位 == 玩家。
     //    ⇒ 二者同时成立 ⟺ **玩家（可走格）离边界 ≥ 7.083 格**。本步就判这一件事。
-    //    只加断言：⛔ 不动 §0~§30 的任何一行、⛔ 不放宽任何既有断言。
     private static void Step31_WalkableBorderRing()
     {
         Section($"31. ★ map-border：所有可走格距四边界 ≥ N 格（N={GridMap.BorderRingCells}）" +
@@ -4133,20 +4030,14 @@ internal static class MapCheckProgram
 
         foreach (var area in areas)
         {
-            // ★ 片 map-border2：**城镇豁免 §31**（主 agent 2026-09-23 裁决 = 选项 A）。
             //   为什么豁免（两条，互相独立）：
-            //   ① **边界语义不同**：§31 的「可走区离四边界 ≥ N」是照原版**野外**的边界块口径定的
             //      （`LvlPrest.txt`「Act 1 - Wild Border *」= 8 格崖壁/树线块，本身不可走）。
             //      城镇是原版 `Levels.txt`「Act 1 - Town」的**整关 56×40**，营地**围栏那一行
             //      就是关卡的最后一行** ⇒ 原版城镇的边界本来就是**建筑/围栏**，不是地形边界块
-            //      ⇒ 把野外语义套到城镇上属**判据适用范围错**，不是城镇有缺陷。
-            //   ② **与既有冻结判据 §24 数学互斥**：§24「关卡东边界列（x=Width-1）上存在可走桥面格」
             //      （原版木桥东端 = 与野外的共享边列）要求 x=Width-1 可走，而该列距东边界恒 = 0
-            //      ⇒ 任何城镇地图都同时满足不了 §31 与 §24；改 §24 属**改契约**。
-            //   ⛔ 本分支**不是**放宽阈值 / 改永真 / 删断言：城镇的实测值仍逐项现算并**打印留痕**
+            //   本分支**不是**放宽阈值 / 改永真 / 删断言：城镇的实测值仍逐项现算并**打印留痕**
             //      （最贴边可走格 / 距离 / p50 / 地图外占比 / 机位偏移），只是不计入 `_failures`，
             //      并且**每一行都打 `⤵ SKIP`**（不静默跳过）。
-            //   差异登记：`策划/差异登记.tsv`（D2-MAP-BORDER-TOWN-EXEMPT）；实测清单见 §32。
             var skip31 = area == AreaId.Town;
 
             foreach (var seed in seeds)
@@ -4188,7 +4079,7 @@ internal static class MapCheckProgram
                 var pMax = offsets.Count == 0 ? float.NaN : offsets[offsets.Count - 1];
 
                 // ③ 最贴边那格：**可见格 ⊆ 地图**（零虚空），且**机位 == 玩家**（没被顶到画面角上）
-                //    ⚠️ 量测一律照算（城镇也要打留痕），只是**计不计入 `_failures`** 由 `skip31` 决定
+                //    量测一律照算（城镇也要打留痕），只是**计不计入 `_failures`** 由 `skip31` 决定
                 var frac = 0f;
                 var moved = false;
                 var cc = Vector2.zero;
@@ -4203,7 +4094,7 @@ internal static class MapCheckProgram
 
                 if (skip31)
                 {
-                    // 城镇：不计判据，但**数值全部打印**（留痕；⛔ 不是静默跳过）
+                    // 城镇：不计判据，但**数值全部打印**（留痕；不是静默跳过）
                     Console.WriteLine($"    ⤵ SKIP §31 {area} seed={seed}：原版城镇边界 = 营地围栏，" +
                                       "非地形边界块（出处 `Levels.txt`「Act 1 - Town」56×40 整关，" +
                                       "营地围栏那行 = 关卡最后一行）");
@@ -4232,19 +4123,15 @@ internal static class MapCheckProgram
         Console.WriteLine();
     }
 
-    // ── ★ 片 map-border2：城镇**贴边可走格清单**（豁免 §31 的实测证据，主 agent 要求）─────
     //   为什么要它：裁决 A 的前提是"城镇里玩家实际走不到的贴边格 / 走到了也不露虚空"，
-    //   这必须用**坐标 + 地形 + 从出生点可达**三件套钉住，⛔ 不许拿"§31 绿了"当证据。
     //   本步只打印 + 断言"清单非空"（清单本身是证据，不是判据）。
     /// <summary>
-    /// ★ 片 travel-black（2026-09-24）：**换区后首个可玩帧的已建块 ⊇ 屏上可见块**。
     /// <para>缺陷（实机逐帧量到，`.ai-tmp/screenshots/travelblack_tb1.log`）：传送落地后整屏黑 ≈1.84 s。
-    /// 根因 = `AppFlow.EnterArea` 里 `ShowArea` 发生在挪玩家/相机**之前** ⇒ `StartRebuild` 那一刻相机还停在
     /// **旧区**，按它算出来的块范围与落地画面无关（实测旧区 (32,27) 算出 (0,0)-(3,2) 共 12 块，落地后屏上要的是
     /// 另外 9 块 (0,2)-(2,4)），整图重铺建满一帧切换 ⇒ **交换本身**把屏上地砖撤光。</para>
     /// <para>本步判的是**修法**（生产纯函数 <see cref="MapView.LandingRange"/>）：换区那次重铺的块范围按
     /// **落点**（= 出生格）+ 视口格半跨算，必须覆盖"落地那一刻屏上要的块"；并给一条**反例**（按旧区那台相机
-    /// 算出来的范围盖不满）⇒ 断言判"过程"，⛔ 不是改一个数字就能变绿。</para>
+    /// 算出来的范围盖不满）⇒ 断言判"过程"，不是改一个数字就能变绿。</para>
     /// </summary>
     private static void Step33_LandingRangeCoversViewport()
     {
@@ -4300,7 +4187,6 @@ internal static class MapCheckProgram
             $"小图（营地 56x40，不分块）清单 = 全图 {town.Count} 块 ⇒ 任意落点都覆盖（与 §27 同源）");
     }
 
-    /// <summary>块 (cx,cy) 与格矩形 [x0,y0..x1,y1] 是否有交集（§33 用）。</summary>
     private static bool BlockTouches(int cx, int cy, int x0, int y0, int x1, int y1)
     {
         var bx0 = cx * MapView.ChunkSize;
@@ -4311,15 +4197,10 @@ internal static class MapCheckProgram
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // ★ 片 revive-chunk（2026-09-24）：**大跨度落位预建**（死亡重生 / 传送）
-    //   只加断言：⛔ 不动 §0~§33 的任何一行、⛔ 不放宽任何既有断言。
-    //   ⚠️ 与 §33（travel-black）**不是同一条路径**：§33 判"**换区**那次整图重铺按落点算范围"
-    //      （走 `ShowArea` → `StartRebuild`）；本片判"**同区域内**一步大跨度位移（重生 / `TeleportTo`）
-    //      后被 `ReleaseFarChunks` 回收掉的块，当帧就回到待建队列"（⛔ 无 `ShowArea`、⛔ 不 `StartRebuild`）。
+    //      后被 `ReleaseFarChunks` 回收掉的块，当帧就回到待建队列"（无 `ShowArea`、不 `StartRebuild`）。
     // ═════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// §34：「**该不该预建**」的判据（生产纯函数 <see cref="MapView.IsLargeShift"/>）+ **反例**。
     /// <para>判据本体 = 玩家格坐标一步跨 ≥ <see cref="MapView.PrimeJumpCells"/>（= 2 块 = 32 格）
     /// ⇒ 判为大跨度、触发预建；小跨度（走路 1~2 格）**绝不触发** ⇒ 防"每走一步就全量对账"的性能退化。</para>
     /// </summary>
@@ -4368,15 +4249,12 @@ internal static class MapCheckProgram
             $"阈值边界：跨 {MapView.PrimeJumpCells - 1} 格**不**触发、跨 {MapView.PrimeJumpCells} 格触发");
     }
 
-    /// <summary>§34 打印用：两格的 Chebyshev 距离。</summary>
     private static int Shift(Vector2Int a, Vector2Int b)
     {
         return Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
     }
 
     /// <summary>
-    /// §35：**分块区死亡重生后"当帧"的已建块 ⊇ 屏上可见块**（用实机数字复算）。
-    /// <para>实机读数（`.ai-tmp/test/re_readings_re3.txt:345-412`，改前 / 无预建）：</para>
     /// <para>· `BP-AT-FAR`（传到最远格 (71,8) 后）builtGround=4、可见块范围 (3,0)-(4,1) —— 出生点周围 9 块
     ///   **已被 `ReleaseFarChunks` 回收**；</para>
     /// <para>· `BP-REVIVE-T0` 同帧 builtGround=4、可见仍是 (3,0)-(4,1) ⇒ `MISSING=0`（**假绿**：相机还没跟上）；</para>
@@ -4384,7 +4262,7 @@ internal static class MapCheckProgram
     /// <para>· `BP-REVIVE-T1.5` builtGround=10 / `MISSING=0`（自愈 ⇒ 窗口 ≈ 0.5~1 s）。</para>
     /// <para>本步判"修法"（生产纯函数 <see cref="MapView.PrimeChunks"/>）：重生落点范围必须
     /// **当帧全部进待建队列**，且该范围 ⊇ 屏上可见块范围；并给**反例**（不预建时 preBuilt 在落地视口上盖不满 0 块）
-    /// ⇒ 断言判"过程"，⛔ 不是改一个数字就能变绿。</para>
+    /// ⇒ 断言判"过程"，不是改一个数字就能变绿。</para>
     /// </summary>
     private static void Step35_LargeShiftPrimeCoversViewport()
     {
@@ -4398,7 +4276,6 @@ internal static class MapCheckProgram
         var visibleMax = new Vector2Int(2, 4);    // 实机 BP-REVIVE-T0.5 的可见块范围
 
         // 前提：这次重生必须**确实被判为大跨度**（否则整套预建根本不会发生 ⇒ 下面几条断言全部作废）。
-        // ⚠️ 这一条同时是**退化校验**的把手：把 `IsLargeShift` 改成恒 false（= 关掉预建）⇒ §34 与 §35 一起变红。
         Check(MapView.IsLargeShift(far, spawn),
             $"前提：实机那次重生 {far} → {spawn} 被判为大跨度（跨 {Shift(far, spawn)} 格 ≥ PrimeJumpCells）" +
             "⇒ 预建路径真的会被走到（退化校验：改 `IsLargeShift` 恒 false ⇒ §34/§35 同时变红）");
@@ -4421,7 +4298,7 @@ internal static class MapCheckProgram
             $"预建清单 = 落点范围 {(pmax.x - pmin.x + 1) * (pmax.y - pmin.y + 1)} 块" +
             $"（⛔ 不是全图 5x5=25 块 ⇒ 不把“重生”变成“重进区域”的全量重铺）");
 
-        // ③ "当帧就有块"能兑现的依据：清单块数 ≤ 相机位到落点之前可用的帧预算（1 块/帧，⛔ 不动该常量）
+        // ③ "当帧就有块"能兑现的依据：清单块数 ≤ 相机位到落点之前可用的帧预算（1 块/帧，不动该常量）
         var budget = MapView.MaxChunksPerFrame * (int)(0.5f * FramePacing.TargetFrameRate);
         Check(primed.Count <= budget,
             $"预建 {primed.Count} 块 ≤ 相机到位前的建块预算 {budget} 块" +
@@ -4437,7 +4314,6 @@ internal static class MapCheckProgram
         Check(MapView.ChunkRangeCovered(built, primed, pmin.x, pmin.y, pmax.x, pmax.y),
             "**重生后当帧**：已建块(preBuilt 4) ∪ 当帧入队(primed 9) ⊇ 屏上可见块(9) ⇒ 无洞（这就是本片要的判据）");
 
-        // ⑤ 反例（退化校验）：**关掉预建**（primed 为空 = 改前的实际形态）⇒ 落地视口上缺 9 块
         var missNoPrime = 0;
         for (var cx = pmin.x; cx <= pmax.x; cx++)
         {
@@ -4513,13 +4389,12 @@ internal static class MapCheckProgram
         Check(reachable > 0, $"其中从出生点**走得到**的 = {reachable} 格" +
                             "（> 0 ⇒ 豁免的前提必须靠主 agent 复核：玩家真能站到贴边格）");
 
-        // ③ ★ 主 agent 裁决第 3 条要的那个数：**过了生产相机夹制之后，屏幕上还有没有地图外虚空**。
+        // ③ 主 agent 裁决第 3 条要的那个数：**过了生产相机夹制之后，屏幕上还有没有地图外虚空**。
         //    为什么要单独算这一档：`CameraBounds.ClampFocusGrid` 在地图**角格**处有回退
         //    ——`CameraBounds.cs:31`「角格处无解 ⇒ **让位给主角可见**（地图角落那点虚空
         //    由地图边界块[遮住]）」＋ `:115` 的 Warn。野外/洞穴有边界块兜住那点虚空，
         //    城镇**没有**边界块（围栏就是关卡边界）⇒ 回退一旦触发，屏幕上就真露虚空。
-        //    ⚠️ 口径：夹制**位移为 0** 的格 = 可见格矩形本来就 ⊆ 地图 ⇒ 占比恒 0（不必 160×160 采样）；
-        //       只有位移 ≠ 0 的格才需要现算。本段**只打印不做判据**（判据见 §31 的 SKIP 分支）。
+        //    口径：夹制**位移为 0** 的格 = 可见格矩形本来就 ⊆ 地图 ⇒ 占比恒 0（不必 160×160 采样）；
         var prodCells = 0;
         var prodVoidCells = 0;
         var prodVoidInsideCamp = 0;
@@ -4540,8 +4415,6 @@ internal static class MapCheckProgram
                 if (f > 0f)
                 {
                     prodVoidCells++;
-                    // 拆账：营地**内框**（x(17,47) × y(16,39)，同 §10 的口径）vs 营地外
-                    // ⇒ 主 agent 若选「封城镇贴边可走格」，可修的部分只有**营地外**那一半。
                     if (x > 17 && x < 47 && y > 16 && y < 39) prodVoidInsideCamp++;
                     else prodVoidOutsideCamp++;
                 }
@@ -4636,7 +4509,7 @@ internal static class MapCheckProgram
         if (!ok) _failures++;
     }
 
-    /// <summary>fail-to-pass 复现项：**不计入 `_failures`**（⛔ 不把既有 PASS 判据改红），单独统计。</summary>
+    /// <summary>fail-to-pass 复现项：**不计入 `_failures`**（不把既有 PASS 判据改红），单独统计。</summary>
     private static void Defect(bool ok, string what)
     {
         Console.WriteLine($"    {(ok ? "✅ DEFECT-CLEARED" : "❌ DEFECT-REPRO")} {what}");

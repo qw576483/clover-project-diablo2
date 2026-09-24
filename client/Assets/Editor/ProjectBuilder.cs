@@ -1,5 +1,4 @@
 // ============================================================================================
-//  Assets/Editor/ProjectBuilder.cs —— Diablo2 「一键生成工程资产」Editor 工具（agent-10）
 //
 //  菜单：`Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）`
 //         `Diablo2/重建工程资产（覆盖已有场景与预制体）`
@@ -23,10 +22,8 @@
 //
 //  为什么用「按类名反射找类型」而不是直接 `typeof(BootPanel)`：
 //    本文件在 `Assembly-CSharp-Editor` 里，直接引用业务类型会让「业务程序集编译失败 ⇒
-//    生成器也编译不过 ⇒ 连修复工具都没有」。反射找类型 + 找不到只 `LogError` 继续，
-//    保证生成器**永远能用**（`docs/agents/agent-10-工程生成器.md` §4.1 第 3 条）。
 //
-//  ⛔ 本文件不动 `Assets/Scripts/**`、不动 `Packages/manifest.json`、不动契约文档。
+//  本文件不动 `Assets/Scripts/**`、不动 `Packages/manifest.json`、不动契约文档。
 // ============================================================================================
 
 using System;
@@ -44,7 +41,6 @@ namespace Diablo2.Editor
         /// <summary>日志前缀（契约：每个生成动作都带它，便于在 Editor.log 里 grep）。</summary>
         private const string Tag = "[D2.ProjectBuilder]";
 
-        /// <summary>主菜单（<c>docs/agents/agent-10-工程生成器.md</c> §4.1 指定的名字，**不许改**）。</summary>
         public const string MenuPath = "Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）";
 
         /// <summary>强制重建菜单（覆盖已有资产；只给「手工修坏了想复原」用）。</summary>
@@ -66,21 +62,17 @@ namespace Diablo2.Editor
         /// <summary>相机到地面（z=0）的距离 ⇒ 机位 z = -10（`CameraRig.CameraDistance`）。</summary>
         private const float CameraDistance = 10f;
 
-        // ── 契约清单（`docs/步骤文档.md` §3.6：预制体路径 = Resources/UI/{类名}）──
         /// <summary>17 个面板类名（顺序无意义，只影响生成顺序）。</summary>
         public static readonly string[] PanelNames =
         {
-            // 流程（agent-05）
             "BootPanel", "MainMenuPanel", "SettingsPanel", "CharSelectPanel", "CharCreatePanel",
             "LoadingPanel", "PausePanel",
-            // ★ 本轮新增：**原版风格的二次确认弹窗**（替掉引擎默认 uGUI 弹窗；见 `UI/D2ConfirmPanel.cs`）。
+            // 本轮新增：**原版风格的二次确认弹窗**（替掉引擎默认 uGUI 弹窗；见 `UI/D2ConfirmPanel.cs`）。
             //   它是弹窗、不属任何 FSM 站点，但同样要一个 `Resources/UI/{类名}` 空壳预制体
             //   （`UIManager.Open<T>` 按类名加载，见 `Runtime/Presentation/UI.cs:131-140`）。
             "D2ConfirmPanel",
-            // 游戏内（agent-09）
             "HudPanel", "MiniMapPanel", "InventoryPanel", "CharacterPanel", "SkillTreePanel",
             "QuestLogPanel", "NpcDialogPanel", "ShopPanel", "DeathPanel",
-            // ★ 片 g1-resume 新增：传送面板（原版「傳送點」屏；见 `UI/WaypointPanel.cs`）。
             //   与 `D2ConfirmPanel` 同理：不属 FSM 站点，但同样要一个 `Resources/UI/{类名}` 空壳预制体
             //   （`UIManager.Open<T>` 按类名加载）。它是**游戏内面板**（层 = Popup），由
             //   `App/AppWaypoint.cs` 在"走到传送点"后打开。
@@ -407,14 +399,13 @@ namespace Diablo2.Editor
 
         /// <summary>
         /// 造一个场景。用 **Additive**（不替换用户当前打开的场景，避免弹保存框），存完立刻关掉。
-        /// 场景内容（`docs/agents/agent-10-工程生成器.md` §3）：
         ///   Boot  = 主相机 + `Bootstrap`（挂 `Diablo2.App.Bootstrap`）
         ///   Menu  = 主相机（纯 UI 场景，靠面板切换、不切场景）
         ///   Stage = 主相机 + Global Light 2D + `MapRoot` + `EntityRoot`
-        /// ⚠️ **不放 Canvas**：引擎 `UIManager` 自己建常驻 Canvas（`Runtime/Presentation/UI.cs:44-58`，
+        /// **不放 Canvas**：引擎 `UIManager` 自己建常驻 Canvas（`Runtime/Presentation/UI.cs:44-58`，
         ///    `DontDestroyOnLoad` + 5 个层节点 + `referenceResolution=1920x1080`）；
         ///    场景里再放一个 ⇒ 两套 UI 根，面板会挂到错的那套上。
-        /// ⚠️ **不放 EventSystem**：`CloverInput.Init()` 会 `EnsureEventSystem()`
+        /// **不放 EventSystem**：`CloverInput.Init()` 会 `EnsureEventSystem()`
         ///    （`Runtime/Presentation/CloverInput.cs:39`），场景里预置反而可能撞成两个 InputModule。
         /// </summary>
         private static bool CreateScene(string path, string sceneName)
@@ -425,10 +416,9 @@ namespace Diablo2.Editor
                 if (AssetDatabase.LoadAssetAtPath<SceneAsset>(path) != null)
                     AssetDatabase.DeleteAsset(path);
 
-                // ★ 场景内容 = **引擎件生成**（`CloverEngine.Editor.SceneScaffold`，2026-09-24 接线）：
                 //   相机参数 / 根节点 / 入口脚本 / URP 相机数据 / Additive 模式 / 存完关闭 全部经参数传入；
                 //   本文件只保留**项目取值**（size=6、z=-10、黑底、各场景该有哪些节点、入口类型名）。
-                //   ⇒ 场景结构改了要改的是这里的参数，⛔ 不是再抄一份建场景代码。
+                //   ⇒ 场景结构改了要改的是这里的参数，不是再抄一份建场景代码。
                 var o = new CloverEngine.Editor.SceneScaffoldOptions
                 {
                     OrthoSize = CameraOrthoSize,
@@ -555,7 +545,7 @@ namespace Diablo2.Editor
             if (want.Count == 0)
                 return 0;   // 一个场景都没生成 ⇒ 不动 Build Settings（引擎件也会拒空清单）
 
-            // ★ 写入 + 幂等判定都在引擎件里（`replace: true` = 结果只有这三个场景，与本文件原语义一致）
+            // 写入 + 幂等判定都在引擎件里（`replace: true` = 结果只有这三个场景，与本文件原语义一致）
             if (CloverEngine.Editor.SceneScaffold.ApplyBuildSettings(want, replace: true))
             {
                 Debug.Log($"{Tag} Build Settings 已写入：" + string.Join(" → ", want.ToArray()));
@@ -584,7 +574,7 @@ namespace Diablo2.Editor
 
             try
             {
-                // ★ 设置 + 幂等判定都在引擎件里；`onlyIfNull` = 自愈路径不覆盖用户自己的选择
+                // 设置 + 幂等判定都在引擎件里；`onlyIfNull` = 自愈路径不覆盖用户自己的选择
                 var before = EditorSceneManager.playModeStartScene;
                 if (CloverEngine.Editor.SceneScaffold.SetPlayModeStartScene(path, onlyIfNull))
                 {
@@ -610,7 +600,6 @@ namespace Diablo2.Editor
         }
 
         // ─────────────────────────────────────────────────────────────────────────────────────
-        //  类型解析（反射：生成器不许依赖业务程序集，否则业务编译失败时连修复工具都没了）
         // ─────────────────────────────────────────────────────────────────────────────────────
         /// <summary>面板类：先试 `Diablo2.UI.{name}`，再全程序集按简单名兜底。</summary>
         private static Type FindPanelType(string simpleName)

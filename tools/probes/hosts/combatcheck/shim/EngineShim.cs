@@ -249,7 +249,6 @@ namespace CloverEngine
         string CurrentScene { get; }
         void Load(string sceneName, Action<float> progress = null, Action onDone = null);
         void Unload(string sceneName, Action onDone = null);
-        /// <summary>`Runtime/Core/PresentationContracts.cs:196`（agent-17 §A 起 `Module/Flow/AppFlow` 用它识别"Stage 场景被重载"）。</summary>
         void OnSceneLoaded(Action<string> handler);
         /// <summary>`Runtime/Core/PresentationContracts.cs:198`。</summary>
         void OnSceneUnloaded(Action<string> handler);
@@ -277,7 +276,6 @@ namespace CloverEngine
         void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object;
         T TryGet<T>(string path) where T : UnityEngine.Object;
 
-        // ★ agent-34（引擎下沉 A3）：引擎 `IResourceManager` 新增的两个**同步**入口
         //   （`Exists` 只回答"在不在"；`LoadAll` 会加载、批量取）。签名逐字对齐（覆盖率哨兵）。
         bool Exists(string path);
         T[] LoadAll<T>(string path) where T : UnityEngine.Object;

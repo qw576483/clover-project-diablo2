@@ -4,7 +4,6 @@
 //
 // 装配契约：`internal sealed class NpcModule : INpcModule`，无参构造（供 `AppContext.AutoWire()`）。
 //
-// 站位来自 `IMapModule.NpcPoints`（**下标 = `(int)NpcId`**，见 `docs/agents/_common.md` §3.5）：
 //   地图（罗格营地）每次生成后重建一次；地图 seed/区域变化时自动重建。
 //
 // 依赖（只走接口）：
@@ -35,7 +34,6 @@ namespace Diablo2.Module.Npc
         /// NPC 名称 = **原版串表**里的名字（面板的说话人行显示的就是它，所以必须与原版一致；
         /// 原版中文是繁体）。串 id：阿卡拉 **2892**（键 `Akara`）/ 卡夏 **2893**（`Kashya`）/
         /// 恰西 **2894**（`Charsi`）/ 基得 **2891**（`Gheed`）/ 瓦瑞夫 **2896**（`Warriv`）。
-        /// <para>⚠️ 上一版写的是「基德」，原版串是「**基得**」（2891）⇒ 本轮按原版串改。</para>
         /// </summary>
         private static readonly string[] Names = { "阿卡拉", "卡夏", "恰西", "基得", "瓦瑞夫" };
 
@@ -46,7 +44,6 @@ namespace Diablo2.Module.Npc
         private int _builtArea = -1;
 
         /// <summary>
-        /// ★ 片 T（S-19）：「本 (seed, 区域, 已生成?) 组合**已经处理过**」的标记。
         /// <para>为什么必须有它：旧去重判据是 `_defs.Count &gt; 0 &amp;&amp; …` —— 而修复后
         /// **非城镇区域**的 `_defs` 合法地保持空 ⇒ 那个判据会每帧重跑 `EnsureBuilt`
         /// （等于把"不装配 + 记一行日志"变成每帧一次的新刷屏）。</para>
@@ -58,7 +55,7 @@ namespace Diablo2.Module.Npc
 
         /// <summary>
         /// 当前正在对话的 NPC（`Events.DialogOptionChosen` 只带下标，必须记住是谁）。
-        /// <para>★ R1-E 的 **S3** 建立了这条**不变式**：`_currentNpcId != None` 的区间
+        /// <para>R1-E 的 **S3** 建立了这条**不变式**：`_currentNpcId != None` 的区间
         /// **恰好等于** `NpcDialogPanel` 实例的存活区间 —— 面板关闭/被引擎销毁时必须归零，
         /// 归零通道有两条且都幂等：① 本模块自己的 `ChooseOption(0)`；② 面板 `OnClose` 补发的
         /// `Events.DialogClose`（`UI/NpcDialogPanel.cs` 文件头 S3）。引擎 `UIManager.Close`
@@ -80,9 +77,7 @@ namespace Diablo2.Module.Npc
             }
             bus.On<int>(Events.DialogOptionChosen, OnDialogOptionChosen);
             bus.On(Events.DialogClose, OnDialogClose);
-            // ★ 任务阶段 → 对话的**实时**联动（原版行为：在阿卡拉处接/交任务后，台词当场就换）。
-            //   没有这一条时，面板要"关掉再打开"才看得到新台词（本轮实测：接取后正文仍是接取前那段，
-            //   `canAcceptQuest` 也还是旧值）⇒ 验收 #40「状态机驱动 NPC 对话」不成立。
+            // 任务阶段 → 对话的**实时**联动（原版行为：在阿卡拉处接/交任务后，台词当场就换）。
             bus.On<QuestStateDto>(Events.QuestChanged, OnQuestChanged);
             bus.On<int>(Events.NpcInteractRequest, OnInteractRequest);
             bus.On<ShopTradeArgs>(Events.ShopBuyRequest, OnBuyRequest);
@@ -115,10 +110,8 @@ namespace Diablo2.Module.Npc
             {
                 if (_defs[i].id == npcId) return _defs[i];
             }
-            // ★ 片 T（S-19 回归修复）：把**两种完全不同的 null** 分开报 —— 旧文案一律说
             //   「没有这个 NPC（本项目只有 5 个）」，在**非城镇区域**是**误导**：NPC 定义存在，
-            //   只是按 S-19 / agent-26 的城镇门禁**不装配**。⛔ 返回 null 本身是契约（见 `GetDialog` 的
-            //   ★ 注），但**原因必须准** —— 实测代价：`itemcheck` 在洞里取阿卡拉台词拿到 null ⇒
+            //   注），但**原因必须准** —— 实测代价：`itemcheck` 在洞里取阿卡拉台词拿到 null ⇒
             //   宿主 NRE 崩在 `Program.cs:1075`，被读成"对话表缺条目/我改坏了对话"。
             var map = Map;
             var reason = map != null && map.IsGenerated && map.Area != AreaId.Town
@@ -133,12 +126,9 @@ namespace Diablo2.Module.Npc
         /// <summary>
         /// 取离某格最近、且在 `GameConst.TalkRange` 内的 NPC；没有返回 null。
         /// <para>
-        /// ★ 只有**罗格营地**才有 NPC（`NpcDef.areaId` 恒为 `AreaId.Town`）。非城镇区域里
+        /// 只有**罗格营地**才有 NPC（`NpcDef.areaId` 恒为 `AreaId.Town`）。非城镇区域里
         /// `IMapModule.NpcPoints` 是空列表 ⇒ `EnsureBuilt` 的站位会退化成 (0,0)。
         /// 若不在这里拦住，「洞里点/走到 (0,0) 附近」会**误开阿卡拉的对话**
-        /// （agent-26 验收 #38 实机复现：进邪恶洞穴后 `MoveCommand` 落点靠近 (0,0)
-        ///  ⇒ 洞里弹出阿卡拉对话，且面板带着"未清光"的旧参数 ⇒ 回城交付时『交付任务』按钮是灰的、
-        ///  真鼠标点击无效，只能靠 invoke 兜底）。
         /// </para>
         /// </summary>
         public NpcDef FindNearest(Vector2Int grid)
@@ -183,7 +173,7 @@ namespace Diablo2.Module.Npc
             var def = Get(npcId);
             if (def == null) return false;
 
-            // 非城镇区域不提供 NPC 交互（见 FindNearest 的 ★ 注释：防止"洞里也能跟阿卡拉说话"）
+            // 非城镇区域不提供 NPC 交互（见 FindNearest 的 注释：防止"洞里也能跟阿卡拉说话"）
             if (!InTownForNpc())
             {
                 var m0 = Map;
@@ -209,12 +199,9 @@ namespace Diablo2.Module.Npc
         /// <summary>
         /// 取当前对话内容（**文本随任务阶段变化**）。
         /// <para>
-        /// ★ 片 T：**null 契约是确定的，且只有两种出口**（调用方必须判 null，⛔ 不许直接解引用）：
         /// ① `Get(npcId) == null` —— 该 NPC **在当前场景取不到定义**（非罗格营地 ⇒ 不装配；
         ///    或地图未生成 / `NpcPoints` 缺站位），此时 `Get` 会打一条**点名原因**的 Warn（只报一次）；
         /// ② 否则**恒返回非 null**：`NpcDialog.Build` 对 5 个 NPC × 4 个 `QuestState` **都有原版串**
-        ///    （`NpcDialog.TextOf` 的 switch 全覆盖，见 `itemcheck` §9 的 20 格穷举断言）。
-        /// ⇒ 「台词取不到」永远不是本方法的返回值，而是 ① 那条 Warn。
         /// </para>
         /// </summary>
         public NpcDialogArgs GetDialog(int npcId)
@@ -619,12 +606,11 @@ namespace Diablo2.Module.Npc
             _builtSeed = seed;
             _builtArea = area;
 
-            // ★ 片 T（S-19）：**站位缺失 ⇒ 不装配**，⛔ 不再落到 (0,0)。两条理由都可回查：
             //   ① 旧兜底会在**非城镇区域**凭空造出 5 个站在原点的幽灵 NPC（原 `Log.Warn … 暂用 (0,0)`，
             //      09-23 日志 115 条），而 `FindNearest` 只按**距离**判 ⇒ 进洞后靠近原点就弹出阿卡拉
-            //      对话（`NpcModule.FindNearest` 的 ★ 注释记录了那次实机复现，验收 #38）。
+            //      对话（`NpcModule.FindNearest` 的 注释记录了那次实机复现，验收 #38）。
             //   ② 站位一律取自 `IMapModule.NpcPoints` —— 城镇生成器按原版数据摆放
-            //      （实测 阿卡拉=(41,19)、恰西=(21,21)），⛔ 本文件不许硬编码任何坐标。
+            //      （实测 阿卡拉=(41,19)、恰西=(21,21)），本文件不许硬编码任何坐标。
             if (!generated || map.Area != AreaId.Town)
             {
                 Log.Info("Npc", $"NPC 未装配：当前区域 {(map != null ? map.Area.ToString() : "无地图")}"
@@ -656,7 +642,7 @@ namespace Diablo2.Module.Npc
                 });
             }
 
-            // 真的缺站位 = 地图数据异常：⛔ 不静默（点名到 NPC），但**只报一次**（同 seed+区域只走一遍）。
+            // 真的缺站位 = 地图数据异常：不静默（点名到 NPC），但**只报一次**（同 seed+区域只走一遍）。
             if (missing.Count > 0)
             {
                 Log.WarnOnce("Npc", "npc.spot.missing",
@@ -813,8 +799,8 @@ namespace Diablo2.Module.Npc
         /// 任务阶段变化 ⇒ **正在对话的那个 NPC 立刻改用新阶段的话术与选项**
         /// （原版：在阿卡拉处接下/交付任务后，台词与选项当场就变，不需要关掉重开）。
         /// 只在"确实有对话进行中"时才重发 `Events.DialogOpen`；没有对话时什么都不做。
-        /// <para>★ R1-E 的 **S3**：这里的门槛（<see cref="_currentNpcId"/>）**就是**"面板确实开着"
-        /// 的等价物 —— 见该字段的不变式注释。⛔ 不许在这里追加别的开面板条件、也不许在
+        /// <para>R1-E 的 **S3**：这里的门槛（<see cref="_currentNpcId"/>）**就是**"面板确实开着"
+        /// 的等价物 —— 见该字段的不变式注释。不许在这里追加别的开面板条件、也不许在
         /// `_currentNpcId == None` 时"补弹一次对话"（那正是 S3 描述的"凭空弹面板"）。</para>
         /// </summary>
         private void OnQuestChanged(QuestStateDto quest)
@@ -880,7 +866,7 @@ namespace Diablo2.Module.Npc
 
         /// <summary>
         /// 事件里的 npcId 缺省时用"当前正在对话的 NPC"。
-        /// <para>★ R1-E 的 **S3**：两者都缺时**不再用"阿卡拉"兜底** —— 那会把一笔本该失败的交易
+        /// <para>R1-E 的 **S3**：两者都缺时**不再用"阿卡拉"兜底** —— 那会把一笔本该失败的交易
         /// 悄悄打到另一个 NPC 上（"陈旧 NPC 兜底"，与"面板被销毁后 `_currentNpcId` 残留"同源）。
         /// 现在返回 <see cref="NpcId.None"/> ⇒ 下游 `Buy/Sell/Repair` 走它们的"NPC 不存在"分支
         /// 打可定位 Warn 并失败（不静默、不错账）。</para>

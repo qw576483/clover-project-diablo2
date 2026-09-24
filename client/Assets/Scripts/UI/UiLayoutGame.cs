@@ -1,25 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/UiLayoutGame.cs（agent-09 · 1:1 轮；2026 主 agent 裁决：改 ×1.8 居中）
 // **游戏内面板（HUD / 背包 / 属性 / 技能 / 商店 / 怪物血条 / 关卡标题）的布局常量总表**。
 //
-// ★ 唯一依据（`docs/agents/agent-15-UI一対一复刻.md` §0）：
 //   `原版资源/参考工程_Diablerie/Diablerie/Assets/Prefabs/{ControlPanel,InventoryPanel,CharstatPanel,
 //   SkillPanel,SkillSlot,AvailableSkillsPanel,EnemyBar,LevelEntryTitle}.prefab`
 //   里的 **RectTransform 精确值**（m_AnchorMin/Max、m_AnchoredPosition、m_SizeDelta、m_Pivot）。
 //   这些值由脚本从 prefab YAML 里逐节点解析出来（不靠肉眼估），下面每个常量都标注
 //   「原版值 → ×1.8（居中）」与来源节点名。
 //
-// ★★ 换算口径（**2026 主 agent 裁决，取代旧的 ×2.4**）：
+// 换算口径（**2026 主 agent 裁决，取代旧的 ×2.4**）：
 //   原版暗黑2 是 **4:3（800×600）**，本工程画布是 **16:9（1920×1080）**。
-//   ⛔ 旧口径用**宽度比** 1920/800 = **2.4** 等比缩放 —— 600×2.4 = **1440 > 1080**
+//   旧口径用**宽度比** 1920/800 = **2.4** 等比缩放 —— 600×2.4 = **1440 > 1080**
 //      ⇒ 原版 HUD 控制面板（原版底边就比画布底边低 21.3）被放大到出屏 51px（用户报「hud 都是不对的」）。
-//   ✅ 正确口径（原版在宽屏下的实际做法）：**缩放系数 = 1080/600 = 1.8（按高度等比）**，
+//   正确口径（原版在宽屏下的实际做法）：**缩放系数 = 1080/600 = 1.8（按高度等比）**，
 //      水平居中，左右多出的空间交给相机（视野更宽，不是把 UI 横向拉伸）。
 //      · 水平：原版 `x ∈ [0,800]` → 屏幕 `960 + (x − 400) × 1.8`。本表所有 x 都写成
 //        「相对屏幕中线的原版偏移 × K」，乘出来天然居中（±400 → ±720，画布 ±960 之内）。
 //      · 垂直（底边锚定元素）：原版 y（相对画布底边）× 1.8 − 540。
 //
-// ★ HUD 贴底（消除旧 E5）：原版 `ControlPanel.prefab` 的 `Background` 是
+// HUD 贴底（消除旧 E5）：原版 `ControlPanel.prefab` 的 `Background` 是
 //   `anchor(0.5,0)` + `pos.y = −21.3` + `pivot(0.5,0)` ⇒ 它的**底边比原版画布底边还低 21.3px**
 //   （原版 800×600 下这 21.3px 是被裁掉的）。原版在宽屏下的控制面板底边与屏幕底边齐平 ⇒
 //   本项目给整组 HUD 加一个**贴底抬升** `HudBaseLift = 21.3`（原版 px，×1.8 = 38.34 画布单位），
@@ -36,14 +34,12 @@
 //       中心 (160,0) ⇒ 我们 (288,0)：**面板贴屏幕中线右侧**，与暗黑2 原版一致；
 //       `CharstatPanel` 反之贴左侧）。
 //
-// ★ 原版贴图本身是 1:1 原版像素（`ControlPanel.png` 948×160、`inventory.png` 320×432、
+// 原版贴图本身是 1:1 原版像素（`ControlPanel.png` 948×160、`inventory.png` 320×432、
 //   `charstat.png` 320×432、`healthbar.png` 80×80…），所以 sizeDelta ×1.8 就是
 //   「把原版画面**按高**放大到 1080 高、水平居中」，与 D2 支持 800×600 之外的宽屏分辨率时的做法一致。
 //
-// ⛔ 本文件只放**纯数据 + 纯函数**（无 GameObject、无 Unity 生命周期）⇒ `uicheck` 宿主
+// 本文件只放**纯数据 + 纯函数**（无 GameObject、无 Unity 生命周期）⇒ `uicheck` 宿主
 //    可以逐条离线断言「我们常量 == 原版值 × 1.8」（含 HUD 贴底）。
-// ⛔ 本文件不属于 §A（流程面板）——那个 agent 只许动 `UI/UiLayoutFlow.cs`；
-//    本文件是 §B（游戏内面板）的布局表，两边互不碰。
 // ─────────────────────────────────────────────────────────────────────────────
 using Diablo2.Def;
 using UnityEngine;
@@ -63,10 +59,8 @@ namespace Diablo2.UI
         public const float K = 1.8f;
 
         /// <summary>
-        /// HUD 的**贴底抬升**（原版 px）—— ★★ hud-redo2 实测修正：**必须是 0**。
+        /// HUD 的**贴底抬升**（原版 px）—— hud-redo2 实测修正：**必须是 0**。
         /// <para>
-        /// **为什么原来是 21.3（错的）**：原版 `Background` 是 `pivot(0.5,0) + pos.y = −21.3`
-        /// ⇒ **图框底边**比原版画布底边低 21.3px。旧口径把这 21.3 当成"出屏误差"，把整组 HUD 抬起来
         /// 让**图框底边**贴住画布底边。
         /// </para>
         /// <para>
@@ -91,12 +85,10 @@ namespace Diablo2.UI
         public const float HudBaseLift = 0f;
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★★ U3 新增：**原版字号（全 UI 的唯一出处）**
+        // U3 新增：**原版字号（全 UI 的唯一出处）**
         //
-        // 为什么必须统一（用户 2026-09-23 报「文字太小」×2 处）：`UI/D2Text` 的排版口径是
         //   **pitch（行距）= 传给它的"字号"（画布px）**（见 `D2Text.D2Label.BuildBitmap` 的
         //   `cellH * scale`，`scale = 字号 / cellH`）⇒ 谁写多少，画出来就是多少。
-        //   而各面板此前各写各的：`NpcDialogPanel` 正文写 **12**、名字写 16、`UiArt.Button`
         //   写死 **20**……12 画布px = 原版 font16 的 **42%**，画面上就是「字小得不像原版」。
         //
         // 唯一出处 = 原版字模自己的行距（`D2Text.LineSpacing`，单位 = 原版像素）：
@@ -105,8 +97,7 @@ namespace Diablo2.UI
         //     工程侧 `D2Text.LineSpacing` 逐值给出，并有 `D2TextFontCheck` 的 advance 表配套）。
         // ⇒ 本工程画布px = 原版行距 × <see cref="K"/>（1.8，整屏按高换算）：
         //   **28.8 / 43.2 / 54 / 75.6**。
-        // ⛔ 任何 UI 文字的字号都必须从这里取（`FontPx16..FontPx42` 或 `FontPx(font)`），
-        //   不许再在面板里写魔法数字 —— 这正是"字太小"反复出现的根因。
+        // 任何 UI 文字的字号都必须从这里取（`FontPx16..FontPx42` 或 `FontPx(font)`），
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>原版某字号 → 本工程画布px（= 原版行距 × <see cref="K"/>）。**全 UI 字号唯一出处**。</summary>
@@ -125,11 +116,10 @@ namespace Diablo2.UI
         public static readonly float FontPx42 = FontPx(D2Text.D2Font.Font42);
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ w5 新增：**游戏内鼠标光标**（原版 `CURSOR/Cursor.DC6` 的普通箭头，单帧）
+        // w5 新增：**游戏内鼠标光标**（原版 `CURSOR/Cursor.DC6` 的普通箭头，单帧）
         // ═════════════════════════════════════════════════════════════════════
         //  背景（w3 游戏内 UI 审计第 88 行）：`Events.CursorChanged` 有**发送方**却**零消费方**
         //  （既没设 `UnityEngine.Cursor`，也没有跟随鼠标的 Image）⇒ 画面上永远是系统箭头。
-        //  本轮补上消费方 `UI/CursorView.cs`；承载方式 = **Top 画布上跟随鼠标的 Image +
         //  `Cursor.visible=false`**（理由逐条见该类文件头：素材 `isReadable=0` ⇒ `Cursor.SetCursor`
         //  用不了；且 UI Image 才能吃到与整屏一致的 ×1.8 缩放）。
         /// <summary>原版光标贴图的**原生像素尺寸** = **32×26**（`D2/UI/Cursor/Cursor.png` 的 IHDR 实测）。</summary>
@@ -148,8 +138,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// `Def.CursorKind` 的形态数（普通箭头 / 攻击 / 交互 / 拾取 / 不可走）= **5**。
-        /// <para>⚠️ **BLOCKED（素材缺口）**：本批只有**普通箭头 1 帧**，原版其余 4 态的图不在本机
-        /// （登记在 `client/资源欠缺清单.md`）。按 skill §0「A 没有就不加」⇒ **不自画**：
+        /// <para>**BLOCKED（素材缺口）**：本批只有**普通箭头 1 帧**，原版其余 4 态的图不在本机
         /// 5 态统一显示这一帧箭头，缺口逐态打一条 Warn；素材到位后只改取帧口径 + 本组常量。</para>
         /// </summary>
         public const int CursorKindCount = 5;
@@ -161,13 +150,12 @@ namespace Diablo2.UI
         /// <summary>
         /// 光标画布 `CanvasScaler.matchWidthOrHeight`：引擎侧由 `CloverPresentation.MatchWidthOrHeight`
         /// 决定、**默认 0.5 且本项目未改**（`Runtime/Presentation/CloverPresentation.cs:101`）。
-        /// <para>⚠️ 这里是对**同一个默认值**的第二次声明（光标画布是独立画布，必须自己配一遍才会
+        /// <para>这里是对**同一个默认值**的第二次声明（光标画布是独立画布，必须自己配一遍才会
         /// 与常驻 UI 画布同缩放）；若将来在 `Game.Launch` 之前改过 `CloverPresentation`，这里要同步。</para>
         /// </summary>
         public const float CursorCanvasMatch = 0.5f;
 
         /// <summary>
-        /// ★ agent-27：HUD「技能格带**下方**那条空白大理石」的中心 y（原版 px）。
         /// <para>
         /// **为什么需要它**（实测，不是推断）：原版 `ControlPanel.prefab` 里
         /// `ImageExpBarLeft`(GO 1692291003419990，跑/走按钮的父容器) 与
@@ -218,7 +206,7 @@ namespace Diablo2.UI
         // ═════════════════════════════════════════════════════════════════════
         // ① HUD —— 原版 `ControlPanel.prefab`（锚点 (0.5,0)，即贴画布底边）
         //
-        // ★ 唯一依据：`原版资源/参考工程_Diablerie/Diablerie/Assets/Prefabs/ControlPanel.prefab`
+        // 唯一依据：`原版资源/参考工程_Diablerie/Diablerie/Assets/Prefabs/ControlPanel.prefab`
         //   （脚本逐节点解析 m_AnchoredPosition / m_SizeDelta / m_Pivot / m_AnchorMin/Max + m_IsActive，
         //    **非肉眼估**）。
         //   原版节点清单（含兄弟顺序 = 绘制顺序，后者盖前者）：
@@ -235,18 +223,18 @@ namespace Diablo2.UI
         //    11 ExperienceBar       486.94×4.06 pos(-8.9, 7.77) 子: Filler/TooltipArea
         //    12 ExpBarOverlay       948×160     pos(0, 59.1)  ← **最后一个兄弟 = 画在最上层**
         //
-        // ★ 腰带 4 格（原版**没有独立节点**，格线画在 `ControlPanel.png` 底图里）：
+        // 腰带 4 格（原版**没有独立节点**，格线画在 `ControlPanel.png` 底图里）：
         //   底图实测 4 个暗格 art x = 586..612 / 617..643 / 648..674 / 679..705 ⇒ 中心 599/630/661/692、
         //   **pitch 31**、**格内凹槽 27×25**、中心 art y ≈ 101；art x − 474(底图半宽) = 屏幕 x 125/156/187/218，
         //   art y 101 ⇒ 距底边 37.7。**在画布中线右侧**，正好被原版 `ImageBeltRight`(128×104 @ 166,3) 框住。
-        //   ★ 2026 修正：格矩形取**格内凹槽 27×25**（不是 pitch/可见格高 31/29，见 `BeltCellSize`）。
+        //   2026 修正：格矩形取**格内凹槽 27×25**（不是 pitch/可见格高 31/29，见 `BeltCellSize`）。
         //
-        // ★ 6 格技能栏（原版 `SkillPanel.prefab` 根 = 224.97×35.12 @ pos(-44.58, 35.76)，
+        // 6 格技能栏（原版 `SkillPanel.prefab` 根 = 224.97×35.12 @ pos(-44.58, 35.76)，
         //   6 个子槽位由 LayoutGroup 摆 ⇒ prefab 里各子节点 pos/size 都是 0）：
         //   底图实测 6 个暗格 art x 中心 = 336/374/412/450/487.5/526（pitch 37.495 ≈ 224.97/6）。
         //   我们用「SkillPanel 根矩形 + 均分 6 份」，与原版根节点一致。
         //
-        // ★ `ImageExpBarLeft/Right` 在原版 prefab 里是 `m_IsActive=0` 的容器，
+        // `ImageExpBarLeft/Right` 在原版 prefab 里是 `m_IsActive=0` 的容器，
         //   但它们的**子 Button 位置是对的** —— 两个按钮的 art y 分别 = 21 / 26，都在
         //   **格带（art y 47..73）下方的大理石条**上，不会压住任何技能格。
         // ═════════════════════════════════════════════════════════════════════
@@ -273,8 +261,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 球上数字标签的**外框**（画布尺寸）= 130×16 原版px ×K。
         /// <para>
-        /// ★ 口径修正（2026-09-23「用户基准图」轮，依据 = 原版实机基线图逐像素量）：
-        /// 旧值 `108×8`（prefab 的 `HealthLabel/ManaLabel` sizeDelta）——
         /// 高度 8 原版px = **14.4 画布px**，而字号是 font16 = **28.8 画布px**
         /// ⇒ 文本被外框纵向截掉一半（球上数字看起来"糊/小"的成因之一）。
         /// 现值 = 字号自己的行高（16 原版px）+ 放得下「生命: 776/879」的宽度（130 原版px）。
@@ -285,7 +271,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 球上数字标签**相对球心**的 y 偏移（原版 px ×K）。
         /// <para>
-        /// ★ 口径修正（2026-09-23）：旧值 `4`（prefab 的 `HealthLabel` pos.y=4）把字画在**球心**上；
         /// 原版实机基线图 `策划/基线图/原版_实机_UI基准_20260923.png` 里这两个数字在**球心上方**
         /// （球内偏上的球面处，见该图左下/右下）：
         /// 逐像素量得「标签中心 − 球心」= **+24 ~ +50 原版px**（同一张图两种标定法的区间，
@@ -343,33 +328,26 @@ namespace Diablo2.UI
         /// <summary>
         /// 小面板底图尺寸（**原版素材原生 173×26** → ×1.8 = 311.4×46.8）。
         /// <para>
-        /// ★ 本轮（w3 游戏内 UI 审计）修正：旧值取的是 `ControlPanel.prefab` 里 `ImageMinipanel` 节点的
         /// `m_SizeDelta = 152×26`，而磁盘上这张底图**原生是 173×26**
         /// （实测：`python tools/probes/measure/scan_uigame.py --sizes` →
         ///  `Panel/minipanel.png 173x26`；同一批的 7 个按钮 `minipanelbtn_N.png` 与
         ///  `menubutton_N.png`（**w4 起只有 DC6 直出的这一套**，Diablerie 副本已删）
         ///  也**都是原生尺寸**（20×20 / 15×24）直接按 ×1.8 摆）。
-        /// 152 ≠ 173 ⇒ 若照旧值贴，图会被**水平压到 87.9%**（而垂直不动）= 非等比拉伸，
         /// 同一块 HUD 上「框」的水平比例还和「按钮」不一致。
         /// </para>
         /// <para>
-        /// ⛔ 取舍依据（两个"原版来源"冲突时取哪一个）：`ControlPanel.prefab` 出自**社区复刻工程
+        /// 取舍依据（两个"原版来源"冲突时取哪一个）：`ControlPanel.prefab` 出自**社区复刻工程
         /// Diablerie**（是对原版版面的再实现，不是原版本体数据），而 `minipanel.png` 是
         /// **原版本体** `data/global/ui/PANEL/minipanel.DC6` 解出的素材。判据是「不得对原版像素做
-        /// 非等比缩放」（§0.1 ② 尺寸逐项对齐；`UI/UiArt.Art` 的 `preserveAspect` 也是同一条原则）
-        /// ⇒ 取素材原生尺寸。差异已登记在 `.ai-tmp/screenshots/w3_uigame_audit.tsv`。
         /// </para>
         /// <para>
-        /// ⚠️ `AssetImporter` 为这张图登记的九宫格边距（`NineSlices`：左/右 83、上/下 11，
-        /// 即中间 7px 竖条可无损拉伸）在本轮同尺度下**不再需要**：矩形 == 原生尺寸 ⇒
+        /// `AssetImporter` 为这张图登记的九宫格边距（`NineSlices`：左/右 83、上/下 11，
         /// `Image.type = Simple` 就是 1:1。那条登记**原地保留**（换到更窄的框时要靠它），
         /// 但**没有调用方**（见审计 TSV 的「定义了但没人用」行）。
         /// </para>
         /// </summary>
         public static readonly Vector2 MiniPanelSize = Size(173f, 26f);
 
-        // ★ 2026-09-23 同一列上曾有两份互相矛盾的注释（hud-redo 的「基准图量出 90」与 hud-redo2 的
-        //   「放大读图维持 72.7」）⇒ 已按**量化优先**合并到下面那一份（`MiniPanelArtY` 的注释）。
         //   hud-redo2 提供的**素材侧**唯一硬数据保留在此，供下一条 y 的判据使用：
         //     `python .ai-tmp/test/hudredo/measure_art.py` 扫 `ControlPanel.png` ⇒
         //     **格带凹槽（左右键技能格 / 6 格技能栏 / 4 格腰带）横跨 art y(自上而下) 87..115**，
@@ -380,17 +358,15 @@ namespace Diablo2.UI
         /// <summary>
         /// 迷你面板底条的**原版 y**（距画布底边的原版px）。
         /// <para>
-        /// ★★ 2026-09-23「用户基准图」轮重定（**原版实机像素量出来的**，不是 prefab 值）：
         /// 原版实机基线图 `策划/基线图/原版_实机_UI基准_20260923.png` 里这一排按钮
         /// **浮在格带上方的游戏画面上**（底图 `ControlPanel.png` 在该处本来就是透明的），
         /// 与格带（`ControlPanel.png` 实测格带上沿 art y=64 ⇒ PY 74.7）之间留 ~14 原版px 的缝。
         /// 逐像素量得这一排的中心 PY = **91.6**（标定 A：由两只球的球心反解 scale/x0，见
         /// `tools/probes/measure/hud_measure.py` 文件头）/ **113.6**（标定 B：按 800×600 屏宽比）
         /// ⇒ 取**偏保守的 90**（= 比两个估计都低一点，但仍显著高于旧的 72.7/ 门里的 60）。
-        /// 两条独立量法都给出「比旧值高 ≥17 原版px」⇒ 方向可靠、幅度 ±11。
         /// </para>
         /// <para>
-        /// ⚠️ 本常量与 `tools/probes/hosts/uicheck/LayoutGameCheck.cs` 的期望值**必须同步**
+        /// 本常量与 `tools/probes/hosts/uicheck/LayoutGameCheck.cs` 的期望值**必须同步**
         /// （那一行已从 `BottomY(60f)` 改为 `BottomY(MiniPanelArtY)`）——旧的 60 会让底条
         /// **压进格带 27 原版px**（与"原版这一排浮在格带上方"的实机像素矛盾）。
         /// </para>
@@ -401,7 +377,6 @@ namespace Diablo2.UI
         public const float MiniPanelY = (MiniPanelArtY + HudBaseLift) * K - UiArt.RefHeight * 0.5f;
 
         /// <summary>
-        /// 迷你面板的**按钮数** = **8**（★ U3 更正：上一轮按 Diablerie `ControlPanel.prefab` 的
         /// 7 个子节点做成 7 个 —— 那个 prefab 是社区复刻、**漏了一个按钮**）。
         /// 三条原版依据（互相独立、都在本机可复核）：
         /// <list type="number">
@@ -416,7 +391,6 @@ namespace Diablo2.UI
         ///     —— 面板位图**编号到 8**；且 `StrHelp17迷你面板 StrHelp18（開啟人物的 StrHelp19物品欄，
         ///     以及 StrHelp20其他畫面）` 说明这一排就是"开各面板"的入口栏。</item>
         /// </list>
-        /// ⚠️ 用户 2026-09-23 报的是「7 个面板按钮」（他漏了「自動地圖」）—— 按 §0「原版有 ⇒ 做」
         /// 落 **8 个**；若用户要 7 个，删 `HudPanel` 里 `frame=8`（自動地圖）那一行即可（其余不动）。
         /// </summary>
         public const int MiniButtonCount = 8;
@@ -439,7 +413,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 腰带格**边长**（**原版 px = 27** → ×1.8 = 48.6）。
         /// <para>
-        /// ★ 2026 修正（**实测驱动**）：取的是 `ControlPanel.png` 底图上**画出来的格内凹槽宽**，
+        /// 2026 修正（**实测驱动**）：取的是 `ControlPanel.png` 底图上**画出来的格内凹槽宽**，
         /// 不是 pitch 31。实测（`scan` 工具逐行/逐列取亮线）：
         /// 竖分隔饰条在 art x **613..616 / 644..647 / 675..678 / 706** ⇒ 格内列 617..643、648..674、
         /// 679..705（**宽 27**）；上/下沿在 art y **86..88 / 114..116** ⇒ 格内行 89..113（**高 25**）。
@@ -450,7 +424,6 @@ namespace Diablo2.UI
         /// </summary>
         public const float BeltCellSize = 27f * K;
 
-        /// <summary>腰带格高度（**原版底图格内凹槽高 25px** → ×1.8 = 45；旧值 29 是"可见格高"，过高）。</summary>
         public const float BeltCellH = 25f * K;
 
         /// <summary>
@@ -472,7 +445,7 @@ namespace Diablo2.UI
         /// 跑/走按钮中心。原版父容器中心 art x=−90+474=**384**、y=3（贴底边）；子 Button 的 anchor 是
         /// `(0, 0.5)`（贴父**左沿**的竖直中点）+ pos(18,18) ⇒ art 中心 x = 320+18 = **338**、y = 21。
         /// <para>
-        /// ⛔ **y 不用 prefab 的 21**：本体（`ImageExpBarLeft`）原版 `m_IsActive=0` ⇒ 原版看不到它，
+        /// **y 不用 prefab 的 21**：本体（`ImageExpBarLeft`）原版 `m_IsActive=0` ⇒ 原版看不到它，
         /// 而 y=21 会把按钮压在**第 1 个技能格**上（用户报的「图标摆放位置不对」）。
         /// 本项目移到格带下方的空白条，见 <see cref="HudSubBarArtY"/>；**x 仍照 prefab**。
         /// </para>
@@ -495,7 +468,7 @@ namespace Diablo2.UI
         /// 展开/收起小面板的箭头按钮中心。原版 `ImageExpBarRight` 中心 art x=38+474=**512**、y=3；
         /// 子 Button anchor `(0.5,0.5)` + pos(−37,23) ⇒ art 中心 x = **475**、y = 26。
         /// <para>
-        /// ⛔ **y 不用 prefab 的 26**：本体（`ImageExpBarRight`）原版 `m_IsActive=0` ⇒ 原版看不到它，
+        /// **y 不用 prefab 的 26**：本体（`ImageExpBarRight`）原版 `m_IsActive=0` ⇒ 原版看不到它，
         /// 而 y=26 会把箭头压在**第 5 个技能格**上（用户报的「图标摆放位置不对」）。
         /// 本项目移到格带下方的空白条，见 <see cref="HudSubBarArtY"/>；**x 仍照 prefab**。
         /// </para>
@@ -553,18 +526,12 @@ namespace Diablo2.UI
         public static readonly Vector2 ShopInfoBarSize = Size(183f, 20f);
 
         public static readonly float[] ShopBottomSlotX = { -28f * K, 24f * K, 76f * K, 128f * K };
-        // ⚠️ 已废弃（2026-09-24 只读复核，片 u52resist）：`UI/ShopPanel` 已改用 `ShopPanel.SlotCenter`
-        //    （槽心 = 原版 399；旧值 381 = 雕槽**顶沿**，差 18 原版px）。
-        //    ⛔ 但它**不是**"无人引用"：`tools/probes/hosts/uicheck/ShopArtCheck.cs:449/472/474`
-        //    仍把它当**期望值**（那 3 处用的是"旧口径中心"做对照）⇒ 删除必须与片 shopart 同步，
-        //    本片只做标记、**不改值也不删**（`ShopArtCheck.cs:606-613` 另有断言：ShopPanel 不再引用它）。
+        //    但它**不是**"无人引用"：`tools/probes/hosts/uicheck/ShopArtCheck.cs:449/472/474`
         public const float ShopBottomSlotY = (216f - 381f) * K;
 
         /// <summary>
         /// 底部 4 个雕槽里**按钮的边长** = 底图雕槽内高 28 ×1.8。
-        /// ★ agent-23：旧实现底部两个按钮用 `ShopActionY / ShopActionX0 / ShopActionX1`
         /// （77×17 的 `tradebtn` 摆在 原版 y=414 的**空白大理石**上）—— 底图在那里**没有雕槽**
-        /// （实测：底图底部只有左下 188×16 名牌 + 右下 4 个 34×27 方槽）⇒ 那三个常量已删除，
         /// 底部按钮改放雕槽里、用方钮艺术。见 `UI/ShopPanel.BuildBottomBar` 的依据说明。
         /// </summary>
         public const float ShopBottomSlotSize = 28f * K;
@@ -573,7 +540,7 @@ namespace Diablo2.UI
         public const float ShopTabY = (216f - 14f) * K;
         public static readonly Vector2 ShopTabSize = Size(79f, 31f);   // —— 原版 `buysell_back.png`（320×432 → ×1.8 = 576×777.6）
 
-        // ── ★ R1-E 的 S5：商店「标题行 / 提示行」落位 ───────────────────────────
+        // ── R1-E 的 S5：商店「标题行 / 提示行」落位 ───────────────────────────
         // 为什么在这个空带：底图 `buysell_back.png` 从上到下是 页签带（原版 y 0..28）→ **空白大理石**
         // → 10×10 格区（顶沿原版 y 62）→ 底部名牌/雕槽。两带之间那段（原版 y ≈ 29..62 = 58.5 画布px）
         // 底图上**没有任何图元**（逐行扫过：无金线、无雕槽）⇒ 这是底图里唯一能放文字的空带。
@@ -609,7 +576,7 @@ namespace Diablo2.UI
         //   lrin(24.1×25 @ (60.4,25.975))    feet(53.9×55.3 @ (119.15,10.825))
         //   GoldButton(20×17 @ (-65.5,-184.1))  CloseButton(32×31 @ (-125.8,-184.1))
         //   GoldText(87.1×15.2 @ (-7,-183.2))
-        // ⚠️ 格子步进取**底图实测**（`inventory.png` 格线 x=17,46,…,309 ⇒ 格宽 29.2；
+        // 格子步进取**底图实测**（`inventory.png` 格线 x=17,46,…,309 ⇒ 格宽 29.2；
         //    y=252,281,310,339,369 ⇒ 格高 29.25）—— 格子和底图画出来的框必须对齐，
         //    这是"看得见"的判据；prefab 的 Grid 框(287.8×114.9) 是外框，与格线差 1.5%。
         // ═════════════════════════════════════════════════════════════════════
@@ -634,7 +601,7 @@ namespace Diablo2.UI
         /// `half` 语义同 <see cref="InventoryPanel.EquipSlotDef.half"/>：0 = 整幅、1 = 左半、2 = 右半
         /// （`inv_helm_glove` / `inv_ring_amulet` 是双槽拼图，贴图本身不可切分 ⇒ 用 `RectMask2D` 取半）。
         /// <para>
-        /// ★ 1:1 轮修正（**看原版图得到的，不是推的**）：原版 `inv_helm_glove.png`(128×64)
+        /// 1:1 轮修正（**看原版图得到的，不是推的**）：原版 `inv_helm_glove.png`(128×64)
         /// **左半 = 手套、右半 = 头盔**；`inv_ring_amulet.png`(64×32) **左半 = 项链、右半 = 戒指**。
         /// </para>
         /// </summary>
@@ -654,10 +621,9 @@ namespace Diablo2.UI
         };
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★★ w4（游戏内 UI 修红轮）新增：装备槽的**素材侧**数据 —— 修用户报的
+        // w4（游戏内 UI 修红轮）新增：装备槽的**素材侧**数据 —— 修用户报的
         //    「装备格被拉变形」（`inv_armor` 实测差 35.2%）。
         //
-        // 病根（实测，不是推断）：`InventoryPanel.BuildEquipFrame` 旧实现把**整幅**贴图
         //   塞进「prefab 节点矩形」（= 内容大小）里 —— 而 `inv_*` 贴图**四周有透明边**
         //   （实测：`inv_armor.png` 是 64×128，其中不透明内容只占 x 0..53 / y 2..82）。
         //   横竖两个方向的压缩比不同（54/64 = 84.4% vs 83/128 = 64.8%）⇒ **非等比拉伸**；
@@ -685,7 +651,7 @@ namespace Diablo2.UI
         //                            | 右(56,2,110,54)| 54×52  （head，头盔）
         //     inv_ring_amulet 64×32  | 左(0,2,23,25) | 23×23   （neck，项链）
         //                            | 右(25,2,48,25)| 23×23   （rrin / lrin，戒指）
-        //   ⚠️ 这些数**不是估的**：`UiLayoutGame` 里只是把实测值落成常量，
+        //   这些数**不是估的**：`UiLayoutGame` 里只是把实测值落成常量，
         //      `tools/probes/hosts/uicheck` 的 ㉑ 节会**再解一次像素**逐槽核对（声明 == 实测）。
         // ═════════════════════════════════════════════════════════════════════
 
@@ -731,7 +697,7 @@ namespace Diablo2.UI
         //   DefenseLabel(56.7, 9.5) 109.1×28.3
         //   StaminaLabel(38.5,-28.6) LifeLabel(38.5,-52.8) ManaLabel(38.5,-90.8) ← 每行 74.3×27.9
         //   CloseButton(-15.4,-188.3) 32×31
-        // ⚠️ 原版 prefab **没有**「等级/经验/命中/格挡/四系抗性」这 8 行的节点（原版把这些画在
+        // 原版 prefab **没有**「等级/经验/命中/格挡/四系抗性」这 8 行的节点（原版把这些画在
         //    别的屏/别的节点上）—— 本项目 DTO 有这些字段，故按**原版右上空框与右下空框**补齐，
         //    尺寸沿用同一套行度量，逐行标注「本项目新增」（见属性表）。
         // ═════════════════════════════════════════════════════════════════════
@@ -778,11 +744,7 @@ namespace Diablo2.UI
         public static readonly Vector2 CharCloseSize = Size(32f, 31f);
 
         /// <summary>
-        /// 右上空框 → 右上凹槽（**★ U3 已按底图逐像素实测更正**：art x 193..309、y 10..26
-        /// ⇒ 面板中心坐标 **(91,198)**、尺寸 **117×17**；旧值 (80,191)/150×26
-        /// 见本文件 §U3 的「右上凹槽」注释 —— 那组值是"扫描贴图的近似框"，
-        /// 比凹槽宽 33 art px 且左移 11，实机表现为那串文字越框）。
-        /// → 本项目放「等级」。
+        /// 右上空框 → 右上凹槽（**U3 已按底图逐像素实测更正**：art x 193..309、y 10..26
         /// </summary>
         public static readonly Vector2 CharTopRightPos = S(91f, 198f);
         public static readonly Vector2 CharTopRightSize = Size(117f, 17f);
@@ -815,7 +777,6 @@ namespace Diablo2.UI
         public static readonly Vector2 CharResistRowSize = Size(74.3f, 20f);
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★★ U3（2026-09-24，charstat 片）：**底图凹槽的逐像素实测几何**
         //
         // 为什么必须补这一组（用户第三批投诉 ①「数值信息不对 / ui 显示不对」）：
         //   上面那批 `Char*RowOrig/Size` 是**原版 prefab 的标签矩形**（逐节点实测，值没错），
@@ -847,7 +808,7 @@ namespace Diablo2.UI
         //   「上沿与凹槽上沿对齐、高 27.9」⇒ 矩形中心比凹槽中心**低 (27.9−18)/2 = 4.95 原版px**，
         //   而文字是「在矩形内居中」画 ⇒ 字底会压到行框下沿的金线（实机放大图可见）。
         //   故文字中心要按 **凹槽中心** 走：即 +`CharRowTextDy`（= 实测 4.9~5.5，取解析值 4.95）。
-        //   ⛔ 标签矩形的 y 常量**不动**（那是 prefab 真值，`uicheck` 逐条断言它），只修**文字**。
+        //   标签矩形的 y 常量**不动**（那是 prefab 真值，`uicheck` 逐条断言它），只修**文字**。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>属性面板行框的**凹槽净高**（原版 art px；四维/派生/补齐行实测同为 18）。</summary>
@@ -883,25 +844,22 @@ namespace Diablo2.UI
         /// <summary>
         /// 四系抗性行（本项目新增）的**标签框**：中心 node **−127**、宽 **66 art**（= art 0..66）。
         /// <para>
-        /// **为什么必须这一组数（★ U52-resist，2026-09-24，用户投诉 D10「标签折行压住下一行」）**：
-        /// 标签框原来只有 **46 art**（art 0..46），而 4 个字的中文标签在 font16（字号取
         /// `FontPx16` = 28 画布px）下**最少要 63 art** 才放得下一行 —— 实测口径见
         /// `tools/probes/hosts/uicheck/U52ResistCheck.cs`（它从**同一份字模表**重算）：
         ///   · 逐字 advance（`font16_chi_map.txt`，抗/火/焰/性 全是 13）= **52 art px**；
         ///   · 生产折行口径 `D2Label.BuildBitmap`：`availPx = round(框画布px / scale)`、
         ///     `scale = 字号 / 格高 = 28 / 13`；`D2Text.WrapLines` 的断点条件是
         ///     **`next >= availPx`** ⇒ 「单行放得下」⇔ **52 &lt; availPx** ⇔ 框 ≥ **63 art**。
-        ///   · 旧值 46 art ⇒ availPx = 38 &lt; 52 ⇒ **折成 2 行**，4 行标签共 8 行交错
         ///     （实机放大图 `.ai-tmp/test/u52run2_crop_left.png` 逐行可见）。
         /// </para>
         /// <para>
-        /// **文案出处（⛔ 不是自创）**：`ResistName` 的四个名字与**本项目配表**同源 ——
+        /// **文案出处（不是自创）**：`ResistName` 的四个名字与**本项目配表**同源 ——
         /// `client/Assets/StreamingAssets/Table/Affix.tsv:19-26`（`res-cold/res-fire/res-ltng/res-pois`
         /// 四族词缀的显示名：`冰冷抗性/火焰抗性/闪电抗性/毒素抗性`，由
         /// `tools/table-convert/cn_names.py` 从原版串表映射；原版长形 `4071..4074 火焰抵抗力…`
         /// 为 5 字，advance 65 art ⇒ 需 76 art 框，与本行「值列不折行」在 art 0..112.5 的
         /// 113 art 预算内**互斥**（76+42 &gt; 113）⇒ 只能取 4 字这一档）。
-        /// ⛔ 因此**不改文案**（改文案会让角色面板与物品 tooltip 两处词不一致）。
+        /// 因此**不改文案**（改文案会让角色面板与物品 tooltip 两处词不一致）。
         /// </para>
         /// <para>
         /// **左沿为什么是 art 0**（不是四维标签隔间的 art 10）：预算 = art 0..112.5，
@@ -909,7 +867,6 @@ namespace Diablo2.UI
         /// 若左沿取 art 10 则可用只剩 102.5 art ⇒ **数学上放不下**（差 2.5 art）。
         /// 底图左下 art x 0..81 是**空白大理石**（逐像素实测：无凹槽、无图元，
         /// 量法 `tools/probes/measure/charstat_slots.py`；左侧金框在 art x 0..2），
-        /// 故 art 0 起框与旧实现（art 0..46）**同一起点**，本片不改这一条。
         /// </para>
         /// </summary>
         public const float CharResistNameX = -127f;
@@ -925,11 +882,9 @@ namespace Diablo2.UI
         /// 且单行）：抗性值是**带 % 的百分比**，最坏值 `-100%` 在 font16 下 advance = **47 art**
         /// （拉丁字模：`-`5 `1`5 `0`12 `0`12 `%`13），而四维那种 33 art（59.4 画布px）的窄列
         /// 连 `75%`（30 art）都压线 ⇒ 必然折行。</para>
-        /// <para>★ U52-resist 收窄（64 → 45 art）：**右沿不动**（仍对齐 art 112.5，主 agent 裁决的锚点），
+        /// <para>U52-resist 收窄（64 → 45 art）：**右沿不动**（仍对齐 art 112.5，主 agent 裁决的锚点），
         /// 只把左沿从 art 48 退到 **art 67.5** —— 让位给上面那个 66 art 的标签框。
         /// 45 art ⇒ availPx = `round(45×1.8 / (28/18))` = **52** &gt; 47 ⇒ `-100%` 仍**不折行**
-        /// （余量 5 art px，比原来的 64 art 少但不触底：最小可放宽度 = **42 art**）。
-        /// 两条几何（标签 [0,66)、值列 [67.5,112.5)）**不相交**（间隔 1.5 art px），
         /// 且都在面板内 —— 判据见 `tools/probes/hosts/uicheck/U52ResistCheck.cs`。</para>
         /// </summary>
         public const float CharResistValueX = -70f;
@@ -939,7 +894,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 底图**第二排**（原版 art y 32..66，中心 art y 49 ⇒ node y **167**）的两个空框 ——
-        /// ★ U3 新增：原来「等级 + 经验 + 技能点」三段拼成一行塞进右上**一格**（实机越框），
         /// 现在拆到三个框里 ——「等级」留在上方 `CharTopRightPos/Size`（已按实测更正为
         /// node (91,198) / 117×17），「经验」「技能点」用本组。
         /// 本项目放「经验 cur/next」（右框 art 192..309 ⇒ 中心 art 250.5 ⇒ node **90.5**）与
@@ -955,7 +909,6 @@ namespace Diablo2.UI
         // ④ 技能树 —— 原版 `SPELLS/skltree_{a,b,n,p,s}_back.DC6`
         //    （tile 拼装 = 320×432 一"页"×4 页；页 0 = 共用右列，页 1/2/3 = 系 1/2/3）
         //
-        // ★★ 本片（「技能树面板 1:1 重做」）改口径：**版面全部来自原版像素**，
         //    不再由"原版图标尺寸"反推；上一版的 `SkillNodeSize` / `SkillTreeColumnX` /
         //    `SkillNodeX` / `SkillNodeY` / `SkillNodeStepY` / `SkillPanelW` / `SkillPanelH` /
         //    `SkillLinkW` / `SkillNameH` / `SkillHeaderH` / `SkillDescH` / `SkillRows` /
@@ -976,7 +929,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 技能树底图一页的尺寸（原版 px → 画布）= 320×432 ×1.8 = 576×777.6。
         /// <para>
-        /// ★★ w4 必读：**「拼装后整页矩形」与「素材帧尺寸」是两个不同的量，别混** ——
+        /// w4 必读：**「拼装后整页矩形」与「素材帧尺寸」是两个不同的量，别混** ——
         /// 这正是 w3 审计里那条红的成因（审计行当时声明 320×432，却把路径指向
         /// `ResPaths.SkillTreeBack("a", 0)` = **逐帧落位**目录 `D2/UI/SkillTree/skltree_a_back_0`，
         /// 而那张图**原生只有 256×256** ⇒ 断言"声明 == 素材 IHDR"必然红）。
@@ -990,7 +943,7 @@ namespace Diablo2.UI
         ///     每张就是拼好的**一页整幅画**，实测 IHDR = 320×432，见
         ///     `tools/d2codec/export_d2ui.py` 的 `panels` 组 / `verify_skilltree_bg.py`）。
         ///     运行时路径由 `UI/D2Icon.SkillTreeBackPath` 拼（`D2/UI/Panel/` 前缀），
-        ///     **⛔ 不是 `ResPaths.SkillTreeBack`（那是逐帧目录）**。
+        ///     **不是 `ResPaths.SkillTreeBack`（那是逐帧目录）**。
         /// </summary>
         public static readonly Vector2 SkillPanelSize =
             Size(SkillTreeLayout.PageW, SkillTreeLayout.PageH);
@@ -1011,10 +964,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 技能图标层尺寸（原版 px → 画布）= **位图原生 48×48** ⇒ 86.4×86.4 画布 px。
         /// <para>
-        /// ★ 本轮（w3 游戏内 UI 审计）修正：旧值是「节点框**内径** 45−2×2 × 50−2×2 = 41×46」，
-        /// 于是 48×48 的位图被 `preserveAspect` 缩到 **41×41**（= 原版像素的 85.4%），
-        /// 而且底图上那个「框」会露在图标外面一圈。旧值的依据是「框线实测 2px、图标画在框里」，
-        /// 但本轮逐像素读图否定了那个前提：`Panel/skltree_{cls}_back_1.png` 在节点处画的**不是
         /// 插座式方框**，而是一段 **L 形管线**（竖管 + 横管，见
         /// `scan_uigame.py --art "Panel/skltree_a_back_1.png@74,10,136,70"`）——
         /// 原版是把**图标盖在管线拐角上**（图自带外框、更大），不是把图标塞进框里。
@@ -1064,7 +1013,7 @@ namespace Diablo2.UI
         //   EnemyBar:        根 150×20, anchor(0.5,1), pos(0,-22), pivot(0.5,1)
         //                    子 Title: anchor(0.5,0)-(0.5,1), pos(0,2), size(200,-4)
         //   LevelEntryTitle: 根 fullWidth×300, anchor(0,1)-(1,1), pos(0,0), pivot(0.5,1)
-        // ⚠️ 本工程画「怪头顶血条」的是 `Module/View`（世界空间），**不在 UI/ 层** ⇒ 这里给出
+        // 本工程画「怪头顶血条」的是 `Module/View`（世界空间），**不在 UI/ 层** ⇒ 这里给出
         //    原版矩形（纯函数，`uicheck` 逐条断言），由主 agent 派 View 侧 agent 消费。
         // ═════════════════════════════════════════════════════════════════════
 
@@ -1105,7 +1054,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 怪物血条内标题的**宽度**（画布 px）= 原版 `EnemyBar.prefab` 的 Title `m_SizeDelta.x = 200`
         /// （它的锚点是 (0.5,0)-(0.5,1) ⇒ x 是定宽、不是 stretch）⇒ ×1.8 = 360。
-        /// <para>★ u44（悬停选择表现）：消费方 = `UI/EnemyBarView`。它与 <see cref="EnemyBarTitleOffsetY"/> /
+        /// <para>u44（悬停选择表现）：消费方 = `UI/EnemyBarView`。它与 <see cref="EnemyBarTitleOffsetY"/> /
         /// <see cref="EnemyBarTitleShrinkY"/> 一起把 Title 的矩形**完全定下来**（见 <see cref="EnemyBarTitleRect"/>）。</para>
         /// </summary>
         public const float EnemyBarTitleWidth = 200f * K;
@@ -1134,13 +1083,13 @@ namespace Diablo2.UI
         // ═════════════════════════════════════════════════════════════════════
         // ⑥ 任务日志（原版 Q）—— **唯一依据 = 原版底图 + 原版 DC6 控件真身 + 原版串表**
         //
-        // ⚠️ 为什么这里没有 prefab 依据：参考工程 `Diablerie/Assets/Prefabs/` 只有
+        // 为什么这里没有 prefab 依据：参考工程 `Diablerie/Assets/Prefabs/` 只有
         //    ControlPanel / InventoryPanel / CharstatPanel / SkillPanel / SkillSlot /
         //    AvailableSkillsPanel / EnemyBar / LevelEntryTitle / GameManager / CommandPrompt /
         //    Camera / Menu*，**没有任务面板 prefab**（也没有买卖屏 prefab）。
         //    ⇒ 版面只能从 `MENU/questbackground.dc6`（→ `Panel/quest_back.png`，320×432）**实测分区**得出。
         //
-        // ★ 分区怎么来的（**不是估的**，2026「任务框」轮用 `.ai-tmp/test/quest/scan_bg.py`
+        // 分区怎么来的（**不是估的**，2026「任务框」轮用 `.ai-tmp/test/quest/scan_bg.py`
         //    重跑了一遍，口径与读图结果都留在 `策划/自审对比/UI对照.md`）：逐行扫 `quest_back.png`
         //    的"金像素"（判定：a>40 且 r>90 且 r−b>25），满宽金线出现在
         //      y = 0 / 28 / 230 / 252 / 383 / 430；左/右金边在 x = 0 / 318。
@@ -1158,10 +1107,9 @@ namespace Diablo2.UI
         //                     ⇒ 316×129 原版px）。
         //      · y 383..430 → 底部大理石条（右下 2 个方槽，实测近黑内芯 x 229..257 / 281..309、
         //                     y 391..418 ⇒ ≈29×28；与 `MENU/questlast.dc6` 的 30×30 ×2 帧同量级）。
-        //                     ⚠️ 这两格原版到底放什么（哪个控件/什么行为）在素材与参考工程里**查不到出处**
+        //                     这两格原版到底放什么（哪个控件/什么行为）在素材与参考工程里**查不到出处**
         //                     ⇒ 本项目**保持底图原样**（不发明按钮），登记在 `UI对照.md` 的 BLOCKED。
         //
-        // ★ 6 个任务格画什么（**本片定案，出处 = 原版任务图文件名 ↔ 原版串表键名同构**）：
         //   · 原版 `MENU/a{章}q{章内序号}.dc6` 共 **21 个文件**（`a1q1..a4q3`），
         //     而原版串表里的任务条目键正是 **`qstsa{章}q{序号}…`**：Act I 6 + Act II 6 + Act III 6
         //     + **Act IV 3** = **21** ⇒ 文件数、编号规则**逐一对上**（Act IV 只有 3 个任务
@@ -1173,19 +1121,18 @@ namespace Diablo2.UI
         //     ⇒ <see cref="QuestArtPos"/> = (0,0)（相对石龛中心）。
         //   · 完成态 = 原版 `MENU/questdone.dc6`（**21 帧 72×86**，与任务图**不透明形状逐像素相同**
         //     —— 实测 alpha 掩码差异 = **0 像素**，只是配色为灰）。
-        //   · ⛔ `MENU/questicons.dc6`（50×52 ×3）**本片起不再使用**：实测它的最佳匹配位置就是
         //     `a1q1` 里 (9,28) 的那块"徽记板"区域（差 25.3%）⇒ 它是任务图内部那一块的裁剪，
         //     而任务图**本来就把每个任务自己的图形画在里面**（`a1q2` = 红乌鸦）⇒ 再叠一层
         //     `questicon` 只会把任务自己的图形盖掉。登记见 `UI对照.md` §⑥。
         //   · 石龛两帧 `questsocket_0/_1`：实测**不透明形状逐像素完全相同（alpha 差异 = 0 像素）**、
         //     只有边框材质不同（银灰 / 金）⇒ 「常态 / 高亮」一对（<see cref="QuestSlotSize"/>）。
         //
-        // ★ 标题条 `Banner/quests_0.png`（74×54，位图逐字是「任務」）放哪：页签行（0..30）已被
+        // 标题条 `Banner/quests_0.png`（74×54，位图逐字是「任務」）放哪：页签行（0..30）已被
         //   4 个页签占满、石纹区（30..230）要留给 3×2 格网（190/200）、正文区（252..383）是正文
         //   ⇒ 标题条**只能落在面板之外**。本表按"贴面板顶沿、居中、整条在面板上方"摆。
-        //   ⚠️ 原版**没有这条的坐标出处** ⇒ 登记 `策划/验收表.md` 的 **E16（BLOCKED 部分）**。
+        //   原版**没有这条的坐标出处** ⇒ 登记 `策划/验收表.md` 的 **E16（BLOCKED 部分）**。
         //
-        // ★ 正文区（黑芯）的**行距口径**（出处可查）：原版文本是**运行时文字**，但 libd2 里
+        // 正文区（黑芯）的**行距口径**（出处可查）：原版文本是**运行时文字**，但 libd2 里
         //   有原版排版函数的逐行移植 —— `packages/formats/src/font.zig`：
         //     · `:148-153` `D2WINFONT_DrawWideString` 把行 `y` 当**基线**（字形在基线上方）；
         //     · `:239-259` `drawWrapped(... line_height)` 每行 `baseline += line_height`，**左对齐**；
@@ -1258,7 +1205,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 第 <paramref name="row"/>（0..1）行石龛中心 y。
         /// 原版：石纹区实测 y 30..230（净高 200）、2 行 95 高、上下各余 5px ⇒ 行心 82.5 / 177.5
-        /// （旧值 81.5/176.5 是按"y28..230 + 上下各留 6"算的，差 1px，本轮按实测分区改准）。
         /// </summary>
         public static float QuestSlotY(int row)
         {
@@ -1268,7 +1214,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 正文（黑底金框区）矩形：**原版实测黑芯** x 2..317 / y 254..382 ⇒ **316×129 原版px** → ×1.8。
-        /// <para>⚠️ 上一版是"黑区四周 inset 10 ⇒ 296×111"，那个 10 没有出处；本轮按实测黑芯取值。</para>
         /// </summary>
         public static readonly Vector2 QuestTextBoxSize = Size(316f, 129f);
 
@@ -1304,7 +1249,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 正文字号（画布px）。口径：黑芯高 225 画布px，本项目最长一屏
         /// （`qstsa1q1` + `qstsa1q11` + `qstsa1q12` + 进度行 = 4 行）在 20 号字下占 ~84px ⇒ 余量充足；
-        /// **统一一个字号**（旧版名 22 / 正文 20 / 提示 16 三个混用，名与正文的行距对不齐）。
         /// </summary>
         public const int QuestTextFont = 20;
 
@@ -1337,14 +1281,12 @@ namespace Diablo2.UI
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ 片 5（「小地图 + 死亡屏 1:1」轮）新增：死亡屏（EndGame）布局
         //   **只增不改** —— 上面一个字都没动。
         //
         // 基准（逐条给出处，**没有一个是拍的**）：
         //   ① 底图 = 原版 `data/global/ui/MENU/EndGame.dc6` 的 tile 打包，**实测**
         //      `dc6.py info`：`frames=8  256x256 64x256 256x224 64x224 ×2`
         //      ⇒ 每 4 帧一页：左列 256+右列 64 = **320 宽**；上行 256+下行 224 = **480 高**
-        //      ⇒ **2 页 × 320×480**（片 1 的"320×480×2 还是 320×960"悬案定案）。
         //      视觉复核：两页各是一张**独立的 320×480 整幅画**（页 0 = 暗厅 + 孤身人影；
         //      页 1 = 金甲天使（泰瑞尔）），不是一张 320×960 的上下半 ⇒ 拼装口径确认。
         //   ② 标题条 = 原版 `data/LOCAL/UI/chi/youdiedsoftcore.dc6` **帧 0 = 256×54**
@@ -1352,7 +1294,7 @@ namespace Diablo2.UI
         //   ③ 按钮 = 原版 `data/global/ui/MENU/endgameok.dc6` **96×32 ×2 帧**（常态/按下，实测）。
         //   ④ 换算 = 本文件全局口径 `K = 1.8`（原版 800×600 → 1920×1080，按高等比）+ 居中。
         //
-        // ⛔ **本项目新增排布（登记 E22）**：原版**该屏的控件坐标没有出处** ——
+        // **本项目新增排布（登记 E22）**：原版**该屏的控件坐标没有出处** ——
         //    参考工程 `Diablerie/Assets/Prefabs/` 里**没有 EndGame / 死亡屏 prefab**
         //    （只有 ControlPanel/InventoryPanel/CharstatPanel/SkillPanel/SkillSlot/
         //      AvailableSkillsPanel/EnemyBar/LevelEntryTitle/MainMenu/ClassSelectMenu/…），
@@ -1361,12 +1303,9 @@ namespace Diablo2.UI
         //      **内容栈 = 「标题条 / 提示行 / 按钮」三行自上而下，各行高 = 该控件原版像素高，
         //        行距固定 15 原版px，整栈垂直居中于面板（= 画布中心 (0,0)）**。
         //      x 一律水平居中。
-        // ⛔ **未渲染项（BLOCKED，片 5）**：原版该屏在标题条下面是**引擎渲染的金币数字**
         //    （原版串表 `data/d2text/{eng,chi}_string.txt` id 5094 = `Death takes its toll of
         //     %d Gold` / 「死亡取走了%d金幣」；图形标题条正文 = 「你損失金錢數量為」）。
-        //    本项目 `Events.PlayerDied` **无参**（契约 §3.5 冻结），`Events.GoldChanged` /
         //    `PlayerStatsDto` 只能给"当前金币"，**拿不到"死亡前金币"** ⇒ 金额**不可得** ⇒
-        //    **本片不渲染该行**（⛔ 不许自己拍一个数字当原版）。见回报 BLOCKED。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>原版死亡屏底图宽度（原版px，= 左列 256 + 右列 64；实测）。</summary>
@@ -1466,9 +1405,8 @@ namespace Diablo2.UI
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ 片 5 新增：自动地图（小地图）面板
         //
-        // ⛔ **原版没有"窗口框"这种素材**（实测 `原版资源/d2dc6/data/global/ui/**` 与
+        // **原版没有"窗口框"这种素材**（实测 `原版资源/d2dc6/data/global/ui/**` 与
         //    `data/LOCAL/UI/{chi,eng}/**` 的全部 DC6）：自动地图那一族的图形只有
         //      · 标题/开关条：`automap.dc6`（chi 256×36 + 122×36 = "AUTOMAP OPTIONS"）、
         //        `AutoMapCenter.dc6` 120×34「清除時置中」、`AutoMapParty.dc6` 96×34「顯示隊伍」、
@@ -1480,16 +1418,11 @@ namespace Diablo2.UI
         //      MaxiMap 上取 16×32 小图 blit 到等距位置），**没有一个"右上角定尺框"**。
         //    本项目这个是**右上角定尺框 + 自绘格子贴图** ⇒ 登记 E23（含为什么：逐格 Cel 数据
         //    在本项目拿不到，见回报 BLOCKED）。
-        //    ⚠️ 因此本节的坐标**没有原版出处**，它们沿用本项目既有表现（agent-09 定的框），
-        //      只把"自加的标题行 / 图例行"删掉（原版自动地图**没有**标题与图例文字 —— 片 2 的
-        //      `自审对比/README.md` ② 第 12 行已登记过这条不一致，片 5 收口）。
         // ═════════════════════════════════════════════════════════════════════
 
-        // ★ 片 `automap-original-verdict`（2026-09-22）：原「右上角定尺框」三个常量
-        //   （`MiniMapBoxMax = 360` / `MiniMapMargin = 20` / `MiniMapBoxPos`）**已删除** ——
         //   原版自动地图是**满屏叠加层**（没有窗口框；`D2/UI/Banner/` 一族只有标题/开关条），
         //   叠加层几何改为按原版 cel 实测（世界地砖 160×80 ⇒ 1/10），见 `UI/MiniMapPanel.cs` 文件头。
-        //   ⛔ 不要再把"定尺框"加回来（那是已被消除的近似口径，登记 E23）。
+        //   不要再把"定尺框"加回来（那是已被消除的近似口径，登记 E23）。
 
         /// <summary>
         /// 自动地图标记图标的显示边长（画布px）：原版 `mapicons.DC6` 每帧都是 **16×16**（实测），

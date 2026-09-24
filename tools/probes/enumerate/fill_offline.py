@@ -2,39 +2,27 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Diablo2 · tools/probes/enumerate/fill_offline.py
 #
-# **T0 状态矩阵「离线填报器」**（本片 = 批 1「离线秒判」，口径见
-#   `patterns/full-coverage-audit.md` §6 判定权三分 与 `.ai-tmp/test/t0-red-rows.md` §5）。
 #
 # 它做什么：读 `策划/状态矩阵.tsv`，**只**给「离线可判」的行填 `实测 / 结论 / 证据` 三列，
-#   判不了的**保持空**（空 = 红行 = 正确状态，⛔ 不许写“待判/未测”混过去）。
+#   判不了的**保持空**（空 = 红行 = 正确状态，不许写“待判/未测”混过去）。
 #
-# ⛔ 硬约束（本片任务书）：
-#   · **不许增删行、不许改行序、不许改前五列**（另一执行者按维度边界写进 Play 的结论）；
 #   · `结论` 只许三种取值：`一致` / `不一致(差在哪)` / `允许的差异(→差异登记)`；
 #   · `证据` 必须是可复核引用（`文件:行` / 资源路径 / 审计表 `文件:行`）；
 #   · **稳定、可重跑、幂等**：同一份盘跑两次 ⇒ 输出**逐字节相同**（不写挂钟时刻）。
 #
-# ★ 2026-09-21 本片（S1 降级链片）的三处**修正**（都是「让工具在多片并发下仍然可靠」，⛔ 不改任何判据口径）：
-#   1. **换行/BOM 自适应**：旧实现写死 `raw.split('\r\n')`。实测 `策划/状态矩阵.tsv` 已被别的片
-#      改写成 **LF + 无 BOM**（而 `enum_all.py` 写的是 CRLF + BOM）⇒ 旧实现**一行都读不到**
 #      （实测：`数据行 0，已填 0`）。现按盘上现有形态解析，并**原样写回**同一形态。
-#   2. **只填、⛔ 不涂**：旧实现对「判不了」的行会把后三列**清空**；本表现在是**多个片轮转写**的
-#      （另一执行者正在写 Play 实测结论）⇒ 清空会**抹掉别人的证据**。现改为：判不了 ⇒ **保持原样**；
 #      已经有三列的行 ⇒ **不覆盖**（幂等：跑两次字节相同，且不与他人抢写）。
-#      ⇒ `实测/结论/证据` 为空的唯一含义仍是「本工具判不了」（红行），⛔ 不是"未测"。
+#      ⇒ `实测/结论/证据` 为空的唯一含义仍是「本工具判不了」（红行），不是"未测"。
 #   3. **实体名消歧后缀**：`enum_all.py` 已把「载体/来源行号」并入重复实体名
 #      （`ui:…@w3_uigame_audit:39`）⇒ `fill_d4` 查审计表前先剥掉后缀（否则查不到 ⇒ 假红）。
-#   4. **抗源码漂移**（实测踩过）：矩阵里的实体可能**已被别的片从源码里删掉**
 #      （实测：`Def/GameKeyAlias.cs` 的 `KeyConfirm` / `KeyDialogAdvance` 被删 ⇒ `fill_d11` 抛
 #      `AttributeError: 'NoneType' object has no attribute 'start'`，**整个工具崩掉**，"一键复检入口"直接不可跑）。
-#      现改为**查到不源码就跳过该行**（⛔ 不崩）；没判到的行会在 `t0_keyfix.py --verify` 的
 #      「矩阵多出的实体」里显式列出来 ⇒ 有留痕，不是静默放过。
 #
 # 复现口径（`cd <项目根>`）：
 #     python tools/probes/enumerate/fill_offline.py --dry-run   # 只打印统计 + 不一致清单，不写文件
 #     python tools/probes/enumerate/fill_offline.py             # 写回 策划/状态矩阵.tsv
 #
-# 实体/状态枚举**全部复用** `enum_all.py`（同一份扫盘逻辑 ⇒ 口径不漂移）。
 # 逐维度的「判据 + 判到哪一层」写在下面各 `fill_*()` 的 docstring 里。
 # ─────────────────────────────────────────────────────────────────────────────
 import io
@@ -60,9 +48,6 @@ MAPS = os.path.join(ROOT, 'tools/probes/hosts/_maps')
 TABLES = os.path.join(ROOT, 'client/Assets/StreamingAssets/Table')
 MATRIX = os.path.join(ROOT, '策划/状态矩阵.tsv')
 AUDREL = '.ai-tmp/screenshots/'
-#: ★ 本片（D10 34+42 行 + S1 20 行）新增的两份**判据资产**（都在本目录、随仓提交）：
-#:   · `host_asserts.tsv` ← `host_asserts.py --run`（把 14 个 `sys:*` 的三态映射到既有宿主的断言 + 实测值）
-#:   · `s1_boundary.tsv`  ← `s1check/`（自检宿主：10 表 × 2 条越界边界，断言「回落默认值 + 恰一次 Warn」）
 HOST_ASSERTS = os.path.join(HERE, 'host_asserts.tsv')
 S1_BOUNDARY = os.path.join(HERE, 's1_boundary.tsv')
 HOST_ASSERT = {}
@@ -81,12 +66,12 @@ MAXLEN = 320          # 单格最大字符数（防 tsv 爆掉；超出截断并
 OK, BAD = '一致', '不一致'
 ALLOW = '允许的差异'   # 第三种合法取值；必须带 `(→<登记 id>)`（verify.ps1 的 coverage-diff 按 id 反查）
 
-#: ★ E42（`策划/差异登记.tsv`，手工登记源 = `extra-registry.tsv`）：
+#: E42（`策划/差异登记.tsv`，手工登记源 = `extra-registry.tsv`）：
 #:   「原版原生"平色/模板"PNG 与**从不被请求**的帧」。
 #:   定性/机械证据 = `tools/probes/enumerate/d3_flatcolor.py`（三条断言：唯一色 = 1；
 #:   平色帧不在区域布局的逐格引用集内；`SkillIcon` 的亮绿帧与被请求帧号集合不相交）。
 #:   ⇒ 这 6 个目录的"实心单色"**不是自绘占位**（= `fill_d3` 那个阈值判据的唯一意图），
-#:     结论写 `允许的差异(→E42)`，⛔ 不是 `不一致`、⛔ 也不是"已修"。
+#:     结论写 `允许的差异(→E42)`，不是 `不一致`、也不是"已修"。
 E42_DIRS = {
     'mat:Objects/warp', 'mat:Objects/town_trees', 'mat:Objects/town_fence',
     'mat:Objects/moor_river', 'mat:uiarts/MiniMap', 'mat:uiarts/SkillIcon',
@@ -438,7 +423,7 @@ def _dir_pngs(d):
     return sorted(glob.glob(os.path.join(d, '**', '*.png'), recursive=True))
 
 
-# 包名 → 盘上真实目录（⛔ 不靠 manifest 里的 `kind` 猜目录：`kind=player` 的实体其实在 `D2/Chars/`）
+# 包名 → 盘上真实目录（不靠 manifest 里的 `kind` 猜目录：`kind=player` 的实体其实在 `D2/Chars/`）
 DIR_OF_NAME = {}
 for _sub in ('Tiles', 'Objects', 'Chars', 'Monsters'):
     for _d in sorted(glob.glob(os.path.join(RES, 'D2', _sub, '*'))):
@@ -450,7 +435,7 @@ def canonical_of(ent):
     """实体 → 运行期取资源的标准路径（`Resources/Clover/...` 或 StreamingAssets）。"""
     m = re.match(r'^pack:(Tiles|Objects)/(.+)$', ent)
     if m:
-        # manifest 的 `kind` 就是层（`Tiles`/`Objects`）⇒ 直接用它，⛔ 不查 DIR_OF_NAME
+        # manifest 的 `kind` 就是层（`Tiles`/`Objects`）⇒ 直接用它，不查 DIR_OF_NAME
         # （同名包在两层都存在时，按名字查会互相覆盖 —— 实测踩过）
         return 'client/Assets/Resources/Clover/D2/%s/%s/' % (m.group(1), m.group(2))
     m = re.match(r'^unit:(\w+)/([^(]+)(?:\(.*\))?$', ent)
@@ -514,7 +499,7 @@ def fill_d1(ent, state):
             return (meas, OK if hits else BAD + '(0 处引用)', hits[0][0] + ':%d' % hits[0][1] if hits else
                     'client/Assets/Scripts/Table/Registry.cs')
         # 目录类实体：**按路径段**找消费方（`[/\]<名>[/\"]` 或字面量 `"<名>"`）——
-        # ⛔ 不用裸 `\b<名>\b`：`UI`/`Menu`/`Item` 这种通用词会立刻假命中一堆无关行。
+        # 不用裸 `\b<名>\b`：`UI`/`Menu`/`Item` 这种通用词会立刻假命中一堆无关行。
         for pat, label, nm in (
                 (r'^unit:(\w+)/([^(]+)', '单位', None),
                 (r'^uiarts:(.+?)\(', 'UI 素材目录名', None),
@@ -896,8 +881,6 @@ def fill_d9(ent, state):
 
 # ═══════════════════════════════════════════════════════════════════════════
 # D10 逻辑 —— ①事件通道的「有/无订阅者」（静态接线扫描）
-#             ②FSM 常量（`Events.Fsm.State*` / `Trigger*`）= **常量消费点**扫描（★ 本片新口径）
-#             ③`sys:*` 玩法系统三分支 = 既有宿主断言 + 实测值（★ 本片新增，见 `fill_d10_sys`）
 # ═══════════════════════════════════════════════════════════════════════════
 def fill_d10_sys(ent, state):
     """`sys:<Module 子目录>(N cs)` × 「默认分支 / 边界值 / 异常分支」。
@@ -938,11 +921,9 @@ def fill_d10(ent, state):
     if mm is None:
         return None
     name, val = mm.group(1), mm.group(2)
-    # ★ 2026-09-21 口径变更（主 agent 裁决 · 口径 1）：`Events.Fsm.State*` / `Trigger*` 这 17 个
     #   **能离线判** —— 它们不是 pub/sub 事件（所以查 `Events.<名>` 必空），但**是 FSM 常量**，
     #   消费点 = `Events.Fsm.<名>` 在别处的引用（`RegisterState(...)` / `AddTransition(...)` /
     #   `Game.Fsm.Trigger(...)` / `Game.Event.On/Emit(...)` 都写成 `Events.Fsm.<名>` 这一种形态）。
-    #   机械口径**照 D11 别名那套**（同一套方法，T0 已用它咬出过真缺陷）：
     #     有 ≥1 消费 ⇒ `一致`（证据 = 消费点 `文件:行`）；**0 消费 ⇒ `不一致(常量定义了却没人用)`**。
     if re.match(r'^(State|Trigger)', name):
         fhits = cs_hits(r'Events\.Fsm\.' + re.escape(name) + r'\b', ('Core/Events.cs',))
@@ -973,12 +954,11 @@ def fill_d10(ent, state):
 
 # ═══════════════════════════════════════════════════════════════════════════
 # S1 数值 —— **只填每表的 2 条越界边界行**（`id=空/首行之前` 与 `id=max+1`）。
-#   ★ 2026-09-21 口径变更（主 agent 裁决 · 口径 2）：这两条判的是「越界回落默认值 + 打一次 Warn」，
 #     **与官方 txt 无关** ⇒ 属**自洽类脚本断言**，现在就能落盘。
 #   判据（真跑，不是读代码）：`tools/probes/enumerate/s1check/`（自检宿主，10 表 × 2 = 20/20 [ OK ]、
 #     `S1CHECK_SUMMARY FAIL=0`；原文落 `tools/probes/enumerate/s1_boundary.tsv`）。
-#   ⛔ 其余 `id=<n>` 行判的是「逐字段与官方 txt 相等」⇒ 载体（`原版资源/.../d2lod1.10txt`）不在盘
-#     ⇒ **保持留空**（红行），⛔ 不许拿自洽断言顶替、⛔ 不许编数值。
+#   其余 `id=<n>` 行判的是「逐字段与官方 txt 相等」⇒ 载体（`原版资源/.../d2lod1.10txt`）不在盘
+#     ⇒ **保持留空**（红行），不许拿自洽断言顶替、不许编数值。
 # ═══════════════════════════════════════════════════════════════════════════
 _S1_OUT_CACHE = {}
 
@@ -1009,7 +989,7 @@ def fill_s1(ent, state):
     maxid = max((int(k) for k in ints), default=None)
     last = keys[-1] if keys else ''
     # 锚点：宿主输出里那一行（`<表名> · id=空...` / `<表名> · id=max+1...`）——
-    # ⚠️ 必须**按状态**选，两态都会读同一份输出（实测踩过：写死 `· id=空` 会让 max+1 行抄错行）。
+    # 必须**按状态**选，两态都会读同一份输出（实测踩过：写死 `· id=空` 会让 max+1 行抄错行）。
     anchor = '· id=空' if state == S1_BND_STATES[0] else '· id=max+1'
     if intkey:
         kind = 'int'
@@ -1019,7 +999,7 @@ def fill_s1(ent, state):
         kind = 'string'
         desc = 'id=空（string 主键 ""）' if state == S1_BND_STATES[0] \
             else 'id=max+1（末键之后 "%s~"）' % last
-    # 真跑输出里的那一行（⛔ 不自己编实测值）
+    # 真跑输出里的那一行（不自己编实测值）
     outln, outnol = None, None
     for ln, l in _s1_out_lines():
         if l.strip().startswith('[ OK ]') and (name + ' ' + anchor) in l:
@@ -1060,8 +1040,6 @@ def fill_d11(ent, state):
     name, key = m.group(1), m.group(2)
     hits = cs_hits(r'GameKeyAlias\.' + re.escape(name) + r'\b', ('Def/GameKeyAlias.cs',))
     src = 'client/Assets/Scripts/Def/GameKeyAlias.cs'
-    # ★ 抗漂移（实测踩过）：矩阵里的实体可能**已经被别的片从源码里删掉**（例：`KeyConfirm` /
-    #   `KeyDialogAdvance` 被删）⇒ 这里必须**跳过**，⛔ 不许崩（崩了"一键复检入口"就不可跑）。
     #   （该行会被 `t0_keyfix.py --verify` 的"矩阵多出的实体"报出来 ⇒ 有留痕，不是静默放过。）
     md = re.search(r'public const GameKey ' + re.escape(name) + r'\b', _AL)
     if md is None:
@@ -1154,7 +1132,7 @@ def fill_s3(ent, state):
             return (meas, OK, '%s:%d' % hits[0] + ' ｜ ' + ev_key)
         return (meas, BAD + '(0 处写入 = 设置键定义了却没人写)', ev_key)
     if state == '重启后仍生效（持久化）':
-        # ★ T0FIX-B 后本分支可离线判：静音开关的**冷启动读回点**（`Get<bool>(…SettingKey…Mute…)`）
+        # T0FIX-B 后本分支可离线判：静音开关的**冷启动读回点**（`Get<bool>(…SettingKey…Mute…)`）
         #   与**落盘点**（`Set(…键…)` 之后 ≤14 行内有 `Save()`）都已在代码里接线 ⇒ 读+写+Save
         #   三者齐 = 静态可证"重启会读回"（运行期那一次冷启动仍属实机，见 t0-remaining.md）。
         read_hits = cs_hits(r'Get<[^>]*>\s*\([^;\n]{0,120}' + alt)
@@ -1195,7 +1173,7 @@ DISPATCH = {
 def main():
     _safe_stdio()
     dry = '--dry-run' in sys.argv
-    # 换行/BOM 按**盘上现有形态**解析并原样写回（见文件头 ★ 修正 1）：
+    # 换行/BOM 按**盘上现有形态**解析并原样写回（见文件头 修正 1）：
     #   `策划/状态矩阵.tsv` 实测被别的片写成 LF + 无 BOM；写死 '\r\n' 会一行都读不到。
     rawb = io.open(MATRIX, 'rb').read()
     bom = rawb.startswith(codecs.BOM_UTF8)
@@ -1238,7 +1216,7 @@ def main():
                     cells[7] = cut(ev)
                     nfilled += 1
                     dim_filled[dim] += 1
-        # ★ 判不了 / 判据不成立 ⇒ **保持原样**（⛔ 不清空别人的结论；红行 = 三列本就为空）
+        # 判不了 / 判据不成立 ⇒ **保持原样**（不清空别人的结论；红行 = 三列本就为空）
         if all(cells[i].strip() for i in (5, 6, 7)):
             dim_has[dim] += 1
         out.append('\t'.join(cells))

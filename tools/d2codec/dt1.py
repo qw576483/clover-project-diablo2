@@ -204,7 +204,7 @@ def _read_blocks(data, tile):
         x, y = struct.unpack_from('<hh', data, off)
         grid_x, grid_y, fmt = struct.unpack_from('<BBh', data, off + 6)
         length = struct.unpack_from('<i', data, off + 10)[0]
-        # ⚠️ off+14..15 是 2 字节 0（DT1.cs:237 `reader.ReadBytes(2)`），`fileOffset` 在 off+16
+        # off+14..15 是 2 字节 0（DT1.cs:237 `reader.ReadBytes(2)`），`fileOffset` 在 off+16
         file_offset = struct.unpack_from('<i', data, off + 16)[0]
         data_offset = tile.block_header_pointer + file_offset
         tile.blocks.append(DT1Block(x, y, grid_x, grid_y, fmt, length, file_offset, data_offset))

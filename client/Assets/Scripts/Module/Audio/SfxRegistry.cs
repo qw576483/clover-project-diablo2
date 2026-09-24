@@ -15,7 +15,7 @@
 //
 // 除战斗键外的键（脚步/拾取/UI/传送/进图/BGM）**本项目新增**，属音频模块自有，与 `SfxKeys` 无重名。
 //
-// ⛔ 素材未到位时本表只用于「登记 + 缺失降级」，**不许引入任何非暗黑2 的音频**。
+// 素材未到位时本表只用于「登记 + 缺失降级」，**不许引入任何非暗黑2 的音频**。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -56,7 +56,6 @@ namespace Diablo2.Module.Audio
         /// <summary>萨满复活同伴。触发：`Module/Monster/MonsterModule.cs`。</summary>
         public const string MonsterRevive = Combat.SfxKeys.MonsterRevive;
 
-        // ── 逐类怪物音效键（★ 片 monster-audio；值一律取自 `Combat.SfxKeys`，不写第二份字面量）──
         // 触发点：`DamagePipeline.ApplyToMonster`（受击 / 死亡）、`MonsterModule`（出手 / 脚步）。
         // 键名规则与 8 类代码的**唯一出处**见 `Combat.SfxKeys` 的那段注释（`MonStats.Code` 列）。
         public const string MonsterHitFa = Combat.SfxKeys.MonsterHitFa;
@@ -175,7 +174,6 @@ namespace Diablo2.Module.Audio
             { MonsterAttack, "monster_attack" + SfxExtension },
             { MonsterRevive, "monster_revive" + SfxExtension },
 
-            // ── 逐类怪物（★ 片 monster-audio：8 类 × 受击/攻击/死亡/脚步）──
             { MonsterHitFa, "monster_hit_fa" + SfxExtension },
             { MonsterAtkFa, "monster_atk_fa" + SfxExtension },
             { MonsterDieFa, "monster_die_fa" + SfxExtension },
@@ -266,10 +264,9 @@ namespace Diablo2.Module.Audio
             { MonsterAttack, "fallen_attack_1 │ " + SfxMpq + "monster\\fallen\\roar1.wav" },
             { MonsterRevive, "fallenshaman_resurrect │ " + SfxMpq + "monster\\fallenshaman\\resurrect.wav" },
 
-            // ── 逐类怪物（★ 片 monster-audio）──
             // 条目名出处 = `MonSounds.txt` 的 Attack1 / HitSound / DeathSound / Footstep / FootstepLayer 列；
             // 文件名出处 = `Sounds.txt` 的 FileName 列；两者都是 1.10f LOD 版，已逐条实测命中。
-            // ⚠ 受击音在包里叫 `gethit1.wav`（⛔ 不是 `hit1.wav`）。
+            // 受击音在包里叫 `gethit1.wav`（不是 `hit1.wav`）。
             { MonsterHitFa, "fallen_hit_1 │ " + SfxMpq + "monster\\fallen\\gethit1.wav" },
             { MonsterAtkFa, "fallen_attack_1 │ " + SfxMpq + "monster\\fallen\\roar1.wav" },
             { MonsterDieFa, "fallen_death_1 │ " + SfxMpq + "monster\\fallen\\death1.wav" },

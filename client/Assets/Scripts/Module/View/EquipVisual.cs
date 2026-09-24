@@ -1,12 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/View/EquipVisual.cs
-// 「角色装备外观套」的**纯规则层**（本片新增）：决定**用哪一套帧**（= 哪个 unitKey）。
 //
 // 为什么单独一个文件、且全是纯函数：这套规则（key 拼法 + 逐级回退）是本次交付里
 //   **唯一"能算错但不报错"**的东西 —— 算错的后果是"角色手上没东西"或"帧数取到 0 ⇒ 静默占位块"。
 //   埋在 `MonoBehaviour`/`ViewModule` 里的话，离线宿主**一行都测不到**（`ViewModule` 要
 //   `new GameObject` 才跑得到）。抽成纯函数后 `tools/probes/hosts/animcheck` 可直接逐条断言
-//   （★ 同一教训见 `ViewAnimState` 的注释：那串三元链当年藏了一个"受击动画从没被渲染"的缺陷）。
 //
 // 素材契约（导出侧，见 `tools/probes/measure/d2_equip_sets_check.py` 文件头）：
 //   目录 = `Chars/{class}/equip/{key}/`，`{key}` 的拼法就是本文件 `KeyOf` 的那三条：
@@ -16,14 +14,12 @@
 //     ④ 都没有              ⇒ **徒手**（走 `Chars/{class}/` 那套已验收素材，key = null）
 //   该 key 的套不存在 ⇒ **逐级回退**：去掉盾 → 去掉武器 → 徒手（`Candidates` 的顺序）。
 //
-// ⛔ 本文件**不引用** `UnityEngine`，也不查磁盘：套是否存在由调用方注入
+// 本文件**不引用** `UnityEngine`，也不查磁盘：套是否存在由调用方注入
 //   `Func<string,bool> exists`（生产 = `EquipFrameCounts.Has`，它由 manifest 生成；见生成器
 //   `tools/probes/measure/gen_equip_frame_counts.py`）。这样规则本身**可离线直调**。
 //
-// ⛔ 分层：本文件不 `using Diablo2.Module.*`（`conventions.md` 的分层自检 ②：`Module/*` 里
+// 分层：本文件不 `using Diablo2.Module.*`（`conventions.md` 的分层自检 ②：`Module/*` 里
 //   0 处跨模块 using）。装备部位判定因此在这里**重述最小口径**（只判"武器 / 盾"两件事），
-//   并由离线断言 `animcheck §7` 与 `Module/Item/Equipment.SlotOf(row)` 在**整张 `item_c`** 上
-//   逐行对账 ⇒ 两处不许漂移。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -37,7 +33,6 @@ namespace Diablo2.Module.View
     /// 只有"占哪只手"这件事用一个**已有**的枚举表达 = `Def.ItemSlot`（武器 / 盾 / 无），
     /// 本文件因此**不新增类型**（`constraints.md` #1「一个 `.cs` 一个类」）。
     /// 返回 `ItemSlot` 还带来一个好处：判据可以把本方法与
-    /// `Module/Item/Equipment.SlotOf(row)` 在整张 `item_c` 上**逐行对账**（见 `animcheck §7`）。
     /// </remarks>
     internal static class EquipVisual
     {
@@ -137,9 +132,8 @@ namespace Diablo2.Module.View
         }
 
         /// <summary>
-        /// ★ 片 Y（R4）：生产用的 <c>exists</c> 适配器 —— 把**裸 key**（`jav` / `hax_buc`）
         /// 加上职业前缀换成生成物的 **unitKey**（`{class}/equip/{key}`）再查表。
-        /// <para>⛔ 为什么必须有这一层：`EquipFrameCounts.Has` 的形参是 **unitKey**
+        /// <para>为什么必须有这一层：`EquipFrameCounts.Has` 的形参是 **unitKey**
         /// （`ByUnit` 的键 = `"barbarian/equip/buc"`），而 <see cref="Select"/> 的回调收到的是
         /// **裸 key**（`"buc"`）。直接把 `EquipFrameCounts.Has` 当回调传进去 ⇒ 任何 key 都查不到
         /// ⇒ **装备外观套永远回退徒手**（实机实测：装上武器后仍走 `Chars/{class}/`，且 Warn 说

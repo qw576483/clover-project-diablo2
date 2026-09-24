@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// fullcheck · GroundIconCheck.cs   ★ 片 ground-item-icon 新增（步骤 10）
 //
 // 判据（只加断言，**不改**本宿主任何既有判据）：地面物品画的是**原版物品图**，
 // 而不是一块按品质着色的占位四边形。离线可判的部分：
@@ -11,9 +10,8 @@
 //      ⇒ 它们走的是 `ViewModule` 里那条**品质色块**回退（可见的缺失信号，不是静默变透明）；
 //   ④ 色调：`Normal` 品质 ⇒ **纯白**（普通物品逐像素等于原版）；`Magic` ⇒ 明显偏蓝；
 //   ⑤ 过程断言（防"改错地方"）：`ViewModule.cs` 的地面物品链确实接了 `GroundItemVisual`，
-//      且那条 `IsGroundItem` 早退（旧的根因行）已经不在。
 //
-// ⚠️ 强度如实说明（不许夸大）：本文件证明的是**素材与取法**（路径、文件、色调、接线）；
+// 强度如实说明（不许夸大）：本文件证明的是**素材与取法**（路径、文件、色调、接线）；
 //    "运行时每件地面物品的 `SpriteRenderer.sprite` 真的不是占位块" 需要真跑，
 //    由实机 Play 会话的节点转储承担（`tools/probes/drivers/groundicon_dump.cs`）。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,7 +164,6 @@ namespace FullCheck
                 distinct.Count == 5,
                 $"Normal={Key(tNormal)} Magic={Key(tMagic)} Rare={Key(tRare)} Set={Key(tSet)} Unique={Key(tUnique)}");
 
-            // ── ⑤ 过程断言：那条根因行 / 接线 ─────────────────────────────────
             // `Resources/Clover` 往上两级 = `Assets/` ⇒ `Assets/Scripts/Module/View/ViewModule.cs`
             var vmPath = resRoot == null ? null
                 : Path.GetFullPath(Path.Combine(resRoot, "..", "..", "Scripts", "Module", "View", "ViewModule.cs"));

@@ -305,7 +305,6 @@ namespace T0I
             if (rt.IsChildOf(hit)) return true;
             return false;
         }
-        // MEASURED (t0e, 2026-09-21): uGUI's pointer here consumes the Y-FLIPPED value. Pick per
         // widget by raycast so a different canvas mode still resolves correctly.
         internal static Vector2 PickInjectPoint(RectTransform rt)
         {

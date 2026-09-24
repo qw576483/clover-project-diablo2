@@ -1,15 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/ItemTooltip.cs  ★ 本项目新增（agent-09）
 // 物品 tooltip：**名称按品质配色**（白/蓝/金/绿/暗金）+ 属性行 + 需求行 + 词缀行，跟随鼠标。
 //
 // 事实依据：
-//   · `策划/策划案/暗黑破坏神2参考规格.md` §3.6 第 34 项：「悬停显示名称 + 属性，
 //     颜色按品质（白/蓝/金/绿/暗金）」⇒ 颜色常量见 <see cref="ItemQualityColor"/>；
 //   · 品质枚举 = `Def.ItemQuality`（Normal/Magic/Rare/Set/Unique，`Def/Enums.cs`）；
 //   · 物品 DTO = `Def.ItemStack`（名称/词缀/伤害/防御/需求/耐久/售价**全在里面**，
 //     所以 tooltip **不需要任何模块门面**，UI 层零耦合）；
-//   · 鼠标坐标 = `Game.Input.MousePosition`（屏幕坐标，`docs/步骤文档.md` §3.3，
-//     ⛔ 禁止直连 `UnityEngine.Input`）；屏幕 → Canvas 局部换算 / 贴边翻转 / 显隐 / 复用**已下沉到引擎**
+//     禁止直连 `UnityEngine.Input`）；屏幕 → Canvas 局部换算 / 贴边翻转 / 显隐 / 复用**已下沉到引擎**
 //     `CloverEngine.PointerFloatLayer`（`CursorOffsetX/Y` = 22 / -18 与定位契约见
 //     `clover-client-unity-engine/Runtime/Presentation/PointerFloatLayer.cs`）——
 //     本文件只留 "D2 的物品文本怎么排版 / 怎么配色"（品质色、字模、行数测量）。
@@ -17,7 +14,7 @@
 // 非 MonoBehaviour：由 `InventoryPanel` / `ShopPanel` 持有，在 `OnUpdate(dt)` 里 `Tick()`
 //（`UIPanel.OnUpdate` 由引擎 `UIManager.Tick` 驱动，见 `Runtime/Presentation/UI.cs:293-318`）。
 //
-// ⛔ 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def` / UnityEngine(.UI)。
+// 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def` / UnityEngine(.UI)。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -35,7 +32,6 @@ namespace Diablo2.UI
     {
         // 原版《暗黑破坏神 II》物品名色（社区文档与复刻工程通用的惯例值）：
         //   普通 #FFFFFF / 魔法 #6969FF / 稀有 #FFFF64 / 套装 #00FF00 / 暗金 #C7B377
-        // 与 `策划案` §3.6 第 34 项「白/蓝/金/绿/暗金」一一对应。
         private static readonly Color Normal = new Color(1.000f, 1.000f, 1.000f, 1f);
         private static readonly Color Magic = new Color(0.412f, 0.412f, 1.000f, 1f);
         private static readonly Color Rare = new Color(1.000f, 1.000f, 0.392f, 1f);
@@ -94,9 +90,7 @@ namespace Diablo2.UI
         private const float Padding = 10f;
 
         /// <summary>
-        /// 标题字号（画布单位）—— ★ 片 K 由 `private` 放宽到 `internal`：地面物品名牌层
         /// （`UI/GroundItemLabelView.cs`）**复用同一个常量**，保证"名牌字号 = tooltip 标题字号"
-        /// 只有一个真源（改动前该值是 `private`，另一处只能抄一个数字 ⇒ 会漂移）。
         /// </summary>
         internal const int TitleSize = 22;
         private const int BodySize = 18;
@@ -105,12 +99,8 @@ namespace Diablo2.UI
         /// <summary>标题一行的高度（原版 tooltip 的名条行高）。标题**允许多行**（长魔法名会折行）。</summary>
         private const float TitleLine = 26f;
 
-        /// <summary>标题与正文之间的留白（单行标题时 `Padding+TitleLine+Gap` = 38 = 改动前的旧值，布局不变）。</summary>
         private const float GapUnderTitle = 2f;
 
-        // ⛔ 改动前的 `CursorOffsetX = 22f` / `CursorOffsetY = -18f` 已删除：这两个值下沉到引擎
-        //   `PointerFloatPlacement.DefaultCursorOffsetX/Y`（**唯一真源**）。项目侧再存一份 ⇒ 迟早漂移
-        //   （根因记录见 `Runtime/Presentation/UIWidgetControls.cs` 文件头"两份默认值悄悄分歧"同款）。
 
         /// <summary>浮层容器（**引擎件**）：定位 / 显隐 / 复用都由它管；本文件只往 <see cref="_root"/> 里塞内容。</summary>
         private readonly PointerFloatLayer _layer;
@@ -140,13 +130,11 @@ namespace Diablo2.UI
         public bool IsVisible => _layer != null && _layer.IsVisible;
 
         /// <summary>
-        /// ★ dialog-options（2026-09-24）：tooltip **该不该可见**的唯一判据（纯函数 ⇒ 离线可断言）。
         /// 只有三个条件**同时**成立才允许停在可见态：
         ///   ① 拥有它的面板还开着（面板 `OnClose` 会 `Destroy`，见 `InventoryPanel.OnClose`）；
         ///   ② 指针在面板矩形**内**（`InventoryPanel.UpdateHover` 的 `RectangleContainsScreenPoint`）；
         ///   ③ 指针下的格/装备槽**有物品**（悬空格 ⇒ 必须 `Hide`）。
         /// 任一不成立 ⇒ 调用方必须 `Hide()`/`Destroy()` —— 这正是"离开背包后残留一块空框"
-        /// （`.ai-tmp/test/report-playverify.md` §1.2 / §4 第 10 条）那一族现象的判据口径。
         /// </summary>
         internal static bool ShouldBeVisible(bool panelOpen, bool pointerInsidePanel, bool hasItem)
             => panelOpen && pointerInsidePanel && hasItem;
@@ -181,12 +169,9 @@ namespace Diablo2.UI
 
         private void BuildTexts()
         {
-            // ★ U4 修（用户报「描述框乱七八糟」）：标题原来用 `UpperCenter`、正文用 `UpperLeft`
-            //   ⇒ 名条居中而属性行左对齐，两段左边界不齐（实机 `x_f1_tooltip_q0.png` 可见）。
             //   原版 tooltip 的名条与正文**同一条左边界**，故标题改 `UpperLeft`。
             _title = UIFactory.CreateText("Title", _root, string.Empty, TitleSize, TextAnchor.UpperLeft,
                 UiArt.TextColor);
-            // ★ 片 3：物品名（中文）走**原版字模**（`Text` 只作数据持有者，见 UiArt.Label 的注释）
             D2TextMirror.Attach(_title, D2Text.FontFor(TitleSize), null);
             var titleRt = _title.rectTransform;
             titleRt.anchorMin = new Vector2(0f, 1f);
@@ -212,7 +197,6 @@ namespace Diablo2.UI
             bodyRt.anchoredPosition = new Vector2(0f, -(Padding + TitleLine + GapUnderTitle));
             _body.raycastTarget = false;
 
-            // ★ U4 修（用户报「描述框乱七八糟 / 超出边界」）：正文原来是**默认折行 + 默认裁剪**
             //   —— 行数一多（词缀/需求/售价齐上）超出框高就被截掉半行（看起来"文字被切"）。
             //   这里显式：横向 Wrap（属性行长时折行）、纵向 Overflow（框高由 Show 按行数算，
             //   但即使算少一格也不许把字裁掉）。标题同理已在上面设过
@@ -243,14 +227,11 @@ namespace Diablo2.UI
             // 验收表 #34 的日志口径：**每件物品被悬停时一行**，含品质名 / 颜色 / 词缀。
             LogHover(item);
 
-            // ★ 本轮修：长魔法名（例「伤害强化 21~30 阔斧 之 最小伤害 1~2 最大伤害 3~4」）会折成 2 行，
-            //   而标题框原先固定 26 高 ⇒ **第 2 行压在正文第一行上**（实机截图 a34_A_q2 可见「武器（双手）」被盖住）。
             //   原版 tooltip 是"名条折行后整块往下长"，故这里按实际行数给高度、并把正文整体下移。
             var titleLines = TitleLineCount(title);
             var titleH = TitleLine * titleLines;
             _title.rectTransform.sizeDelta = new Vector2(_title.rectTransform.sizeDelta.x, titleH);
             _body.rectTransform.anchoredPosition = new Vector2(0f, -(Padding + titleH + GapUnderTitle));
-            // ★ U4 修（「描述框乱七八糟 / 超出边界」）：正文框高原来**从没按行数设过**
             //   （一直是 `CreateText` 的默认高）⇒ 行数多时文字溢出/被裁。现在 = 行数 × 行高，
             //   与下面 `_root` 的高度用**同一个来源**（不再有两套算法）。
             _body.rectTransform.sizeDelta =
@@ -260,7 +241,6 @@ namespace Diablo2.UI
             var height = Padding * 2f + titleH + GapUnderTitle + lines.Count * BodyLine;
             // 尺寸交给引擎容器（它负责把 `sizeDelta` 写进宿主，并据此做贴边翻转）
             _layer.SetSize(new Vector2(Width, height));
-            // ★ 本轮修（同族已知缺陷，与用户报的「描述框超出边界」同源）：
             //   底板 Bg 的锚点是**铺满**（`anchorMin=0 / anchorMax=1` + 四边 offset 0）⇒ 它的 `sizeDelta`
             //   应当恒为 0（= 与宿主严格等大）。改动前这里写的是 `(Width, height)` —— 在铺满锚点下那表示
             //   **比宿主再大一圈**（左右各多 `Width/2`、上下各多 `height/2`），实机表现为底板溢出到浮层外。
@@ -276,7 +256,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 每帧跟随鼠标（由面板 `OnUpdate` 驱动）。
         /// <para>定位全在引擎容器里：`Game.Input.MousePosition` → 画布局部点（按画布模式取相机）→
-        /// 贴边**关于指针镜像**翻转 → 夹进画布。本方法只做转发（⛔ 项目侧不再自己算一遍）。</para>
+        /// 贴边**关于指针镜像**翻转 → 夹进画布。本方法只做转发（项目侧不再自己算一遍）。</para>
         /// </summary>
         public void Tick() => _layer.Tick();
 
@@ -332,8 +312,6 @@ namespace Diablo2.UI
         {
             if (string.IsNullOrEmpty(text)) return 1;
 
-            // ★ 片 3：不再自己"按字号估字宽"，改成**问字模**（口径与真正画出来的完全一致：
-            //   字步进 = 原版 `.tbl` 的 `width`，换行 = 原版 `breakLine`；见 `UI/D2Text.cs` 文件头）。
             var avail = Width - Padding * 2f;                      // 画布单位（可用宽）
             var font = D2Text.FontFor(TitleSize);
             var chi = !D2Text.IsLatinOnly(text);
@@ -342,8 +320,7 @@ namespace Diablo2.UI
             return D2Text.CountLines(font, text, chi, availNative, true);
         }
 
-        // ⚠️ w3 审计删除：`CharAdvance(char)` / `IsWide(char)` 两个私有静态方法**已无调用方**
-        //   —— 它们是"按字号估字宽"那一版的遗留（`TitleLineCount` 现在**问字模**：
+        // w3 审计删除：`CharAdvance(char)` / `IsWide(char)` 两个私有静态方法**已无调用方**
         //   `D2Text.CountLines` / `MeasureNative`，口径 = 原版 `.tbl` 的 `width` + 原版 `breakLine`，
         //   见 `UI/D2Text.cs` 文件头）。留着估算式的字宽函数只会让人以为排版还在用它。
 

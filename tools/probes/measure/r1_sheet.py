@@ -315,7 +315,7 @@ def rows():
          ("quest", r"QUEST tag=a16-questlog denState=(\w+) denRemaining=(-?\d+) canTurnInDen=(\d)")],
         [r"A16-STATE questLogOpen=1", r"SHOT-OK n=21 state=a16"])
 
-    # ---- A17 ★ R1-F: the same name field AFTER the default-name fix ----------
+    # ---- A17 R1-F: the same name field AFTER the default-name fix ----------
     #   Measured values only (no verdict).  `glued` = 0 means the typed string IS the whole buffer,
     #   i.e. the prefilled default name is gone; `defaultInBuffer` = 0 says the default does not occur
     #   anywhere inside it.  A8 (above) carries the PRE-fix value of the same measurement, so the two

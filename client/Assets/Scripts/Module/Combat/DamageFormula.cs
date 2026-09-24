@@ -2,15 +2,13 @@
 // Diablo2 · Module/Combat/DamageFormula.cs
 // **官方 D2 伤害 / 命中 / 抗性 / 致命一击公式**的唯一定义处（纯函数，无状态、无 Unity 依赖）。
 //
-// ⛔ 数值来源：**一律取配表**（`monster_c` / `skill_c` / `missile_c` / `monumod_c`），
+// 数值来源：**一律取配表**（`monster_c` / `skill_c` / `missile_c` / `monumod_c`），
 //    本文件只放**公式**与**官方常量**（每条都能指到出处），不放任何"某个怪的数值"。
 //
 // ═════════════════════════════════════════════════════════════════════════════
-// 出处表（片 6「战斗伤害 + 怪物数值 1:1」重写；每条都能指到 `文件:行`）
 // ═════════════════════════════════════════════════════════════════════════════
 // 权威表（LoD 1.10 官方 txt，随参考工程一起落盘）：
 //   `<根>/原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/*.txt`
-// 参考实现（社区复刻；本片只把它当"别人怎么复刻"的依据，逐行核过）：
 //   `<根>/原版资源/参考工程_Diablerie/libd2/packages/game/src/{combat,spell,calc,skills_amazon,montable,monai}.zig`
 //
 // ① 命中率（Chance to Hit）
@@ -20,9 +18,6 @@
 //      pct    = (def+ar==0) ? 100 : ar*100/(def+ar)        ← **整数截断**
 //      chance = (alvl+dlvl==0) ? pct : pct*2*alvl/(alvl+dlvl)  ← **整数截断**
 //      夹取：chance<6 ⇒ 5；chance>94 ⇒ 95（即 5%~95%）
-//    ⚠️ 与旧版（本项目把浮点式 `200×ALvl/(ALvl+DLvl)×AR/(AR+DR)` 算完再夹）**不是同一个数**：
-//      旧版取整发生在最后（浮点），官方在中间两次整数截断。本片改成官方口径。
-//      （实机可复现的例子：ALvl=1 DLvl=10 AR=DR=100 ⇒ 官方 9%（100/11 截断），旧版 9.09%）
 //
 // ② 物理伤害
 //    官方引擎函数 = `DAMAGE_CalculatePhysicalDamage @0057b420`；参考实现
@@ -31,8 +26,6 @@
 //      倍率百比 = 技能 param3(ED%) + damagepercent + str*StrBonus/100 + dex*DexBonus/100  ← **整数截断**
 //      输出   = base + base*倍率百比/100               ← 官方 `D2ApplyPercent`：**截断，不四舍五入**
 //    `StrBonus`/`DexBonus` 是**每把武器各自的值**，来自官方 `Weapons.txt` 的 `StrBonus`/`DexBonus` 列。
-//    ⛔【例外 E25】本项目 `item_c` **没有** `StrBonus`/`DexBonus` 列（配表列名契约冻结，本片无权加列）
-//      ⇒ 近战一律按官方 `Weapons.txt` 里**绝大多数近战行的值 100** 计（= 每点力量 +1%，与旧注释同义）；
 //      弓/弩（官方 `StrBonus=0 / DexBonus=100`）会被算成"按力量加成"⇒ 已登记，消除条件见验收表 E25。
 //
 // ③ 元素抗性
@@ -40,10 +33,8 @@
 //    `spell.zig:252-264`（`applyResist`）：
 //      resist >= 100 ⇒ **免疫，返回 0**
 //      否则          ⇒ trunc(raw × (100 - resist) / 100)（D2ApplyPercent 截断；负抗性 ⇒ 加伤）
-//    ⛔ **怪物抗性没有 75% 上限**：`combat.zig:299-313`（`applyPhysicalFor`）的原文是
+//    **怪物抗性没有 75% 上限**：`combat.zig:299-313`（`applyPhysicalFor`）的原文是
 //      "players cap at 50 … **MONSTERS have NO cap** (DAMAGE_CalculateResistance applies the 0x32 cap
-//      only when !bDefenderIsMonster)"。旧版对**所有**目标都夹 75% ⇒ 怪物免疫（>=100）被抹成 75%
-//      ⇒ 本片修掉。玩家侧的元素抗性上限（75%）在 `Module/Player/PlayerStats.MaxResist`（值相同），
 //      与"结算函数不夹"这条官方口径并不冲突。
 //
 // ④ 防御（DR）**不减伤**——官方 D2 中 DR 只出现在①的命中公式里；
@@ -59,20 +50,18 @@
 //      `libd2/packages/game/src/calc.zig:33-36`：`divTrunc(divTrunc(110*level, level+6)*(b-a),100)+a`，
 //      且结果 **上限 = b**（不是 75）。
 //    参考实现的用例（`libd2/.../skills_amazon.zig:123-131`）：1 级=16%、5 级=42%、20 级=68%。
-//    ⛔ 旧版 `25% + 3%×(slvl-1)`、上限 75% 是**本项目凭空定的近似**（且注释里等的"官方 SkillCalc.txt"
-//      其实**一直就在磁盘上**，在参考工程那份 1.10 txt 里）⇒ 本片换成官方 dm12。
-//    ⛔ 注意：新版**没有 75% 上限**（官方只夹到 Param2=80）。
+//    注意：新版**没有 75% 上限**（官方只夹到 Param2=80）。
 //
 // ⑥ 技能伤害的等级缩放（`SkillDamageRange`）
 //    官方 `SKILLS_GetDamage` 的分段式（参考实现 `spell.zig:88-116` `staged`）：
 //      `a = EMin + EMinLev1×(l-1)`（8/16/22/28 级换档），`伤害 = a << HitShift >> 8`。
-//    ⛔【例外 E26】本项目 `skill_c` 有 `phys_min/phys_max/elem_min/elem_max/hit_shift`（= 1 级值），
+//    【例外 E26】本项目 `skill_c` 有 `phys_min/phys_max/elem_min/elem_max/hit_shift`（= 1 级值），
 //      **没有** `EMinLev1..5` / `MinLevDam1..5` 这些**每级增量**列 ⇒ 无法复现官方分段式。
 //      本函数仍是"1 级值 × 技能等级"的线性式（**本项目新增**），已登记 E26（含消除条件）。
 //
 // ⑦ 技能法力消耗：官方 `mana + lvlmana × (slvl-1)`（`skills.txt` 的 `mana`/`lvlmana`；`skill_c.mana_cost/mana_per_lvl`）。
 //
-// ⛔ 随机一律走注入的 `CloverEngine.Rng`（可复现），**禁止 UnityEngine.Random**。
+// 随机一律走注入的 `CloverEngine.Rng`（可复现），**禁止 UnityEngine.Random**。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -204,8 +193,6 @@ namespace Diablo2.Module.Combat
         /// （出处：`DAMAGE_CalculatePhysicalDamage @0057b420`；参考实现 `combat.zig:149-180`）。
         /// <para>**整数截断**（官方 `D2ApplyPercent`），不是四舍五入。</para>
         /// <para>
-        /// ★ **片 14 消除【例外 E25】**：旧签名只有 `attribute` 一个属性、内部写死 `MeleeStrBonus = 100`
-        /// ⇒ 弓/弩（官方 `StrBonus=0 / DexBonus=100`）会被错误地按**力量**加成算。现在
         /// **逐武器**取配表 `item_c.str_bonus` / `dex_bonus`（打表来源 = 官方 `Weapons.txt` 的
         /// `StrBonus`/`DexBonus` 两列），两个属性都参与。
         /// </para>
@@ -231,7 +218,6 @@ namespace Diablo2.Module.Combat
         }
 
         /// <summary>
-        /// ★ 片 N：官方物理伤害的**整数 ED% 入口** —— 与 `PhysicalDamage` 是**同一份公式**，
         /// 只把"技能 ED%"从"倍率浮点（必须 &gt; 0）"换成**有符号整数百分比**。
         /// <para>
         /// 为什么必须有它：官方 `skills.txt` 存在**负 ED%** —— `Whirlwind` 的
@@ -265,7 +251,7 @@ namespace Diablo2.Module.Combat
         /// 通用抗性结算（官方口径）：`抗性 ≥ 100 ⇒ 0`（免疫）；否则 `trunc(伤害 × (100 - 抗性) / 100)`。
         /// <para>
         /// 出处：`DAMAGE_ApplyElementalDamageWithResist @0057bf80`；参考实现 `spell.zig:252-264`（`applyResist`）。
-        /// ⛔ **不夹 75% 上限**：官方对**怪物**不设上限（`combat.zig:299-313`）；
+        /// **不夹 75% 上限**：官方对**怪物**不设上限（`combat.zig:299-313`）；
         /// 玩家侧的元素抗性上限在 `PlayerStats.MaxResist`（= 75）里**先夹好再传进来**。
         /// </para>
         /// <para>抗性为负 ⇒ 伤害更高（官方如此）；结果不小于 0。</para>
@@ -308,9 +294,7 @@ namespace Diablo2.Module.Combat
                 case "pois": return DamageType.Poison;
                 case "phys": return DamageType.Physical;
                 case "mag":
-                    // ★ 片 16（**消除【例外 E27】**）：官方 `EType=mag` 是「魔法」伤害，走**独立抗性**
                     //   `ResMa`（配表 `monster_c.res_magic`，早已导出）。现在 `Def.DamageType` 有第 6 系
-                    //   `Magic` ⇒ 不再降级成物理通道（旧实现的限频 Warn + 按物理结算已删）。
                     return DamageType.Magic;
                 default:
                     CombatLog.WarnThrottled("dmgtype.unknown", $"DamageTypeOf: 未登记的 EType「{etype}」⇒ 按物理结算");
@@ -382,7 +366,6 @@ namespace Diablo2.Module.Combat
         /// 技能在**当前等级**的伤害区间 —— 官方口径（`SKILLS_GetDamage`）：**物理与元素各自**走
         /// <see cref="Staged"/> 分段、各自 `&gt;&gt; 8`（**整数截断**），最后相加。
         /// <para>
-        /// ★ 本轮（片 12）**消除了【例外 E26】**：旧实现是"本项目新增的线性式" `dmg_min × slvl`
         /// （把 1 级值当每级增量用），现已换成官方分段式 —— 配表 `skill_c` 也补齐了
         /// `phys_min_lev1..5` / `phys_max_lev1..5` / `elem_min_lev1..5` / `elem_max_lev1..5` 共 **20 列**
         /// （官方 `MinLevDam1..5` / `MaxLevDam1..5` / `EMinLev1..5` / `EMaxLev1..5`，**未换算的原值**）。

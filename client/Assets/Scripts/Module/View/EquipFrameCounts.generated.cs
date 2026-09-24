@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/View/EquipFrameCounts.generated.cs
-// ⚠️ **本文件是生成物，禁止手改**（生成器：`tools/probes/measure/gen_equip_frame_counts.py`）。
+// **本文件是生成物，禁止手改**（生成器：`tools/probes/measure/gen_equip_frame_counts.py`）。
 //
 // 数据来源 = 各装备外观套目录 `Chars/{class}/equip/{key}/manifest.json` 的
 //   `actions.{action}.frames`（= 原版 `.cof` 的 `framesPerDirection`；导出器
@@ -17,7 +17,7 @@
 // 值 = 7 个动作的帧数，**下标 = `ViewAnim`**（idle=0 / walk=1 / attack=2 / cast=3 /
 //   hit=4 / death=5 / run=6）——顺序与 `ActionNames` 逐字一致。
 //
-// ⛔ 重跑口径：素材变了（补导同框套 `jav_buc` / `hax_buc`、或重导某套）⇒ 重跑生成器；
+// 重跑口径：素材变了（补导同框套 `jav_buc` / `hax_buc`、或重导某套）⇒ 重跑生成器；
 //    手改必然与磁盘上的 PNG 数量对不上。
 // ─────────────────────────────────────────────────────────────────────────────
 

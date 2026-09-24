@@ -1,14 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ★ w3 片：**游戏内 UI（HUD / 背包 / 人物属性 / 技能树 / 任务日志 / 小地图 / 图标 / 字模）逐控件审计**
+// w3 片：**游戏内 UI（HUD / 背包 / 人物属性 / 技能树 / 任务日志 / 小地图 / 图标 / 字模）逐控件审计**
 // 的离线断言（节 ㉑）。
 //
 // 判据全部**可离线计算**（不需要 Unity 原生、不进 Play）：
 //   ① **素材侧**：每个"带原版素材"的元件 —— 文件在位、**IHDR == 声明的原版尺寸**、
 //      且**矩形 == 声明的原版尺寸 ×1.8**（对"由 prefab 容器定尺"的元件只判比例，见行内 `Exact`）。
 //   ② **几何侧**：矩形 / 素材原生尺寸的**宽高比一致**（拦住"矩形本身就写错了比例 ⇒ 被拉伸"）。
-//      例外必须**逐条写明理由**（同质填充条 / 原版 prefab 自身的不对称），⛔ 不许静默放行。
+//      例外必须**逐条写明理由**（同质填充条 / 原版 prefab 自身的不对称），不许静默放行。
 //   ③ **双套素材侧**：工程引用的必须是**本项目 DC6 直出**那一套（调色板索引 0 = 透明），
-//      ⛔ 不是社区复刻工程的副本（同画面，但把原版透明像素写成了**不透明黑**）。
+//      不是社区复刻工程的副本（同画面，但把原版透明像素写成了**不透明黑**）。
 //   ④ **图标侧**：配表 code/official_id → 磁盘上的原版图标**命中率**（缺口不得变多）。
 //   ⑤ **字模侧**：UI 源码里**字符串字面量**的每个 CJK 字都能落到原版 chi 字模
 //      （字模表 + 简繁映射）—— 落不到 = 画面上静默缺字（原版行为是"不画"）。
@@ -18,7 +18,7 @@
 // **都是纯数据 + 磁盘事实**。进 Play 才能判的（字模观感、贴图色调、光标、填充真的在动）
 // 在本文件末尾声明。
 //
-// ⛔ 只读断言，不改任何工程产物。
+// 只读断言，不改任何工程产物。
 // ─────────────────────────────────────────────────────────────────────────────
 using System;
 using System.Collections.Generic;
@@ -114,10 +114,10 @@ namespace Uicheck
 
             // ── 背包（原版 `InventoryPanel.prefab` 节点值 ×1.8）──
             Add("背包", "面板底图", ResPaths.PanelInventory, 320f, 432f, InventoryPanel.PanelSize);
-            // ★ w4 修红：装备槽的绘制几何改成「**裁剪框 = 该槽在素材里的不透明内容外接框**（逐像素实测）×1.8」
+            // w4 修红：装备槽的绘制几何改成「**裁剪框 = 该槽在素材里的不透明内容外接框**（逐像素实测）×1.8」
             //   + 「整幅贴图按 IHDR ×1.8 1:1 摆」（`UiLayoutGame.InvEquipArt` / `InventoryPanel.BuildEquipFrame`）。
             //   旧口径（矩形 = prefab 节点值，整幅贴图塞进去）实测差 35.2%（`inv_armor` 97.2×149.4 vs 素材 64×128）。
-            //   ⚠️ OrigW/OrigH 这里是**本槽图形外接框**、不是贴图 IHDR（双槽拼图的 IHDR 是两槽并排 +
+            //   OrigW/OrigH 这里是**本槽图形外接框**、不是贴图 IHDR（双槽拼图的 IHDR 是两槽并排 +
             //      右侧留白）⇒ 走 `SkipIhdr`，由 `EquipArtSide()` **再解一次像素**逐槽核对「声明 == 实测」。
             foreach (var s in InventoryPanel.EquipSlots)
             {
@@ -134,7 +134,7 @@ namespace Uicheck
 
             // ── 技能树（底图 = 原版**拼装后整页** `Panel/skltree_{cls}_back_{0..3}.png` 320×432；
             //    图标 = 原版位图 48×48）──
-            // ★ w4 修红：旧行的路径写的是 `ResPaths.SkillTreeBack("a", 页)` = **逐帧落位**目录
+            // w4 修红：旧行的路径写的是 `ResPaths.SkillTreeBack("a", 页)` = **逐帧落位**目录
             //   （`D2/UI/SkillTree/`，那一族的帧原生是 256×256 / 64×256 / …）⇒ 「声明 320×432 == 素材 IHDR」
             //   必然红。**红的是"审计行的路径/声明"，不是面板**：面板底图一直用 `D2Icon.SkillTreeBackPath`
             //   拼的 `D2/UI/Panel/skltree_{cls}_back_{页}.png`（= 拼好的整页 320×432）。
@@ -417,7 +417,7 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑨ ★ w5：选项 / 暂停底板 = **原版 `MENU/boxpieces.DC6` 拼装窗框**
+        // ⑨ w5：选项 / 暂停底板 = **原版 `MENU/boxpieces.DC6` 拼装窗框**
         //   （判据：偏移**自证** = 声明的偏移 == 逐像素量出来的边带位置；接缝**自证** = 解整幅像素）
         // ═════════════════════════════════════════════════════════════════════
         //  为什么必须重新解像素：那 22 帧的 **DC6 帧 offset 表本机拿不到**
@@ -490,7 +490,7 @@ namespace Uicheck
             var offBottom = UiLayoutFlow.BoxFrame.OffsetBottom;
             var offLeft = UiLayoutFlow.BoxFrame.OffsetLeft;
             var offRight = UiLayoutFlow.BoxFrame.OffsetRight;
-            // ⚠️ 逐族看**自己那一轴**：上/下边块管 y（dx 恒 0），左/右边块管 x（dy 恒 0）。
+            // 逐族看**自己那一轴**：上/下边块管 y（dx 恒 0），左/右边块管 x（dy 恒 0）。
             var derived = new[]
             {
                 ("上边", offTop.y,      1 - First(longRows, 2),   0,  "dy"),
@@ -623,7 +623,7 @@ namespace Uicheck
 
         /// <summary>
         /// 一帧里"**在内容区内**通长不透明"的列（<paramref name="columns"/> = true）或行。
-        /// <para>⚠️ 只看**内容区**（x/y ∈ 1..12）：每帧 14×15 的外圈页边（x0/x13/y0/y13/y14）本来就透明，
+        /// <para>只看**内容区**（x/y ∈ 1..12）：每帧 14×15 的外圈页边（x0/x13/y0/y13/y14）本来就透明，
         /// 拿"整帧"判通长会一个都量不出来（那正是本方法第一版的错）。</para>
         /// </summary>
         private static int[] FullyOpaqueLines(byte[] rgba, int w, int h, bool columns)
@@ -712,16 +712,15 @@ namespace Uicheck
             => File.Exists(path) ? File.ReadAllText(path, Encoding.UTF8) : string.Empty;
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑩ ★ w5：光标 —— 「零消费方」消掉（判据 = 消费方存在 + 真的改光标 + 素材被引用 + 缺口已登记）
+        // ⑩ w5：光标 —— 「零消费方」消掉（判据 = 消费方存在 + 真的改光标 + 素材被引用 + 缺口已登记）
         // ═════════════════════════════════════════════════════════════════════
-        //  为什么以前只做"登记·非失败"：那时确实**没有消费方**、且 4 态素材缺失，
         //  做成 FAIL 会让宿主永远到不了 `FAILED=0`（而"红"表达的是一件待补素材的事）。
-        //  ★ 本轮把机制接上了 ⇒ 这些判据**现在必须是绿的**，故升级为真断言：
+        //  本轮把机制接上了 ⇒ 这些判据**现在必须是绿的**，故升级为真断言：
         //    ① `UI/CursorView.cs` 是 `Events.CursorChanged` 的**真消费方**（订阅 + 有处理方法）；
         //    ② 它**真的改鼠标光标**（`Cursor.visible` 的隐藏/恢复 + 跟随鼠标的 Image）；
         //    ③ `ResPaths.Cursor` 被真的引用（不再是零引用常量）；
         //    ④ 素材在位（IHDR 32×26）；
-        //    ⑤ 4 态缺口**逐态有 Warn + 有登记**（⛔ 仍不许自画 4 个光标）。
+        //    ⑤ 4 态缺口**逐态有 Warn + 有登记**（仍不许自画 4 个光标）。
         private static void CursorSide()
         {
             var code = new StringBuilder();
@@ -769,7 +768,6 @@ namespace Uicheck
                 $"{ResPaths.Cursor} = {cw}×{ch}；画布尺寸 {UiLayoutGame.CursorSize.x:0.#}×{UiLayoutGame.CursorSize.y:0.#}（×{UiLayoutGame.K}）"
                 + $"，hot spot = 箭头尖（pivot {UiLayoutGame.CursorHotspotPivot}）");
 
-            // 4 态缺口：仍**不自画**（skill §0「A 没有就不加」）—— 但必须有 Warn + 有登记
             var lack = SafeRead(Path.Combine(Program.ProjectRoot, "client", "资源欠缺清单.md"));
             Console.WriteLine("      │ [登记·素材缺口] 原版 5 态光标（" + UiLayoutGame.CursorKindCount
                 + " 种：普通/攻击/交互/拾取/不可走）本批**只有普通箭头 1 帧** ⇒ 5 态统一显示这一帧箭头，"
@@ -781,13 +779,12 @@ namespace Uicheck
 
         // ── 工具 ─────────────────────────────────────────────────────────────
 
-        // ⚠️ w4 删除：`OrigSizeOfEquip(stem)`（按文件名的硬编码尺寸表）——
+        // w4 删除：`OrigSizeOfEquip(stem)`（按文件名的硬编码尺寸表）——
         //   它把"贴图整幅 IHDR"当成"本槽图形尺寸"用（双槽拼图尤其错），且是同一批数字的第二份副本
-        //   （必然漂移）。现由 `UiLayoutGame.InvEquipArt` 的**逐像素实测**唯一提供，并由
         //   `EquipArtSide()` 再解一次像素核对。
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑦ ★ w4：装备槽的**素材侧**核对（逐像素）——「声明 == 实测」不是抄过来的，是解出来的
+        // ⑦ w4：装备槽的**素材侧**核对（逐像素）——「声明 == 实测」不是抄过来的，是解出来的
         // ═════════════════════════════════════════════════════════════════════
         //  判什么：把每张 `D2/UI/EquipSlot/*.png` **真的解成像素**，按列投影切成连通块
         //          （相邻空列 = 两槽的分界），再逐槽核对：
@@ -908,7 +905,7 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑧ ★ w4：技能树——「**拼装后整页矩形**」与「**素材帧尺寸**」两个概念分开断言
+        // ⑧ w4：技能树——「**拼装后整页矩形**」与「**素材帧尺寸**」两个概念分开断言
         // ═════════════════════════════════════════════════════════════════════
         //  背景（w3 的那条红就是这两个概念被混在一行里）：原版 `SPELLS/skltree_{cls}_back.DC6`
         //    · **素材帧尺寸**：16 帧 / 职业，尺寸循环 256×256 / 64×256 / 256×176 / 64×176
@@ -924,7 +921,7 @@ namespace Uicheck
             Program.Check("技能树底图路径 == 运行时 `D2Icon.SkillTreeBackPath` 的拼法（同前缀/同后缀，只差目录）",
                 mine == runtime, mine + " vs " + runtime);
 
-            // ② 面板源码：底图必须走**拼装后整页**，⛔ 不能走逐帧目录
+            // ② 面板源码：底图必须走**拼装后整页**，不能走逐帧目录
             var srcPath = Path.Combine(Program.UiDir, "SkillTreePanel.cs");
             var src = File.Exists(srcPath) ? StripNonCode(File.ReadAllText(srcPath, Encoding.UTF8)) : string.Empty;
             Program.Check("技能树面板源码：底图走 `D2Icon.SkillTreeBackPath`（拼装后整页），且 **0 命中** `ResPaths.SkillTreeBack`（逐帧目录）",
@@ -973,7 +970,6 @@ namespace Uicheck
         /// <para>
         /// 为什么不在本节直接调 `D2Icon.SkillTreeBackPath`：它要先读配表 `class_c.skill_class`
         /// 求职业字母，而本宿主是**离线进程**（读不到表 ⇒ 返回 null）。所以这里复刻拼法，
-        /// 并由 ① 号断言**机器核对**两者一致（防漂移）。
         /// </para>
         /// </summary>
         private static string SkillTreePagePath(string clsLetter, int page)

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// d2u27_jitter.cs  ★ U27（人物抖动「一顿一顿」三分判据）· Play 侧采集器
+// d2u27_jitter.cs  U27（人物抖动「一顿一顿」三分判据）· Play 侧采集器
 //
 //   一次 Play 采齐六场景的**逐帧三层位置序列** + 截图（文件名带格号）：
 //     S1 静止      —— 站着不动（对照：三层都应当**零**步长）
@@ -11,7 +11,7 @@
 //                      （离线判不了：`CameraRig.ClampToMapBounds` 在 `_cam == null` 时直接
 //                       return（`CameraRig.cs:913`），只有真机有 `Camera.main` 才走夹制）
 //
-//   三层（各自取生产件的唯一出口，⛔ 不镜像公式）：
+//   三层（各自取生产件的唯一出口，不镜像公式）：
 //     ② 渲染 = 玩家视图节点的真实 `transform.position`（`IViewModule.GetView(PlayerEntityId)`）
 //     ③ 逻辑 = `IPlayerModule.World`
 //     ① 相机 = `Camera.main.transform.position`
@@ -20,7 +20,6 @@
 //     逐帧变化量 ≤ 玩家单帧位移×1.1；③ S6 段相机单帧步长出现"冻结→追赶"阶跃即判红。
 //     同一个量法脚本 = `d2u27_judge.py`（与本文件同一目录）。
 //
-//   ⚠️ 本文件是**判据资产**：编辑器当前离线（`unity status` 空表）⇒ 本片**没有跑过它**。
 //      未经验证的点已在文件尾 `UNVERIFIED` 注释里逐条列清（回报里也写了）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -65,7 +64,7 @@ namespace U27
         }
 
         // ---- 组合根：**必须走反射** ----------------------------------------------
-        // ⚠️ 离线编译哨兵实测（`tools/probes/drivers/d2u27_compilecheck`）：
+        // 离线编译哨兵实测（`tools/probes/drivers/d2u27_compilecheck`）：
         //    `Diablo2.App.AppContext` 是 **internal** ⇒ 注入的脚本里写 `AppContext.I` 直接
         //    `CS0122: “AppContext”不可访问`（本文件第一版就是这么写错的，被哨兵当场抓住）。
         //    已证的写法 = `camjitter_drive.cs` 那条反射链（`Ctx()` → 字段 → 成员），本文件照抄口径。
@@ -111,7 +110,6 @@ namespace U27
             try
             {
                 var view = CtxMember("View");
-                // ⚠️ 实测教训（第一次 Play）：这三个 null 分支原来**静默返回 null** ⇒ 整列渲染位置变 NaN,
                 //    判据 R1 于是"零样本空过"（假绿）。**非预期分支必须留痕**，且每条只报一次。
                 if (view == null) { WarnOnce("view.ctx", "VIEW-PROBE AppContext.View == null ⇒ 渲染位置列 = NaN（判据 R1 将因零样本无效）"); return null; }
                 var f = view.GetType().GetField("_player", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -143,8 +141,8 @@ namespace U27
         internal static string DeviceName() { return SystemInfo.graphicsDeviceName; }
 
         /// <summary>
-        /// 运行时切帧节奏（★ A/B 实验用）：直接写 `Application.targetFrameRate` / `QualitySettings.vSyncCount`
-        /// 并**读回校验**（切不动就如实报，⛔ 不假装成功）。`fps &lt; 0` = 交给平台（vSync 接管）；
+        /// 运行时切帧节奏（A/B 实验用）：直接写 `Application.targetFrameRate` / `QualitySettings.vSyncCount`
+        /// 并**读回校验**（切不动就如实报，不假装成功）。`fps &lt; 0` = 交给平台（vSync 接管）；
         /// `fps == 0` = 用显示器刷新率（读不到则退回 60）。
         /// </summary>
         internal static string SetCadence(string tag, int fps, int vSync)
@@ -190,7 +188,7 @@ namespace U27
         {
             try
             {
-                // ⚠️ 同样必须走反射（`AppContext` 是 internal；见本文件 `Ctx()` 的注释）
+                // 同样必须走反射（`AppContext` 是 internal；见本文件 `Ctx()` 的注释）
                 var flow = CtxMember("Flow");
                 if (flow == null) { Warn("ROSTER-PROBE AppContext.Flow == null"); return null; }
                 var rf = flow.GetType().GetField("_roster", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -223,7 +221,7 @@ namespace U27
             catch (Exception ex) { Warn("ROSTER-PROBE " + ex.GetType().Name + ": " + ex.Message); return null; }
         }
 
-        // ---- 真实输入注入（⚠️ 口径抄 `camjitter_drive.cs` 的**已证**写法）----------------
+        // ---- 真实输入注入（口径抄 `camjitter_drive.cs` 的**已证**写法）----------------
         // 第一版写的 `kb.spaceKey.QueueStateChange(...)` + `LowLevel.KeyEventState` 两个都不存在
         // （离线哨兵报 CS1061 / CS0234）⇒ 改成 CamJit 那条：`InputSystem.QueueStateEvent(kb, KeyboardState)`。
         internal static void KeysDown(string[] names)
@@ -278,13 +276,12 @@ namespace U27
         }
 
         // ══════════════════════════════════════════════════════════════════════════════════════
-        // ★ u27v5（片 closefix 接棒）：**真鼠标输入**的基础件。
         //   为什么必须加：`ClickButtonByLabel` 走 `ExecuteEvents.pointerClickHandler`（合成事件），
         //   实机实测 u27v4 = `CLICK-LABEL label="Single" NOT-FOUND buttons=[]`（主菜单那一刻
         //   Canvas 下枚举到 **0 个 Button**）⇒ 引导链断在第一步、后续 60s 超时、TSV 未生成。
         //   ⇒ 按主 agent 给的配方**照抄** `tools/probes/drivers/d2u3_charstat_drive.cs:174-268`
-        //     （`ScreenRect` / `FindButton` / `MouseDev` / `MouseState`），⛔ 不自创。
-        //   ⚠️ `ClickButtonByLabel` **保留**，降级为**诊断**（找不到时仍打印它枚举到的按钮名）。
+        //     （`ScreenRect` / `FindButton` / `MouseDev` / `MouseState`），不自创。
+        //   `ClickButtonByLabel` **保留**，降级为**诊断**（找不到时仍打印它枚举到的按钮名）。
         // ══════════════════════════════════════════════════════════════════════════════════════
         internal static bool ScreenRect(RectTransform rt, out Vector2 lo, out Vector2 hi, out Vector2 center)
         {
@@ -369,7 +366,7 @@ namespace U27
     /// <summary>CLI 入口（`unity command run_script --file d2u27_jitter.cs --entry U27.Api.<M>`）。</summary>
     public static class Api
     {
-        /// <summary>环境自证：设备/刷新率/帧节奏/时间步。⛔ 软件光栅时驱动会拒跑。</summary>
+        /// <summary>环境自证：设备/刷新率/帧节奏/时间步。软件光栅时驱动会拒跑。</summary>
         public static string Cfg()
         {
             var r = Screen.currentResolution;
@@ -387,7 +384,7 @@ namespace U27
         public static string Ping() { return "PONG gameRunning=" + (CloverEngine.Game.IsRunning ? 1 : 0); }
 
         /// <summary>
-        /// ★ 帧节奏 A/B（team-lead 指定的实验设计，**一次 Play 会话内做完**）：
+        /// 帧节奏 A/B（team-lead 指定的实验设计，**一次 Play 会话内做完**）：
         ///   A = 现行（`vSyncCount = 0` + `targetFrameRate = 60`，= `Core/FramePacing` 的兜底口径）
         ///   B = 运行时切换（`vSyncCount = 1` + `targetFrameRate = -1`，= 引擎 `Recommend()` 在刷新率可读时的档位）
         ///   C = `targetFrameRate = 显示器刷新率` + `vSyncCount = 0`（有余量再采）
@@ -426,7 +423,7 @@ namespace U27
         //   （`SCEN-DONE=档位 A 六场景收齐`，且 A 组 n=1534 与此吻合）⇒ **两档 ≈ 2×1534 ≈ 3070**，
         //   再加建计划/停稳/换档零头 ⇒ 3400 仍会在 **B 档的 clickspam/clampband** 上撞上限
         //   （u27v7 实测：B 只收齐 line+diag）。
-        // ⚠️ **u27v8 → 9000 的关键读数**：B 档 dtMean **5.54ms** vs A 档 **17.33ms** ⇒ **同一条行走
+        // **u27v8 → 9000 的关键读数**：B 档 dtMean **5.54ms** vs A 档 **17.33ms** ⇒ **同一条行走
         //   （同样距离）在 B 档要花 ~3.1× 的帧数** ⇒ "两档 ≈ 2×A" 的估法是错的（实测 5200 帧时
         //   B 已 3666 帧、clampband 还没走完）。⇒ A(1534) + B(≈1534×3.1≈4750) + 零头 ≈ 6500，
         //   给 9000 留 ~38% 余量。**墙钟不吃亏**：5200 帧那批实测 ~2min（B 每帧更短）⇒ 9000 帧
@@ -455,13 +452,13 @@ namespace U27
         private int _scenFrames;
         private int _clickTick;
         private int _shotTick;
-        /// <summary>★ A/B：跑第几遍（0 = 档位 A，1 = 档位 B）；同一段场景两遍，记录列 `cad` 区分。</summary>
+        /// <summary>A/B：跑第几遍（0 = 档位 A，1 = 档位 B）；同一段场景两遍，记录列 `cad` 区分。</summary>
         private int _pass;
         private string _cad = "A";
 
-        // ★ u27v10：A/B 档位映射**集中一处** + 顺序可对调（见 case 4 的注释）。
+        // u27v10：A/B 档位映射**集中一处** + 顺序可对调（见 case 4 的注释）。
         //   `BFirst = true` ⇒ 同会话内**先 B 后 A**（解 `u27v9` 的 order-confound；对调后同向才算可行动结论）。
-        //   ⛔ 档位定义只此一处：A = `targetFrameRate=60 + vSyncCount=0`；B = `targetFrameRate=-1 + vSyncCount=1`。
+        //   档位定义只此一处：A = `targetFrameRate=60 + vSyncCount=0`；B = `targetFrameRate=-1 + vSyncCount=1`。
         private const bool BFirst = true;
 
         /// <summary><paramref name="pass"/> 0/1 ⇒ 档位标签（受 <see cref="BFirst"/> 控顺序）。</summary>
@@ -473,7 +470,7 @@ namespace U27
             if (tag == "B") Probe.SetCadence("B", -1, 1);   // B = vSyncCount=1 + targetFrameRate=-1（不封顶）
             else Probe.SetCadence("A", 60, 0);              // A = vSyncCount=0 + targetFrameRate=60
         }
-        /// <summary>建计划时那份地图的尺寸（每帧比对 ⇒ 录制途中换区域立刻 fail-fast，⛔ 不记假数据）。</summary>
+        /// <summary>建计划时那份地图的尺寸（每帧比对 ⇒ 录制途中换区域立刻 fail-fast，不记假数据）。</summary>
         private int _planW;
         private int _planH;
 
@@ -559,7 +556,7 @@ namespace U27
               .Append(Probe.Grid(grid)).Append('\t')
               .Append(crossed).Append('\t')
               .Append(spr).Append('\t')
-              // ★ A/B：`cad` 列**放最后**（不动前面任何列的索引 ⇒ 既有判据脚本零改动就能读旧列，
+              // A/B：`cad` 列**放最后**（不动前面任何列的索引 ⇒ 既有判据脚本零改动就能读旧列，
               //    只多一列可分组）。同一段场景先跑 A 再跑 B，两组都在这一个 TSV 里。
               .Append(_cad);
             _rows.Add(sb.ToString());
@@ -601,7 +598,7 @@ namespace U27
             _recording = false;
             var ci = System.Globalization.CultureInfo.InvariantCulture;
             var sb = new StringBuilder();
-            // ★ `cad` 列放最后（A/B 分组用）；前面列的索引与语义一字不变。
+            // `cad` 列放最后（A/B 分组用）；前面列的索引与语义一字不变。
             sb.Append("scen\tframe\tdt\tlx\tly\trx\try\tcx\tcy\tgrid\tcrossed\tspr\tcad\n");
             for (var i = 0; i < _rows.Count; i++) sb.Append(_rows[i]).Append('\n');
             if (_tsv.Length > 0) Probe.WriteFile(_tsv, sb.ToString());
@@ -681,7 +678,7 @@ namespace U27
 
                 case 2:
                     if (!Elapsed(1.0f)) return;
-                    // ★ u27v5：**真鼠标**点 "Single"。u27v4 用合成事件时实测
+                    // u27v5：**真鼠标**点 "Single"。u27v4 用合成事件时实测
                     //   `CLICK-LABEL label="Single" NOT-FOUND buttons=[]`（那一刻 Canvas 下 0 个 Button）
                     //   ⇒ 引导断在这里、后面 60s 超时、TSV 未生成。本步每帧都进 ⇒ 用 TickClick 推进。
                     if (_clickPhase != 0) { TickClick(); return; }
@@ -704,11 +701,11 @@ namespace U27
                     if (!Elapsed(2.0f)) return;
                     var pick = Probe.FirstSaveName();
                     if (!string.IsNullOrEmpty(pick)) _save = pick;
-                    // ★ u27v5-diagnose（主 agent 定的"先诊断、后改目标"）：把 CharSelect 屏上**所有**
+                    // u27v5-diagnose（主 agent 定的"先诊断、后改目标"）：把 CharSelect 屏上**所有**
                     //   `Selectable`（Button/Toggle/Slider/Dropdown/Scrollbar/InputField 的基类）的
                     //   类型 / 名字 / 完整路径 / interactable / activeInHierarchy 全枚举落 trace，
                     //   外加总数、类型直方图、当前选中项。
-                    //   ⛔ 这一步**不改任何点击目标**：先把"roster 的 75 行到底是不是可点控件、是什么类型"
+                    //   这一步**不改任何点击目标**：先把"roster 的 75 行到底是不是可点控件、是什么类型"
                     //   变成读数，再据此改一次（避免"改对了/改错了"混在同一次会话里）。
                     if (!_selectablesDumped)
                     {
@@ -739,12 +736,12 @@ namespace U27
                             ? "(none)" : (es.currentSelectedGameObject.name + "@" + Probe.NodePathOf(es.currentSelectedGameObject.transform))));
                         Probe.KV("CS-SCROLLRECT", "count=" + UnityEngine.Object.FindObjectsByType<UnityEngine.UI.ScrollRect>(FindObjectsSortMode.None).Length);
                     }
-                    // ★ u27v5：roster 行**真点击**（按钮名 = 存档名）；点不到才回退到发事件。
+                    // u27v5：roster 行**真点击**（按钮名 = 存档名）；点不到才回退到发事件。
                     if (_clickPhase != 0) { TickClick(); return; }
                     if (_rosterClickTries == 0)
                     {
                         _rosterClickTries = 1;
-                        // ⚠️ u27v5d 的教训：`fsm=MainMenu` **不足以**判断"在哪个屏"（那次实际只有
+                        // u27v5d 的教训：`fsm=MainMenu` **不足以**判断"在哪个屏"（那次实际只有
                         //    `Single`/`Quit` 两个 Button ⇒ 真的还在主菜单）。⇒ 先打**面板级真相**。
                         Probe.KV("CS-PANEL", "charSelect=" + (CloverEngine.Game.UI != null && CloverEngine.Game.UI.IsOpen<Diablo2.UI.CharSelectPanel>() ? 1 : 0)
                             + " charCreate=" + (CloverEngine.Game.UI != null && CloverEngine.Game.UI.IsOpen<Diablo2.UI.CharCreatePanel>() ? 1 : 0)
@@ -753,7 +750,7 @@ namespace U27
                         // roster 行的命名口径抄 X 巡回（`x_drive.cs:2619` = `"Row"+idx+"|Delete"`；
                         // 进档 = `"<row>|Enter"`，`x_drive.cs:5421`）⇒ 这里**找第一个存在的 `Row<i>`**，
                         // 而不是猜"按钮名 = 存档名"（u27v5 两次都因此 miss）。
-                        // ⚠️ u27v5e 读数纠正了我的假设：**行名在"路径"里，不在按钮名上** ——
+                        // u27v5e 读数纠正了我的假设：**行名在"路径"里，不在按钮名上** ——
                         //   实测 23 个 Button 全是 `…/List/Row<i>/{Enter|Delete|RowHotspot}`（按钮名 =
                         //   末段），所以我上一版按 `^Row\d+$` 匹配**按钮名**必然 0 命中（`CS-ROWS []=`）。
                         //   ⇒ 改成**按路径**找：路径含 `Row<digits>` 且按钮名 == `Enter` 的，取它的行名当 key。
@@ -794,7 +791,7 @@ namespace U27
                     return;
 
                 case 4:
-                    // ★ u27v5（`jitter` 的配方）：60s 还进不了 Stage ⇒ **fail-fast**，别 `Next()` 让
+                    // u27v5（`jitter` 的配方）：60s 还进不了 Stage ⇒ **fail-fast**，别 `Next()` 让
                     //   后面 6 个场景在"没 stage"的状态下空跑 240 帧（u27v4 就是这么变成 0 样本的）。
                     if (!(HudOpen() && Fsm() == "Stage"))
                     {
@@ -806,8 +803,8 @@ namespace U27
                         return;
                     }
                     if (!Elapsed(IdleSettle)) return;
-                    // ★ A/B：每遍开场把档位写死一遍（不依赖采集脚本先调过；幂等 + 读回校验）
-                    // ★ u27v10（主 agent 派：解 `order-confounded`）：档位映射**集中一处** + 顺序可对调。
+                    // A/B：每遍开场把档位写死一遍（不依赖采集脚本先调过；幂等 + 读回校验）
+                    // u27v10（主 agent 派：解 `order-confounded`）：档位映射**集中一处** + 顺序可对调。
                     //   缘由（`jitter` 的反证）：`u27v9` 里 A 先跑、B 后跑（帧数 1545 vs 4045）⇒ 存在
                     //   **暖机/顺序混淆**（实测 A 的 155ms 卡峰落在前 1/3、组内 sd 单调收敛 0.0091→0.0038；
                     //   B 无趋势）⇒ 不换顺序就**不能**拿它改生产帧节奏。
@@ -818,8 +815,8 @@ namespace U27
                     _cad = TagOf(_pass);
                     ApplyCadence(_cad);
                     ResolvePlan();
-                    // ★ u27v5 退化计划闸门：三目标都 == 出生点 ⇒ 一步不动地空跑（u27v4 实测
-                    //   `FINISH why=frame-cap frames=0`、TSV 未生成）⇒ 立刻 bad-plan，⛔ 不许空跑 240 帧。
+                    // u27v5 退化计划闸门：三目标都 == 出生点 ⇒ 一步不动地空跑（u27v4 实测
+                    //   `FINISH why=frame-cap frames=0`、TSV 未生成）⇒ 立刻 bad-plan，不许空跑 240 帧。
                     if (_lineTarget == _start && _diagTarget == _start && _bandTarget == _start)
                     {
                         Probe.Warn("PLAN-DEGENERATE 三目标都等于出生点 " + Probe.Grid(_start) + "（地图无可走目标？）⇒ bad-plan");
@@ -832,7 +829,7 @@ namespace U27
                     Probe.KV("PLAN", "start=" + Probe.Grid(_start) + " line=" + Probe.Grid(_lineTarget)
                         + " diag=" + Probe.Grid(_diagTarget) + " band=" + Probe.Grid(_bandTarget)
                         + " corridorSkips=" + _corridorSkips);
-                    // ★ u27v6 取证：改了"走廊也查 Exit"就必须能证明它**真的排掉了东西**
+                    // u27v6 取证：改了"走廊也查 Exit"就必须能证明它**真的排掉了东西**
                     //   （否则又是一条"断言绿、行为缺"）。`_corridorSkips == 0` ⇒ 本图本来就没有
                     //   穿过 Exit 的走廊候选（读数如此，不是没接线）；> 0 ⇒ 逐条见 `PLAN-CORRIDOR-SKIP`。
                     Probe.KV("PLAN-CORRIDOR", "skipped=" + _corridorSkips
@@ -854,13 +851,11 @@ namespace U27
                         var p = Probe.Player();
                         if (p == null) { Tout("no-player", 10f); return; }
 
-                        // ★ 实测抓到的两个 bug（第一次 Play 的教训，逐条修）：
+                        // 实测抓到的两个 bug（第一次 Play 的教训，逐条修）：
                         //   ① 场景切换那两行原本带 `Next()` ⇒ 把 `_step` 从 6 推到 7（= 帧数上限收尾）
                         //      ⇒ 驱动只跑完 2 个场景就 `REC-STOP why=frame-cap`（实测 559 帧）。
-                        //      修法：场景切换**留在 case 6**，帧数上限在本 case 顶部判。
                         //   ② 实测驱动器里 `p.Grid` 一度到 (9,52) —— 地图高 40 的城镇不可能有 y=52 ⇒
                         //      **玩家在录制途中穿过了关卡出口，换了区域**，原计划（城镇格）随之失效。
-                        //      修法：每帧比对地图尺寸，变了就 `AREA-CHANGED` 结束（fail-fast，⛔ 不记假数据）。
                         var mm = Probe.Map();
                         if (mm != null && (_planW != mm.Width || _planH != mm.Height))
                         {
@@ -874,12 +869,11 @@ namespace U27
                         if (_scen == Scen.ClickSpam)
                         {
                             // S5：每 4 帧改一次目标（连续点地）——目标在起点附近来回
-                            // ⛔ u27v7 修（实测 `u27v6` 就是死在这里）：这行原为
+                            // u27v7 修（实测 `u27v6` 就是死在这里）：这行原为
                             //    `{ StartScen(Scen.ClampBand, _bandTarget); **Next()**; return; }`
                             //    ⇒ `Next()` 把 `_step` 从 6 推到 **7**，而 `case 7` 就是 `Finish("frame-cap")`
                             //    ⇒ 批子在 **clampband 只有 1 帧样本**时就结束（`REC-STOP why=frame-cap frames=953`,
                             //    `scenarios: clampband=1`），S6 与 A/B 第二档全丢。**与下面 L856 注释警告的是同一类坑**
-                            //    （那里已修，这里漏了）。修法一致：场景切换**留在 case 6**，不 `Next()`。
                             if (_scenFrames++ > 240) { StartScen(Scen.ClampBand, _bandTarget); return; }
                             if (_clickTick++ % 4 == 0)
                             {
@@ -893,12 +887,12 @@ namespace U27
                         if (_scenFrames++ < 12) return;          // 停稳 12 帧（相机收敛后再换场景）
                         switch (_scen)
                         {
-                            // ⛔ 这里**不许** `Next()`：那会把 `_step` 推到 7（收尾）⇒ 只跑 2 个场景就结束
+                            // 这里**不许** `Next()`：那会把 `_step` 推到 7（收尾）⇒ 只跑 2 个场景就结束
                             //    （第一次 Play 实测：559 帧 + `why=frame-cap`）。场景机全程留在 case 6。
                             case Scen.Line: StartScen(Scen.Diag, _diagTarget); return;
                             case Scen.Diag: StartScen(Scen.ClickSpam, _lineTarget); return;
                             default:
-                                // ★ A/B（team-lead 指定）：**同一会话内**先跑完档位 A 的六场景，再切档位 B
+                                // A/B（team-lead 指定）：**同一会话内**先跑完档位 A 的六场景，再切档位 B
                                 //   重跑**同一段场景**（同一条场景计划 = 同一段输入），记录列 `cad` 区分。
                                 //   切换是"运行时切"（写 `Application.targetFrameRate` / `QualitySettings.vSyncCount`
                                 //   并读回校验）⇒ 两次采样在**同一台机器、同一会话、无并发**条件下完成。
@@ -910,7 +904,7 @@ namespace U27
                                     Probe.KV("SCEN-DONE", "档位 " + doneTag + " 六场景收齐 ⇒ 切档位 " + _cad + " 重跑同一段"
                                         + " order=" + (BFirst ? "B-then-A" : "A-then-B"));
                                     ApplyCadence(_cad);                    // 读回校验在 `SetCadence` 内（`CADENCE` 行）
-                                    // ★ u27v8 修（实测 `u27v7` 的 R1 就死在这一帧）：换档要**回出生点**，
+                                    // u27v8 修（实测 `u27v7` 的 R1 就死在这一帧）：换档要**回出生点**，
                                     //   而"传送"是**驱动自己的状态复位、不是被测行为** ⇒ `TeleportTo` 那一帧
                                     //   逻辑瞬移 24 格、渲染要下一帧才跟上 ⇒ 判官 R1（render vs logic）
                                     //   报 `max|diff|=24.083189` FAIL。实测定位：`R1` 越界帧**恰好 1 帧**，
@@ -921,7 +915,6 @@ namespace U27
                                     var p2 = Probe.Player();
                                     if (p2 != null) p2.TeleportTo(Probe.Map() != null ? Probe.Map().SpawnPoint
                                         : new Vector2Int(0, 0));
-                                    // ★ u27v10 修（jitter 实测报的真缺陷，2026-09-24；已由本片从代码+数据两路复核）：
                                     //   换档**必须复位场景机**。旧行为只复位了录制/位置/`_step`，
                                     //   `_scen` / `_scenFrames` 带着上一遍的值进第 2 遍 ⇒ 第 2 遍的**开场静止块**
                                     //   （`case 5` 的 `if (_scenFrames++ < 40) return;`）出两个错：
@@ -931,7 +924,7 @@ namespace U27
                                     //        （实测 `scen=clampband` 而 `spr=idle_w_*`）⇒ 凡按 `scen` 分组的读数
                                     //        （`ab_trend` 的 P1 用 `scen=line`、`d2u27_stutter_repro` 的 M3 按 (scen,spr)）
                                     //        都会把开场块算进**错误的组**。
-                                    //   ⚠️ 为什么现在要紧：`u27v10` 是 `BFirst = true` ⇒ 第 2 遍 = **A**
+                                    //   为什么现在要紧：`u27v10` 是 `BFirst = true` ⇒ 第 2 遍 = **A**
                                     //      ⇒ 这次错到 A 头上；而 A 的 155.077ms 卡峰**就落在开场块里**
                                     //      ⇒ 会直接污染 R-SPIKE / R-REPRO 的"对调后是否同一点重现"。
                                     //   `Scen.Idle` = 字段初始值（第 1 遍之所以正确就是靠它，`:452`）。
@@ -971,7 +964,7 @@ namespace U27
         }
 
         // ══════════════════════════════════════════════════════════════════════════════════════
-        // ★ u27v5：真鼠标点击（2 帧"按下/抬起"），抄 `d2u3_charstat_drive.cs:402-441`（⛔ 不自创）。
+        // u27v5：真鼠标点击（2 帧"按下/抬起"），抄 `d2u3_charstat_drive.cs:402-441`（不自创）。
         //   用法：`RealClick(name, tag)` **arm**（1 = 已找到按钮并已把指针移上去），
         //   之后**每帧调 `TickClick()`** 直到 `_clickPhase == 0`（一轮点击做完）。
         // ══════════════════════════════════════════════════════════════════════════════════════
@@ -995,7 +988,6 @@ namespace U27
             }
             Vector2 lo, hi, c;
             Probe.ScreenRect(b.transform as RectTransform, out lo, out hi, out c);
-            // ⚠️ 2026-09-24 实测教训：u27v5/u27v5d 两次会话里 `UI-DOWN/UI-UP` 都发了、`raycastTop` 也
             //    命中按钮，但 **MainMenu 没往前走**（`CS-SEL` 只有 `Single`/`Quit`）⇒ 说明**注入坐标不在按钮上**。
             //    X 巡回（已实测能一路进 stage）用的是 `Drive.Inject(c)`，不是 `Screen.height - c.y`
             //    （我抄的是 charstat 的写法，它那一路从没被"点击真的生效"验证过）。
@@ -1058,7 +1050,7 @@ namespace U27
             _planH = m.Height;
             _corridorSkips = 0;
 
-            // ★ u27v6（`jitter` 点名要的这一处）：**行走走廊也查 Exit** —— u27v5f 的 `line` 场景就是
+            // u27v6（`jitter` 点名要的这一处）：**行走走廊也查 Exit** —— u27v5f 的 `line` 场景就是
             //   在**末尾一步**踩进 `Exit` 格 ⇒ `AREA-CHANGED` 早停、六场景没跑完。
             //   实测定位：最后一条采样 `frame=2610 grid=(18,28)`，紧接着 `AREA-CHANGED … grid=(17,28)`
             //   = **相邻格** ⇒ 确实只差最后一步。只排除"目标自身是 Exit"（下面第 997 行那句）不够。
@@ -1099,15 +1091,15 @@ namespace U27
                 {
                     var g = new Vector2Int(x, y);
                     if (!m.Walkable(g)) continue;
-                    // ⛔ 出口格不当目标：踩上去会**换区域**（实测第一次 Play 就这么作废了一批）。
-                    //    ⚠️ 用 `ToString()` 比名字而不是写 `TileKind.Exit`：枚举的命名空间在本驱动里
+                    // 出口格不当目标：踩上去会**换区域**（实测第一次 Play 就这么作废了一批）。
+                    //    用 `ToString()` 比名字而不是写 `TileKind.Exit`：枚举的命名空间在本驱动里
                     //    拿不准（宿主里是 `TileKind`，注入脚本里不一定 using 得到）⇒ 不在驱动里编造类型路径。
                     if (m.TileAt(g).ToString() == "Exit") continue;
                     var dx = x - _start.x;
                     var dy = y - _start.y;
                     var cheb = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy));
 
-                    // ★ u27v6：走廊里含 Exit ⇒ 弃选（承重改动，见上面 `CorridorHasExit` 的注释）。
+                    // u27v6：走廊里含 Exit ⇒ 弃选（承重改动，见上面 `CorridorHasExit` 的注释）。
                     if (CorridorHasExit(g, dx, dy))
                     {
                         if (_corridorSkips < 8)

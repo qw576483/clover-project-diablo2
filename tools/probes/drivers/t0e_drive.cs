@@ -6,7 +6,6 @@
 //         inject a REAL pointer hover and a REAL pointer press and read what the widget
 //         actually did (sprite swap / canvas tint / panel-level sprite change).
 //         Offline "wiring" evidence (original frames + SpriteSwap) is not a presentation
-//         proof (main-agent ruling, dispatch-log 2026-09-21 (d)).
 //     (b) the S2 MapView full-repave (RebuildLayers) trigger times: WHEN the non-incremental
 //         whole-map pave fires during a real enter-stage / texture-arrival / area-change
 //         chain, and whether a loading bracket is up at that instant (E43 judgement).
@@ -345,7 +344,6 @@ namespace T0E
             return false;
         }
         /// <summary>
-        /// MEASURED (2026-09-21, this slice): uGUI's pointer here consumes the Y-FLIPPED value
         /// (Screen.height - y) -- the flipped candidate raycasts onto the widget itself for
         /// 190/191 controls, the unflipped one for only 27/191.  Rather than hard-code it, pick
         /// per widget by raycast so a different project/canvas mode still resolves correctly.

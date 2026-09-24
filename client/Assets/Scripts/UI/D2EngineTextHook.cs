@@ -1,10 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/D2EngineTextHook.cs  ★ 本项目新增（引擎下沉 A5「文字渲染后端挂钩」，消掉验收表 E19）
+// Diablo2 · UI/D2EngineTextHook.cs  本项目新增（引擎下沉 A5「文字渲染后端挂钩」，消掉验收表 E19）
 //
 // **问题（E19）**：引擎通用件（`ToastLayer` / `LoadingLayer` / `ConfirmLayer` / `FloatTextLayer` /
 // `GuideLayer`）自己建的 `Text` 一律 `UIFactory.DefaultFont()` ⇒ 引擎自己的提示
 // （「角色名已存在」「背包已满」「加载中...」「正在进入 Stage…」「确认 / 取消」）是画面上
-// **唯一**还由系统 TTF 产生像素的中文（业务面板的文字早在片 3 就全走原版字模了）。
 //
 // **本文件**：引擎新增挂钩 `CloverEngine.ITextHook` 的本项目实现。引擎在
 // `UIFactory.CreateText` 把 Text 建好（文案 / 字号 / 对齐 / 颜色 / 溢出策略就位）后通知一次，
@@ -25,7 +24,7 @@
 //   ② **祖先闸门**：字模在途时 `D2Label` 造的那条兜底 Text 会挂在**被镜像的节点下面**
 //      （祖先带 `D2TextMirror`）⇒ 跳过它，兜底那条才能真的用系统字体画出来
 //      （它本来就是"字模还没到"的过渡；字模一到 `D2Text.RebuildAll` 就把它换成字模方块）。
-//   ③ **资源闸门（★ 最危险的一条）**：挂镜像会走到
+//   ③ **资源闸门（最危险的一条）**：挂镜像会走到
 //      `D2TextMirror.Attach → D2Label.Attach → D2Text.EnsureChi`，而 `EnsureChi` 在
 //      **`Game.Res == null`** 时走 `OnAtlasFailure → D2Label.MarkBitmapUnavailable`
 //      = 把**整个项目的字模**永久降级成系统字体（`_bitmapUnavailable` 是静态开关，一局之内不再恢复）。
@@ -34,7 +33,7 @@
 //      ⇒ 判据与 `EnsureChi` 的失败条件**同一个**（`Game.Res == null`）：先**寄存**，等
 //      `FlushPending()`（Bootstrap 里紧跟 `CloverRes.Init`，那时的唯一一条就是 LoadingLayer 的标签）。
 //
-// ⚠️ 本文件只有一个类、且**不是 MonoBehaviour**（`constraints.md` #1：一个 .cs 一个 MonoBehaviour）。
+// 本文件只有一个类、且**不是 MonoBehaviour**（`constraints.md` #1：一个 .cs 一个 MonoBehaviour）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;

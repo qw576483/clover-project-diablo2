@@ -402,7 +402,6 @@ namespace PVA
         /// <summary>Capture one screenshot (name relative to the raw dir, OR a full absolute path).</summary>
         public static string Shot(string name)
         {
-            // NOTE (measured 2026-09-23): each `run_script` call compiles this file into ITS OWN
             // assembly, so the static fields set by Install() are empty here -- a relative name
             // would therefore have no directory.  Accepting a full path keeps Shot usable.
             var target = name ?? string.Empty;

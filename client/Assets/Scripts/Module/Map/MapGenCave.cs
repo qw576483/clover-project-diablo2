@@ -17,7 +17,7 @@
 //
 // 尺寸：每轴 `GameConst.CaveSlotsMin ~ CaveSlotsMax` 块 ⇒ 50 / 75 格（块边长 25）。
 //
-// ⛔ `map.CaveEntrance` 保持 null —— 契约「洞穴入口格（**仅血腥荒野有效**；其它区域为 null）」。
+// `map.CaveEntrance` 保持 null —— 契约「洞穴入口格（**仅血腥荒野有效**；其它区域为 null）」。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -91,13 +91,11 @@ namespace Diablo2.Module.Map
         private static bool TryLayout(GridMap map, Rng rng, int slotsX, int slotsY)
         {
             var p = MapGenCaveLayout.PieceSize;
-            // ★ 片 map-border2：**边界环**（距任一地图边 < ring 格）必须是原版岩体，可走区不得触边
             //   （否则玩家能走到离边界 1 格处，相机跟随必然露图外虚空 —— `camera-follow` 片结论）。
-            //   尺寸**不变**（= slots×25，`mapcheck §9` 冻结判据要求尺寸是原版块边长的整数倍），
             //   做法 = 铺完块后把最外 `BorderRingCells` 格封成 `CaveWall`（见下方 `SealBorderRing`）：
             //   · 语义上和原版一致 —— 原版洞穴关卡**到边界就是实心岩体**（DRLG 不会把可走地面
             //     铺到关卡边界外；本项目的图 = 块的拼接，所以边界那几格要按岩体裁掉）；
-            //   · ⛔ 不是"黑虚空"：`PaintRockBorderBand` 会给环内每格真铺**原版岩体地面键**
+            //   · 不是"黑虚空"：`PaintRockBorderBand` 会给环内每格真铺**原版岩体地面键**
             //     （取自块库 'X' 格），画面上是一圈岩壁；环内可走格数另有硬自检兜底。
             var ring = GridMap.BorderRingCells;
             var w = slotsX * p;
@@ -181,7 +179,6 @@ namespace Diablo2.Module.Map
                 }
             }
 
-            // ★ 片 map-border2：**边界环封成原版岩体**（可走区离四边界恒 ≥ ring 格）。
             //   顺序很关键：必须在**挑洞口/出生点之前**封 —— 洞口口径是"块里 gx 最小的可走格"
             //   （原版洞口就在块西缘），封环后那个最小列自然内移到环的内沿 ⇒ 洞口落在 x=ring，
             //   不会像先前那样贴在图的最西列（那一列现在是岩体）。
@@ -226,11 +223,10 @@ namespace Diablo2.Module.Map
             }
             map.SpawnPoint = spawn.Value;
 
-            // ⛔ **不做任何"净空"/挖洞后处理** —— 出生点与洞口都是**在原版块已有可走格里挑的**
+            // **不做任何"净空"/挖洞后处理** —— 出生点与洞口都是**在原版块已有可走格里挑的**
             //   （`PickSpawn` / `PickGate` 都要求 3×3 全可走），所以铺完就是原版那一格不动的样子。
             //   这样整张图 = 原版块逐格 1:1（可直接与原版 ds1 合成图逐像素比对，见
             //   `.ai-tmp/test/a_compose_map.py`）；一旦在这里 ClearAround，就会出现"游戏里比原版
-            //   多挖了几格"的差异，那种差异对复刻来说就是缺陷。
 
             map.CaveEntrance = null;             // 契约：仅血腥荒野有效
 
@@ -303,7 +299,7 @@ namespace Diablo2.Module.Map
             var walkable = 0;
             for (var py = 0; py < p; py++)
             {
-                // ★ 竖向翻转：块的第 0 行是它的**北**边（`caveN*` 的开口在 y=0），
+                // 竖向翻转：块的第 0 行是它的**北**边（`caveN*` 的开口在 y=0），
                 //   而本项目 gy 越大越靠北 ⇒ 块的 py 行落到 gy = sj*p + (p-1-py)。
                 var gy = sj * p + (p - 1 - py);
                 for (var px = 0; px < p; px++)
@@ -331,7 +327,6 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ 片 map-border2：给**边界环**（距任一地图边 &lt; <paramref name="ring"/> 格）铺**原版岩体瓦片键**。
         /// <para>
         /// 为什么必须铺键：洞穴**启用了逐格覆盖**（`BeginTileOverrides`），没写过键的格 = 空串
         /// = `MapView` 什么都不画 = **纯黑**（那就是"黑虚空"，用户报的边界问题里最难看的一种）。
@@ -357,7 +352,7 @@ namespace Diablo2.Module.Map
                 {
                     var d = Mathf.Min(Mathf.Min(x, map.Width - 1 - x), Mathf.Min(y, map.Height - 1 - y));
                     if (d >= ring) continue;
-                    // ⛔ 这里**只铺瓦片键**，不改地形：封环是 `SealBorderRing` 的唯一职责
+                    // 这里**只铺瓦片键**，不改地形：封环是 `SealBorderRing` 的唯一职责
                     //   （见 `TryLayout`），本方法只负责"环内不出现黑虚空"。
                     map.SetTiles(x, y, grounds[(x + y) % grounds.Length], "");
                     painted++;
@@ -457,7 +452,6 @@ namespace Diablo2.Module.Map
             {
                 // 西边界那一列恰好没有 3×3 净空的格 ⇒ 退回"西边界可走格"，但**不挖洞**，
                 // 只把它的 3×3 是否净空交给调用方判（进出口都要能站人）。
-                // ★ 片 map-border2：封环后环的内沿那一列（x=ring）西侧是岩体 ⇒ 那里必然没有
                 //   3×3 净空的本格，走的正是这个兜底分支（洞口贴环内沿，玩家从东侧站上来）。
                 for (var y = 0; y < p; y++)
                 {

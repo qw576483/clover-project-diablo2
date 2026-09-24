@@ -1,25 +1,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// SaveCheck · shim/HostFakes.cs   ★ 片 save-areaid 新增（2026-09-24）
 //
-// 为什么需要（本片判据的**唯一**缺口）：本片要判的是 `Module/Save/SaveModule.cs` 的
 // **无参 `Save()`** —— 它把"当前游戏状态"逐字段收集成一个**新造**的 `CharacterSave`
 // （`SaveModule.cs:167`）。要离线跑通这条链，就必须让 `AppContext.Map` / `.Player` 非 null，
 // 于是一定要有 `IMapModule` / `IPlayerModule` 的**桩**。
 //
-// ⚠️ 桩的两条纪律（否则判据会变成"自证"）：
+// 桩的两条纪律（否则判据会变成"自证"）：
 //   ① **忠实于真实现**：`StubPlayer.WriteTo` **不许**写 `save.areaId` —— 真 `PlayerModule.WriteTo`
 //      （`Module/Player/PlayerModule.cs:448-477`）在 `:473` 明文写着「mapSeed / areaId / 背包 / 任务：
 //      分别由 Flow、Map、Item、Quest 负责，**这里不碰**」。
-//      🚨 反面教材（本片实测发现）：兄弟宿主 `tools/probes/hosts/itemcheck/Program.cs:340` 的 `StubPlayer`
 //      里有一行 `save.areaId = (int)AreaId.Town;` —— 那是桩自己的发明、与真实现**相反**，
-//      它**正好把本片的缺陷掩盖掉**（谁在那儿测 areaId 都会"恒等于 Town 且永远通过"）。
-//      ⇒ 本文件的桩按真实现写（不写 areaId），本片断言才可能失败（见 §13 的退化校验）。
 //   ② **只用被验证对象真正读到的成员**：桩地图/桩玩家只提供 `Save()` 收集链用得到的值
 //      （`Name` / `Class` / `Grid` / `WriteTo` + 地图的 `Area` / `Seed` / `IsGenerated`），
 //      其余成员给"无副作用的最小值"，不模拟任何玩法。
 //
 // 桩的形状抄自 `tools/probes/hosts/itemcheck/Program.cs`（同项目、同契约版本），
-// ⛔ 不引入任何新契约成员、⛔ 不改被测文件。
+// 不引入任何新契约成员、不改被测文件。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -76,7 +71,7 @@ namespace SaveCheck
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 桩：玩家（`WriteTo` **逐字段照真实现**写；⛔ 不写 areaId —— 见文件头纪律 ①）
+    // 桩：玩家（`WriteTo` **逐字段照真实现**写；不写 areaId —— 见文件头纪律 ①）
     // ═════════════════════════════════════════════════════════════════════════
     internal sealed class StubPlayer : IPlayerModule
     {
@@ -104,7 +99,7 @@ namespace SaveCheck
         public int Gold { get; private set; }
         public Vector2Int Grid { get; private set; } = new Vector2Int(10, 10);
         public Vector3 World => new Vector3(Grid.x, Grid.y, 0);
-        /// <summary>⚠️ 必须写全名：`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` 同时可见 ⇒ 裸 `Dir8` 是 CS0104。</summary>
+        /// <summary>必须写全名：`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` 同时可见 ⇒ 裸 `Dir8` 是 CS0104。</summary>
         public Diablo2.Def.Dir8 Dir => Diablo2.Def.Dir8.S;
         public bool IsMoving => false;
         public bool IsRunning => true;
@@ -170,10 +165,9 @@ namespace SaveCheck
         }
 
         /// <summary>
-        /// ★ 与真 `<see cref="Diablo2.Module.PlayerModule.WriteTo"/>`（`Module/Player/PlayerModule.cs:448-477`）
+        /// 与真 `<see cref="Diablo2.Module.PlayerModule.WriteTo"/>`（`Module/Player/PlayerModule.cs:448-477`）
         /// **逐字段对齐**：真实现只写属性/等级/经验/金币/**位置**，并在 `:473` 明文声明
         /// 「mapSeed / **areaId** / 背包 / 任务：分别由 Flow、Map、Item、Quest 负责，**这里不碰**」。
-        /// ⇒ 本桩**故意不写 `save.areaId`**：写了就等于替被测代码把缺陷掩盖掉（见文件头纪律 ①）。
         /// </summary>
         public void WriteTo(CharacterSave save)
         {
@@ -189,7 +183,7 @@ namespace SaveCheck
             save.statPoints = StatPoints; save.skillPoints = SkillPoints; save.gold = Gold;
             save.gridX = Grid.x;
             save.gridY = Grid.y;
-            // ⛔ 这里**不得**出现 `save.areaId = …`（真实现不写；写了本宿主的断言就永远是绿的）
+            // 这里**不得**出现 `save.areaId = …`（真实现不写；写了本宿主的断言就永远是绿的）
         }
 
         public void Reset() { }

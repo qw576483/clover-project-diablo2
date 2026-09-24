@@ -1,31 +1,25 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/UiBar.cs  ★ 本项目新增（agent-09）
 // **血球 / 蓝球 / 经验条**的填充助手 —— 专门用来把 `constraints.md` #3 关死在门外。
 //
 // 约束原文（`tools/ai-skill/constraints.md` #3）：
-//   `Image.Type = Filled` + **没有 sprite** ⇒ `fillAmount` **静默失效**（零报错、画面不动）。
 //   血球（`healthbar.png`）/ 经验条（`ExperienceBar.png`）不要靠 fillAmount，
 //   或显式给一张 1×1 白 sprite。
 //
 // 本助手的做法（两条路都由 <see cref="Decide"/> 决定，可被离线自检断言）：
 //   · **锚点宽度/高度**：进度数学**全项目只有一份实现** —— **横向**一律走引擎
 //     `UIFactory.SetBarWidth`（`clover-client-unity-engine/Runtime/Presentation/UIWidgetControls.cs:239`），
-//     与设置面板音量条（`UiArt.ProgressBar`）同一条路径。本片（d2-bar）删掉了项目侧那两处平行实现。
 //   · **有 sprite** ⇒ `Filled` + `fillAmount`。这与**原版**完全一致：
 //     原版 `ControlPanel.prefab` 里 `HealthBar`/`ManaAnimation` 是 `m_Type=3`(Filled) +
 //     `m_FillMethod=1`(Vertical) + `m_FillOrigin=0`(Bottom) + sprite=`healthbar.png`/`manabar.png`；
 //     `Filler`（经验条）是 `m_Type=3` + `m_FillMethod=0`(Horizontal) + `m_FillOrigin=0`(Left) +
 //     sprite=`ExperienceBar.png`。**即原版就是 Filled + 真 sprite**（禁令禁的是「Filled + 空 sprite」）。
 //   · **没 sprite**（异步加载尚未回来 / 素材缺失）⇒ **绝不用 Filled**，
-//     改用**锚点宽度/高度**表达进度（横向委托引擎 `UIFactory.SetBarWidth`、纵向见下），
-//     这样在贴图到位前后都真的有画面反馈，且不会踩静默失效。
+// 改用**锚点宽度/高度**表达进度（横向委托引擎 `UIFactory.SetBarWidth`、纵向见下）。
 //
-// ⚠️ **引擎缺口（本片 d2-bar 规定不许改引擎 ⇒ 薄壳只能留在项目侧）**：
 //   `UIFactory.SetBarWidth(RectTransform, float)` 只覆盖**横向**（`anchorMax=(p,1)`），缺两样能力：
 //     ① **纵向条**（血球 / 蓝球自底向上，原版语义）—— 本文件 <see cref="ApplyAnchorVertical"/> 按
 //        引擎同一口径补：`anchorMin=(0,0)` / `anchorMax=(1,p)` / `offsetMin=offsetMax=0`。
 //     ② **有 sprite ⇒ 切 `Filled` + `fillAmount`** 的判定与切换（<see cref="Apply"/> 的 Filled 分支）。
-//   建议引擎签名（两条，向后兼容，⛔ 本片未改引擎）：
 //     `public static void SetBarFill(RectTransform fill, float progress01, bool horizontal)`
 //     `public static void SetBarFill(Image img, float progress01, bool horizontal)`
 //       （后者：`img.sprite != null` ⇒ `type=Filled` + fillMethod/fillOrigin + `fillAmount`；
@@ -35,7 +29,7 @@
 //   UiBar.Set(img, ResPaths.PanelHealthBar, 0.65f, horizontal: false);
 //   …贴图回来时助手会自己从「锚点模式」切到「Filled 模式」并保持当前比例。
 //
-// ⛔ 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / UnityEngine(.UI)。
+// 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / UnityEngine(.UI)。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -69,7 +63,6 @@ namespace Diablo2.UI
         }
 
         // 以 Image 自身为键（引用相等；`UnityEngine.Object` 已重写 Equals/GetHashCode）。
-        // ⚠️ 刻意不用 `Object.GetInstanceID()`：Unity 6000.6 已把它标记为 obsolete（CS0619 = 编译错误）。
         private static readonly Dictionary<Image, State> States = new Dictionary<Image, State>();
 
         /// <summary>
@@ -191,7 +184,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 真正落到 `Image` 上。
-        /// ⚠️ **几何契约**：填充块的父节点必须是「条/球的容器」（尺寸 = 条/球的尺寸）。
+        /// **几何契约**：填充块的父节点必须是「条/球的容器」（尺寸 = 条/球的尺寸）。
         /// 两种模式都按「铺满父节点」来算锚点，因此父节点是什么尺寸，进度就画在什么范围里
         /// —— 把填充块直接挂在铺满屏幕的面板根上会让进度条变成整屏色块（本项目已按此契约
         /// 在 `UiPanel` 侧建了容器，见 `HudPanel.BuildOrb` / 经验条的 track）。
@@ -215,11 +208,9 @@ namespace Diablo2.UI
                 return;
             }
 
-            // 无 sprite ⇒ **绝不用 Filled**（fillAmount 会静默失效），改锚点宽度/高度
             img.type = Image.Type.Simple;
             if (state.Horizontal)
             {
-                // 横向：**唯一实现**在引擎（本片收敛点）—— 引擎内部已含铺满父节点的归一化
                 UIFactory.SetBarWidth(img.rectTransform, ratio);
                 return;
             }

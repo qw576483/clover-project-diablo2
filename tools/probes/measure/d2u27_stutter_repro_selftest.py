@@ -24,9 +24,8 @@ FIXDIR = os.path.join(ROOT, ".ai-tmp/test/d2u27-stutter-selftest")
 
 IDLE_N = 41                 # 驱动声明每遍开场 40 帧静止（d2u27_jitter.cs:845-849）=> 实采 41 行
 STALL = 0.155077            # 注入的单帧卡顿值（= u27v9 A 档实测 max，便于对照）
-# A 档 targetFrameRate=60 => 目标周期 1/60。⚠️ 术语（team-lead 2026-09-24）：这里的
 # `dt <= 目标周期 + 半格` 叫**低半区**，本脚本判定的子集叫**长帧子集**；
-# ⛔ "未触顶帧"一词只属 ab_trend.py 的 ±1% 口径。
+# "未触顶帧"一词只属 ab_trend.py 的 ±1% 口径。
 CAP_A = 1.0 / 60.0
 
 
@@ -151,7 +150,7 @@ def m1a_head(out):
 
 
 def main():
-    # 同主脚本：本机控制台 cp936 印不出 ⛔(U+26D4) ⇒ 会把「打印子进程读数」这一步整个崩掉
+    # 同主脚本：本机控制台 cp936 印不出 (U+26D4) ⇒ 会把「打印子进程读数」这一步整个崩掉
     # （实测一次；读数没问题，坏的是输出编码）。退化成 '?' 比整段丢失好。
     try:
         sys.stdout.reconfigure(errors="replace")
@@ -182,11 +181,9 @@ def main():
     def chk(name, cond, detail):
         checks.append((name, bool(cond), detail))
 
-    # ---- (E) README §67 双检：`RESULT`/裁决行存在 **∧** 子进程退出码 == 0 ----
     #  为什么必须有：工具"被写入的中间态"被加载时会抛**非终止**异常 ⇒ 输出里**没有裁决行**、
     #  而退出码**仍是 0** ⇒ "没看到 FAIL 就当通过"那一刻判绿、实际什么都没判（select 亲测）。
     #  本自检本来就**结构性 fail-closed**（子进程崩 ⇒ m1_count 返回 None ⇒ A1 立刻红），
-    #  这里再把"退出码"和"裁决行在场"显式判一次，落成 §67 的机械版。
     chk("E1 clean 子进程 exit==0", rc1 == 0, "rc=%s" % rc1)
     chk("E2 bad   子进程 exit==0", rc2 == 0, "rc=%s" % rc2)
     chk("E3 两份输出都含裁决行 [M1] cad=A（无裁决行 = 工具故障 => 红）",

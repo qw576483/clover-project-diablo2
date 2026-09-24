@@ -1,19 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Core/Events.cs
 // 事件名 / 状态机站点名 / 触发器名**唯一来源**。
-// ⛔ `Game.Event.On/Emit/Off` 一律传本文件的常量，**禁止裸字符串**
-//    （裸字符串编译器查不出、改名必漏，`_common.md` §4 自检 ⑤ 会命中）。
+// `Game.Event.On/Emit/Off` 一律传本文件的常量，**禁止裸字符串**
 //
 // 命名法：`D2.{域}.{动作}`（`tools/ai-skill/conventions.md`「事件名」）。
-// ⚠️ 不要蹭引擎的 `Net.` / `App.` 前缀（会撞引擎事件名，`docs/步骤文档.md` §3.4）。
 //
-// ⛔ 契约冻结：标「契约 §3.5」的常量逐字来自 `docs/步骤文档.md` §3.5，**名字与参数类型都不许改**。
 //    其余为增补项（可增补、不许改已有的）。
 //
 // 参数约定（订阅方按此写 `Action<T>`）：
 //   无参          → `Game.Event.On(name, handler)`
 //   T             → `Game.Event.On<T>(name, handler)`
-//   ⚠️ `Game.Event` **没有句柄**：注销必须用**同一个方法引用**，长驻模块禁止用匿名 lambda。
+//   `Game.Event` **没有句柄**：注销必须用**同一个方法引用**，长驻模块禁止用匿名 lambda。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using UnityEngine;
@@ -24,46 +21,32 @@ namespace Diablo2.Core
     public static class Events
     {
         // ═════════════════════════════════════════════════════════════════════
-        // 契约 §3.5（**逐字冻结：名字 + 参数类型都不许改**）
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>契约 §3.5：启动画面完成（无参）。</summary>
         public const string BootDone = "D2.Flow.BootDone";
 
-        /// <summary>契约 §3.5：点击移动命令（参数 <see cref="Vector2Int"/> 格坐标）。</summary>
         public const string MoveCommand = "D2.Input.Move";
 
-        /// <summary>契约 §3.5：战斗目标变化（参数 <see cref="int"/> monsterId；-1 = 无目标）。</summary>
         public const string TargetChanged = "D2.Combat.TargetChanged";
 
-        /// <summary>契约 §3.5：产生伤害（参数 <c>Def.DamageArgs</c>）。</summary>
         public const string DamageDealt = "D2.Combat.Damage";
 
-        /// <summary>契约 §3.5：怪物被击杀（参数 <see cref="int"/> monsterId）。</summary>
         public const string MonsterKilled = "D2.Combat.Killed";
 
-        /// <summary>契约 §3.5：拾取物品（参数 <c>Def.ItemStack</c>）。</summary>
         public const string ItemPicked = "D2.Item.Picked";
 
-        /// <summary>契约 §3.5：背包/装备/腰带/金币发生变化（参数 <c>Def.InventoryChangedArgs</c>）。</summary>
         public const string InventoryChanged = "D2.Item.InventoryChanged";
 
-        /// <summary>契约 §3.5：升级（参数 <see cref="int"/> 新等级）。</summary>
         public const string LevelUp = "D2.Player.LevelUp";
 
-        /// <summary>契约 §3.5：任务状态变化（参数 <c>Def.QuestStateDto</c>）。</summary>
         public const string QuestChanged = "D2.Quest.Changed";
 
-        /// <summary>契约 §3.5：NPC 对话开始（参数 <c>Def.NpcDialogArgs</c>）。</summary>
         public const string DialogOpen = "D2.Npc.DialogOpen";
 
-        /// <summary>契约 §3.5：商店打开（参数 <c>Def.ShopOpenArgs</c>）。</summary>
         public const string ShopOpen = "D2.Npc.ShopOpen";
 
-        /// <summary>契约 §3.5：玩家死亡（无参）。</summary>
         public const string PlayerDied = "D2.Player.Died";
 
-        /// <summary>契约 §3.5：HUD 需要刷新（参数 <c>Def.PlayerStatsDto</c>）。</summary>
         public const string HudDirty = "D2.Ui.HudDirty";
 
         // ═════════════════════════════════════════════════════════════════════
@@ -121,25 +104,22 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 有新格**首次**被记为已探索（参数 <c>IReadOnlyCollection&lt;Vector2Int&gt;</c> = 本次新增的格集合）。
-        /// ★ 2026-09-23 新增（S2，Tab 自动地图的"记忆式已探索"数据源）。
         /// <para>
         /// **发方 = `Module/Map/MapModule.OnPlayerGridChanged`**（唯一发方），
         /// **只在 `MapView.MarkExplored` 回"这一格确实是第一次"时发**（重复走过同一格 **0 次**发出）
-        /// ⇒ ⛔ 不是每帧发、也不是每次 `PlayerGridChanged` 都发。
+        /// ⇒ 不是每帧发、也不是每次 `PlayerGridChanged` 都发。
         /// 载荷是"本次新增的格"（当前实现每次恰 1 格 + 1 个新数组引用 ⇒ 收方可以安全持有该引用）。
         /// </para>
         /// <para>
-        /// **收方 = `UI/MiniMapPanel`**（S1 提供的注入接缝，**已接线** 2026-09-23）：
         /// `MiniMapPanel.cs:678` 订阅本事件 / `:719-721` 转 `ApplyExplored(...)` / `:687` 注销。
         /// 接管后 `ExploredInjected == true`，面板**不再**自行揭示（接管前保留它自己的兜底口径）。
         /// </para>
         /// <para>口径 = 访问过即记忆、本局内累积、作用域为当前区域（详见 `IMapModule.ExploredCells`）。</para>
         /// <para>
-        /// ★ 片 save-progress 补充（2026-09-24）：**本事件不止 Map 会发** —— `App/AppSnapshots.cs` 在
         /// "面板打开前补发"（`MiniMapPanel` 那一条）时会把**当前权威集合**（`IMapModule.ExploredCells`）再播一次。
         /// 为什么必须：小地图面板是**懒创建**的（HUD 对它传 null + 面板在 `OnOpen` 才订阅），读档回灌发生在
         /// 面板存在之前 ⇒ 只靠增量事件它永远收不到"读档带回来的那批格"，automap 会退回"半径 6 兜底"口径。
-        /// 收方语义 = **并入（union）** ⇒ 重播全量是幂等的（⛔ 收方不得把本事件当"清空/替换"用）。
+        /// 收方语义 = **并入（union）** ⇒ 重播全量是幂等的（收方不得把本事件当"清空/替换"用）。
         /// </para>
         /// </summary>
         public const string MapExplored = "D2.Map.Explored";
@@ -171,8 +151,6 @@ namespace Diablo2.Core
         /// 收方：`Module/Item/ItemModule`（订阅后切 `Equipment` 的生效武器组）；
         /// 与 `Events.UseBeltRequest` 同一条"读键 → 发请求 → Item 侧改状态"的路子。
         /// </para>
-        /// <para>★ 本轮新增（T0 判据挖出的缺口 2「双武器组缺失」）；**只增不改**，
-        /// 因为原版 D2 确有双武器组（武器切换）而本工程此前 0 处消费该键位。</para>
         /// </summary>
         public const string SwapWeaponRequest = "D2.Item.SwapWeaponRequest";
 
@@ -184,7 +162,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 地面物品名牌变化（参数 <c>Def.GroundItemLabelsArgs</c>）。
-        /// <para>★ impl-I-input 新增。发送方 = `Module/Input/InputReader.UpdateHover`
+        /// <para>impl-I-input 新增。发送方 = `Module/Input/InputReader.UpdateHover`
         /// （消费 `InputReader.ShowGroundItems` = 原版 `Alt` 常显，以及当前悬停格）；
         /// 收方 = `UI/GroundItemLabelView`（HUD 持有的名牌层）。</para>
         /// <para>为什么需要它：原版 D2 悬停地面物品会显示该物品的名牌、按住 `Alt` 则常显全部
@@ -263,7 +241,7 @@ namespace Diablo2.Core
         /// <summary>
         /// 请求把某个技能槽键（原版 `F1`~`F8`）对应的已学技能绑到左/右键技能格
         /// （参数 <see cref="int"/> = 槽号 **1..8**：1~4 绑左键、5~8 绑右键）。
-        /// <para>★ impl-I-input 新增。发送方 = `Module/Input/InputReader.PollHotkeys`
+        /// <para>impl-I-input 新增。发送方 = `Module/Input/InputReader.PollHotkeys`
         /// （读键的唯一入口；键位单一来源 = `Def/GameKeyAlias.cs` 的 `SkillSlotKey(int)`）；
         /// 收方 = `Module/Skill/SkillModule`（把"第 N 个已学技能"解析出来并调契约的
         /// `ISkillModule.AssignToButton(button, skillId)`）。</para>
@@ -276,7 +254,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 左右键技能格的绑定发生变化（参数 <c>Def.SkillButtonsArgs</c>）。
-        /// <para>★ impl-I-input 新增。发送方 = `Module/Skill/SkillModule`
+        /// <para>impl-I-input 新增。发送方 = `Module/Skill/SkillModule`
         /// （`SelectSkill` / `AssignToButton` / `ResetForClass` 之后）；
         /// 收方 = `UI/HudPanel`（把 `LeftSkill` / `RightSkill` 两格的图标换成绑定技能的图标）。</para>
         /// <para>与既有的 <see cref="SkillSelected"/> 的区别：那个只带**右键**技能 id、只表达
@@ -309,9 +287,6 @@ namespace Diablo2.Core
         /// <summary>背包已满（无参）——收方 Toast「背包已满」。</summary>
         public const string InventoryFull = "D2.Item.InventoryFull";
 
-        // ── 以下 4 条为 **agent-12 新增**（只增不改：`docs/agents/agent-12-*.md` §3 第 7 项）──
-        //    UI 侧原先只能打 Warn「`Core/Events.cs` 里没有对应事件」而无法接线（见 `UI/InventoryPanel.cs`
-        //    与 `UI/DeathPanel.cs` 的注释）；常量补齐后由 `App/AppEventRouting.cs` 统一转发到门面方法。
 
         /// <summary>
         /// 请求卸下某装备槽。
@@ -325,7 +300,6 @@ namespace Diablo2.Core
         /// 请求在背包内移动/交换物品。
         /// 参数 <see cref="int"/> = `fromAnchor | (toAnchor &lt;&lt; 16)`（两个背包锚点格索引）。
         /// <para>
-        /// ★ 片 G1 起**真的落地**（修用户报的「道具没法拖动！」）：收方 =
         /// `App/AppEventRouting.cs` → `IItemModule.MoveItem(from, to, out reason)`
         /// （`Module/Item/ItemModule.cs`，落格实现 = `Inventory.Move`：空格放下 / 与另一件交换 /
         /// 大件放小空位 ⇒ 拒绝并把可直接展示的中文原因回给 UI 做 Toast）。
@@ -349,7 +323,6 @@ namespace Diablo2.Core
         public const string ShopOpenRequest = "D2.Npc.ShopOpenRequest";
 
         // ═════════════════════════════════════════════════════════════════════
-        // 传送点（Waypoint）★ 片 g1-resume 新增
         //
         // 契约（**只增不改**）：
         //   · 锚点数据 = `IMapModule.WaypointPoints`（罗格营地 1 个，坐标出自原版表）；
@@ -363,15 +336,15 @@ namespace Diablo2.Core
         /// <para>
         /// 发送方 = `UI/WaypointPanel.cs`（点列表里的一条目的地）。收方 = `App/AppWaypoint.cs`：
         /// 校验"该区域确实是已激活的目的地"后，转发 `Events.ExitEntered`（切区域那条既有链路
-        /// `AppFlow.EnterArea`）——⛔ 本事件**不绕过** `ExitEntered`，因为区域切换（重生成地图 /
+        /// `AppFlow.EnterArea`）——本事件**不绕过** `ExitEntered`，因为区域切换（重生成地图 /
         /// 移怪 / 挪玩家 / 关所有面板）的唯一实现就在那条链上。
         /// </para>
-        /// <para>非法请求（未激活 / 就是当前区域 / 地图未生成）⇒ 收方点名 Warn 并拒绝，⛔ 不静默。</para>
+        /// <para>非法请求（未激活 / 就是当前区域 / 地图未生成）⇒ 收方点名 Warn 并拒绝，不静默。</para>
         /// </summary>
         public const string WaypointTravelRequest = "D2.Map.WaypointTravelRequest";
 
         /// <summary>
-        /// 换区那次整图重铺**建满并已切换**（无参数）。★ travel-black 新增。
+        /// 换区那次整图重铺**建满并已切换**（无参数）。travel-black 新增。
         /// <para>
         /// 发送方 = `Module/Map/MapView.cs`（只在"这次重铺是**换区**触发的"那一次切换/保底铺完后发一次；
         /// 贴图到位重铺 / 迷雾开关重铺**不发**）。收方 = `Module/Flow/AppFlow.cs`。
@@ -437,22 +410,19 @@ namespace Diablo2.Core
         public const string LoadDone = "D2.Save.LoadDone";
 
         /// <summary>
-        /// ★ 片 save-progress 新增（2026-09-24）：**收集"由 App 层持有"的进度类状态**（参数 = 正在被收集的
-        /// <c>Def.CharacterSave</c>，收方**直接往里填字段**）。
         /// <para>
         /// 为什么需要它（链条断在哪）：`Module/Save/SaveModule.Save()`（无参）在**新造**的 `CharacterSave` 上
         /// 逐字段从 Live 收集（`Player.WriteTo` / `Item.WriteTo` / `Quest.WriteTo` / `WriteSkills` / Map 分支）；
         /// 而「传送点已激活列表」（`App/AppWaypoint.Visited`）与「小地图已探索格」（渲染层 `MapView._explored`
         /// 经 `IMapModule.ExploredCells`）的**持有者在 App / 渲染层**，模块侧拿不到
-        /// ⇒ 这两项**恒为默认值**（前片 `save-areaid` 的《同族穷举表》已点出，本片补上）。
         /// </para>
         /// <para>
-        /// 发方 = `Module/Save/SaveModule.Save()`（**与 `mapSeed`/`areaId` 同一个收集分支**，⛔ 不另开一条路）；
+        /// 发方 = `Module/Save/SaveModule.Save()`（**与 `mapSeed`/`areaId` 同一个收集分支**，不另开一条路）；
         /// 收方 = `App/AppProgress.cs`（把 `AppWaypoint.Visited` 与"每区域已探索格"填进
         /// `visitedWaypoints` / `exploredByArea`）。
         /// </para>
         /// <para>
-        /// ⛔ 语义边界：本事件**只填两个"App 层持有"的字段**，⛔ 不改其它字段（Player/Item/Quest/Skill
+        /// 语义边界：本事件**只填两个"App 层持有"的字段**，不改其它字段（Player/Item/Quest/Skill
         /// 的收集仍在 `SaveModule` 自己那几条写者里）；收方收到时 `data` 已基本填好，只负责补自己的两块。
         /// 无订阅者（离线宿主 / App 未接线）⇒ `SaveModule` 留一条 Warn、这两个字段保持空集合**照常存档**。
         /// </para>
@@ -460,20 +430,18 @@ namespace Diablo2.Core
         public const string SaveCollect = "D2.Save.Collect";
 
         /// <summary>
-        /// ★ 片 save-progress 新增（2026-09-24）：**把已探索格批量回灌进地图**（参数
-        /// <see cref="System.Collections.Generic.IReadOnlyCollection{T}"/> 的 <c>Vector2Int</c>，格坐标 = 区域局部）。
         /// <para>
         /// 发方 = `App/AppProgress.cs`（读档进图 / 换区铺装完成后，用存档里的 `exploredByArea` 解出来的格）；
         /// 收方 = `Module/Map/MapModule.cs`（把每格并进渲染层的已探索位图 —— 该位图是
         /// `IMapModule.ExploredCells` 的唯一权威，见 `MapView.MarkExplored`）。
         /// </para>
         /// <para>
-        /// ⛔ **方向与 <see cref="MapExplored"/> 相反**（那条是 Map → 收方报"新增了哪几格"；本条是收方 → Map
+        /// **方向与 <see cref="MapExplored"/> 相反**（那条是 Map → 收方报"新增了哪几格"；本条是收方 → Map
         /// 要求"把这批格记为已探索"）⇒ 不合并、不复用同一条常量。
         /// 收方语义 = **并入（幂等）**：已经探索过的格**不重复计数**、也不重复发 `MapExplored`；
         /// 只有真的新增了格才发**一条** `MapExplored`（载荷 = 本次新增的格）⇒ automap 侧照常按增量并入。
         /// </para>
-        /// <para>载荷为空 / 渲染层未铺装 ⇒ 收方点名 Warn 并忽略（⛔ 不静默）。</para>
+        /// <para>载荷为空 / 渲染层未铺装 ⇒ 收方点名 Warn 并忽略（不静默）。</para>
         /// </summary>
         public const string MapExploredRestore = "D2.Map.ExploredRestore";
 
@@ -496,7 +464,6 @@ namespace Diablo2.Core
 
         /// <summary>
         /// `Game.Fsm.RegisterState` / `AddTransition` / `Force` 用的站点名与触发器名。
-        /// 站点表与迁移图见 `docs/步骤文档.md` §5 与 `tools/ai-skill/registry.md`「流程站点」。
         /// </summary>
         public static class Fsm
         {

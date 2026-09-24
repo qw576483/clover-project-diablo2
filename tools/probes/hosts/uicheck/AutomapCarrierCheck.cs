@@ -1,9 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  AutomapCarrierCheck.cs（uicheck 宿主的一个检查节，片 automap-panel 新增）
 //
 //  判什么 —— 把「automap 面板开着却什么都没画」这句**表现类**抱怨，变成可离线判的数：
 //   ① **载体尺寸有效**：`ApplyMap` 的贴图尺寸公式对**真实地图尺寸**（56×40 = 罗格营地）必须
-//      非退化（>0），换算到画布（× `UiLayoutGame.K`）也必须 > 0。⛔ 判的是"尺寸会不会等于 0"，
+//      非退化（>0），换算到画布（× `UiLayoutGame.K`）也必须 > 0。判的是"尺寸会不会等于 0"，
 //      不是"够不够大"（观感不在这里判）。
 //   ② **数据非空 ⇒ 一定有墨（ink）**：对 `AutoMapCel.CelPixels` 里**每一个真实导出的帧**，
 //      各铺一格已探索 ⇒ `RenderExplored` 必须 **每个有 cel 的格都写出 ≥1 图元**
@@ -15,14 +14,12 @@
 //   ④ **载体接线**（源码级，口径 = 本宿主既有的 P5Check/V6Check 同款"必须存在的写法"）：
 //      `RawImage` 必须被赋 `texture`、必须 `Apply()` 上传、`raycastTarget` 必须 false、
 //      尺寸必须由贴图尺寸现算（`sizeDelta = … _texW … _texH …`）。
-//   ⑤ **needle 自检**（SKILL §8.3「闸门自身也要被闸」）：④ 用到的 needle 必须有
 //      已知正确样本命中 + 已知错误样本不命中（否则恒真 = 假判据）。
 //
 //  为什么能离线判：①②③ 全部走**产品自己的纯函数**（`RenderExplored` / `BlitInto` /
-//  `CreatePalette` / `CelPixels`），判据与产品同源、⛔ 不留第二份画法；④⑤ 是字符级断言。
-//  ⚠️ ④ 只判"必须存在的写法"，**不判风格**（同行既有做法）。
+//  `CreatePalette` / `CelPixels`），判据与产品同源、不留第二份画法；④⑤ 是字符级断言。
+//  ④ 只判"必须存在的写法"，**不判风格**（同行既有做法）。
 //
-//  ⛔ 本文件**没有**判"画面看起来像不像原版" —— 那要进 Play 采联络图（本片报告 §3）。
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System;
@@ -35,7 +32,6 @@ using UnityEngine;
 
 namespace Uicheck
 {
-    /// <summary>片 automap-panel：automap 绘制载体有效性（见文件头）。</summary>
     internal static class AutomapCarrierCheck
     {
         private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
@@ -101,7 +97,6 @@ namespace Uicheck
                 var used = new HashSet<int>();
                 foreach (var f in frames)
                 {
-                    // ⚠️ 主 agent 2026-09-24：此处原名 `px` 与**封闭作用域**里的同名局部变量冲突
                     //    （`uicheck exit=1` / `error CS0136: 无法在此范围中声明名为"px"的局部变量`），
                     //    导致 `offline-hosts` 由绿转红。**只改局部变量名（4 处），断言口径/阈值/文案一字未动。**
                     byte[] celPx;
@@ -127,9 +122,8 @@ namespace Uicheck
             var hasTextureAssign = code.Contains("_raw.texture = _tex;");
             var hasUpload = code.Contains("_tex.Apply(");
             var hasNoRaycast = code.Contains("_raw.raycastTarget = false;");
-            // ⚠️ needle 必须**锚定接收者**：只写 `sizeDelta = new Vector2(_texW *` 会同时命中
+            // needle 必须**锚定接收者**：只写 `sizeDelta = new Vector2(_texW *` 会同时命中
             //    `UpdateView` 里 `_overlay.sizeDelta = …` 那一行 ⇒ 把 ApplyMap 那行退化成 (0,0) 也照样绿
-            //    （片 automap-panel 实测踩到：这就是"判据恒真"）。⇒ 两条赋值**各自**点名。
             var sizeApplyMap = System.Text.RegularExpressions.Regex.IsMatch(
                 code, @"_raw\.rectTransform\.sizeDelta\s*=\s*new\s+Vector2\(\s*_texW\s*\*");
             var sizeUpdateView = System.Text.RegularExpressions.Regex.IsMatch(
@@ -145,7 +139,6 @@ namespace Uicheck
             var pos = System.Text.RegularExpressions.Regex.IsMatch(
                 "                _raw.rectTransform.sizeDelta = new Vector2(_texW * UiLayoutGame.K, _texH * UiLayoutGame.K);",
                 needle);
-            // 负样本 = 真的把载体尺寸写成 0（片 automap-panel 的退化实验用的就是这一行）
             var neg = System.Text.RegularExpressions.Regex.IsMatch(
                 "                _raw.rectTransform.sizeDelta = new Vector2(0f, 0f);   // 退化样本",
                 needle);
@@ -157,17 +150,14 @@ namespace Uicheck
                 pos && !neg && !neg2,
                 $"正样本命中={pos}；（尺寸=0）负样本={neg}；（只有 UpdateView 那行）负样本2={neg2} —— 两个都必须 False");
 
-            // ── ⑥ 「图心 = 玩家当前格」= 契约口径（片 automap-panel 定案：源头两行） ──────
             //   契约（`Module/Contracts.cs` 的 `MinimapArgs.playerX/Y` 注释）=「玩家所在格」。
-            //   实测踩到的缺陷：`MapModule.BuildMinimap` 填的是 `_grid.SpawnPoint` ⇒ 自动地图
             //   **完全以出生点为中心**（L3：玩家走到 (22,26) 开图，`mapPlayer==livePlayer=0`，
             //   叠加层位移与"玩家在出生点旁"那局逐字节相同）⇒ 用户说"地图没画出来"。
             //   ⇒ 本条把"源头必须填玩家当前格"钉成可离线判的数；退化（填回 SpawnPoint）必须变红。
             var mapSrcPath = Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts", "Module", "Map", "MapModule.cs");
             var mapSrc = File.Exists(mapSrcPath) ? Strip(File.ReadAllText(mapSrcPath)) : string.Empty;
             var contractPath = Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts", "Module", "Contracts.cs");
-            // ⚠️ 契约锚**必须读原文**（不许 `Strip`）：它判的就是 `/// <summary>` 注释本身
-            //    —— 我第一次写成 Strip(...) ⇒ 注释被逐行丢掉 ⇒ 断言假 FAIL（本行就是那次踩坑的修正）。
+            // 契约锚**必须读原文**（不许 `Strip`）：它判的就是 `/// <summary>` 注释本身
             var contractSrc = File.Exists(contractPath) ? File.ReadAllText(contractPath) : string.Empty;
 
             var pxToPlayer = mapSrc.Contains("playerX = _hasLastPlayerGrid ? _lastPlayerGrid.x : _grid.SpawnPoint.x");

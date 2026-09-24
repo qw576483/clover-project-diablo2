@@ -2,9 +2,8 @@
 # Usage: write the message into .ai-tmp/test/_hb_msg.txt, then run this.
 # Interface (team-lead adopted u52block's proposal): a report must NOT carry its own fingerprint
 # (self-reference paradox); the report's pointer = heartbeat LAST line.
-# team-lead rulings 2026-09-24:
 #   ① entry shape stays '[<ISO8601>] <msg>' -- do NOT reformat entries to satisfy a gate
-#      ("⛔ 不许为了让判据变绿去改证据的形状"; the line-start gate is the side being fixed).
+#      ("不许为了让判据变绿去改证据的形状"; the line-start gate is the side being fixed).
 #   ② REPLACE the previous stamp instead of appending a second one
 #      => 'REPORT-FINGERPRINT' appears exactly once and is the last line.
 import hashlib, io, os, datetime

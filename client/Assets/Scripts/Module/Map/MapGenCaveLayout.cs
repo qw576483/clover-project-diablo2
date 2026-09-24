@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Map/MapGenCaveLayout.cs
-// ⚠️ **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_cave_layout.py`）。
+// **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_cave_layout.py`）。
 //
 // 数据来源 = **原版** `data/global/tiles/ACT1/CAVES/*.ds1`（每块 25×25 格）
 //   （Blizzard North, 2000，取自 d2data.mpq；本项目非商用）。
@@ -29,7 +29,7 @@
 //   `Packs[packId]` → `Resources/Clover/D2/{Tiles,Objects}/<pack>/<idx>.png`
 //   `SymTable`          下标 → 字符的符号表（base = 表长，92）
 //
-// ⛔ **本产物与原版 ds1 逐格逐瓦片相同**：生成器**不凿洞、不改任何地面/物件瓦片**。
+// **本产物与原版 ds1 逐格逐瓦片相同**：生成器**不凿洞、不改任何地面/物件瓦片**。
 //   块内可走格若因"逐格抽象"断成几片，只保留**含全部开口**的那一片，
 //   其余可走格降级为 `X`（渲染键照旧 ⇒ 画面上一个像素都不动，只是走不过去）。
 //   每块可走格数：//   · caveN                  242 格

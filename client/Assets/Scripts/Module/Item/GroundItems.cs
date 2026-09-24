@@ -113,8 +113,7 @@ namespace Diablo2.Module.Item
         /// <summary>
         /// 距 <paramref name="from"/> 最近、且在 <paramref name="maxRange"/> 格内的地面物品 id（无则 -1）。
         /// <para>
-        /// ★ ★ 距离口径 = **Chebyshev（八向步数，`Iso.GridDistance`）**，⛔ 不是欧氏 ——
-        /// 与拾取判定的格邻接口径**同一个**（2026-09-23 修 N1：斜邻欧氏 √2≈1.414 会被
+        /// 距离口径 = **Chebyshev（八向步数，`Iso.GridDistance`）**，不是欧氏 ——
         /// `maxRange=1.0`（`ItemModule.ClickPickupSlack`）/`1.4`（`GameConst.PickupRange`）
         /// 判成"太远"⇒ 斜角的格子永远点不到、捡不到）。
         /// 8 邻域口径下斜邻 = **1 格**，与本项目"最近可走格回退"（`Module/Player/PlayerModule`）
@@ -143,7 +142,7 @@ namespace Diablo2.Module.Item
 
         /// <summary>
         /// 两格间**欧氏**距离（格为单位）。用途只剩**日志/诊断**（把"看起来多远"写清楚）；
-        /// ⛔ 判定一律走 Chebyshev（<see cref="Iso.GridDistance"/> / <see cref="Iso.IsAdjacent"/>）。
+        /// 判定一律走 Chebyshev（<see cref="Iso.GridDistance"/> / <see cref="Iso.IsAdjacent"/>）。
         /// </summary>
         public static float Distance(Vector2Int a, Vector2Int b)
         {

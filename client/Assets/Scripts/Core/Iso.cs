@@ -2,7 +2,6 @@
 // Diablo2 · Core/Iso.cs
 // 等距（isometric）投影的**项目门面**（`tools/ai-skill/conventions.md` §坐标与等距投影）。
 //
-// ★★★ 实现位置（agent-33「引擎下沉 A2」）：几何/排序/方向算法**已下沉到引擎**
 //   `CloverEngine.IsoLayout`（同源实现，逐行照搬本项目原 `Core/Iso.cs` 的算法与边界处理）。
 //   本文件**只留门面**，两类内容：
 //     · **保留在项目侧**（引擎刻意不做，属项目语义）：`HalfW` / `HalfH` / `TileWorldWidth` /
@@ -19,16 +18,16 @@
 //   正投影（格 → 世界）：x = (gx - gy) * HalfW ；y = -(gx + gy + 1) * HalfH
 //   逆投影（世界 → 格）：反解上面的线性方程组，再 **FloorToInt**
 //
-// ⛔ 逆投影必须 `Mathf.FloorToInt`（`constraints.md` #4）：C# 的 `(int)` 强转对**负数向零截断**，
+// 逆投影必须 `Mathf.FloorToInt`（`constraints.md` #4）：C# 的 `(int)` 强转对**负数向零截断**，
 //    会导致「图外可走」「格子错半格」。
-// ⛔ 深度排序必须随格子变化（`constraints.md` #5`），用 <see cref="SortOrder(Vector2Int)"/>。
+// 深度排序必须随格子变化（`constraints.md` #5`），用 <see cref="SortOrder(Vector2Int)"/>。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
 using Diablo2.Def;
 using UnityEngine;
 
-// ⛔ 必须留这个别名：`CloverEngine` 与 `Diablo2.Def` **都有一个 `Dir8`**（引擎自带的那份见
+// 必须留这个别名：`CloverEngine` 与 `Diablo2.Def` **都有一个 `Dir8`**（引擎自带的那份见
 //    `Runtime/Core/Dir8.cs`），同时 `using` 两个命名空间会让裸 `Dir8` 变成 CS0104 二义。
 //    用别名把裸 `Dir8` 定为**项目枚举**（对外签名文本因而一字未变），
 //    引擎枚举一律写成 `CloverEngine.Dir8`（只在下面 `DirectionDelta` 的转发里出现一次）。
@@ -81,7 +80,7 @@ namespace Diablo2.Core
         // ── 屏幕 → 世界/格 ──────────────────────────────────────────────────
         /// <summary>
         /// 屏幕坐标 → **地面（z = 0）**的世界坐标。
-        /// ⛔ 必须显式给「相机到地面的距离」，否则点击位置整体偏移（`constraints.md` #6）；
+        /// 必须显式给「相机到地面的距离」，否则点击位置整体偏移（`constraints.md` #6）；
         /// 本项目相机固定等距且为**正交**，距离 = `-camera.transform.position.z`。
         /// </summary>
         /// <param name="cam">主相机（**必须正交**）；为 null 时返回零向量并限频告警。</param>
@@ -117,7 +116,7 @@ namespace Diablo2.Core
         /// 桥面格的正南一格恒是桥栏杆物件，而栏杆图形自本格底边向上长 ≈2 格 ⇒ 普通实体档
         /// `4D+102` 必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。数值推导见
         /// <see cref="GameConst.LayerOffsetDeckEntity"/>。</para>
-        /// <para>⛔ 本方法是**纯函数**（不查地图、不碰渲染）⇒ 离线宿主（`mapcheck`）可逐格断言
+        /// <para>本方法是**纯函数**（不查地图、不碰渲染）⇒ 离线宿主（`mapcheck`）可逐格断言
         /// "桥面实体 &gt; 正南一格物件层 且 &lt; 正南两格物件层"。</para>
         /// </summary>
         public static int EntitySortOrder(Vector2Int g, bool isDeck)
@@ -140,8 +139,8 @@ namespace Diablo2.Core
         /// 格增量 → 8 方向朝向（**格空间增量 → 屏幕上的朝向**）。
         /// 权威表与推导在引擎 <see cref="IsoLayout.DirectionTo(Vector2Int)"/>（本方法只转发），此处照抄：
         /// <code>
-        ///   ( 0, +1) → SW   世界位移 (−HalfW, −HalfH) ⇒ 屏幕左下
-        ///   ( 0, -1) → NE   屏幕右上
+        ///   (0, +1) → SW   世界位移 (−HalfW, −HalfH) ⇒ 屏幕左下
+        ///   (0, -1) → NE   屏幕右上
         ///   (+1,  0) → SE   屏幕右下
         ///   (-1,  0) → NW   屏幕左上
         ///   (+1, +1) → S    屏幕正下      (-1, -1) → N    屏幕正上
@@ -150,11 +149,8 @@ namespace Diablo2.Core
         /// 推导：`GridToWorld` = `x=(gx−gy)·HalfW`、`y=−(gx+gy+1)·HalfH`
         /// ⇒ `Δworld = ((Δgx−Δgy)·HalfW, −(Δgx+Δgy)·HalfH)`，故 `(0,+1)` 是左下(SW)、`(+1,+1)` 才是正下(S)。
         /// <para>增量取符号后比较，故 (3, 7) 与 (1, 1) 结果相同。</para>
-        /// <para>⛔ **本表以前整档逆时针偏 45°**（`(0,+1)` 曾返回 `S`、`(+1,+1)` 曾返回 `SE`…）
-        /// —— 这正是"人物模型朝向不对"的根因之一（另一个是素材方向标签错位，见
-        /// `tools/d2codec/export_chars.py` 文件头）。由引擎 **E-core-19** 修复；
-        /// 自洽判据：`DirectionDelta(DirectionTo(delta))` 与 `delta` 的**符号方向一致**。</para>
-        /// <para>⛔ **枚举映射**：算法在引擎 <see cref="IsoLayout.DirectionTo(Vector2Int)"/>，
+        /// <para>自洽判据：<c>DirectionDelta(DirectionTo(delta))</c> 与 <c>delta</c> 的**符号方向一致**。</para>
+        /// <para>**枚举映射**：算法在引擎 <see cref="IsoLayout.DirectionTo(Vector2Int)"/>，
         /// 返回引擎 <see cref="CloverEngine.Dir8"/>。这里做的是**逐值直转**
         /// （`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` **必须同序同值**：
         /// `S=0 SW=1 W=2 NW=3 N=4 NE=5 E=6 SE=7`）——

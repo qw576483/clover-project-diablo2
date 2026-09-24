@@ -1,12 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// 片 5（「小地图 + 死亡屏 1:1」轮）离线断言。
 //
 // 覆盖两件事，全部**可离线计算**（不需要 Unity 原生）：
 //   ① 死亡屏（EndGame）的**拼装口径与布局**：4 块底图 = 原版 DC6 实测帧尺寸、拼成 320×480、
-//      ×1.8 居中、三行内容栈两两不重叠且都在面板内、旧版的裸魔数坐标已清 0。
 //   ② 小地图（MiniMapPanel）：**自加的标题/图例已删干净**、标记改成原版 `mapicon_*` 帧。
 //
-// ⛔ 只读断言，不改任何工程产物。
+// 只读断言，不改任何工程产物。
 // ─────────────────────────────────────────────────────────────────────────────
 using System;
 using System.Collections.Generic;
@@ -129,7 +127,7 @@ namespace Uicheck
             // 都在面板矩形内；且**同层**两两不相交：
             //   · 4 块底图之间不许相交（它们要拼成整幅画）；
             //   · 3 行内容之间不许相交（标题条 / 提示行 / 按钮）。
-            //   ⚠️ 内容行**本来就要画在底图之上**（底图是整幅画、文字/按钮叠在上面）
+            //   内容行**本来就要画在底图之上**（底图是整幅画、文字/按钮叠在上面）
             //      ⇒ 不把"底图 vs 内容行"算作冲突。
             var rects = UiLayoutGame.DeathRects();
             var bad = string.Empty;
@@ -161,13 +159,11 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ③ 死亡屏源码：旧版裸魔数坐标已清 0；用的是原版素材
         // ═════════════════════════════════════════════════════════════════════
         private static void DeathSource()
         {
             var src = File.ReadAllText(Path.Combine(Program.UiDir, "DeathPanel.cs"));
 
-            // 旧版四个裸魔数（片 5 前的写法）：900×80@(0,90) / 900×30@(0,20) / 260×46@(0,-60) / 76x150
             var oldMagic = new[]
             {
                 "900f, 80f", "900f, 30f", "260f, 46f", "new Vector2(0f, 90f)",
@@ -190,15 +186,12 @@ namespace Uicheck
             Program.Check("死亡屏源码：按钮文字 = 原版串表 id 3403「继续」（ContinueText）",
                 src.Contains("ContinueText") && src.Contains("3403"), "见 ContinueText 注释");
 
-            // ★ 实测踩过的坑（B31）：把「带下划线的前缀」交给 OrigButton ⇒ 拼成 `endgameok__0`
             //   （双下划线）⇒ 取不到图、按钮只是纯色块。这里把形状钉死。
             Program.Check("死亡屏源码：OrigButton 的前缀**不带结尾下划线**（防 `endgameok__0` 双下划线）",
                 src.Contains("ResPaths.MenuEndGameOK,")
                 && !src.Contains("MenuEndGameOK + \"_\""),
                 "见 Build() 的 UiArt.OrigButton 调用");
 
-            // ★ 实测踩过的坑（B35）：提示行超过 ~18 个中文字会**折成 2 行**，而该行框只有 1 行高
-            //   ⇒ 两行互相压字、第 2 行还压住按钮。判据 = 必须显式 `Overflow` 且文案是短句。
             Program.Check("死亡屏源码：提示行显式 `HorizontalWrapMode.Overflow`（B35：绝不换行）",
                 src.Contains("_hint.horizontalOverflow = HorizontalWrapMode.Overflow;"),
                 "见 Build()");
@@ -249,7 +242,6 @@ namespace Uicheck
             Program.Check("小地图源码：标记按原版图标是白模板 ⇒ 必须上色（SetArtTint）",
                 src.Contains("UiArt.SetArtTint(dot,"), "见 BuildMarkers()");
 
-            // ★ 片 `automap-original-verdict`（2026-09-22）：右上角**定尺框**口径已消除
             //   （原版 = 满屏叠加层）⇒ 断言它连同三个常量一起**不会回来**。
             var layoutSrc = File.ReadAllText(Path.Combine(Program.ProjectRoot, "client", "Assets",
                 "Scripts", "UI", "UiLayoutGame.cs"));
@@ -268,7 +260,7 @@ namespace Uicheck
                 Math.Abs(UiLayoutGame.MiniMapIconPx - 28.8f) < 0.01f,
                 $"iconPx={UiLayoutGame.MiniMapIconPx}");
 
-            // ── ★ w6：画法口径（从"大色块棋盘"换成"暗底 + 细线 / 小点"）──
+            // ── w6：画法口径（从"大色块棋盘"换成"暗底 + 细线 / 小点"）──
             //    色值**全部来自盘上原版 automap 家族素材的实测像素**（见 MiniMapPanel 文件头出处 A/B/C）。
             var oldPaint = string.Empty;
             foreach (var g in new[] { "ColWalkable", "ColBlocking", "ColExit", "ColInteractable",
@@ -277,7 +269,7 @@ namespace Uicheck
             Program.Check("小地图源码：旧「大色块」配色与 ColorOf() **0 命中**（画法已换代）",
                 oldPaint.Length == 0, oldPaint.Length == 0 ? "0 命中" : oldPaint);
 
-            // ── ★ 片 `automap-original-verdict`：画法 = **原版 cel**（`AutoMap.txt` 的 CelN → `MaxiMap.dc6`
+            // ── 片 `automap-original-verdict`：画法 = **原版 cel**（`AutoMap.txt` 的 CelN → `MaxiMap.dc6`
             //    帧，ACT1 调色板）blit 到 1/10 等距位置 —— 旧「程序化点阵 + 自选配色」口径已消除 ──
             var ghostPaint = string.Empty;
             foreach (var g in new[] { "ColBackdrop", "ColFloor", "ColBlock", "SuperSample",
@@ -287,7 +279,6 @@ namespace Uicheck
             Program.Check("小地图源码：旧「程序化点阵 + 本项目自选配色」的实现常量**全部删除**（0 命中）",
                 ghostPaint.Length == 0, ghostPaint.Length == 0 ? "0 命中" : ghostPaint);
 
-            // ── ★ S1（U46）改 needle：**判行为，不判写法**（SKILL §4.7）────────────────────────
             //   原 needle（脆弱判据 / 假判据）：`src.Contains("_map.CelAt(x, y, false)")` ——
             //     它把"**接收者正好叫 `_map`**"这个**实现细节的字面写法**当成验收对象：
             //     ① 只要有人把画法从实例方法提到**纯函数**（形参叫 `map`）就变红，而画法一字未改；
@@ -308,7 +299,6 @@ namespace Uicheck
                 "见 RenderExplored()（唯一画法；颜色只来自 ACT1 调色板表）；"
                 + $"地面层调用={celFloorCall} 物件层调用={celOverCall}");
 
-            // 闸门自身也要被闸（SKILL §8.3）：换过 needle 就必须做**两次**自检 ——
             // 已知正确样本必须命中（否则恒假），已知错误样本必须不命中（否则恒真 = 假判据）。
             var needlePos = System.Text.RegularExpressions.Regex.IsMatch(
                 "var floor = map.CelAt(x, y, false);", @"\.CelAt\(\s*x\s*,\s*y\s*,\s*false\s*\)");
@@ -357,7 +347,6 @@ namespace Uicheck
 
         /// <summary>
         /// 只留**代码行**（去掉 `//` / `*` / `/*` 起头的行）。
-        /// 为什么要它：源码文件头**必须**写清"旧口径已删除"，而那几句说明会**引用**旧常量名
         /// （如 `ColBackdrop`）⇒ 直接 `src.Contains` 会被自己的注释判红。
         /// 与 `tools/verify.ps1` 的 `-skipComment` 同口径。
         /// </summary>
@@ -374,18 +363,13 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ④-b ★ 片 `automap-original-verdict`（2026-09-22）：automap 素材「在不在」+ 原版口径的判据
         //
         // 结论（本机实测，两路互相印证）：
         //   · **已到位**：原版图块表 `ui/AUTOMAP/MaxiMap.dc6`（1260 帧 × 16×32）与逐格 Cel 表
-        //     `AutoMap.txt`（2603 行）—— 它们落在 `<仓库根>/原版资源/`（skill §1.9 的唯一落点；
-        //     `.gitignore` 排除）⇒ 下面的 `CheckOriginalRes` 从「[SKIP]」**自动变成真判**。
         //   · **在**（工程内）：automap 家族的横幅 5 张（`data/local/ui/chi/*.dc6` 解出）
         //     + 标记图标（`MINIMAP/mapicons.DC6` 的 8 帧 16×16 白模板）。
         //   · **仍不在工程内**（是**刻意**的）：`MaxiMap` 的帧**不整包复制**进 `Assets/`
         //     —— 只把被引用的那几帧的索引数据 + ACT1 调色板编进生成物
-        //     `client/Assets/Scripts/Core/AutoMapCel.generated.cs`（skill §3.6）。
-        //   ⇒ 现行画法 = 原版的「按 `AutoMap.txt` 的 Cel 号从 `MaxiMap.dc6` blit」口径（见 ⑯）。
         // ═════════════════════════════════════════════════════════════════════
         private static void MiniMapAutomapSource()
         {
@@ -445,7 +429,7 @@ namespace Uicheck
             Program.Check("automap 家族**标记图标** 8 帧（16×16）× 全在磁盘上、尺寸 = 原版（`MINIMAP/mapicons.DC6`）",
                 ok, ok ? $"{ResPaths.FrameCountMiniMapIcon} 帧全 16×16" : detail.ToString());
 
-            // ④ ★ 逐格 Cel：**独立重解析**原版 `AutoMap.txt`（⛔ 不信生成物），再对生成表做金标抽样。
+            // ④ 逐格 Cel：**独立重解析**原版 `AutoMap.txt`（不信生成物），再对生成表做金标抽样。
             var txt = Path.Combine(Program.OriginalResDir, "d2raw", "data", "global", "excel",
                 "AutoMap.txt");
             if (!File.Exists(txt))
@@ -493,7 +477,6 @@ namespace Uicheck
             }
 
             // 金标抽样：值由 `python tools/probes/gen_automap.py` 复算（口径见生成物文件头）；
-            // 生成链路一漂移，这几条就变红（⛔ 不是"从生成物里抄一遍"）。
             var golden = new (int Area, bool Obj, string Key, int Cel)[]
             {
                 (0, false, "moor_bridge/020", 0), (0, true, "moor_bridge/001", 60),

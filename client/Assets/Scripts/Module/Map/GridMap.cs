@@ -3,19 +3,17 @@
 // **业务侧格子地图数据**：`TileKind[,]` + 元数据（seed / 出生点 / 出口 / NPC / 刷怪点）
 // + 可走查询 + A* 转发 + BFS 连通性自检。
 //
-// ★ 2026-09-24 下沉：**纯格子算法**（8 邻接表 / BFS / 孤立口袋填充 / 必需可达计数 / 边界环封 /
-//   可走格索引与 O(1) 抽样 / 矩形·直线·圆盘批写）已搬进引擎件 `CloverEngine.GridGraph`，
 //   本文件只保留**本项目语义**（`TileKind` 地形、`MapLog` 日志、地图名/尺寸口径）并通过
 //   `WalkableInGraph` 回调接入 —— 引擎件不认识任何一款游戏的地形枚举。
 //   公开方法签名与语义**一字未改**（调用点零改动）。
 //
-// ⛔ 本项目**不做** CloverMap（引擎二进制地图）的解析与生成，也**不使用** `Game.Map`：
+// 本项目**不做** CloverMap（引擎二进制地图）的解析与生成，也**不使用** `Game.Map`：
 //    原版野外/地牢每局随机生成，与引擎「静态烘焙地图」语义不符
 //    （`tools/ai-skill/conventions.md` §与全局 skill 的差异）。
 //    本项目地图 = 纯业务格子数据，**未重造任何二进制格式**。
 //
-// ⛔ 可走性**唯一判定**在 `Def.TileKindInfo.IsWalkable`（不在本文件重写判等表）。
-// ⛔ 坐标 (gx, gy)：`_tiles[gx, gy]`，x ∈ [0,Width)、y ∈ [0,Height)。
+// 可走性**唯一判定**在 `Def.TileKindInfo.IsWalkable`（不在本文件重写判等表）。
+// 坐标 (gx, gy)：`_tiles[gx, gy]`，x ∈ [0,Width)、y ∈ [0,Height)。
 //    等距投影由 `Core/Iso`（项目门面，实现在引擎 `CloverEngine.IsoLayout`）负责，本文件**不涉及**任何渲染。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -31,13 +29,13 @@ namespace Diablo2.Module.Map
     /// <summary>格子地图数据与查询（无 MonoBehaviour、无渲染）。</summary>
     public sealed class GridMap
     {
-        // ── 格子算法底座（★ 下沉：本文件原有的 8 邻接表 / BFS / 孤立口袋填充 / 边界环封 /
+        // ── 格子算法底座（下沉：本文件原有的 8 邻接表 / BFS / 孤立口袋填充 / 边界环封 /
         //    可走格缓存 / 批操作**全部**搬进了引擎件 `CloverEngine.GridGraph`）────────────
         // 为什么必须下沉：这些是**任何**格子图游戏都要的通用算法，而「BFS 与 A* 的对角口径
         //   必须逐行一致」这条一旦各写一份，就会出现「可达性自检通过、寻路走不过去」的静默不一致。
         //   引擎件与 `CloverEngine.AStar` 用**同一个** `Func<Vector2Int,bool>` 契约与同一套越界口径
-        //   ⇒ 本文件的 `WalkableInGraph` 可以同时喂给两者（见引擎件文件头 ★）。
-        // ⛔ 保留下来的仍是**本项目语义**：`TileKind` / 地形名字 / `MapLog` / 地图尺寸口径 ——
+        //   ⇒ 本文件的 `WalkableInGraph` 可以同时喂给两者（见引擎件文件头 ）。
+        // 保留下来的仍是**本项目语义**：`TileKind` / 地形名字 / `MapLog` / 地图尺寸口径 ——
         //   引擎件只吃回调，不认识任何一款游戏的地形枚举。
 
         private TileKind[,] _tiles;
@@ -46,18 +44,17 @@ namespace Diablo2.Module.Map
         // 为什么要它：`MapView` 默认按 `TileKind` 分类抽一张同类瓦片，那是"能看"的近似；
         // 而原版的营地与洞穴是**每一格都有确定的一张瓦片**（取自原版 ds1），
         // 只有逐格记住才能 1:1 还原（含"原版这格什么都不画"的黑区）。
-        // ⛔ 为空 = 该格按 `TileKind` 走默认瓦片（野外路径），**不是**"画空白"。
+        // 为空 = 该格按 `TileKind` 走默认瓦片（野外路径），**不是**"画空白"。
         private string[] _groundKeys;
         private string[] _objectKeys;
         private bool _tileOverrides;
 
         // ── 逐格「deck（可走上方的结构：桥面/平台/甲板）」标记 ───────────────────
-        // 为什么要它（2026-09-22，用户实测「营地出门的桥，还是从桥下走」）：
         //   等距排序值 = `(gx+gy)*SortOrderStep + SortOrderBase + 层偏移`（`Core/GameConst.cs`）。
         //   桥面格的正南一格**恰好是桥的栏杆物件**，而栏杆图形自本格底边向上长 ≈2 格
         //   ⇒ 站在桥面上的实体按普通实体档 `4D+102` 排，必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住
         //   （确定性必然）。视图层据此对"站在 deck 上的实体"改用 `GameConst.LayerOffsetDeckEntity`。
-        // 登记口径（⛔ 数据驱动，不按坐标硬编码）：该格的**地面瓦片键取自 deck 类包**（`DeckTiles`）
+        // 登记口径（数据驱动，不按坐标硬编码）：该格的**地面瓦片键取自 deck 类包**（`DeckTiles`）
         //   **且该格可走** —— 栏杆行的地面铺的是同一份桥面图集，但那些格不可走，不算桥面。
         private bool[] _deck;
 
@@ -67,7 +64,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 可走格缓存（`RandomWalkableTile` 用它做 **O(1)** 抽样，避免在洞穴里瞎猜）。
-        /// <para>★ 缓存本体已下沉到引擎件 <see cref="GridGraph.WalkableIndex"/>：同一套
+        /// <para>缓存本体已下沉到引擎件 <see cref="GridGraph.WalkableIndex"/>：同一套
         /// 「`x` 外层升序、`y` 内层升序」的填充顺序 ⇒ 同 seed 的抽样序列**逐项可复现**。</para>
         /// </summary>
         private readonly GridGraph.WalkableIndex _walkableIndex = new GridGraph.WalkableIndex();
@@ -110,7 +107,6 @@ namespace Diablo2.Module.Map
         public readonly List<Vector2Int> MonsterSpawns = new List<Vector2Int>();
 
         /// <summary>
-        /// 传送点交互锚点（★ 片 g1-resume；见 `IMapModule.WaypointPoints` 的口径）。
         /// 目前只有罗格营地有 1 个；其余区域为空列表。
         /// </summary>
         public readonly List<Vector2Int> WaypointPoints = new List<Vector2Int>();
@@ -320,7 +316,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 标记该格为 **deck**（站在上面的实体在视图层会抬一档排序）。
-        /// <para>⚠️ 正常路径**不需要**显式调它：`SetTiles` 已按「地面键取自 deck 类包 + 本格可走」
+        /// <para>正常路径**不需要**显式调它：`SetTiles` 已按「地面键取自 deck 类包 + 本格可走」
         /// 自动登记；本方法供自证/特例使用。</para>
         /// </summary>
         public void MarkDeck(int x, int y)
@@ -353,7 +349,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// 整图填充（★ 下沉：遍历顺序由引擎件 <see cref="GridGraph.Fill"/> 给，本项目只给"写什么"）。
+        /// 整图填充（下沉：遍历顺序由引擎件 <see cref="GridGraph.Fill"/> 给，本项目只给"写什么"）。
         /// </summary>
         public void Fill(TileKind kind)
         {
@@ -364,7 +360,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 矩形填充（左下角 = (x0,y0)，尺寸 w×h；超出部分自动裁剪）。
-        /// <para>★ 下沉：遍历 + 裁剪在引擎件 <see cref="GridGraph.FillRect"/>；`false` = 尺寸非法、
+        /// <para>下沉：遍历 + 裁剪在引擎件 <see cref="GridGraph.FillRect"/>；`false` = 尺寸非法、
         /// **一格都没写**（由本方法留痕 —— 引擎不替调用方打业务日志）。</para>
         /// </summary>
         public void FillRect(int x0, int y0, int w, int h, TileKind kind)
@@ -381,7 +377,6 @@ namespace Diablo2.Module.Map
         public void FillRect(Vector2Int origin, int w, int h, TileKind kind) => FillRect(origin.x, origin.y, w, h, kind);
 
         /// <summary>
-        /// ★ 片 map-border：**边界环格数** —— 可走区离地图四边界的最小格数。
         /// <para>出处（两条，互相印证）：</para>
         /// <para>① **原版地形**：`原版资源/d2lod1.10txt-1.10f/data/global/excel/Levels.txt`
         /// 「Act 1 - Wilderness 1」(= Blood Moor) `SizeX = SizeY = 80`；
@@ -397,13 +392,12 @@ namespace Diablo2.Module.Map
         public const int BorderRingCells = 8;
 
         /// <summary>
-        /// ★ 片 map-border：把**边界环**（距任一地图边 &lt; <paramref name="n"/> 格的所有格）里
-        /// 现在还可走的格封成**不可走地形**（`blockKind`：树 / 崖壁 / 石墙，⛔ 不是 `Void`）。
+        /// 现在还可走的格封成**不可走地形**（`blockKind`：树 / 崖壁 / 石墙，不是 `Void`）。
         /// <para>为什么必须在地图侧封而不是在相机侧夹：相机侧夹制要求「机位离边界 ≥ 7.083 格」，
         /// 而可走区一直铺到最外圈时玩家自己就能走到离边界 1 格处 ⇒ 两侧数学互斥
         /// （`camera-follow` 片结论）。封住边界环后，可走区天然满足「机位 = 玩家 ⇒ 零虚空」。</para>
-        /// <para>⛔ **不缩小地图**：外圈格仍然铺着原版地面/物件瓦片（只是不可走），
-        /// 画面上是一圈树线/崖壁，⛔ 不是黑虚空。</para>
+        /// <para>**不缩小地图**：外圈格仍然铺着原版地面/物件瓦片（只是不可走），
+        /// 画面上是一圈树线/崖壁，不是黑虚空。</para>
         /// </summary>
         /// <returns>被封掉的格数（= 0 属非预期分支，会留 Warn）。</returns>
         public int SealBorderRing(int n, TileKind blockKind)
@@ -411,8 +405,8 @@ namespace Diablo2.Module.Map
             if (_tiles == null) { MapLog.Error("SealBorderRing: 地图未 Reset"); return 0; }
             if (n <= 0) { MapLog.Warn($"SealBorderRing: n={n} 非法（必须 > 0），忽略"); return 0; }
 
-            // ★ 下沉：「距任一图边 < n 格」的判定 + 遍历顺序在引擎件 `GridGraph.SealBorderRing`；
-            //   "封成什么地形"由本方法给（blockKind，⛔ 不是 Void —— 外圈仍铺着原版地面/物件瓦片）。
+            // 下沉：「距任一图边 < n 格」的判定 + 遍历顺序在引擎件 `GridGraph.SealBorderRing`；
+            //   "封成什么地形"由本方法给（blockKind，不是 Void —— 外圈仍铺着原版地面/物件瓦片）。
             var sealedCount = GridGraph.SealBorderRing(Width, Height, n, WalkableInGraph,
                 (x, y) => _tiles[x, y] = blockKind);
             _countsDirty = true;
@@ -427,21 +421,21 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 画一条水平线（含两端；端点顺序无所谓）。
-        /// ★ 归一化 + 遍历在引擎件 <see cref="GridGraph.LineH"/>；越界的 `x` 照旧交给 <see cref="Set"/> 留痕。
+        /// 归一化 + 遍历在引擎件 <see cref="GridGraph.LineH"/>；越界的 `x` 照旧交给 <see cref="Set"/> 留痕。
         /// </summary>
         public void LineH(int y, int xFrom, int xTo, TileKind kind)
             => GridGraph.LineH(y, xFrom, xTo, (px, py) => Set(px, py, kind));
 
         /// <summary>
         /// 画一条垂直线（含两端；端点顺序无所谓）。
-        /// ★ 归一化 + 遍历在引擎件 <see cref="GridGraph.LineV"/>；越界的 `y` 照旧交给 <see cref="Set"/> 留痕。
+        /// 归一化 + 遍历在引擎件 <see cref="GridGraph.LineV"/>；越界的 `y` 照旧交给 <see cref="Set"/> 留痕。
         /// </summary>
         public void LineV(int x, int yFrom, int yTo, TileKind kind)
             => GridGraph.LineV(x, yFrom, yTo, (px, py) => Set(px, py, kind));
 
         /// <summary>
         /// 只在地面（可走）格上写物件，避免把土路/出入口覆盖掉。
-        /// <para>★ 下沉：可走判定（含"图外一律不可走"）在引擎件 <see cref="GridGraph.SetOnWalkable"/>，
+        /// <para>下沉：可走判定（含"图外一律不可走"）在引擎件 <see cref="GridGraph.SetOnWalkable"/>，
         /// 喂进去的是本项目的唯一可走口径 <see cref="WalkableInGraph"/>。</para>
         /// </summary>
         /// <returns>是否真的写入了。</returns>
@@ -457,21 +451,21 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 把以 center 为中心、半径 r 的圆盘内**已是可走**的格写成 kind。
-        /// ★ 圆盘遍历在引擎件 <see cref="GridGraph.PaintDiskWalkable"/>（它内部逐格走可走判定 ⇒ 图外格不会被写）。
+        /// 圆盘遍历在引擎件 <see cref="GridGraph.PaintDiskWalkable"/>（它内部逐格走可走判定 ⇒ 图外格不会被写）。
         /// </summary>
         public void PaintDiskWalkable(Vector2Int center, int r, TileKind kind)
             => GridGraph.PaintDiskWalkable(WalkableInGraph, center, r, (x, y) => SetOnWalkable(x, y, kind));
 
         /// <summary>
         /// 把以 center 为中心、半径 r 的圆盘**无条件**写成 kind（挖洞/开地）。
-        /// ★ 圆盘遍历在引擎件 <see cref="GridGraph.FillDisk"/>；越界格照旧交给 <see cref="Set"/>（由其留痕）。
+        /// 圆盘遍历在引擎件 <see cref="GridGraph.FillDisk"/>；越界格照旧交给 <see cref="Set"/>（由其留痕）。
         /// </summary>
         public void FillDisk(Vector2Int center, int r, TileKind kind)
             => GridGraph.FillDisk(center, r, (x, y) => Set(x, y, kind));
 
         /// <summary>
         /// 把该格周围 (2·radius+1)² 的方块写成 kind（**超出图的部分自动裁剪**）—— 出生点净空/门口开地用它。
-        /// ★ 遍历 + 裁剪在引擎件 <see cref="GridGraph.FillRect"/>（写格仍经 <see cref="Set"/>）。
+        /// 遍历 + 裁剪在引擎件 <see cref="GridGraph.FillRect"/>（写格仍经 <see cref="Set"/>）。
         /// </summary>
         public void ClearAround(Vector2Int center, TileKind kind, int radius = 1)
             => GridGraph.FillRect(center.x - radius, center.y - radius, 2 * radius + 1, 2 * radius + 1,
@@ -479,7 +473,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 该格是否已有可走的 8 邻（用于判断「这面岩壁是否露出到视野里」）。
-        /// ★ 邻接表用引擎件 <see cref="GridGraph.Neighbors8"/>（与 BFS / `AStar` 同一份，⛔ 不再自留第二份）。
+        /// 邻接表用引擎件 <see cref="GridGraph.Neighbors8"/>（与 BFS / `AStar` 同一份，不再自留第二份）。
         /// </summary>
         public bool HasWalkableNeighbor(Vector2Int g)
         {
@@ -495,7 +489,6 @@ namespace Diablo2.Module.Map
         // 查询 / 寻路 / 抽样
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>出生点及 8 邻是否全部可走（角色一出生就被卡死 = 严重缺陷，生成时必须校验）。</summary>
         public bool IsSpawnClear(Vector2Int spawn, int radius = 1)
         {
             for (var x = spawn.x - radius; x <= spawn.x + radius; x++)
@@ -534,7 +527,7 @@ namespace Diablo2.Module.Map
                 MapLog.Warn("RandomWalkableTile: 本图没有任何可走格（生成失败？），返回出生点");
                 return SpawnPoint;
             }
-            // ★ O(1) 取值走引擎件 `GridGraph.WalkableIndex.Pick`（这里传的 `rng.Next(Count)` 恒合法；
+            // O(1) 取值走引擎件 `GridGraph.WalkableIndex.Pick`（这里传的 `rng.Next(Count)` 恒合法；
             //   真越界时引擎会收敛 + 降频 Warn —— 那是本方法不可能产生的状态，留痕即可）
             return _walkableIndex.Pick(rng.Next(_walkableIndex.Count));
         }
@@ -576,7 +569,7 @@ namespace Diablo2.Module.Map
                 return 0;
             }
 
-            // ★ 下沉：8 邻接 BFS 在引擎件 `GridGraph.FloodFill` —— **同一份**邻接表 / 对角口径
+            // 下沉：8 邻接 BFS 在引擎件 `GridGraph.FloodFill` —— **同一份**邻接表 / 对角口径
             //   （对角要求两侧格都可走，否则 BFS 会「贴着墙角穿过去」而 `AStar` 不会）。
             //   上面三条前置判定**留在本项目**：它们要打业务日志（引擎只认识"调用方违约"）。
             return GridGraph.FloodFill(WalkableInGraph, Width, Height, from, visited);
@@ -586,7 +579,6 @@ namespace Diablo2.Module.Map
         /// 把「从 <paramref name="from"/> 走不到的孤立可走口袋」填成 <paramref name="fill"/>。
         /// <para>
         /// 为什么必须做：`RandomWalkableTile` 是**掉落与刷怪的落点来源**，
-        /// 一旦落进这种口袋，掉落物永远拿不到、怪物永远打不了 —— 静默的玩法缺陷。
         /// 它同时让「可达格数 == 可走格数」成为可自检的硬不变量。
         /// </para>
         /// </summary>
@@ -601,8 +593,7 @@ namespace Diablo2.Module.Map
                 return 0;
             }
 
-            // ★ 下沉：孤立口袋扫描在引擎件 `GridGraph.FillUnreachablePockets`（遍历顺序 x 外层升序、
-            //   y 内层升序 —— **顺序即契约**，改前/改后逐行取证才能直接 diff）。
+            // 下沉：孤立口袋扫描在引擎件 `GridGraph.FillUnreachablePockets`（遍历顺序 x 外层升序、
             //   "填成什么地形"与"哪些格受保护"由本方法给（引擎不认识 `TileKind` / `RequiredReachable`）。
             Func<Vector2Int, bool> protect = protectRequired ? (Func<Vector2Int, bool>)IsRequiredTarget : null;
             var filled = GridGraph.FillUnreachablePockets(WalkableInGraph, Width, Height, visited, protect,
@@ -658,9 +649,8 @@ namespace Diablo2.Module.Map
                 return false;
             }
 
-            // ★ 下沉：目标可达性计数在引擎件 `GridGraph.CountUnreachableTargets`（它内部做一次
+            // 下沉：目标可达性计数在引擎件 `GridGraph.CountUnreachableTargets`（它内部做一次
             //   **同口径** BFS ⇒ 与上面 `FloodFillFrom` 的可达数必然相等；多一次扫描只发生在地图
-            //   生成期、不在热路径）。"第一个不可达目标"的口径与旧实现逐字一致。
             unreachableCount = GridGraph.CountUnreachableTargets(WalkableInGraph, Width, Height, SpawnPoint,
                 RequiredReachable, out _, out firstUnreachable);
 
@@ -697,9 +687,7 @@ namespace Diablo2.Module.Map
                 for (var y = 0; y < Height; y++) seen.Add(_tiles[x, y]);
             }
 
-            // ★ 下沉：可走格列表 + 可走计数在引擎件 `GridGraph.WalkableIndex.Rebuild`
-            //   （填充顺序 **x 外层升序、y 内层升序** —— 与旧实现逐字相同 ⇒ 同 seed 的抽样序列可逐项复现）。
-            //   障碍数 = 总格数 − 可走数（旧实现逐格 else 计数，口径等价）。
+            // 下沉：可走格列表 + 可走计数在引擎件 `GridGraph.WalkableIndex.Rebuild`
             _walkableCount = _walkableIndex.Rebuild(WalkableInGraph, Width, Height);
             _blockedCount = Width * Height - _walkableCount;
 
@@ -732,7 +720,6 @@ namespace Diablo2.Module.Map
                 case TileKind.CaveWall:
                 case TileKind.Exit:
                 case TileKind.TownFloor:
-                // ★ 片 L / R12：新登记的 `TileKind.Water` 必须在这里也登记一次 ——
                 //   否则逐格扫描会把它当"未登记的 TileKind"打 Warn（假告警）。
                 case TileKind.Water:
                     return true;

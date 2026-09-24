@@ -137,10 +137,10 @@ def report_file(path, rows):
     n = len(rows)
 
     print('== ab_trend ==  tsv=%s' % path)
-    # ⚠️ 必须打**解析后的绝对路径**：读文件用的是进程 CWD，而 `cd` 只改 shell 的 location
+    # 必须打**解析后的绝对路径**：读文件用的是进程 CWD，而 `cd` 只改 shell 的 location
     #    （实测本机 PS location = <项目根> 而进程 CWD = 工作区根 ⇒ 同名文件会被**静默读错**：
     #     同一条 `.ai-tmp/test/u27-heartbeat.txt` cmdlet 读 37674 B / .NET 读 118 B）。
-    #    这里把"实际读了哪个文件"印出来，配合下面的 self-fingerprint ⇒ 读错必现形，⛔ 别删这行。
+    #    这里把"实际读了哪个文件"印出来，配合下面的 self-fingerprint ⇒ 读错必现形，别删这行。
     print('   resolved=%s' % os.path.abspath(path))
     print('   self-fingerprint sha256_16=%s bytes=%d lines=ReadAllLines().Count=%d mtime=%.0f'
           % (sha16, nbytes, n + 1, mtime))
@@ -195,7 +195,7 @@ def report_file(path, rows):
         print('     %s n=%d median=%.6f mean=%.6f p95=%.6f max=%.6f'
               % (tag, len(xs), st.median(xs), st.fmean(xs), pct(xs, 0.95), xs[-1]))
 
-    # ── R-SPIKE：dt >= SPIKE_S 的单帧（只报数；SPIKE_S = 报数桶，⛔ 不是判据）────
+    # ── R-SPIKE：dt >= SPIKE_S 的单帧（只报数；SPIKE_S = 报数桶，不是判据）────
     print('  --- R-SPIKE dt>=%.3fs 单帧（只报数；%.3fs=报数桶, ⛔ 不是判据）---' % (SPIKE_S, SPIKE_S))
     for tag in ('A', 'B'):
         hits = [r for r in rows if r[12] == tag and float(r[2]) >= SPIKE_S]
@@ -246,7 +246,7 @@ def main(argv):
     paths = [p for p in argv if p and not p.startswith('-')]
     bad = [p for p in paths if not os.path.isfile(p)]
     if not paths or bad:
-        # ⚠️ 把 cwd 印出来：相对路径按**进程 CWD** 解析（`cd` 不影响它）⇒ 从工作区根跑会静默
+        # 把 cwd 印出来：相对路径按**进程 CWD** 解析（`cd` 不影响它）⇒ 从工作区根跑会静默
         #    去找 `<工作区根>\.ai-tmp\...` 的同名文件。这里选择 **fail-loud（exit 2）** 而非读错，
         #    并把 cwd 摆给调用方 ⇒ 换绝对路径即可。
         print('USAGE: python tools/probes/measure/ab_trend.py <d2u27-*.tsv> [<second.tsv>]'

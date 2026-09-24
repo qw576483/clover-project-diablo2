@@ -78,10 +78,9 @@ namespace CloverEngine
 
     /// <summary>
     /// 自检宿主用的事件总线（按事件名 + `DynamicInvoke` 派发）。
-    /// ★ **派发顺序必须与真引擎一致**：`Runtime/Core/Event.cs:141-143` 说明存储是
+    /// **派发顺序必须与真引擎一致**：`Runtime/Core/Event.cs:141-143` 说明存储是
     ///   「执行顺序的逆序」，`InvokeHandlers` 倒序遍历 ⇒ **同优先级 = 后注册先执行**、
     ///   priority 大者先执行。老版本这里按注册顺序正序派发，与真引擎相反 ——
-    ///   于是"订阅顺序假设写反了"这类 bug 在离线宿主里**测不出来**（agent-14 §B 现象 3 就是它漏掉的）。
     /// </summary>
     public sealed class ConsoleEventBus : IEventBus
     {
@@ -239,7 +238,6 @@ namespace CloverEngine
             Color bg, Action onClick) => null;
         public static Camera UICamera() => null;
         /// <summary>`Runtime/Presentation/UIWidgetControls.cs:239`（同 `UIFactory` 的另一半）。
-        /// ★ 片 d2-bar：项目侧条状控件已收敛到这一件（`UiBar` 横向 / `UiArt.ProgressBar` / `SettingsPanel`）
         /// ⇒ 宿主不链它就会 CS0117。这里的实现与引擎**逐字一致**（离线下无 Unity 节点，`fill` 为 null 时直接返回）。</summary>
         public static void SetBarWidth(RectTransform fill, float progress01)
         {
@@ -292,7 +290,6 @@ namespace CloverEngine
         string CurrentScene { get; }
         void Load(string sceneName, Action<float> progress = null, Action onDone = null);
         void Unload(string sceneName, Action onDone = null);
-        /// <summary>`Runtime/Core/PresentationContracts.cs:196`（agent-17 §A 起 `Module/Flow/AppFlow` 用它识别"Stage 场景被重载"）。</summary>
         void OnSceneLoaded(Action<string> handler);
         /// <summary>`Runtime/Core/PresentationContracts.cs:198`。</summary>
         void OnSceneUnloaded(Action<string> handler);
@@ -320,7 +317,6 @@ namespace CloverEngine
         void LoadAsset<T>(string path, Action<T> cb) where T : UnityEngine.Object;
         T TryGet<T>(string path) where T : UnityEngine.Object;
 
-        // ★ agent-34（引擎下沉 A3）：引擎 `IResourceManager` 新增这两个**同步**入口
         //   （`Exists` = 只回答"在不在"；`LoadAll` = 会加载、批量取）。
         //   `client/Assets/Scripts/UI/{UiArt,D2Text,D2Icon}.cs` 与 `Core/ClientConfig.cs` 已从
         //   「直连 Unity 的 Resources」切到它们（验收表 E1 例外消失）⇒ 替身必须跟着长出来，
@@ -431,10 +427,9 @@ namespace UnityEngine
     /// <summary>
     /// `UnityEngine.Time` 的替身。真身是**原生 ECall**，在非 Unity 进程里读写会抛
     /// `SecurityException: ECall methods must be packaged into a system module`
-    /// ⇒ 离线宿主原先根本走不了 `Pause` 站点（`AppFlow.OnEnterPause/OnExitPause` 要写 `Time.timeScale`）。
     /// 本替身让那两条路径可离线复现（**CS0436**：与引用的 `UnityEngine.CoreModule` 里的同名类型冲突，
     /// **源码优先**；已在 csproj 的 NoWarn 里放行）。
-    /// ⚠️ 只覆盖本项目实际用到的 4 个成员；真引擎改签名时这里会编译报错（哨兵作用保留）。
+    /// 只覆盖本项目实际用到的 4 个成员；真引擎改签名时这里会编译报错（哨兵作用保留）。
     /// </summary>
     public static class Time
     {

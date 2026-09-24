@@ -27,7 +27,7 @@ PROJECT = os.path.dirname(os.path.dirname(HERE))          # <仓库根>/clover-p
 FRONTEND = os.path.join(PROJECT, "client", "Assets", "Resources", "Clover", "D2", "UI", "FrontEnd")
 FLOW = os.path.join(PROJECT, "client", "Assets", "Scripts", "UI", "UiLayoutFlow.cs")
 
-# ⚠️ 标记要**带缩进**（16 空格 = `Transition` 类成员缩进）：脚本是"就地替换标记之间"的写法，
+# 标记要**带缩进**（16 空格 = `Transition` 类成员缩进）：脚本是"就地替换标记之间"的写法，
 #    不带缩进会把标记行前面的 16 个空格一起吃掉。
 IND = " " * 16
 BEGIN = IND + "// >>> R1-C portrait transition frame table (generated) >>>"
@@ -102,7 +102,7 @@ def render(seqs, nl):
 
 def main():
     seqs = collect()
-    # ⚠️ 行尾必须**照原样保留**（本文件是 CRLF）：不这么做会把 1447 行整体改成 LF，
+    # 行尾必须**照原样保留**（本文件是 CRLF）：不这么做会把 1447 行整体改成 LF，
     #    git diff 会变成"全文件重写"，看不出真实改动。
     with open(FLOW, "r", encoding="utf-8", newline="") as f:
         src = f.read()

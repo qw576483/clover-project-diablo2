@@ -848,7 +848,6 @@ namespace X
     public partial class Driver : MonoBehaviour
     {
         private string _tag = "run1";
-        // 2026-09-23 (impl-U-play): optional 5th spec field -- stop the tour right after the named
         // station completes.  Existing 4-field specs keep the full-tour behaviour (empty = no stop).
         // Purpose: re-capture a SINGLE deep tile without re-running the whole ~520s tour, so the
         // runner never has to clear the other 82 delivered tiles.
@@ -3253,10 +3252,8 @@ namespace X
         // event is logged once per quality (see TooltipTitleReady).
         private bool _tiReadyLogged;
         // ---------------------------------------------------------------------------------------
-        // SAVE-SIDE BACKUP + RESTORE (impl-V-recapture, 2026-09-23)
         // The tour runs on a PERSISTED character whose bag is FULL (measured 40/40).  A probe item
         // can then never be added, and for a quality whose item is not already in the bag the anchor
-        // resolves to -1 => F1-tooltips skips that row silently (measured 2026-09-23 08:47:
         // anchors=[5,27,-1,7,23] => no hover, no GRID=F1-q2, no x_f1_tooltip_q2.png).
         // Fix: make room by taking a stack OUT of the bag (the object is HELD, never destroyed) and
         // put it back from F1-tooltips once the last hover has been shot => the save is left as
@@ -3276,7 +3273,6 @@ namespace X
         private int _g4KillsBefore;
         // ids killed at least once during the G4 den clear.  Fallen Shamans revive a corpse with the
         // SAME id, so a "nearest alive" loop can pin itself on one revived zombie for ever (measured
-        // 2026-09-21: 5 shamans in the den, denAreaAlive stuck at 14 for 430 attacks, the player then
         // died and the whole tail of the tour timed out).  Preferring an id we have never killed
         // makes the loop take out the revivers instead.
         private readonly HashSet<int> _g4Dead = new HashSet<int>();
@@ -3398,7 +3394,6 @@ namespace X
         /// <summary>Evict every bag stack that OVERLAPS the <paramref name="w"/>x<paramref name="h"/>
         /// rectangle whose top-left cell is <paramref name="anchorIndex"/>.
         /// <para>WHY A RECTANGLE AND NOT ONE CELL: `Inventory.TryPlace` is a row-major first-fit scan
-        /// bound by the item's own gridW/gridH (measured 2026-09-23: freeing ONE cell was enough for the
         /// 1x3 probe but the Rare probe (armour, 2x2/2x3) was still refused -- "背包已满" was the old bag
         /// state, so the 08:56 re-run planted the Normal probe instead).  Since the bag is FULL, freeing
         /// exactly this rectangle leaves it as the only free space, and the row-major scan therefore
@@ -3843,7 +3838,6 @@ namespace X
             Add("F1-tools-setup", () =>
             {
                 var added = 0;
-                // PLANT ORDER (impl-V-recapture 2026-09-23): q=2 (Rare) is processed FIRST.  The bag is
                 // FULL (40/40) so exactly one cell has to be freed, and AddToInventory fills the lowest
                 // free cell -- planting the Rare probe first therefore puts it in the freed cell, which is
                 // the only way to reproduce the 09-21 row shape (anchorCell=5 id=47 resolve=exact).
@@ -3864,7 +3858,6 @@ namespace X
                     // probe item may already sit in the bag from an earlier run.  Either way the hover
                     // target must be a BAG slot (the only cells CellNodeOfInventory can point at), so the
                     // anchor is resolved the SAME way for all five qualities: exact id+quality first, then
-                    // any bag item of that quality.  (Measured 2026-09-21: q0 was the only probe whose item
                     // -- id 11, the short sword -- lived in the EQUIP slot, so its exact lookup returned -1
                     // and F1-tooltips skipped it outright: no hover, no shot, no x_f1_tooltip_q0.png.)
                     var anchor = FindAnchorCellIndex(_tiItemId[q], q);

@@ -42,7 +42,6 @@ except ImportError:
     import dt1 as dt1mod
     import export_tiles as exp
 
-# 解包产物统一在 `<项目根>/原版资源/d2raw`（skill §1.9）。
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RAW = os.path.join(_REPO, '原版资源', 'd2raw')
 DEFAULT_OUT = os.path.join(_REPO, 'client', 'Assets', 'Scripts', 'Module', 'Map',

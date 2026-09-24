@@ -11,12 +11,10 @@
 //   `monumod_c`（精英词缀）→ hp_mul/dmg_mul/ac_mul/tohit_add/res_*/cpick·upick（抽取权重）
 //   `monster_c.min_grp/max_grp` → 官方"成群出现"的群大小
 //
-// 刷怪位置（**片 3 起改成原版口径**：逐格抽样，见 `MonsterSpawner.Build` 里的长注释）：
 //   · **普通怪** = 原版逐格抽样命中的格（每格 `MonDen/100000`）⇒ 命中格各刷一群；
 //     出处 `Diablerie/.../Engine/World/LevelBuilder.cs:225-237`；
 //   · **精英群**（`mon_umin/mon_umax`）仍自己挑锚点：洞穴用 `MonsterSpawns`、
 //     野外用 `RandomWalkableTile(rng)`（官方只规定"刷几群"，没规定落点）。
-//   ⚠️ `IMapModule.MonsterSpawns`（洞穴生成 45 个）自片 3 起**只被精英群使用**，
 //      普通怪不再用它 —— 但仍由 `MapGenCave` 继续产出（契约 `IMapModule` 的字段没改、宿主仍在断言它）。
 //
 // 官方 `MonAi.txt` 的 AI 名 → 契约的 4 种 `MonsterAI` 的**映射表**见 `MapAi`（唯一一处）。
@@ -26,7 +24,6 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// ★ agent-33 引擎下沉 A2：引擎侧新增了**同名**枚举 `CloverEngine.Dir8`（`Runtime/Core/Dir8.cs`），
 //   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
 //   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
 using Dir8 = Diablo2.Def.Dir8;
@@ -52,13 +49,10 @@ namespace Diablo2.Module.Monster
         /// 官方**没有**这一项：官方就是"逐格独立抽样，命中多少格就刷多少群"
         /// （见 <see cref="DensitySampleRange"/> 的出处）⇒ 本常数只用于**防呆**
         /// （`level_c.mon_density` 多写一位数时别一次刷出上千只把帧率打死），
-        /// ⛔ 不许拿它当"设计上的群数上限"用。
+        /// 不许拿它当"设计上的群数上限"用。
         /// </para>
         /// <para>
         /// 取 200 的依据：80×80 血腥荒野实测平均可走 4399 格
-        /// （`.ai-tmp/hosts/mapcheck` §13，20 个 seed：min 4235 / max 4614）× `MonDen=520/100000`
-        /// ⇒ 期望 **22.9 群 / 41.9 只**（群大小取 `monster_c.min_grp..max_grp` 均值 1.83）
-        /// ⇒ 200 群 ≈ 期望值的 **8.7 倍**，够宽；只有配表写错才可能触顶。
         /// </para>
         /// </summary>
         private const int MaxPacksSafetyValve = 200;
@@ -119,7 +113,7 @@ namespace Diablo2.Module.Monster
             {
                 for (var gy = 0; gy < map.Height; gy++)
                 {
-                    // ⚠️ 命中判定与官方**逐字同构**：`sample = rand(0,100000); if (sample >= MonDen) continue;`
+                    // 命中判定与官方**逐字同构**：`sample = rand(0,100000); if (sample >= MonDen) continue;`
                     if (rng.Next(0, DensitySampleRange) >= areaRow.MonDensity) continue;
 
                     var g = new Vector2Int(gx, gy);
@@ -281,7 +275,6 @@ namespace Diablo2.Module.Monster
         /// 选一个群锚点（**只给精英群用**）：洞穴用 `MonsterSpawns`，野外用 `RandomWalkableTile`；
         /// 并保证离玩家出生点 ≥ `MonsterTuning.SpawnMinDistanceFromPlayer`。
         /// <para>
-        /// ⚠️ 片 3 起普通怪不再走这里（改走原版逐格抽样的命中格）；本函数只剩精英群一个调用点。
         /// </para>
         /// </summary>
         private static Vector2Int? PickAnchor(MonsterModule owner, Rng rng, Vector2Int playerSpawn)
@@ -313,7 +306,6 @@ namespace Diablo2.Module.Monster
                 return g;
             }
 
-            // 退让：严格条件达不到时接受任意可走格（否则"一只怪都刷不出来"是更糟的静默缺陷）
             var fallback = useSpawns ? spawns[rng.Next(spawns.Count)] : map.RandomWalkableTile(rng);
             if (map.Walkable(fallback))
             {
@@ -423,8 +415,7 @@ namespace Diablo2.Module.Monster
                 Row = row,
                 Area = area,
                 Home = grid,
-                // ★ 片 16（消除 E27）：第 6 项 = 官方 `MonStats.ResMa`（魔法抗性）。
-                //   ⚠️ 顺序**必须**与 `Def.DamageType` 逐值一致：物(0)/火(1)/冰(2)/电(3)/毒(4)/魔(5)
+                //   顺序**必须**与 `Def.DamageType` 逐值一致：物(0)/火(1)/冰(2)/电(3)/毒(4)/魔(5)
                 //   —— `MonsterRuntime.ResistOf` 就是按 `(int)type` 下标取的。
                 Resists = new[]
                 {
@@ -486,8 +477,7 @@ namespace Diablo2.Module.Monster
             // 注意：**这里不夹取** —— 官方对**怪物**的抗性不设上限（参考实现 `combat.zig:299-313`
             // "MONSTERS have NO cap"），结算处 `DamageFormula.ApplyResist` 也只在 `>= 100`（免疫）时归零。
             // 玩家侧的元素抗性上限 75% 由 `Module/Player/PlayerStats.MaxResist` 在**取值时**夹好。
-            // ★ 片 16（E27）：顺序按 `Def.DamageType` 下标（物/火/冰/电/毒/**魔**），
-            //   ⚠️ **不是** `monumod_c` 的列序（那张表的列序是 物/魔/火/冰/电/毒）。
+            //   **不是** `monumod_c` 的列序（那张表的列序是 物/魔/火/冰/电/毒）。
             var add = new[] { mod.ResPhys, mod.ResFire, mod.ResCold, mod.ResLight, mod.ResPoison, mod.ResMagic };
             for (var i = 0; i < m.Resists.Length && i < add.Length; i++)
             {

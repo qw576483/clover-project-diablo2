@@ -1,6 +1,5 @@
 // =============================================================================
 // s3_drive.cs -- ONE Play session that produces the S3 verdict for four
-//   user-reported defects of the 2026-09-23 round:
 //     U26/U36  character vs NPC overlap flicker   -> same-cell multi-frame sort sequence
 //     U33      mouse near the character has no effect -> hover hit record near/far
 //     U40      red goblin: no hit animation        -> monster GetHit frame-number sequence
@@ -543,7 +542,7 @@ namespace S3D
                                 + " in " + (Time.unscaledTime - _travelAt).ToString("0.0") + "s");
                             Goto(13); return;
                         }
-                        // ⛔ the deadline only applies AFTER the walk was actually issued: `_travelAt` is 0
+                        // the deadline only applies AFTER the walk was actually issued: `_travelAt` is 0
                         // until then, and `Time.unscaledTime` is already > 40s by the time this step runs in
                         // a slow boot (measured 17:01: the old form timed out on the very first frame and the
                         // whole monster half of the chain was skipped).
@@ -882,7 +881,7 @@ namespace S3D
                 + " screenRect=(" + x0.ToString("0") + "," + y0.ToString("0") + ")-(" + x1.ToString("0") + "," + y1.ToString("0") + ")");
 
             // (a)/(b)/(c) points ON the body -> must hit; (d)/(e)/(f) points off it -> must NOT hit.
-            // ⛔ the anchors are resolved at INJECTION time against the current camera (see PointFor):
+            // the anchors are resolved at INJECTION time against the current camera (see PointFor):
             //    a screen point frozen here was measured ~2300 px off because the camera was still
             //    catching up after the teleport (17:05 run, inRect=0 for every probe).
             _hoverProbes.Add(new HoverProbe { anchor = "rectFrac", fx = 0.5f, fy = 0.5f, name = "body_center", note = "inside sprite" });

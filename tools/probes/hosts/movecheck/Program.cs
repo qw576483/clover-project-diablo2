@@ -1,14 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MoveCheck · 片 2b「移动手感（速度 / 步频同步 / 走跑两套动画）+ 相机视野 + 怪物速度」数值自证
 //
 // 只做**数值与纯逻辑**断言（不依赖 Unity 原生、不进 Play）：
-//   §1 速度常量（玩家跑/走）        §2 相机视野（正交尺寸 / 可见格高）
-//   §3 怪物速度量纲（官方 Velocity → 格/秒）
-//   §4 帧率口径（FpsForCycle / SpeedScaleForCycle / IsMoveAnim）
-//   §5 帧数表与 ViewAnim 下标一致（run 列）+ 帧键拼法 + 缺 RN 的回退
-//   §6 ★ 核心：用**真 SpriteAnimator** 逐帧推进，实测「移动动画有效帧率 = 帧数 × 速度」
 //
-// ⛔ 本宿主不复制任何被测逻辑：链的是 client/Assets/Scripts/** 的真实源码。
+// 本宿主不复制任何被测逻辑：链的是 client/Assets/Scripts/** 的真实源码。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -18,7 +12,6 @@ using Diablo2.Def;
 using Diablo2.Module;
 using Diablo2.Module.Monster;
 using Diablo2.Module.View;
-// 接缝判据用例（§4）要摆 `Vector2Int`；本宿主另 `using Diablo2.Def;`（其中无同名类型）⇒ 显式取 Unity 的。
 using Vector2Int = UnityEngine.Vector2Int;
 
 namespace MoveCheck
@@ -158,9 +151,7 @@ namespace MoveCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 10. ★ U33「鼠标在人附近移动没效果，必须要远」：按住左键 + 鼠标**慢慢拖**
-        //     出处 = `策划/策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行「按住左键持续更新目标」
-        //     ⇒ 每一格鼠标位移都要重定标；旧口径（差 1 格忽略 / 脚下格忽略）会让慢拖**全程无效**。
+        // 10. U33「鼠标在人附近移动没效果，必须要远」：按住左键 + 鼠标**慢慢拖**
         //     这里按真调用方（`Module/Player/PlayerModule.HandleMoveIntent` ② 支）的循环推进：
         //     `ShouldRetarget` 返回 true ⇒ 记下新目标，否则保持旧目标。
         // ═════════════════════════════════════════════════════════════════════
@@ -206,19 +197,17 @@ namespace MoveCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 8. ★ 片 T（S-08 出口判据同源 / S-19 NPC 站位不落 (0,0)）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 片 T 的两条判据，全部打在**真源码**上（真 `MapModule` + 真 `PlayerModule` + 真 `NpcModule`）：
         /// <list type="number">
         /// <item><b>S-08 出口判据同源</b>：`PlayerModule.CheckExit` 用 `IMapModule.Area` 推"目标区域"，
         ///   `AppFlow.EnterArea` 也改判 `map.Area` ⇒ 逐区域逐出口走上去，断言
-        ///   「过门请求恰好 1 次 **且** 目标区域 ≠ 当前区域」（⛔ 自环出口 = 玩家走到出口不换图）。</item>
+        ///   「过门请求恰好 1 次 **且** 目标区域 ≠ 当前区域」（自环出口 = 玩家走到出口不换图）。</item>
         /// <item><b>S-19 NPC 站位</b>：站位只来自 `IMapModule.NpcPoints`。城镇里逐格等于地图点位；
         ///   非城镇区域**不装配**（旧实现落 (0,0) ⇒ 洞里靠近原点误开阿卡拉对话）。</item>
         /// </list>
-        /// ⛔ 不复制被测逻辑：只读真模块的公开接口。
+        /// 不复制被测逻辑：只读真模块的公开接口。
         /// </summary>
         private static void Section8_ExitAndNpc()
         {
@@ -317,7 +306,7 @@ namespace MoveCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 7. ★ 移动抖动（R1-D · 候选②「动画被反复打回第 0 帧」的离线判定）
+        // 7. 移动抖动（R1-D · 候选②「动画被反复打回第 0 帧」的离线判定）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -483,7 +472,7 @@ namespace MoveCheck
         private static int SpriteFrameCountsRun(string unitKey) => SpriteFrameCounts.Of(unitKey, ViewAnim.Run);
 
         /// <summary>
-        /// ★ 核心实测：用真 <see cref="SpriteAnimator"/> 播某动作，倍率按
+        /// 核心实测：用真 <see cref="SpriteAnimator"/> 播某动作，倍率按
         /// `SpeedScaleForCycle(帧数, 速度, 基准帧率)` 设置，逐帧 `Tick(Dt)` 跑 <paramref name="seconds"/> 秒，
         /// 数出**帧号变化的次数** ⇒ 实测帧率，与 `帧数 × 速度` 比。
         /// </summary>
@@ -548,16 +537,11 @@ namespace MoveCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 9. ★ 片 M3（2026-09-23）：实体排序的**确定性 tie-break**
-        //    用户症状：「人物与 npc 重合时候，会闪一会人物一会 npc」。
-        //    根因：同格（或 gx+gy 相同）的两个实体 `sortingOrder` **完全相等**，世界坐标 z 也都是 0
-        //          ⇒ Unity 只剩"到相机距离"可判、而距离也相等 ⇒ 每帧交替。
-        //    修法（本片）：`ViewModule.SortTieZ`（类型档 + EntityId 的纯函数）当 z 次级键（见那里的注释）。
         //    判据（数值类，秒级，不进 Play）：
         //      ① 纯函数：100 次重复调用结果恒定；
         //      ② 同格 4 个实体的次级键两两不等（比较键唯一 ⇒ 次序确定，不依赖渲染器提交顺序）；
         //      ③ 100 次比较的**次序完全一致**，且次序 = 玩家 > NPC > 怪物 > 地面物品。
-        //    ⛔ 只加断言，不改既有判据。
+        //    只加断言，不改既有判据。
         // ═════════════════════════════════════════════════════════════════════
         private static void Section9_SortTieBreak()
         {
@@ -628,7 +612,6 @@ namespace MoveCheck
             Check("玩家在 NPC 之前（用户症状：同格时不许闪）", zs[0] < zs[1],
                 $"玩家 z={zs[0]:0.0000} < NPC z={zs[1]:0.0000}");
 
-            // ④ ★ 片 M3：东边界接缝判据（`MapSeam`，用户症状「穿过桥去不了下一张地图」）
             //    纯函数 ⇒ 直接断言；出处见 `Module/Map/MapSeam.cs` 文件头。
             var townW = GameConst.TownWidth;
             Check("接缝判据：城镇东边界列上的桥面格 = 接缝（真）",
@@ -648,8 +631,7 @@ namespace MoveCheck
                     new Vector2Int(townW - 1, 25), true),
                 "Area=BloodMoor ⇒ 只有城镇那条共享边列是接缝");
 
-            // ⑤ ★ 片 black-why2：过接缝进荒野之后的**落点**（`MapGenWilderness.PickSpawn`）。
-            //    ⛔ 只加断言：M3 已定稿的接缝连通性判定 / 桥面可走掩码 / 实体排序口径一律原样不动。
+            //    只加断言：M3 已定稿的接缝连通性判定 / 桥面可走掩码 / 实体排序口径一律原样不动。
             var entryN = Diablo2.Module.Map.MapGenWilderness.EntryMarginCells;
             //    `MapModule` 是 internal ⇒ 与 mapcheck 同口径：本宿主把同一批源码编进本程序集后直接 new。
             var bm = new Diablo2.Module.Map.MapModule();
@@ -667,7 +649,6 @@ namespace MoveCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 11. ★ U26「人物穿模」/ U36「人物与 npc 重合时候，会闪一会人物一会 npc」（2026-09-24）
         //     台账 = `策划/自审对比/bug清单.md:83` / `:93`，两条都卡在「V5 单帧判不了，缺多帧序列」
         //     ⇒ 本节把「多帧序列」补上（仍是离线数值断言，秒级，不进 Play）。
         //
@@ -684,7 +665,6 @@ namespace MoveCheck
         //       ⓑ 再证明现口径在**三种位形 × 60 帧**上零不可判别、次序恒定、且不违反主键优先；
         //       ⓒ 换另一条候选裁决口径（Perspective：到相机位置的距离）复核，证明结论**不依赖**
         //         Unity 到底把 `TransparencySortMode.Default` 解析成哪一种。
-        //     ⛔ 只加断言，不改既有判据（§9 原样不动）。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>每种位形的采样帧数（≥30；dt = 1/60 ⇒ 60 帧 = 1 秒 ≈ 3 格路程）。</summary>
@@ -702,7 +682,7 @@ namespace MoveCheck
             town.Generate(AreaId.Town, 0);
             var npcGrid = town.NpcPoints[(int)NpcId.Akara];
 
-            // NPC 实体 id 走**生产口径**（`ViewModule.NpcEntityId` 是 private ⇒ 反射取，⛔ 不另写一份）
+            // NPC 实体 id 走**生产口径**（`ViewModule.NpcEntityId` 是 private ⇒ 反射取，不另写一份）
             var npcIdMethod = typeof(ViewModule).GetMethod("NpcEntityId",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             var npcEntityId = npcIdMethod != null
@@ -781,7 +761,7 @@ namespace MoveCheck
                 $"(恒 = {ViewModule.EntitySortOrder(gridSeq[0])}) ⇒ 整段走位每帧都要靠第三键决胜；" +
                 "旧口径 ⇒ 整段都在交替，正是用户说的「闪**一会**」而不是「闪一帧」");
 
-            // ── 三种位形（都是「主键恒相等」的关系；⛔ 位形由格偏移定义，不是编出来的坐标）──────
+            // ── 三种位形（都是「主键恒相等」的关系；位形由格偏移定义，不是编出来的坐标）──────
             var shapes = new[] { new Vector2Int(0, 0), new Vector2Int(1, -1), new Vector2Int(2, -2) };
             var shapeNames = new[] { "1 严格同格", "2 相邻格同 y", "3 同 y 不同格" };
             var shapeGaps = new[] { "世界 Δ=(0,0)", "世界 Δ=(2,0)", "世界 Δ=(4,0)" };
@@ -810,7 +790,7 @@ namespace MoveCheck
 
                     var pOrder = ViewModule.EntitySortOrder(pGrid);
                     var nOrder = ViewModule.EntitySortOrder(nGrid);
-                    // ⚠️ 两条候选口径必须用**同一个实际 transform 位置**（含 z 次级键）——
+                    // 两条候选口径必须用**同一个实际 transform 位置**（含 z 次级键）——
                     //    第三键取错基准（拿裸世界坐标而不是 `EntityWorld` 的结果）会得出假结论。
                     var pPos = ViewModule.EntityWorld(GameConst.PlayerEntityId, pWorld);
                     var nPos = ViewModule.EntityWorld(npcEntityId, nWorld);
@@ -824,7 +804,6 @@ namespace MoveCheck
                     if (pOrder == nOrder && prevFront != 0 && front != prevFront) flips++;
                     if (front != 0) prevFront = front;
 
-                    // ⓐ 旧口径（改前）：第三键 = 世界坐标 z（`GridToWorld` 恒 0，无次级键）
                     if (FrontOf(pOrder, pWorld.z, nOrder, nWorld.z) == 0) undecidableOld++;
 
                     // ⓒ 另一条候选口径：Perspective（到相机**位置**的距离），含相机滞后扫描
@@ -868,7 +847,6 @@ namespace MoveCheck
                     $"不一致 {perspDisagree} / {perspChecks} 例（⇒ 结论不依赖 Unity 把 Default 解析成哪种模式）");
             }
 
-            // ── deck 判定的**同族并列**（纯函数；deck 口径本身在 `mapcheck` §22 / `combatcheck` §15.4 已有逐格断言）
             //    `GameConst.LayerOffsetDeckEntity` 的常量注释写着「4D+106 与 实体(D+1) 同值，但正南恒是栏杆
             //    ⇒ 实际不会并列」——本项把这个"假设"变成**可判**：真并列时，唯一决胜键就是第三键。
             var deckGrid = new Vector2Int(46, 25);                          // 城镇桥面样例格（mapcheck §22 同格）
@@ -885,7 +863,6 @@ namespace MoveCheck
             // ── ⑤ 「唯一入口」不变式（**源码级**，防回归）：`Module/View/**` 里所有对
             //    `Root.transform.position` 的**赋值**都必须经过 `EntityWorld`（z 次级键的唯一产地）。
             //    为什么是源码级：这是一条**不变式**，不是数值 —— 数值断言看不见"新加一条绕过它的路径"。
-            //    出处 = `ViewModule.cs` 的 `EntityWorld` 注释 + 本片修的漏网路径（受击位移撤销那处）。
             //    修前它必然红（那处直接写 `v.LastWorld`）。
             var viewDir = System.IO.Path.Combine(ResolveProjectRoot(),
                 "client", "Assets", "Scripts", "Module", "View");
@@ -921,9 +898,7 @@ namespace MoveCheck
                     $"扫描到 {posAssigns} 处赋值，绕过 {bypass.Count} 处" + (msg.Length > 0 ? "；" + msg : ""));
             }
 
-            // ── 同族路径（**已修**：2026-09-24 team-lead 裁决 P1）：`Projectile.WorldOf` 的 z 按裁决
-            //    **仍是 0**（那是逻辑层返回值语义，⛔ 不许改）；投射物表现层的第三键由
-            //    `ProjectileView.WorldPosOf` 在其上补 z = `SortZFor(p.id)` ⇒ 判据见 §12。
+            //    **仍是 0**（那是逻辑层返回值语义，不许改）；投射物表现层的第三键由
             var projZ = Diablo2.Module.Skill.Projectile.WorldOf(new UnityEngine.Vector2(3.5f, 7.5f)).z;
             Check("`Projectile.WorldOf` 的 z 恒 0（**按裁决保留**：逻辑层语义；表现层第三键在 §12）",
                 projZ == 0f,
@@ -932,19 +907,14 @@ namespace MoveCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 12. ★ U26/U36 **同族**：投射物的第三键（P1 · team-lead 2026-09-24 裁决：判据先行 + 修法落地）
-        //     事实链（逐条源码可读，⛔ 不是推断）：
+        //     事实链（逐条源码可读，不是推断）：
         //       · `Module/Skill/Projectile.cs:141-144` 的 `WorldOf` **z 恒 0**（逻辑层返回值语义，
-        //         裁决「⛔ 不改」）；
+        //         裁决「不改」）；
         //       · `ProjectileView` 的 `sortingOrder = ViewModule.EntitySortOrder(p.Grid)` ⇒ 与实体层
         //         **同一个主键函数**（= 同族）；同 `gx+gy` 的两个投射物主键相等、第三键也相等
-        //         ⇒ 次序未定义（交给渲染器内部提交顺序）—— 与 U26/U36 的根因同族。
-        //       · **修法（本片唯一一处产品改动）**：`ProjectileView.WorldPosOf` 在 `WorldOf` 之上补
         //         **纯函数**第三键 z = `ProjectileView.SortZFor(p.id)` ∈ (0, 0.9]。
-        //     判据（口径抄 §11「判过程不判结果」）：**主键相等 ⇒ 第三键必须两两不等**；
         //       不等 = 次序可判别；相等 = 次序未定义。
-        //     ⚠️ 值带 (0, 0.9] **刻意压在实体档 `ViewModule.SortTieZ`（恒 ≥ 1.0001）之下** ⇒
-        //       「投射物 vs 实体」的先后关系**与改前逐值一致**（都画在实体之前）；本次只补
+        //     值带 (0, 0.9] **刻意压在实体档 `ViewModule.SortTieZ`（恒 ≥ 1.0001）之下** ⇒
         //       「投射物之间」这条无键带。要改"投射物 vs 实体"的遮挡关系 = **表现类** ⇒
         //       台账「待 Unity 窗口」总表 **W7**（看同格 / 相邻格两态各一图）。
         // ═════════════════════════════════════════════════════════════════════
@@ -952,7 +922,6 @@ namespace MoveCheck
         {
             Section("12. ★ U26/U36 同族：投射物第三键（三形 × {vs 实体 / vs 投射物} + 纯函数 + 改前必红 + 值带）");
 
-            // ── 真输入：真城镇地图（真 seed） + 真 NPC 站位 + 真 A* 路径（与 §11 同来源）────
             var town = new Diablo2.Module.Map.MapModule();
             town.Generate(AreaId.Town, 0);
             var npcGrid = town.NpcPoints[(int)NpcId.Akara];
@@ -964,7 +933,6 @@ namespace MoveCheck
 
             // **现口径**（生产）：投射物表现层第三键 = `ProjectileView.SortZFor`
             Func<int, float> projZ = Diablo2.Module.Skill.ProjectileView.SortZFor;
-            // **旧口径**（改前）：`Projectile.WorldOf` 的 z（恒 0）—— 只喂"改前必红"样本，⛔ 不当生产口径
             Func<int, float> projZOld = _ =>
                 Diablo2.Module.Skill.Projectile.WorldOf(new UnityEngine.Vector2(3.5f, 7.5f)).z;
             // 实体第三键 = 生产**唯一入口** `ViewModule.EntityWorld` 的 z
@@ -977,7 +945,6 @@ namespace MoveCheck
             }
             else
             {
-                // 三形 = 与 §11 完全相同的三种「主键恒相等」关系（由**格偏移**定义，不是编出来的坐标）
                 var shapes = new[] { new Vector2Int(0, 0), new Vector2Int(1, -1), new Vector2Int(2, -2) };
                 var shapeNames = new[] { "1 严格同格", "2 相邻格同 y", "3 同 y 不同格" };
                 var entityIds = new[] { npcEntityId, 1007, GameConst.PlayerEntityId, GameConst.GroundItemIdBase + 1 };
@@ -1080,8 +1047,6 @@ namespace MoveCheck
                     $"碰撞 {goodColl.Count} 处；z(玩家)={entZAt(GameConst.PlayerEntityId, path[0]):0.0000} " +
                     $"vs z(NPC)={entZAt(npcEntityId, path[0]):0.0000}");
 
-                // ── ⓕ **改前必红**（旧口径 = `Projectile.WorldOf` 的 z 恒 0）⇒ 判据必须报碰撞 ────
-                //     这条是"判据能变红"的证据：修法若被回退（或别处又绕过 `WorldPosOf` 拼裸 z），
                 //     ⓓ 会当场变红；本条证明**同一判据**对旧口径判红。
                 var oldSample = new List<(string Name, int Order, float Z)>
                 {
@@ -1106,16 +1071,13 @@ namespace MoveCheck
                     $"格({path[0].x},{path[0].y})：order={ViewModule.EntitySortOrder(path[0])}、z = {projZ(1):0.0000} vs {projZ(2):0.0000}" +
                     $"（出处 `ProjectileView.WorldPosOf` ← `SortZFor(p.id)`）");
 
-                // ── ⓗ W7 的**离线闭合**候选：多帧「不再交替」证据（team-lead 2026-09-24 第 3 版口径）
-                //   口径同 §11：**逐帧**取两节点的**实际**第三键算「谁在前」（`+` = #1 在前），`flips` 必须 0。
                 //   真输入 = 真 A* 逐帧走位；两个投射物分别停在「玩家当前格」与「当前格 + 三形偏移」
                 //   = **主键恒相等**的那三种关系；位置走**生产唯一产地** `ProjectileView.WorldPosOf`。
-                //   ⚠️ **极性一句话（写死在这里，防再读反）**：本组要证的是「**每帧都可判别**」
+                //   **极性一句话（写死在这里，防再读反）**：本组要证的是「**每帧都可判别**」
                 //     —— 通过条件 = `ProjPasses` = {主键全相等 ∧ 不可判别 0 ∧ #1 在前 全帧 ∧ 翻转 0}；
-                //     ⛔ **不是**「键元组必须逐帧恒定」：键随格变化属正常（`EntitySortOrder` 随格而变、
+                //     **不是**「键元组必须逐帧恒定」：键随格变化属正常（`EntitySortOrder` 随格而变、
                 //     两枚投射物**同步**变 ⇒ 次序不变）；反而"恒定地不可判别"才是**旧口径**的病征。
                 //   **退化样本** `ⓗ-样本`：把第三键换回旧口径（`WorldOf`，恒 0）喂**同一个** `ProjFrames`
-                //     + **同一个** `ProjPasses` ⇒ 必须**不成立**（证明判据能红，⛔ 不是 §48 那种"只能绿"）。
                 Func<Diablo2.Module.Skill.Projectile, float> zProd = p => Diablo2.Module.Skill.ProjectileView.WorldPosOf(p).z;
                 Func<Diablo2.Module.Skill.Projectile, float> zOldOf = p => Diablo2.Module.Skill.Projectile.WorldOf(p.pos).z;
                 for (var s = 0; s < shapes.Length; s++)
@@ -1147,7 +1109,6 @@ namespace MoveCheck
 
         /// <summary>
         /// 主键相等的一组节点里，第三键**两两不等**（= 次序可判别）的检查：返回「主键相等且第三键也相等」的节点对。
-        /// **空 = 全部可判别**。口径 = §11 的「判过程不判结果」（主键相等 ⇒ 第三键必须决胜）。
         /// </summary>
         private static List<string> SortCollisions(List<(string Name, int Order, float Z)> nodes)
         {
@@ -1180,7 +1141,7 @@ namespace MoveCheck
         /// <summary>
         /// ⓗ 的**通过条件**（主路径与退化样本**共用同一个**）：
         /// 主键全相等 ∧ 不可判别 0 ∧ #1 在前 全帧 ∧ 翻转 0。
-        /// ⛔ 不含"键元组恒定" —— 键随格变化属正常；判据是"**每帧都可判别**"，不是"键不变"。
+        /// 不含"键元组恒定" —— 键随格变化属正常；判据是"**每帧都可判别**"，不是"键不变"。
         /// </summary>
         private static bool ProjPasses(ProjFrameStat st)
             => st.Same == Frames11 && st.UndecNew == 0 && st.FrontA == Frames11 && st.Flips == 0;

@@ -1,15 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Audio/SfxThrottle.cs
-// ⚠️ **本文件已改薄转发**：闸门本体已下沉到引擎 `Runtime/Presentation/Sound.cs` 的
+// **本文件已改薄转发**：闸门本体已下沉到引擎 `Runtime/Presentation/Sound.cs` 的
 //   `CloverEngine.SoundRepeatGate`（音效播放闸门第 3 维：同一路径最小重播间隔）。
 //   本类只保留本项目自己的**公开面与调参常量** —— `MinRepeatSeconds` / `Clock` /
 //   `DropCount` / `ShouldDrop` / `ResetForTest`（签名与语义一字未改），内部一律转发，
-//   ⛔ 不再自持计时表与计数。调用点（`Module/Audio/AudioModule.cs`）与离线宿主**一行未动**
-//   （`patterns/engine-fix.md` §4.1 铁律 2：最小修复，不改调用点）。
-// **同一音效键的最小重播间隔**（接收侧防御闸门；本片 C4 新增，⛔ 不是原版口径 —— 原版没有这条闸门，
-//   它存在的唯一理由是"把刷屏挡在音源池之前"，见下）。
+//   不再自持计时表与计数。调用点（`Module/Audio/AudioModule.cs`）与离线宿主**一行未动**
 //
-// 为什么需要（L3 证据，`client/Logs/2026-09-23.log`）：
 //   · 引擎音源池只有 32 个源（`Runtime/Presentation/Sound.cs:78`），池满即**静默丢弃**后续音效
 //     （同一文件 `:566-583`，且它的池满 Warn 自带"只报一次"）；
 //   · 实测 `portal`（clip 时长 1.93s）被以 ~52 次/秒 请求时，32 个源会在 ~0.6s 内被 portal 占满
@@ -26,7 +22,7 @@
 //   · 生产 = `UnityEngine.Time.unscaledTime`（不受 `timeScale` 影响 ⇒ 暂停时也不误判）；
 //   · 离线自检宿主（`tools/probes/hosts/audiocheck`，纯 .NET 进程）读 Unity 时钟会抛异常
 //     （与 `AudioLog.cs` 文件头记的 `Core/Log.cs:133` 同一个坑）⇒ 这里**读出失败就返回 0**；
-//   · **时间源不可用（now ≤ 0）时本闸门判"不丢弃"** —— 宁可漏节流，也⛔ 不许把正常音效吞掉
+//   · **时间源不可用（now ≤ 0）时本闸门判"不丢弃"** —— 宁可漏节流，也不许把正常音效吞掉
 //     （这也是离线宿主既有断言不受影响的原因）。
 //   ⇒ 下沉后这三级口径在引擎 `SoundRepeatGate` 内**逐条保留**（含"非 Unity 宿主不崩"），
 //     本文件只把 `Clock` 转发过去；本项目仍然只认 `MinRepeatSeconds` 这一个调参常量。
@@ -39,7 +35,7 @@ namespace Diablo2.Module.Audio
 {
     /// <summary>
     /// 同一音效键的最小重播间隔闸门 —— **引擎 <see cref="SoundRepeatGate"/> 的项目侧薄转发**
-    /// （公开签名与语义与下沉前逐字一致；⛔ 本类不再自持计时表 / 计数 / 默认时钟）。
+    /// （公开签名与语义与下沉前逐字一致；本类不再自持计时表 / 计数 / 默认时钟）。
     /// </summary>
     internal static class SfxThrottle
     {

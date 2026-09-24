@@ -31,7 +31,6 @@ import os
 import sys
 from PIL import Image
 
-# Path discipline (team-lead 2026-09-24, trap #1 / rule "every read and write uses an ABSOLUTE
 # path"): `open()` and `Image.open()` follow the PROCESS cwd, which on this box is the WORKSPACE
 # ROOT (`c:\Work\Server\f-v2`), while this script lives under the project -- so a relative source
 # or output path can silently address ANOTHER project's tree.  Both are therefore resolved from

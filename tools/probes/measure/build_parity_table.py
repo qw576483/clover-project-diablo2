@@ -61,7 +61,6 @@ DIM_FEED = '交互反馈'
 DIM_RHYTHM = '节奏'
 DIMS = [DIM_LAYOUT, DIM_ASSET, DIM_FONT, DIM_TONE, DIM_FEED, DIM_RHYTHM]
 
-# 全局 skill §0.1 ② 明令禁止的模糊措辞（出现在产物里 = 没做完）
 FORBIDDEN = ['基本一致', '大致像', '略有差异', '后续可优化']
 
 

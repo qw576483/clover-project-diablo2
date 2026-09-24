@@ -1,16 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// AnimCheck · 片 W5「动画 1:1」数值/行为自证（离线，不依赖 Unity 原生、不进 Play）
 //
-//   §1 生成物 `SpriteFrameCounts` 与各单位 `manifest.json` 逐格一致（**原版两处判据互校**）
-//   §2 逐单位 × 逐动作 × **8 方向 × N 帧**：帧键能拼、文件都在、帧号连续、方向间不重复（md5）
-//   §3 `SpriteFrames.Keys/FrameCountOf/ResolveAnim` 与生成物 / 磁盘三方一致
-//   §4 循环口径 `LoopOf`：只有 Idle/Walk/Run 循环
-//   §5 动作选择纯函数 `ViewAnimState.SelectPlayer/SelectMonster` 的优先级真值表
-//   §6 ★ 用**真 SpriteAnimator** 逐帧推进，实测：walk 循环 / attack 播完停末帧并回 idle /
 //      hit 播完回 idle（并复现"旧口径只出 1 帧"以证明断言有效）/ death 停末帧
 //
-// ⛔ 本宿主不复制任何**被测**逻辑：链的是 `client/Assets/Scripts/**` 的真实源码。
-//    唯一一处"复制"是 §6 的**旧口径反例**（`LegacySelectPlayer`），它已不存在于工程里，
+// 本宿主不复制任何**被测**逻辑：链的是 `client/Assets/Scripts/**` 的真实源码。
 //    只用来证明"新断言能判红"（见该函数的注释）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -22,9 +14,8 @@ using System.Text.Json;
 using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.Module.View;
-// ★ 片「武器外观接线」：本宿主**不在** `Module/*` 里 ⇒ 允许跨模块 using，
+// 片「武器外观接线」：本宿主**不在** `Module/*` 里 ⇒ 允许跨模块 using，
 //   用来把 `Module/View/EquipVisual.HandOf` 与本来的槽位判定 `Module/Item/Equipment.SlotOf`
-//   在**整张 `item_c`** 上逐行对账（两处同义 ⇒ 谁漂移谁红）。
 using Diablo2.Module.Item;
 using Table;
 using Dir8 = Diablo2.Def.Dir8;
@@ -94,7 +85,6 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §1 生成物 × manifest（原版两处判据互校）
         // ═════════════════════════════════════════════════════════════════════
         private static void Section1GeneratedTable()
         {
@@ -153,7 +143,6 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §2 8 方向 × N 帧的帧文件（缺帧 / 帧号连续 / 方向间不重复）
         // ═════════════════════════════════════════════════════════════════════
         private static void Section2FramesOnDisk()
         {
@@ -238,7 +227,6 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §3 帧键 / 帧数（三方一致）
         // ═════════════════════════════════════════════════════════════════════
         private static void Section3KeyAndCount()
         {
@@ -296,7 +284,6 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §4 循环口径
         // ═════════════════════════════════════════════════════════════════════
         private static void Section4LoopPolicy()
         {
@@ -319,7 +306,6 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §5 动作选择纯函数真值表
         // ═════════════════════════════════════════════════════════════════════
         private static void Section5SelectorTruthTable()
         {
@@ -359,7 +345,6 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §6 ★ 真 SpriteAnimator 逐帧推进
         // ═════════════════════════════════════════════════════════════════════
         private static void Section6AnimatorRun()
         {
@@ -410,7 +395,6 @@ namespace AnimCheck
             Check($"6c death 停末帧（frame={d.FrameIndex}，期望 {dthKeys.Length - 1}）",
                 d.Finished && d.FrameIndex == dthKeys.Length - 1, $"frame={d.FrameIndex}/{d.FrameCount}");
 
-            // ── 6d hit 播完回 idle（★ 本轮修掉的缺陷：旧口径只出 1 帧）──
             var hitFramesNew = SimulatePlayerHit(hitKeys, useLegacyChain: false);
             var hitFramesOld = SimulatePlayerHit(hitKeys, useLegacyChain: true);
             Check($"6d 玩家受击：新口径显示过的受击帧数 = {hitFramesNew}（= 该动作全部 {hitKeys.Length} 帧，播完才回 idle）",
@@ -460,7 +444,7 @@ namespace AnimCheck
         /// ② 每帧按 `ViewAnimState.SelectPlayer(isDead=false, hitAnimPlaying = Playing==Hit &amp;&amp; !Anim.Finished, …)`
         /// 算 want；want 变了才 `Play`（与 `TickPlayer` 的调用口径一致）。<br/>
         /// 返回**显示过的不同受击帧数**。<br/>
-        /// <para>★★ `useLegacyChain = true` = **旧口径的反例**（`TickPlayer` 的 want 链里没有受击档，
+        /// <para>`useLegacyChain = true` = **旧口径的反例**（`TickPlayer` 的 want 链里没有受击档，
         /// 于是 `PlayHit` 设的 Hit 同帧被覆盖成 Idle）—— 工程里已经不存在这段逻辑，
         /// 保留它只为证明"上面那条断言能判红"（否则断言可能永远为真 = 空断言）。</para>
         /// </summary>
@@ -506,13 +490,11 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §8 ★ 片 monster-audio：怪物受击的**帧号序列**（E28 复判 + 修后判据）
         //
         // 判据分两条，缺一不可：
         //   · 新口径（`hitStun || IsHitHolding`）⇒ 该单位受击动作的**每一帧**都上过屏（0..N-1 全在）；
         //   · 旧口径（只按 `MonsterTuning.HitStunSeconds` = 0.18s 保持）⇒ **帧数不全**（E28）。
         //     第二条是**反例断言**：它证明第一条真的在判东西（否则第一条可能恒为真 = 空断言）。
-        // ⛔ 只加断言，§1~§7 的任何判据一条未改。
         // ═════════════════════════════════════════════════════════════════════
         private static void Section8MonsterHit()
         {
@@ -594,7 +576,6 @@ namespace AnimCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // §7 ★ 片「武器外观接线」：装备外观套（key 规则 / 回退链 / 帧键在盘 / 帧数）
         // ═════════════════════════════════════════════════════════════════════
         private static void Section7EquipVisual()
         {
@@ -668,7 +649,6 @@ namespace AnimCheck
             Check($"EquipVisual.Select：按 exists 逐级回退（{selCases.Length} 例，含本机「同框套未导」的真实现状）",
                 badSel.Count == 0, badSel.Count == 0 ? "全部正确" : string.Join(" | ", badSel));
 
-            // ── 7c-2 ★ 片 Y（R4）：**生产用的 exists 适配器**（裸 key `buc` → unitKey `barbarian/equip/buc`）──
             //   为什么要有这条：修前生产把 `EquipFrameCounts.Has` 直接当 exists 传进 Select，而它的形参是
             //   **unitKey**（`ByUnit` 的键），Select 传进来的是**裸 key** ⇒ 任何 key 都查不到
             //   ⇒ **装备外观套永远回退徒手**（实机：装上武器后仍走 `Chars/{class}/`，还误报"该装备外观未导出"）。
@@ -686,7 +666,6 @@ namespace AnimCheck
                 {
                     adapterBad.Add($"{kv.Key}：ExistsAdapter({clsKey})({bareKey})=false（生产会错误回退徒手）");
                 }
-                // 反向（缺陷形态本身）：把 Has 当回调传**裸 key** 在本机必然查不到 —— 前提失效就得复核
                 if (EquipFrameCounts.Has(bareKey))
                 {
                     adapterBad.Add($"{bareKey}：EquipFrameCounts.Has(裸 key) 竟为 true ⇒ 本断言的「错位」前提失效，请复核");
@@ -696,7 +675,7 @@ namespace AnimCheck
                 listed > 0 && adapterBad.Count == 0,
                 adapterBad.Count == 0 ? $"全部命中（{listed} 套）" : string.Join(" | ", adapterBad));
 
-            // 真实装备组合（本机两处都在盘）：barbarian 只有盾 ⇒ 必须选到 buc 套，⛔ 不是徒手
+            // 真实装备组合（本机两处都在盘）：barbarian 只有盾 ⇒ 必须选到 buc 套，不是徒手
             string shWanted;
             bool shFell;
             var onlyShield = EquipVisual.Select(null, "buc", EquipVisual.ExistsAdapter(PlayerClass.Barbarian),
@@ -704,7 +683,6 @@ namespace AnimCheck
             Check("barbarian 只有盾（buc）⇒ 选到 buc 套（修前会选到 null = 徒手）",
                 onlyShield == "buc" && !shFell, $"key={Show(onlyShield)} fellBack={shFell} wanted={Show(shWanted)}");
 
-            // ⚠️ 2026-09-23 主 agent 改（**断言前提过期，不是放宽判据**）：
             //   原写「理想 key hax_buc（本机未登记）⇒ 逐级回退到 hax」—— 那是 `hax_buc` **尚未导出/未登记**
             //   时的事实。主 agent 随后补齐帧数生成物（`gen_equip_frame_counts.py` 现登记 10 套，含
             //   `barbarian/equip/hax_buc` 688 张）⇒ 事实变成「**直接命中 hax_buc、不回退**」。

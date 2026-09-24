@@ -151,7 +151,7 @@ def main():
         for x in range(W):
             cells[(x, y)] = (rows[y][x], decode(ground[y], x, packs), decode(objects[y], x, packs))
 
-    # ── deck / 栏杆 格集合（判据 = 该层瓦片键的包名，⛔ 不按坐标硬编码）──────────
+    # ── deck / 栏杆 格集合（判据 = 该层瓦片键的包名，不按坐标硬编码）──────────
     deck_all = sorted(c for c, (k, g, o) in cells.items() if pack_of(g or '') in DECK_PACKS)
     deck_walk = sorted(c for c in deck_all if cells[c][0] == 'd')
     deck_blocked = sorted(set(deck_all) - set(deck_walk))

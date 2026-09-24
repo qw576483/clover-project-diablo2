@@ -6,7 +6,6 @@
 //
 // 职责：创建/更新/销毁精灵视图（玩家 8 方向、怪物、地面物品）、受击闪白、死亡表现、
 //       飘字（引擎 `Game.UI.FloatText`）、逐帧动画推进。
-//       ★ u44-C4（第 7 轮）：**头顶血条（引擎 `CloverEngine.WorldHpBar`）已删** —— 原版对可击杀怪
 //         只有屏幕顶部 `EnemyBar`（`MouseSelection.cs:62-65`），"怪名 + 血量"现由 `UI/EnemyBarView` 承担。
 //
 // 动画：**业务自写逐帧切图**（`SpriteAnimator` / `SpriteFrames` / `ViewAnim`，本项目新增）
@@ -17,8 +16,6 @@
 //   ③ （原"头顶血条下降"已按 u44-C4 删除；血量改由 `UI/EnemyBarView` 在悬停时读 `Def.MonsterState`）
 //   ② 音效钩子由 `DamagePipeline` 直接调 `IAudioModule`（可空）。
 //
-// ── ★ agent-16：空引用防护（修「MissingReferenceException 每帧刷屏」）────────────────
-// 缺陷：本模块是**常驻对象**（AutoWire 建一次、跨 Stage 存活），它持有的节点却都属于 Stage 场景
 //   —— Stage 场景卸载（回主菜单 / 换场景）会把它们销毁；一旦「清场没跑到」，
 //   `_player.Root.transform`（原 ViewModule.cs:392）就会**每帧**抛 `MissingReferenceException`，
 //   并且该异常从 `AppContext.Tick` 抛出 ⇒ 它之后的模块（Camera/Audio…）每帧都被中断。
@@ -33,50 +30,38 @@
 //
 // 素材：一律经 `Core/ResPaths`；取不到 ⇒ 纯色占位（`SpriteFrames.Placeholder`），
 //       已登记 `client/资源欠缺清单.md` #1 角色精灵 / #2 怪物精灵。
-// ⛔ 不使用 `Game.Pool` 的 `Spawn`：它内部是 `Resources.Load<GameObject>(key)`，
+// 不使用 `Game.Pool` 的 `Spawn`：它内部是 `Resources.Load<GameObject>(key)`，
 //   而本项目**没有**实体预制体（视图由帧序列 PNG 运行时拼）⇒ 直接建节点并自行复用/销毁
-//   （`GameObject.Find` / `FindObjectOfType` / 裸 `Instantiate` 一律未使用，符合 §6 约束）。
 //
-// ── ★ agent-20 §A 新增（原版 DCC 素材接入后）────────────────────────────────
 // ① **像素尺度**：原版单位是 **80 像素 = 1 世界单位**（Diablerie `Iso.cs:9`；本项目地形
 //    也是同一尺度 —— `MapView.D2TilePixelsPerUnit = 80f` 且瓦片节点缩 64/80）。
 //    贴图按契约 PPU=64 导入 ⇒ 实体节点乘 `SpriteFrames.ArtScale`(=0.8)，
 //    否则角色比地形大 25%（`SpriteFrames.cs` 文件头有完整推导）。
-// ② **NPC 视图**：原版 5 个 NPC（阿卡拉/卡夏/恰西/基德/瓦瑞夫）此前**没有任何渲染**
-//    （`IViewModule` 上没有 NPC 接口，城镇截图里一个人都没有）。本轮按"约定"补上：
 //    本模块监听 `Events.StageEntered`，从 `IMapModule.NpcPoints`（下标 = `Def.NpcId`）
 //    建 NPC 视图，帧键走 `SpriteFrames.Keys(NpcSpriteCode(id), …)`（原版 `MonStats.Code`：
 //    ps/rc/ci/gh/wa）⇒ **用的是原版 NPC 动画，不是色块**。NPC 只进 `_npcs` 字典，
 //    **不进 `_entities`** ⇒ 不参与战斗/血条/命中（NPC 无敌、不受伤）。
 //
-// ── ★ 片 2b：步频与速度同步（修"人物/怪物飘着走"）────────────────────────────
-//   缺陷：动画帧率是与速度**无关**的常量（`FpsOf(Walk) = 12`），而速度为 6 格/秒 ⇒
 //   **每格只播 2 帧**（严重滑步 = 用户说的"飘着走"）；且玩家只有走路一套动画（跑也用 WL）。
-//   修法（两条，都只动表现层）：
 //     ① **走/跑两套动画**：玩家按契约 `IPlayerModule.IsRunning` 选 `ViewAnim.Run` / `Walk`
 //        （原版 `.cof` 的 RN / WL）⇒ 跑起来播的是原版跑动画；
 //     ② **每格一个动画循环**：移动类动作的有效帧率 = **帧数 × 格/秒**
 //        （`SpriteFrames.FpsForCycle` + `SpeedScaleForCycle`）⇒ 脚底与地面不再打滑。
 //   速度来源：玩家取**契约常量**（跑 `GameConst.PlayerWalkSpeed`、走 × `PlayerWalkSpeedFactor`）；
 //   怪物契约里没有速度值 ⇒ 用**本帧位移 / dt**（`_prevTickWorld` 逐帧做差，见 `TickOne`）。
-//   ⛔ 静态动作（Idle/Attack/Cast/Hit/Death）**一律不缩放**（`SyncMoveScale` 复位成 1）。
+//   静态动作（Idle/Attack/Cast/Hit/Death）**一律不缩放**（`SyncMoveScale` 复位成 1）。
 //
-// ── ★ 片 W5：动画 1:1 审计（`tools/probes/measure/w3_anim_audit.py`）后的三处接线修正 ─────────
 //   审计产物：`.ai-tmp/screenshots/w3_anim_audit.tsv`（逐单位 × 逐动作，方向数/帧数/帧文件/复用）
 //            + `.ai-tmp/screenshots/w3_anim_trigger.tsv`（"动作是否真被触发"）。
-//   ① **玩家受击档**：want 链原来没有 `Hit` ⇒ `PlayHit` 设的受击动作**同帧**被覆盖成 Idle
 //      （`PlayHit` 贴的 Hit[0] 与 `TickPlayer`/`TickOne` 贴回的 Idle 帧都在**渲染之前**的同一个
 //      Update 里 ⇒ 亚马逊那 6 帧受击动画**一帧都不会被渲染** = "定义了但没人用"的最隐蔽形态；
-//      离线复现见 `animcheck` §6d 的旧口径反例：出 0 帧）。现在
 //      `Hit` 排在 `Death` 之后、`Cast` 之前，保持条件 = **受击动画还没播完**（`!Anim.Finished`）。
-//   ② **Attack / Cast 单次播放**：`SpriteFrames.LoopOf` 原来是 `anim != Death`，让攻击/施法也循环；
 //      改为只有 `Idle`/`Walk`/`Run` 循环（原版：一次出手 = 一套 A1，播完回静止）。
 //      同时 `OnPlayerAttacked` / `OnSkillCast` / `PlayHit` 各补一次 `Anim.Replay()` ——
 //      `PlayAnim` 的早退判据**不比较 loop**，连续出手/施法时不会自动重开（会接着放上一次的剩余帧）。
 //   ③ **动作选择抽成纯函数** `ViewAnimState.SelectPlayer/SelectMonster`（本文件只喂状态）——
-//      原来那串 `want = 三元链` 要 `new GameObject` 才跑得到 ⇒ **离线宿主一行都测不到**
 //      （这正是①能藏这么久的原因）。抽出后 `tools/probes/hosts/animcheck` 可逐帧驱动断言。
-//   ⛔ 播放速度（`FpsOf` 的基准帧率）**一律未动**：原版 `AnimData.d2` 不在本机 ⇒ 无出处不许编，
+//   播放速度（`FpsOf` 的基准帧率）**一律未动**：原版 `AnimData.d2` 不在本机 ⇒ 无出处不许编，
 //      只登记（见回报的"无出处项"）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -85,7 +70,6 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// ★ agent-33 引擎下沉 A2：引擎侧新增了**同名**枚举 `CloverEngine.Dir8`（`Runtime/Core/Dir8.cs`），
 //   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
 //   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
 using Dir8 = Diablo2.Def.Dir8;
@@ -115,7 +99,7 @@ namespace Diablo2.Module.View
         /// 「原版攻击间隔 ~0.5s」）—— 即"一次挥击占满两次出手之间的时间"，
         /// 与怪物 AI 的出手-动作绑定口径一致（`MonsterTuning.AttackIntervalSeconds`）。
         /// 原版逐武器的攻击速度表（`Weapons.txt::speed` / `AnimData.d2`）本项目未接 ⇒ 用统一间隔。</para>
-        /// <para>⛔ 与 <c>GameConst.PlayerAttackInterval</c> **同源**（不另写一个魔数）。</para>
+        /// <para>与 <c>GameConst.PlayerAttackInterval</c> **同源**（不另写一个魔数）。</para>
         /// </summary>
         private static readonly float AttackActionSeconds = GameConst.PlayerAttackInterval;
 
@@ -123,7 +107,6 @@ namespace Diablo2.Module.View
         private readonly Dictionary<int, EntityView> _groundItems = new Dictionary<int, EntityView>();
 
         /// <summary>
-        /// ★ 片 2b：各实体**上一次 View.Tick 时刻**的世界坐标 —— 用来量"本帧位移 / dt"。
         /// <para>为什么需要它：契约里**没有"怪物速度"这个值**（`MonsterState` 只有位置/朝向），
         /// 而步频同步要的是实际速度。`MonsterModule` 每帧先调 `UpdateMonster` 把新世界坐标写进
         /// `v.LastWorld`（同一次 `AppContext.Tick` 里 Monster 在 View 之前）⇒ 这里逐帧做差就得到
@@ -131,13 +114,11 @@ namespace Diablo2.Module.View
         /// </summary>
         private readonly Dictionary<int, Vector3> _prevTickWorld = new Dictionary<int, Vector3>();
 
-        /// <summary>★ 片 2b：已打过「步频同步」日志的实体（怪物实测速度有微小抖动 ⇒ 逐次变化打日志会刷屏）。</summary>
         private readonly HashSet<int> _moveScaleLogged = new HashSet<int>();
 
         /// <summary>城镇 NPC 视图（键 = `(int)Def.NpcId`）。**不计入 `_entities`**（无血条/不参战）。</summary>
         private readonly Dictionary<int, EntityView> _npcs = new Dictionary<int, EntityView>();
 
-        /// <summary>★ 片 Y（R2）：是否已打过「NPC 帧游标真的推进了」的一次性日志（数值证据用，只报一次）。</summary>
         private bool _npcAdvanceLogged;
 
         private Transform _root;
@@ -155,18 +136,15 @@ namespace Diablo2.Module.View
                 return;
             }
             Game.Event.On<int>(Events.SkillCast, OnSkillCast);
-            // ★ 片 8 B35：玩家普攻的**挥击动作**（原版一次普攻 = 挥击 + 音效 + 受击反馈三件套）。
             Game.Event.On<int>(Events.PlayerAttacked, OnPlayerAttacked);
-            // ★ agent-16：本模块是**常驻对象**（`AppContext.AutoWire` 建一次、跨 Stage 存活），
             //   而它持有的节点都属于 Stage 场景（会随场景卸载被销毁）⇒ 除 Flow 的 `Clear()` 之外，
             //   本模块自己再监听一次离场事件（幂等：`Clear()` 在已经干净时静默返回，不产生重复日志）。
             Game.Event.On(Events.StageLeft, OnStageLeft);
-            // ★ 片「武器外观接线」：装备变化 ⇒ 重取整套帧键（换的是"套"不是"贴图"，见 OnEquipChanged）。
+            // 片「武器外观接线」：装备变化 ⇒ 重取整套帧键（换的是"套"不是"贴图"，见 OnEquipChanged）。
             //   载荷 `Def.InventoryChangedArgs`（装备集已按双武器组收窄 = 只含**生效组**那把武器）。
             Game.Event.On<InventoryChangedArgs>(Events.EquipChanged, OnEquipChanged);
-            // ★ agent-20 §A：NPC 视图随进图建立（约定：HUD/NPC 这类"进图才存在的东西"都挂 StageEntered）
             Game.Event.On(Events.StageEntered, OnStageEntered);
-            // ★ u44（悬停选择表现 · 契约 C2）：鼠标悬停到谁 ⇒ 那个实体**整体变亮**
+            // u44（悬停选择表现 · 契约 C2）：鼠标悬停到谁 ⇒ 那个实体**整体变亮**
             //   （原版 `_Brightness` 3.0 / `_Contrast` 1.01；移开回 1.0/1.0）。
             //   驱动源 = `Events.HoverTargetChanged`（发送方 `Module/Input/InputReader.Publish`）
             //   —— 与顶部血条（`UI/EnemyBarView`）**同一个事件**、同一个载荷，两边各消费各的那一半；
@@ -300,7 +278,6 @@ namespace Diablo2.Module.View
             _npcs.Clear();
         }
 
-        /// <summary>NPC 每帧：朝向玩家（原版 NPC 会转头看你；帧键随方向换一套）+ **推进帧游标**（★ 片 Y / R2）。</summary>
         private void TickNpcs(float dt)
         {
             if (_npcs.Count == 0) return;
@@ -321,18 +298,14 @@ namespace Diablo2.Module.View
                     PlayAnim(v, ViewAnim.Idle, true);
                 }
 
-                // ★ 修复（"NPC 一直是纯色块"的第二个根因）：帧刷新**不能只在换朝向时做**。
                 //   建视图时 `CreateEntityNode` 已把 `NeedsFrameRefresh` 置 true，但那条路上
-                //   没有任何人调 `ApplyFrame`；而原来的 `if (want == v.Dir) continue;` 又会在
                 //   朝向稳定后**每帧跳过**整个 NPC ⇒ 该标志永远没人消费、贴图异步到位后的
                 //   `RefreshAllFrames()` 也白设 ⇒ NPC 一辈子停在纯色占位块上
                 //   （实测：探针读到 5 个 NPC 全部 `NeedsFrameRefresh=True` + `D2CharPlaceholder`）。
                 //   改成"每帧无条件消费该标志"：帧号没变时它是 false ⇒ 不会每帧重取贴图。
-                // ★ 片 Y（R2）：**每帧推进 NPC 的帧游标** —— 修前这里从不调 `Anim.Tick(dt)`
                 //   （帧推进只在 `TickOne`，而它只遍历 `_entities`/`_groundItems`，NPC 在 `_npcs` 里）
                 //   ⇒ 5 个 NPC 永远是 idle 第 0 帧的"木头人"（实测入城 +8s 与 +44s 两次采样 `adv=0`，
-                //   且**零告警** —— 静默失效）。
-                //   ⛔ 不把 NPC 塞进 `_entities`：那会让"给战斗实体"的逻辑（PruneDeadViews /
+                //   不把 NPC 塞进 `_entities`：那会让"给战斗实体"的逻辑（PruneDeadViews /
                 //      步频同步 / 实体排序 / DrawEntityList）连 NPC 一起接管，语义会变；
                 //      这里只补上缺的那一次推进（`_npcs` 的语义 = 无血条/不参战的场景装饰）。
                 if (v.Anim.Tick(dt)) v.NeedsFrameRefresh = true;
@@ -359,7 +332,6 @@ namespace Diablo2.Module.View
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 让实体节点挂到场景里已有的「实体根」上（`Stage` 场景自带，见 `docs/步骤文档.md` §3.6）。
         /// **本项目新增的非契约方法**（`IViewModule` 上没有），与 `MapModule.AttachRoot` 同一做法：
         /// 不调也能跑（那时实体根由本模块自己创建）。
         /// </summary>
@@ -393,7 +365,7 @@ namespace Diablo2.Module.View
             v.IsPlayer = true;
             v.Cls = cls;
             v.Dir = Dir8.S;
-            // ★ 片「武器外观接线」：先把**装备外观套**定下来，再取帧 —— 帧目录与帧数都由它决定。
+            // 片「武器外观接线」：先把**装备外观套**定下来，再取帧 —— 帧目录与帧数都由它决定。
             v.EquipKey = ResolvePlayerEquipKey(cls);
             PlayAnim(v, ViewAnim.Idle, true);
 
@@ -434,11 +406,10 @@ namespace Diablo2.Module.View
             v.SpriteCode = code;
             v.Dir = state.dir;
 
-            // ★ U44-C4（第 7 轮）：这里原来建**头顶血条**（引擎件 `CloverEngine.WorldHpBar`：
             //   `DefaultWidth/Height/YOffset ÷ ArtScale` + `SetHp/SetVisible`）。已按裁决**删除** ——
             //   出处：原版对可击杀怪**只有**屏幕顶部 `EnemyBar`（`MouseSelection.cs:62-65` ⇒ `ShowEnemyBar`；
             //   `EnemyBar.cs:26-35`），`select` 片真源码扫过参考实现里**没有**头顶血条 ⇒
-            //   头顶那条是本工程自加件，违反"⛔ 不许两份并存"。
+            //   头顶那条是本工程自加件，违反"不许两份并存"。
             //   现由 `UI/EnemyBarView.cs` 独家承担"怪名 + 血量"（悬停时显示）。
 
             PlayAnim(v, ViewAnim.Idle, true);
@@ -461,8 +432,6 @@ namespace Diablo2.Module.View
                 return;
             }
 
-            // ★ agent-16：本方法**不只在 Tick 里被调**（`MonsterModule.ApplyDamage/Die` 同一次命中里直接调），
-            //   所以判空不能只依赖 Tick 的总闸门 —— 场景刚卸载的那一帧可能正好夹在这里。
             if (v.Root == null)
             {
                 _entities.Remove(state.id);
@@ -497,27 +466,22 @@ namespace Diablo2.Module.View
             }
             else
             {
-                // ★ 片 W5：动作优先级抽到纯函数 `ViewAnimState.SelectMonster`（可离线驱动，
-                //   见 `tools/probes/hosts/animcheck`）—— 顺序 = Death > Hit > Attack > (Walk|Idle)。
-                //   ⛔ 原版怪物只有 `NU`/`WL`/`A1`/`GH`/`DT` 五个模式；`RN`/`SC` 的触发条件缺出处 ⇒
+                //   原版怪物只有 `NU`/`WL`/`A1`/`GH`/`DT` 五个模式；`RN`/`SC` 的触发条件缺出处 ⇒
                 //      这里不给它们造句（`zm`/`cr` 有 RN、`wr` 有 SC，登记见回报）。
-                // ★ 片 monster-audio（E28）：`state.hitStun` 只有 0.18s（`MonsterTuning.HitStunSeconds`），
                 //   而怪物受击动作最长 9 帧 @12fps = 0.75s（堕落者 `fa` = 7 帧 = 0.583s）
                 //   ⇒ 硬直一结束 `UpdateMonster` 就把 `Hit` 顶成 Idle/Walk，**只渲染出前 3/7 帧**。
-                //   修法与玩家侧同源（`ViewAnimState.IsHitHolding`）：受击动作**播完**才回落，
-                //   ⛔ 不新增任何时长常量（保持时长 = 该单位受击动作的真实帧数 ÷ 基准帧率）。
+                //   不新增任何时长常量（保持时长 = 该单位受击动作的真实帧数 ÷ 基准帧率）。
                 //   `state.hitStun ||` 保留：AI 的硬直语义（不动/不出手）仍是它，且帧数=1 的单位
                 //   （`IsHitHolding` 恒假）仍靠它撑住受击档。
                 var hitAnimPlaying = ViewAnimState.IsHitHolding(
                     v.Playing, v.Anim.FrameCount, v.Anim.Finished);
                 var want = ViewAnimState.SelectMonster(state.alive, state.hitStun || hitAnimPlaying,
                     state.attacking, moved);
-                // ★ 朝向变了也要重取帧键：原版是 8 方向逐帧动画，"动作没变但换了朝向"= 换整套帧。
+                // 朝向变了也要重取帧键：原版是 8 方向逐帧动画，"动作没变但换了朝向"= 换整套帧。
                 //   只按 `want != v.Playing` 判会吞掉换方向 ⇒ 怪物"朝西走却放着朝南的动画"。
                 if (dirChanged || want != v.Playing) PlayAnim(v, want, SpriteFrames.LoopOf(want));
             }
 
-            // ★ U44-C4（第 7 轮）：这里原来把 `state.hp/maxHp` 喂给**头顶血条**（引擎件 `WorldHpBar`）。
             //   头顶那条已删 ⇒ 血量显示改由 `UI/EnemyBarView` 在**悬停时**从 `Events.MonsterChanged`
             //   的 `Def.MonsterState` 直接读（同一次命中 ⇒ 条与扣血同帧）。
         }
@@ -529,8 +493,6 @@ namespace Diablo2.Module.View
 
             DestroyView(v);
             _entities.Remove(monsterId);
-            // ★ 片 2b：连同"上帧世界坐标"一起清（怪物 id 跨局会被复用，留着旧坐标会让下一只
-            //   同 id 的怪在首帧算出一个爆表的"位移/dt"）
             _prevTickWorld.Remove(monsterId);
             _moveScaleLogged.Remove(monsterId);
         }
@@ -570,9 +532,7 @@ namespace Diablo2.Module.View
             v.IsGroundItem = true;
             v.Grid = grid;
 
-            // ★ 片 ground-item-icon：地面物品画**原版物品图**（= 背包里同一张，见 `GroundItemVisual`）。
             //   改动前这里只建了一个按品质着色的 40×79 占位四边形，整条路径不加载任何物品图
-            //   ⇒ `Normal` 品质（= 白）时地上就是一块**浅灰矩形**（用户报的那块）。根因与修法
             //   见 `GroundItemVisual.cs` 文件头；`ApplyFrame` 里那条 `IsGroundItem` 早退同批改掉。
             var iconPath = GroundItemVisual.IconPathOf(item);
             var iconAvailable = !string.IsNullOrEmpty(iconPath) && Game.Res != null && Game.Res.Exists(iconPath);
@@ -639,10 +599,9 @@ namespace Diablo2.Module.View
             v.HitFlashTimer = HitFlashSeconds;
             v.NeedsFrameRefresh = true;
             PlayAnim(v, ViewAnim.Hit, false);
-            // ★ 片 W5：每一次受击都**从头**播受击动作（`PlayAnim` 的早退判据不比较 loop，
             //   连续受击时不会自动重开 ⇒ 显式 `Replay`）。原版语义：一次受击 = 一次 GH 动画；
             //   否则第二次受击只接着放上一次的剩余帧（末几帧），看着像"没反应"。
-            //   ⚠️ 只重开**帧号**，不动 `SpeedScale`（`PlayAnim` 已把静态动作的倍率复位成 1）。
+            //   只重开**帧号**，不动 `SpeedScale`（`PlayAnim` 已把静态动作的倍率复位成 1）。
             v.Anim.Replay();
             ApplyFrame(v);                       // 立即出闪白帧（不等下一帧）
             ApplyFlash(v);
@@ -666,8 +625,6 @@ namespace Diablo2.Module.View
 
             v.Dead = true;
             v.CorpseFaded = false;
-            // （U44-C4 第 7 轮：这里原来隐藏**头顶血条**；那条已删，悬停顶部条由 `UI/EnemyBarView`
-            //   在目标不再是可击杀怪时自己收起。）
             PlayAnim(v, ViewAnim.Death, false);
             v.Anim.Replay();
             ApplyFrame(v);
@@ -695,7 +652,7 @@ namespace Diablo2.Module.View
         /// <inheritdoc />
         public GameObject GetView(int entityId)
         {
-            // ⚠️ 节点已销毁时 `v.Root` 是「假 null」（Unity 的 `==` 重载），返回它等于把
+            // 节点已销毁时 `v.Root` 是「假 null」（Unity 的 `==` 重载），返回它等于把
             //    一个碰不得的引用交给调用方（`Module/Input/HoverPicker` 会去读它的 `.transform`）
             //    ⇒ 这里判定后**显式返回真正的 null**。
             if (_entities.TryGetValue(entityId, out var v) && v.Root != null) return v.Root;
@@ -714,7 +671,6 @@ namespace Diablo2.Module.View
         {
             if (_cannotRender) return;
 
-            // ★ 总闸门（agent-16）：实体根不在 ⇒ 整体不 tick。
             //   根节点随 Stage 场景卸载被销毁时，`_root` 的 Unity 引用判为 null
             //   （Unity 的 `==` 重载会把「已销毁对象」判成 null）；而本模块是**常驻对象**，
             //   所以不设这道闸门就会每帧在 `_player.Root.transform` 上抛 `MissingReferenceException`
@@ -739,14 +695,14 @@ namespace Diablo2.Module.View
         /// <inheritdoc />
         public void Clear()
         {
-            // ★ 每个 Stage 重新开一次「只报一次」的闸门：`ViewLog.OnceDone` 是**静态**的，
+            // 每个 Stage 重新开一次「只报一次」的闸门：`ViewLog.OnceDone` 是**静态**的，
             //   `Core/Log.ResetThrottle()` 只管 `Core/Log` 自己那张表，不管 `ViewLog` 这张
             //   ⇒ 不在这里清的话，第二局 Play（或第二次进图）里"精灵帧缺失""占位降级"这类
             //   **只报一次**的日志永不出现，会把真实故障藏起来（诊断价值全丢）。
             //   清场时机正确：`Clear()` 只在离场/复位时走到。
             ViewLog.ResetThrottle();
 
-            // ★ u44：视图全没了 ⇒ "正在被点亮的实体"这个游标也必须作废（否则换场后第一个悬停
+            // u44：视图全没了 ⇒ "正在被点亮的实体"这个游标也必须作废（否则换场后第一个悬停
             //   会因为 `next == _hoveredEntityId` 而**不点亮**：屏幕上看就是"新地图里第一次悬停没反应"）。
             _hoveredEntityId = -1;
 
@@ -779,7 +735,6 @@ namespace Diablo2.Module.View
             for (var i = 0; i < items.Count; i++) DestroyView(_groundItems[items[i]]);
             _groundItems.Clear();
 
-            // ★ 片 2b：步频同步用的两个辅助表也清（怪物 id 跨局复用，留着旧世界坐标会算出假速度）
             _prevTickWorld.Clear();
             _moveScaleLogged.Clear();
 
@@ -800,7 +755,6 @@ namespace Diablo2.Module.View
         {
             if (_player == null) return;
 
-            // ★ agent-16：节点被单独销毁（节点没了但根还在）⇒ 丢弃引用，绝不在 `.transform` 上摸空。
             if (_player.Root == null)
             {
                 _player = null;
@@ -811,11 +765,10 @@ namespace Diablo2.Module.View
                 return;
             }
 
-            // ★ 片「武器外观接线」：**进图首帧复核一次**装备外观套（只做一次，之后只由
+            // 片「武器外观接线」：**进图首帧复核一次**装备外观套（只做一次，之后只由
             //   `Events.EquipChanged` 驱动 ⇒ 不是每帧重算）。
             //   理由：`CreatePlayer` 与"装备落进 `IItemModule`"是两条独立步骤（`AppFlow.RunBuildStep(1)`
             //   vs `SaveModule` 的读档链路）；顺序若变，`CreatePlayer` 会读到空装备 ⇒ 角色**一辈子徒手
-            //   且不报任何错**（"静默失效"的典型形态）。首帧补一次就能把这类顺序变化变成"最多 1 帧的延迟"。
             if (!_player.EquipKeySettled)
             {
                 _player.EquipKeySettled = true;
@@ -853,7 +806,6 @@ namespace Diablo2.Module.View
             if (_player.CastTimer > 0f) _player.CastTimer -= dt;
             if (_player.AttackTimer > 0f) _player.AttackTimer -= dt;
 
-            // ★ 片 Y（R1）：**死亡/复活状态一定要先同步到视图，再决定播哪个动作**。
             //   理由：`PlayAnim` 有"死亡是终态"的硬闸门（死后只放行 `Death`）——
             //   若把这段留在动作选择之后，复活那一帧会先被闸门拦掉（`Dead` 还是 true），
             //   然后 `Dead` 才复位 ⇒ 复活后角色永远停在 Death 动画（静默）。
@@ -872,33 +824,25 @@ namespace Diablo2.Module.View
                 ViewLog.Info("玩家复活 ⇒ 玩家视图从 Death 动画复位");
             }
 
-            // ★ 片 W5：动作优先级抽到纯函数 `ViewAnimState.SelectPlayer`（可离线驱动与断言，
-            //   见 `tools/probes/hosts/animcheck`）—— 顺序 = **Death > Hit > Cast > Attack > (Run|Walk) > Idle**。
-            //   ★ 片 8 B35 加的「挥击」档、片 2b 的「走/跑两套动画」都在那一个函数里，本处只喂状态。
-            //   ★ 片 W5 的**「受击」档是新的**：`PlayHit` 早就会设 `Hit`，但本 want 链没有这一档
-            //     ⇒ 同一帧就被覆盖成 Idle（`PlayHit` 贴的 Hit[0] 与这里贴回的 Idle 帧都在渲染之前
-            //     ⇒ 受击动作**一帧都不会被渲染**；审计 `w3_anim_trigger.tsv` + `animcheck` §6d 复现）。
             //     保持条件 = `ViewAnimState.IsHitHolding`（受击动画**还没播完**且不止一帧
             //     —— `LoopOf(Hit) = false` ⇒ 播到末帧 `Finished` 为真 ⇒ 自动落回后面的档），
-            //     ⛔ 不引入任何新时长常量（受击时长 = 该单位该动作的真实帧数 ÷ 基准帧率）。
+            //     不引入任何新时长常量（受击时长 = 该单位该动作的真实帧数 ÷ 基准帧率）。
             var hitAnimPlaying = ViewAnimState.IsHitHolding(
                 _player.Playing, _player.Anim.FrameCount, _player.Anim.Finished);
             var want = ViewAnimState.SelectPlayer(p.IsDead, hitAnimPlaying,
                 _player.CastTimer > 0f, _player.AttackTimer > 0f, p.IsMoving, p.IsRunning);
 
-            // ★ 朝向变了也要重取帧键（原版 8 方向逐帧动画：换朝向 = 换整套帧）。
+            // 朝向变了也要重取帧键（原版 8 方向逐帧动画：换朝向 = 换整套帧）。
             //   只按 `want != _player.Playing` 判会吞掉换方向 ⇒ 玩家"朝东走却放着朝南的动画"。
             if (dirChanged || want != _player.Playing) PlayAnim(_player, want, SpriteFrames.LoopOf(want));
 
-            // ★ 片 2b 步频同步：移动类动作的播放速度按**实际速度**算（原版规律 = 每格一个动画循环
-            //   ⇒ 有效帧率 = 帧数 × 格/秒，见 `SpriteFrames.FpsForCycle`）。
             //   速度取**契约常量**（不是位置做差）：跑 = `PlayerWalkSpeed`、走 = × `PlayerWalkSpeedFactor`。
             //   静态动作（Idle/Attack/Cast/Hit/Death）在 `SyncMoveScale` 里复位成 1（原版出招节奏与移动速度无关）。
             var tilesPerSecond = p.IsRunning
                 ? GameConst.PlayerWalkSpeed
                 : GameConst.PlayerWalkSpeed * GameConst.PlayerWalkSpeedFactor;
             SyncMoveScale(_player, want, tilesPerSecond, true);
-            // ⚠️ 「死亡/复活状态同步」已在上面、动作选择**之前**做过（见那里的理由：PlayAnim 的死亡终态闸门）。
+            // 「死亡/复活状态同步」已在上面、动作选择**之前**做过（见那里的理由：PlayAnim 的死亡终态闸门）。
         }
 
         private void TickEntities(float dt)
@@ -943,7 +887,6 @@ namespace Diablo2.Module.View
                 {
                     if (deadEntities[i] == GameConst.PlayerEntityId) _player = null;
                     _entities.Remove(deadEntities[i]);
-                    // ★ 片 2b：步频同步的辅助表跟着摘（否则怪物 id 复用时算出假速度）
                     _prevTickWorld.Remove(deadEntities[i]);
                     _moveScaleLogged.Remove(deadEntities[i]);
                 }
@@ -963,10 +906,9 @@ namespace Diablo2.Module.View
         {
             if (v == null || v.Root == null) return;
 
-            // ★ 片 2b 步频同步（怪物）：契约里**没有"怪物速度"这个值** ⇒ 用**本帧位移 / dt** 当实际速度。
             //   位移来源 = `MonsterModule` 每帧调 `UpdateMonster` 时写进 `v.LastWorld` 的世界坐标
             //   （同一次 `AppContext.Tick` 里 Monster 排在 View 之前 ⇒ 这里读到的就是本帧的位移）。
-            //   ⛔ 首帧 / 站着不动 ⇒ 位移 0 ⇒ `SyncMoveScale` 收到 0 会**不缩放**（保持 1），
+            //   首帧 / 站着不动 ⇒ 位移 0 ⇒ `SyncMoveScale` 收到 0 会**不缩放**（保持 1），
             //      绝不用 0 当倍率（那会让动画停住，比"帧率不准"更像"飘"）。
             //   玩家不走这条（它用契约速度，见 `TickPlayer`）⇒ 这里跳过 `IsPlayer`。
             if (!v.IsPlayer)
@@ -986,12 +928,9 @@ namespace Diablo2.Module.View
                 if (v.HitFlashTimer > 0f) ApplyFlash(v);
                 else
                 {
-                    // ★ U26/U36（2026-09-24）：**必须**经 `EntityWorld` —— 这里原先直接写 `v.LastWorld`
                     //   （z = 状态里的 `worldZ`，恒 0）⇒ 受击闪白结束的那一帧把 z 次级键**整条丢掉**，
                     //   该实体落回「z = 0 的无键带」：与地图瓦片/投射物等一切 z=0 的渲染器并列，
-                    //   又变成"没有任何决胜键"（用户症状「闪一会人物一会 npc」的同类残余）。
                     //   判据：`EntityWorld` 是本文件 `Root.transform.position` 的**唯一入口**（见其注释）
-                    //   ⇒ 这条是唯一漏网路径；离线断言见 `tools/probes/hosts/movecheck` §11 的
                     //   「唯一入口」扫描项（它逐行核 `Module/View/**` 里所有 position 赋值）。
                     v.Root.transform.position = EntityWorld(v.EntityId, v.LastWorld);   // 撤掉受击位移
                     ApplyTint(v);
@@ -1005,7 +944,6 @@ namespace Diablo2.Module.View
                 ApplyFrame(v);
             }
 
-            // ★ 片 monster-audio（E28 配套）：怪物受击动作播完 ⇒ **主动**回落 Idle。
             //   为什么还要这一处：`MonsterModule.Tick` 只在「位移 / 硬直结束」时置 `ViewDirty`，
             //   站着挨打完的怪（玩家已跑开、怪不再移动）可能**不再**收到 `UpdateMonster`
             //   ⇒ 只改 `UpdateMonster` 那一处会让它停在受击末帧。移动中的怪下一帧就会被
@@ -1026,13 +964,9 @@ namespace Diablo2.Module.View
         private void OnSkillCast(int skillId)
         {
             if (_player == null || _player.Root == null) return;
-            // ★ 片 Y（R1 同类穷举）：死亡终态下不切施法动作（`Module/Input` 与 `Skill` 不许碰，
-            //   所以在视图侧的**入口**挡；`PlayAnim` 里还有一道统一的终态闸门兜底并留痕）。
             if (_player.Dead) return;
             _player.CastTimer = CastActionSeconds;
             PlayAnim(_player, ViewAnim.Cast, SpriteFrames.LoopOf(ViewAnim.Cast));
-            // ★ 片 W5：每一次施法都**从头**播（同 `PlayHit` 的理由 —— 早退判据不比较 loop，
-            //   连续施法时会接着放上一次的剩余帧，看着像"没抬手就出法术"）。
             _player.Anim.Replay();
             ViewLog.Info($"收到 SkillCast({skillId}) ⇒ 玩家视图播施法动作 {CastActionSeconds:0.00}s");
         }
@@ -1040,12 +974,11 @@ namespace Diablo2.Module.View
         /// <summary>
         /// `Events.PlayerAttacked`（参数 = 被打的怪物 id）：玩家普攻**真的挥出一刀** ⇒
         /// 播原版 `attack` 动作（逐方向，帧键走 `SpriteFrames.Keys(职业, Attack, 朝向)`）。
-        /// <para>★ 片 8 B35：此前**没有**这条链 —— 玩家普攻只有音效/飘字/受击闪白，
+        /// <para>此前**没有**这条链 —— 玩家普攻只有音效/飘字/受击闪白，
         /// 玩家自己的挥击动作从没播过（`ViewAnim.Attack` 只被怪物视图用）。</para>
         /// <para>动作从**第 0 帧重播**（每次出手一个完整挥击，不是"接力循环"）；
         /// 时长 <see cref="AttackActionSeconds"/> 与出手间隔同源。
         /// 优先级：死亡 &gt; 受击 &gt; 施法 &gt; 挥击 &gt; 走 &gt; 站立
-        /// （★ 片 W5 把这一段收进纯函数 <see cref="ViewAnimState.SelectPlayer"/>，可离线断言；
         /// 本条只说本事件会把 `AttackTimer` 点亮）。</para>
         /// </summary>
         private void OnPlayerAttacked(int monsterId)
@@ -1060,9 +993,6 @@ namespace Diablo2.Module.View
 
             _player.AttackTimer = AttackActionSeconds;
             PlayAnim(_player, ViewAnim.Attack, SpriteFrames.LoopOf(ViewAnim.Attack));
-            // ★ 片 W5：**每一次出手 = 一次完整的挥击，从第 0 帧起**（`LoopOf(Attack)` 现在是 false
-            //   ⇒ 不会自己重播；而 `PlayAnim` 的早退判据在"上一刀还没播完"时会吞掉新的一次出手
-            //   ⇒ 显式 `Replay`）。不 `Replay` 时，攻速快于动画时长的那几刀只会显示上次的中间帧。
             _player.Anim.Replay();
 
             // 帧数取该职业**真实 .cof 帧数**（`SpriteFrameCounts.Of`；取不到 ⇒ 兜底默认职业）
@@ -1078,7 +1008,6 @@ namespace Diablo2.Module.View
         /// <summary>
         /// `Events.StageLeft` 兜底：离场时把全部 Unity 引用置 null（`AppFlow.LeaveStage` 也会调 `Clear()`，
         /// 本方法幂等 —— 已经干净时 `Clear()` 静默返回，不会产生第二条「清场完成」日志）。
-        /// ★ agent-16：本模块常驻，Node 却属场景 ⇒ 这是「显式置 null」的第二个入口。
         /// </summary>
         private void OnStageLeft()
         {
@@ -1095,7 +1024,7 @@ namespace Diablo2.Module.View
         /// 实体根已失效（Stage 场景卸载）却仍留着视图引用 ⇒ 全部丢弃并**只报一次**。
         /// <para>正常路径走不到这里（`AppFlow.LeaveStage` → `Clear()` 会先置空）；走到这里就说明
         /// 「场景已卸载、而清场没跑到」——留一条**可检索**日志，用来区分「正常卸载」与「真丢引用」。</para>
-        /// <para>⚠️ 这里**不再** `Destroy` 任何节点：它们已经随场景销毁了，对已销毁对象调 `Destroy` 无意义。</para>
+        /// <para>这里**不再** `Destroy` 任何节点：它们已经随场景销毁了，对已销毁对象调 `Destroy` 无意义。</para>
         /// </summary>
         private void DropStaleViews()
         {
@@ -1127,7 +1056,7 @@ namespace Diablo2.Module.View
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ 片「武器外观接线」：装备外观套（key 规则见 `Module/View/EquipVisual.cs` 文件头）
+        // 片「武器外观接线」：装备外观套（key 规则见 `Module/View/EquipVisual.cs` 文件头）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -1166,7 +1095,7 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 按**契约**读当前装备，算出生效的外观套 key（可能发生逐级回退并留 Warn）。
-        /// <para>取数口径（分层不变：View 只读契约接口，⛔ 不 `using Diablo2.Module.Item`）：
+        /// <para>取数口径（分层不变：View 只读契约接口，不 `using Diablo2.Module.Item`）：
         /// `AppContext.I.Item.Equipment`（= **已生效**的装备集，双武器组只含生效组那把）
         /// + `Tables.Default.Item.Get(itemId)` 的 `Source / Type / Subtype`。</para>
         /// <para>"占哪只手"由 <see cref="EquipVisual.HandOf"/>（纯函数）判；与
@@ -1179,7 +1108,6 @@ namespace Diablo2.Module.View
 
             string wanted;
             bool fellBack;
-            // ★ 片 Y（R4）：exists 回调必须走 **unitKey 适配器**（`EquipFrameCounts.Has` 的形参是
             //   `{class}/equip/{key}`，而 `Select` 传进来的是裸 key）——直接传 `EquipFrameCounts.Has`
             //   会让**任何** key 都查不到 ⇒ 装备外观套永远回退徒手（实机：装上武器仍走 `Chars/{class}/`，
             //   并误报"该装备外观未导出"）。适配器与断言见 `EquipVisual.ExistsAdapter`。
@@ -1188,7 +1116,7 @@ namespace Diablo2.Module.View
 
             if (fellBack && wanted != null)
             {
-                // 每个"理想 key"只报一次（⚠️ 用 wanted 当 key：补导同框套后重跑生成器，这条自然消失）。
+                // 每个"理想 key"只报一次（用 wanted 当 key：补导同框套后重跑生成器，这条自然消失）。
                 ViewLog.WarnOnce("equip.fallback." + cls + "." + wanted,
                     EquipVisual.FallbackWarnText(cls, weaponCode, shieldCode, wanted, key));
             }
@@ -1282,7 +1210,7 @@ namespace Diablo2.Module.View
             v.EquipKey = key;
             if (!changed && !force) return;
 
-            // ⛔ 这里**不是**"只换贴图"：`SpriteFrames.Keys` 会按新 key 重算
+            // 这里**不是**"只换贴图"：`SpriteFrames.Keys` 会按新 key 重算
             //   帧目录（`ResPaths.CharEquipDir`）与**帧数**（`EquipFrameCounts`），
             //   并顺带把整组新帧键一次性预取（`Prefetch`）。
             PlayAnim(v, v.Playing, SpriteFrames.LoopOf(v.Playing));
@@ -1329,10 +1257,10 @@ namespace Diablo2.Module.View
         /// 数值推导见 <see cref="GameConst.LayerOffsetDeckEntity"/>。</para>
         ///
         /// <para>deck 判定走**契约** `IMapModule.IsDeckGrid`（数据由 `Module/Map` 按"地砖取自
-        /// deck 类包"登记，⛔ 视图层不猜几何）。拿不到 Map（未接入 / 场景卸载中）⇒ 用普通实体档
+        /// deck 类包"登记，视图层不猜几何）。拿不到 Map（未接入 / 场景卸载中）⇒ 用普通实体档
         /// 并**留一次 Warn**（不静默）；地图未生成时 `IsDeckGrid` 本身返回 false，不必另判。</para>
         ///
-        /// <para>⚠️ **`internal` 而不是 `private`**（2026-09-23 审计 B 红行 R2）：投射物表现
+        /// <para> **`internal` 而不是 `private`**：投射物表现
         /// （`Module/Skill/ProjectileView`）过去自己写 `Iso.SortOrder(g, LayerOffsetEntity)`，
         /// 抬档口径改到本方法时**漏了它** ⇒ 桥上射出的投射物仍被栏杆盖住。改成让投射物也调本方法，
         /// 使「实体排序」**全局只有一份实现**，避免再出现"改了口径没扫全路径"。</para>
@@ -1363,12 +1291,8 @@ namespace Diablo2.Module.View
             return order;
         }
 
-        // ── 同格/同基准的**确定性 tie-break**（2026-09-23 片 M3）────────────────────────────
-        // 用户实测症状：「人物与 npc 重合时候，会闪一会人物一会 npc」。
-        // 根因：`sortingOrder` = 格基准 + 层偏移（`GameConst.LayerOffset*`），**同一格（或 gx+gy 相同）
         //   的两个实体数值完全相等**；两者世界坐标的 z 都是 `state.worldZ`（恒 0）⇒ Unity 只剩
         //   "到相机的距离"可判，而距离也相等 ⇒ 每帧按渲染器提交顺序交替 ⇒ 肉眼看到两个精灵互相闪。
-        // 修法：给实体节点一个**只由实体身份决定**的 z 次级键（rank + id），⛔ 不动 `sortingOrder`
         //   —— 层带 0/1/2/3（ground/object/entity/overlay）已被占满，塞不进第四档；
         //   而 z 次级键**只在 sortingOrder 相等时**起作用，故**不可能改变任何既有的跨格/跨层次序**。
         //   取 +z（**远离相机**）而不是 -z：等 `sortingOrder` 时让地图瓦片（含 overlay 遮蔽层）仍然
@@ -1376,7 +1300,6 @@ namespace Diablo2.Module.View
         // 原版口径：原版同格实体的绘制次序是**稳定的生成序号**（不是每帧重排）；这里把它落成
         //   「类型档 → id」两级键，因此**重复调用结果恒定**（`mapcheck`/`movecheck` 有断言）。
         //
-        // ── U26「人物穿模」/U36「闪一会人物一会 npc」复核（2026-09-24）────────────────────
         // ① **第三键的口径有出处**（不是"我们用 z 当距离"的假设）：Unity 文档 `TransparencySortMode`
         //    原文 —— "By default, perspective cameras sort objects based on distance from camera
         //    position to the object center; and **orthographic cameras sort based on distance along
@@ -1384,11 +1307,7 @@ namespace Diablo2.Module.View
         //    本项目相机是**正交 + rotation=identity + 机位 z 恒为 `-CameraRig.CameraDistance`**
         //    （`Module/Camera/CameraRig.cs` 的 `IsoLock`）⇒ 视图轴 = +Z ⇒ **排序距离之差 == 实体 z 之差**，
         //    与相机跟焦/抖动/插值**无关**（相机 x/y 在正交模式下根本不参与排序）。
-        //    ⇒ "距离随插值抖动导致闪"这条假设**被证伪**（离线断言见 `movecheck` §11 的「相机 z 与焦点无关」）。
         // ② **主排序键每帧重排**这条假设也被排除：`sortingOrder` 只在**格变化**时重算
-        //    （`UpdateMonster` / `TickPlayer`），而它是 `Grid` 的纯函数（`movecheck` §11 逐帧核）。
-        // ③ 唯一残余（本片修掉）：受击闪白结束时 `TickOne` 曾绕过 `EntityWorld` 直接写 `v.LastWorld`
-        //    ⇒ 把 z 次级键整条丢掉、落回 z=0 的无键带。⚠️ 仍在的**同族**漏网路径（⛔ 不在本片改动域内，
         //    已登记回报）：`Module/Skill/ProjectileView.cs` 的 `Projectile.WorldOf(...)`（z=0，且与实体
         //    同档 `EntitySortOrder`）⇒ 两个同 `gx+gy` 的投射物之间**仍然没有决胜键**。
 
@@ -1406,7 +1325,7 @@ namespace Diablo2.Module.View
         /// 本工程**只借它的 <see cref="SortingLayers.TiebreakOffset"/>**（实体 id → 微小 z 偏移），
         /// 「id → 次级键」这个公式在项目侧不再留第二份
         /// （投射物档同源：`Module/Skill/ProjectileView.SortZFor` 也走该引擎件，只是取模基数不同）。
-        /// <para>⛔ <c>fieldHeightTiles</c> 是引擎构造的**必填项**、本处用不到
+        /// <para><c>fieldHeightTiles</c> 是引擎构造的**必填项**、本处用不到
         /// （<see cref="SortingLayers.DepthOrder"/> 是 `worldY` 口径，而本项目的深度序是
         /// **等距格** `(gx+gy)` 口径，见 <see cref="EntitySortOrder"/> 的说明）
         /// ⇒ 填一个**有出处**的真实值 `GameConst.MapMaxSize`（任意区域尺寸硬上限，格）。</para>
@@ -1427,7 +1346,7 @@ namespace Diablo2.Module.View
         /// 实体节点的**z 次级排序键**（同 `sortingOrder` 时 Unity 按"到相机距离"决胜）：
         /// `(5 - rank) + TiebreakOffset(|id|)`（= 原 `(5 - rank) + (|id| % 10000) * 1e-4`，**逐位相同**），
         /// 恒 &gt; 0（= 在地图层之后）。同级同类按 `EntityId` 升序 ⇒ **同一个输入永远得到同一个值**（纯函数）。
-        /// <para>⚠️ 传 `Mathf.Abs(id)` 而不是裸 `id`：引擎件按**有符号**取模（负值折回正区间），
+        /// <para>传 `Mathf.Abs(id)` 而不是裸 `id`：引擎件按**有符号**取模（负值折回正区间），
         /// 本项目口径是 `|id| % mod` —— 城镇 NPC 的 id 是负数（`NpcEntityId = -1-(int)NpcId`）
         /// ⇒ 取绝对值后两者结果完全一致。</para>
         /// </summary>
@@ -1449,7 +1368,7 @@ namespace Diablo2.Module.View
                 go.transform.SetParent(_root, false);
                 go.transform.position = EntityWorld(entityId, world);
 
-                // ★ 原版单位 80 px/单位 vs 本项目导入 PPU=64 ⇒ 缩 0.8（推导见 SpriteFrames.cs 文件头）
+                // 原版单位 80 px/单位 vs 本项目导入 PPU=64 ⇒ 缩 0.8（推导见 SpriteFrames.cs 文件头）
                 go.transform.localScale = Vector3.one * SpriteFrames.ArtScale;
 
                 var sr = go.AddComponent<SpriteRenderer>();
@@ -1462,7 +1381,7 @@ namespace Diablo2.Module.View
                     EntityId = entityId,
                     Root = go,
                     Renderer = sr,
-                    // ★ u44：记下**建节点时的原材质**（悬停变亮的"移开还原"就还它）——
+                    // u44：记下**建节点时的原材质**（悬停变亮的"移开还原"就还它）——
                     //   必须在任何 `EntityHighlight.Apply(...)` 之前读，否则记下的就是被换过的那个。
                     OriginalMaterial = sr.sharedMaterial,
                     BaseColor = color,
@@ -1470,7 +1389,7 @@ namespace Diablo2.Module.View
                     UsingPlaceholder = true,
                     NeedsFrameRefresh = true,
                 };
-                // ★ u44：先把属性块写成"常规档"（1.0/1.0）——
+                // u44：先把属性块写成"常规档"（1.0/1.0）——
                 //   ① 与原版一致：`Materials.SetRendererHighlighted(r, false)` 就是这么写的；
                 //   ② 实机判据要能**回读**这两个键（属性块里没写过的键 `GetFloat` 返回 0，
                 //      会把"没接线"误判成"亮度 0"）⇒ 建节点即写一次，此后只由悬停改。
@@ -1488,21 +1407,17 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 切换动作（**只在动作变化时**调用 ⇒ 不会每帧把帧号打回 0）。
-        /// <para>★ 顺带把**整组帧键**一次性发起异步加载（<see cref="SpriteFrames.Prefetch"/>）：
+        /// <para>顺带把**整组帧键**一次性发起异步加载（<see cref="SpriteFrames.Prefetch"/>）：
         /// 逐帧首次访问的话每一帧都要各等一次异步回调 ⇒ 首圈动画逐帧闪占位色块
         /// （2026-09-19 用户投诉「移动会闪一个黄色方块」；根因与修法见 `ApplyFrame` 的注释）。</para>
         /// </summary>
         private static void PlayAnim(EntityView v, ViewAnim anim, bool loop)
         {
-            // ★ 片 Y（R1）：**死亡是终态** —— 死亡之后任何**非死亡**动作一律不许上屏（唯一的硬闸门）。
             //   为什么钉在这里：`PlayAnim` 是全部动作切换的**唯一出口**（玩家/怪物/NPC/换装重播都走它）
             //   ⇒ 只在这一处保证"死后不再被别的动作顶掉"，比在每个调用点各写一遍更难漏。
-            //   实测缺陷（审计 D 的 R1）：`MonsterModule.Die` 先 `PlayDeath`，**同一次调用栈稍后**
             //   `DamagePipeline.ApplyToMonster` 又 `PlayHit` ⇒ 尸体停在受击末帧，运行时
             //   ViewAnim 观测集里 `Death` 一次都没出现。
-            //   ⛔ 修法不是"调换那两个调用点的顺序"（那只会把必现变成偶发）：这里把终态钉死，
-            //      并且**留痕**（WarnOnce）——"死后还有动画请求"本身就是缺陷信号，不许静默吃掉。
-            //   ⛔ 例外：`anim == ViewAnim.Death` 本身放行（`PlayDeath` 要先设 `v.Dead = true` 再播它）；
+            //   例外：`anim == ViewAnim.Death` 本身放行（`PlayDeath` 要先设 `v.Dead = true` 再播它）；
             //      玩家复活时 `TickPlayer` 会先把 `Dead` 复位（见那里的顺序）。
             if (v.Dead && anim != ViewAnim.Death)
             {
@@ -1518,7 +1433,7 @@ namespace Diablo2.Module.View
             var keys = v.IsGroundItem
                 ? null
                 : v.IsPlayer
-                    // ★ 片「武器外观接线」：玩家按**装备外观套**取帧（`EquipKey` 为 null = 徒手，
+                    // 片「武器外观接线」：玩家按**装备外观套**取帧（`EquipKey` 为 null = 徒手，
                     //   与改动前的行为逐字节一致）。帧数由 `EquipFrameCounts` 给（换套会换帧数）。
                     ? SpriteFrames.Keys(v.Cls, v.EquipKey, anim, v.Dir)
                     : SpriteFrames.Keys(v.SpriteCode, anim, v.Dir);
@@ -1526,7 +1441,6 @@ namespace Diablo2.Module.View
             v.Anim.Play(anim, keys, SpriteFrames.FpsOf(anim), loop);
             SpriteFrames.Prefetch(keys);      // ★ 整组帧一次性发起加载（见 SpriteFrames.Prefetch 注释）
 
-            // ★ 片 2b：静态动作**立刻**复位成 1 倍 —— 不许把"走路时的步频倍率"漏到
             //   Idle/Attack/Cast/Hit/Death 上（`PlayHit`/`PlayDeath` 会在同一次调用栈里紧接着
             //   `ApplyFrame` 出画，等不到下一次 `TickOne` 复位）。移动类动作的倍率由
             //   `SyncMoveScale` 每帧按实际速度算。
@@ -1534,13 +1448,12 @@ namespace Diablo2.Module.View
         }
 
         /// <summary>
-        /// **步频同步**（★ 片 2b）：把「每个移动动画循环走完一格」换算成 `SpriteAnimator.SpeedScale`。
         /// <para>口径：有效帧率 = **帧数 × 格/秒**（`SpriteFrames.FpsForCycle`，出处见该函数注释）
         /// ⇒ `SpeedScale = 该值 ÷ Play 时传的基准帧率`（`SpriteFrames.SpeedScaleForCycle`）。</para>
-        /// <para>⛔ 只对移动类动作（`ViewAnim.Walk` / `ViewAnim.Run`）缩放；其它动作一律**复位成 1**
+        /// <para>只对移动类动作（`ViewAnim.Walk` / `ViewAnim.Run`）缩放；其它动作一律**复位成 1**
         /// —— 原版出招/受击的节奏与移动速度无关（`AnimData` 里每个动作一套独立帧率）。</para>
         /// <para>`tilesPerSecond &lt;= 0`（速度未知 / 本帧没有位移）⇒ 不缩放（保持 1）。
-        /// ⛔ 不许缩放到 0：那会让动画完全停住，是比"帧率不准"更糟的表现。</para>
+        /// 不许缩放到 0：那会让动画完全停住，是比"帧率不准"更糟的表现。</para>
         /// </summary>
         /// <param name="verbose">是否允许打日志。玩家传 true（速度只有两档、切换时才变）；
         /// 怪物传"本实体第一条"（实测速度每帧有微小抖动，逐次记录会刷屏）。</param>
@@ -1578,9 +1491,7 @@ namespace Diablo2.Module.View
         {
             if (v == null || v.Renderer == null) return;
 
-            // ★ 片 ground-item-icon：地面物品走**静态原版图标**那一路（不是逐帧动画）。
             //   改动前这里对 `IsGroundItem` 直接 `return` ⇒ 建视图时置的 `NeedsFrameRefresh`
-            //   被消费掉却什么都不做，地面物品一辈子停在纯色占位块上（静默失效）。
             if (v.IsGroundItem)
             {
                 ApplyGroundItemIcon(v);
@@ -1590,10 +1501,7 @@ namespace Diablo2.Module.View
             var key = v.Anim.CurrentKey;
             var sprite = SpriteFrames.Resolve(key);
 
-            // ★ 修「移动 / 出招时闪一下黄色方块」（2026-09-19 用户投诉）：
             //   `Resolve` 对**首次访问**的帧键当帧一定返回 null（`Resources.LoadAsync` 是异步的，
-            //   回调最早下一帧才到）；旧实现此时把渲染器换成 `Placeholder`（白图 × 职业占位色，
-            //   亚马逊 = 黄）⇒ 走路 8 帧 / 攻击 13 帧 / 施法 20 帧…每遇到一个新帧就闪一次色块。
             //   新实现：**手上已经有真图就保持不动**（宁可多停 1 帧旧图，也不闪色块），
             //   等 `Resolve` 的回调把 `_repaintRequested` 置起来、下一帧重铺时再换成真图。
             if (sprite == null)
@@ -1615,13 +1523,12 @@ namespace Diablo2.Module.View
         }
 
         /// <summary>
-        /// ★ 片 ground-item-icon：地面物品的**静态原版图标**（`v.IconPath`）。
         /// <para>为什么单独一路：地面物品没有逐帧动画（`Anim` 从没 `Play` 过），它只有"一张图"。
         /// 图由 `SpriteFrames.Resolve` 取（该函数自带缓存 / 异步 / 失败退避自愈），
         /// 尺寸与像素尺度由**导入设置**决定（`D2/Items/*.png`：PPU=64、pivot=中心 ⇒
         /// 节点上再乘 `SpriteFrames.ArtScale`(0.8) 后 = 原版 80px/单位的**原始尺寸**，
         /// 与 `Module/Map` 的地形同尺度，不会"地上一个巨大的图标"）。</para>
-        /// <para>⚠️ 图没到之前**什么都不画**（`sprite == null`）+ 每帧重试：
+        /// <para>图没到之前**什么都不画**（`sprite == null`）+ 每帧重试：
         /// ① 不画占位块 —— 白/浅灰方块正是用户报的"地上一个灰矩形"；
         /// ② 每帧重试是**唯一**的驱动（`TickOne` 只在 `NeedsFrameRefresh` 为真时调本方法，
         ///    这里不把它置回 true 的话，第一帧没取到图就永远不会再取 = 静默消失）。</para>
@@ -1683,12 +1590,11 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 贴图异步到位后**全量重铺一次**（只由 `SpriteFrames.ConsumeRepaintRequest()` 触发）。
-        /// <para>⚠️ 必须**连 NPC 一起重铺**：NPC 视图不在 `_entities` 里（见文件头 ②），
+        /// <para>必须**连 NPC 一起重铺**：NPC 视图不在 `_entities` 里（见文件头 ②），
         /// 只在 `_npcs` 里 —— 只铺 `_entities` 的话，NPC 的贴图异步到位后没人通知它，
         /// 它会一直停在纯色占位块上（与原版 NPC 显示色块同源）。</para>
-        /// <para>⚠️ 这里**只置 `NeedsFrameRefresh`，绝不 `Anim.Replay()`**：重铺会在"每有一张帧贴图到位"
+        /// <para>这里**只置 `NeedsFrameRefresh`，绝不 `Anim.Replay()`**：重铺会在"每有一张帧贴图到位"
         /// 时被触发（走路一圈 8 帧 = 最多 8 次），Replay 会把**所有实体**的动画打回第 0 帧 ⇒ 动画
-        /// 看起来卡在第 0/1 帧并在换帧时抖动（与"移动会闪"同源，2026-09-19 用户投诉）。
         /// 保住当前帧号即可：`ApplyFrame` 用的是 `Anim.CurrentKey`（当前帧），照样能换成新到位的真图。</para>
         /// </summary>
         private void RefreshAllFrames()
@@ -1697,7 +1603,6 @@ namespace Diablo2.Module.View
             {
                 kv.Value.NeedsFrameRefresh = true;
             }
-            // ★ 片 ground-item-icon：地面物品的**图标**也是异步到的 ⇒ 必须一起重铺。
             //   漏掉它的后果：图标回调到达时没人通知地面视图（`ApplyGroundItemIcon` 只在
             //   `NeedsFrameRefresh` 为真时才被调），而 `Resolve` 成功那一帧只是把
             //   `_repaintRequested` 置起来 —— 全量重铺是它唯一的消费点。
@@ -1756,7 +1661,6 @@ namespace Diablo2.Module.View
         /// <summary>自证用：各实体「贴出纯色占位图」的累计次数（键 = 实体 id）。**不在 `IViewModule` 契约里**。</summary>
         private static readonly Dictionary<int, int> PlaceholderTicks = new Dictionary<int, int>();
 
-        /// <summary>自证用：记一次"贴了纯色占位图"（本轮缺陷的复现断言读它）。</summary>
         private static void CountPlaceholderTick(int entityId)
         {
             PlaceholderTicks.TryGetValue(entityId, out var n);
@@ -1773,7 +1677,6 @@ namespace Diablo2.Module.View
         /// <summary>
         /// NPC 视图逐条状态（自证/排障用，**不在契约里**）。
         /// <para>用途：`client/_dev/p_a21_npc.cs` 用它判定「NPC 是不是还停在纯色占位块上」，
-        /// 同时它也是「本轮 `ViewModule` 改动是否真的编译进当前 Play」的**存在性标记**
         /// （旧版本的 `ViewModule` 没有这个方法）。</para>
         /// </summary>
         internal string DumpNpcDebug()
@@ -1807,7 +1710,6 @@ namespace Diablo2.Module.View
         /// `(sortingLayer, sortingOrder, 视图轴距离)` 排）⇒ 要判"人物与 NPC 重合时闪不闪"，只能逐帧把
         /// 两个节点的这三样读出来自己比。行格式（`\n` 分隔）：`类型|id|spriteCode|格|sortingOrder|z`
         /// —— 驱动侧按 `sortingOrder` 升序、同值时 `z` 降序排，即得该帧的绘制次序（z 小 = 离正交相机近 = 画在前）。</para>
-        /// <para>它同时是「本片改动是否真的编译进当前 Play」的**存在性标记**（旧版 `ViewModule` 没有它）。</para>
         /// </summary>
         internal string DumpSortKeys()
         {
@@ -1854,8 +1756,6 @@ namespace Diablo2.Module.View
             var sample = "";
             foreach (var kv in _entities)
             {
-                // ×倍率 = 步频同步后的 `SpriteAnimator.SpeedScale`（★ 片 2b：移动类动作按速度缩放，
-                // 静态动作恒 1；验收/探针读它就能看出"帧率是否跟着速度走"）
                 sample += $" [{kv.Key}:{kv.Value.Playing}#{kv.Value.Anim.FrameIndex}/{kv.Value.Anim.FrameCount}" +
                           $@"×{kv.Value.Anim.SpeedScale:0.###}" +
                           $"{(kv.Value.UsingPlaceholder ? "(占位)" : "")}]";

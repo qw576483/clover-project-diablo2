@@ -52,10 +52,9 @@ namespace CloverEngine
 
     /// <summary>
     /// 自检宿主用的事件总线。
-    /// ★ **派发顺序必须与真引擎一致**（`Runtime/Core/Event.cs:141-143` + `:319-343`）：
+    /// **派发顺序必须与真引擎一致**（`Runtime/Core/Event.cs:141-143` + `:319-343`）：
     ///   同为 priority 0 时「**后注册先执行**」、priority 大者先执行。
     ///   老版本这里按注册顺序正序派发 ⇒ 与真引擎相反，于是"订阅顺序假设写反了"这类 bug
-    ///   在离线宿主里测不出来（agent-14 §B 现象 3 正是被它漏掉的）。
     /// </summary>
     public sealed class ConsoleEventBus : IEventBus
     {
@@ -239,7 +238,6 @@ namespace CloverEngine
 
     /// <summary>
     /// `Runtime/Presentation/UIWidgets.cs:928` world-space OVERHEAD hp bar (engine widget).
-    /// NOTE (u44-C4, 2026-09-24): there is NO production consumer any more -- the overhead bar was
     /// deleted from `Module/View/ViewModule.cs`; the only remaining "monster name + hp" display is the
     /// on-screen TOP `EnemyBar` (`client/Assets/Scripts/UI/EnemyBarView.cs`). This shim stays ONLY as a
     /// signature sentinel: if the engine changes its signature, this file still fails to compile.
@@ -277,7 +275,6 @@ namespace CloverEngine
         string CurrentScene { get; }
         void Load(string sceneName, Action<float> progress = null, Action onDone = null);
         void Unload(string sceneName, Action onDone = null);
-        /// <summary>`Runtime/Core/PresentationContracts.cs:196`（agent-17 §A 起 `Module/Flow/AppFlow` 用它识别"Stage 场景被重载"）。</summary>
         void OnSceneLoaded(Action<string> handler);
         /// <summary>`Runtime/Core/PresentationContracts.cs:198`。</summary>
         void OnSceneUnloaded(Action<string> handler);
@@ -305,7 +302,6 @@ namespace CloverEngine
         void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object;
         T TryGet<T>(string path) where T : UnityEngine.Object;
 
-        // ★ agent-34（引擎下沉 A3）：引擎 `IResourceManager` 新增的两个**同步**入口。
         //   `UI/{UiArt,D2Text,D2Icon}.cs` / `Core/ClientConfig.cs` 已从「直连 Resources」切到它们
         //   （验收表 E1 例外消失）⇒ 替身必须跟着长出来（签名逐字对齐，本文件是覆盖率哨兵）。
         bool Exists(string path);

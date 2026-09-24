@@ -32,7 +32,6 @@ except ImportError:
     import pngio
 
 # ── 默认路径（项目内相对位置，可移植）────────────────────────────────────────
-# 解包产物统一在 `<项目根>/原版资源/d2raw`（skill §1.9：原版素材只放「原版资源」）。
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_RAW = os.path.join(_REPO, '原版资源', 'd2raw')
 DEFAULT_OUT = os.path.join(_REPO, 'client', 'Assets', 'Resources', 'Clover', 'D2')
@@ -47,7 +46,7 @@ DEFAULT_OUT = os.path.join(_REPO, 'client', 'Assets', 'Resources', 'Clover', 'D2
 #     · 血腥荒野 wild1..wild4/trees2.ds1 →
 #         outdoors/{stones,treegroups,stonewall,fence} + **TOWN/floor.dt1**（野外地面也用城镇那张地砖表）
 #   故 `town_floor` 同时是"城镇地面"和"野外地面"的来源 —— **原版就是这么分的**。
-#   ⚠️ 刻意**不导出** `OUTDOORS/Outdoor1.dt1`：它是 **DT1 v4.1** 旧格式（`version=(4,1)`，
+#   刻意**不导出** `OUTDOORS/Outdoor1.dt1`：它是 **DT1 v4.1** 旧格式（`version=(4,1)`，
 #      参考实现 `DT1.cs:280` 也只接受 7.6），且**没有任何 DS1 依赖它**（实测）⇒ 不是本项目需要的东西。
 PACKS = [
     # (相对 d2raw 的 dt1 路径, pack 名, 用途说明)
@@ -64,13 +63,13 @@ PACKS = [
     ('data/global/tiles/ACT1/CAVES/cavedr.dt1',        'cave_door',       '洞穴岩柱/门框'),
     ('data/global/tiles/ACT1/BARRACKS/warp.dt1',       'warp',            '出入口传送点（原版城镇出口就靠它的 orientation 10）'),
     ('data/global/tiles/ACT1/OUTDOORS/river.dt1',      'moor_river',      '河/水边（原版野外与城镇边界都用）'),
-    # ── ★ 野外拼块轮新增（`export_wild_layout.py` 的块依赖到它们）─────────────────
+    # ── 野外拼块轮新增（`export_wild_layout.py` 的块依赖到它们）─────────────────
     #   依据 = `LvlTypes.txt` 的 `Id=2 Act 1 - Wilderness` 的 dt1 槽表：
     #     槽 11 = Outdoors/Cliff1.dt1、槽 10 = Cliff2.dt1、槽 13 = Corner.dt1
     #     （`LvlPrest` 的「Act 1 - Wild Cliff Border *」dt1mask 恰好只含这些位 ⇒ 崖壁边界块用它）
     #     槽 19 = Outdoors/puddle.dt1、槽 23 = Outdoors/Swamp.dt1
     #     （`LvlSub` Type=6 的 Puddles / Swamp Small / Swamp Big dt1mask 含这些位）
-    #   ⚠️ 实测：`OUTDOORS/trees.dt1` **不存在**；`Trees2/Trees3.ds1`（LvlPrest "Act 1 - Tree Fill"）
+    #   实测：`OUTDOORS/trees.dt1` **不存在**；`Trees2/Trees3.ds1`（LvlPrest "Act 1 - Tree Fill"）
     #     与 `LvlSub Type=6 Trees`（`trees.ds1`）依赖的都是 **`TOWN/trees.dt1`**
     #     （`ds1.py` 打印出的完整路径：`data\global\tiles\act1\town\trees.dt1`）
     #     ⇒ 复用上面的 `town_trees` pack，**不再另开一个**。
@@ -79,7 +78,7 @@ PACKS = [
     ('data/global/tiles/ACT1/OUTDOORS/corner.dt1',     'moor_corner',     '崖壁转角（槽 13）'),
     ('data/global/tiles/ACT1/OUTDOORS/puddle.dt1',     'moor_puddle',     '野外水洼（槽 19，LvlSub Puddles）'),
     ('data/global/tiles/ACT1/OUTDOORS/swamp.dt1',      'moor_swamp',      '野外沼泽水（槽 23，LvlSub Swamp）'),
-    # ── ★ 木桥（罗格营地跨河那一座）────────────────────────────────────────────
+    # ── 木桥（罗格营地跨河那一座）────────────────────────────────────────────
     #   依据 = `LvlPrest.txt`「Act 1 - Town 1」的 File2 `Act1/Town/TownE1.ds1` 与
     #     「Act 1 - Town 1 Transition E」的 `Act1/Town/TownETrans.ds1`：
     #     `python tools/d2codec/ds1.py <ds1>` 打印的依赖表里**只有这两块**含

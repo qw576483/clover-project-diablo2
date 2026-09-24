@@ -1,7 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  ShopGridCheck.cs（uicheck 宿主的一个检查节，片 impl-shop 新增）
 //
-//  判什么（用户症状：「商店商品占的格子不对」）：
 //   ① **格区几何**：`buysell_back.png` 逐像素实测的格线 pitch / 原点 / 线数，与
 //      `UiLayoutGame` 的 `ShopCell / ShopGridOrigin / ShopCols / ShopRows` 推出的值**逐值相等**，
 //      并且 `ShopCellCenter(i,j)` 反算回底图像素 == 实测的格心（100 格全对）。
@@ -16,10 +14,9 @@
 //  ClaimBlock / ComputeLayout` —— 只碰传入的数组 + `UiLayoutGame` 常量）；① 是解原版 PNG 的像素；
 //  纯函数与像素解码都不需要 Unity 运行时（宿主已链 Unity 托管 DLL，`Vector2/Mathf` 是纯托管实现）。
 //
-//  实测数字出处（本片自己量的，⛔ 不是抄任务书）：`.ai-tmp/test/measure_shop_lines2.py`
 //  对 `buysell_back.png` 的整列/整行平均亮度扫描 ⇒ 亮竖线 x = 14,43,72,…,275,304（11 条）、
 //  亮横线 y = 62,91,120,…,323,352（11 条）；格心（+14）全部 ≤ 27.9、线像素全部 ≥ 118.5。
-//  ⚠️ 该脚本是一次性量法（用后删）；断言值本身硬编码在上面这条结论里，判据不依赖脚本存在。
+//  该脚本是一次性量法（用后删）；断言值本身硬编码在上面这条结论里，判据不依赖脚本存在。
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System;
@@ -33,13 +30,11 @@ using UnityEngine;
 
 namespace Uicheck
 {
-    /// <summary>商店买卖屏：10×10 格盘几何 + 按物品自身占格摆放（片 impl-shop）。</summary>
     internal static class ShopGridCheck
     {
         /// <summary>转发宿主统一的断言出口（`Program.Check` 负责计数与 `[ OK ]/[FAIL]` 打印）。</summary>
         private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
 
-        // ── 实测阈值（本片 2026-09-22 量的；见文件头「实测数字出处」）────────────────
         /// <summary>格线像素的平均亮度下限（实测线像素 ≥118.5、格心 ≤27.9 ⇒ 78 有很大的双向余量）。</summary>
         private const float LineBright = 78f;
 
@@ -415,7 +410,7 @@ namespace Uicheck
             var npcSrc = File.ReadAllText(Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts",
                 "Module", "Npc", "NpcShop.cs"), Encoding.UTF8);
 
-            // ⚠️ 以下是**源码文本锚点（L1）**，只用来钉"接线没被改回去"；行为判据是上面 ①②③④ 的真跑断言。
+            // 以下是**源码文本锚点（L1）**，只用来钉"接线没被改回去"；行为判据是上面 ①②③④ 的真跑断言。
             var addEntry = Body(npcSrc, "private void AddEntry(ItemStack st, int count, int playerGold)");
             Check("[L1] `NpcShop.AddEntry` 真把占格拷进 `ShopEntry`（gridW = gw / gridH = gh），"
                 + "且缺值分支点名 Warn（含 `item_c.grid_w/grid_h`）",

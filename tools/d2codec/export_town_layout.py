@@ -86,9 +86,7 @@ LEVEL_NAME = 'Act 1 - Town'          # Levels.txt 的 Name（LevelName = Rogue E
 PRESET_NAME = 'Act 1 - Town 1'       # LvlPrest.txt 的 Name（Def=1）
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ★ 片 4 修正：**关卡窗口原点**
 #
-# 问题（旧版）：窗口直接取参考块 TownW1 的本地 [0,56)×[0,40)。而参考块的本地 x=0 正是
 # **营地西侧围栏那一列** ⇒ 地图的西边界压在营地围栏上、出城口（西侧 3 格缺口）正好落在
 # 地图边界 ⇒ 游戏里看过去，出城口外面什么都没有（**黑色的一个口**）。
 # 原版不这样：出城口外面还有**营地外那片地**（草地/树/石矮墙），关卡边界在更西边。
@@ -109,7 +107,7 @@ PRESET_NAME = 'Act 1 - Town 1'       # LvlPrest.txt 的 Name（Def=1）
 #
 # ⇒ 合并帧（= 参考块本地帧）里，**关卡窗口 = x∈[-17,38] × y∈[-5,34]**，即本文件的
 #    `WIN_X0/WIN_Y0`；窗口内每一格都按"参考块第一 + 逐格补空"从四块取（含新增的西/北条带）。
-# ⚠️ 共享边列的 ±1 约定有 1 格歧义（-17 还是 -18），实测取 -17：此时窗口宽度
+# 共享边列的 ±1 约定有 1 格歧义（-17 还是 -18），实测取 -17：此时窗口宽度
 #    17+39 = 56 = `Levels.txt` 的 SizeX，且桥东端列落在窗口最后一列。
 WIN_X0 = -17
 WIN_Y0 = -5
@@ -123,7 +121,7 @@ MONPRESET_SRC = os.path.join(_REPO, '原版资源', '参考工程_Diablerie', 'l
                              'data', 'src', 'excel', 'MonPreset.txt')
 
 # 本项目 5 个 NPC（`Def/Enums.cs::NpcId` 的顺序）→ `MonPreset.txt` 的 Place 名。
-# ⛔ 顺序 = (int)NpcId：0 阿卡拉 / 1 卡夏 / 2 恰西 / 3 基德 / 4 瓦瑞夫。
+# 顺序 = (int)NpcId：0 阿卡拉 / 1 卡夏 / 2 恰西 / 3 基德 / 4 瓦瑞夫。
 NPC_PLACES = ['akara', 'kashya', 'charsi', 'gheed', 'warriv1']
 
 # 桥的提供者 dt1 短名（`fi.names_of()` 返回的是短名，如 'bridge.dt1'）。
@@ -467,7 +465,7 @@ def build(out_path, debug):
     for y in range(gh):
         for x in range(gw):
             # ── 原版 `FillBlanks` 是**逐格**补空：该格"什么都没有"（wall 与 floor 都空）
-            #    才轮到后面的块。⛔ 不是逐层补：逐层补会让别的块的**错位墙**填进参考块的
+            #    才轮到后面的块。不是逐层补：逐层补会让别的块的**错位墙**填进参考块的
             #    空地（实测会把营地内变成一堆杂墙、并把出城口堵死）。
             src = None                                   # 命中的块（该格的整格来源）
             for i, f in enumerate(order):
@@ -497,7 +495,7 @@ def build(out_path, debug):
             if fl is not None and not fl.is_empty:
                 floor_src[y][x] = (src, fl)
 
-    # ── ★ 木桥（文件头 ③-b）：任何一块里有桥瓦片的格 → **一律用桥** ────────────
+    # ── 木桥（文件头 ③-b）：任何一块里有桥瓦片的格 → **一律用桥** ────────────
     #   为什么单开一条规则：本例的合并口径是"参考块第一 + 逐格补空"，而参考块（TownW1）
     #   在河那几格**有** floor 瓦片 ⇒ 桥（只有 TownE1 有）本来落不进来。
     #   桥的语义：有 floor 瓦片的行 = 桥面（可走）、有 wall 瓦片的行 = 栏杆（阻挡）。
@@ -535,7 +533,7 @@ def build(out_path, debug):
             ff = floor_src[y][x]
             wall_is_warp = False
 
-            # ★ 木桥优先（只有它这几格会走到这个分支，见上面的注释）
+            # 木桥优先（只有它这几格会走到这个分支，见上面的注释）
             bw = bridge_wall[y][x]
             bf = bridge_floor[y][x]
             if bw is not None or bf is not None:
@@ -577,7 +575,7 @@ def build(out_path, debug):
                         river_cells.append((x, y))
 
     # ── 四块都没覆盖到的格 = **原版那几格没有瓦片**（实测只有西北角 3×10 的一小块）────
-    #    ⛔ 不许给它编地面：原版不画；也不许当可走（原版没有瓦片 ⇒ 没有 walk 标志 ⇒ 不可走）。
+    #    不许给它编地面：原版不画；也不许当可走（原版没有瓦片 ⇒ 没有 walk 标志 ⇒ 不可走）。
     #    ⇒ 记成 kind='v'（`MapGenTown.KindOf` 映到 `TileKind.Void`：不画、不可走）。
     void_cells = []
     for y in range(gh):
@@ -590,7 +588,7 @@ def build(out_path, debug):
                          % (uncovered, len(void_cells)))
 
     # ── 围栏环 / 出城口：**以参考块自己那几格为准**（它的缺口就是原版的出城口）────
-    #    ⛔ 不按合并结果反推：其它块是同一营地按别的原点导出的，它们的栅栏会**错位盖到**
+    #    不按合并结果反推：其它块是同一营地按别的原点导出的，它们的栅栏会**错位盖到**
     #       出城口上（实测能把缺口堵死 ⇒ 城里没有出口）。所以缺口口径固定取参考块。
     ref_fence = set()
     ox, oy = offs[ref.rel]

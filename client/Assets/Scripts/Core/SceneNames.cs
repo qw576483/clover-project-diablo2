@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Core/SceneNames.cs
-// 场景名**唯一来源**（`docs/步骤文档.md` §3.6 场景与预制体契约）。
-// ⛔ 契约冻结：三个场景名不许改；Build Settings 里的 Build Index 见 `tools/ai-skill/registry.md`。
+// 契约冻结：三个场景名不许改；Build Settings 里的 Build Index 见 `tools/ai-skill/registry.md`。
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace Diablo2.Core

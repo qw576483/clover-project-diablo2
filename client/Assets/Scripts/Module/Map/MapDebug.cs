@@ -1,6 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Map/MapDebug.cs
-// 地图模块**自证取证**工具（`docs/agents/agent-04-地图模块.md` §5 验收要用）：
 //   · `DumpStats()`   —— 区域名 / 尺寸 / seed / 障碍数 / 可走数 / 生成耗时 / 出口/NPC/刷怪点
 //   · `DumpAscii()`   —— 把可走性打成字符画（**日志取证**：同 seed 两次生成应逐字符相同）
 //   · `Hash()`        —— 地形+F9 的 FNV-1a 哈希（两次生成比对用，日志里只贴哈希就够）
@@ -8,10 +7,8 @@
 // 生成流程（`MapModule.Generate`）在成功后会**自动**打一份 stats + 字符画头部 + 哈希，
 // 所以「三处区域各生成一次」的证据**天然落在日志里**，不需要额外调用。
 //
-// ★ 2026-09-24 下沉：`DumpAscii()` / `Hash()` 的**通用内核**（行首 `D3 + '|'` 口径、FNV-1a 常量、
 //   "先混宽高、再按 y 外层升序 / x 内层升序逐格"的顺序）已搬进引擎件 `CloverEngine.StableHash`；
 //   本文件只保留**本项目语义**（`CharOf`：一格画什么字符 —— S/E/C/N/M 与 '~' 水）。
-//   两个方法的签名与**输出逐字符未变**（改前 / 改后的取证日志可直接 diff）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Text;
@@ -69,7 +66,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 可走性字符画：`y` 从大到小逐行输出（地图「北」在顶部），行首带 y 坐标。
-        /// <para>★ 下沉：行首 `D3 + '|'` / 首行图例 / "只输出顶部 maxRows 行"的口径全部在
+        /// <para>下沉：行首 `D3 + '|'` / 首行图例 / "只输出顶部 maxRows 行"的口径全部在
         /// 引擎件 <see cref="StableHash.ToAscii"/>；本方法只给"一格画什么字符"（<see cref="CharOf"/>，
         /// 那才是本项目语义：`S`/`E`/`C`/`N`/`M` 与地形字符）。</para>
         /// </summary>
@@ -86,9 +83,9 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 地形 + 尺寸的 FNV-1a 64 位哈希（同 seed 两次生成必须一致）。
-        /// <para>★ 下沉：哈希常量（`OffsetBasis` / `Prime`）、"先混宽高、再按 y 外层升序 / x 内层升序
+        /// <para>下沉：哈希常量（`OffsetBasis` / `Prime`）、"先混宽高、再按 y 外层升序 / x 内层升序
         /// 逐格混入 `byte` 地形码"、"`X16` 大写十六进制"三条口径全在引擎件
-        /// <see cref="StableHash.HashGridHex"/>。⛔ 不自留第二份 —— 常量写错或顺序不一致会让两条日志
+        /// <see cref="StableHash.HashGridHex"/>。不自留第二份 —— 常量写错或顺序不一致会让两条日志
         /// "看起来都对、却永远对不上"，且不报错。</para>
         /// <para>注意：本哈希只混**地形码 + 尺寸**（与旧实现的 `Mix(h, (ulong)map.Width…)` 逐字节等价）；
         /// seed / 出生点等元数据不进哈希（要哈希复合结构请用 <see cref="StableHash.Combine(ulong,ulong)"/>
@@ -141,8 +138,7 @@ namespace Diablo2.Module.Map
 
             var kind = map.Get(x, y);
             if (kind == TileKind.Void) return ' ';
-            // ★ 片 L / R12：水在字符画里用 '~'（与障碍 '#' 分开）⇒ 日志/离线取证一眼能分出
-            //   "这条是河"还是"这条是石头"。⛔ 只改显示字符，可走性仍走 `TileKindInfo`（水 = 阻挡）。
+            //   "这条是河"还是"这条是石头"。只改显示字符，可走性仍走 `TileKindInfo`（水 = 阻挡）。
             if (kind == TileKind.Water) return '~';
             return TileKindInfo.IsWalkable(kind) ? '.' : '#';
         }

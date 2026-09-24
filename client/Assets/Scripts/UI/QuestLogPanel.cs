@@ -2,7 +2,6 @@
 // Diablo2 · UI/QuestLogPanel.cs
 // 任务日志面板（原版 Q 键）。
 //
-// ★★ 本片（2026「任务日志 = 原版任务图 + 原版串」轮）改了两件事，**两件都给出了出处**：
 //   ① **石龛里画原版任务图**（`MENU/a{章}q{序号}.dc6` 72×86，居中于 80×95 石龛）：
 //      归属依据 = **原版任务图文件名 ↔ 原版串表键名同构** —— `a{章}q{序号}` 共 **21** 个文件
 //      （`a1q1..a4q3`），串表里的任务条目键正是 `qstsa{章}q{序号}…`：Act I 6 + II 6 + III 6
@@ -10,35 +9,32 @@
 //      实证：`a1q2_0` 的图里是**一只红乌鸦**，而 `qstsa1q2` = 「修女埋骨之地」（血鸟 Blood Raven）。
 //      ⇒ 本项目只做 Act I 主线 1 ⇒ 用 **`a1q1`**（对应 `qstsa1q1` = 「邪惡洞穴」）。
 //      完成态 = 原版 `MENU/questdone.dc6`（21 帧 72×86，与任务图**不透明形状逐像素相同**、配色为灰）。
-//      ⛔ `MENU/questicons.dc6`（50×52 ×3）**本片起不再使用**（实测它就是任务图里那块"徽记板"的裁剪，
-//      再叠一层会把任务自己的图形盖掉）—— 登记见 `策划/自审对比/UI对照.md` §⑥。
 //   ② **正文改成"原版串表里的任务条目行"**（一条一屏，全部来自 `data/local/LNG` 的串表）：
 //      `qstsa1q1` 任务名 / `qstsa1q11` / `qstsa1q12` 目标 / `qstsa1q14`+N（或 `qstsa1q140`）进度 /
 //      `qstsa1q15`（可交付）· `qstsComplete`（已完成）· `noactivequest`（未接取）。
 //      串 id 逐条写在本文件下方的常量注释里（**画面中文 0 条自写**）。
 //
-// ★ 版面依据（**唯一依据 = 原版底图 + 原版 DC6 控件真身**）：
+// 版面依据（**唯一依据 = 原版底图 + 原版 DC6 控件真身**）：
 //   参考工程 `Diablerie/Assets/Prefabs/` **没有任务面板 prefab**（`NpcInteractions.cs` 只播问候音）
 //   ⇒ 分区由 `Panel/quest_back.png`（原版 `MENU/questbackground.dc6`，320×432）**逐行扫金框**实测得出
 //   （y = 0 / 28 / 230 / 252 / 383 / 430；黑芯 x 2..317 / y 254..382）。逐条出处写在
 //   `UI/UiLayoutGame.cs` §⑥。
 //
-// ★ 行距口径（**有出处**）：原版文本是运行时文字，但 libd2 有排版函数的逐行移植
+// 行距口径（**有出处**）：原版文本是运行时文字，但 libd2 有排版函数的逐行移植
 //   （`packages/formats/src/font.zig:141-146` 行高 = 最高字形 / `:239-259` 每行 `baseline += line_height`、
 //   左对齐 / `:188-216` `D2WINTEXTBOX_WordWrapAndSetText @0x4fcda0` 换行规则）
 //   ⇒ 本项目**不给魔数行距**，交给 `UI/D2Text` 按原版字模算。
 //
-// ★ 数据：只吃 `Diablo2.Def.QuestStateDto`（`OnOpen` 参数 + `Events.QuestChanged`）：
+// 数据：只吃 `Diablo2.Def.QuestStateDto`（`OnOpen` 参数 + `Events.QuestChanged`）：
 //     questId / name / state / progress / required / rewardClaimed / objective
 //   「邪恶洞穴」的进度语义（`Module/Contracts.cs` 字段注释）：
 //     progress = 已清怪数、required = 洞内初始怪物总数 ⇒ **剩余怪物数 = required − progress**
 //     （原版也是这么做：清光才允许交付；硬条件由 `IQuestModule.CanTurnInDen` 把关）。
-//   ⚠️ 进度行**只有这一个数字来源**（`Remaining()` = required − progress）⇒ 不可能与别的行自相矛盾
-//      （上一版的「目标行写剩余 0 / 进度行写剩余 7」缺陷就是从两个来源来的，见验收表 B24）。
-// ★ 事件：只**发** `Events.PanelToggleRequest`（页签点击提示"未实装"路径不发热键）；
+//   进度行**只有这一个数字来源**（`Remaining()` = required − progress）⇒ 不可能与别的行自相矛盾
+// 事件：只**发** `Events.PanelToggleRequest`（页签点击提示"未实装"路径不发热键）；
 //   只**收** `Events.QuestChanged`（刷新）与 `Events.QuestCompleted`（提示）。
-//   ⛔ 不在这里发 `QuestAcceptRequest` / `QuestTurnInRequest` —— 那是 NPC 对话面板的职责（见 ①-④）。
-// ⛔ 零 `using Diablo2.Module`（分层自检 ③）。
+//   不在这里发 `QuestAcceptRequest` / `QuestTurnInRequest` —— 那是 NPC 对话面板的职责（见 ①-④）。
+// 零 `using Diablo2.Module`（分层自检 ③）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -53,12 +49,12 @@ namespace Diablo2.UI
 {
     /// <summary>
     /// 任务日志面板。层：<see cref="UILayer.Normal"/>。
-    /// <para>★ R8-close（2026-09-24）：原先声明 <see cref="UILayer.Popup"/> ⇒ 引擎在 Popup 层插**全屏模态
+    /// <para>原先声明 <see cref="UILayer.Popup"/> ⇒ 引擎在 Popup 层插**全屏模态
     /// 遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` → `:443-461` `ShowMask()`，
     /// `raycastTarget = true`），而本屏**一个关闭控件都没有**（全文只有 Act 页签）⇒ 遮罩把 `Normal`（HUD）
     /// 整个盖住 ⇒ **纯鼠标玩家打开任务日志后无任何出口**。原版没有模态遮罩（靠 Q 键 / 小面板按钮开合），
     /// 故按同一口径**降层**——先例 = `UI/NpcDialogPanel.cs` 的 R1-E。
-    /// ⚠️ 引擎的 `CloseMutexPanels()` 只关 `Layer == Popup` 的面板 ⇒ 同族互斥改由 HUD 入口显式补
+    /// 引擎的 `CloseMutexPanels()` 只关 `Layer == Popup` 的面板 ⇒ 同族互斥改由 HUD 入口显式补
     /// （`UI/HudPanel.cs` 的 `CloseScreenFamily`，注释里有"为什么必须补"）。</para>
     /// </summary>
     public class QuestLogPanel : UIPanel
@@ -166,7 +162,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 某状态下石龛里画哪张**原版任务图**（返回资源路径；`null` = 不画，保持原版空石龛）。
         /// <para>
-        /// 映射（**本片定案**，出处见类头 ①）：
         ///   未接取 → `null`（原版空石龛）／进行中、可交付 → `a{章}q{序号}` 帧 0／已完成 → `questdone` 帧 0。
         /// </para>
         /// </summary>
@@ -288,7 +283,6 @@ namespace Diablo2.UI
             _built = true;
 
             // ── 底图：原版 `MENU/questbackground.dc6`（320×432 → ×1.8 = 576×777.6，1:1 不拉伸）──
-            // ★ 片 K（R8）：底图**必须吃射线** —— `UiArt.Art(...)` 的 `raycastTarget` 默认 **false**，
             //   本图却是**面板矩形**（576×777.6，非满屏）⇒ 与 `ShopPanel.BuySellBg`（true）同口径。
             //   不吃射线的后果：点面板内部空白 → `IsPointerOverGameObject()` 为 false →
             //   `InputReader.UiEatsIntent` 判不成"点 UI" → 反投影成"点地面" ⇒ 角色走动。
@@ -350,7 +344,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 石纹区里的 **3×2 任务格**：原版一层 `questsocket_*`（80×95 拱形石龛框）
         /// + 一层**原版任务图**（72×86，`a{章}q{序号}` / `questdone`，居中 ⇒ 偏移 0）。
-        /// <para>⛔ 这里**不画任务名**：石纹区净高 200、2×95 已占满，名字必然压在下一行石龛上（实测读图确认过）。</para>
+        /// <para>这里**不画任务名**：石纹区净高 200、2×95 已占满，名字必然压在下一行石龛上（实测读图确认过）。</para>
         /// </summary>
         private void BuildSlots()
         {

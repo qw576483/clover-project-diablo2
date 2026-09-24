@@ -69,7 +69,7 @@ ORIGIN = (-1, -1)
 # 面板要用的两个尺寸（单元格数）——与 `UI/UiLayoutFlow.cs` 的 BoxSize **逐值对应**
 #   settings：432×348 原版px =（内容 420×335 + 2×4 框厚 = 428×343）吸附 12 网格
 #   pause   ：288×180 原版px =（4 个 WideButton 外接框 272×170 + 2×4 = 280×178）吸附 12 网格
-#   ⚠️ 文件名**不带尺寸**（角色名）⇒ 尺寸的唯一来源是 `UiLayoutFlow.BoxFrame` 那两个常量，
+#   文件名**不带尺寸**（角色名）⇒ 尺寸的唯一来源是 `UiLayoutFlow.BoxFrame` 那两个常量，
 #      两者是否一致由 `uicheck` ㉑ 节按 IHDR 断言（不一致必红）。
 SIZES = [("boxframe_settings", 36, 29), ("boxframe_pause", 24, 15)]
 

@@ -4,7 +4,6 @@
 //    ground click really walks the character).
 //
 // WHY THIS FILE EXISTS (promotion of a deleted one-off probe):
-//   The 2026-09-22 U-1 recapture (".ai-tmp/screenshots/u1_evidence_recapture.txt")
 //   was produced by a one-off probe ".ai-tmp/test/u1_probe.cs" that was deleted
 //   afterwards, so the live chain could not be re-run from the repo.  Per
 //   clover-engine skill 3.5 a judging asset (probe / driver / measuring script)
@@ -1302,7 +1301,6 @@ namespace S2
                     return;
 
                 // ---------------------------------------------------------- 7 create a character (s2d)
-                // WHY (2026-09-23, run s2d): the roster was EMPTY -- `Event.CharSelectRequest("g66")`
                 // was answered with "[Save] 没有角色「g66」的存档" + "[Flow] 选角失败" (Editor.log
                 // 17:03:11.745/17:03:11.747) and the flow stayed on CharSelect for the whole 45s.
                 // So the driver must CREATE one first: pick a class through the panel's own handler

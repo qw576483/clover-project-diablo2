@@ -1,15 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · Module/Map/TileNodePool.cs  ★ eng-tile 下沉后 = **薄转发**
+// Diablo2 · Module/Map/TileNodePool.cs  eng-tile 下沉后 = **薄转发**
 //
 // 实现已下沉到引擎：`CloverEngine.TileNodePool`
 //   （clover-client-unity-engine · Runtime/Presentation/TileNodePool.cs）。
 // 本文件**只保留项目侧类型名与公开签名**（一字未改）⇒ 全部调用点（`MapView.EnsurePool` /
 // `NewTile` / `ReturnTiles`）与全部离线判据（`TileNodePool.SplitDemand(...)`）逐字不变。
 //
-// ⛔ 本文件不许再长出实现：① 池化逻辑（借/还/清、`SetActive` 配对、跳过已销毁引用）只在引擎那份；
-//   ② ⛔ 不许在这里新造节点（不写建 `GameObject` / 挂 `SpriteRenderer` 的代码）—— 否则"瓦片节点的
-//   唯一创建点"就变成两处、池化前后逐项相等不再是结构性保证（引擎那份的类注释与 mapcheck §17①/§20
-//   都钉着这条，且那两条判据现在读的是**引擎文件**）。
+// 本文件不许再长出实现：① 池化逻辑（借/还/清、`SetActive` 配对、跳过已销毁引用）只在引擎那份；
+//   ② 不许在这里新造节点（不写建 `GameObject` / 挂 `SpriteRenderer` 的代码）—— 否则"瓦片节点的
 // 出处与三条硬规矩见引擎文件头注释。
 // ─────────────────────────────────────────────────────────────────────────────
 

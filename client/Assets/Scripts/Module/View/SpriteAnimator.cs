@@ -1,17 +1,15 @@
 // ═════════════════════════════════════════════════════════════════════════════
-// ★★ 本项目新增 ★★  Module/View/SpriteAnimator.cs
+// 本项目新增 Module/View/SpriteAnimator.cs
 // **业务自写的逐帧 Sprite 动画**。
 //
 // 为什么必须自己写（不是重造轮子，是引擎没有这条路径）：
 //   引擎的动画能力是 `Game.Anim`（`IAnimationManager.CreateAnimator(go, RuntimeAnimatorController)`
 //   → `IAnimPlayer.Play/CrossFade/SetBool…`），底层是 Unity 的 **Animator 状态机**；
 //   它要求先有 `AnimatorController` 资产，而 `AnimatorController` **只能在 Editor 侧生成**
-//   （`docs/步骤文档.md` §3.4「AnimatorController 只能 Editor 侧生成」）。
 //   原版暗黑2 的角色/怪物是 **`.dcc` 解码出来的逐帧 PNG 序列**（动作 × 8 方向 × N 帧），
 //   语义上就是"按固定帧率轮播一组贴图"，用 Animator 反而要为一帧一张图建状态机（不可行）。
 //   ⇒ 本项目自写 `SpriteAnimator`（逐帧切图），**不使用 `Game.Anim`**。
 //
-// ⚠️ 与引擎 `CloverEngine.SpriteFrameAnimator` 的**分工**（2026-09-24 逐字核对过，**不是重复实现**）：
 //   引擎件 = 「**已加载的 `Sprite[]` + 帧段下标」推进并**直接写 `SpriteRenderer.sprite`**
 //            （`Play(frames, int[] indices, …)` / `PlayOnce` / `PlayStill` / `SwitchTo` 滞回 / `Advance`）；
 //   本件   = 「**帧键（string）**」的时间轴（动作 × 朝向 × 帧号 → 键），**不持有 Sprite**、
@@ -19,7 +17,7 @@
 //   ⇒ 两者的差异是**语义差异不是写法差异**：把本件换成引擎件，等于要求"贴图必须先同步加载完"
 //     （本项目是异步逐帧加载 + 占位），会把"帧未到位也能推进"这条性质丢掉。
 //   ⇒ 引擎件真正能替代的是本件**之外**的那半：帧段展开（`ExpandRuns` 的 `182-230 ∪ 247-251` 这类
-//     非连续区间）。⛔ 未做强行合并（会退化），如需体验引擎件请用在**已同步拿到 Sprite** 的场景。
+//     非连续区间）。未做强行合并（会退化），如需体验引擎件请用在**已同步拿到 Sprite** 的场景。
 //
 // 设计：**只做时间 → 帧号的纯逻辑**（帧用"键"表示，贴图解析交给 `SpriteFrames`），
 //   这样它不依赖任何 Unity 对象 ⇒ 可被离线自检宿主直接驱动与断言（`tools/combatcheck/`）。
@@ -78,9 +76,8 @@ namespace Diablo2.Module.View
             SpeedScale = 1f;
             Anim = ViewAnim.Idle;
             _fps = DefaultFps;
-            // ⚠️ `Finished` 必须**显式**置 true：新对象的 `_keys` 是 null（一帧都没有），
+            // `Finished` 必须**显式**置 true：新对象的 `_keys` 是 null（一帧都没有），
             //    而 `Finished` 的 bool 默认值是 false —— 那会让 `Play()` 的早退判据误以为
-            //    「正在播 Idle 且还没播完」（根因见 `Play` 的注释）。
             Finished = true;
         }
 
@@ -110,11 +107,8 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 播放某个动作。**同一个动作重复调用不会重置进度**（否则每帧都被打回第 0 帧，
-        /// 这是逐帧动画最典型的"看起来卡在第 1 帧"缺陷）；动作变了才从第 0 帧开始。
         /// </summary>
         /// <remarks>
-        /// ★★ 早退判据**必须**带 <see cref="HasKeys"/>（**根因修复**：旧判据让角色/怪物
-        /// 永远停在纯色占位块上，2026-09 实测定论）。
         /// <para>旧判据 = `anim == Anim &amp;&amp; !Finished`，而构造完的 `Anim` 就是 `ViewAnim.Idle`、
         /// `Finished` 又是 bool 默认值 `false` ⇒ 新建视图后**唯一一次** `Play(Idle, …)`
         /// （`ViewModule.CreatePlayer` / `CreateMonster` / `OnStageEntered` 建 NPC 视图那条路）
@@ -130,16 +124,14 @@ namespace Diablo2.Module.View
         /// </remarks>
         public void Play(ViewAnim anim, string[] keys, float fps, bool loop)
         {
-            // ★ R1-D 口径（「人物移动抖动」的候选② = "动画被反复打回第 0 帧"）：**已离线否证**。
+            // R1-D 口径（「人物移动抖动」的候选② = "动画被反复打回第 0 帧"）：**已离线否证**。
             //   下面的早退判据本身就保证了「**同动作 + 同帧键 + 手上真有帧 + 未播完 ⇒ 不重置进度**」；
             //   而"换朝向"会把帧键**整组换掉**（`{动作}_{方向}_{帧号}`）⇒ 走复位分支，那是原版语义
-            //   （8 方向各一套 `.cof`，换方向 = 换一整套帧）**必须保留**，⛔ 不许改成"跨方向保留相位"。
+            //   （8 方向各一套 `.cof`，换方向 = 换一整套帧）**必须保留**，不许改成"跨方向保留相位"。
             //   离线证据（真 `SpriteAnimator` + 真 `PlayerMotor` 的锯齿路径逐帧驱动）：
-            //   `tools/probes/hosts/movecheck` §7 —— 同组重复 Play 复位 0 次、每帧调用 0 次（调用次数
-            //   只等于"动作/朝向真实变化"次数，远小于帧数）。
             //
             // 早退的**完整**条件：动作没变 **且** 帧键也一模一样 **且** 手上真有帧 **且** 还没播完。
-            //   ⚠️ `SameKeys` 不能省：原版是 8 方向逐帧动画，"动作没变但换了朝向"是一次**新动画**
+            //   `SameKeys` 不能省：原版是 8 方向逐帧动画，"动作没变但换了朝向"是一次**新动画**
             //   （帧键整组换掉）。只判 `anim == Anim` 会把换方向吞掉 ⇒ 角色"朝东走却放着朝南的动画"
             //   （`ViewModule` 侧同时改成朝向变化也调 `PlayAnim`，两处合力才对）。
             if (anim == Anim && !Finished && HasKeys && SameKeys(_keys, keys)) return;
@@ -152,7 +144,6 @@ namespace Diablo2.Module.View
             FrameIndex = 0;
             Finished = !HasKeys;
 
-            // 非预期分支（`_common.md` §3：非法状态必须留日志）：调用方给不出任何帧键
             // —— 单位键名与 `SpriteFrameCounts` / 磁盘目录名对不上，或导出缺图。
             // 这一帧以后只会一直显示占位色块 ⇒ 只报一次（不刷屏）。
             if (!HasKeys)

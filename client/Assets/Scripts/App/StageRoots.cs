@@ -1,16 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · App/StageRoots.cs     （agent-12「最后一次接线」§3 第 4 项——**本项目新增**）
 // 把 `Stage` 场景里的两个空节点（`MapRoot` / `EntityRoot`）交给业务模块。
 //
 // 为什么需要这个组件（而不是 `Bootstrap` 直接引用）：
 //   `Bootstrap` 常驻在 `Boot` 场景（`DontDestroyOnLoad`），**拿不到 Stage 场景里的对象**；
 //   而 `Module/Map` / `Module/View` 的 `AttachRoot(Transform)` 是**非契约**入口，只能由 App 层转交。
-//   ⛔ 也**不许**用 `GameObject.Find("MapRoot")`（`_common.md` §2 / agent-09 §6 明令禁止）。
-//   ⇒ 唯一干净的做法：由 Stage 场景自己携带引用（本组件），在 `Awake` 里注入。
 //
-// 契约（给 agent-10 的 ProjectBuilder）：
 //   在 `Stage` 场景放一个空物体 `StageRoots`，挂本脚本，并把两个字段拖成
-//   场景里的 `MapRoot` / `EntityRoot`（节点名必须保持这两个，见 agent-10 §3）。
 //   **不挂也能跑**：`AppWiring` 会 Warn 一次，两个模块各自 `new GameObject` 自建根。
 //
 // 时序：场景加载 ⇒ 本组件 `Awake`（此时 `AppContext.I` 已由 Bootstrap 建好）⇒ 注入 +

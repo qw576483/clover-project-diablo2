@@ -1,16 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · App/AppWiring.cs      （agent-12「最后一次接线」）
-// **App 层的运行时接线入口**：把 agent-04~09 交付的模块真正连成一条能跑的链路。
 //
 // 为什么只能放在 App 层：`Module/X` 之间不许 `using` 别的模块的具体类型
 // （`tools/ai-skill/conventions.md`）⇒「谁在什么时机 emit / 调用谁」必须有一处唯一知道。
 //
-// 拆成 4 个同级文件（每个 ≤ 200 行，见 `_common.md` §4）：
 //   · 本文件           —— 装配入口 + 场景根节点注入 + Stage 进/出（HUD 开关）+ 进图断言
-//   · `AppSnapshots.cs`    —— 进图全量快照 + 面板打开前补发        （§3 的第 2、3 项）
-//   · `AppDoorGuard.cs`    —— 过门去重断言                        （§3 的第 5 项）
-//   · `AppEventRouting.cs` —— UI/输入请求 → 门面方法              （§3 的第 7 项落地）
-// ⛔ 本层不含业务逻辑：不判伤害/距离/数值/掉落/任务条件，只做「事件 ↔ 门面」的搬运。
+// 本层不含业务逻辑：不判伤害/距离/数值/掉落/任务条件，只做「事件 ↔ 门面」的搬运。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Reflection;
@@ -46,10 +40,8 @@ namespace Diablo2.App
         {
             _installed = false;
             _stageActive = false;
-            // ★ 片 S2（2026-09-23）：传送点的「已去过区域」也是静态集合 ⇒ 同一局内必须一起复位，
             //   否则关了「域重载」时第二局一开局就带着上一局去过的地方（面板凭空多出目的地）。
             AppWaypoint.ResetStaticForNewPlaySession();
-            // ★ 片 save-progress：按区域累积的"已探索格"与待回灌数据同样是静态的 ⇒ 一并复位
             //   （否则关了「域重载」时第二局一开局就带着上一局的 automap 记忆）。
             AppProgress.ResetStaticForNewPlaySession();
             AppProgress.ResetInstalledFlag();
@@ -73,22 +65,15 @@ namespace Diablo2.App
             }
             _installed = true;
 
-            // ★ 订阅顺序说明（agent-05 更正 agent-12 的老注释）：
             //   `Game.Event` 同一优先级是「**后注册先执行**」（`Runtime/Core/Event.cs:141-143` + `:319-343`），
             //   所以下面这行注册的 `AppDoorGuard` 跑到**本类**后面 —— 老注释里"AppDoorGuard 必须先收到
-            //   StageEntered"正好是反的，那正是 agent-14 §B 现象 3 的根因（快照回声被误计成重复生成）。
             //   现已改成**与顺序无关**的两条规则：① App 自己的快照回声不计入（`AppSnapshots.EchoInFlight`）；
             //   ② `AppDoorGuard` 改在边界事件（`StageEntered` / `ExitEntered`）上报计数。
             AppDoorGuard.Install(ctx);
             AppSnapshots.Install(ctx);        // 全量快照 + 面板打开前补发
             AppEventRouting.Install(ctx);     // UI/输入请求 → 门面方法
-            // ★ 片 S2（2026-09-23，修用户报的「传送点没效果」）：`AppWaypoint` 写完后**没人调它的
-            //   `Install`** ⇒ 点击/到达/面板/选目的地四条订阅一个都不存在，功能整条静默失效
             //   （类在、编译过、日志干净 —— 这正是最贵的一类失败）。唯一装配点就是这里。
             AppWaypoint.Install(ctx);         // 传送点：锚点交互 + 面板 + 选目的地 ⇒ 切区
-            // ★ 片 save-progress（2026-09-24）：进度类状态（传送点已激活列表 / 小地图已探索格）的
-            //   存盘收集与读档回灌 —— 修前这两块**从不落盘**（`SaveModule` 的收集链里没有它们）
-            //   ⇒ 读档后传送点全变未激活、automap 全空。
             AppProgress.Install(ctx);
             bus.On(Events.StageEntered, OnStageEntered);
             bus.On(Events.StageLeft, OnStageLeft);
@@ -100,7 +85,7 @@ namespace Diablo2.App
 
         /// <summary>
         /// 把 `Stage` 场景的「地图根 / 实体根」交给两个模块（**幂等**：`StageRoots` 注入后再调一次即可）。
-        /// ⚠️ 用**反射**找 `AttachRoot(Transform)` 而不是 `is MapModule`：它是**非契约**入口，
+        /// 用**反射**找 `AttachRoot(Transform)` 而不是 `is MapModule`：它是**非契约**入口，
         /// 直接写具体类型会让 App 层编译期依赖 `Module/Map` 与 `Module/View`，
         /// 而 `tools/flowcheck` / `tools/uicheck` 刻意只编子集 ⇒ 会把别人的半成品算成它们的编译失败。
         /// </summary>
@@ -169,14 +154,13 @@ namespace Diablo2.App
 
             AssertMapAndSpawn(ctx);
 
-            // ★ 片 save-progress（2026-09-24）：**先回灌"进度类状态"，再开 HUD / 广播快照** ——
             //   回灌 = 把存档里的传送点已激活列表并进 `AppWaypoint`、把当前区域的已探索格下发地图
             //   （`Events.MapExploredRestore` ⇒ 渲染层位图，权威口径）。此刻地图/玩家**都已装配完成**
             //   （`AppFlow.FinishStageEntry` 保证 BuildStep 全跑完才发 StageEntered）⇒ 是唯一安全时机：
             //   早于它（`LoadDone`）地图还没生成、晚于它 automap 可能已经被别的事件画过一遍。
             AppProgress.RestoreForCurrentStage();
 
-            // ★ 顺序要紧：**先开 HUD**（它的 `Awake` 才订阅那些事件），**再广播快照**；
+            // 顺序要紧：**先开 HUD**（它的 `Awake` 才订阅那些事件），**再广播快照**；
             //   反过来则 HUD 收不到本次快照 ⇒ 第一次按 I/C/T/Q 打开的面板全是空的。
             var stats = ctx?.Player?.Snapshot();
             Game.UI?.Open<HudPanel>(stats);
@@ -207,7 +191,7 @@ namespace Diablo2.App
             }
             else
             {
-                // ⚠️ `GensSinceLastBoundary` 由 `AppDoorGuard.OnStageEntered` 上报后清零；本回调注册得**晚**
+                // `GensSinceLastBoundary` 由 `AppDoorGuard.OnStageEntered` 上报后清零；本回调注册得**晚**
                 //    （后注册先执行，见 Install 的说明）⇒ 这里读到的是"本次进图那一次生成"，正是想要的数。
                 //    断言本身不依赖这个时序（`AppDoorGuard` 自己上报，见 `AppDoorGuard.Report`）。
                 Game.Logger.Info(Tag,

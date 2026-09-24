@@ -14,10 +14,9 @@
 //     且是线性变换 ⇒ 格空间的直线推进投影到世界仍是直线（方向无关，速度均匀）。
 //   · 反向取格一律 `Iso.WorldToGrid`（内部 `Mathf.FloorToInt`，`constraints.md` #4）。
 //
-// ⛔ 速度单位 = **格/秒**（`GameConst.PlayerWalkSpeed` 为基准）；不引入第二份速度常量。
-//    「跑/走切换」（原版 R 键，`docs/agents/agent-13-修复轮.md` §A 第 5 项）通过
+// 速度单位 = **格/秒**（`GameConst.PlayerWalkSpeed` 为基准）；不引入第二份速度常量。
 //    <see cref="SpeedScale"/> 缩放基准速度（跑 = 1.0，走 = 0.5），仍**只有一份**基准常量。
-// ⛔ 不穿墙：进入每个路点前校验该格 `Walkable`，斜向步还要校验两侧格（`CloverEngine.AStar` 同规则）。
+// 不穿墙：进入每个路点前校验该格 `Walkable`，斜向步还要校验两侧格（`CloverEngine.AStar` 同规则）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -192,7 +191,6 @@ namespace Diablo2.Module.Player
                 var delta = target - _pos;
                 var dist = delta.magnitude;
 
-                // ── ★ R1-D：移动积分口径（用户投诉「人物移动抖动」的真根因之一）──────────────
                 // 旧口径（**已修掉**）：`dist <= ArriveEpsilon(0.08)` 时先不推进，随后 `_pos = target`
                 //   **吸到格心却不扣预算** ⇒ 吸过去的那段（(0, 0.08] 格）是**白送**的位移，于是"落格"
                 //   那一帧的位移 = 白送量 + 预算(speed×dt)，最多达 **2× speed×dt**
@@ -200,9 +198,7 @@ namespace Diablo2.Module.Player
                 //   而 dt=1/60 时预算 0.05 < eps 0.08 ⇒ **每过一个路点必然走这条分支**，
                 //   即"每走一格，必有一帧位移翻倍"⇒ 观感 = 每格顿一下 / 人物发抖（与帧率无关）。
                 // 新口径：**能走到格心就走到并同步扣预算**（位移恒 ≤ speed×dt）；
-                //   落点仍用**赋值**（不是累加）⇒ 浮点误差不累积、终点逐帧可复现（断言 §15 b）。
                 //   `GameConst.ArriveEpsilon` 不再参与积分（它仍是 `Arrive()` 的位置校验阈值）。
-                // 离线断言：`tools/probes/hosts/playercheck` §15 a（每帧位移 ≤ speed×dt、相邻位移不反向）。
                 if (dist <= budget)
                 {
                     _pos = target;
@@ -252,8 +248,7 @@ namespace Diablo2.Module.Player
             _world = Iso.GridToWorld(target);
         }
 
-        // ⛔ 这里**没有**「朝某方向走一格」的入口：原版 D2 只有鼠标点地面移动
-        //   ⇒ 按全局 skill §0「A 没有 ⇒ 不加」整体删除（验收表 U-1；本项目 bug 表 B35）。
+        // 这里**没有**「朝某方向走一格」的入口：原版 D2 只有鼠标点地面移动
         //   移动的唯一入口仍是点击/按住下发的 `MoveTo`（A* 寻路）。
 
         /// <summary>复位（回主菜单/换角色）。</summary>
@@ -277,7 +272,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// ★ R1-D（只报一次）：**移动积分口径**——给下一批进 Play 当数值证据用。
+        /// R1-D（只报一次）：**移动积分口径**——给下一批进 Play 当数值证据用。
         /// 写清"生效口径"：每帧位移 ≤ speed×dt；落格心用赋值（不累加）但**同步扣预算**。
         /// </summary>
         private void LogBudgetOnce()

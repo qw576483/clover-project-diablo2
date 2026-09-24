@@ -17,7 +17,7 @@
 #     python tools/probes/enumerate/host_asserts.py --run    # 跑全部宿主（~50s）并写 tsv
 #     python tools/probes/enumerate/host_asserts.py --check  # 只校验盘上 tsv 与宿主源码是否对得上
 #
-# ⛔ 本脚本**只读** `client/**` 与 `tools/probes/hosts/**`，只写
+# 本脚本**只读** `client/**` 与 `tools/probes/hosts/**`，只写
 #    `tools/probes/enumerate/host_asserts.tsv` 与 `.ai-tmp/test/hosts-run/`。
 # ─────────────────────────────────────────────────────────────────────────────
 import io
@@ -70,7 +70,7 @@ SYS_ASSERT = [
     ('sys:Item(8 cs)', '边界值（阈值±1 / 0 / 上限 / 超界）', 'itemcheck', '满包再入包 ⇒ 返回 false'),
     ('sys:Item(8 cs)', '异常分支（必须留痕）', 'itemcheck', '满包时有可读日志'),
     # ── Map：同 seed 幂等（默认）/ 洞穴尺寸落在 [Min,Max]（边界）/ 重试全败走保底布局（异常）
-    # ⚠️ mapcheck 的断言名是**插值串**（`Check(same, $"{areas[i]} 同 seed 两次生成完全一致")`，
+    # mapcheck 的断言名是**插值串**（`Check(same, $"{areas[i]} 同 seed 两次生成完全一致")`，
     #    `Program.cs:136`）⇒ 锚点用插值串的固定片段（它在宿主源码里逐字可见）。
     ('sys:Map(13 cs)', '默认分支', 'mapcheck', '同 seed 两次生成完全一致'),
     ('sys:Map(13 cs)', '边界值（阈值±1 / 0 / 上限 / 超界）', 'mapcheck', '是原版块边长 25 的整数倍且在'),
@@ -91,7 +91,6 @@ SYS_ASSERT = [
     ('sys:Quest(2 cs)', '默认分支', 'itemcheck', '初始状态 = NotStarted'),
     ('sys:Quest(2 cs)', '边界值（阈值±1 / 0 / 上限 / 超界）', 'itemcheck', 'required=0 时不可交付'),
     ('sys:Quest(2 cs)', '异常分支（必须留痕）', 'itemcheck', '野外击杀有可读日志（不是洞穴）'),
-    # ── Save：序列化往返恒等（默认）/ 旧版本档仍能读（边界）/ 坏内容有告警（异常）
     ('sys:Save(2 cs)', '默认分支', 'savecheck', 'Write(Parse(json)) == json'),
     ('sys:Save(2 cs)', '边界值（阈值±1 / 0 / 上限 / 超界）', 'itemcheck', '版本不符仍能读（降级，不崩）'),
     ('sys:Save(2 cs)', '异常分支（必须留痕）', 'savecheck', '坏内容有告警'),
@@ -199,7 +198,7 @@ def main():
         print('VERDICT: %s（缺 %d 条）' % ('PASS' if not bad else 'FAIL', len(bad)))
         return 0 if not bad else 1
 
-    # ★ 防呆（实测踩过的形状）：`.ai-tmp/test/hosts-run/` 是**一次性**目录、交付前会被清掉
+    # 防呆（实测踩过的形状）：`.ai-tmp/test/hosts-run/` 是**一次性**目录、交付前会被清掉
     #   ⇒ 此时本脚本若照旧写盘，会把 42 行**实测值全写成空**（= 把判据资产悄悄弄坏）。
     #   故：有任一条没命中就**不写**，只打印「先跑 --run」。
     if bad and '--force' not in sys.argv:

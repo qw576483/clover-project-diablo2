@@ -552,7 +552,6 @@ def _cmd_compose(argv):
 def _cmd_selfcheck(argv):
     dc6_path, pl2_path, ref = argv[0], argv[1], argv[2]
     fi = int(argv[3]) if len(argv) > 3 else 0
-    # ★ 修复（片 1）：原先漏传 `fi` ⇒ `[frame]` 参数被静默忽略，永远只比第 0 帧，
     #   而输出里却回显 frame=fi（"看着对、其实比错帧"）。selfcheck 的签名本来就收 frame_index。
     w, h, diff = selfcheck(dc6_path, pl2_path, ref, fi)
     if diff < 0:

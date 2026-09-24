@@ -2,7 +2,6 @@
 # dc6_frame_alpha.py -- judge a frame PNG by its BYTES: "does this frame carry the graphic the
 # comment/ledger claims?" (opaque-pixel count + alpha bounding box + optional ASCII luminance map).
 #
-# WHY (sheet u52play, 2026-09-24): the ledger row U52 / defect D7 recorded the root cause of
 # "the add-point arrow is invisible" as "UiArt.ArrowFrame(0) -- frame 0 IS TRANSPARENT"
 # (client/Assets/Scripts/UI/CharacterPanel.cs ... and the same phrase in uicheck/Program.cs L1486).
 # Measured against the files on disk that sentence is FALSE:

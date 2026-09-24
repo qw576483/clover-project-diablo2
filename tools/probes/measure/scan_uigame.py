@@ -427,7 +427,7 @@ def cmd_cjk(patterns):
 
     import re
     # 只取**字符串字面量**里的字（注释里的字不上屏：本轮实测 76 个"缺字形"全是注释里的
-    # `⛔`(U+26D4 U+FE0F) 与日文「対」(U+5BFE)，属噪声 —— 判据必须只盯上屏文本）
+    # ``(U+26D4 U+FE0F) 与日文「対」(U+5BFE)，属噪声 —— 判据必须只盯上屏文本）
     lit_re = re.compile(r'"((?:[^"\\]|\\.)*)"', re.S)
 
     total_bad = 0
@@ -632,7 +632,7 @@ def cmd_pairs():
     print("\n== 描述名 → DC6 `_N` 的**自动配对**（判据 = 逐像素 RGB 相同） ==")
     named = ["runbutton_run_NotPressed.png", "runbutton_run_Pressed.png",
              "runbutton_walk_NotPressed.png", "runbutton_walk_Pressed.png"]
-    # ⚠️ w4：`menubutton__0__*` / `minipanelbtn__00__*` 已从磁盘删除 ⇒ 不再列入；
+    # w4：`menubutton__0__*` / `minipanelbtn__00__*` 已从磁盘删除 ⇒ 不再列入；
     #    它们的「描述名 → DC6 帧号」配对结果已固化在 `UI/UiArt.cs` 的注释里（walk 0/1、run 2/3）。
 
     cands = sorted([f for f in os.listdir(os.path.join(UI, "Panel"))

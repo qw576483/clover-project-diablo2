@@ -5,26 +5,21 @@
 // 为什么单独一个文件（与 `MapSeam` / `DeckTiles` 同一口径）：同一条判据会被**两处**用到
 //   —— 生产路径（`PlayerModule.CheckExit` 决定"发不发过门请求"）、离线断言
 //   （`tools/probes/hosts/audiocheck` 的"同一出口格连续 60 帧只发 1 次"）——
-//   ⛔ 不许各写一份（"改了口径没扫全路径"是本项目已踩过的坑）。
 //
 // 语义（= 状态跃迁闩锁，不是"记住上一格"）：
 //   · 在出口区（`TileKind.Exit` 格，或 `MapSeam` 判定的东边接缝格）**进入的那一刻**发一次；
 //   · 仍站在出口区（同一格**或**沿出口格逐格挪动）**不再发** —— 旧口径"记住上一格"会在
-//     沿出口列/接缝逐格走时**每格各发一次**（同一族缺陷）；
-//   · **离开**出口区 ⇒ 重新武装，下次再进入可再发（⛔ 出口必须仍能真的触发切换，不许把角色卡住）。
+//   · **离开**出口区 ⇒ 重新武装，下次再进入可再发（出口必须仍能真的触发切换，不许把角色卡住）。
 //
-// ⛔ 本文件**只判"要不要发"**，不判"发去哪"（目标区域仍由 `PlayerModule.ExitTargetArea` 按 `_common.md` §3.5
-//   的冻结规则算），也不改任何"什么算出口"的形状（那仍是 `TileKind.Exit` + `MapSeam.IsTownEastSeam`）。
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ★ 2026-09-24 下沉：**状态跃迁本身**已搬进引擎件 `CloverEngine.EnterLatch<T>`（`T` = 触发点载荷），
 //   本类型只剩一层**薄封装**，公开 API 一字未改（`NoGrid` / `LastTriggerGrid` / `Fired` /
 //   `ShouldEmit(bool,Vector2Int)` / `Reset()`）。
 //   为什么下沉：这是**任何**"踩到某区域触发一次"（出口 / 接缝 / 陷阱 / 传送门 / 治疗泉 / 拾取区）
 //   都要的判据，且是**共享判据** —— 同一份口径会被"生产路径"与"离线断言"两处用到（本文件 §为什么
 //   单独一个文件的理由，正是这次下沉的理由）。
 //   唯一的表达差异：引擎用 `HasLastTrigger`（布尔位）表达"从未触发"，本项目对外历史口径是哨兵值
-//   `NoGrid` ⇒ 在 `LastTriggerGrid` 里做一次映射，⛔ 不下沉 `int.MinValue` 这个项目侧哨兵。
+//   `NoGrid` ⇒ 在 `LastTriggerGrid` 里做一次映射，不下沉 `int.MinValue` 这个项目侧哨兵。
 
 using CloverEngine;
 using UnityEngine;
@@ -49,7 +44,7 @@ namespace Diablo2.Module.Map
         /// <summary>
         /// 是否应当发出过门请求。
         /// <para><paramref name="onExit"/> = 本格是否属于出口区（调用方按唯一口径算好再传进来）。</para>
-        /// <para>⛔ 纯函数式：同样的入参序列 ⇒ 同样的出参序列，没有隐藏状态（状态只有引擎件闩锁自己的三个字段）。</para>
+        /// <para>纯函数式：同样的入参序列 ⇒ 同样的出参序列，没有隐藏状态（状态只有引擎件闩锁自己的三个字段）。</para>
         /// </summary>
         public bool ShouldEmit(bool onExit, Vector2Int grid) => _latch.ShouldEmit(onExit, grid);
 

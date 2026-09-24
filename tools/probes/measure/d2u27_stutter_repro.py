@@ -70,7 +70,6 @@ MIN_COLS = 12
 # dt 在 TSV 里以 `Time.deltaTime.ToString("0.######")` 落盘（d2u27_jitter.cs:552）
 # => 打印精度 1e-6，半格 = 5e-7。判"低半区"必须带上它：
 #    真值 1/60 会被写成 "0.016667"，比 1/60 大 3.3e-7 —— 不加半格容差就会把
-#    "最靠近目标周期的那批帧"整批漏掉、反而算进"长帧子集"（本片自检 C2 抓到的真错）。
 LSB = 5e-7
 
 
@@ -86,7 +85,7 @@ def is_low_half(dt, cap):
     return cap is not None and dt <= cap + LSB
 
 # 档位 -> targetFrameRate 的映射（仅默认值；出处 d2u27_jitter.cs:397/:399）。
-# ⛔ 不在这里"猜"：TSV 不含帧节奏列，所以必须由外部给（默认值即驱动源码的常量）。
+# 不在这里"猜"：TSV 不含帧节奏列，所以必须由外部给（默认值即驱动源码的常量）。
 FPS_DEFAULT = {"A": 60, "B": -1}
 
 
@@ -286,7 +285,7 @@ def print_m2(groups, cap_of, out):
         out.append("       %-4s %10.6f | %10.6f | %10.6f" % (cad, pct(d, 0.50), pct(d, 0.95), max(d)))
     # 组内趋势（前半/后半 sd）：驱动把 A/B 顺序对调的依据就是这个"暖机/收敛"迹象
     # （出处 tools/probes/drivers/d2u27_jitter.cs:810-817），所以分布读数必须带上它，
-    # 否则"A 更稳"可能是"谁先跑谁更抖"。⛔ 只报两个 sd，不设阈值。
+    # 否则"A 更稳"可能是"谁先跑谁更抖"。只报两个 sd，不设阈值。
     out.append("  [M2] 组内趋势（前半 sd | 后半 sd；顺序对调的依据见 d2u27_jitter.cs:810-817）")
     for cad, grp in groups:
         d = [r[2] for r in grp if r[2] > 0]
@@ -296,7 +295,7 @@ def print_m2(groups, cap_of, out):
     # 贴顶比例：用来判"封顶是不是**硬**的"。若 A 真的被 60fps 钳住，`|dt-cap|<=1%*cap` 应当是
     # 主峰（接近 100%）；实测 u27v9 A 只有 9.9%，而 43.8% 的帧**比 cap 还快**
     # ⇒ 说"A 被削峰/尾部分布被截断"是不成立的，能成立的说法是"**均值**被钉在 60fps"。
-    # ⛔ ±1% 这个带宽引自 teammate 的**采前写死**口径（ab_trend.py:50），不是本脚本自选。
+    # ±1% 这个带宽引自 teammate 的**采前写死**口径（ab_trend.py:50），不是本脚本自选。
     out.append("  [M2] 贴顶比例（判封顶是'硬'还是'只钉住均值'）")
     out.append("       ±1% 带宽引自 tools/probes/measure/ab_trend.py:50 (TOUCH_REL=0.01，采前写死)；⛔ 本脚本不自选带宽")
     for cad, grp in groups:
@@ -376,7 +375,7 @@ def print_m3(groups, cap_of, top, out):
                    % (cad, len(d), f6(sd_of(d)), f4(cv_of(d)), len(un), len(d) - len(un),
                       f6(sd_of(un)), f4(cv_of(un))))
     cads = [c for c, _ in groups]
-    # ⚠️ 口径（必须与读数一起看，否则会误读）：A 的"未触顶"子集 = dt > capPeriod 的**慢帧**
+    # 口径（必须与读数一起看，否则会误读）：A 的"未触顶"子集 = dt > capPeriod 的**慢帧**
     #    （被节流器钳住的快帧全被剔掉）⇒ 它与 B 的"全部帧"**不是同一个抽样分布**；
     #    这正是本批不可跨档比 sd/CV 的原因（order-confounded + metric-dependent）。
     out.append("       口径提醒: A 的长帧子集只含 dt>capPeriod 的帧（A 另有 48.3% 的帧 <= capPeriod，"
@@ -448,7 +447,7 @@ def print_ref(cur, ref, thr, out):
 
 
 def main():
-    # 实测：本机控制台默认 cp936，⛔(U+26D4) 等符号**不在 GB2312 里** ⇒ 直接 UnicodeEncodeError 崩在
+    # 实测：本机控制台默认 cp936，(U+26D4) 等符号**不在 GB2312 里** ⇒ 直接 UnicodeEncodeError 崩在
     # 打印上（读数本身没问题，是输出编码的问题）。`errors="replace"` 让这类字符退化成 '?'，
     # 读数不再因为一个符号整段丢失；要保真字符请 `set PYTHONIOENCODING=utf-8`。
     try:
@@ -472,7 +471,6 @@ def main():
     ap.add_argument("--pair-spr", default="run_", help="[M3b] 两口径对照用的 spr 前缀（默认 run_ = 行走帧）")
     a = ap.parse_args()
 
-    # 队纪律②（2026-09-24）：⛔ 写盘一律绝对路径。本机实测进程 CWD = 工作区根
     # `c:\Work\Server\f-v2`，而 PS location 常是项目根 ⇒ 相对 `--out` 会静默落进
     # **另一个 `.ai-tmp` 树**（真存在、不报错）= 假绿形态。故非绝对即 fail-loud。
     if a.out and not os.path.isabs(a.out):
@@ -527,7 +525,6 @@ def main():
         print_ref(cur, Trace(a.ref), thr, out)
     text = "\n".join(out)
     if a.out:
-        # UTF-8 无 BOM + '\n'（与本项目其它产物同口径：report-u27.md §6 的读法表）
         with open(a.out, "w", encoding="utf-8", newline="") as f:
             f.write(text + "\n")
     print(text)

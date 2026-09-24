@@ -10,9 +10,8 @@
 //   · `Game`         ← Runtime/Core/Game.cs
 //
 // **一旦真实引擎改了签名，本文件会编译报错** —— 这就是它存在的意义（覆盖率哨兵）。
-// 做法与 `tools/mapcheck/shim/EngineShim.cs`（agent-04）、`tools/flowcheck/shim/EngineShim.cs`（agent-05）一致。
 //
-// ★ `CaptureLogger` 额外把日志行留在内存里：本宿主用它断言
+// `CaptureLogger` 额外把日志行留在内存里：本宿主用它断言
 //   「不可达/受阻/升级/装备 等分支真的留下了可定位日志」。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -163,7 +162,6 @@ namespace CloverEngine
         void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object;
         T TryGet<T>(string path) where T : UnityEngine.Object;
 
-        // ★ agent-34（引擎下沉 A3）：引擎 `IResourceManager` 新增的两个**同步**入口。
         //   签名逐字对齐 `clover-client-unity-engine/Runtime/Core/Contracts.cs`（本文件是覆盖率哨兵）。
         bool Exists(string path);
         T[] LoadAll<T>(string path) where T : UnityEngine.Object;
@@ -245,7 +243,7 @@ namespace CloverEngine
         private bool _mouse0Held;
         private bool _mouse0Up;
 
-        // ★ impl-I-input（审计 R1）：右键（button 1）也必须能注入 ——
+        // impl-I-input（审计 R1）：右键（button 1）也必须能注入 ——
         //   改动前本替身**只认 button 0**（与生产代码同款缺口），右键链在离线宿主根本无法驱动。
         private bool _mouse1Down;
         private bool _mouse1Held;
@@ -286,7 +284,7 @@ namespace CloverEngine
         /// <summary>是否按住左键。</summary>
         public bool LeftHeld => _mouse0Held;
 
-        /// <summary>模拟**右键**按下（本帧 down + held；★ impl-I-input，审计 R1 的驱动点）。</summary>
+        /// <summary>模拟**右键**按下（本帧 down + held；impl-I-input，审计 R1 的驱动点）。</summary>
         public void RightMouseDown() { _mouse1Down = true; _mouse1Held = true; }
 
         /// <summary>模拟**右键**抬起。</summary>
@@ -303,10 +301,8 @@ namespace CloverEngine
         void Set<T>(string key, T value);
         void Save();
         void Load();
-        // ★ u52block：真引擎 `Runtime/Core/Setting.cs:44/49` 还有这两个成员
+        // u52block：真引擎 `Runtime/Core/Setting.cs:44/49` 还有这两个成员
         //   （真 `Module/Save/SaveModule.cs:250/437/591` 用 `Delete`）⇒ 旧替身**与真签名不一致**。
-        //   这个不一致一直没暴露，是因为此前**没有任何宿主把 SaveModule 编进来过**；
-        //   本片把 SaveModule 编进来后，编译器立刻报了 3 处 CS1061（正是"覆盖率哨兵"该干的事）。
         void Delete(string key);
         void DeleteAll();
     }
@@ -325,9 +321,9 @@ namespace CloverEngine
         public void Set<T>(string key, T value) { _d[key] = value; }
         public void Save() { SaveCount++; }
         public void Load() { }
-        /// <summary>★ u52block：对齐真 `Setting.cs:44`（`SaveModule` 删角色时清旧键 / 清迁移期键）。</summary>
+        /// <summary>u52block：对齐真 `Setting.cs:44`（`SaveModule` 删角色时清旧键 / 清迁移期键）。</summary>
         public void Delete(string key) { _d.Remove(key); }
-        /// <summary>★ u52block：对齐真 `Setting.cs:49`。</summary>
+        /// <summary>u52block：对齐真 `Setting.cs:49`。</summary>
         public void DeleteAll() { _d.Clear(); }
     }
 
@@ -346,14 +342,14 @@ namespace CloverEngine
         public static IInputManager Input = new ScriptedInput();
         public static ISetting Setting = new MemSetting();
         /// <summary>
-        /// ★ u52block 新增：`Game.Config`（真引擎 `Runtime/Core/Game.cs:341`
+        /// u52block 新增：`Game.Config`（真引擎 `Runtime/Core/Game.cs:341`
         /// `public static GameConfig Config { get; private set; }`）。
         /// 为什么需要：真 `Module/Save/SaveModule.cs:131-136` 的 `Store` 靠它拼 `&lt;SettingDir&gt;/saves/`
         /// ⇒ 链入 SaveModule 后，宿主必须能提供它（真引擎本就有这一项，故补进替身不算放宽契约）。
         /// 类型 <see cref="GameConfig"/> 本文件末尾已有（签名与真引擎逐字对齐）。
         /// </summary>
         public static GameConfig Config = new GameConfig();
-        /// <summary>★ U27：`Module/View` 的 `Game.UI.FloatText` 引用点（宿主替身，见文件末 `UI`）。</summary>
+        /// <summary>U27：`Module/View` 的 `Game.UI.FloatText` 引用点（宿主替身，见文件末 `UI`）。</summary>
         public static UI UI = new UI();
         public static bool IsRunning;
 
@@ -373,7 +369,7 @@ namespace CloverEngine
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // ★ U27（人物抖动三分判据）：`Module/View` 编入本宿主后新增的两个引擎替身。
+    // U27（人物抖动三分判据）：`Module/View` 编入本宿主后新增的两个引擎替身。
     //   为什么是替身而不是把引擎件也编进来：`WorldHpBar`（`Runtime/Presentation/UIWidgets.cs`）
     //   与 `UI`（`Runtime/Presentation/UI.cs`）都在引擎的 Presentation 大件里（合计 ~82 KB），
     //   编进来会把 uGUI / TextMeshPro / 场景依赖整条拖入 —— 而本宿主对它们的**唯一用途**

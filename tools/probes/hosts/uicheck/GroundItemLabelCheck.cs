@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// UI 自检宿主 · 片 K（impl-K-ui）：审计 R8 + R5 的离线断言（**只加断言，零删除**）
 //
 // 三节，全部离线可跑（秒级）：
 //   ⑳ R8「面板底图吃不吃射线」**全量表**（逐行期望值 + **表完整性**机械判据）
@@ -10,13 +9,11 @@
 //
 // ── 为什么 R5 这一节只有"数值级 + 源码级"，没有"实例级" ────────────────────────
 //   名牌层是 `internal sealed class GroundItemLabelView`（非 MonoBehaviour，构造要 `RectTransform`），
-//   离线宿主造不出 Unity 原生对象 ⇒ 实例行为只能进 Play（本片已进，截图见回报）。
 //   离线这一节能做的、也正是**最容易被改坏而不报错**的部分：
 //     · "名牌画在物品上方"这条几何（换个常量就会整体偏移，且画面上只是"看着有点低"）；
 //     · "颜色/字号/名字退化"三条样式口径（自创色值/字号不会报错）。
 //
-// ── 为什么"全量表"要带**完整性**判据（⛔ 不是只挑四个报错的行断言）────────────
-//   只断言"我改的那 5 行现在是 true"是**症状驱动** —— 同族里没报的调用点全漏（全局 skill §5 第 2 条）。
+// ── 为什么"全量表"要带**完整性**判据（不是只挑四个报错的行断言）────────────
 //   判据：把 `client/Assets/Scripts/UI/*.cs` 里**每一个** `UiArt.Panel/FullPanel/Art/Banner/Backdrop(`
 //   调用点都枚举出来逐个对表；表里少一行（新加调用点没登记）或多一行（节点名写错/调用点被删）都红。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,7 +30,6 @@ using UnityEngine;
 
 namespace Uicheck
 {
-    /// <summary>片 K 的离线断言（R8 射线全量表 + R5 名牌口径/链路）。</summary>
     internal static class GroundItemLabelCheck
     {
         public static void Run()
@@ -46,7 +42,6 @@ namespace Uicheck
         // ═════════════════════════════════════════════════════════════════════
         // ⑳ R8：`raycastTarget` 全量表（逐行 + 完整性）
         //    表项编码 = "节点名#t|f|n"（t=该吃射线, f=不吃, n=该 API 没有这个形参）
-        //    判定原则（本片口径，逐行理由见回报的全量表）：
         //      · **面板矩形底图**（非满屏、代表一个面板本体）⇒ **该吃（t）** —— 面板内空白吃掉点击、
         //        面板外仍可点地面走（原版语义）；
         //      · **满屏**底图/遮罩 ⇒ 分两种：**模态**（暂停/设置/确认/死亡 = 必须吃，挡住下面一切）
@@ -80,8 +75,6 @@ namespace Uicheck
                 // 死亡屏：满屏模态 ⇒ 吃；底图拼接块/标题条由 Shade 覆盖 ⇒ 不吃
                 ["DeathPanel.cs"] = new[] { "Shade#t", "EndGame#f", "Banner#n" },
 
-                // HUD：⚠️ `ControlPanel` / `MiniPanel` 两处**同族未改**（本片不许碰 `UI/HudPanel.cs`，
-                //   归口片 I）—— 表必须把它登记出来，改动见回报。
                 ["HudPanel.cs"] = new[]
                 {
                     "ControlPanel#f", "?#f", "?#f", "ExpBarTrack#f", "ExpBarFill#f", "ExpBarOverlay#f",
@@ -94,7 +87,6 @@ namespace Uicheck
                 {
                     "InventoryBg#t", "DragGhost#f", "Cell#t", "Icon#f", "EquipIcon#f", "Art#f",
                     "CloseButton#t", "GoldButton#t",
-                    // ★ 片 U4 新增：拖拽**目标格高亮**（跟指针下的格走，纯显示）⇒ 不能吃射线
                     //   （吃了会把"指针在 UI 上"恒判真 ⇒ 拖拽落点/点击移动被吃掉）。
                     "DropHighlight#f",
                 },
@@ -105,7 +97,6 @@ namespace Uicheck
                 // 读条屏：满屏**非模态过渡屏**（无游戏内移动）⇒ 不吃
                 ["LoadingPanel.cs"] = new[] { "Backdrop#f", "LoadingScreen#f" },
 
-                // 自动地图：底图**满屏** ⇒ 必须不吃（实测缺陷：吃射线 ⇒ Tab 开着走不了；见 MiniMapPanel.cs:135-147）
                 ["MiniMapPanel.cs"] = new[] { "Backdrop#f", "PlayerDot#f", "Marker#f" },
 
                 // 对话：底图不吃（等尺寸 `DialogHit` 吃）；标题条装饰 ⇒ 不吃
@@ -120,7 +111,6 @@ namespace Uicheck
                 // 设置：满屏模态 ⇒ 吃
                 ["SettingsPanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },
 
-                // 商店：**参照口径**（同类面板底图已经是 true，本片就是要让 I/C/T/Q 与它一致）
                 ["ShopPanel.cs"] = new[] { "BuySellBg#t", "Tab#t", "Cell#t", "Icon#f" },
 
                 // 技能树：两张底图 = 面板矩形（互斥显示）⇒ **都改吃**（R8）
@@ -129,7 +119,6 @@ namespace Uicheck
                 // 流程屏（菜单/选角/…）：满屏屏体与满屏底 ⇒ 不吃（无游戏内移动；按钮各自吃）
                 ["UiLayoutFlow.cs"] = new[] { "?#t", "Backdrop#f", "BackdropFill#f", "Backdrop#f" },
 
-                // 传送面板（★ 片 g1-resume 新增文件；原版「傳送點」屏）：与 `D2ConfirmPanel`/`PausePanel`
                 //   同型 = 打开即**模态**弹窗 ⇒ 满屏遮罩 `Shade` 必须吃（挡住底下一切，防"面板开着还能点地面走"）；
                 //   `Box`（框内深色底）吃；`BoxFrame`（原版拼装窗框，后建压在底上）不吃，命中由底图负责。
                 //   实参逐条对回 `UI/WaypointPanel.cs:203/211/212`（`UiArt.FullPanel(..., true)` /
@@ -172,7 +161,6 @@ namespace Uicheck
             Program.Check("⑳-2 表里没有多余/写错的行（节点名与实参逐行对得上）",
                 stale.Count == 0, stale.Count == 0 ? "0 个失配" : string.Join("；", stale.ToArray()));
 
-            // ③ 逐行点出本片真正改动的 5 个调用点（R8 的四个面板 ×5 张图）
             var mustEat = new[]
             {
                 "InventoryPanel.cs|InventoryBg", "CharacterPanel.cs|CharstatBg",
@@ -188,13 +176,11 @@ namespace Uicheck
                     ok, ok ? "raycastTarget=true" : "未找到（应为 true）");
             }
 
-            // ④ 反向守卫：小地图满屏底图**不许**被改回去（那条是刚修好的真缺陷）
             var mini = actual.ContainsKey("MiniMapPanel.cs") ? actual["MiniMapPanel.cs"] : new List<string>();
             Program.Check("⑳-8 `MiniMapPanel` 的**满屏** Backdrop 仍不吃射线（Tab 看地图时必须还能点地面走）",
                 mini.Contains("Backdrop#f"),
                 mini.Contains("Backdrop#f") ? "raycastTarget=false" : "被改成 true ⇒ 回退缺陷！");
 
-            // ⑤ 同族未改项（归口片 I）：只登记、不断言通过
             Console.WriteLine("   [归口片 I] HudPanel 同族口径：`ControlPanel#f`（HUD 底条 = 面板本体，应吃）、"
                 + "`MiniPanel#f`（右上小面板底，应吃）—— 本片**不许碰** `UI/HudPanel.cs`，已记入回报");
             Program.Check("⑳-9 HudPanel 现状已按表登记（真值仍 false，未改；改动归口 = 片 I）",
@@ -404,13 +390,13 @@ namespace Uicheck
                 src.Contains("GameConst.IsoHalfH"),
                 src.Contains("GameConst.IsoHalfH") ? "源码命中 GameConst.IsoHalfH" : "0 命中");
 
-            // ② 尺寸：一格的像素盒 = IsoTilePxW × HalfTilePxH（契约常量派生，⛔ 不写字面量）
+            // ② 尺寸：一格的像素盒 = IsoTilePxW × HalfTilePxH（契约常量派生，不写字面量）
             Program.Check($"㉑-3 名牌尺寸 = 一格像素盒 `GameConst.IsoTilePxW`({GameConst.IsoTilePxW}) × "
                 + $"`GameConst.HalfTilePxH`({GameConst.HalfTilePxH:0.#})",
                 src.Contains("GameConst.IsoTilePxW") && src.Contains("GameConst.HalfTilePxH"),
                 $"{GameConst.IsoTilePxW}×{GameConst.HalfTilePxH:0.#}");
 
-            // ③ 字体：原版最小号 Font16（项目 UI 口径），⛔ 不是系统字体
+            // ③ 字体：原版最小号 Font16（项目 UI 口径），不是系统字体
             Program.Check("㉑-4 名牌字体 = `D2Text.D2Font.Font16`（原版位图字模，项目 UI 口径；⛔ 不自创字体）",
                 src.Contains("D2Text.D2Font.Font16"),
                 src.Contains("D2Text.D2Font.Font16") ? "Font16" : "未用 Font16");
@@ -431,7 +417,7 @@ namespace Uicheck
                 sameSource && src.Contains("ItemQualityColor.Of") && hexes.Count == 5,
                 string.Join(" / ", hexes.ToArray()));
 
-            // ⑤ 名字退化：名字空 ⇒ 「物品 #id」（⛔ 不是空串、不是静默不画）
+            // ⑤ 名字退化：名字空 ⇒ 「物品 #id」（不是空串、不是静默不画）
             Program.Check("㉑-6 名字为空 ⇒ 退化为「物品 #id」（不静默、不画空串）",
                 Regex.IsMatch(src, @"string\.IsNullOrEmpty\(l\.name\)") && src.Contains("\"物品 #\""),
                 "含 string.IsNullOrEmpty(l.name) ? \"物品 #\" + l.id : l.name");
@@ -486,7 +472,6 @@ namespace Uicheck
                 hud.Contains("new GroundItemLabelView(") && hud.Contains(".Apply("),
                 "new GroundItemLabelView(transform) + _groundLabels.Apply(args)");
 
-            // ③ 发送方接线：`InputReader` Emit + 消费 Alt（源码级，片 I 的 Module/Input）
             var inputPath = Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts",
                 "Module", "Input", "InputReader.cs");
             var inputSrc = File.Exists(inputPath) ? File.ReadAllText(inputPath) : string.Empty;

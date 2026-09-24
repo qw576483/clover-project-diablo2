@@ -1,4 +1,3 @@
-# dialog-options2 (2026-09-24) 判据资产（**可复跑**，落 tools/probes/measure/ 入仓）：
 # 判 btn_med_sel.png（中等按钮·悬停底图）到底是"导出写坏了"还是"原版就这样"。
 #
 # 跑法：cd <项目根>/tools/d2codec && python ../probes/measure/probe_med_button_palette.py
@@ -8,20 +7,19 @@
 # 输出的三个量：
 #   ① 与磁盘 PNG 的逐像素差（`0` ⇒ 磁盘那张**就是**这套调色板解出的；非 0 ⇒ 是别的调色板那一版）；
 #   ② "麻点度量" = 相邻不透明像素对的 max(|dR|,|dG|,|dB|) 均值（越小越平滑；用错调色板会长麻点）；
-#   ③ `isolated_hi` —— ⚠️ **本脚本自己的 8 邻域近似**，只作交叉参考，**不是**片 `dialog-options`
+#   ③ `isolated_hi` —— **本脚本自己的 8 邻域近似**，只作交叉参考，**不是**片 `dialog-options`
 #      那把尺：它的尺 A（`probe_med_sel_palette.py`，**4 邻域**）定义是
 #      `ch = max(R,G,B)−min(R,G,B)`（`alpha==0` 记 0）、**高饱和 = ch>60**、
 #      上下左右 4 邻域平均 `ch < 30` ⇒ 孤立点；比值 = 孤立点/高饱和像素数。
 #      **两把尺的数值不可互比**（同图 0.054 vs 26.56 差两个数量级），引用时必须带尺名。
 #
-# 结论（2026-09-24，两片共同定死；**现状与"只按目录分调色板"的直觉相反**）：
 #   · `FrontEnd/MediumButtonBlank.dc6`（常态/按下）—— 正确调色板 = **ACT1**：
 #       麻点 26.03 / 24.08，与既有干净条带 `button_medium.png`（25.96 / 23.55）一致；
-#       换成 `fechar` 会烂到 105.16 / 99.46、`menu1` 90.67 / 86.23 ⇒ ⛔ 这两张**不许**用 fechar 重出。
+#       换成 `fechar` 会烂到 105.16 / 99.46、`menu1` 90.67 / 86.23 ⇒ 这两张**不许**用 fechar 重出。
 #   · `FrontEnd/MediumSelButtonBlank.dc6`（悬停/高亮）—— 正确调色板 = **`fechar`**：
 #       ACT1 解出 53.40（麻点，实机悬停糊住文案）→ fechar **26.56**（落进同族干净带）；
 #       而 `menu1` 61.71 ⇒ **menu1 不是答案**（虽同名"菜单"，实测最差之一）。
-#       ⛔ 两套调色板是**按文件**分的（同一屏里的"共享按钮"与"Sel 变体"不同源），
+#       两套调色板是**按文件**分的（同一屏里的"共享按钮"与"Sel 变体"不同源），
 #          所以**不要**拿"整组统一用某套"去重出这批图。
 #   · 为什么会这样（否证性证据）：`find_frontend_button_palette.py` 把包里 **15 套**全扫一遍，
 #     **没有任何一套**能同时让常态帧与高亮帧干净 ⇒ 只能按文件分；`probe_sel_button_structure.py`
@@ -29,7 +27,6 @@
 #   · 色相锚点（肉眼可判，`probe_sel_palette_gem_anchor.py`）：fechar 解出的**金边框 + 深蓝宝石**
 #     与"已知干净的常态帧（ACT1）"同形同色；ACT1 解出的那张连边框都撒满彩点。
 #
-# 现状核对（2026-09-24 03:0x 之后）：磁盘 `btn_med_sel.png` = fechar 版（麻点 **26.56**），
 #   `btn_med_sel_pressed.png` = **23.20** ⇒ 判据「回到同族量级」**已达标**。
 import os, sys
 import numpy as np
@@ -90,7 +87,6 @@ def onemag(a):
 
 
 # 调色板集合 = `原版资源/d2raw/data/global/palette/**` 下**实际在盘**的每一套（自动带出
-# 2026-09-24 新取回的 `menu1`；⛔ 不再写死那 4 套 —— 写死会让"取到新调色板后脚本看不见它"）。
 PAL_ROOT = os.path.join(ROOT, "原版资源", "d2raw", "data", "global", "palette")
 names = sorted(d for d in os.listdir(PAL_ROOT)
                if os.path.exists(os.path.join(PAL_ROOT, d, "Pal.PL2")))

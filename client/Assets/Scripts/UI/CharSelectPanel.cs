@@ -2,7 +2,6 @@
 // Diablo2 · UI/CharSelectPanel.cs
 // 站点：CharSelect。层：Normal。预制体：`Resources/UI/CharSelectPanel`。
 //
-// ★ agent-15 §A：**1:1 复刻**原版职业选择屏的骨架（依据 `Prefabs/Menu/ClassSelectMenu.prefab`）：
 //     · 背景：原版 `class_select_screen`（800×600）按高度 ×1.8 = 1440×1080 水平居中（不横向拉伸）
 //     · 标题行 = 原版 `SelectHeroClass` 文本框 (0,267) 493×30 → 本工程 (0,480.6) 887.4×54
 //     · 角色信息行 = 原版 `ClassName` 文本框 (0,198) 493×30 → 本工程 (0,356.4) 887.4×54
@@ -11,19 +10,15 @@
 //     · 底部两个按钮 = 原版 `ExitButton`(-300,-250) / `OkButton`(300,-250) 的**精确**位置与尺寸
 //     · 行内小按钮 = 原版中等按钮（128×35）
 //     · 英文/数字（SELECT HERO / 职业名 / LV n / ENTER / DELETE）走**原版位图字体**；
-//       中文（角色名等）走原版位图字模（片 3：`D2/Fonts/font16_chi`）；色调 = 原版亮度（白）
-// ★ 片 4：**删掉本项目自加的说明行** —— 旧版说明行写的是「存档角色 N 个（一屏最多 7 个）。」，
 //   原版屏上没有这行（那个文本框是 `ClassDescription` = 职业说明）⇒ 现在说明行按原版语义
 //   显示**高亮角色的职业说明**（英文，文案出处 = 参考工程 `ClassSelectInfo.cs`，
 //   经 `UiLayoutFlow.ClassText.Description`；无高亮项时留空 = 原版 `UpdateUi` 给 `string.Empty`）。
 //   · 角色数据**只能**由 Flow 通过 `OnOpen(param)` 传入（`Args.entries`）——
 //     面板不持有存档模块、不读文件（`constraints.md` #7）。
-//   · ★ 本轮：删除的二次确认 = `D2ConfirmPanel`（原版 `boxpieces` 窗框 + 原版中等按钮）——
-//     原先调引擎 `Game.UI.Confirm`，画出来是引擎默认 uGUI（深灰方块 + 纯蓝按钮），
 //     与本屏的原版石雕按钮**两种风格**（实机图 `.ai-tmp/screenshots/x_b3_delete_confirm.png`）。
 // 入口：MainMenu 的「单人游戏 / 继续」；出口：进入 → Loading（Flow 驱动）、
 //       新建 → CharCreate、返回 → 主菜单。
-// ⛔ 不引用任何业务模块。
+// 不引用任何业务模块。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -80,9 +75,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 层：<see cref="UILayer.Normal"/>（= 文件头「层：Normal」）。
-        /// <para>★ 本片（w3 流程屏逐控件审计）**显式声明**：基类默认值就是 Normal
-        /// （`PresentationContracts.cs:174`）⇒ **行为零变化**；加它是为了让它成为 `uicheck`
-        /// `PanelSpec` 能断言的契约（修前本屏不在 PanelSpec 表里）。</para>
         /// </summary>
         public override UILayer Layer => UILayer.Normal;
 
@@ -109,7 +101,6 @@ namespace Diablo2.UI
 
             if (entries.Count == 0)
             {
-                // ★ 片 4：说明行**按原版语义**（`ClassDescription` 行 = 当前高亮项的职业说明）
                 //   —— 没有高亮项 ⇒ 留空（原版 `ClassSelectMenu.UpdateUi` 也是给 `string.Empty`）。
                 SetInfo(Text.NoSelection);
                 SetDesc(string.Empty);
@@ -128,9 +119,6 @@ namespace Diablo2.UI
 
             // 行中心 y（相对容器中心）：首行顶边 = 容器顶边内侧 ⇒ 首行中心 = (容器高 − 行高)/2；
             //   步进 = 原版行节奏 45 原版px → ×1.8 = 81。
-            //   ★ 本片（w3 流程屏审计）把这套公式**收进 `UiLayoutFlow.Select.RowY(row)`**：
-            //   对照表（`UiLayoutFlow.Table`）登记角色行时调的是**同一个函数** ⇒
-            //   面板画在哪、离线断言的就是哪，不可能各算一套（修前公式只活在面板里，进不了对照表）。
             for (var i = 0; i < shown; i++)
             {
                 var e = entries[i];
@@ -145,7 +133,6 @@ namespace Diablo2.UI
 
             if (shown > 0) Highlight(entries[0]);
             else SetInfo(Text.NoSelection);
-            // ★ 片 4 删除：这里原来还有一行**本项目自加**的「存档角色 N 个（一屏最多 7 个）。」
             //   —— 原版屏上没有这行（`Prefabs/Menu/ClassSelectMenu.prefab` 的那个文本框是
             //   `ClassDescription` = 职业说明）。现在这一行改回原版语义：见 `Highlight`。
             Log.Info("Ui", $"角色选择屏刷新：显示 {shown} 个存档角色（共 {entries.Count}）；" +
@@ -155,7 +142,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 高亮某个角色：`ClassName` 行 = 该角色身份，`ClassDescription` 行 = **该职业的原版说明**
         /// （文案出处 = 参考工程 `ClassSelectInfo.cs` 的 `Description`，见 `UiLayoutFlow.ClassText`）。
-        /// <para>★ 片 4：说明行以前写的是"存档角色 N 个"（本项目自加，原版没有）⇒ 已按原版语义改回。</para>
         /// </summary>
         private void Highlight(Entry e)
         {
@@ -167,7 +153,6 @@ namespace Diablo2.UI
         private void BuildRow(int index, Entry e, float y)
         {
             // 行矩形 = 容器宽 × 原版按钮高 35 原版px（×1.8 = 63），中心 y = 传入值。
-            //   ★ 本片：尺寸改走 `UiLayoutFlow.Select.RowSize`（与对照表登记的行矩形**同一个来源**）。
             var rowSize = UiLayoutFlow.Select.RowSize;
             var row = UIFactory.CreateCentered($"Row{index}", _listRoot, rowSize, new Vector2(0f, y));
 
@@ -204,8 +189,6 @@ namespace Diablo2.UI
             UiLayoutFlow.FlowButton.Create(row, "Delete", Text.Delete, UiLayoutFlow.MediumButtonOrig,
                 UiLayoutFlow.Select.RowDeletePos,                 () =>
                 {
-                    // 二次确认（★ 本轮：原版窗框 + 原版中等按钮的 `D2ConfirmPanel`；
-                    //   原先调引擎通用件 `Game.UI.Confirm`，画出来是引擎默认 uGUI —— 深灰方块 +
                     //   两颗纯蓝按钮，与本屏的原版石雕按钮**两种风格**，不是 1:1。
                     //   同时只显示一个，后到的排队：语义与引擎确认框一致，见 `D2ConfirmPanel` 文件头）
                     D2ConfirmPanel.Show("删除角色", $"确定删除角色「{name}」？该操作不可撤销。", () =>
@@ -261,15 +244,14 @@ namespace Diablo2.UI
 
             // 原版职业选择屏贴图（800×600）**按高度 ×1.8 = 1440×1080 水平居中**
             // （挂在**面板根**上；左右各留 240 由纯色底补，**不把 4:3 素材横向拉伸**）；
-            // ⚠️ **必须先建**（它是同层第一个子节点 ⇒ 层级最低 ⇒ 不会盖住后面的 UI 元素）。
+            // **必须先建**（它是同层第一个子节点 ⇒ 层级最低 ⇒ 不会盖住后面的 UI 元素）。
             UiLayoutFlow.BackdropArt(transform, ResPaths.MenuClassSelectScreen, new Color(0.04f, 0.04f, 0.05f, 1f));
 
             // 屏适配容器：改按高度 ×1.8 后原版整屏正好 1080 高（标题 480.6 / 底部按钮 -450 都在 ±540 内）
-            // ⇒ 系数 = 1（`FitClass`），**不再需要旧的 0.75**（那是为"×2.4 后 1440 高"压进 1080 用的）。
             var screen = UiLayoutFlow.FitRoot(transform, UiLayoutFlow.FitClass);
 
             // 标题：原版 `SelectHeroClass` 文本框（493×30 原版px，alignment=UpperLeft）
-            // ⚠️ `FlowLabel.Create` 的尺寸参数是**原版 px**（位图字模按原版像素排版）⇒ 常量表（Canvas 单位）
+            // `FlowLabel.Create` 的尺寸参数是**原版 px**（位图字模按原版像素排版）⇒ 常量表（Canvas 单位）
             //    统一经 `Orig()` 折回原版 px。
             UiLayoutFlow.FlowLabel.Create(screen, "Title", Text.Title, D2Text.D2Font.Font24,
                 TextAnchor.UpperLeft, Color.white, UiLayoutFlow.Orig(UiLayoutFlow.ClassMenu.TitleSize),
@@ -290,18 +272,16 @@ namespace Diablo2.UI
                 UiLayoutFlow.Select.ListPos);
 
             // 底部两个按钮 = 原版 `ExitButton` / `OkButton` 的精确矩形（原版中等按钮）。
-            // ★★ 本片（w3 流程屏审计 I1）**修：两个动作原先占反了槽** —— 现按**原版槽位语义**归位：
             //   · `ExitButton` 槽（原版 `ClassSelectMenu.prefab` 的 (-300,-250)，屏**左下**）
             //     = 原版 `m_Text = "EXIT"` ⇒ **"离开本屏"** 类动作 ⇒ 本项目 = `MAIN MENU`；
             //   · `OkButton`   槽（原版 (300,-250)，屏**右下**）
             //     = 原版 `m_Text = "OK"`   ⇒ **"确认 / 推进"** 类动作 ⇒ 本项目 = `NEW HERO`。
-            //   修前的状态（`Create` 占 Exit 槽、`Back` 占 Ok 槽）有两条独立问题：
             //     ① 与原版 `ExitButton`/`OkButton` 的语义**相反**（左下那颗不是"离开"）；
             //     ② 与本工程**创角屏自相矛盾** —— `CharCreatePanel` 是 BACK 在 Exit 槽、OK 在 Ok 槽
             //        ⇒ 从选角屏点进创角屏时，左下角那颗按钮从"新建"变成"返回"（**位置语义中途翻转**），
             //        而这两屏用的是**同一套原版几何**。修后两屏一致：**左下永远是"离开/返回"、
             //        右下永远是"确认/推进"**。
-            //   ⚠️ 坐标 / 尺寸 / 底图帧**一个数都没动**（仍走 `ClassMenu.ExitPos` / `ClassMenu.OkPos`
+            //   坐标 / 尺寸 / 底图帧**一个数都没动**（仍走 `ClassMenu.ExitPos` / `ClassMenu.OkPos`
             //   + `MediumButtonOrig`）—— 只把**动作与文案**归到原版对应的槽上；
             //   节点名也跟着动作走（`Back` 在左、`Create` 在右），避免"名字与动作对不上"的二次误导。
             //   `uicheck` 第 ⑲ 节把这条钉死（Exit 槽必须是 `ToMainMenuRequest`、Ok 槽必须是 `TriggerNeedCreate`）。

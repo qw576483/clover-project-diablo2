@@ -1,7 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// uicheck · 人物属性面板「四系抗性」一行的**折行判据**（片 u52-resist，2026-09-24）
 //
-// 挡的是什么缺陷（用户第三批投诉 U52 的 D10，且是**我们自己引入的回归**）：
 //   底图左下（原版 art x 0..81 × y 314..415 的空白大理石）那 4 行四系抗性里，
 //   **4 字中文标签被塞进 46 art 宽的框** ⇒ 生产折行口径下折成 2 行，
 //   4 行标签 = 8 行交错（实机放大图 `.ai-tmp/test/u52run2_crop_left.png` 逐行可见）。
@@ -16,15 +14,15 @@
 //       `MeasureNative(font, text, chi) < availPx`            （注意是**严格小于**：断点条件是 `next >= availPx`）
 //   ⇒ 本判据 = 「`needNative < availPx`」这两步的复算（`SingleLine` / `AvailPx` 都是纯函数）。
 //
-//   ⛔ **为什么不能用 `Text.cachedTextGenerator.lineCount`（旧口径，实测恒为 0）**：
+//   **为什么不能用 `Text.cachedTextGenerator.lineCount`（旧口径，实测恒为 0）**：
 //      本面板的标签是 `UiArt.Label` 建的 uGUI `Text`，但建完立刻被 `D2TextMirror.Attach`
 //      设成 `font = null` + `enabled = false`（`UI/D2TextMirror.cs:65-67`）—— 它只是**数据持有者**，
 //      画面由 `D2Label` 用原版位图字模画 ⇒ 它的 TextGenerator **从不被布局刷新**，
 //      `lineCount` 恒为 0（u52play 11:38:35 的实机读数就是 `lines=0`；0 ≠ 1 行 ⇒ **假判**）。
-//   ⛔ **为什么也不能用 `Text.preferredWidth / preferredHeight`**：这两个同样走 TextGenerator
+//   **为什么也不能用 `Text.preferredWidth / preferredHeight`**：这两个同样走 TextGenerator
 //      （`GetGenerationSettings` 带的是 `font == null`）⇒ 恒为 0 ⇒ `preferredWidth <= rect.width`
 //      是**恒真**断言（"判据本身恒真" = 还没在判该判的东西）。**真值只在 `D2Label` 那条路上**。
-//   ⛔ **为什么离线不敢直接调 `D2Text.MeasureNative(..., chi: true)`**：chi 字模是**异步加载**的
+//   **为什么离线不敢直接调 `D2Text.MeasureNative(..., chi: true)`**：chi 字模是**异步加载**的
 //      （`EnsureChi` 要 `Game.Res`，本宿主 `Game.Res == null`）⇒ `HasGlyph` 恒 false
 //      ⇒ `StepOf` 逐字返回 **0** ⇒ 量出来"什么都放得下"，又是一条恒真断言。
 //      ⇒ 本宿主**自己解一次同一份素材**（`font16_chi_map.txt` + `font_chi_s2t.txt`，
@@ -35,7 +33,6 @@
 // ── 覆盖口径 = 影响域（只重判受影响的行）────────────────────────────────────
 //   ① 标签框几何（`CharResistNameX/W`）—— 4 行标签
 //   ② 值列几何（`CharResistValueX/W`）—— 4 行值
-//   ③ 字号（`FontPx16`，唯一出处；本片不动，但要跟着重算）
 //   ④ 底图暗区（左下空白大理石的可用几何：art 0..81 / 行带 y 314..415）
 //   ⑤ 四维行与派生行（**不动** —— 但要判"没被碰到"：标签/值框与它们的行矩形不相交）
 //   ⑥ 其它同类短框（只出**读数**：它们的文案由存档数据驱动，判不成常量；见 §⑥）
@@ -153,7 +150,7 @@ namespace Uicheck
         private static bool LatinOnly(string s) => D2Text.IsLatinOnly(s);
 
         /// <summary>一条文本的（needNative, scale）；拉丁走**生产函数** `D2Text.Measure`。
-        /// 同宿主复用（`CharTopRightTextCheck`）—— ⛔ 仅放开可见性，逻辑一字未改。</summary>
+        /// 同宿主复用（`CharTopRightTextCheck`）—— 仅放开可见性，逻辑一字未改。</summary>
         internal static int NeedNative(string text, out float scale, out string fontKind,
             out List<char> missing, out List<char> viaS2T)
         {
@@ -174,17 +171,16 @@ namespace Uicheck
         /// <summary>
         /// 一条文本的**原版像素宽度**（= 生产 `D2Text.MeasureNative(font, text, chi)` 的离线等价物）。
         /// <para>
-        /// 出处/裁定：team-lead 2026-09-24 派活（做法 (a)）—— 由**本文件暴露**这一个入口，
         /// 由 `HoverSelectCheck`（`u44impl`）在自己的判据里调用：`expected = NativeWidth(t) * scale + 12 * K`。
         /// </para>
         /// <para>
-        /// ⚠️ **为什么不直接调生产方法**：宿主里 chi 字模是**异步**加载的（`EnsureChi` 要 `Game.Res`，
+        /// **为什么不直接调生产方法**：宿主里 chi 字模是**异步**加载的（`EnsureChi` 要 `Game.Res`，
         /// 本宿主 `Game.Res == null`）⇒ `HasGlyph` 恒 false ⇒ `MeasureNative(..., chi:true)` **逐字返 0**
         /// ⇒ **拿生产方法本身当判据 = 恒真断言**（`popupaudit` 已实证两例）。真值只在本文件这条解码路上。
         /// </para>
         /// <para>
-        /// ⛔ 本入口**只暴露**：内部复用同一个 `NeedNative`（⇒ `ChiMeasure` / `D2Text.Measure`），
-        /// **不新增第二份解码器**（重复实现必然会漂），且 ⛔ **不改** `SingleLine` / `AvailPx` 的现有签名。
+        /// 本入口**只暴露**：内部复用同一个 `NeedNative`（⇒ `ChiMeasure` / `D2Text.Measure`），
+        /// **不新增第二份解码器**（重复实现必然会漂），且 **不改** `SingleLine` / `AvailPx` 的现有签名。
         /// </para>
         /// </summary>
         internal static int NativeWidth(string text)
@@ -398,7 +394,6 @@ namespace Uicheck
                 $"标签框 [{labelL:0.0},{labelR:0.0}]、值列框 [{valueL:0.0},{valueR:0.0}]"
                 + $" ⊂ 面板 [{panelLeft:0.0},{panelRight:0.0}]×[{panelBottom:0.0},{panelBottom + ph:0.0}]");
 
-            // 与「原版 9 个行矩形」（四维 4 + 派生 4 + 防御 1）不相交 —— 本片**没动**它们，但要判"没被碰到"
             var hit = new List<string>();
             var labelCy = CharacterPanel.PanelPos.y + UiLayoutGame.CharResistRowOrig[0].y * UiLayoutGame.K;
             var labelH = UiLayoutGame.CharResistRowSize.y * UiLayoutGame.K;
@@ -442,8 +437,6 @@ namespace Uicheck
             var scaleChi = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, true, D2Text.D2Font.Font16);
             var scaleLat = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, false, D2Text.D2Font.Font16);
 
-            // ⚠️ 单位（2026-09-24，P-2b 抓到的**自身**缺陷）：`…Size` 由 `UiLayoutGame.Size()` 造出 ⇒
-            //   **已 ×K**（画布px）；而 `Row()` 的第 2 参是**裸 art**（内部还会再 ×K）⇒ 本组原先直接传
             //   `…Size.x` ⇒ availPx 被放大 K²≈3.24× ⇒ **读数偏乐观 = 假绿读数**（它会说"单行"而真值折行）。
             //   一律先 `/ UiLayoutGame.K` 换回 art。`CharStatValueW/CharDefValueW/CharCurMaxW/
             //   CharResistNameW/CharResistValueW` 是**裸 art** 常量 ⇒ 不动。
@@ -510,8 +503,6 @@ namespace Uicheck
                 needVal == 47, $"实测 {needVal} art px（'-'5 '1'5 '0'12 '0'12 '%'13）");
 
             // ⑤ 缺字形：判据不许把「字模里没有这个字」静默当成「放得下」。
-            //    样本**现场扫出来**（不硬编码某一个字 —— 字模表更新后硬编码样本会静默失效，
-            //    那正是"判据变成恒真"的又一条路）。
             const string pool = "€⿕龘㊣㍿☃亜鳳龔㊙〇";
             var missChar = '\0';
             foreach (var c in pool)

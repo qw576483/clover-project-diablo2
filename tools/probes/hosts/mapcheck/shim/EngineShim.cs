@@ -95,7 +95,6 @@ namespace CloverEngine
         void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object;
         T TryGet<T>(string path) where T : UnityEngine.Object;
 
-        // ★ agent-34（引擎下沉 A3）：引擎 `IResourceManager` 新增的两个**同步**入口。
         //   签名逐字对齐 `clover-client-unity-engine/Runtime/Core/Contracts.cs`（本文件是覆盖率哨兵）。
         bool Exists(string path);
         T[] LoadAll<T>(string path) where T : UnityEngine.Object;

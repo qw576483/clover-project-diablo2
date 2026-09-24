@@ -143,7 +143,6 @@ def main():
         cam = remap(docs[CAM][cam_cam], idmap)
         al = remap(docs[AL][cam_al], idmap)
         mo = remap(docs[MONO][cam_mono], idmap)
-        # 打补丁：正交尺寸 / 背景色 / 机位
         cam = re.sub(r"orthographic size: [-\d.]+", "orthographic size: %s" % ortho_size, cam)
         cam = re.sub(r"m_BackGroundColor: \{[^}]*\}",
                      "m_BackGroundColor: {r: %s, g: %s, b: %s, a: 0}" % bg, cam)
@@ -307,7 +306,7 @@ def main():
         written.append(p + ".meta")
 
     # ── 被引用的脚本 .meta（离线写死 GUID，否则预制体/场景的 m_Script 解析不到）──
-    #    ⚠️ 只新增 .meta 边车文件，**不碰任何 .cs 内容**（详见回报「未决/说明」）。
+    #    只新增 .meta 边车文件，**不碰任何 .cs 内容**（详见回报「未决/说明」）。
     for p in ["Assets/Scripts/App/Bootstrap.cs"] + ["Assets/Scripts/UI/%s.cs" % n for n in PANELS]:
         write(os.path.join(ASSETS, p.replace("Assets/", "")) + ".meta",
               "fileFormatVersion: 2\nguid: %s\nMonoImporter:\n  externalObjects: {}\n"

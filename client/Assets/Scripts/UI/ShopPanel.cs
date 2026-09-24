@@ -1,27 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/ShopPanel.cs（agent-09 · 1:1 轮）
 // 商店面板 = 原版买卖屏：底图 buysell_back.png（320×432 → ×1.8 居中），
 // 商品格 = 原版那 10×10 格，**格内贴原版物品图标**
 //
-// ★ 数据（不变）：`Diablo2.Def.ShopOpenArgs`（npcId/npcName/canRepair/playerGold/
+// 数据（不变）：`Diablo2.Def.ShopOpenArgs`（npcId/npcName/canRepair/playerGold/
 //   stock(List<ShopEntry>)/playerItems(List<InventorySlot>)/repairAllCost）。
-// ★ 请求（不变）：`Events.ShopBuyRequest` / `ShopSellRequest` / `ShopRepairRequest` / `ShopClose`。
-// ⛔ 零 `using Diablo2.Module`（分层自检 ③）。
+// 请求（不变）：`Events.ShopBuyRequest` / `ShopSellRequest` / `ShopRepairRequest` / `ShopClose`。
+// 零 `using Diablo2.Module`（分层自检 ③）。
 //
-// ★ R1-E 的 S5（本片）：`_title` / `_hint` 原先**声明了却从不创建** ⇒ `ApplyTitle()` 恒空转、
 //   商店上看不到"这是谁家的、现在哪一页"。现在两行由 `BuildTitleLines()` 建出并接线
 //   （落位 = 页签带与 10×10 格区之间的底图空白带，依据与核算见 `UI/UiLayoutGame.cs` §商店 的 S5 注释）。
-//   ⚠️ 本面板的**层仍是 `Popup`**，这是 R1-E 的 S1 要的（对话条降到 Normal 让位给商店遮罩，
+//   本面板的**层仍是 `Popup`**，这是 R1-E 的 S1 要的（对话条降到 Normal 让位给商店遮罩，
 //      商店必须在遮罩**之上**才点得动；依据见 `UI/NpcDialogPanel.cs` 文件头的 S1）。
 //
-// ★ 片 impl-shop（2026-09-22，修用户报「商店商品占的格子不对」）：
 //   ① **1 件 = 1 格 → 按物品自身占格**：商品/可卖物品用 `ShopEntry.gridW/gridH`
 //      （= 配表 `item_c.grid_w/grid_h`，与背包同源）铺成 w×h 的块，**行优先**摆进原版 10×10 格盘
 //      （口径照 `Module/Item/Inventory.TryPlace` :94-107；尺寸/偏移照 `UI/InventoryPanel.ItemIconRect`
 //      :260-276 —— 图标块左上角与锚点格左上角重合，`preserveAspect` 不压不拉）。
 //   ② 摆放算法与"放不下"的处置 = **纯函数** `FindAnchorCell` / `ClaimBlock` / `ComputeLayout`
 //      （离线宿主 `tools/probes/hosts/uicheck/ShopGridCheck.cs` 逐格断言：锚点格 / 占用集 / 边界）。
-//   ③ 点击映射改读**占用表** `_owner[]`（⚠️ 大件跨多格 ⇒ 格号 ≠ 商品下标；旧的
+//   ③ 点击映射改读**占用表** `_owner[]`（大件跨多格 ⇒ 格号 ≠ 商品下标；旧的
 //      `index → stock[index]` 等号映射会把隔壁那件买/卖出去）。
 //   ④ 几何**未动**：10×10 格线是原版底图 `buysell_back.png` 自己画的（实测竖线 14+29k ×11、
 //      横线 62+29k ×11，与 `UiLayoutGame` 的 `ShopGridOrigin/ShopCell/ShopCols/Rows` 逐值相等），
@@ -54,7 +51,6 @@ namespace Diablo2.UI
 
         /// <summary>一格 = 命中区 + 图标层 + 数量 + 价格。</summary>
         /// <para>
-        /// ★ 片 impl-shop：原来的 `Slot`（"当前占用的下标"）**已删除** —— 大件跨多格后
         /// "格号 == 商品下标"这个等号不再成立，占用关系改由面板的**占用表** `_owner[]` 承载
         /// （见 <see cref="ComputeLayout"/> 与 <see cref="OnCellClick"/>）。
         /// </para>
@@ -69,18 +65,15 @@ namespace Diablo2.UI
         /// <summary>
         /// 每格"最近一次发起加载的图标路径"（`null` = 空）—— **本面板自己的缓存**，
         /// 交给 `D2Icon.ApplyItemIcon`（它按这个数组决定是否重复发起异步加载）。
-        /// ★ 本轮新增：原先缓存在 `Cell.IconPath` 上、图标逻辑也在本文件里**又写了一遍**
         ///   （没有"文件是否真在磁盘上"那一档）⇒ 原版图标缺文件时 `sprite=null` + `color=白`
         ///   ⇒ Image 画成**一块白方块**（用户报「商店没商品图标」）。现统一走 `D2Icon` 的唯一口径。
         /// </summary>
         private readonly string[] _iconPath = new string[CellCount];
 
         /// <summary>
-        /// **占用表**（片 impl-shop 新增）：`_owner[格] = 当前页条目下标`（−1 = 空）。
         /// <para>
         /// 为什么必须有它：物品按自身占格摆放后，一件 2×3 的商品会跨 6 格 ⇒ "格号" 与 "商品下标"
         /// **不再是同一个数**。点击某一格 = 要买/卖"占着那一格的那件" ⇒ 只能查这张表
-        /// （旧实现的 `index → stock[index]` 等号映射会把隔壁那件卖出去）。
         /// </para>
         /// <para>线性下标 = `row * ShopCols + col`（行优先，与 `UiLayoutGame.ShopCellCenter` 同口径）。</para>
         /// </summary>
@@ -142,15 +135,13 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// ★ R1-E 的 **S5**：把原先**声明了却从不创建**的 `_title` / `_hint` 真建出来
-        /// （改前 `ApplyTitle()` 恒空转 ⇒ 商店上看不到"这是谁家的、现在哪一页"）。
         /// <para>
         /// 落位 = 页签带与 10×10 格区之间那段**底图空白带**（原版 y ≈ 29..62）；
         /// 为什么只有这里能放、以及两行不相交的核算，见 `UI/UiLayoutGame.cs` §商店 的 S5 注释
         /// 与 `uicheck` 的 ④-2 断言。字模/字号口径与 `_gold` 完全一致（`D2Text.D2Font.Font16` +
-        /// `UiLayoutGame.FontPx16`，与同面板的 `_gold` / 格内数量同一套，⛔ 不在这里另立字号）。
+        /// `UiLayoutGame.FontPx16`，与同面板的 `_gold` / 格内数量同一套，不在这里另立字号）。
         /// </para>
-        /// <para>★ 片 font-scale：**原来两行都没给 fontSize**（默认 0 = 按原版 px 1:1 画 ⇒ 只有应有的
+        /// <para>**原来两行都没给 fontSize**（默认 0 = 按原版 px 1:1 画 ⇒ 只有应有的
         /// ~55%，正是用户报「文字太小」的 6 处之一 —— V5 也注过"字号偏小"）。现补
         /// `(int)UiLayoutGame.FontPx16`（唯一出处）。框 `ShopInfoLineSize` 已是画布单位（288×1.8 × 25），
         /// 两行中心相距 30 ⇒ 字高 28 时两行之间仍余 2px，不与页签带/格区相交。</para>
@@ -210,7 +201,6 @@ namespace Diablo2.UI
                 var btn = hit.gameObject.AddComponent<Button>();
                 btn.targetGraphic = hit;
                 btn.onClick.AddListener(() => OnCellClick(index));
-                // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 格内数量只有应有的 ~55%）。
                 cell.Count = D2Label.Create(hit.transform, "Count", string.Empty, D2Text.D2Font.Font16,
                     TextAnchor.LowerRight, new Color(1f, 0.92f, 0.70f, 1f), size, Vector2.zero,
                     (int)UiLayoutGame.FontPx16);
@@ -221,11 +211,9 @@ namespace Diablo2.UI
         /// <summary>
         /// 底部：原版信息条（金币，落在底图那个 188×16 名牌里）+ **底图雕出的方槽里的两个动作按钮**。
         /// <para>
-        /// ★ agent-23 收口「底部按钮底图到底是 tradebtn 还是大理石按钮」这条悬案（**实测依据**）：
         /// ① 底图 `buysell_back.png`（320×432）底部**只有两类雕框** —— 左下 188×16 宽扁名牌
         ///    （x14..201 / y354..370，＝我们的 `ShopInfoBar`，已对齐），右下 **4 个方槽 34×27**
         ///    （列 115-148 / 167-200 / 219-252 / 271-304，y386..411，pitch 52；槽内是暗凹色 R20G20B20）；
-        /// ② **全图没有任何 77×17 的槽位** ⇒ 旧实现把 `tradebtn`（77×17 → ×1.8 = 138.6×30.6）摆在那里，
         ///    是**浮在空白大理石上**的，没有底图依据（旧 `ShopBottomSlotX/Y/Size` 三个常量算了却没人用）；
         /// ③ 原版同屏唯一的**方形按钮艺术** = `PANEL/buysellbtn.DC6`（18 帧 × 32×32 = 9 钮 × 常态/按下；
         ///    参考工程 Diablerie 的 `Assets/Images/Panels/` 里买卖屏贴图**只有** `buysellbtn.DC6.0.png`
@@ -239,7 +227,6 @@ namespace Diablo2.UI
         /// </summary>
         private void BuildBottomBar()
         {
-            // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 金币数只有应有的 ~55%）。
             //   框 `ShopInfoBarSize` = 原版 183×20 ×1.8 = 329.4×36 画布px ⇒ 字高 28 放得下。
             _gold = D2Label.Create(transform, "Gold", string.Empty, D2Text.D2Font.Font16,
                 TextAnchor.MiddleLeft, new Color(0.95f, 0.87f, 0.60f, 1f),
@@ -247,7 +234,6 @@ namespace Diablo2.UI
                 (int)UiLayoutGame.FontPx16);
 
             var btnSize = new Vector2(UiLayoutGame.ShopBottomSlotSize, UiLayoutGame.ShopBottomSlotSize);
-            // ★ 片 u53-shopart：标签**移到钮外正下方**（`ButtonLabelRect`，纯函数 + 离线判据）——
             //   原版这两颗钮是"纯图形自明"（帧 2 = 锤+铁砧、帧 10 = ⊘），标签铺满时**正好压住图形**。
             _repairButton = UiArt.SquareButton(transform, "RepairAll", "修理", btnSize,
                 SlotCenter(2), OnRepairAll, ButtonLabelRect(2));
@@ -279,7 +265,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 方钮**标签**矩形 —— **按钮 local 空间**（同 <see cref="ButtonRect"/>，故两者可直接比）。
-        /// <para>★ 片 u53-shopart：标签放**钮外正下方居中**，让原版图形（帧 2 的锤+铁砧 / 帧 10 的 ⊘）
+        /// <para>标签放**钮外正下方居中**，让原版图形（帧 2 的锤+铁砧 / 帧 10 的 ⊘）
         /// **零遮挡**；这是本项目新增的表现（原版该处只有图形、没有文字）⇒ 已把"标签位置 = 钮外正下方"
         /// 作为 **E4 增补**回报主 agent 落表。</para>
         /// <para>几何出处（片 u53-shopart 量法，两路互证；报告 §R2-a）：
@@ -288,7 +274,7 @@ namespace Diablo2.UI
         ///    止于**面板下边框**（429..430）之上 ⇒ 这是"钮居中 + 标签在钮正下方"唯一还剩的带（恰好 = 标签高）；
         /// ③ 标签高 = `UiLayoutGame.FontPx16`（28.8 画布px = 16 原版px）、**gap = 0**（上沿紧贴钮下沿）；
         /// ④ 框宽 = <see cref="SlotPitch"/>（原版 52）⇒ 相邻标签恰好相接、不重叠。
-        /// ⚠️ 已知代价（登记）：标签带 414..429 会**压过雕槽下框线**（414..417）。
+        /// 已知代价（登记）：标签带 414..429 会**压过雕槽下框线**（414..417）。
         ///    要避开它只能把标签放到面板外或钮上方 —— 二者都偏离 E4 裁定"钮外正下方"，留主 agent 裁。</para>
         /// </summary>
         public static Rect ButtonLabelRect(int slot)
@@ -301,20 +287,15 @@ namespace Diablo2.UI
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ 片 u53-shopart：雕槽几何 = **底图逐像素实测的「内凹区」**（原版 px）
         //
-        //  实测（`buysell_back.png` 320×432，量法 = 逐行/逐列亮度剖面，报告 §R2-a）：
         //    · 槽的亮框线：上 = y **382..384**、下 = y **414..417**（行 429..430 是**面板下边框**，不是槽）；
         //    · **内凹区 = y 385..413（29 行）**，x = 115..149 / 167..201 / 219..253 / 271..305（34 宽，pitch 52）；
         //    · ⇒ 槽中心 y = **399**（内凹区中点）、x 中心 = 132 / 184 / 236 / 288。
         //
-        //  ⛔ 与旧值 `UiLayoutGame.ShopBottomSlotY`（= 原版 y **381**）的差 = **18 原版px**，来路已查清：
         //    **381 是槽的「顶沿」，不是槽中心** —— 底图上 381..384 正是那条亮上框线（实测），
         //    而同一批材料在 `ShopPanel.cs` 的 B5 注释里记的是「槽内凹区 y386..411」（中心 398.5）。
         //    两条记录**并存但从未对账** ⇒ 代码采用了 381 当中心 ⇒ 钮被抬高约半高(14)+框(4) = **18px**。
-        //    ⛔ 本文件现在**不再读** `UiLayoutGame.ShopBottomSlotY`（那条常量已陈旧，应由其归属者删除/改值；
-        //    本片不越权改 `UiLayoutGame.cs`，已登记进报告「残余」）。
-        //    X 不变：旧值 132/184/236/288 与实测内凹区中心逐槽相同（≤0.5px）。
+        //    本文件现在**不再读** `UiLayoutGame.ShopBottomSlotY`（那条常量已陈旧，应由其归属者删除/改值；
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>雕槽**内凹区**上沿（原版 y px，实测 = 亮上框线 382..384 之下第一行）。</summary>
@@ -344,7 +325,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 第 i 个雕槽里方钮的**位点（面板 local 空间）** = 内凹区中心（越界 ⇒ 退回最后一个并告警，不静默）。
-        /// ⛔ 不再用 `UiLayoutGame.ShopBottomSlotY`（旧值 381 = 槽顶沿，会把钮抬高 18 原版px）。
         /// </summary>
         public static Vector2 SlotCenter(int i)
         {
@@ -363,15 +343,12 @@ namespace Diablo2.UI
         /// 把原版方钮的**指定帧（常态）+ 其下一帧（按下）**当底图贴到按钮上（路径前缀见
         /// `UiArt.BuySellButtonFramePrefix`，那里写了"为什么不用整张条带按名取帧"的实测）。
         /// <para>
-        /// ★ 片 10 修正（**读图实测**，联络图 `.ai-tmp/test/p10_buysellbtn.png`，8× 最近邻放大）：
         /// 原版 `PANEL/buysellbtn.DC6`（18 帧 × 32×32）= **9 个按钮 × 「常态/按下」连续两帧**：
         /// `0/1` = 空白大理石方钮；**`2/3` = 锤子 + 铁砧（修理）**；`4/5` = 手取物；
         /// `6/7` = 盆/碗（买卖）；**`8/9` = 问号（赌博）**；**`10/11` = 禁止符 ⊘（取消/关闭）**；
         /// `12/13` = ← 左箭头（上一页）；`14/15` = → 右箭头（下一页）；`16/17` = ✓ 对勾（确定）。
         /// </para>
         /// <para>
-        /// 旧实现**一律贴帧 0/1**（空白方钮）⇒ 实机上是"两个没有图形的空方块"，
-        /// 而原版这两个位置的图形是**自明**的（修理 = 锤砧、关闭 = 禁止符）—— 属于§0.5 的
         /// "参考物已有的东西必须搬运"。
         /// </para>
         /// </summary>
@@ -428,7 +405,7 @@ namespace Diablo2.UI
                 if (c.Icon != null)
                 {
                     c.Icon.sprite = null;
-                    // ★ 图标块**复位成 1 格**：上一页的大件把锚点格的图标层撑成 w×h，
+                    // 图标块**复位成 1 格**：上一页的大件把锚点格的图标层撑成 w×h，
                     //   不复位的话清空后仍留着大 rect（换页/换 NPC 时会出现"残块"）。
                     c.Icon.rectTransform.sizeDelta = new Vector2(CellSize, CellSize);
                     c.Icon.rectTransform.anchoredPosition = Vector2.zero;
@@ -450,7 +427,7 @@ namespace Diablo2.UI
         /// （与同面板底部方钮的「修理 / 关闭」同一类：原版这两个词的**串表出处不在本批材料里**
         /// —— 原版 `buyselltabs` 8 帧实测是**纯大理石、没有烘字**，页名在原版也是运行时文字 ⇒
         /// 本项目沿用既有简体用词，登记在回报的末节）。</para>
-        /// <para>⛔ 不改 `_sellMode` 的判定、不新增页签、不改 `OnTab` 行为（S5 只补"从不创建"的那两行）。</para>
+        /// <para>不改 `_sellMode` 的判定、不新增页签、不改 `OnTab` 行为（S5 只补"从不创建"的那两行）。</para>
         /// </summary>
         private void ApplyTitle()
         {
@@ -472,7 +449,6 @@ namespace Diablo2.UI
         /// <summary>
         /// 把原版物品图标贴到某一格 —— **走 `D2Icon.ApplyItemIcon` 这个唯一口径**（背包格/装备栏/腰带同款）。
         /// <para>
-        /// ★ 本轮修正：本文件原先**自己又写了一遍**取图标逻辑，且**少了"文件是否真在磁盘上"那一档** ⇒
         /// 原版图标不在本批素材里时（例：`ob1`「鹰眼宝珠」→ `invob1`，实测磁盘上**没有**这张）
         /// 会落成 `sprite=null` + `color=品质色（普通品质=白）` ⇒ Image 画出**一块白方块**，
         /// 看起来就是「商店没商品图标」。`D2Icon.ApplyItemIcon` 有那一档：换 `MissingIconColor`
@@ -486,14 +462,13 @@ namespace Diablo2.UI
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ 片 impl-shop：**按物品自身占格**的摆放（纯函数；离线宿主逐格断言）
         //   口径与出处：
         //     · 行优先 / 左上锚点 / 整块在界内且未被占 ⇒ 照 `Module/Item/Inventory.TryPlace`
         //       （:94-107）与 `CanPlaceBlock`（:231-244）；
         //     · 图标块尺寸与偏移 ⇒ 照 `UI/InventoryPanel.ItemIconRect`（:260-276）：
         //       size = (w×CellSize, h×CellSize)、offset = ((w−1)·CellSize/2, −(h−1)·CellSize/2)
         //       （等价于"图标块左上角与锚点格左上角重合"：2×3 的大盾就跨 2 列 3 行）。
-        //   ⛔ 下面这些函数是**纯函数**（只碰传入的数组 + `UiLayoutGame` 常量，不碰 Unity 对象）
+        //   下面这些函数是**纯函数**（只碰传入的数组 + `UiLayoutGame` 常量，不碰 Unity 对象）
         //     ⇒ 秒级离线可判（`tools/probes/hosts/uicheck/ShopGridCheck.cs`）。
         // ═════════════════════════════════════════════════════════════════════
 
@@ -590,7 +565,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 买入页：把 NPC 的商品**按自身占格**行优先摆进 10×10。
-        /// 放不下的**点名 Warn** 且**不覆盖**已摆好的货（⛔ 不静默丢弃）。
+        /// 放不下的**点名 Warn** 且**不覆盖**已摆好的货（不静默丢弃）。
         /// </summary>
         public static ShopLayout ComputeLayout(IReadOnlyList<ShopEntry> stock)
         {
@@ -728,8 +703,7 @@ namespace Diablo2.UI
         {
             if (_shop == null || cellIndex < 0 || cellIndex >= _owner.Length) return;
 
-            // ★ 片 impl-shop：命中 = **占着这一格的那件**（查占用表）；
-            //   ⛔ 不再用 `index → stock[index]` 的等号映射 —— 大件跨多格后，格号 ≠ 商品下标，
+            //   不再用 `index → stock[index]` 的等号映射 —— 大件跨多格后，格号 ≠ 商品下标，
             //   旧映射点大件右侧/下方的格会把**隔壁那件**买/卖出去。
             var itemIndex = _owner[cellIndex];
             if (itemIndex < 0) return;

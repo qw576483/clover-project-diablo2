@@ -42,8 +42,6 @@
 //         --entry D2U3P.Dump.Install \
 //         --args '["c:/Work/Server/f-v2/clover-project-diablo2/.ai-tmp"]'
 //   (ASCII ONLY on purpose: engine CLI/Roslyn on this host read a BOM-less non-ASCII file as ANSI;
-//   every CJK string below is therefore written as a \uXXXX escape, not as a literal.)
-// =============================================================================
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -147,7 +145,6 @@ namespace D2U3P
                     // u53-closefix: the family entry is a TOGGLE. If the panel was ALREADY open
                     // (a previous station, or a concurrent X tour driving the same screen), the
                     // emit above CLOSED it => re-emit once so the station is measured while open.
-                    // Measured 2026-09-24: InventoryPanel station lost exactly this way.
                     Dump.Say("A-RETRY panel=" + name + " notOpen=1 (toggle closed it) => re-emit");
                     OpenByEntry(name);
                     yield return WaitFrames(3);
@@ -279,7 +276,6 @@ namespace D2U3P
 
             if (!fireClose)
             {
-                // Reachability marker (2026-09-24): mode-B watched panels (Shop/NpcDialog/Waypoint/Death)
                 //   does NOT click the close control -- it would disrupt the tour latter stations (closing the shop loses its own later readings).
                 //   But it MUST leave an explicit marker: this used to be a silent yield break, so a reader would think CLOSE-TEST ran.
                 //   => CLOSE-RESULT for those 4 mode-B panels needs a separate active-mode pass in the future run.ps1.

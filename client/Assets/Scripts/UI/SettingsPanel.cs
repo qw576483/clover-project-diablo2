@@ -2,23 +2,20 @@
 // Diablo2 · UI/SettingsPanel.cs
 // 站点：MainMenu / Pause 的**子面板**。层：Popup。预制体：`Resources/UI/SettingsPanel`。
 //
-// ★ agent-15 §A（保真口径）：
 //   · 原版 **没有** options 屏的 prefab（`Prefabs/` 下只有 `Menu/` 四个文件 + 游戏内面板）
 //     ⇒ 本面板的"框"是本项目新增，但**一切尺寸/间距都走原版量纲**：按钮一律用原版
 //     `MediumButton`(128×35)、± 用原版按钮行高 35×35、行节奏 = 原版 35+10 = 45 原版px
 //     （见 `UI/UiLayoutFlow.cs` 的 `Settings` 组，注释里逐条写了推导）。
 //   · 英文/数字（OPTIONS / 音量数值 / ON·OFF / CLOSE）走**原版位图字体**；
-//     中文（选项名）走原版位图字模（片 3：`D2/Fonts/font16_chi`）；色调 = 原版亮度（白）。
 //
 // 职责（验收表 #42「暂停与设置」）：选项**真能改**且**重进后仍在**：
 //   · BGM / 音效音量 → `Game.Sound.SetVolume` + 写 `Game.Setting` + `Save()`
 //   · 全屏          → `Screen.fullScreen` + 写 `Game.Setting`
 //   · 画质          → `QualitySettings.SetQualityLevel` + 写 `Game.Setting`
 //   改完立刻 `Game.Setting.Save()`（落盘 settings.json）⇒ 重进仍在。
-// ⛔ **没有**「方向键移动开关」那一行：原版 D2 只有鼠标点地面移动 ⇒ 该行与它读的设置项一并删除
-//   （全局 skill §0「A 没有 ⇒ 不加」；验收表 U-1 / 本项目 bug 表 B35）。
+// **没有**「方向键移动开关」那一行：原版 D2 只有鼠标点地面移动 ⇒ 该行与它读的设置项一并删除
 // 打开/关闭由兄弟面板直接 `Game.UI.Open/Close<SettingsPanel>()`（菜单类站点共用一个 UI 场景），
-// 也支持 ESC 关闭。⛔ 不引用任何业务模块。
+// 也支持 ESC 关闭。不引用任何业务模块。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -50,8 +47,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 画质档位的设置键（`Game.Setting`）。
-        /// <para>⚠️ 为什么键名写在这里而不是 `Core/GameConst.cs`：`Core/` 是冻结层，
-        /// 新增设置键不许改它（本轮 `agent-a2` 的越界说明见回报）。键名沿用既有口径 `video/{项}`
+        /// <para>为什么键名写在这里而不是 `Core/GameConst.cs`：`Core/` 是冻结层，
         /// ——与 `GameConst.SettingKeyFullscreen` = `"video/fullscreen"` 同构。</para>
         /// </summary>
         private const string KeyQuality = "video/quality";
@@ -81,13 +77,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 层：<see cref="UILayer.Top"/>。
-        /// <para>★ 本轮（agent-a2 · 验收 #42）实测修掉一个真缺陷：原为 <see cref="UILayer.Popup"/>
-        /// （= 引擎层序 Normal=1 &lt; Popup=2 &lt; Top=3 &lt; System=4，见
-        /// `clover-client-unity-engine/Runtime/Core/PresentationContracts.cs:20-27`），
-        /// 而**暂停菜单 `PausePanel` 在 Top** ⇒ 从暂停菜单点「OPTIONS」打开的选项面板**整块被暂停菜单压住**：
-        /// 鼠标点到的是暂停菜单那一层（选项面板上的控件既收不到点击，点到的位置还会误触
-        /// 暂停菜单的 `SAVE & EXIT` / `MAIN MENU`）—— 表现就是「选项真能改」这条根本不成立，
-        /// 实测：点画质那一行直接把整局打回主菜单（`a2_plan_full.txt` 17:27:10 `fsm=MainMenu`）。</para>
         /// <para>改成 Top 后（与 `PausePanel` 同层、它在暂停菜单之后创建 ⇒ 兄弟序在后 ⇒ 在上），
         /// 选项面板拿到鼠标事件；`AppFlow.SweepStaleStationPanels` 按**类型**判断允许存在，不受影响。</para>
         /// </summary>
@@ -108,7 +97,7 @@ namespace Diablo2.UI
         public override void OnUpdate(float dt)
         {
             // ESC 关闭（与 Flow 的 Stage 站点 ESC=暂停 约定：`AppFlow` 见到本面板已开就不抢 ESC）。
-            // ★ T0FIX-C：走**别名** `GameKeyAlias.KeyClosePanel`（键位单一来源），⛔ 不直连 `GameKey.Escape`；
+            // T0FIX-C：走**别名** `GameKeyAlias.KeyClosePanel`（键位单一来源），不直连 `GameKey.Escape`；
             //   值不变 ⇒ 行为逐字不变。
             if (Game.Input == null) return;
             if (!Game.Input.GetKeyDown(GameKeyAlias.KeyClosePanel)) return;
@@ -165,10 +154,9 @@ namespace Diablo2.UI
                 Log.Warn("Ui", $"[设置] 应用画质档位 {level} 失败：{e.Message}（设置值已保存，下次启动生效）");
             }
 
-            // ★ R1-D：「人物移动抖动」候选①——`QualitySettings.SetQualityLevel` 会**按档位把
+            // R1-D：「人物移动抖动」候选①——`QualitySettings.SetQualityLevel` 会**按档位把
             //   `vSyncCount` 重置**（Very Low/Low = 0 不封顶、Medium/High = 1 垂直同步）⇒ 帧率上限会
-            //   随画质档位漂移（dt 抖动被相机平滑放大成"移动发抖"）。这里把帧节奏按**唯一口径**重钉一次；
-            //   口径定义在 `Core/FramePacing.cs`（⛔ 本面板只调它，不自己写 targetFrameRate/vSync 字面量，
+            //   口径定义在 `Core/FramePacing.cs`（本面板只调它，不自己写 targetFrameRate/vSync 字面量，
             //   也不碰阴影/分辨率缩放/LOD 等画质内容）。
             FramePacing.Pin($"选项面板应用画质档位 {level}");
         }
@@ -177,8 +165,6 @@ namespace Diablo2.UI
         {
             if (_bgmText != null) _bgmText.SetText(_bgm.ToString("0.00"));
             if (_sfxText != null) _sfxText.SetText(_sfx.ToString("0.00"));
-            // ★ 片 d2-bar：音量条的比例刷新一律走**引擎**锚点宽度件（`UiArt.SetBarRatio` 已删，
-            //   它与 `UIFactory.SetBarWidth` 是同一件事的第二份实现）。
             if (_bgmBar != null) UIFactory.SetBarWidth(_bgmBar.rectTransform, _bgm);
             if (_sfxBar != null) UIFactory.SetBarWidth(_sfxBar.rectTransform, _sfx);
             if (_fullscreenButton != null) _fullscreenButton.SetText(_fullscreen ? Text.On : Text.Off);
@@ -295,8 +281,7 @@ namespace Diablo2.UI
             UiArt.Panel(screen, "Box", UiLayoutFlow.Settings.BoxSize, UiLayoutFlow.Settings.BoxPos,
                 UiArt.PanelBg, true);
 
-            // ② ★ w5：底板 = **原版 `MENU/boxpieces.DC6` 拼装的窗框**（整幅 432×348 原版px，
-            //    按 ×1.8 定尺 ⇒ 与素材 **1:1 逐像素**，不拉伸）。这一层**替掉**原先的"纯色块占位"。
+            // ② w5：底板 = **原版 `MENU/boxpieces.DC6` 拼装的窗框**（整幅 432×348 原版px，
             //    出处/拼装口径见 `tools/d2codec/assemble_boxpieces.py` 文件头与
             //    `UiLayoutFlow.BoxFrame`；点不到它（raycastTarget=false）⇒ 点击仍落在 ① 上。
             UiArt.Art(screen, "BoxFrame", ResPaths.PanelBoxFrameSettings,
@@ -318,7 +303,6 @@ namespace Diablo2.UI
             BuildToggleRow(Text.Fullscreen, UiLayoutFlow.Settings.Row3Y, OnToggleFullscreen, out _fullscreenButton);
 
             // 画质（档位循环：原版 Video Options 的画质开关按同一行节奏排在这里）
-            // ⛔ 原先这里还有一行「方向键移动开关」，已按原版整体删除（验收表 U-1）⇒
             //    画质行接在「全屏」下一行（第 4 行，行节奏 45），面板不留空行。
             BuildToggleRow(Text.Quality, UiLayoutFlow.Settings.Row4Y, OnCycleQuality, out _qualityButton);
 

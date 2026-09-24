@@ -1,6 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · UI/DeathPanel.cs
-// 死亡屏。★★ 片 5（「小地图 + 死亡屏 1:1」轮）**整屏重排**：底图/标题条/按钮全部换成原版素材，
 //   坐标全部改成「有出处的量」，**不再有裸魔数**。
 //
 // ── 用到的原版素材（逐条出处）─────────────────────────────────────────────────
@@ -8,7 +7,6 @@
 //      实测 `python tools/d2codec/dc6.py info 原版资源/d2dc6/data/global/ui/MENU/EndGame.dc6`
 //        ⇒ `dir=1 fpd=8 frames=8  256x256 64x256 256x224 64x224  ×2`
 //        ⇒ 每 4 帧一页：左列 256 + 右列 64 = 320 宽；上行 256 + 下行 224 = 480 高
-//        ⇒ **2 页，各 320×480**（片 1 遗留的"320×480×2 还是 320×960"疑问**定案**）。
 //      帧号：页 0 = 帧 0..3 ⇒ 工程内 `D2/UI/Menu/endgame_{0..3}.png`
 //      （`ResPaths.EndGameTile(0, i)`）；1080 下按全局口径 **×1.8 + 居中** = 面板 576×864。
 //      为什么用**页 0**：原版两页各是一张 320×480 整幅画（页 0 = 暗厅 + 孤身人影；
@@ -19,49 +17,40 @@
 //      ⇒ 工程内 `D2/UI/Banner/youdiedsoftcore_0.png`（`ResPaths.Banner`）。
 //   ③ 按钮 = 原版 `data/global/ui/MENU/endgameok.dc6` **96×32 ×2 帧（常态/按下，实测）**
 //      ⇒ `D2/UI/Menu/endgameok_{0,1}.png`（`ResPaths.MenuEndGameOK`）。
-//      调色板 = `EndGame/Pal.PL2`（**片 5 定案**，片 1 用的 ACT1 是错的）：
 //      麻点度量 ACT1 **84.5** vs EndGame **28.8**（2.9 倍）+ 肉眼复核
 //      （@ACT1 满屏彩色噪点 / @EndGame 干净深灰石板）。依据与复跑命令见 `ResPaths.cs`。
 //   ④ 按钮文字 = **原版中文串表** id **3403**「繼續」（`data/d2text/chi_string.txt`；
 //      英文同 id 行 = `Continue`，与参考工程键名版串表 `Continue` 键一致）。
-//      ★ 语义对得上：原版该按钮按下去就是"回到游戏（在城里复活）"，与本项目
+//      语义对得上：原版该按钮按下去就是"回到游戏（在城里复活）"，与本项目
 //        `Events.ReviveRequest` → `ICombatModule.RevivePlayer()` 的行为**同一件事**。
 //
-// ── 本屏的文案出处（⛔ 不许自己写中文当原版）────────────────────────────────────
+// ── 本屏的文案出处（不许自己写中文当原版）────────────────────────────────────
 //   原版死亡屏是「图形标题条 + 引擎渲染的金币数字 + 一个 Continue 按钮」：
 //     · 图形标题条正文 = 「你損失金錢數量為」（= 上面 ② 那张图里的字）
 //     · 原版串表（`data/d2text/{eng,chi}_string.txt` 同 id 对照，见回报）
 //         id **5094** = `Death takes its toll of %d Gold` /「死亡取走了%d金幣」（软核）
 //         id **5096** = `Your deeds of valor will be remembered` /「你的英勇長存人心」（专家模式）
 //         id **3403** = `Continue` /「繼續」
-//   ⛔ **BLOCKED（片 5，金额数字不可得）**：本项目 `Events.PlayerDied` **无参**
-//      （契约 §3.5 冻结，改契约须主 agent 裁决）；`Events.GoldChanged` / `PlayerStatsDto`
-//      只能给"**当前**金币"，拿不到"死亡前金币" ⇒ **算不出"损失了多少"** ⇒
-//      **本片不渲染该数字行**（⛔ 不许自己拍一个数字当原版）。修法见回报 BLOCKED。
 //
-// ── 布局（★ 本项目新增排布，登记 E22）───────────────────────────────────────────
+// ── 布局（本项目新增排布，登记 E22）───────────────────────────────────────────
 //   原版**该屏控件坐标没有出处**：参考工程 `Diablerie/Assets/Prefabs/` 里**没有死亡屏 prefab**，
 //   原版素材本身也没有画好的控件槽（底图是一整幅画）。
 //   ⇒ 规则：**「标题条 / 提示行 / 按钮」三行自上而下，行高 = 各自原版像素高，行距固定 15 原版px，
 //      整栈垂直居中于面板（= 画布中心 (0,0)）**；x 一律居中。
 //   全部落在 `UiLayoutGame.Death*` 常量里（纯数据 + 纯函数）⇒ `uicheck` 离线逐条断言。
 //
-// ── 行为（既有链路，片 5 未改语义）─────────────────────────────────────────────
-// ★ 定时器必须用 `*Unscaled`（`constraints.md` #2）：死亡常伴随 `Time.timeScale = 0`
+// 定时器必须用 `*Unscaled`（`constraints.md` #2）：死亡常伴随 `Time.timeScale = 0`
 //   （例如暂停中被毒死、或结算流程压了时间缩放），此时引擎 `Game.Timer.After/Every`
 //   永不触发、**零报错**。本面板的「淡入 → 点亮按钮」用 `Game.Timer.AfterUnscaled`，
 //   并在 `OnClose` 里 `Stop(id)`（面板提前关闭时不留悬挂回调）。
-// ★ 打开方式：HUD 收到 `Events.PlayerDied` 后 `Game.UI.Open<DeathPanel>()`（HUD 是 Stage 常驻面板）；
+// 打开方式：HUD 收到 `Events.PlayerDied` 后 `Game.UI.Open<DeathPanel>()`（HUD 是 Stage 常驻面板）；
 //   本面板自己也订阅 `PlayerDied`（重复收到就重置倒计时），并订阅 `StageLeft` 兜底关闭。
-// ★ 复活请求：`Events.ReviveRequest`（无参）⇒ 由 `ICombatModule.RevivePlayer()` 负责回城 + 恢复生命。
-//   ★ 关闭时机（agent-13 §B-4）：订阅 `Events.Revived`（`App/AppEventRouting` 在「复活确已完成」
+// 复活请求：`Events.ReviveRequest`（无参）⇒ 由 `ICombatModule.RevivePlayer()` 负责回城 + 恢复生命。
 //     即玩家 `IsDead == false` 时广播）⇒ **收到它才关闭**。点击后先置灰按钮 + 起一个 `*Unscaled`
 //     看门狗，超时仍未收到 `Revived` 就放开按钮提示重试（复活失败时不再假装成功）。
-// ★ 提示行文字 = **本项目文案**（原版该屏没有状态提示行，串表里也没有对应文案）
+// 提示行文字 = **本项目文案**（原版该屏没有状态提示行，串表里也没有对应文案）
 //   ⇒ 登记在验收表「允许的差异」E24（为什么必须有：复活是异步的，必须有"等待中/失败重试"反馈）。
-// ★ 提示行是中文 ⇒ 走原版中文位图字模（片 3：`D2/Fonts/font16_chi` + `font_chi_s2t`，
-//   代码里写**简体**、渲染成**原版繁体字形**，与全项目同口径）。
-// ⛔ 零 `using Diablo2.Module`（分层自检 ③）。
+// 零 `using Diablo2.Module`（分层自检 ③）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -124,16 +113,15 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 等待期提示（本项目文案，见文件头 E24）。
-        /// <para>⚠️ **必须短到一行放得下**（实测踩过 B35）：原版位图字模的中文字形步进约
+        /// <para>**必须短到一行放得下**（实测踩过 B35）：原版位图字模的中文字形步进约
         /// 24.6 画布px，本行框宽 = (320−48)×1.8 = **489.6** ⇒ 超过 ~18 个中文字就会**折成 2 行**，
-        /// 而行框只有 45 高 ⇒ 两行**互相压字、第 2 行还压住按钮**（修前实机读图
         /// `Screenshots/p5_1_death.png` 的放大图）。现改成单行短句 + `Overflow` 不换行。</para>
         /// </summary>
         private static string WaitingText()
             => $"你倒下了…… {ReviveDelaySeconds:0.#} 秒后可继续";
 
         // ═════════════════════════════════════════════════════════════════════
-        // 构件（★ 全部尺寸/坐标取自 `UiLayoutGame.Death*`，一个裸魔数都没有）
+        // 构件（全部尺寸/坐标取自 `UiLayoutGame.Death*`，一个裸魔数都没有）
         // ═════════════════════════════════════════════════════════════════════
         private void Build()
         {
@@ -161,12 +149,12 @@ namespace Diablo2.UI
                 UiArt.TextColor,
                 UiLayoutGame.Size(UiLayoutGame.DeathHintW, UiLayoutGame.DeathHintH),
                 new Vector2(0f, UiLayoutGame.DeathRowCenterY(1)));
-            // ★ B35：**绝不换行**（本行只有 1 行的高度；换行 = 两行互相压字 + 压住按钮）。
+            // B35：**绝不换行**（本行只有 1 行的高度；换行 = 两行互相压字 + 压住按钮）。
             //   超长时左右对称溢出（居中锚点），仍然可读，不叠行。
             _hint.horizontalOverflow = HorizontalWrapMode.Overflow;
 
             // ── 按钮：原版 `MENU/endgameok.dc6`（96×32 ×2 帧），文字 = 原版串 id 3403「繼續」──
-            //  ⚠️ 传的是**不带结尾下划线**的路径前缀：`UiArt.OrigButton` 内部走
+            //  传的是**不带结尾下划线**的路径前缀：`UiArt.OrigButton` 内部走
             //     `ResPaths.Frame(prefix, i)`（它会自己加 `_i`）。
             //     实测踩过：前缀**自己再拼一个下划线** ⇒ 变成 `…/endgameok__0`（双下划线）
             //     ⇒ `[Error] [Resource] 加载失败` + 按钮停在纯色块（本条实测见回报 B31）。
@@ -254,7 +242,6 @@ namespace Diablo2.UI
             _hint.text = "复活未完成，请重试";
         }
 
-        /// <summary>复活完成（`Events.Revived`）⇒ 关闭死亡屏（agent-13 §B-4）。</summary>
         private void OnRevived()
         {
             if (!Game.UI.IsOpen<DeathPanel>()) return;

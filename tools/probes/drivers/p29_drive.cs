@@ -1,8 +1,6 @@
-// p29_drive.cs -- one-off Pipeline probe for agent-29 (verify the Timer id-0 tombstone fix +
 // the char-create turn-over animation + every UI button, in ONE fresh Play session).
 // NOT shipped: lives in <project>/.ai-tmp/drivers/ and is deleted before delivery.
 //
-// Derived from the agent-28 probe (.ai-tmp/test/p28_drive.cs) -- same shape, extended:
 //   * P29.Drive.Step(action, arg)   one-shot: cfg / ping / state / click / dump / text /
 //                                   keydown / keyup / mdown / mup / shotdir
 //   * P29.Tour.Install(spec)        installs P29.Driver (a MonoBehaviour, DontDestroyOnLoad like the
@@ -20,7 +18,6 @@
 //   Time.unscaledTime polling in Update). runInBackground / vSyncCount are set here, in our own probe.
 //
 // ASCII ONLY (PS 5.1 / Roslyn both read a BOM-less non-ASCII file as ANSI): the two CJK node names
-// of the settings panel are written as \uXXXX escapes.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -938,7 +935,6 @@ namespace P29
 
                 // ---- 16 ENTER on the first roster row -> Loading -> Stage -------------------------
                 case 33:
-                    // NOTE the "pathSub|name" form: the arg is NOT a node path. agent-28's probe
                     // passed the bare path here and the click silently missed (proved live in run r1:
                     // "[P29] ERR click-miss name=List/Row0/Enter" -> the chain then timed out on Loading).
                     Drive.Click("Row0|Enter");

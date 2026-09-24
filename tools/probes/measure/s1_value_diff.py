@@ -319,7 +319,7 @@ def run(src, rows_filter, out_dirs, probe_only=False, cross=True):
     print("  产物：")
     for w in written:
         print("    %s" % w.replace("\\", "/"))
-    # 退出码三分（⛔ "没比过" 不算通过）：
+    # 退出码三分（"没比过" 不算通过）：
     #   0 = 比过了，且 0 个 `不一致`；1 = 有 `不一致`；2 = 官方载体不在位/未解包（BLOCKED，根本没比）
     if srcinfo["kind"] != "txt" or (excel and len(present) == 0):
         print("  [exit=2] 官方载体不在位 ⇒ 本次**没有比过**任何一行（全部 `缺官方值`）")

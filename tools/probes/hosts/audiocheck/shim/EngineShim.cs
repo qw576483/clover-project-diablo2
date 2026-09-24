@@ -4,7 +4,6 @@
 // 只提供 `Diablo2/Assets/Scripts/{Core,Def,Module/Contracts,Module/Combat/SfxKeys,Module/Audio}`
 // 及其依赖实际引用到的引擎成员，**签名逐条对齐真实引擎**（出处见每条注释）。
 // **一旦真实引擎改签名，本文件会编译报错** —— 这就是它存在的意义（覆盖率哨兵）。
-// 做法与 `tools/flowcheck/shim/EngineShim.cs`（agent-05）一致。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -100,7 +99,6 @@ namespace CloverEngine
         void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object;
         T TryGet<T>(string path) where T : UnityEngine.Object;
 
-        // ★ agent-34（引擎下沉 A3）：引擎 `IResourceManager` 新增的两个**同步**入口。
         //   签名逐字对齐 `clover-client-unity-engine/Runtime/Core/Contracts.cs`（本文件是覆盖率哨兵）。
         bool Exists(string path);
         T[] LoadAll<T>(string path) where T : UnityEngine.Object;

@@ -1,5 +1,4 @@
 // =============================================================================
-// d2u32_drive.cs -- 片 u32-close（2026-09-24）的**实机读数驱动**
 //   主题：把「走到传送台 ⇒ 面板打开 ⇒ 选目标区 ⇒ 落地」这一整条链**一次跑完**，
 //        并同时采齐：`areaId` · 激活列表 · 缺块 / 黑窗读数 · **截图格号**（截图↔格号对照表）。
 //
@@ -8,9 +7,9 @@
 //       ⇒ 它证明了"面板+切区"，**没有**证明"激活列表由生产代码写出"这条；
 //     · 它没有采 `areaId` 与激活列表读数，也没有把"截图 ↔ 当时格号"绑成一张对照表
 //       ⇒ 缺块/黑窗的图**没法按格号复核**。
-//     ⇒ 本驱动 = 同一条链的**收口版**，改动只有三处（其余逐条复用，⛔ 不从零重写）：
+//     ⇒ 本驱动 = 同一条链的**收口版**，改动只有三处（其余逐条复用，不从零重写）：
 //         ① 激活来源改成**生产路径**：`ExitEntered` 走两次真实换区（`AppFlow.EnterArea` ⇒
-//            `AreaChanged` ⇒ `AppWaypoint.RecordVisited`）。⛔ **不再反射改任何静态字段**；
+//            `AreaChanged` ⇒ `AppWaypoint.RecordVisited`）。**不再反射改任何静态字段**；
 //         ② 面板打开判据换成 `Game.UI.IsOpen<WaypointPanel>()`（真值口径；`constraints.md` #11：
 //            失焦停帧时 `FindObjectsByType` 会给假的"面板残留/没开"）；面板**实际列出的目的地**
 //            从面板实例的 `_current.dests` 读（= 所见即所读）；
@@ -18,15 +17,15 @@
 //            可见块区间 / total / actCov / missAct）。
 //
 //   反射口径（字段名 / 同公式）逐条复用 `travelblack_drive.cs` 与 `chunkhole_probe.cs`，
-//   ⛔ 不另立一套；区块反射读的是 `MapView` 的既有私有字段。
+//   不另立一套；区块反射读的是 `MapView` 的既有私有字段。
 //
-//   判据（动手前定死，⛔ 不许事后编）：
+//   判据（动手前定死，不许事后编）：
 //     · `WP-PANEL dests=` 必须**含** dest 且**不含**当前区域（面板列的就是已激活 − 当前）；
 //     · `PROD-VISITED` 的两个区域必须由 `RecordVisited` 写出（日志里必须出现
 //       `传送点：新区域已激活`，即生产留痕）⇒ 只要它没出现，"激活列表由生产写出"这条**不成立**；
 //     · 落地：`areaId` 必须等于 dest；`missAct` 在落地后必须**回落到 0**（黑窗 = 临时窗口，不是永久）；
 //       把"落地帧起 `missAct>0` 的持续秒数"记进 `SHOT-MANIFEST` 的备注列。
-//     · ⛔ 若上面任一条不成立 ⇒ 如实写"不成立 + 实测值"，不许拿别的读数为它背书。
+//     · 若上面任一条不成立 ⇒ 如实写"不成立 + 实测值"，不许拿别的读数为它背书。
 //
 //   Entry: U32Drv.Api.Ping()          —— 编译闸门 + 就绪自检（进 Play 前调）
 //          U32Drv.Api.Go(spec)        —— spec = "<outDir>|<tag>"
@@ -141,7 +140,7 @@ namespace U32Drv
             Write("READY fsm=" + Api.Fsm() + " ctx=" + (Ctx() != null ? 1 : 0));
             yield return new WaitForSeconds(1.5f);
 
-            // ① boot 到 Stage（链逐条复用 `travelblack_drive.cs`，⛔ 不另写一份）
+            // ① boot 到 Stage（链逐条复用 `travelblack_drive.cs`，不另写一份）
             if (Api.Fsm() != "Stage")
             {
                 if (!EnterStage()) { Fail("enter-failed fsm=" + Api.Fsm()); yield break; }
@@ -170,7 +169,7 @@ namespace U32Drv
             var dest = PickDest((int)map.Area);
             if (dest < 0) { Fail("no-dest"); yield break; }
 
-            // ③ ★ 激活目的地 —— **走生产路径**（⛔ 不再反射改 `Visited`）：
+            // ③ 激活目的地 —— **走生产路径**（不再反射改 `Visited`）：
             //    `Events.ExitEntered(dest)` 就是"城镇东侧接缝 / 传送面板"两条真实入口发的同一个事件
             //    ⇒ `AppFlow.EnterArea` 生成新图 + 落位 + 发 `AreaChanged` ⇒ `AppWaypoint.RecordVisited`
             //    把新区域写进激活列表。跑两次（去 + 回）⇒ 激活列表 = {当前区域, dest}。
@@ -204,7 +203,6 @@ namespace U32Drv
                   + " dist=" + Chebyshev(player.Grid, wp) + " dests=" + PanelDests());
             if (!PanelOpen()) { Fail("panel-never-opened"); yield break; }
 
-            // ★ 片 waypoint（2026-09-24，主 agent 裁定批准）：截图**前**让出 2 帧。
             //   为什么：`Shot` 走 `ScreenCapture.CaptureScreenshot`，而面板的底图/钮面走
             //   `UiArt.Art` / `FlowButton` 的 `Game.Res.LoadAsset` **异步**回调 ⇒ **面板打开当帧**
             //   截到的是"素材在途"帧（外框与钮面还都是深色占位）。实测留痕：`u32_u32p2_1_panel.png`
@@ -217,10 +215,9 @@ namespace U32Drv
 
             Shot("u32_" + Api.TagName + "_1_panel.png", "面板已打开（走到锚点后）");
 
-            // ⚠️ 实测（首次会话）：面板打开 ⇒ 发 `WaypointTravelRequest` ⇒ 落地**全在同一帧内**完成
+            // 实测（首次会话）：面板打开 ⇒ 发 `WaypointTravelRequest` ⇒ 落地**全在同一帧内**完成
             //    ⇒ 本帧发了两次 `ScreenCapture.CaptureScreenshot`（面板 + 落地），而它只在**帧末**写一次
             //    ⇒ `_1_panel.png` **根本没落盘**（首跑 4 张里只出现后 3 张，见 `.ai-tmp/test/report-u32.md`）。
-            //    修法 = 面板那张先让出 2 帧（等它落盘）再继续走传送。
             yield return null;
             yield return null;
 
@@ -240,7 +237,7 @@ namespace U32Drv
             var preSelectedArea = SelectedAreaId();
 
             // ⑦ 发面板按钮的同一个事件（`AppWaypoint.OnTravelRequest` 收它）
-            //    ⚠️ 必须**先**把 `_areaChanged` 清掉：第 ③ 步的两次激活换区已经把它置过 true，
+            //    必须**先**把 `_areaChanged` 清掉：第 ③ 步的两次激活换区已经把它置过 true，
             //       不清就会把"上一次换区的残余"当成落地信号（→ 落地帧判早，读数全偏）。
             _areaChanged = false;
             Api.Log("TRAVEL-REQ dest=" + dest + " from=" + oldArea + " preGrid=" + Fmt(preGrid)
@@ -248,7 +245,7 @@ namespace U32Drv
             Emit(Diablo2.Core.Events.WaypointTravelRequest, dest);
 
             // ⑧ 落地帧起逐帧采样（`map.Area` 第一拍就变；玩家/相机**第二拍**才挪 ⇒
-            //    "落地"按 `Events.AreaChanged` 判，⛔ 不用"玩家格变了"——走到锚点也会变）
+            //    "落地"按 `Events.AreaChanged` 判，不用"玩家格变了"——走到锚点也会变）
             var t5 = Time.realtimeSinceStartup;
             var landed = false;
             while (Time.realtimeSinceStartup - t5 < 16f)
@@ -425,7 +422,7 @@ namespace U32Drv
             }
             catch (Exception ex) { Api.Warn("SHOT-FAIL " + name + " " + ex.GetType().Name); }
 
-            // 「截图格号」= 这张图上当时站在哪一格 / 相机看哪一格（⛔ 不含墨量判定，那是眼睛的事）
+            // 「截图格号」= 这张图上当时站在哪一格 / 相机看哪一格（不含墨量判定，那是眼睛的事）
             var camGrid = "-";
             var cam = Camera.main;
             if (cam != null)
@@ -494,7 +491,7 @@ namespace U32Drv
             return v.Count == 0 ? "(空列表 = 原版「尚未啟動其他傳送點」)" : ("[" + string.Join(",", v) + "]");
         }
 
-        // ── 激活列表 / areaId（**只读**反射；⛔ 本驱动不改任何静态字段）──────────
+        // ── 激活列表 / areaId（**只读**反射；本驱动不改任何静态字段）──────────
 
         private static List<int> VisitedValues()
         {
@@ -584,7 +581,7 @@ namespace U32Drv
         }
 
         /// <summary>
-        /// 集合里的块号集合。⚠️ `Dictionary` 直接枚举出来的是 `KeyValuePair`（不是键）⇒ 必须走
+        /// 集合里的块号集合。`Dictionary` 直接枚举出来的是 `KeyValuePair`（不是键）⇒ 必须走
         /// `IDictionary.Keys`；`Queue&lt;Vector2Int&gt;` 直接枚举就是元素。（`travelblack_drive` 第一版漏了
         /// 这一条，读数全是假的 —— 本驱动沿用其修后的口径。）
         /// </summary>
@@ -625,7 +622,7 @@ namespace U32Drv
             catch (Exception ex) { Api.Warn("EMIT-FAIL " + evName + " " + ex.GetType().Name + ": " + ex.Message); }
         }
 
-        /// <summary>目的地 = 第一个不是当前的 `AreaId`（本工程 Act I 三张图；⛔ 不写死号）。</summary>
+        /// <summary>目的地 = 第一个不是当前的 `AreaId`（本工程 Act I 三张图；不写死号）。</summary>
         private static int PickDest(int cur)
         {
             var t = Api.FindType("Diablo2.Def.AreaId");

@@ -1,18 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Player/PlayerLog.cs
-// Player 模块**统一日志入口**：tag 固定 = `Player`（`docs/agents/agent-06-*` §4）。
 //
-// 为什么要这一层：`_common.md` §3 要求「一律 `Game.Logger.*` + tag 用模块名」，
 // 而 `Module/Player/**` 里日志点很多（寻路失败 / 受阻 / 升级 / 加点 / 装备生效…），
 // 每处手写 "Player" 字符串会写错、改名会漏。这里收敛成一处常量。
 //
-// ★ 两个硬约定（验收脚本按它们 grep，改格式前先看这里）：
+// 两个硬约定（验收脚本按它们 grep，改格式前先看这里）：
 //   ① 升级那条必须是 `[Player] level 1→2 …`：tag 由本类提供，**消息体以 `level` 开头**
 //      （`策划/验收表.md` 第 18 行）；
-//   ② 移动那条必须含 `[Move] steps=`（验收表第 12 行）与 `path=`（`策划案 §4`），
 //      由 <see cref="Move"/> 统一加前缀。
 //
-// ⛔ 本模块**故意不用** `Log.WarnThrottled/WarnOnce/ErrorOnce`：`Core/Log.cs:133` 的降频闸门
+// 本模块**故意不用** `Log.WarnThrottled/WarnOnce/ErrorOnce`：`Core/Log.cs:133` 的降频闸门
 //    依赖 Unity 原生 `Time.realtimeSinceStartup`，在离线自检宿主（非 Unity 进程）里会抛
 //    `SecurityException`（实测见 `tools/mapcheck/Program.cs:61-68`），而 playercheck 必须能
 //    把「受阻 / 不可达 / 装备词缀未映射 / 无相机」这些**非预期分支**真跑一遍。

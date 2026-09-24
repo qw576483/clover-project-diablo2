@@ -149,7 +149,6 @@ def main():
         return cov / (sj * sd)
 
     # ---- R5 -----------------------------------------------------------------
-    # SELF-TEST FINDING (2026-09-24, offline fixtures): bucketing by the INTEGER `grid`
     # column is a MEASUREMENT-RECIPE bug, not a defect detector. Most frames carry
     # dgrid == 0 (dropped), and every cell crossing carries dgrid == 1 no matter where in
     # the cell it happened, so a perfectly uniform advance still shows spread ~= 1.04 =>
@@ -157,7 +156,6 @@ def main():
     # constant within ONE direction" => bucket by the WORLD delta's sign pair (the iso
     # projection maps the grid axes onto world diagonals, so this still yields 8 buckets).
     # The world/grid RATIOS (0.7071 / 1.11797 / 1.41421) are pinned OFFLINE in
-    # tools/probes/hosts/playercheck §15 f2 and are deliberately NOT re-derived here.
     bydir = {}
     for i in range(1, len(rows)):
         if math.isnan(R[i][0]) or math.isnan(L[i][0]):
@@ -186,7 +184,7 @@ def main():
     L_.append("tsv=%s  frames=%d  pxPerUnit=%.1f (screenH=%.0f ortho=%.2f)" % (a.tsv, len(rows), ppu, a.screen_h, a.ortho))
     L_.append("scenarios: " + ", ".join("%s=%d" % (s, scen.count(s)) for s in sorted(set(scen))))
     L_.append("dt: mean=%.6f sd=%.6f min=%.6f p95=%.6f max=%.6f" % (mean_dt, sd_dt, min(dtv), pct(dtv, 0.95), max(dtv)))
-    # ⚠️ 实测教训：渲染列**整列 NaN**（驱动探针取不到节点）时，`max|diff|` 会算出 0.0 ⇒ R1"零样本空过"=假绿。
+    # 实测教训：渲染列**整列 NaN**（驱动探针取不到节点）时，`max|diff|` 会算出 0.0 ⇒ R1"零样本空过"=假绿。
     #    ⇒ 判据必须要求**足够多的有效样本**，否则判 FAIL（"判据无效"），而不是 PASS。
     r1_samples = len(rows) - nan_render
     r1_verdict = "INVALID (nan-render rows=%d, need >=10 valid samples)" % nan_render if r1_samples < 10 else \
@@ -211,11 +209,10 @@ def main():
     L_.append("NOTE 'crossed' frames (S4 cell crossings): %d"
               % sum(1 for r in rows if r[3] == "1"))
 
-    # ---- R6 ★ 帧节奏 A/B（team-lead 指定的实验设计；一次 Play 会话内做完） --------------
+    # ---- R6 帧节奏 A/B（team-lead 指定的实验设计；一次 Play 会话内做完） --------------
     #   同一会话里先跑档位 A（vSync=0 + targetFrameRate=60）再跑档位 B（vSync=1 + targetFrameRate=-1），
     #   两遍走**同一段场景**，靠 TSV 的 `cad` 列分组。判据：**哪一组把 dt 的 sd/P99 与抖动指标 J 压得更低**
-    #   （⛔ 不许只看"看起来顺"）。J = 相机逐帧格空间步长的局部均值（±5 帧）偏差 sd —— 与
-    #   `playercheck §15 g2` 的 J 同一把尺；Play 里做不了"置换成均匀 dt 再重跑"，所以这里是**两组直接比**。
+    #   （不许只看"看起来顺"）。J = 相机逐帧格空间步长的局部均值（±5 帧）偏差 sd —— 与
     def judder_sd(vals, win=5):
         dev = []
         for i in range(len(vals)):

@@ -6,11 +6,8 @@
 // 为什么必须有这一层（不是为抽象而抽象）：
 //   `ViewModule` 的实体视图要 `new GameObject(...)` 才能建 —— 离线自检宿主里会抛异常
 //   （`EnsureRoot` 的 catch 把 `_cannotRender` 置 true）⇒ 它里面那串 `want = 三元链`
-//   **在宿主里一行都跑不到**，"玩家受击动作只出 1 帧""攻击播完没回 idle"这类缺陷
-//   只能靠人读代码发现（片 W5 的动画审计里，这两条正是靠人读 + 源码行号判出来的）。
 //   摘成纯函数之后，宿主可以喂**任意状态组合**、拿真 `SpriteAnimator` 逐帧推进并断言。
 //
-// 优先级（与原版一致；`docs/agents/agent-07-*.md` §4 的"死亡 &gt; 受击 &gt; 出手 &gt; 移动 &gt; 站立"）：
 //   玩家：**Death &gt; Hit &gt; Cast &gt; Attack &gt; (Run|Walk) &gt; Idle**
 //   怪物：**Death &gt; Hit &gt; Attack &gt; (Walk|Idle)**
 //   原版依据：受击（GH）会打断出手与移动（hit recovery 是**不可打断**的姿态）；
@@ -28,7 +25,7 @@ namespace Diablo2.Module.View
         /// <param name="isDead">`IPlayerModule.IsDead`。</param>
         /// <param name="hitAnimPlaying">
         /// 受击动画**还没播完**（调用方传 `Playing == Hit &amp;&amp; !Anim.Finished`）。
-        /// <para>★ 片 W5：这一项是"玩家受击动作能看见"的关键 —— 旧实现里 `TickPlayer` 的
+        /// <para>这一项是"玩家受击动作能看见"的关键 —— 旧实现里 `TickPlayer` 的
         /// want 链**没有受击这一档**，`PlayHit` 设的 `Hit` 会在**同一帧**被覆盖成 `Idle`，
         /// 而两次贴图（`PlayHit` 的 Hit[0] 与随后的 Idle 帧）都发生在**渲染之前**
         /// ⇒ 该单位那 6 帧受击动画**一帧都不会被渲染**（离线复现：`animcheck` §6d 的旧口径反例出 0 帧）。</para>
@@ -54,7 +51,7 @@ namespace Diablo2.Module.View
         /// （`SpriteAnimator.Tick` 对 `_keys.Length &lt;= 1` 直接返回 false ⇒ `Finished` 永不为真
         /// ⇒ 只判前两条会让玩家**永远卡在受击姿态**）；③ 还没播到末帧。
         /// 用「受击动画播完」当保持结束条件 ⇒ 该 (单位, hit) 的**真实帧数 ÷ 基准帧率**就是保持时长，
-        /// ⛔ 不需要另写一个时长常量（原版 `AnimData.d2` 不在本机，凭空写一个数没有出处）。</para>
+        /// 不需要另写一个时长常量（原版 `AnimData.d2` 不在本机，凭空写一个数没有出处）。</para>
         /// </summary>
         public static bool IsHitHolding(ViewAnim playing, int frameCount, bool finished)
         {

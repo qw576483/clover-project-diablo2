@@ -2,16 +2,13 @@
 // Diablo2 · Module/Combat/MeleeShape.cs
 // **攻击判定形状的唯一口径**（纯函数 / 无 MonoBehaviour / 可离线逐例驱动）。
 //
-// 为什么要有它（用户本轮原话）：
 //   「打击感就是一坨，**你是圆形判断的打击范围**」「为什么打击范围这么奇怪」
-//   ⇒ 旧实现（`CombatModule.PlayerBasicAttack`）只用 `Iso.GridDistanceEuclidean` 比一个半径
 //     —— 那是**圆**：背后的、正侧方的、隔着墙水的目标只要落在半径内就能打到。
 //
-// 形状口径（⛔ 不许在别处再写一份）：
+// 形状口径（不许在别处再写一份）：
 //   ① `InFrontCone` —— **正面扇形**：目标相对「攻击者当前朝向」的夹角 ≤ `FrontConeHalfAngleDeg`。
-//      ★ 特例（`melee-samecell`，2026-09-23）：**偏移 (0,0)（与攻击者同格）⇒ 恒命中** ——
 //        角度在零距离上无定义，而**原版是按"距离 / 外接框求交"判的**（出处见下「同格」一条），
-//        距离 0 ≤ 任何 reach 恒真 ⇒ 同格必命中。⛔ 只补这一个退化点，**不把扇形放宽成圆形**。
+//        距离 0 ≤ 任何 reach 恒真 ⇒ 同格必命中。只补这一个退化点，**不把扇形放宽成圆形**。
 //   ② `InMeleeRect` —— **以朝向为轴的矩形走廊**：沿轴投影 ∈ [0, reach] 且 |垂距| ≤ `MeleeHalfWidth`。
 //      （零偏移天然满足：沿轴 0 ∈ [0, reach]、垂距 0 ≤ 半宽。）
 //   ③ `LineClear`   —— **线段不得被不可走地形阻断**（不许隔墙/隔水/跨河打到）。
@@ -19,7 +16,6 @@
 //   ①② 同时成立才算"在攻击形状内"；③ 是独立的一关（近战与远程都要过）。
 //
 // 出处：
-//   · 形状（扇形 + 走廊 + 线段碰撞）：**用户本轮明确指定**（"原版是扇形/矩形"，本轮任务书 §1 第 1 条）
 //     —— 原版 `Missiles.txt` 的 `Collision`(列 79) / `CollideType`(列 75) 列即"沿一条线段推进并按
 //     单位外接框求交"的口径（`<根>/原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/Missiles.txt`）；
 //     本项目把"线段求交"折算成格上的 `LineClear`（本项目无逐帧 sub-tile 单位框）。
@@ -34,14 +30,11 @@
 //     ② 同目录 `MonStats2.txt` 第 8 列 `MeleeRng`（怪物近战触及，`skeleton1` = 0）⇒ 同样是**格数**。
 //     两处都表明"够不够得着"是**沿距离比较**（`0 ≤ reach` 恒真，且同格时两者外接框必然重叠）
 //     —— 角度锥（本文件 ①）是**本项目新增**的量化近似（见上一条），它**不该**在"距离 0"这个
-//     本该恒真的点上把攻击拒掉：实测 40 次真实左键全被拒（`report-audioverify2.md` §2.3）。
-//   ⛔ 判据见 `tools/probes/hosts/combatcheck` 第 18 节（同格命中 / 正前方命中 / 正侧方不命中 /
+//   判据见 `tools/probes/hosts/combatcheck` 第 18 节（同格命中 / 正前方命中 / 正侧方不命中 /
 //     超距不命中 / 隔墙不命中）。
 //
-// ★ 实现已下沉（2026-09-24 片 eng-geom）：**几何算法**搬到引擎
 //   `clover-client-unity-engine/Runtime/Core/HitShape.cs`（`CloverEngine.HitShape`）；
 //   本文件只剩**题材调参常量**（60° / 1.2 格，见上面两条推导）+ **薄转发**（公开签名一字未改）。
-//   数值等价的比对脚本见 `.ai-tmp/test/enggeom_equiv/`（改前实现 vs 引擎件逐行比对）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -52,7 +45,7 @@ namespace Diablo2.Module.Combat
     /// <summary>
     /// 攻击判定形状：正面扇形 + 矩形走廊 + 线段通畅。
     /// <para>
-    /// ★ **实现已下沉到引擎**（`CloverEngine.HitShape`，`Runtime/Core/HitShape.cs`）——
+    /// **实现已下沉到引擎**（`CloverEngine.HitShape`，`Runtime/Core/HitShape.cs`）——
     /// 本类只留**题材调参常量**（`FrontConeHalfAngleDeg` / `MeleeHalfWidth`，见文件头推导）
     /// 与**薄转发**（公开签名一字未改，调用点无需改动）。
     /// </para>
@@ -77,9 +70,9 @@ namespace Diablo2.Module.Combat
 
         /// <summary>
         /// 朝向的**格增量** → **单位向量**（格坐标下的向量，不是屏幕方向）。
-        /// <para>★ 已下沉：转发到 `CloverEngine.HitShape.ToUnit`（算法与边界逐行照搬）。</para>
+        /// <para>已下沉：转发到 `CloverEngine.HitShape.ToUnit`（算法与边界逐行照搬）。</para>
         /// <para>
-        /// ⛔ 本类**不自己写 `Dir8` 映射表**：格增量一律由调用方用**引擎权威表**
+        /// 本类**不自己写 `Dir8` 映射表**：格增量一律由调用方用**引擎权威表**
         /// `Iso.DirectionDelta(dir)`（= `CloverEngine.IsoLayout.DirectionDelta`）取好再传进来
         /// —— 这样本文件对地图/投影零依赖，可被最小自检宿主单独编译驱动（见 §"为什么这样切"）。
         /// </para>
@@ -93,10 +86,10 @@ namespace Diablo2.Module.Combat
         /// <summary>
         /// **正面扇形**：目标偏移 (dx,dy) 与朝向单位向量 (fx,fy) 的夹角余弦 ≥ <paramref name="cosMin"/>。
         /// <para>
-        /// ★ **零偏移（与攻击者同格，dx=dy=0）⇒ 返回 true（命中）** ——
+        /// **零偏移（与攻击者同格，dx=dy=0）⇒ 返回 true（命中）** ——
         /// 零距离上"夹角"无定义，而**原版的近战触及是距离/外接框口径**（`Weapons.txt` `rangeadder` /
         /// `MonStats2.txt` `MeleeRng`，见文件头「同格必命中」一条）：`0 ≤ reach` 恒真 ⇒ 同格必命中。
-        /// ⛔ 只补这一个退化点；扇形本身（±60°）与"正侧方 90° 不命中"的口径一字未动。
+        /// 只补这一个退化点；扇形本身（±60°）与"正侧方 90° 不命中"的口径一字未动。
         /// </para>
         /// </summary>
         public static bool InFrontCone(float fx, float fy, float dx, float dy, float cosMin)
@@ -118,13 +111,13 @@ namespace Diablo2.Module.Combat
         /// **除两端点外**的每一格都必须 <paramref name="walkable"/>。
         /// <para>
         /// 用途：攻击（近战 / 远程）不得穿过墙 / 水 / 地图外 —— 用户原话「屏幕外都能打我？」
-        /// （隔着挡视线的地形也能打到）。⛔ `walkable == null`（地图未接入）⇒ 放行 + 由调用方留痕，
+        /// （隔着挡视线的地形也能打到）。`walkable == null`（地图未接入）⇒ 放行 + 由调用方留痕，
         /// 不把"拿不到地图"变成"打不到"。
         /// </para>
         /// </summary>
         public static bool LineClear(Func<Vector2Int, bool> walkable, Vector2Int from, Vector2Int to)
         {
-            // ★ 已下沉：转发到引擎件（Bresenham 逐格判可走；两端点不判；null 探针放行）
+            // 已下沉：转发到引擎件（Bresenham 逐格判可走；两端点不判；null 探针放行）
             return CloverEngine.HitShape.LineClear(walkable, from, to);
         }
     }

@@ -49,7 +49,6 @@ DIR_LOOKUP = (0x00, 0x01, 0x02, 0x01, 0x02, 0x03, 0x03, 0x05, 0x05, 0x06,
 FLOOR_TILE_W = 160
 FLOOR_TILE_H = 80
 
-# 解包产物统一在 `<项目根>/原版资源/d2raw`（skill §1.9）。
 DEFAULT_RAW = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     '原版资源', 'd2raw')

@@ -1,9 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Core 契约自检宿主（`docs/agents/agent-13-修复轮.md` §C 的验收项逐条自证）
 //
 // 运行：dotnet run --project <项目根>/tools/corecheck/CoreCheck.csproj -c Release
 //
-// 覆盖的验收项（§C 的 4 项 + 契约冻结回归）：
 //   ① 5 个多帧条带常量 → **真实磁盘文件**（逐个存在性断言 = `Test-Path` 的等价物）；
 //      帧数与本项目 `Assets/Editor/AssetImporter.cs` 的 `MultiFrameStrips` 表**逐条交叉核对**
 //      （常量表与切分表必须一致，否则 UI 会按下标取到空图且不报错）。
@@ -11,9 +9,8 @@
 //   ③ `GameConst` 新增常量：`SettingKeyBgmMute` / `SettingKeySfxMute` / `UiReferenceWidth|Height`(1920×1080)。
 //   ④ `Log` 降频入口在**离线宿主**（非 Unity 进程）不再抛 `SecurityException`：
 //      新旧两种用法都能编过并工作；注入时钟后限频行为可复现（确定性）。
-//   ⑤ 回归：`docs/步骤文档.md` §3.5 的**冻结项**（Root / UiPanels / D2Ui / … / D2Bgm）字面值未改。
 //
-// ⛔ 它只证明「类型 / 常量 / 离线可用性」，**不替代进 Play 实测**（闸门 2：用户尚未打开编辑器）。
+// 它只证明「类型 / 常量 / 离线可用性」，**不替代进 Play 实测**（闸门 2：用户尚未打开编辑器）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -26,7 +23,7 @@ using ILogger = CloverEngine.ILogger;
 
 internal static class CoreCheckProgram
 {
-    // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
+    // 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
     private static readonly string ProjectRoot = ResolveProjectRoot();
     private static readonly string ClientAssets = ProjectRoot + @"\client\Assets";
     private static readonly string ResourcesRoot = ClientAssets + @"\Resources\Clover\";
@@ -36,7 +33,6 @@ internal static class CoreCheckProgram
     /// 从宿主自己的可执行目录向上找“含 client/Assets 的那一层” = 仓库根。
     /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；若按调用方 cwd 定位，
     /// 从仓库根运行时会被拼成 &lt;仓库根&gt;/clover-project-diablo2/client/...（一个文件都找不到）。
-    /// 找不到就回退成原来的相对写法，保持“从仓库上一级目录运行”的老用法不变。
     /// </summary>
     private static string ResolveProjectRoot()
     {
@@ -79,7 +75,6 @@ internal static class CoreCheckProgram
         if (_fail != 0) Environment.ExitCode = 1;
     }
 
-    // ── 0. 契约冻结回归：§3.5 的字面值一个字符都不许动 ────────────────────────
     private static void Section0_ContractFreeze()
     {
         Section("0. 契约冻结回归（`docs/步骤文档.md` §3.5：这些值**不许改**）");
@@ -345,7 +340,6 @@ internal static class CoreCheckProgram
 
         Console.WriteLine($"    调用前：Log.ClockSource = \"{Log.ClockSource}\" / UnityClockUnavailable = {Log.UnityClockUnavailable}");
 
-        // 新用法 ①：WarnOnce —— 以前这里必抛 SecurityException
         var threw = (string)null;
         var r1 = false;
         try { r1 = Log.WarnOnce("D2", "corecheck.once", "CoreCheck：WarnOnce 在离线宿主里的第一次调用"); }
@@ -362,7 +356,6 @@ internal static class CoreCheckProgram
         Check("WarnOnce 语义：同 key 第二次返回 false（只报一次，不刷屏）", !r2, "returns=" + r2);
 
         // 降级只报一条（不刷屏）。
-        // ★ 口径收紧（agent-32「引擎下沉 B1b」）：**不能只按正文「Unity 时钟不可用」计数** ——
         //   项目 `Log` 的限频与时钟已下沉到引擎 `CloverEngine.LogThrottle`，那条降级告警现在由
         //   `LogThrottle` 自己发出（tag = `[LogThrottle]`，正文与项目侧同源 ⇒ 含同样字样）。
         //   只认正文时阈值会被「哪一层先探测」影响：corecheck 将来若先真正调用引擎 `Rng` /

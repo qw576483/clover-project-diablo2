@@ -1,7 +1,5 @@
-// p36_drive.cs -- one-off Pipeline probe for agent-36 (engine sink A5: the text-render hook / E19).
 // NOT shipped: lives in <project>/.ai-tmp/drivers/ and is deleted before delivery.
 //
-// Derived from the agent-34 probe (p34_drive.cs) -- same install/entry shape, same helpers. The tour
 // here is SHORT and targeted at the two engine widgets that carried E19:
 //   Boot -> MainMenu
 //     -> raise the engine widgets: ToastLayer x2 (the exact E19 CJK strings) + LoadingLayer
@@ -12,7 +10,6 @@
 //        hook restored => the same creation path yields a mirrored (non-drawing) Text + bitmap glyphs.
 //
 // ASCII ONLY (PS 5.1 / Roslyn both read a BOM-less non-ASCII file as ANSI): every CJK string below is
-// written as \uXXXX, and the code points were lifted from the real sources (see the comments).
 using System;
 using System.Collections.Generic;
 using System.IO;

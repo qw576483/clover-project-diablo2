@@ -85,7 +85,6 @@ except Exception as exc:                      # 老版本解释器没有 reconfi
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-# ★ BL-6（片 6 登记）：原路径 `_assets_tmp\d2src\d2lod1.10txt\...`
 #   随工作区清理**已不存在**（那一整棵 `_assets_tmp` 都没了）⇒ 打表脚本曾经**跑不起来**。
 #   现存唯一副本 = 参考工程自带的 1.10 官方 txt（92 张，**含** `SkillCalc.txt` / `MonLvl.txt` /
 #   `MonStats2.txt`，比 `原版资源/d2raw/data/global/excel` 那 55 张（经典版）更全）。
@@ -334,11 +333,9 @@ def build_class():
     s.col("life_per_vit", "float32", "每点体力=生命（官方 LifePerVitality，已 ÷4）")
     s.col("mana_per_mag", "float32", "每点精力=法力（官方 ManaPerMagic，已 ÷4）")
     s.col("stam_per_vit", "float32", "每点体力=耐力（官方 StaminaPerVitality，已 ÷4）")
-    # ★★ U3（2026-09-24，classcols 片）：官方 charstats 的**起始值**三列。
     #   为什么必须导入：1 级角色的生命/耐力**不是**"起始四维 × 成长系数"，而是
     #     · 生命 = `hpadd` + 起始体力（官方字段说明：hpadd 与 vit 列相加得起始生命）
     #     · 耐力 = `stamina` 列（官方字段说明：Starting amount of Stamina）
-    #   ⇒ 缺这两列时运行期拿不到起始截距，只能退化（旧实现就是乘出 60/22/20 的错值）。
     #   `block_factor` 同理：官方格挡式 `(dex-15)*(toblock+BlockFactor)/(2*clvl)` 里的职业项。
     s.col("hp_add", "int", "起始生命加成（官方 charstats.hpadd；与起始体力相加 = 1 级生命）")
     s.col("base_stamina", "int", "起始耐力上限（官方 charstats.stamina）")
@@ -468,7 +465,6 @@ def build_experience():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 怪物集合（本项目 8 种；id 顺序 = 步骤文档 §2 monster_c 的描述顺序）
 # ═══════════════════════════════════════════════════════════════════════════
 MONSTER_IDS = ["fallen1", "fallenshaman1", "quillrat1", "zombie1",
                "corruptrogue1", "foulcrow2", "brute1", "wraith1"]
@@ -593,10 +589,8 @@ def build_monster():
     s.col("demon", "int", "恶魔（官方 demon）")
     s.col("flying", "int", "飞行（官方 flying）")
     s.col("treasure_class", "string", "掉落表（官方 TreasureClass1 = 普通怪槽位，指向 treasureclass_c）")
-    # ★ 片 O（R6）：官方 `MonStats.txt` 有 **4 个 TC 槽位**（`TreasureClass1..4` + 各难度后缀）：
     #   实测 8 只怪的取值 = `TC1` 普通（`Act 1 H2H A` / `Quill 1` …）、`TC2` **冠军怪**（`Act 1 Champ A|B`）、
     #   `TC3` **唯一（精英）怪**（`Act 1 Unique A|B`）、`TC4` 空（Super 唯一怪本项目没有）。
-    #   旧版只导出 `TC1` ⇒ 精英怪沿用普通怪 TC（`Act 1 Champ/Unique/Super*` 9 个 TC 成死数据）。
     #   这里把引擎真正会用的槽位逐列导出，运行期按"是不是精英 / 哪一种精英"取列（禁止在代码里写死名字）。
     s.col("treasure_class_champ", "string", "冠军怪掉落表（官方 TreasureClass2）")
     s.col("treasure_class_unique", "string", "唯一（精英）怪掉落表（官方 TreasureClass3）")
@@ -610,11 +604,10 @@ def build_monster():
         ai_name = col(r, "AI")
         if ai_name and ai_name not in known_ai:
             print(f"[warn] monster_c: {mid} 的 AI={ai_name!r} 不在 MonAi.txt 里")
-        # ★ 片 13（E30）：这 8 列一律走官方**向零截断**（`trunc_pct`），不再用 `rnd()`。
         hp_min = trunc_pct(as_int(r, "minHP"), hp_pct)
         hp_max = trunc_pct(as_int(r, "maxHP"), hp_pct)
         OFFICIAL_NAME["monster"][mid] = f"{col(r, 'NameStr')} (AI={col(r, 'AI')})"
-        # R6：逐怪登记 3 个 TC 槽位；槽位缺哪个就点名打日志（⛔ 不静默 —— 缺槽位会让精英怪掉回普通怪 TC）
+        # R6：逐怪登记 3 个 TC 槽位；槽位缺哪个就点名打日志（不静默 —— 缺槽位会让精英怪掉回普通怪 TC）
         tc_n, tc_c, tc_u = col(r, "TreasureClass1"), col(r, "TreasureClass2"), col(r, "TreasureClass3")
         print(f"[info] monster_c: {mid} TC 槽位 普通={tc_n!r} 冠军={tc_c!r} 唯一={tc_u!r}")
         if not tc_c or not tc_u:
@@ -642,9 +635,8 @@ def build_monster():
 # 5) skill_c —— skills.txt + SkillDesc.txt
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ★ 片 N：官方 `*calc1 desc` 里**逐字**表示"这一列是伤害倍率"的取值白名单。
 #   实测（`skills.txt` 5 职业全部 `calc1` 非空行的 `*calc1 desc` 去重）= 33 种，其中只有下面 6 种
-#   是"伤害倍率"语义；⚠️ **不能按词根 "damage" 判**：官方还有 `damage radius`（半径）、
+#   是"伤害倍率"语义；**不能按词根 "damage" 判**：官方还有 `damage radius`（半径）、
 #   `damage absorption`（吸收）、`% damage to return`（反伤）这类含 damage 却**不是**倍率的 desc。
 _DAMAGE_PCT_DESCS = frozenset({
     "damage%", "damage %", "+ dmg%", "dmg%", "dm%", "fire damage%",
@@ -712,7 +704,6 @@ def build_skill():
     s.col("skill_points", "int", "每级消耗技能点（官方 skpoints）")
     s.col("mana_cost", "int", "基础法力消耗（官方 mana）")
     s.col("mana_per_lvl", "int", "每级法力增量（官方 lvlmana）")
-    # ⚠️ 口径更正（片 12 / E26）：`dmg_min/dmg_max` 是**技能 1 级**的伤害，不是"每级伤害"。
     #    官方 `staged(level=1)` ⇒ `base + lev[0]*(1-1)` = `base` ⇒ 1 级值就是 `MinDam`/`EMin`。
     #    等级缩放走下面新增的 `*_lev1..5` 列（见 `DamageFormula.SkillDamageRange` 的分段式）。
     s.col("dmg_min", "int", "**1 级**伤害下限（(MinDam+EMin) × 2^HitShift / 256，等级缩放见 *_lev* 列）")
@@ -748,10 +739,8 @@ def build_skill():
     s.col("passive", "int", "是否被动技能（官方 passive）")
     s.col("missile", "string", "投射物（官方 srvmissile，空则取 cltmissile；指向 missile_c.code）")
     s.col("desc", "string", "技能说明（本项目按官方字段拼装）")
-    # ── ★ 片 N（修审计 R1/R2：21 个武器伤害类技能零效果 / 30 行投射物槽未导出）──────────────
-    #   三组**新增列**，语义与出处逐列写在这里（⛔ 不是"列名看起来像"）：
+    #   三组**新增列**，语义与出处逐列写在这里（不是"列名看起来像"）：
     #   ① `src_dam` ← 官方 `skills.txt` 列 219 `SrcDam`。
-    #      D2 数据指南原文明确定义（2026-09-23 实读 https://eezstreet.github.io/d2rdoc/files/skills.html）：
     #      "Controls the percentage modifier for how much weapon damage is transferred to the skill's
     #       damage (Out of 128)."
     #      ⇒ 它是 **分母 128 的"武器伤害转移百分比"**，**不是位掩码**。
@@ -762,10 +751,10 @@ def build_skill():
     #      `*calc1 desc` 是官方自带的语义标注：`Bash='damage%'`、`Impale='dm%'`、`Guided Arrow='+ dmg%'`、
     #      `Fend='max targets'`、`Multiple Shot='# missiles'`、`Conversion='chance to convert'`。
     #      ⇒ **只有语义是"伤害倍率"的行**才取 `dmg_pct_base/per_lvl`（见 `_damage_pct_of` 的规则）；
-    #        其它语义（弹数 / 目标数 / 转化率）一律 0，⛔ 不把"目标数 12"当"伤害 12%"。
+    #        其它语义（弹数 / 目标数 / 转化率）一律 0，不把"目标数 12"当"伤害 12%"。
     #   ③ `missile_a/b/c` ← 官方 `srvmissilea/b/c`（次要服务器投射物槽）。
     #      D2 数据指南：`srvmissile#` = "the secondary missiles used by the server functions"（同上出处）。
-    #      ⚠️ 它们**不是** `srvmissile` 的备选写法，而是多投射物/多箭的第 2/3/4 个槽 ——
+    #      它们**不是** `srvmissile` 的备选写法，而是多投射物/多箭的第 2/3/4 个槽 ——
     #      实证：`Multiple Shot` 的 `srvmissile` 本来就是空、三箭全在 `srvmissilea`（`multipleshotarrow`）。
     s.col("src_dam", "int", "武器伤害转移比（官方 SrcDam，分母 128 ⇒ 128=100%；0=不用武器伤害）")
     s.col("dmg_pct_calc", "string", "官方 calc1 原文（伤害倍率公式；语义见 dmg_pct_desc）")
@@ -804,7 +793,6 @@ def build_skill():
         dmg_min = rnd((phys_min + elem_min) * mul)
         dmg_max = rnd((phys_max + elem_max) * mul)
         etype = col(r, "EType")
-        # ★ 片 T（S-32）：`EType='stun'` **不是伤害系**，是"控制状态"标记 ⇒ 归一到 `phys`。
         #   官方 `skills.txt`（1.10f）自证三件事（可逐列回查）：
         #     ① 全表 `EType` 取值只有 {'', fire, cold, ltng, pois, mag, **stun**}（stun 仅 2 行）；
         #     ② 这 2 行的 **`EMin`/`EMax` 都为空**（没有任何元素伤害），伤害来自 `SrcDam=128`
@@ -813,7 +801,7 @@ def build_skill():
         #        `Stun`(Id=139) 的 `Param1=30` 且官方自带标注 `*Param1 Description = Frames the target is stunned`，
         #        对应 `ELen=30`、`ELevLen1..3=5,5,2`、`ELenSymPerCalc=skill('War Cry'.blvl)*par6`。
         #   ⇒ `stun` 的语义 = "附加眩晕状态"，其伤害通道是物理。
-        #   ⛔ 不这么做时它会以"未登记 EType"落到 `DamageFormula.DamageTypeOf` 的 default
+        #   不这么做时它会以"未登记 EType"落到 `DamageFormula.DamageTypeOf` 的 default
         #     （Warn + 按物理结算，09-23 日志 138 条）—— 结果虽同，但把"已登记"混进了"未知值"。
         if etype == "stun":
             n_etype_stun += 1
@@ -831,7 +819,6 @@ def build_skill():
         missile = col(r, "srvmissile") or col(r, "cltmissile")
         is_passive = as_int(r, "passive")
 
-        # ── ★ 片 N：武器伤害源 / 伤害倍率 / 次要投射物槽（列语义见 s.col 处的注释块）──
         src_dam = as_int(r, "SrcDam")
         pct_calc = col(r, "calc1").strip().strip('"')
         pct_desc = col(r, "*calc1 desc").strip()
@@ -849,7 +836,6 @@ def build_skill():
             if not missile:
                 n_slot_only += 1
         if src_dam > 0 and not missile and (dmg_min or dmg_max) == 0:
-            # ⛔ 这 21 行原来被拼成"辅助技能"（与官方语义相反）⇒ 按官方列值改写说明，不新造术语
             pct_txt = (f"伤害倍率 {pct_base}%（每级 {pct_per:+d}%）" if pct_ok
                        else f"伤害倍率不可静态解析（官方 calc1={pct_calc!r}）")
             desc = (f"武器伤害类攻击：武器伤害 ×{src_dam}/128（官方 SrcDam）+ {pct_txt}，"
@@ -931,11 +917,10 @@ def build_item():
     s.col("dmg_max", "int", "单手伤害上限（官方 maxdam）")
     s.col("dmg2_min", "int", "双手伤害下限（官方 2handmindam）")
     s.col("dmg2_max", "int", "双手伤害上限（官方 2handmaxdam）")
-    # ★ 片 14（消除 E25）：官方 `Weapons.txt` 的每把武器**各自**的加成系数。
     #   官方物理伤害 = `武器 + 武器 × (str×StrBonus + dex×DexBonus + 技能ED) / 100 / 100`
     #   （`DAMAGE_CalculatePhysicalDamage @0057b420`；参考实现 `combat.zig:149-180`）。
     #   近战绝大多数 `StrBonus=100 / DexBonus=0`；**弓与弩是 `StrBonus=0 / DexBonus=100`**。
-    #   ⚠️ Armor.txt / Misc.txt **没有**这两列 ⇒ 非武器行为 0（`col()` 对缺列返回空串 ⇒ `as_int` 给 0）。
+    #   Armor.txt / Misc.txt **没有**这两列 ⇒ 非武器行为 0（`col()` 对缺列返回空串 ⇒ `as_int` 给 0）。
     s.col("str_bonus", "int", "力量伤害加成%（官方 Weapons.StrBonus；弓/弩为 0；非武器为 0）")
     s.col("dex_bonus", "int", "敏捷伤害加成%（官方 Weapons.DexBonus；弓/弩为 100；非武器为 0）")
     s.col("mis_min", "int", "投掷伤害下限（官方 minmisdam）")
@@ -969,18 +954,13 @@ def build_item():
         OFFICIAL_NAME["item"][code] = (f"{col(row, 'name')}"
                                        f" ({source}/{col(row, 'type')})")
         typ = col(row, "type")
-        # ★ 片 O（R9）：旧写法第三个候选与第一个**同键**（`type2`）⇒ 不可达死代码。
         #   删掉第三项（而不是换一个"看起来像"的键）：候选语义 = 官方给出的"武器类别"，只有
         #   `type2` / `wclass` 两个真实来源；官方 `Armor.txt` 二者都**没有**该列 ⇒ `armo` 的 `subtype`
         #   本就应留空（防具部位看 `type` 列，`LootRoller.MatchesFamily("armo")` 也只用 `Source`）。
         sub = col(row, "type2") or col(row, "wclass")
-        # ★ 片 14：**双手武器**（弓 / 弩 / 双手斧 / 长柄…）的伤害在 `2handmindam/2handmaxdam`，
-        #   而 `mindam/maxdam` 为空。旧实现直接取 min/max ⇒ 这些武器 `dmg_min/dmg_max = 0`
         #   （**实机表现：拿弓打不出伤害**；`item_c` 现有 4 弓 + 1 弩 + 若干双手斧全中招）。
         #   官方列语义：双手武器的"伤害"就是 `2hand*` 那两列 ⇒ 这里**回退**到它们
-        #   （与 `docs/配表说明.md` §4 已声明的"双手武器伤害在 2handmindam/2handmaxdam"一致）。
         #   `dmg2_min/dmg2_max` 仍照原样另存双手值（供"可单可双"的武器查询）。
-        # ★ 片 O（R10）：回退判据由"**两值都为 0**"改成"**官方单/双手伤害列有缺**"。
         #   官方取值证据（1.10f `Weapons.txt`，本项目 42 行武器逐行核）：
         #     · `lax/bax/spr/tri/bar/…/lxb` 14 行：`mindam`/`maxdam` **两列都空**、`2hand*` 有值 ⇒ 必须回退（原行为不变）；
         #     · `gpl`/`opl`（投掷药水）2 行：官方 `mindam='0'`、`maxdam='1'` **两列都有值** ⇒ 现值 `(0,1)` 就是官方值，
@@ -1017,11 +997,9 @@ def build_item():
     print(f"[info] item_c: Armor.txt {len(ar)} 行 ⇒ 命中 {len(a_norm)}")
     for r in a_norm:
         take(r, "armo")
-    # ★ 片 O（R4）：**资料片过滤规则显式登记**（本项目 = **经典版**，出处：`docs/配表说明.md` §2
     #   第 6 行"杂物：`version<=0` 且非任务且 `level<=12`"；官方 `Misc.txt` 的 `version` 列
     #   0 = 经典 / 100 = 资料片专属）。被过滤掉的 code 逐条打印，**不再是一条隐式规则** ——
     #   因为 `treasureclass_c` 是照官方整行搬的，若某个 TC 引用了这些 code，该项在运行期**永不掉落**
-    #   （实测：TC `Jewelry A` 的 `jew/cm3/cm2/cm1` 4 项 = 权重 8/20 = 40% 永久落空，见片 O 报告 R4）。
     m_exp = [r for r in mi if as_int(r, "version") > 0 and as_int(r, "quest") == 0
              and as_int(r, "level") <= ITEM_MAX_LEVEL]
     if m_exp:
@@ -1216,8 +1194,6 @@ def build_treasureclass():
             by_name[n] = r
     start = [n for n in by_name if "Act 1" in n and "(N)" not in n and "(H)" not in n]
 
-    # ★ 片 O（R3 / R6）：**运行期入口的 TC 名也是闭包根** —— 旧版只从"名字含 `Act 1`"出发，
-    #   于是 `Quill 1`（官方 TC，被 `monster_c` 尖刺鼠引用；官方表里**没有任何** TC 把它当 Item）
     #   永远进不了闭包 ⇒ `DeathFlow.TreasureClassIdOf` 返回 0 ⇒ 尖刺鼠永久零掉落。
     #   根 = 本项目 8 只怪的 `MonStats.TreasureClass1/2/3`（普通/冠军/唯一槽位），
     #   与 `Module/Combat/DeathFlow.cs` 的取表口径**逐列一致**（不靠名字前缀猜）。

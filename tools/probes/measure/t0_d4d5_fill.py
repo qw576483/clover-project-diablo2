@@ -204,7 +204,7 @@ def fill_rows(rows):
                     empties.append("D5|%s|%s|(no registration)" % (ent, st))
                     continue
                 meas = "已登记实体：原版逐帧表现本机无出处/素材缺（见登记） ⇒ 无逐帧关键帧可比"
-                # ⚠️ 箭头后**不留空格**：verify.ps1 的 Cov-VerdictId 从箭头后取 token，
+                # 箭头后**不留空格**：verify.ps1 的 Cov-VerdictId 从箭头后取 token，
                 #    空格是分隔符 ⇒ 带空格会被判成 'noid'（未命名登记 id）而 red。
                 verd = "允许的差异(→%s)" % regid
                 evid = ".ai-tmp/screenshots/w3_anim_audit.tsv（该实体行）；策划/差异登记.tsv %s" % regid

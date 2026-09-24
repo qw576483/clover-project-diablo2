@@ -2,8 +2,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Diablo2 · tools/probes/enumerate/enum_all.py
 #
-# **T0 全量覆盖枚举器**（`SKILL.md` T0 / `patterns/full-coverage-audit.md` §2·§5 /
-#   `scaffold/coverage-matrix.md` §1·§4 的实例化）。
 #
 # 它做什么：**只读盘上真实产物**（读目录 / 读 manifest / 读配表 / 读源码常量 /
 #   读已有审计表），按 12+3 个维度产出三张表：
@@ -14,7 +12,6 @@
 #          口径与 `tools/verify.ps1` 的 `allow-diff-registry` 检查项**逐字一致**：
 #          行匹配 `^\|\s*\*{0,2}E\d+` 且 ≥5 个非空单元格。）
 #
-# ⛔ 硬要求（照 `coverage-matrix.md` §4）：
 #   · **脚本产出，不许手写清单** —— 本文件里没有任何一条"实体名"是手敲的，
 #     全部来自 `discover_*()` 的扫盘结果；
 #   · **稳定排序** —— 同一份盘 ⇒ 同一份输出，可 `diff`（排序键 = 维度码表序 → 实体名）；
@@ -22,10 +19,9 @@
 #     / 每个实体的**状态数**（展开后行数）。
 #   · **实体键唯一（`(维度,实体)` 不许重复）** —— `tools/verify.ps1` 的 `coverage-rows` 第一条
 #     子判是「清单行数 == 矩阵去重实体数」，只要有一个重复键该闸门**恒真红**（填什么都红）。
-#     实测有 3 对重复（见下 `disambiguate`），修法 = **把来源行号并入实体名**，
-#     ⛔ 不是删行、⛔ 不是改闸门。**只给重复键加后缀** ⇒ 其余实体名一字不变（避免无谓改动矩阵）。
+#     不是删行、不是改闸门。**只给重复键加后缀** ⇒ 其余实体名一字不变（避免无谓改动矩阵）。
 #
-# ⛔ 本脚本**不写挂钟时刻**进 .tsv：三张表要求"两次运行逐字节相同"，
+# 本脚本**不写挂钟时刻**进 .tsv：三张表要求"两次运行逐字节相同"，
 #    生成时刻写在 `.ai-tmp/test/t0-red-rows.md` 与本脚本的 stdout（见文件末 `main()`）。
 #
 # 复现口径：
@@ -33,7 +29,6 @@
 #     python tools/probes/enumerate/enum_all.py            # 写三张表 + 打印统计
 #     python tools/probes/enumerate/enum_all.py --check    # 只打印统计，不写表（供对账）
 #
-# 维度码表（照 `scaffold/coverage-matrix.md` §1，⛔ 只用这 15 个码）：
 #     D1资源 D2几何 D3材质 D4UI D5动画 D6特效 D7音乐 D8音效 D9碰撞
 #     D10逻辑 D11输入 D12流程 S1数值 S2性能 S3设置
 #
@@ -61,10 +56,10 @@ import sys
 import glob
 import json
 
-# ⚠️ 宿主控制台默认是 GBK（本机 cp936）⇒ stdout 打印任何非 GBK 字符（如 '⛔' U+26D4）会抛
+# 宿主控制台默认是 GBK（本机 cp936）⇒ stdout 打印任何非 GBK 字符（如 '' U+26D4）会抛
 #   UnicodeEncodeError，`--check` 直接崩（实测：exit 1，对账数字打不出来）。
 #   本函数只把 **stdout/stderr 的编码** 换成 UTF-8（errors='replace'），
-#   ⛔ 不改任何表内容 / 不改统计口径 ⇒ 三张 .tsv 的字节不受影响。
+#   不改任何表内容 / 不改统计口径 ⇒ 三张 .tsv 的字节不受影响。
 def _safe_stdio():
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -77,11 +72,10 @@ SV = os.path.join(ROOT, 'client/Assets/Scripts')
 RES = os.path.join(ROOT, 'client/Assets/Resources/Clover')
 AUD = os.path.join(ROOT, '.ai-tmp/screenshots')
 
-# 维度码表（顺序 = 排序键；⛔ 15 个码，一个不多一个不少）
+# 维度码表（顺序 = 排序键；15 个码，一个不多一个不少）
 DIMS = ['D1资源', 'D2几何', 'D3材质', 'D4UI', 'D5动画', 'D6特效', 'D7音乐', 'D8音效',
         'D9碰撞', 'D10逻辑', 'D11输入', 'D12流程', 'S1数值', 'S2性能', 'S3设置']
 DIM_ORDER = {d: i for i, d in enumerate(DIMS)}
-# 归属片（照 `scaffold/coverage-matrix.md` §6 的切片建议）
 DIM_SLICE = {
     'D1资源': 'D1D2D3资产与几何', 'D2几何': 'D1D2D3资产与几何', 'D3材质': 'D1D2D3资产与几何',
     'D4UI': 'D4UI', 'D5动画': 'D5动画', 'D6特效': 'D6特效',
@@ -502,7 +496,6 @@ def discover_s3():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 展开：每维度的「状态/事件」枚举值（照 `full-coverage-audit.md` §2：状态取枚举值 + 边界值）
 # ═══════════════════════════════════════════════════════════════════════════
 STATEDEF = {
     # 维度: [(状态/事件, 边界值)]
@@ -601,9 +594,9 @@ def state_list_s1(ent):
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 差异登记：从 验收表.md「允许的差异」区逐条搬运（口径 = verify.ps1 的 allow-diff-registry）
-#   + ★「手工登记」补充源 `extra-registry.tsv`（与 策划/差异登记.tsv **同格式**的 4 列数据）
+#   + 「手工登记」补充源 `extra-registry.tsv`（与 策划/差异登记.tsv **同格式**的 4 列数据）
 #
-#   ★ 为什么要有补充源（实测）：主 agent 裁决的 E42（D3 实心单色 PNG 定性）**不在**
+#   为什么要有补充源（实测）：主 agent 裁决的 E42（D3 实心单色 PNG 定性）**不在**
 #     `策划/验收表.md` 的「允许的差异」区（该表本轮冻结、不许改）⇒ 若本函数只读验收表，
 #     则（a）`策划/差异登记.tsv` 里手工追加的 E42 会在下一次重跑枚举时被**抹掉**、
 #     （b）`t0_keyfix.py --verify` 的「差异登记：盘上数据行 vs enum_all 现算」必然不等。
@@ -680,10 +673,9 @@ def build():
         for e in fn():
             e['dim'] = dim
             entries.append(e)
-    # 稳定排序：维度码表序 → 实体名（⛔ 不依赖 glob 顺序）
+    # 稳定排序：维度码表序 → 实体名（不依赖 glob 顺序）
     entries.sort(key=lambda e: (DIM_ORDER[e['dim']], e['ent']))
 
-    # 判据类型默认值（照 `coverage-matrix.md` §1 的四个取值）
     def crit(e):
         if e['dim'] in ('D5动画', 'S1数值'):
             return '参考物比对'
@@ -750,7 +742,7 @@ def main():
     entries = tbl['entries']
 
     # 输出目录：默认项目根（`--out-dir` 只给判据脚本做「两次运行逐字节相同」的幂等证明用，
-    # ⛔ 不改变任何口径/内容；写盘路径 = <out-dir>/策划/*.tsv）。
+    # 不改变任何口径/内容；写盘路径 = <out-dir>/策划/*.tsv）。
     out_root = ROOT
     if '--out-dir' in sys.argv:
         out_root = os.path.abspath(sys.argv[sys.argv.index('--out-dir') + 1])

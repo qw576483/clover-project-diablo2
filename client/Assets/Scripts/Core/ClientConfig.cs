@@ -8,17 +8,14 @@
 //   ② 文件缺失 / 解析失败 → **回退默认值 + Warn，绝不抛异常**（配置问题不该让游戏起不来）；
 //   ③ 业务读配置一律 `Cfg.Xxx`，不出现裸字面量。
 //
-// ⛔ 本类**故意不提供**名为 `Game` 的成员 —— 那会遮蔽引擎的 `Game` 门面
+// 本类**故意不提供**名为 `Game` 的成员 —— 那会遮蔽引擎的 `Game` 门面
 //    （`Game.Logger` 会变成 CS1061，见 skill `patterns/client/config.md` 常见问题）。
 //    取 game 段用 `Cfg.GameCfg`，或直接用下面的属性快捷方式。
 //
-// 读取顺序（先命中的先用；★ 片 eng-coreutil：这条链的**机制**已下沉到引擎）：
-//   ① 引擎资源模块 `Game.Res.LoadAll<TextAsset>("Configs/config")`（**同步**，片 34 起；
-//      改造前是直连 `Resources.Load<TextAsset>`，见验收表 E1）—— 跨平台可用（WebGL/移动端只能走这条）
 //   ② `Application.dataPath/Configs/config.json`      —— Editor 与桌面平台
 //   ③ 内置默认值 + 一条 Warn
 //
-// ★ 本文件现在只负责「这个项目的 config.json 长什么样」：
+// 本文件现在只负责「这个项目的 config.json 长什么样」：
 //   · 逐来源怎么读（资源模块 / 磁盘文件） = 本文件的两个读取委托；
 //   · ①→②→③ 的顺序回退、读取/解析失败跳过、全坏回默认值、`Reload` 重跑链 = **引擎件**
 //     `CloverEngine.ConfigSectionLoader<T>`（`clover-client-unity-engine/Runtime/Core/ClientConfig.cs`）。
@@ -50,8 +47,7 @@ namespace Diablo2.Core
         /// <summary>是否全屏启动。</summary>
         public bool fullscreen = false;
 
-        // ⛔ 这里**没有**「方向键备选移动」开关字段：原版 D2 只有鼠标点地面移动
-        //   ⇒ 按全局 skill §0「A 没有 ⇒ 不加」删除（验收表 U-1；本项目 bug 表 B35）。
+        // 这里**没有**「方向键备选移动」开关字段：原版 D2 只有鼠标点地面移动
     }
 
     /// <summary>`config.json` 根对象。</summary>
@@ -78,7 +74,7 @@ namespace Diablo2.Core
             {
                 if (_loader == null)
                 {
-                    // ⚠️ 来源表在**首次访问时**求值（`FilePath` 会碰 `Application.dataPath`）：
+                    // 来源表在**首次访问时**求值（`FilePath` 会碰 `Application.dataPath`）：
                     //    与改造前一致 —— 静态构造期不读盘、不碰 Unity API。
                     _loader = new ConfigSectionLoader<ConfigRootSection>(
                         Tag,
@@ -103,7 +99,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 配置文件在磁盘上的绝对路径（Editor / 桌面平台）。
-        /// ⚠️ `Application.dataPath` 在**非 Unity 宿主**（单元测试/纯 C# 进程）里会抛
+        /// `Application.dataPath` 在**非 Unity 宿主**（单元测试/纯 C# 进程）里会抛
         /// `SecurityException`；本属性**绝不向上抛**，退回相对路径并只报一次错。
         /// </summary>
         public static string FilePath
@@ -166,15 +162,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 来源 ①：从**引擎资源模块**同步取 `Configs/config`（该路径下的第一个）。
-        /// <para>
-        /// ★ 片 34：原先直连 Unity 的 `Resources.Load<TextAsset>`（验收表 **E1** 登记的例外）——
-        /// 那会绕开资源根前缀 / 缓存 / 卸载策略 / 热更后端。引擎侧补齐了同步入口
-        /// （`IResourceManager.LoadAll`，`Contracts.cs`）后改走 `Game.Res`：
-        /// 引擎**没有**"同步取单个"的入口，`TryGet` 只取**已驻留**的（启动期必然空），
-        /// 所以用 `LoadAll` 取路径下的资源再取第一个（同一路径下 config 只有一个）——
-        /// 与改造前取到的是**同一份** Unity 资源，只是经过了引擎的资源抽象。
-        /// </para>
-        /// <para>⚠️ 路径是**相对 `CloverRes` 根前缀**的写法（`Configs/config`），根前缀由后端拼。</para>
+        /// <para>路径是**相对 `CloverRes` 根前缀**的写法（`Configs/config`），根前缀由后端拼。</para>
         /// <para>返回 null / 空 = 本来源没有内容（引擎静默跳过，改试来源 ②）。</para>
         /// </summary>
         private static string ReadResourceText()
@@ -198,7 +186,7 @@ namespace Diablo2.Core
         /// </summary>
         private static string ReadFileText()
         {
-            // ⚠️ catch 里**不许再调 FilePath**：失败的操作在 catch 里重演一次 = 异常直接漏出去
+            // catch 里**不许再调 FilePath**：失败的操作在 catch 里重演一次 = 异常直接漏出去
             var path = string.Empty;
             try
             {

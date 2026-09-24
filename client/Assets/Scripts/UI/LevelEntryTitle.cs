@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/LevelEntryTitle.cs   ★ agent-a3 新增（「经典 load 动画 / 区域名弹出」轮）
+// Diablo2 · UI/LevelEntryTitle.cs   agent-a3 新增（「经典 load 动画 / 区域名弹出」轮）
 //
 // **区域名弹出**：玩家**首次进入某区域**时，屏幕上浮出该区域名，淡入 → 停留 → 淡出。
 //
@@ -32,23 +32,20 @@
 // ── 「首次进入某区域」的口径 ────────────────────────────────────────────────
 //   本文件按**每个区域在本局游戏里第一次进入**才弹（`_shown` 去重）。
 //   `Diablerie/Level.cs:19-20` 的原写法是「有上一个区域就弹」（等于每次过门都弹）——
-//   两者只差"重复进入同一区域弹不弹"；本轮按任务书要求取**首次**，
 //   并在 `HudPanel` 侧的每条日志里写明「首次/已弹过」，便于核对（差异已写进回报）。
 //
 // ── 淡入 / 停留 / 淡出（**只有时长分摊是本项目新增**）────────────────────────
 //   原版只有"总时长 3.75s"，`LevelEntryTitle.cs` 里**没有**淡入淡出（到点直接隐藏）。
-//   任务书要求「淡入 → 停留 → 淡出」，故把 3.75s **拆开**用（总时长仍是原版的 3.75s）：
 //     淡入 0.4s → 停留 2.95s → 淡出 0.4s（0.4 + 2.95 + 0.4 = 3.75 ✓，见 `HoldSeconds`）。
 //
-// ── ★ agent-eng2 本轮：机制下沉引擎（本文件只留 D2 的取值与"首次进入"口径）──────────
 //   「CanvasGroup 渐隐 + 时间轴（淡入 / 停留 / 淡出）+ 走完自动隐藏 + 透明度曲线」移入引擎件
 //   `CloverEngine.CenterAnnounceLayer`（`clover-client-unity-engine/Runtime/Presentation/
 //   WorldOverlayWidgets.cs`）；本文件只剩：① 原版取值（几何 / 颜色 / 字体 / 时长常量）；
 //   ② 官方区域名表与 `"Entering "` 前缀；③ "每个区域首次进入才弹"的去重；④ 文字工厂注入。
-//   ⛔ 公开 API / 调用点零改动；`AlphaAt(float)` 保留为**公开纯函数**，内部转调引擎件的
+//   公开 API / 调用点零改动；`AlphaAt(float)` 保留为**公开纯函数**，内部转调引擎件的
 //   `CenterAnnounceLayer.AlphaAt(elapsed, fadeIn, hold, fadeOut)`（曲线只有一处真源）。
 //
-// ⛔ 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def` / UnityEngine(.UI)，
+// 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def` / UnityEngine(.UI)，
 //    **不得**引用 `Diablo2.Module.*`（分层自检 ③）—— 所以区域名在本文件内自持一份（见
 //    `OfficialLevelName`），并由离线宿主逐条与 `Table/Tsv/Level.tsv` 的 `level_name` 列核对。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +72,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 淡入时长（秒）。**本项目新增**：原版没有淡入淡出（到点直接隐藏），
-        /// 任务书要求「淡入→停留→淡出」⇒ 在**原版总时长 3.75s 之内**分摊，不额外拉长时间。
         /// </summary>
         public const float FadeInSeconds = 0.4f;
 
@@ -126,7 +122,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 某一帧的透明度（**纯函数**，0..1）。
         /// <para>分段：`[0,0.4)` 线性 0→1；`[0.4,3.35)` 恒 1；`[3.35,3.75)` 线性 1→0；之后 0。</para>
-        /// <para>★ 曲线实现已下沉引擎件 `CenterAnnounceLayer.AlphaAt`（⛔ 只有一处真源，本处只转发）。</para>
+        /// <para>曲线实现已下沉引擎件 `CenterAnnounceLayer.AlphaAt`（只有一处真源，本处只转发）。</para>
         /// </summary>
         /// <param name="elapsedSeconds">自弹出起的秒数（负数/NaN ⇒ 0 = 还没出现）。</param>
         public static float AlphaAt(float elapsedSeconds)
@@ -222,11 +218,8 @@ namespace Diablo2.UI
             // 内层 = 位图字体按**原版 px** 排版（等效原版满宽 × 300 高），再整体 ×1.8 ⇒ 字面尺寸与整屏口径一致。
             // 与 `UiLayoutFlow.FlowLabel` 同一套做法（那边也是"内容按原版 px 排版 + 根节点 ×1.8"）。
             //
-            // ★ 片 font-scale（**核实结论：这一处不是缺陷，故不给 `fontSize`**）：
-            //   全仓扫「`D2Label.Create` 没给字号」时这一处会被机械命中（V6 报告 §4-② 也列了它），
             //   但它的放大来自 `label.Root.localScale = K` **而不是** `fontSize`：
             //     font30 的 chi 格高 30 原版px × 1.8 ⇒ 画出来就是 **54 画布px = `UiLayoutGame.FontPx30`**，
-            //   与"传 fontSize = FontPx30"等效。⛔ 若照 §4-② 再加一个 `(int)UiLayoutGame.FontPx30`
             //   就会**双重放大**（54 → 97.2）—— V6 对 `UiLayoutFlow.cs:1806` 已给出同款警告。
             //   判据：`uicheck` 的 FontScaleCheck 把它作为**已登记例外**（要求同域内出现 `localScale`
             //   的 ×K 放大）；实机 `Probe.LevelTitle` dump 的字块画布高应 ≈ 54。

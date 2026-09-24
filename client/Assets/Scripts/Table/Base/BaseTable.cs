@@ -38,7 +38,6 @@ namespace Table
             //   1) 默认的 float.TryParse(s, out v) 用 CurrentCulture ⇒ 在逗号小数点区域
             //      （如 de-DE）"19.5" 的 '.' 是千分位、不合法 ⇒ 解析失败 ⇒ 静默 0。
             //      而服务端 Go 的 strconv.ParseFloat 是文化无关的 ⇒ 两端分歧，
-            //      症状与 bug#6 完全一样（冷却变 0）。
             //   2) 必须**只**用 NumberStyles.Float：默认值还含 AllowThousands，在
             //      InvariantCulture 下 "19.5" 会被当成 19,5 的千分位写法解析成 195！
             //   3) 打表期 def.ValidateCell 已把格子收紧成规范十进制（reFloat），

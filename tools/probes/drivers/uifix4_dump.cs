@@ -134,7 +134,7 @@ namespace UF4
 
         /// <summary>
         /// Draw-order walk; only Graphics that actually render are listed
-        /// (⚠️ BOTH conditions are required: the node must be activeInHierarchy AND
+        /// (BOTH conditions are required: the node must be activeInHierarchy AND
         /// alpha &gt; 0.02 — the ui-fix4a build only tested alpha, so the hidden
         /// DragGhost/DropHighlight still showed up in the list and the
         /// "residual == 0" claim could not be read off it; fixed here).

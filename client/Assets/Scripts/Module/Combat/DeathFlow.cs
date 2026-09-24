@@ -13,8 +13,6 @@
 //   [Monster] m#<id> <名> 死亡（尸体保留 corpseUsable=True，供萨满复活）
 //   [Combat]  击杀链：exp +<n>（玩家 12 → 30）
 //   [Combat]  掉落触发：TC="Act 1 H2H A"(id=4) 等级=1 格=(x,y)
-//   [Item]    drop…                     ← agent-08 的 Item 模块自己打
-//   （`IItemModule` 未接入时：明确 Warn「本次掉落丢失，等 agent-08」而不是静默）
 //
 // 玩家死亡：`Events.PlayerDied` 由 `IPlayerModule.Kill()` 发出（契约）；
 //   本类负责**清仇恨 + 清目标 + 记死亡链日志**，死亡屏（`DeathPanel`）由 UI 侧监听同一事件打开
@@ -164,10 +162,9 @@ namespace Diablo2.Module.Combat
         /// `treasure_class_champ`/`treasure_class_unique`，即官方 `TreasureClass2/3` —— 见 R6）
         /// → `treasureclass_c` → `IItemModule.DropLoot(tcId, level, grid, rng)`。
         /// <para>
-        /// ⚠️ **跨模块约定（需主 agent 冻结）**：`IItemModule.DropLoot` 的第 1 个参数是 `int treasureClassId`，
+        /// **跨模块约定（需主 agent 冻结）**：`IItemModule.DropLoot` 的第 1 个参数是 `int treasureClassId`，
         /// 而 `treasureclass_c` 的主键是 **string**（TC 名）⇒「int 从哪来」契约未定义。
         /// 本项目的口径（`TreasureClassIdOf`）：**行在 `Tables.Default.Treasureclass.All()` 里的 1 基序号**。
-        /// 已回报主 agent；若 agent-08 采用别的口径，只需改 `TreasureClassIdOf` 一处。
         /// </para>
         /// </summary>
         private void TriggerLoot(AppContext ctx, MonsterState state)
@@ -182,7 +179,6 @@ namespace Diablo2.Module.Combat
 
             var tcName = row.TreasureClass;
 
-            // ★ 片 O（R6）：精英怪的 TC 槽位。
             //   出处（官方 1.10f `MonStats.txt`，本项目 8 只怪逐行核过）：官方有 4 个 TC 槽位
             //   `TreasureClass1..4`，实测取值 = 1 普通 / 2 **冠军怪** / 3 **唯一（精英）怪** / 4 空；
             //   且 `TreasureClassEx.txt` 里**没有任何** TC 把 `Act 1 Champ/Unique A` 当 Item 引用
@@ -228,7 +224,6 @@ namespace Diablo2.Module.Combat
             var item = ctx.Item;
             if (item == null)
             {
-                // agent-08 可能晚于本模块落地：**明确说清楚掉落丢了**，不静默
                 CombatLog.WarnOnce("death.item.missing",
                     $"DeathFlow: IItemModule 未接入（AppContext.Item == null）⇒ 本次掉落丢失（TC=\"{tcName}\" id={tcId}）；" +
                     "等 Module/Item 落地后自动恢复，无需改本文件");
@@ -256,7 +251,7 @@ namespace Diablo2.Module.Combat
         /// <para>
         /// 口径出处：与 `MonsterSpawner.PickEliteMod(rng, kind)` 的 `kind` 是**同一条配表列**
         /// （`MonsterSpawner.cs:202` 的 `kind = p % 2`、`:517` 的 `row.Kind == kind`）。
-        /// 取不到词缀行 ⇒ 返回 0（冠军槽位）并 WarnOnce：⛔ 不静默、也不许瞎猜一个槽位。
+        /// 取不到词缀行 ⇒ 返回 0（冠军槽位）并 WarnOnce：不静默、也不许瞎猜一个槽位。
         /// </para>
         /// </summary>
         public static int EliteKindOf(MonsterState state)

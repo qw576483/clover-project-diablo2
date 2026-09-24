@@ -193,7 +193,6 @@ namespace CloverEngine
         string CurrentScene { get; }
         void Load(string sceneName, Action<float> progress = null, Action onDone = null);
         void Unload(string sceneName, Action onDone = null);
-        /// <summary>`Runtime/Core/PresentationContracts.cs:196`（agent-17 §A 起 `Module/Flow/AppFlow` 用它识别"Stage 场景被重载"）。</summary>
         void OnSceneLoaded(Action<string> handler);
         /// <summary>`Runtime/Core/PresentationContracts.cs:198`。</summary>
         void OnSceneUnloaded(Action<string> handler);
@@ -221,7 +220,6 @@ namespace CloverEngine
         void LoadAsset<T>(string path, Action<T> cb) where T : UnityEngine.Object;
         T TryGet<T>(string path) where T : UnityEngine.Object;
 
-        // ★ agent-34（引擎下沉 A3）：引擎 `IResourceManager` 新增的两个**同步**入口。
         //   签名逐字对齐 `clover-client-unity-engine/Runtime/Core/Contracts.cs`（本文件是覆盖率哨兵）。
         bool Exists(string path);
         T[] LoadAll<T>(string path) where T : UnityEngine.Object;
@@ -263,7 +261,7 @@ namespace CloverEngine
 
     /// <summary>
     /// `Runtime/Core/Input.cs:66`（子集）。
-    /// <para>★ 本轮（T0 判据缺口 1）新增 `GetMouseButtonUp` / `MouseDelta` / `GetAxis` 三个成员：
+    /// <para>本轮（T0 判据缺口 1）新增 `GetMouseButtonUp` / `MouseDelta` / `GetAxis` 三个成员：
     /// 本宿主现在把 `Module/Input/InputReader.cs` 编进来（为了用**真实** `PlayerModule` 断言死亡扣金币），
     /// 而 `InputReader.Poll` 要用到它们。签名逐条抄自 `playercheck/shim/EngineShim.cs:190-203`
     /// （那里早就编 `Module/Input`）—— 两处必须一致。</para>

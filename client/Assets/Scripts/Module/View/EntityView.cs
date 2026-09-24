@@ -8,7 +8,6 @@
 
 using CloverEngine;
 using Diablo2.Def;
-// ★ agent-33 引擎下沉 A2：引擎侧新增了**同名**枚举 `CloverEngine.Dir8`（`Runtime/Core/Dir8.cs`），
 //   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
 //   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
 using Dir8 = Diablo2.Def.Dir8;
@@ -29,8 +28,6 @@ namespace Diablo2.Module.View
         public bool IsGroundItem;
 
         /// <summary>
-        /// ★ 片 ground-item-icon：地面物品的**原版图标资源路径**（`D2/Items/inv{code}`，
-        /// 来源 = `GroundItemVisual.IconPathOf`，= 背包/装备/腰带/商店同一张）。
         /// <para>`null` / 空 = 这张原版图**在本批素材里拿不到**（或配表缺行）⇒ 该视图退回
         /// **品质色块**（可见的缺失信号，登记在 `client/资源欠缺清单.md`）。
         /// 只对 <see cref="IsGroundItem"/> 为真的视图有值，其余（玩家/怪物/NPC）恒为 null。</para>
@@ -47,7 +44,7 @@ namespace Diablo2.Module.View
         public string SpriteCode;
 
         /// <summary>
-        /// ★ 片「武器外观接线」：玩家当前的**装备外观套 key**（`jav` / `buc` / `jav_buc`…）。
+        /// 片「武器外观接线」：玩家当前的**装备外观套 key**（`jav` / `buc` / `jav_buc`…）。
         /// <para>`null` / 空 = **徒手**（走 `Chars/{class}/` 那套已验收素材）；非玩家视图恒为 null。</para>
         /// <para>key 的拼法与回退由 `EquipVisual`（纯函数）给；它决定 `SpriteFrames.Keys` 的
         /// 帧目录与帧数来源（`EquipFrameCounts`）⇒ **换 key = 换整套帧键**，不是只换贴图。</para>
@@ -55,7 +52,7 @@ namespace Diablo2.Module.View
         public string EquipKey;
 
         /// <summary>
-        /// ★ 片「武器外观接线」：进图首帧是否已复核过 <see cref="EquipKey"/>（只做一次）。
+        /// 片「武器外观接线」：进图首帧是否已复核过 <see cref="EquipKey"/>（只做一次）。
         /// <para>为什么要复核：`CreatePlayer` 与"装备落进 `IItemModule`"是两条独立步骤
         /// （`AppFlow.RunBuildStep(1)` vs `SaveModule` 的读档），顺序若变，`CreatePlayer` 会读到
         /// 空装备 ⇒ 角色一辈子徒手且**不报任何错**。首帧补一次 + `Events.EquipChanged` 驱动，
@@ -70,9 +67,8 @@ namespace Diablo2.Module.View
         public SpriteRenderer Renderer;
 
         /// <summary>
-        /// ★ u44（悬停变亮）：**建节点时** <see cref="Renderer"/> 的 `sharedMaterial`。
+        /// u44（悬停变亮）：**建节点时** <see cref="Renderer"/> 的 `sharedMaterial`。
         /// <para>用途：悬停期间实体被换上自定义着色器材质（`EntityHighlight`），移开时必须还原成
-        /// **原来那个** —— 记下来才能"还原"，而不是"换成另一个我以为是默认的"。
         /// 值为 null 也合法（= Unity 默认精灵材质），`EntityHighlight.Apply(r, null, false)` 会把它写回去。</para>
         /// </summary>
         public Material OriginalMaterial;

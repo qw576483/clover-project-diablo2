@@ -116,14 +116,14 @@ _p('sc_pud', OUT_REL, 'pud.ds1', 8, 8, G_SCATTER, 'LvlSub Type=6 Puddles')
 _p('sc_swamp', OUT_REL, 'swamp.ds1', 8, 8, G_SCATTER, 'LvlSub Type=6 Swamp Small')
 _p('sc_swamp2', OUT_REL, 'swamp2.ds1', 8, 8, G_SCATTER, 'LvlSub Type=6 Swamp Big')
 _p('sc_obj', OUT_REL, 'object.ds1', 8, 8, G_SCATTER, 'LvlSub Type=6 Wild Objects')
-# ── ⑦ ★ 罗格营地的**过渡带**（`LvlPrest`「Act 1 - Town 1 Transition E」，Def=2）─────
+# ── ⑦ 罗格营地的**过渡带**（`LvlPrest`「Act 1 - Town 1 Transition E」，Def=2）─────
 #   它不是野外块，而是**城镇接缝**那一块：原版引擎把它铺在**野外关卡**靠城的那条边上
 #   （依据：参考实现 `libd2/packages/drlg/src/drlg/outdoors/OutRoom.zig:251-275`
 #     `SpawnTownTransitionsAndCaves` 用 `SpawnOutdoorLevelPresetEx(pLevel, 0, 1, 2, …)`
 #     放在野外关卡的西边界；调用点 = `drlg/outdoors/ActInit.zig:75-83`，只对 Act1 的
 #     2..7 号户外关卡调用）。
 #   尺寸 8×40 = 1 块宽 × 5 块高（`LvlPrest` 的 SizeX/SizeY = 8/40）⇒ 正好沿一条边铺 5 槽。
-#   ⚠️ **S 那条（`TownSTrans`/`TownSTrans2`，56×8）没有进来**：它铺在野外关卡的**北边界**
+#   **S 那条（`TownSTrans`/`TownSTrans2`，56×8）没有进来**：它铺在野外关卡的**北边界**
 #     （`SpawnOutdoorLevelPresetEx(pLevel, 0, 0, 3, …)`），本项目野外只有**一条**与城镇
 #     相连的接缝（西边界的回城口）⇒ 见 `策划/自审对比/场景对照.md` 的登记。
 _p('towne', TOWN_REL, 'TownETrans.ds1', 8, 40, G_BAND,

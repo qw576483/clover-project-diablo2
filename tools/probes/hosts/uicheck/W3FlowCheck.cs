@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ★ w3 片：**流程屏（启动/菜单/选角/创角/读条/设置/暂停/死亡）逐控件审计**的离线断言（节 ⑲）。
+// w3 片：**流程屏（启动/菜单/选角/创角/读条/设置/暂停/死亡）逐控件审计**的离线断言（节 ⑲）。
 //
 // 本节的判据全部**可离线计算**（不需要 Unity 原生）：
 //   ① **素材侧**（磁盘 = 唯一权威）：8 个屏引用到的原版 PNG **真在磁盘上**，
-//      且它的 IHDR 实测尺寸 == 常量表里声明的「原版尺寸」（⛔ 不是"同类就行"）；
+//      且它的 IHDR 实测尺寸 == 常量表里声明的「原版尺寸」（不是"同类就行"）；
 //   ② **几何侧**：元件矩形 / 素材原生尺寸的**宽高比一致**（这一步才拦住"矩形与素材比例不符 ⇒ 被拉伸"，
 //      `preserveAspect` 只管 UI 侧内缩，管不了"矩形本身就写错了比例"）；
 //   ③ **常量侧**：行栈公式（`Select.RowY`）、4 行选项节奏、新登记进对照表的条目**真的在表里**；
@@ -15,7 +15,7 @@
 // **都是纯数据 + 磁盘事实** ⇒ 不需要进 Play。进 Play 才能判的（字模观感、贴图色调、按钮手感）
 // 留给主 agent 采联络图，本文件末尾声明。
 //
-// ⛔ 只读断言，不改任何工程产物。
+// 只读断言，不改任何工程产物。
 // ─────────────────────────────────────────────────────────────────────────────
 using System;
 using System.Collections.Generic;
@@ -101,7 +101,7 @@ namespace Uicheck
                 UiLayoutFlow.MediumButtonOrig.x, UiLayoutFlow.MediumButtonOrig.y, UiLayoutFlow.MediumButton);
 
             // ── 创角屏：2 个职业 × 3 态的半身像帧 0（素材与 `Spot` 的声明尺寸必须逐张相等）──
-            // ⚠️ 槽位号 = `CharCreatePanel.SlotClassIds` 的行号：0 = Amazon、1 = Necromancer、2 = Barbarian
+            // 槽位号 = `CharCreatePanel.SlotClassIds` 的行号：0 = Amazon、1 = Necromancer、2 = Barbarian
             //   （本项目只启用 0 与 2；槽 1 是用户决策停用的 Necromancer 位）。
             var portraitSlots = new[] { 0, 2 };
             var portraitCls = new[] { "amazon", "barbarian" };
@@ -144,7 +144,7 @@ namespace Uicheck
             Program.Check($"{arts.Count} 个元件引用的原版素材**全部在磁盘上**", missing.Count == 0,
                 missing.Count == 0 ? "0 缺失" : string.Join(", ", missing.ToArray()));
 
-            // A2：IHDR == 声明的原版尺寸（⛔ 「看着像同一类」不算，要逐张尺寸相等）
+            // A2：IHDR == 声明的原版尺寸（「看着像同一类」不算，要逐张尺寸相等）
             var sizeBad = new List<string>();
             foreach (var a in arts)
             {
@@ -266,7 +266,6 @@ namespace Uicheck
                 rhythmOk && Math.Abs(ys[0] - UiLayoutFlow.Px(60f)) < 1e-3f,
                 $"{ys[0]:0.#}/{ys[1]:0.#}/{ys[2]:0.#}/{ys[3]:0.#}（步进 {ys[0] - ys[1]:0.#}）");
 
-            // C-5 ★ 本片补登记的两组**真的在表里**（防"又漏了"）：按屏数一遍非零尺寸条目
             var settingsRows = CountTableRows(UiLayoutFlow.Panel.Settings, true);
             var charSelectRows = CountTableRows(UiLayoutFlow.Panel.CharSelect, true);
             Program.Check($"对照表登记：Settings 屏实元件 {settingsRows} 条（≥15）/ CharSelect 屏实元件 {charSelectRows} 条（≥13）",
@@ -352,7 +351,7 @@ namespace Uicheck
             Program.Check("7 个流程屏**都显式声明 Layer**（值 = 反射读到的声明类型 + 源码字面量，双向核对）",
                 layerBad.Count == 0, layerBad.Count == 0 ? "7/7" : string.Join(", ", layerBad.ToArray()));
 
-            // D-2 ★ 底部两钮的**槽位语义照原版**：Exit 槽(−540) = 离开本屏；Ok 槽(+540) = 确认/推进
+            // D-2 底部两钮的**槽位语义照原版**：Exit 槽(−540) = 离开本屏；Ok 槽(+540) = 确认/推进
             var selSrc = File.ReadAllText(Path.Combine(Program.UiDir, "CharSelectPanel.cs"), System.Text.Encoding.UTF8);
             var createSrc = File.ReadAllText(Path.Combine(Program.UiDir, "CharCreatePanel.cs"), System.Text.Encoding.UTF8);
             var selBack = CallAt(selSrc, "\"Back\", Text.Back");
@@ -409,7 +408,7 @@ namespace Uicheck
         /// 取源码里**含 <paramref name="marker"/> 的那一整次调用**（从它前面最近的 `(` 起，按括号配平截到对应 `)`）。
         /// 用途：断言"某个按钮的构造调用把哪个位置常量与哪个动作配在一起"——
         /// 这是**配对关系**，不是"文件里出现过就算"。
-        /// <para>⚠️ 为什么不能截到下一个 `;`：回调是**多语句 lambda**（`"Back"` 那颗里面先 `Log.Info(…);`
+        /// <para>为什么不能截到下一个 `;`：回调是**多语句 lambda**（`"Back"` 那颗里面先 `Log.Info(…);`
         /// 再 `Emit(…)`），截到第一个 `;` 会把真正的动作丢掉 ⇒ 断言会**假红**（本片实测踩到）。</para>
         /// </summary>
         private static string CallAt(string src, string marker)
@@ -461,7 +460,6 @@ namespace Uicheck
         //  为什么**不**做成失败断言：这批素材（`MENU/boxpieces` 九宫格黑框 22 帧、`helpborder`、
         //  `upgrade`、`okcancelbtn`、`buttontempok/cancel`、`btn_short` …）**没有任何一屏的
         //  权威拼装口径**（`export_d2ui.py` 的注释自己写着"怎么摆缺权威依据"），
-        //  原版**选项屏的 prefab 也不在参考工程里** ⇒ 按 §0.5「写不出出处的量不许进工程」，
         //  **接进来才是错**（那就是自创布局）。所以这里只**打印清单**，把决定权交回主 agent；
         //  做成 FAIL 会让本宿主永远到不了 `FAILED=0`，而"红"表达的是一件**待裁决**的事。
         private static void RegisteredUnused()
@@ -494,7 +492,6 @@ namespace Uicheck
             Console.WriteLine($"      │ [登记·非失败] MENU/ 下 {total} 张原版导出 PNG，其中 **{unused.Count} 张在"
                 + " Scripts/** 里零引用**（无 ResPaths 常量、无调用方）");
             Console.WriteLine("      │   未引用清单：" + string.Join(", ", unused.ToArray()));
-            // ★ w5 更正（原先这行说「拼装口径无权威依据 ⇒ 本片不接」——**已过时**）：
             //   `boxpieces_0..21` 现在**有**消费者了，只是消费者不在 `Scripts/**` 里，而在
             //   **构建期脚本** `tools/d2codec/assemble_boxpieces.py`（把 22 帧拼成整幅窗框 PNG，
             //   偏移由像素自证反推；口径与判据见该脚本文件头与 ㉑ 节 `BoxFrameSide()`）。

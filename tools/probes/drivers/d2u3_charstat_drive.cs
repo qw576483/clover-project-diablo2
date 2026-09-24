@@ -1,5 +1,4 @@
 // =============================================================================
-// d2u3_charstat_drive.cs -- slice u52play (hand-over of 片 charstat; U3 complaint #1
 //   "the character stat panel: the NUMBERS are wrong, the UI display is wrong").
 //
 // WHY THIS FILE WAS REWRITTEN (measured, not guessed):
@@ -27,7 +26,6 @@
 //         --entry Diablo2.Probes.D2U3C.Charstat.Install --args '["<dir>","u52run1"]'
 //   (ASCII only: a BOM-less non-ASCII .cs is read as ANSI by the CLI/IDE.)
 //
-// ★ U3 (2026-09-24, 片 charstat, display-complaint pass): the panel's VALUE columns are drawn by
 //   `D2Label` (no uGUI `Text` at all), so the uGUI-only dump used to leave every on-screen NUMBER
 //   as "(missing)". Now: (a) `Text(...)` falls back to the D2Label that really draws the node,
 //   (b) `DumpScreen` adds a pass over `D2Text.D2Label.Live` restricted to this panel root (text +
@@ -90,7 +88,6 @@ namespace Diablo2.Probes
         }
         internal static string Paths(string arg)
         {
-            // spec = "<dir>|<tag>" (field 2 IS A TAG, not the done path -- measured 2026-09-24:
             // writing the tag into _done made Finish() create a file literally named "u52run2"
             // in the editor's cwd, so the runner never saw the marker and stopped the editor
             // after its full wait budget). An explicit done path may be passed as field 3.
@@ -882,7 +879,6 @@ namespace Diablo2.Probes
                     + " boxCanvas=" + boxCanvas.ToString("0.0") + " needNative=" + need
                     + " availPx=" + avail + " lineCount=" + lines + " verdict=" + verdict);
 
-                // PROBE (team-lead approved 2026-09-24, PRINT-ONLY -- never an abort reason): can the
                 // mirrored uGUI Text answer at all? `D2TextMirror.Attach` sets `font = null`
                 // (`UI/D2TextMirror.cs:65-67`), so every TextGenerator route should be blind and
                 // `preferredWidth` should stay 0 => `preferredWidth > rect.width + 0.5f` would be an
@@ -936,7 +932,6 @@ namespace Diablo2.Probes
         }
         /// <summary>
         /// Read an internal `Diablo2.UI.UiLayoutGame` constant by name (single source of truth: the probe
-        /// must NOT keep its own copy of the geometry -- measured 2026-09-24, the hard-coded -80f for
         /// `CharResistValueX` survived the constant's change and would have reported MISMATCH on a
         /// perfectly correct panel). Falls back to <paramref name="fallback"/> when the field is gone.
         /// </summary>
@@ -960,7 +955,6 @@ namespace Diablo2.Probes
         /// Call `Diablo2.UI.D2Text` by reflection.
         /// WHY: `D2Text` is declared `internal static class D2Text` (`UI/D2Text.cs:44`) and the CLI
         /// compiles this driver into its OWN assembly => internal members are unreachable by name.
-        /// Measured 2026-09-24 12:16: writing `D2Text.MeasureNative(...)` directly left the driver
         /// uncompiled, so the whole session produced ZERO [D2U3C] lines while `run_script` still
         /// answered `success: true` (the runner only prints the first 500 chars, so the CS0122 hid).
         /// Returns null on any failure -- callers MUST treat null as UNCERTAIN (never as "fits").
@@ -1035,7 +1029,6 @@ namespace Diablo2.Probes
                 {
                     var rt = p != null ? p.GetValue(l, null) as RectTransform : null;
                     if (rt == null) continue;
-                    // `Transform`, NOT `var` (CS0266 measured by the compile sentinel 2026-09-24):
                     // `RectTransform.parent` returns `Transform`, so an inferred `RectTransform cur`
                     // cannot take the result back. `cur == root` stays a reference compare and the
                     // pair still carries `rt` (the RectTransform), so nothing else changes.
@@ -1138,7 +1131,6 @@ namespace Diablo2.Probes
             var stam = new[] { 84, 74, 79, 89, 92 };
             var lvl1 = d.level == 1 && idx >= 0 && idx < 5;
 
-            // ★ ON SCREEN FIRST (2026-09-24): user complaint #1 is a DISPLAY complaint ("the numbers
             //   are wrong / the UI shows it wrong"), so the criterion for the flagged rows is
             //   "what the panel really prints" (the D2Label text read through `Text(...)`) versus the
             //   official value. The dto column stays printed next to it, so a logic/display split is
@@ -1164,7 +1156,6 @@ namespace Diablo2.Probes
             Row(sb, "vit", d.vit.ToString(), Text(root, "StatValue2"), "-", "charstats.txt vit", "n/a");
             Row(sb, "eng", d.eng.ToString(), Text(root, "StatValue3"), "-", "charstats.txt int", "n/a");
             // criterion = ON SCREEN == official (the panel prints exactly "cur/max", no prefix)
-            // ⚠️ 判据形状（2026-09-24 本片实测，别再把判据写成假红）：屏上值是 `cur/max`，而
             //   `off*` 是 `max/max` ⇒ **整串比会把"当前值不满"判成 MISMATCH**，而"当前值不满"
             //   是**合法游戏状态**（耐力会消耗；实测 14:16 活档 `20/84` 就是这一格）。
             //   ⇒ 本三行只判 **max 段**（显示/公式该判的东西）；`cur` 段留在 `onscreen` 列里供人读。
@@ -1273,7 +1264,6 @@ namespace Diablo2.Probes
                 UnityEngine.Object.DontDestroyOnLoad(go);
                 var drv = go.AddComponent<CharstatDriver>();
                 drv.Init(dir + "|" + tag);
-                // NOTE (measured 2026-09-24): do NOT create the DONE marker here. The runner
                 // polls that exact path, so an install-time marker makes it believe the session
                 // is over and it stops the editor mid-run (that is what killed run u52run1 right
                 // after the main-menu phase). The marker is written by Finish() only.

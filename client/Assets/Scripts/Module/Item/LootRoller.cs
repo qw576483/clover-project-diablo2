@@ -11,7 +11,6 @@
 //
 // 已导入的 TC 里**缺**官方若干子 TC（`weap3`/`armo3`/`bow3`/`mele3`）与个别物品 code
 //   （`gcy`/`skc`/`jew`/`cm1..3`）—— 这是配表导入范围问题，不是本模块能改的契约。
-//   ★ 片 O（R4）**显式登记**：`jew`/`cm1..3` 被过滤是**有意的** —— 本项目按**经典版**范围导入
 //   （官方 `version>0` = 资料片专属，`convert.py` 打表日志逐条列出被过滤 code）；代价是
 //   TC `Jewelry A` 有 8/20 = 40% 权重永久落空 ⇒ `Resolve` 的未知 token 分支必须**点名 Warn**（TC 名 + token + 权重 + 原因）。
 //   处置（**本项目兜底，已在回报「未决」登记**）：
@@ -68,7 +67,6 @@ namespace Diablo2.Module.Item
         /// </summary>
         /// <param name="treasureClassId">
         /// **口径已与唯一真实调用方对齐**：= `Tables.Default.Treasureclass.All()` 的 **1 基行序**
-        /// （0/越界 = 无效）。这正是 agent-07 `Module/Combat/DeathFlow.TreasureClassIdOf()` 的编码方式
         /// （它从 `monster_c.treasure_class` 取 TC 名再转成本口径），见 `DeathFlow.cs:227-243`。
         /// 无效值不会静默：Warn + 按 <paramref name="monsterLevel"/> 退回 `Act 1 Equip ?`（保证怪仍会掉东西）。
         /// </param>
@@ -205,7 +203,6 @@ namespace Diablo2.Module.Item
                 }
                 var token = tokens[idx];
                 if (string.IsNullOrEmpty(token)) continue;          // NoDrop
-                // ★ 片 O（R4）：把**当前 TC 名**与**该槽位权重**一并带给 `Resolve`，
                 //   否则"抽中未导入 token"只能报出 token、报不出是谁的槽位、也报不出丢了多少权重。
                 Resolve(tcName, token, weights[idx], level, rng, depth, outList);
             }
@@ -304,7 +301,6 @@ namespace Diablo2.Module.Item
                 return;
             }
 
-            // ★ 片 O（R4）：**点名** = TC 名 + token + 权重 + 原因。旧版只说"token 未知"，据此查不出是哪个 TC、
             //   也看不出丢了多少权重（实测 TC `Jewelry A` 的 `jew;2|cm3;2|cm2;2|cm1;2` ⇒ 20 份权重里丢 8 份 = 40%）。
             WarnOnce("tc.token." + tcName + "." + token,
                 $"LootRoller：TC \"{tcName}\" 的 token \"{token}\" 既不是 TC 名也不是 item_c.code ⇒ 本次抽取落空"
@@ -374,7 +370,6 @@ namespace Diablo2.Module.Item
                 if (r == null) continue;
                 if (r.ItemLevel > cap) continue;
                 if (!MatchesFamily(r, family)) continue;
-                // ★ agent-23：剔除「原版图标不在本批素材里」的行（资料片职业专属装备，见
                 //   `ItemIconAvailability` 文件头的实测依据）。否则它们一旦被生成，商店/背包/地面
                 //   都只能显示暗色占位（用户投诉「商店没商品图标」）。
                 if (!ItemIconAvailability.HasOriginalIcon(r)) { noIcon++; continue; }

@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · Module/Save/SaveJson.cs   ★ **本项目新增**（不是引擎能力，也不是打表产物）
+// Diablo2 · Module/Save/SaveJson.cs   **本项目新增**（不是引擎能力，也不是打表产物）
 //
 // 作用：把 `Def.CharacterSave` 与 JSON 字符串**双向**转换 —— 产出的文本落进引擎文件槽位
 //   （`<SettingDir>/saves/<角色名>.json`，写盘见 `SaveModule.Store`；A6 之前的旧键 `char/{角色名}`
 //   见 `GameConst.SaveKeyPrefix`、现仅用于懒迁移；创建先后索引见 `GameConst.SaveIndexKey`）。
 //
-// ⚠️ 为什么不用 `UnityEngine.JsonUtility`（契约注释里提到过它）：
+// 为什么不用 `UnityEngine.JsonUtility`（契约注释里提到过它）：
 //   ① **离线不可验证**：`JsonUtility` 是 Unity 原生内部调用（`UnityEngine.JSONSerializeModule`），
 //      在 `tools/itemcheck/` 这种 .NET 宿主里没有 Unity 运行时 ⇒ 存档这条链路根本跑不起来；
 //      而"存档往返一致"是本任务的硬验收项，必须能离线断言。
@@ -55,14 +55,13 @@ namespace Diablo2.Module.Save
             Field(sb, "statPoints", s.statPoints, true);
             Field(sb, "skillPoints", s.skillPoints, true);
             Field(sb, "gold", s.gold, true);
-            // ★ 双武器组（新字段，写在 gold 之后与 CharacterSave 的字段顺序一致）：
+            // 双武器组（新字段，写在 gold 之后与 CharacterSave 的字段顺序一致）：
             //   旧档没有这一行 ⇒ 读侧 GetInt(..., 0) 走默认值 0 = Ⅰ组（向后兼容，见 TryParse）。
             Field(sb, "activeWeaponIndex", s.activeWeaponIndex, true);
             Field(sb, "areaId", s.areaId, true);
             Field(sb, "gridX", s.gridX, true);
             Field(sb, "gridY", s.gridY, true);
             Field(sb, "mapSeed", s.mapSeed, true);
-            // ★ 片 save-progress 新增两个字段（写在 mapSeed 之后，与 `CharacterSave` 的字段顺序一致）：
             //   旧档没有这两行 ⇒ 读侧取**空集合**（向后兼容，见 TryParse 与 `Def/ExploredCodec.cs` 头注）。
             Key(sb, "visitedWaypoints", true);
             WriteIntList(sb, s.visitedWaypoints);
@@ -155,8 +154,7 @@ namespace Diablo2.Module.Save
         }
 
         /// <summary>
-        /// 序列化"每区域已探索格"（★ 片 save-progress）：`[{area,w,h,cells}...]`。
-        /// <para>`cells` = base64 位图（见 `Def/ExploredCodec`），⛔ 不是逐格坐标数组
+        /// <para>`cells` = base64 位图（见 `Def/ExploredCodec`），不是逐格坐标数组
         /// （80×80 满图 6400 格 ⇒ 逐格写法会让存档膨胀到十几 KB；位图 ≈1 KB）。</para>
         /// </summary>
         private static void WriteExploredList(StringBuilder sb, List<ExploredAreaDto> list)
@@ -378,15 +376,13 @@ namespace Diablo2.Module.Save
             s.statPoints = GetInt(dict, "statPoints", 0);
             s.skillPoints = GetInt(dict, "skillPoints", 0);
             s.gold = GetInt(dict, "gold", 0);
-            // ★ 双武器组：**缺字段按 0（= Ⅰ组）** —— 这是"旧档无该字段仍可读且不崩"的落点
+            // 双武器组：**缺字段按 0（= Ⅰ组）** —— 这是"旧档无该字段仍可读且不崩"的落点
             //   （本文件的既有约定：缺字段一律取默认值、绝不抛异常，见文件头与 TryParse 注释）。
             s.activeWeaponIndex = GetInt(dict, "activeWeaponIndex", 0);
             s.areaId = GetInt(dict, "areaId", 0);
             s.gridX = GetInt(dict, "gridX", 0);
             s.gridY = GetInt(dict, "gridY", 0);
             s.mapSeed = GetInt(dict, "mapSeed", 0);
-            // ★ 片 save-progress：**旧档没有这两项** ⇒ 取空集合（这是"缺字段仍可读且不崩"的落点，
-            //   与 `activeWeaponIndex` 那条同口径）。⛔ 本文件不因缺字段而让读档失败。
             s.visitedWaypoints = GetIntList(dict, "visitedWaypoints");
             s.exploredByArea = GetExploredList(dict, "exploredByArea");
             s.skillIds = GetIntList(dict, "skillIds");
@@ -515,7 +511,6 @@ namespace Diablo2.Module.Save
         }
 
         /// <summary>
-        /// 解析"每区域已探索格"（★ 片 save-progress）。**缺字段 / 坏元素一律跳过**（不抛）：
         /// 旧档没有该键 ⇒ 空列表；某项缺 `w/h` 或 `cells` 非法 ⇒ 该项按"没有已探索记录"处理
         /// （`ExploredCodec.Decode` 是容错入口，坏 base64 只回 0）。
         /// </summary>
@@ -655,8 +650,7 @@ namespace Diablo2.Module.Save
         // 极简 JSON 解析原语 —— 已收敛到引擎 `CloverEngine.JsonWriter`（本文件只保留转发，
         // 公开 API 与调用点零改动）。产物映射：对象 → Dictionary<string,object>，
         // 数组 → List<object>，整数 → long、浮点 → double，字符串 → string，null/bool 原样。
-        // ⛔ 不再在本文件平行维护第二套解析实现（引擎侧为唯一真相，见 结构规则.md §4.4）。
-        // ⚠️ 与 `MiniJson.Parse` 的区别：这里整数只认 long（超出退 double），业务取值侧
+        // 与 `MiniJson.Parse` 的区别：这里整数只认 long（超出退 double），业务取值侧
         //    GetInt/GetLong/GetFloat 依赖这个口径；大整数（uint64 对象号）请用 MiniJson。
         // ═════════════════════════════════════════════════════════════════════
 

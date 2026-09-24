@@ -97,7 +97,6 @@ except ImportError:
     import cof as cofmod
 
 # ── 默认路径（本机实际位置）──────────────────────────────────────────────────
-# 解包产物统一在 `<项目根>/原版资源`（skill §1.9）。
 DEFAULT_D2ASSETS = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     '原版资源')
@@ -108,22 +107,17 @@ DEFAULT_CS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     'SpriteFrameCounts.cs')
 
 #: 单位调色板（D2 单位 DCC 用的调色板）：`data/global/palette/units/Pal.dat`。
-#: ⚠️ `.dat` = 768 字节、每项 **B,G,R**（与 `.pl2` 的 R,G,B **反序**）——见 `dcc.read_pl2`
+#: `.dat` = 768 字节、每项 **B,G,R**（与 `.pl2` 的 R,G,B **反序**）——见 `dcc.read_pl2`
 #: 的实测证据；按 R,G,B 读会得到"蓝紫色的亚马逊"。
 PALETTE_REL = 'data/global/palette/units/Pal.dat'
 
 #: 默认 equip（"lit" = 无甲身体 / 头发 / 怪物本体）。
-#: ⚠️ 实测（`.ai-tmp/test/d2char-probe/equip-report.txt`，片 impl-weapon-export）：**equip 是逐层的** ——
-#:   `RH`/`LH`（武器）与 `SH`（盾）**没有 `lit` 变体**，它们的 equip 必须是**具体物品 code**
-#:   （`am/rh` 505 条 = 43 个 code、`am/lh` 60 条 = 6 个弓弩 code、`am/sh` 102 条 = 6 个盾 code，
-#:   三者的 `lit` 计数都是 0）⇒ 想让角色手里出现武器/盾，必须按层给 code
-#:   （机制 = `Unit.equip_map` + `--equip-sets`，见 `equip_for()` 与 `parse_equip_sets()`）。
 EQUIP = 'lit'
 
 #: **共画布**（`--canvas "amazon:158:214;barbarian:142:178;…"`）：`职业目录名 → (w, h)`。
 #: origin 恒取 `(w//2, h//2)`（居中 ⇒ `pivot` 恒 `(0.5,0.5)`、脚底恒在画布中心）。
 #: 为什么必须显式给：实测各套自然画布彼此不同（见 `export_unit` 里的注释）⇒ 换套会"脚跳"。
-#: ⛔ 空 = 默认行为（逐套按自身包围盒算），与改动前逐字节一致。
+#: 空 = 默认行为（逐套按自身包围盒算），与改动前逐字节一致。
 FIXED_CANVAS = {}
 
 
@@ -134,7 +128,7 @@ def class_key(unit):
 
 #: 找 `.cof` 用的武器类别：玩家用 `hth`（徒手 = 原版新角色无装备的默认外观）；
 #: 怪物/NPC 用 **`MonStats.txt` 的 `BaseW` 列**（= 该单位自带的基础武器类别）——
-#: ⛔ 不许一律写 `hth`：实测 `cr`（堕落罗格 DarkHunter）**根本没有 hth 的 COF**，
+#: 不许一律写 `hth`：实测 `cr`（堕落罗格 DarkHunter）**根本没有 hth 的 COF**，
 #:   它的 COF 只有 `1HS/2HT/BOW`（原版堕落罗格手持武器）⇒ 写死人 hth 会让 `cr` 一个动作都导不出
 #:   （只捞到 `CRDTHTH.COF` 这个恰好存在的死亡动作）。
 PLAYER_WEAPON_CLASS = 'hth'
@@ -145,15 +139,10 @@ PLAYER_WEAPON_CLASS = 'hth'
 #: 实测（遍历两个 MPQ 里 `<root>/cof/` 下文件名含 `RN` 的 COF）：
 #:   · 5 个玩家都有 `<token>rnhth.cof`（含本项目用的 `hth` 武器类别）⇒ 都能导出 `run_*`；
 #:   · 怪物里 `zm`（`zmrnhth.cof`）与 `cr`（`crrn1hs.cof`，其 `BaseW=1hs`）有；
-#:     `fa/fs/si/bk/ye/wr` 与 5 个 NPC **没有** ⇒ 该动作被跳过（见 `FALLBACK`，⛔ 不回退到 WL）。
-#: ⚠️ 这张表的**键空间 = `ViewAnim`**（`Module/View/ViewAnim.cs`；`Run` 由**片 2b** 加在末尾 = 6）
-#:   ⇒ 它同时被 `emit_cs` 用来生成 `SpriteFrameCounts.ByUnit`（那张表的数组下标 = `ViewAnim`）。
-#:   ⛔ 加动作必须与 `ViewAnim` 同步：多一列"`ViewAnim` 里没有的动作"就是**没有消费方的死数据**。
+#:     `fa/fs/si/bk/ye/wr` 与 5 个 NPC **没有** ⇒ 该动作被跳过（见 `FALLBACK`，不回退到 WL）。
 ACTIONS = cofmod.VIEW_ANIM_MODES + (('run', 'RN'),)
 
 #: 生成 `SpriteFrameCounts.cs` 用的动作表。
-#: **片 2b 起 = `ACTIONS`**（`ViewAnim.Run` 已存在 ⇒ 下标 6 有消费方，`SpriteFrames` 会用它拼
-#: `run_*` 帧键）；片 2a 时它只取 `VIEW_ANIM_MODES`（那时 `ViewAnim` 还没有 Run，加列就是死数据）。
 CS_ACTIONS = ACTIONS
 
 #: 本项目 `Def.Dir8` 的 8 个方向名（小写，下标 = 枚举值）—— 与 `SpriteFrames.Keys` 的拼法一致。
@@ -161,7 +150,7 @@ DIR_NAMES = ('s', 'sw', 'w', 'nw', 'n', 'ne', 'e', 'se')
 
 #: 逻辑方向序号（下标）→ `.dcc` **文件内的方向槽位**（值）。
 #: **出处**：Diablerie `Engine/IO/D2Formats/DirectionMapping.cs:5-9` 的 `_dirs1/_dirs4/_dirs8/_dirs16/_dirs32`
-#:   （**逐字照抄，⛔ 不许改**）+ 调用点 `Engine/IO/D2Formats/DCC.cs:555`
+#:   （**逐字照抄，不许改**）+ 调用点 `Engine/IO/D2Formats/DCC.cs:555`
 #:   `internalIndex = DirectionMapping.MapToInternal(header.directionCount, directionIndex)`。
 #: 索引口径：`idx = 逻辑序号 j * dirs // 8`（= Diablerie 的 `directionIndex`），`slot = DIR_MAP[dirs][idx]`。
 #: 由此得到的 **槽位 → 屏幕方向**：`0=SW 1=NW 2=NE 3=SE 4=S 5=W 6=N 7=E`。
@@ -206,7 +195,7 @@ FALLBACK = {
     'walk': ('WL', 'NU'),
     'idle': ('NU',),
     #: `run` **刻意空回退**：原版"跑"只有一部分单位有（玩家全是 `RN`；怪物里实测只有 `zm`/`cr`）。
-    #: ⛔ 不许回退到 `WL` —— 那会造出"跑 = 走"的**假动画**（`run_*.png` 与 `walk_*.png` 逐像素相同），
+    #: 不许回退到 `WL` —— 那会造出"跑 = 走"的**假动画**（`run_*.png` 与 `walk_*.png` 逐像素相同），
     #:    与"回退到的也是原版动画、语义不变"的初衷相反。缺 `RN` ⇒ 该 (单位, run) 直接跳过并打 WARN。
     'run': (),
 }
@@ -230,7 +219,7 @@ class Unit(object):
         self.component_flags = {}
         #: 非空 = **装备套**（起始装备的整套角色帧，见文件头 `--equip-sets`）：
         #: `组件码 → equip（物品 code / 'lit'）`。空 = 徒手/怪物口径（全局 `EQUIP='lit'`）。
-        #: ⚠️ 它同时是"该单位走装备套分支"的**唯一判据**（`plan_layers` / `resolve_mode` /
+        #: 它同时是"该单位走装备套分支"的**唯一判据**（`plan_layers` / `resolve_mode` /
         #: `export_unit` 的 manifest 都看它）⇒ 徒手/怪物路径的行为**逐字节不受影响**。
         self.equip_map = {}
 
@@ -339,7 +328,7 @@ class Archive(object):
         self.storm = storm
         self.path = path
         self.handle = storm.open_archive(path)
-        # ⚠️ MPQ 里存的是**反斜杠**路径；索引键用正斜杠小写，读盘时用原件名。
+        # MPQ 里存的是**反斜杠**路径；索引键用正斜杠小写，读盘时用原件名。
         try:
             raw = list(storm.list_files(self.handle))
         except OSError as exc:
@@ -529,7 +518,7 @@ def plan_layers(arch, unit, cof, mode):
             skipped.append('layer#%d(%s,wc=%s,equip=%s) 无该变体 ⇒ 跳过（DCC 不存在：%s）'
                            % (layer.index, comp, layer.weapon_class, equip, rel))
         else:
-            # ⚠️ 这条文案 = 徒手/怪物口径的**原样**（⛔ 不许顺手改字面量）：
+            # 这条文案 = 徒手/怪物口径的**原样**（不许顺手改字面量）：
             #    manifest 的 `skipped` 会被逐字节比对，改字 = 既有产物不再逐字节可复现。
             skipped.append('layer#%d(%s,wc=%s) 无 %s 变体 ⇒ 跳过（%s）'
                            % (layer.index, comp, layer.weapon_class, EQUIP,
@@ -555,7 +544,7 @@ def measure(arch, unit, mode, cof, sources):
             except ValueError as exc:
                 print('    [WARN] %s: %s' % (src.dcc_rel, exc))
                 continue
-            # ⚠️ 放在 `try` 之外：方向表不认识 ⇒ 直接抛（⛔ 不许被 WARN 吞掉后静默继续）
+            # 放在 `try` 之外：方向表不认识 ⇒ 直接抛（不许被 WARN 吞掉后静默继续）
             di = to_file_slot(hdr['dirs'], d)
             box = hdr['dir_boxes'][di]
             union = _union(union, box)
@@ -657,7 +646,7 @@ def export_unit(arch, unit, out_root, palette):
     # ② 画布：原点落在正中 ⇒ Unity 轴心恒为 (0.5, 0.5)
     half_w = max(abs(min_left), abs(min_right))
     half_h = max(abs(min_top), abs(min_bottom))
-    # ⚠️ **共画布**（`--canvas`）：运行时每个实体只有**一个 `SpriteRenderer`**、pivot 是导入设置里的常量
+    # **共画布**（`--canvas`）：运行时每个实体只有**一个 `SpriteRenderer`**、pivot 是导入设置里的常量
     # （`(0.5,0.5)`），拿不到 manifest 去补偿 ⇒ 若"徒手套"与"装备套"的画布尺寸/origin 不同，
     # 换套时角色**脚会跳**。实测（`.ai-tmp/test/canvas-recon.txt`）：各套自然画布彼此不同
     # （amazon hth 158x162 vs equip/jav 158x214；paladin hth 112x170 vs equip/ssd 158x190 …），
@@ -692,7 +681,7 @@ def export_unit(arch, unit, out_root, palette):
         fpd = cof.frames_per_dir
         frames_written = None
         for d in range(LOGICAL_DIRS):
-            # ⚠️ `d` = **逻辑方向序号**（0..7，顺序 = `Def.Dir8` = `DIR_NAMES`）：
+            # `d` = **逻辑方向序号**（0..7，顺序 = `Def.Dir8` = `DIR_NAMES`）：
             #   文件名用它、COF 的 priority 用它；**DCC 的文件槽位**由 `to_file_slot` 单独换算。
             union = per_dir.get(d)
             if union is None:
@@ -761,9 +750,8 @@ def export_unit(arch, unit, out_root, palette):
                          'skipped': skipped}
         if unit.equip_map:
             # 装备套：**每层最终实际用的文件**逐条登记（审计口径 = "取了哪一条要写清"）。
-            # ⚠️ 同时登记 `cofLayers` = 该动作所用 COF **声明的**层清单 —— 它回答
+            # 同时登记 `cofLayers` = 该动作所用 COF **声明的**层清单 —— 它回答
             # "没画 RH/SH"到底是"原版这个动作就没有这一层"（如 `DT`，实测 `amdthth.cof`
-            # 只有 TR）还是"被静默丢掉"（那是缺陷）。⛔ 没有这两列就无法机械区分。
             stats[action]['layerFiles'] = [
                 {'component': s.component.upper(), 'equip': s.equip, 'file': s.dcc_rel}
                 for s in sources]
@@ -968,7 +956,7 @@ def main(argv):
             print('--layers 只接受 auto / body / all')
             return 2
 
-    # ⚠️ 必须**在打开 MPQ 之前**把路径全部绝对化：`storm.open_archive()` 会 `os.chdir`
+    # 必须**在打开 MPQ 之前**把路径全部绝对化：`storm.open_archive()` 会 `os.chdir`
     #    到包所在目录（ANSI 接口 + 中文路径，见 `storm.py` 坑 1）。实测代价：传相对
     #    `--out` 时产物全部落到 `原版资源/_mpq_incoming/.ai-tmp/test/…` 下。
     d2assets = os.path.abspath(d2assets)
@@ -992,7 +980,6 @@ def main(argv):
     except ImportError:
         print('找不到 storm.py —— 需要 `tools/d2codec/storm.py`（StormLib ctypes 封装）才能读 MPQ')
         return 2
-    # 临时文件（每次解包的中转）只许落在 `<项目根>/.ai-tmp/test/` 下（skill §3.5）
     storm.set_work_dir(os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         '.ai-tmp', 'test', 'storm-tmp'))
@@ -1016,7 +1003,7 @@ def main(argv):
     if not pal_bytes:
         print('找不到单位调色板 %s' % pal_rel)
         return 2
-    # ⚠️ 调色板临时文件写到**系统临时目录**：绝不能落进 `Assets/`（会被 Unity 当资源导入）
+    # 调色板临时文件写到**系统临时目录**：绝不能落进 `Assets/`（会被 Unity 当资源导入）
     import tempfile
     tmp_pal = os.path.join(tempfile.gettempdir(), 'd2_units_pal.dat')
     with open(tmp_pal, 'wb') as fh:

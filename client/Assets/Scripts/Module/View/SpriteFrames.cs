@@ -3,8 +3,6 @@
 // 逐帧动画的**帧键 + 贴图解析**层（素材唯一的出入口）。
 //
 // 帧键命名：`{动作}_{方向}_{帧号}`，例：`walk_s_0`、`attack_ne_3`、`death_s_7`
-//   动作：idle / walk / attack / cast / hit / death / run（★ run = 原版 RN，片 2b 接入，
-//         见 `ViewAnim.Run` 的注释；只有部分单位有）
 //   方向：s / sw / w / nw / n / ne / e / se（与 `Def.Dir8` 同名小写，**序号沿用暗黑2**）
 // 目录：
 //   角色 → `Core.ResPaths.CharDir(PlayerClass)`  = `D2/Chars/{class}/`（class = amazon…）
@@ -12,13 +10,13 @@
 //         （code = `monster_c.sprite` 列，官方 `MonStats.Code` 的 DCC 前缀，如 `fa`/`zm`/`si`；
 //           NPC 用 `NpcSpriteCode`：阿卡拉 ps / 卡夏 rc / 恰西 ci / 基德 gh / 瓦瑞夫 wa）
 //
-// ★★ 帧数：**真实值**来自原版 `.cof` 的 `framesPerDirection` —— 生成物
+// 帧数：**真实值**来自原版 `.cof` 的 `framesPerDirection` —— 生成物
 //    `Module/View/SpriteFrameCounts.cs`（导出器 `tools/d2codec/export_chars.py --emit-cs`）。
-//    ⛔ 原版**每个单位的每个动作帧数都不同**（例：亚马逊 idle=8、attack=13、cast=20、death=23；
+//    原版**每个单位的每个动作帧数都不同**（例：亚马逊 idle=8、attack=13、cast=20、death=23；
 //       堕落者 idle=20、attack=10），所以不能再用一份全局常量（那会让帧键指向不存在的图 = 静默缺图）。
 //    `FrameCounts` 保留为**未登记单位的兜底**（值 = 亚马逊的真实帧数，默认职业）。
 //
-// ★★ 像素尺度（"不许浮空/大小不对"的关键）：原版 D2 是 **80 像素 = 1 世界单位**
+// 像素尺度（"不许浮空/大小不对"的关键）：原版 D2 是 **80 像素 = 1 世界单位**
 //    （Diablerie `Iso.cs:9` `pixelsPerUnit = 80`；本项目地形也用同一尺度，见
 //     `Module/Map/MapView.cs` 的 `D2TilePixelsPerUnit = 80f` 与节点缩放 64/80）。
 //    而本项目契约 `GameConst.PixelsPerUnit = 64` 是**导入** PPU ⇒ 实体节点必须再乘
@@ -33,7 +31,6 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// ★ agent-33 引擎下沉 A2：引擎侧新增了**同名**枚举 `CloverEngine.Dir8`（`Runtime/Core/Dir8.cs`），
 //   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
 //   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
 using Dir8 = Diablo2.Def.Dir8;
@@ -49,7 +46,7 @@ namespace Diablo2.Module.View
         /// <para>值 = 亚马逊（默认职业）的**真实** `.cof` 帧数（`SpriteFrameCounts` 里同一行）：
         /// idle=8 / walk=8 / attack=13 / cast=20 / hit=6 / death=23 / **run=8**。
         /// 已登记的单位一律走 <see cref="SpriteFrameCounts.Of"/>（逐单位真实值）。</para>
-        /// <para>⚠️ 保留这个公开数组是**契约**：离线宿主 `tools/combatcheck/Program.cs` 会读它。</para>
+        /// <para>保留这个公开数组是**契约**：离线宿主 `tools/combatcheck/Program.cs` 会读它。</para>
         /// </summary>
         public static readonly int[] FrameCounts =
         {
@@ -69,7 +66,7 @@ namespace Diablo2.Module.View
         /// 缺动作时的**回退链**（原版有的动作才可能没有：NPC 只有 NU/WL；
         /// 多数怪物没有 SC；`cast` 回退到攻击、`death` 回退到 idle 都是"用原版动画顶上"，
         /// **绝不用占位色块**）。下标 = <see cref="ViewAnim"/>。
-        /// <para>★ 片 2b 的 `Run` 一条：**原版只有一部分单位有 RN**
+        /// <para>`Run` 一条：**原版只有一部分单位有 RN**
         /// （5 个职业 + `zm`/`cr`，见 `ViewAnim.Run` 注释）⇒ 请求 Run 而该单位没有时
         /// 回退到 **Walk**（同一单位的原版移动动画；退回 Idle 会让"跑"变成站着不动，更糟）。</para>
         /// </summary>
@@ -103,11 +100,9 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 「加载失败后的退避复活」时刻表（键 → 允许再次尝试的 `Time.time`）。
-        /// <para>◆ 为什么必须有它（真实的静默失败，本轮实测踩到）：贴图是**异步**加载的，
+        /// <para>◆ 为什么必须有它：贴图是**异步**加载的，
         /// 若第一次 `Resolve` 发生在 Unity **还没导完资源**的时刻（实测：8 千多张 PNG 刚落盘、
-        /// 编辑器正在导入），回调拿到 null；旧实现此时把键永久留在 `Pending` 里 ⇒
         /// **这一帧的图永远不会再取**，怪物/NPC 就一直停在纯色占位块上（而且只报一条日志）。
-        /// 修法：失败时**移出 Pending 并记下退避时刻**，`Resolve` 下次被调到（帧号变化或
         /// 贴图到位后的全量重铺）就自动重试 ⇒ 导入完成后自愈。</para>
         /// </summary>
         private static readonly Dictionary<string, float> RetryAfter = new Dictionary<string, float>();
@@ -127,7 +122,7 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 动作的**基准**播放帧率（原版节奏按 `AnimData.d2`；本项目沿用既有值）。
-        /// <para>⚠️ 它是**基准**、不是最终有效帧率：移动类动作（<see cref="ViewAnim.Walk"/> /
+        /// <para>它是**基准**、不是最终有效帧率：移动类动作（<see cref="ViewAnim.Walk"/> /
         /// <see cref="ViewAnim.Run"/>）由 <see cref="SpeedScaleForCycle"/> 按**实际速度**再缩放
         /// —— 有效帧率 = 帧数 × 格/秒，见 <see cref="FpsForCycle"/>。</para>
         /// </summary>
@@ -141,7 +136,6 @@ namespace Diablo2.Module.View
                 case ViewAnim.Cast: return 10f;
                 case ViewAnim.Hit: return 12f;
                 case ViewAnim.Death: return 8f;
-                // ★ 片 2b：Run 的基准 = 兜底帧数（亚马逊 RN 8 帧）× 原版跑速 3.0 格/秒 = 24fps
                 //   （口径 = `FpsForCycle`；写成表达式是为了不出现第二份字面量）。
                 case ViewAnim.Run: return FrameCounts[(int)ViewAnim.Run] * GameConst.PlayerWalkSpeed;
                 default:
@@ -153,9 +147,8 @@ namespace Diablo2.Module.View
         /// <summary>
         /// 动作是否**循环播放**：只有 `Idle` / `Walk` / `Run` 循环（原版 `NU` / `WL` / `RN`
         /// 都是周期动画 —— 站着呼吸 / 每循环走完一格）。
-        /// <para>★ 片 W5 修正（审计 `w3_anim_audit.tsv` 的「walk 循环 / attack 播完回 idle / death 停末帧」
+        /// <para> 修正（审计 `w3_anim_audit.tsv` 的「walk 循环 / attack 播完回 idle / death 停末帧」
         /// 三项判据）：`Attack`(A1) / `Cast`(SC) / `Hit`(GH) / `Death`(DT) 一律**单次播放**
-        /// —— 旧实现是 `anim != Death`，让这三个也循环，产生两个可判定缺陷：
         /// ① **保持时长 &gt; 动画时长**时动作会**自己重播**（一次出手看见"挥了第二刀"；
         ///    例：怪物 A1 11 帧 @12fps = 0.92s，而 `MonsterTuning.AttackAnimSeconds` = 0.35s
         ///    这类参数一旦被调大就会显形）；
@@ -190,7 +183,7 @@ namespace Diablo2.Module.View
         /// <para>为什么用 `SpeedScale` 而不是改 `Play` 的 fps 参数：`SpriteAnimator.Play` 的**早退判据
         /// 不比较 fps**（见 `SpriteAnimator.Play` 的注释）⇒ "动作没变、只有速度变了"时新 fps 会被吞掉；
         /// 而 `SpeedScale` 每帧可改，且**不动帧号与累计时间**（不会把动画打回第 0 帧）。</para>
-        /// <para>参数非法（帧数 ≤ 0 / 速度 ≤ 0 / 基准帧率 ≤ 0）⇒ 恒返回 **1**（⛔ 不返回 0：
+        /// <para>参数非法（帧数 ≤ 0 / 速度 ≤ 0 / 基准帧率 ≤ 0）⇒ 恒返回 **1**（不返回 0：
         /// 0 倍速会让动画停住，比"帧率不准"更糟）。</para>
         /// </summary>
         public static float SpeedScaleForCycle(int frameCount, float tilesPerSecond, float baseFps)
@@ -201,7 +194,7 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 是否是**移动类**动作（只有它随速度缩放手感）。
-        /// <para>⛔ Idle / Attack / Cast / Hit / Death 一律不许跟着缩放：原版的出招与受击节奏
+        /// <para>Idle / Attack / Cast / Hit / Death 一律不许跟着缩放：原版的出招与受击节奏
         /// 与移动速度无关（`AnimData` 里每个动作一套独立帧率）。</para>
         /// </summary>
         public static bool IsMoveAnim(ViewAnim anim)
@@ -217,12 +210,12 @@ namespace Diablo2.Module.View
         }
 
         /// <summary>
-        /// ★ 片「武器外观接线」：角色**装备外观套**的某个动作/方向的帧键数组。
+        /// 片「武器外观接线」：角色**装备外观套**的某个动作/方向的帧键数组。
         /// <para>与上面那个重载**同形**，只多一个"用哪一套"的维度：目录 =
         /// <see cref="ResPaths.CharEquipDir"/>，单位键 = `"{class}/equip/{key}"`
         /// （见 <see cref="EquipVisual.UnitKeyOf"/>，也是生成物 <see cref="EquipFrameCounts.ByUnit"/> 的键）。
         /// 帧数来源 = `EquipFrameCounts`（由各套 `manifest.json` 生成）——
-        /// ⛔ **不能**沿用徒手套的帧数：同一职业装上武器后逐动作帧数会变（例 amazon attack 13 → 15）。</para>
+        /// **不能**沿用徒手套的帧数：同一职业装上武器后逐动作帧数会变（例 amazon attack 13 → 15）。</para>
         /// <para><paramref name="equipKey"/> 为 null / 空 ⇒ 等价于徒手（走上面那个重载），
         /// 这是 `EquipVisual.Candidates` 链尾的正常形态，不是异常。</para>
         /// </summary>

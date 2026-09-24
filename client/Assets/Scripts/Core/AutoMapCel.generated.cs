@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Core/AutoMapCel.generated.cs
-// ⚠️ **本文件是生成物，禁止手改**（生成器：`tools/probes/gen_automap.py`）。
+// **本文件是生成物，禁止手改**（生成器：`tools/probes/gen_automap.py`）。
 //
 // 数据来源 = **原版**（Blizzard North, 2000，取自 d2data.mpq；本项目非商用）：
 //   · `data/global/excel/AutoMap.txt`      逐格 Cel 权威表（2603 行；列 = LevelName/TileName/
@@ -11,12 +11,10 @@
 //
 // 查询键 = (LevelName = `<act> <LevelType>`、Style = DS1 `prop3 & 0x0F`、Sequence = DS1 `prop2`)；
 // 命中多行 ⇒ 取表里最先出现的一行、取该行第一个 `CelN >= 0`；无命中 ⇒ -1（该格不画）。
-// ★ 地面层 Sequence 兜底（片 automap-redo2 第 3 轮，2026-09-23）：**仅当 `hits` 为空 且 该格属地面层**
 //   时，用 `Sequence + 1` 再查一次；仍无命中 ⇒ -1。依据是机械实测（`tools/probes/scan_automap_rows.py`）：
 //   Town 地面无命中格 73.1% → 0.8%、Wilderness 76.2% → 0.2%（+1），而 Cave 地面现状已只 12.9%
 //   且它的 `fl` 行本就从 seq=0 起 ⇒ **全局平移会改坏 Cave**，所以只做兜底。墙层三个平移都是 0% 无命中 ⇒ 不受影响。
-// ⛔ 原版「多行命中时挑哪一行 / 4 个变体挑哪一个」的规则**本机没有载体**（见
-//   `.ai-tmp/test/automap-plan.md` §2）⇒ 上一条是本项目**定死并登记**的可复跑规则。
+// 原版「多行命中时挑哪一行 / 4 个变体挑哪一个」的规则**本机没有载体**（见
 //
 // 几何（实测）：世界地砖 160×80 ⇒ automap 比例 **1/10**；一格 = 16×8 等距菱形、
 //   cel 帧的**底部 8 行**（y=24..31）就是这格 ⇒ cel 左上角贴到 (posX, posY)。

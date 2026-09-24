@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// playercheck · shim/ViewDepsShim.cs   ★ U27（人物抖动三分判据）新增 ★
+// playercheck · shim/ViewDepsShim.cs   U27（人物抖动三分判据）新增
 //
-// **为什么有这份文件**：本片要把 `Module/View` 编进本宿主，才能在同一段输入下分列
 // ① 相机（`CameraRig.Position`）② 角色**渲染**节点（`ViewModule.EntityWorld` = `EntityView.Root.transform.position`
 // 的**唯一写入口径**，`ViewModule.cs:1345`）③ 角色逻辑（`IPlayerModule.World`）。
 //
@@ -10,9 +9,9 @@
 // 而它做的两件事（地面物品**图标路径** / **品质色调**）与**位置**毫无关系 —— 本判据一个字都不碰。
 // ⇒ 用最小替身顶住那两个成员，签名逐字对齐生产件 `Module/View/GroundItemVisual.cs:56/80`。
 //
-// ⛔ 这不是"镜像生产逻辑"：替身**只提供编译期可解析的签名**，返回 null / 纯白；
+// 这不是"镜像生产逻辑"：替身**只提供编译期可解析的签名**，返回 null / 纯白；
 //    位置判据拿到的是**真实生产的** `ViewModule.EntityWorld`（纯函数，本宿主可离线调用）。
-// ⛔ 生产代码一行未改：排除写在 `PlayerCheck.csproj` 的 `Compile Remove` 里。
+// 生产代码一行未改：排除写在 `PlayerCheck.csproj` 的 `Compile Remove` 里。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Diablo2.Def;

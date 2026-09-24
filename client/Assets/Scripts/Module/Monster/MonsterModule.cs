@@ -4,7 +4,6 @@
 //
 // 职责：刷怪（`MonsterSpawner`）→ 每帧推进 AI（`MonsterAi`）→ 受击/死亡/尸体 → 对外的只读状态。
 //
-// 关键设计（都在 `_common.md` / `agent-07` 的范围内）：
 //   · **不自己实现寻路**：全部走 `IMapModule.FindPath`（`MonsterAi` 里做路径节流）。
 //   · **伤害只算一次**：本模块**只**负责"抗性结算 + 扣血 + 死亡"，命中率与基础伤害在
 //     `Module/Combat`（`DamageFormula` / `DamagePipeline`）。本模块被 `ICombatModule` 调用，不反向调用它。
@@ -16,8 +15,8 @@
 //   · 视觉、音效、掉落、经验**都不在这里**：视图走 `IViewModule`，音效走 `IAudioModule`，
 //     经验/掉落走 `Events.MonsterKilled` → `Module/Combat/DeathFlow`。
 //
-// ⛔ 单机：不碰引擎的网络类门面（`Game` 的 Net / Sync / Http 等，全为 null）。
-// ⛔ 随机一律注入式 `CloverEngine.Rng`（地图 seed 派生）。
+// 单机：不碰引擎的网络类门面（`Game` 的 Net / Sync / Http 等，全为 null）。
+// 随机一律注入式 `CloverEngine.Rng`（地图 seed 派生）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -249,9 +248,7 @@ namespace Diablo2.Module.Monster
             {
                 var m = _all[i];
 
-                // ★ 片 monster-audio：延迟排期的音（**受击音** / **死亡音**）到点起播。
                 //   必须放在 `alive` 判断**之前**：尸体的死亡音正是靠这条播出去的 ——
-                //   尸体分支下面直接 `continue`，放到后面会**永远播不出来**（静默失效）。
                 if (m.PendingHitSfx != null)
                 {
                     m.PendingHitSfxTimer -= dt;
@@ -276,8 +273,6 @@ namespace Diablo2.Module.Monster
 
                 m.Sync();
 
-                // ★ 片 monster-audio：怪物**脚步**触发点（原版 `MonSounds.Footstep` /
-                //   `FootstepLayer`；`FsPrb=100` ⇒ 有移动音就必播，`FsOff=0` ⇒ 不偏移）。
                 //   口径 = **每走 `1/FsCnt` 格出一次**（`MonSsounds.FsCnt` 有脚步的 6 类全是 2
                 //   ⇒ **半格一步**，不是跨格一次）—— 判据是**累计位移**而不是"格号变了没"，
                 //   这样慢速怪也不会把一步拖成一格。
@@ -354,7 +349,7 @@ namespace Diablo2.Module.Monster
             m.ViewDirty = true;
             m.Sync();
 
-            // ★ 三件套的 ③：**同一次调用栈**里刷新视图 ⇒ 头顶血条与这次扣血同帧下降
+            // 三件套的 ③：**同一次调用栈**里刷新视图 ⇒ 头顶血条与这次扣血同帧下降
             var view = ViewRef;
             if (view != null) view.UpdateMonster(m.State);
 
@@ -363,10 +358,9 @@ namespace Diablo2.Module.Monster
 
             if (Game.Event != null) Game.Event.Emit(Events.MonsterChanged, m.State);
 
-            // ★ 片 monster-audio：怪物**自身受击音**（原版 `MonSounds.HitSound`）由本模块排期，
             //   延迟 = 原版 `HitDelay` **帧** ÷ `MonsterTuning.LogicFps`（出处见 `MonsterSfx.Timing`）。
             //   撞击音（`Combat.SfxKeys.Hit`）在 `DamagePipeline` 里**同帧**响，两音按原版错开。
-            //   ⛔ 击杀那一下不排：`DamagePipeline` 播的是**死亡音**，受击音不该再叠一次。
+            //   击杀那一下不排：`DamagePipeline` 播的是**死亡音**，受击音不该再叠一次。
             if (m.State.hp > 0)
             {
                 var ownHit = MonsterSfx.HitOf(m.State);
@@ -403,8 +397,7 @@ namespace Diablo2.Module.Monster
             m.ClearPath();
             m.CorpseTimer = MonsterTuning.CorpseLifetimeSeconds;
 
-            // ★ 片 monster-audio：死亡音（原版 `MonSounds.DeathSound`）按 `DeaDelay` 帧排期，
-            //   用的是**与受击音同一套**机制（`PendingHitSfx` / `PendingHitSfxTimer`）—— ⛔ 不新造排期。
+            //   用的是**与受击音同一套**机制（`PendingHitSfx` / `PendingHitSfxTimer`）—— 不新造排期。
             //   `ApplyDamage` 在击杀那一下不会排受击音 ⇒ 这两个槽位此刻必为空，不会互相顶掉。
             //   延迟同样 = 帧 ÷ `MonsterTuning.LogicFps`（出处见 `MonsterSfx.Timing`）。
             var dieKey = MonsterSfx.DieOf(s) ?? Combat.SfxKeys.MonsterDie;
@@ -570,9 +563,8 @@ namespace Diablo2.Module.Monster
             var audio = ctx.Audio;
             if (audio != null)
             {
-                // ★ 片 monster-audio：出手音**逐类一套**（原版 `MonSounds.Attack1`）。
                 //   未登记的类别回落到通用键 `MonsterAttack`（素材源 = 堕落者），
-                //   并由 `MonsterSfx` 打一次 Warn 留痕（⛔ 不用别的怪的叫声顶替）。
+                //   并由 `MonsterSfx` 打一次 Warn 留痕（不用别的怪的叫声顶替）。
                 audio.SfxAt(MonsterSfx.AttackOf(m.State) ?? Combat.SfxKeys.MonsterAttack,
                     m.State.worldX, m.State.worldY, m.State.worldZ);
             }
@@ -669,7 +661,6 @@ namespace Diablo2.Module.Monster
             MonsterLog.Info($"玩家死亡 ⇒ 清空 {n} 只怪的仇恨（脱战回原位），其余 {AliveCount} 只怪保持巡逻");
         }
 
-        /// <summary>换区域 ⇒ 清仇恨（地图会重生成，旧路径全部失效）。</summary>
         private void OnAreaChanged(AreaId area)
         {
             var n = 0;

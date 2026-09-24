@@ -4,9 +4,9 @@
 //
 // 为什么单独一个文件：`Contracts.IMapModule.IsDeckGrid` 的数据来源必须只有一处
 //   （`Module/Map/GridMap.SetTiles` 登记时判一次、`mapcheck` 断言时判一次），
-//   ⛔ 不许在视图层或宿主机里各写一份"哪些包算桥面"。
+//   不许在视图层或宿主机里各写一份"哪些包算桥面"。
 //
-// 出处（⛔ 不是本项目自己造的类）：
+// 出处（不是本项目自己造的类）：
 //   · 罗格营地出城那座桥的地砖 = 原版 `OUTDOORS/bridge.dt1`，打表包名
 //     `MapGenTownLayout.Packs[0] = "moor_bridge"`（生成物：`tools/d2codec/export_town_layout.py`）；
 //     `MapGenTownLayout.GroundRows` 里桥面 4 行（y=25..28, x=46..55）的 6 字符编码前 3 位 = `000`。
@@ -20,7 +20,7 @@ namespace Diablo2.Module.Map
     {
         /// <summary>
         /// deck 类**地面瓦片包名**。判据口径 = 「该格的地砖取自这份原版 dt1」，
-        /// 与格子坐标无关（⛔ 不按 x/y 区间硬编码）。
+        /// 与格子坐标无关（不按 x/y 区间硬编码）。
         /// </summary>
         private static readonly string[] DeckGroundPacks =
         {

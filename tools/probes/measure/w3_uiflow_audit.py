@@ -359,7 +359,7 @@ def parse_portrait_states(path):
             elif raw[i] == ")":
                 depth -= 1
             i += 1
-        # ⚠️ 参数自带换行 + 缩进 ⇒ eval 前必须 `.strip()`（否则 `unexpected indent`，实测踩到）
+        # 参数自带换行 + 缩进 ⇒ eval 前必须 `.strip()`（否则 `unexpected indent`，实测踩到）
         args = [a.strip() for a in _split_top_level(raw[start:i - 1])]
         if len(args) < 4:
             continue
@@ -384,7 +384,7 @@ F = Consts(FLOW_SRC)
 F.val.update(parse_portrait_states(FLOW_SRC))
 
 # ── 死亡屏几何：**公式逐行转录** `UI/UiLayoutGame.cs:921-989` ──────────────────
-#   ⚠️ 不解析该文件（它引用了 `UiArt` / `SkillTreeLayout` 与局部辅助函数 `S()/BottomY()`，
+#   不解析该文件（它引用了 `UiArt` / `SkillTreeLayout` 与局部辅助函数 `S()/BottomY()`，
 #   通用解析器覆盖不到）⇒ 这里只转录公式；**权威复核在 uicheck 节 ⑲**
 #   （用编译后的真函数 `DeathTilePos/DeathTileSize/DeathRowCenterY` 断言同一批值）。
 DEATH_TILES = [(256, 256, 0, 0), (64, 256, 256, 0), (256, 224, 0, 256), (64, 224, 256, 256)]
@@ -443,7 +443,7 @@ def png_size(res_path):
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. 逐屏逐控件的审计行
 #    row(屏, 控件, 原版来源, 原版尺寸, 原版位置, 工程尺寸, 工程位置, 素材, 工程值补充, 字号)
-#    ⛔ 原版尺寸/位置 = prefab 字面量（与 UiLayoutFlow 注释逐条对齐）；工程值 = 常量名（脚本解析回来）。
+#    原版尺寸/位置 = prefab 字面量（与 UiLayoutFlow 注释逐条对齐）；工程值 = 常量名（脚本解析回来）。
 # ─────────────────────────────────────────────────────────────────────────────
 ROWS = []
 NEW = "无（本项目新增，登记）"
@@ -635,7 +635,6 @@ for text, posc, oy in (("CONTINUE", "Pause.ResumePos", "-17.5"), ("OPTIONS", "Pa
 row("Pause", "底部提示行（PRESS ESC TO CONTINUE）", NEW, "(400,20)", "(0,-197.5)", None, "Pause.HintPos",
     None, "720×36 @ (0,-355.5)", "font16 档")
 
-# ⑧ 死亡屏（几何来自 UiLayoutGame；本片只审计不改）──────────────────────────
 row("Death", "整屏遮罩", NEW, None, None, None, None, None, "UiArt.Overlay 全屏")
 for i in range(4):
     w, h, _, _ = DEATH_TILES[i]

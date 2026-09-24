@@ -9,10 +9,8 @@
 //   「怪物打玩家(`RequestMonsterAttack`)」两个入口，**没有**「技能对怪物结算」的入口。
 //   ⇒ 本类是该子系统内部的**唯一结算函数**，`CombatModule`（同命名空间）与
 //     `SkillModule`（经 `Combat.DamagePipeline` 限定名访问，**不写 using**，故不违反
-//     `_common.md` §4 的「Module/X 不许 using Module/Y 的具体类型」）都复用它，
 //     保证「抗性只减一次、飘字/音效/血条三件套只写一遍」。
 //
-// ★ 命中反馈三件套（`docs/agents/agent-07-*.md` §4 硬要求 4）
 //   **同一次命中**里必须都发生，本类按固定顺序一次做完：
 //     ③ 目标头顶血条下降 —— `IMonsterModule.ApplyDamage` 内部会调
 //        `IViewModule.UpdateMonster(state)`（同一次调用栈，立刻反映新血量）
@@ -22,7 +20,7 @@
 //
 // 事件：目标不是玩家 ⇒ `Events.DamageDealt`；目标是玩家 ⇒ 额外再发 `Events.PlayerDamaged`
 //       （两个事件都带同一份 `Def.DamageArgs` ⇒ HUD 只订阅一个也不会漏）。
-// ⛔ 随机全部来自调用方传入的 `CloverEngine.Rng`（可复现）；本类**不自己掷随机**。
+// 随机全部来自调用方传入的 `CloverEngine.Rng`（可复现）；本类**不自己掷随机**。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -111,7 +109,6 @@ namespace Diablo2.Module.Combat
             else CombatLog.WarnOnce("pipe.view.missing",
                 "DamagePipeline: IViewModule 未接入（AppContext.View == null）⇒ 命中飘字/受击表现缺失（其余不受影响）");
 
-            // 受击表现（闪白 + Hit 动画）—— ★ 片 Y（R1）：**击杀时不许再播 Hit**。
             //   理由：`monster.ApplyDamage` 内部已走 `MonsterModule.Die` ⇒ `IViewModule.PlayDeath`
             //   （死亡表现的唯一归属）；若这里再调 `PlayHit`，**同一次调用栈稍后**就会把死亡动作
             //   覆盖成受击动作 ⇒ 尸体停在受击末帧、`Death` 一次都没上屏（审计 D 的 R1，
@@ -119,17 +116,13 @@ namespace Diablo2.Module.Combat
             if (view != null && !killed) view.PlayHit(target.id);
 
             // ② 音效钩子（IAudioModule 可空）
-            // ★ 片 monster-audio：原版一次命中是**两层音** —— 武器撞击（`hit`）
             //   + **怪物自己的受击音**（`MonSounds.HitSound`，逐类一套；原版 `HitDelay` 列是它的延迟）。
-            //   此前只有 `hit` 一层 ⇒ 用户听到的「打击没声音 / 怪物没音效」。
-            //   击杀那一下只播死亡音（⛔ 不叠受击音：死亡表现归 `PlayDeath`，同前片 R1 的口径）。
             var audio = ctx.Audio;
             if (audio != null)
             {
-                // ★ 片 monster-audio：**击杀那一下这里一声都不播** —— 死亡音按原版
                 //   `MonSounds.DeaDelay`（延迟帧数；除 quillrat=4 外全类 = 1）由 `MonsterModule.Die`
                 //   用与受击音**同一套**排期机制（`PendingHitSfx` / `PendingHitSfxTimer`）到点起播，
-                //   值同样 ÷ `LogicFps`。⛔ 这里若再播就会变成"同帧 + 延迟"两声。
+                //   值同样 ÷ `LogicFps`。这里若再播就会变成"同帧 + 延迟"两声。
                 if (!killed)
                 {
                     // 只播**撞击音**；怪物自身受击音（`MonSounds.HitSound`）由
@@ -187,7 +180,6 @@ namespace Diablo2.Module.Combat
                 // 玩家飘字抬高一点，别糊在角色身上
                 view.ShowFloatingText(w.x, w.y + 1.1f, w.z, amount.ToString(),
                     died ? ColorCrit : ColorPlayerHit);
-                // ★ 片 Y（R1 同类穷举）：**致死的那一下不播受击动作** —— 死亡表现归
                 //   `ViewModule.TickPlayer` 的死亡档（Death > Hit 的优先级链）；这里再播 Hit
                 //   会让死亡那一帧先出受击姿态（与怪物那条同源：击杀后不该再切非死亡动作）。
                 if (!died) view.PlayHit(GameConst.PlayerEntityId);

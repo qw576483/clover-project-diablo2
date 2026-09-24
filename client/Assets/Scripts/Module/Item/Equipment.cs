@@ -22,7 +22,7 @@ namespace Diablo2.Module.Item
         private readonly List<ItemStack> _items = new List<ItemStack>();
 
         /// <summary>
-        /// ★ 双武器组：**生效**组的下标（0 = Ⅰ组 / 1 = Ⅱ组）。
+        /// 双武器组：**生效**组的下标（0 = Ⅰ组 / 1 = Ⅱ组）。
         /// 读取一律经 <see cref="ActiveWeaponIndex"/>（按实际武器件数钳制）⇒ 本字段可以"脏"。
         /// </summary>
         private int _activeWeapon;
@@ -47,7 +47,7 @@ namespace Diablo2.Module.Item
 
         /// <summary>
         /// `item_c` 行 → 装备槽位（不是装备返回 <see cref="ItemSlot.None"/>）。
-        /// ⚠️ 列语义：`source` = 大类（weap/armo/misc）；`type` = 官方 `type`（axe/tors/helm/ring…）；
+        /// 列语义：`source` = 大类（weap/armo/misc）；`type` = 官方 `type`（axe/tors/helm/ring…）；
         /// `subtype` = 官方 `type2`（1hs/stf/bow/xbw/tpot…，护具与首饰**为空**）
         /// ⇒ 细分类必须 **`type` 与 `subtype` 一起看**。
         /// </summary>
@@ -136,7 +136,6 @@ namespace Diablo2.Module.Item
             return null;
         }
 
-        // ── 双武器组（原版 W 键切换；★ 本轮新增，T0 判据缺口 2）──────────────────
 
         /// <summary>
         /// 当前**生效**的武器组下标（0 = Ⅰ组 / 1 = Ⅱ组）。

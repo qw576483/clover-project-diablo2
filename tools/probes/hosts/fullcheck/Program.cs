@@ -1,7 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FullCheck · 全量业务代码 + 全链路自检宿主（agent-12，**非 Unity 工程**）
 //
-// 目的（`docs/agents/agent-12-集成接线与全量编译.md` §4.1）：
 //   ① **一条命令**证明 `client/Assets/Scripts/**` 的**全部** .cs 能编到一起
 //      （`dotnet build tools/fullcheck/FullCheck.csproj`，文件集见 csproj，**不排除任何业务文件**）；
 //   ② 真跑一遍核心链路：**装配 → 配表 → 存档往返 → 生成地图 → 刷怪 → 战斗 → 任务链 → 存档复位**，
@@ -11,7 +9,6 @@
 // ⇒ 只能用「Unity 托管 DLL + 业务源码编到 .NET」的离线宿主（照 `tools/mapcheck` /
 // `tools/flowcheck` / `tools/combatcheck` 同一套做法，见 skill `reference/fast-compile-loop.md`）。
 //
-// 本宿主的**已知边界**（不是缺陷，是引擎与 Unity 的原生边界）：
 //   · `new GameObject()` / `new Texture2D()` 在非 Unity 进程里抛 `SecurityException`
 //     （`ECall methods must be packaged into a system module`）⇒ **渲染层无法离线驱动**：
 //     `MapModule.ShowArea`（建 MapRoot）与 `ViewModule` 的精灵节点都会走"降级"分支；
@@ -92,7 +89,7 @@ namespace FullCheck
 
     /// <summary>
     /// 事件总线（同步派发 + **事件计数**，用于断言"链路真的走通了"）。
-    /// ★ 派发顺序与真引擎一致（`Runtime/Core/Event.cs:141-143` + `:319-343`）：
+    /// 派发顺序与真引擎一致（`Runtime/Core/Event.cs:141-143` + `:319-343`）：
     ///   同 priority 0 ⇒ **后注册先执行**；priority 大者先执行。见 shim 里的同一段说明。
     /// </summary>
     internal sealed class RecordingBus : IEventBus
@@ -110,7 +107,6 @@ namespace FullCheck
         public void ResetCounts() => _counts.Clear();
 
         /// <summary>
-        /// 该事件当前的**监听器数量**（★ 片 assert-audit 新增）。
         /// 用途：判「转发路径存在」这类结论 —— 判据从「写死 OK」变成**真的问一次总线**
         /// （`AppEventRouting.Install` 没订阅 ⇒ 0 ⇒ 断言变红）。与 `uicheck` 的 `HandlerCount` 同口径。
         /// </summary>
@@ -217,7 +213,6 @@ namespace FullCheck
         public readonly List<string> Loaded = new List<string>();
         public string CurrentScene { get; private set; }
 
-        // agent-17 §A：与引擎同序 —— `OnSceneLoaded` 的处理器在 `onDone` **之前**逐个回调
         // （`Runtime/Presentation/Scene.cs:54-65`）。`AppFlow` 靠它识别"Stage 场景被重载"。
         private readonly List<Action<string>> _loaded = new List<Action<string>>();
         private readonly List<Action<string>> _unloaded = new List<Action<string>>();
@@ -354,18 +349,14 @@ namespace FullCheck
     {
         public int LoadCalls;
 
-        /// <summary>`Exists` 的调用次数（agent-34：业务改调引擎同步存在性探针后，本宿主也能数它）。</summary>
         public int ExistsCalls;
 
-        /// <summary>`LoadAll` 的调用次数 + 最后一次路径（agent-34）。</summary>
         public int LoadAllCalls;
         public string LastLoadAllPath;
 
         public void LoadAsset<T>(string path, Action<T> cb) where T : UnityEngine.Object { LoadCalls++; cb?.Invoke(null); }
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
 
-        // ★ agent-34（引擎下沉 A3）：引擎新增的两个**同步**入口。本替身"永远取不到"，
-        //   于是 `ClientConfig` 走引擎分支时拿到空数组、照旧退回文件 / 默认值（离线可复现）。
         public bool Exists(string path) { ExistsCalls++; return false; }
         public T[] LoadAll<T>(string path) where T : UnityEngine.Object
         {
@@ -381,7 +372,7 @@ namespace FullCheck
 
     public static class Program
     {
-        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
+        // 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
         private static readonly string ProjectRoot = ResolveProjectRoot();
         private static readonly string ClientAssets = ProjectRoot + @"\client\Assets";
         // 宿主已随「仓库卫生整理」迁到 tools/probes/hosts/fullcheck/；写日志前必须先有这个目录，
@@ -407,7 +398,6 @@ namespace FullCheck
         /// 从宿主自己的可执行目录向上找“含 client/Assets 的那一层” = 仓库根。
         /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；若按调用方 cwd 定位，
         /// 从仓库根运行时会被拼成 &lt;仓库根&gt;/clover-project-diablo2/client/...（一个文件都找不到）。
-        /// 找不到就回退成原来的相对写法，保持“从仓库上一级目录运行”的老用法不变。
         /// </summary>
         private static string ResolveProjectRoot()
         {
@@ -428,8 +418,6 @@ namespace FullCheck
         /// `Module/Save/SaveModule.cs:96-98` 在 `Game.Config` 为空时回落**相对目录** `"setting"`
         /// ⇒ 槽位档落在 `&lt;调用方 cwd&gt;/setting/saves/`。于是：① 从仓库根跑
         /// `dotnet run --project tools/probes/hosts/fullcheck` 就在**仓库根**留一份
-        /// `setting/saves/FullCheckHero.json`（实测 2026-09-20：仓库根 `setting/` 未入仓、
-        /// 违 skill §1.8「一次性产物只许 `.ai-tmp/test/`」）；② `run_all_hosts.ps1`
         /// （`Push-Location`）则写进**宿主目录**下那份**已入仓**的 `setting/saves/` ⇒
         /// **验证器每次跑都改脏它验证的检出**。指向 `.ai-tmp/` 沙盒并每次清空 ⇒
         /// 不依赖 cwd、不留仓库残留、断言真正从零开始。业务断言一字未改。</para>
@@ -466,7 +454,6 @@ namespace FullCheck
             Run(Step8_QuestChain);
             Run(Step9_SaveReloadAndReset);
 
-            // ★ 片 ground-item-icon：地面物品图（原版物品图 vs 品质色块）—— 独立文件，只加断言。
             //   走 Run(...) 包一层：单步隔离（炸掉也不吞掉后面的汇总输出）。
             Run(() => { _fail += GroundIconCheck.Run(); });
 
@@ -511,11 +498,8 @@ namespace FullCheck
             _res = new FakeRes();
             Game.Res = _res;
             Game.IsRunning = true;
-            // ★ 槽位档沙盒（2026-09-20 闸门/卫生对齐轮）：显式给 SaveModule 一个绝对 `SettingDir`
-            //   ⇒ 不再跟随 cwd 在仓库根 / 宿主目录留 `setting/saves/` 残留（详见 HostSandboxSettingDir）。
             Game.Config = new GameConfig { SettingDir = HostSandboxSettingDir("fullcheck") };
 
-            // ★ 片 assert-audit：原为硬编码 `true`（永真 ⇒ 等于没判）。改成**逐个门面真的问一次非空**。
             Check("引擎门面替身已就位（Logger/Event/Fsm/UI/Scene/Setting/Input/Sound/Entity/Pool/Timer/Res）",
                 Game.Logger != null && Game.Event != null && Game.Fsm != null && Game.UI != null
                 && Game.Scene != null && Game.Setting != null && Game.Input != null && Game.Sound != null
@@ -523,7 +507,6 @@ namespace FullCheck
                 && Game.IsRunning,
                 "12 个门面逐个非空 + IsRunning；单机最小集：**不调** CloverNet.Init（本项目形态=单机）");
 
-            // Unity 原生对象探针：证明"渲染层只能降级"是环境边界而不是本项目的缺陷。
             try
             {
                 var go = new GameObject("fullcheck-probe");
@@ -561,9 +544,7 @@ namespace FullCheck
 
             Check("Cfg（config.json）已预热（离线读不到文件 ⇒ 回落默认值，不抛异常）", warmOk, warm);
 
-            // ★ agent-34（引擎下沉 A3）：`Cfg` 读 config.json 已改走**引擎资源模块**
             //   （`Game.Res.LoadAll<TextAsset>("Configs/config")`），不再直连 Unity 的 `Resources.Load`
-            //   （验收表 **E1** 的例外已收口 —— 它原先就在 E1 的出处列里：`Core/ClientConfig.cs`）。
             //   本宿主用「永远取不到」的替身（`FakeRes`）⇒ 判据 = 它**确实被问过**、且问的是那个路径。
             Check("Cfg 走引擎资源模块取 config.json（`Game.Res.LoadAll<TextAsset>(Configs/config)`）",
                 _res.LoadAllCalls >= 1 && _res.LastLoadAllPath == ResPaths.ConfigResourceKey,
@@ -670,13 +651,13 @@ namespace FullCheck
                 $"{ctx.Map.GetType().Name}.AttachRoot={(mapAttach != null)} / {ctx.View.GetType().Name}.AttachRoot={(viewAttach != null)}" +
                 "；真实 Transform 由 `StageRoots` / `Bootstrap` 序列化字段提供（见回报「待 agent-10」）");
 
-            // ── 3b. ★ hover-probe 片：`D2.Input.HoverChanged` **往返**（发送方 + 消费方都在线）──
+            // ── 3b. hover-probe 片：`D2.Input.HoverChanged` **往返**（发送方 + 消费方都在线）──
             //   为什么补它：状态矩阵 L3801/L3802 判「有订阅者（被消费）」，旧证据只引
             //   `Core/Events.cs` / `Module/Contracts.cs`（事件的**声明处本身**）⇒ 只证得出
             //   "事件名 + 载荷类存在"，证不出"真有人收到"（而且它就是 freshness 比对的文件 ⇒ 恒红）。
             //   本宿主是**唯一同时编进 `Module/Input/InputReader`（发送方）与 `UI/EntityTooltip`
             //   （消费方）**的宿主 ⇒ 两端都要断言，并做退化校验（摘掉订阅方 ⇒ 收不到）。
-            //   ⚠️ 载荷类型写全限定名 `Diablo2.Def.HoverTarget`：`using Diablo2.UI;` 下另有一个
+            //   载荷类型写全限定名 `Diablo2.Def.HoverTarget`：`using Diablo2.UI;` 下另有一个
             //      同名 MonoBehaviour（`UI/HoverTarget.cs`）⇒ 裸写 `HoverTarget` 是 CS0104。
             Check("事件名常量 == 状态矩阵实体 id `D2.Input.HoverChanged`",
                 Events.HoverTargetChanged == "D2.Input.HoverChanged", Events.HoverTargetChanged);
@@ -716,7 +697,6 @@ namespace FullCheck
                 upd == null ? "找不到 UpdateHover"
                             : $"{upd.Name}({upd.GetParameters()[0].ParameterType.Name})");
 
-            // ★ 片 u44（契约 C4）：消费点从 `UI/EntityTooltip`（头顶 tooltip，已删）换成
             //   `UI/EnemyBarView`（屏幕顶部怪名血条 + NPC 名字牌）。
             var et = typeof(EnemyBarView).GetMethod("OnHoverChanged",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
@@ -799,7 +779,6 @@ namespace FullCheck
 
             ctx.Camera.SetTargetGrid(ctx.Player.Grid);
             ctx.Camera.SnapToTarget();
-            // ★ 片 assert-audit：原为硬编码 `true` ⇒ 改成真的读一次 `CameraRig.TargetGrid`
             //   （离线无相机时 `SnapToTarget` 只推进内部状态，但 `SetTargetGrid` 的落点必须真存下来）。
             var rig = ctx.Camera as CameraRig;
             Check("跟随相机已对准玩家（`SetTargetGrid` 的落点 == 玩家格；无相机时只在内部状态推进）",
@@ -826,7 +805,6 @@ namespace FullCheck
                 _log.Contains("[Assert] 进图地图已生成") && _log.Contains("[Assert] 刷怪已就绪"),
                 "见上方 [App] [Assert] …");
 
-            // ★ agent-14 §B 现象 3 的**回归断言**（就是那次 Play 失败的原样复现）：
             //   `AppSnapshots.Broadcast` 会给 HUD/小地图补发**同一张**地图（回声），它**不是**"又生成了一张图"。
             //   修前现场（Play 日志 seq 222 / 243）：`[Map] Generate 完成` 只有 1 条，
             //   却出现 `[Assert] 本次过门已第 2 次收到 D2.Map.Generated（>1）⇒ 重复生成！`
@@ -881,16 +859,12 @@ namespace FullCheck
 
             var ctx = AppContext.I;
 
-            // ── ★ 片 2b：披露「列表首怪的掉落表能不能解析」+ 把击杀目标改成**确定性的**一只 ──
             //   为什么：本步末尾那条断言要看到 `[Item] DropLoot` 日志，而 `DeathFlow` 在
             //   「`monster_c.treasure_class` 的名字在 `treasureclass_c` 里没有行」时会**合理地**
             //   走「本次不掉落」分支（根本不调 `DropLoot`）。
-            //   实测（2026-09-19）：BloodMoor 列表首怪 = 尖刺鼠，其 TC 名 = "Quill 1"，
             //   而本项目的 `treasureclass_c` 只导出了「Act 1 起点 TC 的闭包」（58 行，见
             //   `Treasureclass.tsv` 的 `is_act1_start` 列）⇒ 该名查不到（该物种永远不掉东西）。
-            //   旧实现取 `FirstAlive`（列表第一个）⇒ 本步结论取决于**刷怪组成**（片 3 正在改
-            //   `MonsterSpawner`/`MapGenWilderness`）⇒ 断言会随别的片翻红，测不到它自己要测的东西。
-            //   ⛔ 处置：**只改"选哪只怪当靶子"**（选第一个"活着且 TC 可解析"的），
+            //   处置：**只改"选哪只怪当靶子"**（选第一个"活着且 TC 可解析"的），
             //      断言判据一行未动；配表缺口由下面这条披露单独报出（只披露、不判失败）。
             var first = FirstAlive(ctx);
             var firstRow = first != null ? Table.Tables.Default.Monster.Get(first.kindId) : null;
@@ -910,18 +884,15 @@ namespace FullCheck
             }
             Console.WriteLine($"  [靶子] m#{mon.id} {mon.name}（列表里第一个 TC 可解析的存活怪）");
 
-            // ★ C3（用户本轮「你是圆形判断的打击范围」）之后近战有**形状**闸门：
+            // C3（用户本轮「你是圆形判断的打击范围」）之后近战有**形状**闸门：
             //   正面扇形 ±60° + 以朝向为轴的矩形走廊 + 线段不得被地形阻断；唯一出处
             //   `Module/Combat/MeleeShape.cs`。
-            //   ⚠️ 2026-09-23（片 `melee-samecell`）**更正**：该文件头原先写「零距离（与攻击者同格）
-            //   ⇒ false」—— 那是**错的**：原版近战触及是**距离 / 外接框**口径（`Weapons.txt` 第 20 列
             //   `rangeadder` / `MonStats2.txt` 第 8 列 `MeleeRng`），`0 ≤ reach` 恒真 ⇒ **同格必命中**；
-            //   而实测（`.ai-tmp/test/report-audioverify2.md` §2.3）玩家沿 `MoveCommand` 就会走到怪格上，
             //   旧口径下 40 次真实左键**全被拒** ⇒ 贴身永远打不到。该退化点已修（见文件头）。
             //   本节因此**同时**覆盖两种姿态：正前方一格（既有，下面那条）与**同格**（新增，见下）。
             var dv = Iso.DirectionDelta(ctx.Player.Dir);
 
-            // ★ melee-samecell 的**纯函数**判据（与 `combatcheck` 第 18 节同一把尺子；⛔ 不改上一条断言）
+            // melee-samecell 的**纯函数**判据（与 `combatcheck` 第 18 节同一把尺子；不改上一条断言）
             {
                 float sfx, sfy;
                 var nv2 = Iso.DirectionDelta(Diablo2.Def.Dir8.N);   // ⛔ 必须限定：本宿主同时可见 CloverEngine.Dir8
@@ -944,15 +915,13 @@ namespace FullCheck
                     "零偏移受距离/框口径保护（0 ≤ reach 恒真），不参与角度比较");
             }
 
-            // ★ lineclear-fix（2026-09-24）：把"隔墙不出手"这条规则的**可观测面**钉在真实生成图上。
             //   ① 尺子唯一出处 = 生产方法 `CombatModule.AttackLineClear`（**结算层**与 **AI 出手前自检**
             //      调的就是同一句；见 `Module/Combat/CombatModule.cs` 与 `Module/Monster/MonsterAi.cs`），
-            //      ⛔ 本宿主**不复算**线段（不另写一把尺子）；
+            //      本宿主**不复算**线段（不另写一把尺子）；
             //   ② 必须在**真实图**上找到一组「远程射程内（`RangedKeepDistance`~`RangedAttackMaxRange`）
             //      但线段被挡」的（怪格, 目标格）—— 一个都找不到 ⇒ 这条规则在真图上没有可观测面
             //      （判据空转），如实判红；
             //   ③ 同时钉住几何前提：**近战触达（8 邻，步长 ≤ 1 格）上尺子恒通** ⇒ 近战怪不可能被地形拒
-            //      （用户看到的"隔墙挥空"只可能出在远程/萨满那一档，本片因此把四种 AI 都加上了自检）。
             {
                 var keep = Diablo2.Module.Monster.MonsterTuning.RangedKeepDistance;
                 var cap = Mathf.Min(GameConst.RangedRange, Diablo2.Module.Monster.MonsterTuning.RangedAttackMaxRange);
@@ -1010,14 +979,13 @@ namespace FullCheck
                     adjacentClear, adjacentClear ? "全图存活怪的 8 邻逐个查过，没有任何一对被判「线段不通」"
                                                  : "出现反例：" + badAdjacent);
             }
-            // ★ 判据资产修复（2026-09-24，team-lead 批准）：原实现**写死**落点 = `mon - dv`，
             //   实测该格（Blood Moor 的 (7,15)）**可能不可走** ⇒ `PlayerModule` 走降级分支
             //   "Teleport 目标格不可走 ⇒ 改用出生点" ⇒ 玩家离靶 28.02 格 ⇒ 下面 4 条判据
             //   （单次普攻掉血 / 连击打死 / 击杀链 / 击杀经验）**连锁变红**，而它们要测的东西根本没被测到
-            //   （失败发生在 `dist > MeleeRange` 分支，⛔ 根本走不到 `InFrontCone`）。
+            //   （失败发生在 `dist > MeleeRange` 分支，根本走不到 `InFrontCone`）。
             //   现在在怪周围**找一个可走格**再传送：优先"正前方一格"（原意），其次朝向轴 ±45° 的邻格
             //   （同样能过形状闸门：cos45°=0.707 ≥ 0.5、沿轴 1.00 ≤ 1.60、垂距 1.00 ≤ 1.20），
-            //   并要求线段通畅（不许站在墙后挥）。⛔ 判据条件本身（单次普攻必须掉血 / 连击必须打死）一字未动。
+            //   并要求线段通畅（不许站在墙后挥）。判据条件本身（单次普攻必须掉血 / 连击必须打死）一字未动。
             float mfx, mfy;
             if (!MeleeShape.ToUnit(dv.x, dv.y, out mfx, out mfy)) { mfx = 0f; mfy = 0f; }
             var posture = FindMeleePosture(ctx, mon, mfx, mfy, new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y));
@@ -1042,18 +1010,17 @@ namespace FullCheck
                 _bus.CountOf(Events.DamageDealt) > dmg0 && (mon.hp < hp0 || !mon.alive),
                 $"hp {hp0} → {mon.hp}（alive={mon.alive}）；DamageDealt {dmg0} → {_bus.CountOf(Events.DamageDealt)}");
 
-            // ★ melee-samecell（2026-09-23 缺陷修复）**真实链路**的同格用例：
             //   每次出手前把玩家挪到**怪所在那一格**（生产玩法里 `MoveCommand` 就会走到怪格上），
-            //   再走生产入口 `RequestAttack` ⇒ 必须掉血。⛔ 只**新增**断言；
+            //   再走生产入口 `RequestAttack` ⇒ 必须掉血。只**新增**断言；
             //   跑完把站位**放回"怪的正前方一格"**（同一姿态口径）⇒ 下面击杀循环的既有判据条件不变。
             {
-                // ⚠️ 本块**必须零副作用**（否则会把下面既有判据的初始条件搅乱）：
+                // 本块**必须零副作用**（否则会把下面既有判据的初始条件搅乱）：
                 //   ⓪ **不许打死 Step7 的靶子 `mon`** —— 它要留给下面"连续普攻把怪物打死"那条判据，
                 //      而那条读的 `alive0 = AliveCount` 在本块**之后** ⇒ 块内打死 `mon` 会让它变红
                 //      （实测踩到：AliveCount 26 → 26 FAIL）。⇒ 同格用例改打**除靶子外血最厚**的一只
                 //      （血厚 ⇒ 一次命中打不死），并且**一旦掉血立刻停**（最多 1 次有效命中）。
                 //   ① 出手前记下玩家**当前**格，跑完**原样放回**；
-                //   ② 只推进 **Combat 模块自己的时钟**（清攻击冷却），⛔ 不用 `ctx.Tick` 推进怪物 AI
+                //   ② 只推进 **Combat 模块自己的时钟**（清攻击冷却），不用 `ctx.Tick` 推进怪物 AI
                 //      （那会让怪在断言之间移动/脱战，属改变既有条件）。
                 var scTarget = TankiestOther(ctx, mon.id);
                 if (scTarget == null)
@@ -1096,11 +1063,9 @@ namespace FullCheck
             var alive0 = ctx.Monster.AliveCount;
             for (var i = 0; i < 60 && mon.alive; i++)
             {
-                // ★ 判据资产修复（同 920 行那条，team-lead 批准）：每轮**先把玩家重新摆到能打到怪的合法站位**
-                //   再出手 —— 怪会追人 / 脱战回原位而漂移，而 `RequestAttack` 自己不移动玩家
                 //   （实测：怪漂到 2.00 → 4.12 格 > 近战范围 1.60 ⇒ 60 轮里一次都没结算，
                 //    于是"连续普攻把怪打死"这条**测的其实是怪会不会站着不动**）。
-                //   ⛔ 判据条件（连续普攻必须打死它）一字未动，只修"怎么连续出手"。
+                //   判据条件（连续普攻必须打死它）一字未动，只修"怎么连续出手"。
                 ctx.Player.TeleportTo(FindMeleePosture(ctx, mon, mfx, mfy,
                     new Vector2Int(mon.gridX - dv.x, mon.gridY - dv.y)));
                 ctx.Combat.RequestAttack(mon.id);
@@ -1111,12 +1076,8 @@ namespace FullCheck
                 !mon.alive && ctx.Monster.AliveCount == alive0 - 1,
                 $"AliveCount {alive0} → {ctx.Monster.AliveCount}；尸体保留（corpseUsable={mon.corpseUsable}）");
 
-            // ★ 片 3：刷怪改成**原版逐格抽样**后，第一只怪的**种类是随机的** ⇒ 可能是尖刺鼠，而它的官方 TC
-            //   「Quill 1」在本项目 `treasureclass_c` 里**缺行**（配表口径不一致：该表由旧版
-            //   `TreasureClass.txt` 生成，而 `monster_c.treasure_class` 的值来自 LoD 1.10 的 MonStats）
-            //   ⇒ 击杀链会走「找不到 TC ⇒ 本次不掉落」这条**降级分支**（模块自己已打 Warn）。
             //   本步要测的是**链路是否贯通**（MonsterKilled → DeathFlow → 查掉落表），所以两条结局都算"走到了"，
-            //   但配表缺口**必须显式打出来**（⛔ 不许静默通过）。
+            //   但配表缺口**必须显式打出来**（不许静默通过）。
             var dropLogged = _log.Contains("DropLoot");
             var tcMissing = _log.Contains("treasureclass_c 里找不到 TC");
             Check("击杀链：MonsterKilled → DeathFlow（经验 + 掉落表）",
@@ -1155,10 +1116,7 @@ namespace FullCheck
                 required > 0 && _log.Contains("记录洞内初始怪物总数"),
                 $"required={required} 洞内存活={ctx.Monster.CountInArea(AreaId.DenOfEvil)}");
 
-            // ── ★ a52 回归（实机缺陷：任务日志「目标行 vs 进度行」自相矛盾）——**本片换成更强口径** ──
-            //   旧缺陷：目标行拼 `CountInArea(DenOfEvil)`（人一出洞就被 DespawnAll ⇒ 恒 0），
             //          进度行拼 `required − progress` ⇒ 同屏"剩余 0"与"剩余怪物：11"打架。
-            //   新口径（本片定案）：**目标行 = 原版串 3735 + 3736 逐字，彻底没有数字**；
             //          数字只出现在**进度行**，唯一来源 = `required − progress`
             //          （`UI/QuestLogPanel.Remaining` / `TextOf`）⇒ 与 `CountInArea` 彻底解耦，
             //          进洞 / 出洞两态的目标行**逐字相同**，矛盾在结构上不可能再出现。
@@ -1284,11 +1242,9 @@ namespace FullCheck
             }
             else
             {
-                // ★ 片 assert-audit：原为硬编码 `true` + 文案自认「跳过断言」⇒ 那等于这条**永远绿**
                 //   （而它恰恰是本图"学习转发链"的唯一覆盖点）。改判**路由器真的收到了这件事**：
                 //   转发层 `AppEventRouting.OnSkillLearnRequest` 只有在**真的调过** `ISkillModule.Learn`
                 //   之后才可能打出这句 Warn（`Learn` 返回 false 的唯一分支）⇒ 有这行 = 转发链被走过。
-                //   ⛔ 不是放宽：原先它连寄存器都不看，现在它是可失败的。
                 const int bogusSkillId = 999999;                 // 不属于任何职业 ⇒ Learn 必 false
                 Game.Event.Emit(Events.SkillLearnRequest, bogusSkillId);
                 var learnFwdLog = $"学习技能 {bogusSkillId} 失败";
@@ -1307,7 +1263,6 @@ namespace FullCheck
             }
             else
             {
-                // ★ 片 assert-audit：原为硬编码 `true` + 文案自认「跳过断言」⇒ 永远绿。
                 //   本图无已学技能 ⇒ 判不了"选技能真的生效"，但仍然**能判转发链这一层**：
                 //   ① 总线上必须有 `SkillSelected` 的监听者（= `AppEventRouting.Install` 真的订阅了；
                 //      没订阅 ⇒ 0 ⇒ 这条变红）；② 转发层不得把同一个事件再发一次（防回灌）；
@@ -1329,9 +1284,6 @@ namespace FullCheck
 
             var invBackup = ctx.Item.Snapshot();
             Game.Event.Emit(Events.UnequipRequest, ((int)ItemSlot.Weapon) & 0xFF);
-            // ⚠️ 2026-09-23 主 agent 落（片 `impl-gate-close` §⑥-2 定位 + 给出同一行修法）：
-            //   断言口径从「**空槽** ⇒ 只 Warn」改成「**转发链真的被调用**」—— 判**过程**不判结果（SKILL §4.10）。
-            //   为什么必须改（实测根因，不是"为了变绿"）：片 `impl-startequip` 按官方 `charstats.txt`
             //   给**新角色加了起始装备**（item1=jav/item2=buc …）⇒ 本宿主里 Weapon 槽**非空**
             //   ⇒ 这一次 `UnequipRequest` **真的卸下了**武器（同一份输出里紧邻的行是
             //   `[Item] [StartItems] 起始装备已应用 … 装备槽 = 【Weapon:标枪×1, Shield:圆盾×1】`
@@ -1341,7 +1293,6 @@ namespace FullCheck
             Check("`Events.UnequipRequest` 转发到 `IItemModule.Unequip`（槽非空 ⇒ 真卸下；空槽 ⇒ 只 Warn 不崩）",
                 _log.Contains("卸下装备失败") || _log.Contains("卸下「"), $"背包快照格数={invBackup.inventory.Count}");
 
-            // ★ 片 assert-audit：原文案「无契约能力 ⇒ 明确 Warn」**已过期**（片 G1 起
             //   `AppEventRouting.OnMoveInInventoryRequest` 真的转发到 `IItemModule.MoveItem`）；
             //   原判据是硬编码 `true` ⇒ 无论转发链在不在都绿。改判**转发真的发生**：
             //   转发层的两条出口日志都带事件名 ⇒ 事件名出现次数必须 +1（只发事件、不转发 ⇒ 不增长）。
@@ -1428,14 +1379,11 @@ namespace FullCheck
         }
 
         /// <summary>
-        /// ★ 片 2b：选一只**活着且掉落表能在 `treasureclass_c` 里解析**的怪当击杀靶子。
         /// <para>存在的理由（不是为了让断言变绿，而是让断言测到它自己声明要测的东西）：
         /// 「击杀链 … 经验 + 掉落表」这条断言依赖 `DeathFlow` 真的调到 `IItemModule.DropLoot`
         /// （它会打 `[Item] DropLoot` 日志）；而 TC 名解析不了时 `DeathFlow` 会**合理地**提前返回
-        /// （「treasureclass_c 里找不到 TC … 本次不掉落」），与本片的改动无关。
-        /// 旧实现取「列表第一个存活怪」⇒ 结论随**刷怪组成**漂移（片 3 正在改
         /// `MonsterSpawner`/`MapGenWilderness`，实测它已经把 BloodMoor 的首怪变成 TC 名缺失的物种）。</para>
-        /// <para>⛔ 只改"选哪只怪"，断言判据一行未动；配表缺口另由 Step7 的 `[披露]` 行报出。</para>
+        /// <para>只改"选哪只怪"，断言判据一行未动；配表缺口另由 Step7 的 `[披露]` 行报出。</para>
         /// </summary>
         private static MonsterState FirstAliveWithLoot(AppContext ctx)
         {
@@ -1472,7 +1420,6 @@ namespace FullCheck
         }
 
         /// <summary>
-        /// ★ 判据资产修复（2026-09-24，team-lead 批准）：在怪周围找一个**可走**且**能通过生产形状闸门**
         /// 的近战站位（`MeleeShape` = 锥 ∧ 走廊 ∧ 线段通畅，与产品同一把尺子）。
         /// <para>
         /// 起因：原实现写死落点 `mon - dv`，实测它能落到**不可走**的格 ⇒ `PlayerModule` 降级到出生点
@@ -1483,7 +1430,7 @@ namespace FullCheck
         /// 候选 = 8 邻域里"玩家站上去后怪落在玩家正面扇形内"的格：偏移 = `+delta`，
         /// 按与朝向轴的夹角排序（0° → ±45°；±45° 也过闸门：cos=0.707 ≥ 0.5、沿轴 1.00 ≤ reach、垂距 1.00 ≤ 半宽），
         /// 同角按 dx,dy 升序（确定性）。全部不合格 ⇒ 退回 <paramref name="fallback"/> 并**打一行披露**
-        /// （⛔ 不把"找不到站位"伪装成"打不到"）。
+        /// （不把"找不到站位"伪装成"打不到"）。
         /// </para>
         /// </summary>
         private static Vector2Int FindMeleePosture(AppContext ctx, MonsterState mon, float fx, float fy,

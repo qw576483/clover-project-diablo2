@@ -1,30 +1,22 @@
 // ============================================================================================
 //  Assets/Editor/AssetImporter.cs —— D2 原版素材导入设置（AssetPostprocessor，按目录生效）
 //
-//  ⚠️ 铁律：**新增任何素材目录，必须回到本文件加一条规则**。
+//  铁律：**新增任何素材目录，必须回到本文件加一条规则**。
 //     漏加 = 新素材按 Unity 默认导入（双线性过滤 + 压缩 + mipmap）⇒ 8bit 调色板像素图糊掉，
-//     **而且不报任何错**（静默失败）。依据：tools/ai-skill/constraints.md #9。
 //
 //  生效目录（其余目录一律不碰）
 //    Assets/Resources/Clover/D2/**          像素图通用参数：Point / Sprite / PPU=64 / 无压缩 / 无 mipmap / Clamp
 //    Assets/Resources/Clover/D2/UI/**        SpriteImportMode = Single（单帧底图）
-//                                            ★ 例外：MultiFrameStrips 登记的多帧条带 ⇒ Multiple + 实测帧矩形
-//                                            ★ 新增子目录（片 1 / 片 4）无需改本文件：`D2/UI/**` 是前缀规则，
-//                                              `UI/SkillTree/` `UI/Quest/`（片 1）与
-//                                              `UI/FrontEnd/{cls}/`（片 4 职业半身像三态 NU1/NU2/NU3，
-//                                               118×198 ~ 131×234 单帧 PNG）、
-//                                              `UI/Logo/`（片 4 标题 logo，319×177 单帧 PNG）
+//                                            例外：MultiFrameStrips 登记的多帧条带 ⇒ Multiple + 实测帧矩形
 //                                              **自动吃到同样参数**（Point 过滤 / Sprite / PPU=64 / 无压缩 /
 //                                              无 mipmap / Clamp / maxTextureSize 4096）。
-//                                              ★ 片 4 复核（实测，不是推断）：这两批 PNG 的尺寸（最长边 234）
 //                                                远小于 4096，且都在 `D2UiDir` 前缀下 ⇒ **本文件无需新增规则**；
 //                                                判据 = 本文件 `OnPreprocessTexture` 的
 //                                                `assetPath.StartsWith(D2UiDir)` 分支先命中，
 //                                                再看文件名是否在 `MultiFrameStrips` 表里（两批都**不在**表里）
 //                                                ⇒ 落到 `SpriteImportMode.Single`，正是我们要的。
-//                                              ⛔ 铁律不变：**只有 `D2/` 下新建"顶层"目录才必须回来加规则**。
+//                                              铁律不变：**只有 `D2/` 下新建"顶层"目录才必须回来加规则**。
 //    Assets/Resources/Clover/D2/Fonts/**     SpriteImportMode = Multiple + 按实测格子逐字形切分
-//                                            ★ 例外（片 1）：`*_chi.png` = 中文位图字体**整幅图集**
 //                                              （13806 帧/张，格子 13/19/24/37px，列数见生成器输出），
 //                                              **暂按 Single 导入** —— 帧→字符映射虽已拿到
 //                                              （`tools/d2codec/export_d2ui.py --only chifont` 同时导出
@@ -40,8 +32,6 @@
 //    m_CharacterRects（256 条 uv 矩形）里。本文件把这些 uv 反算成像素格子，结果见 FontGrids 表与
 //    client/_dev/assetreport.txt（含每个字形的原始矩形与行距）。
 //
-//  多帧条带（一个 png 里并排 N 帧）—— ★ agent-10 修复：原逻辑把下面 5 张按 Single 导入，
-//  「整幅 1024x64 当一张图」⇒ UI 侧根本取不到单帧。现改为 Multiple + **逐帧实测**矩形：
 //    Panel/buysellbtn.DC6.0.png  1024x64  22 帧
 //    Panel/goldcoinbtn.dc6.0.png   64x32   2 帧
 //    Panel/overlap.png            256x128   2 帧
@@ -79,7 +69,6 @@ namespace Diablo2.Editor
     /// </summary>
     /// <remarks>
     /// 类名不叫 <c>AssetImporter</c>：避免与 <see cref="UnityEditor.AssetImporter"/> 同名冲突
-    /// （文件名按任务书要求仍为 <c>AssetImporter.cs</c>）。
     /// </remarks>
     public sealed class D2AssetImporter : AssetPostprocessor
     {
@@ -90,9 +79,8 @@ namespace Diablo2.Editor
         private const string ArchiveRoot = "Assets/ThirdParty/Diablo2/";
 
         // ── 导入参数 ──
-        // 契约：Core/GameConst.PixelsPerUnit = 64（docs/步骤文档.md §3.5）。
         // 刻意不引用 Diablo2 程序集的 GameConst：Editor 侧不依赖业务程序集（conventions.md 目录边界）。
-        // ⚠️ 两处同值，改一处必须同步另一处。
+        // 两处同值，改一处必须同步另一处。
         private const int PixelsPerUnit = 64;
         private const int MaxTextureSize = 4096; // 最大的是 font42 = 1024²，留余量
         private const int MaxTextureSizeChiFont = 8192; // ★ 片 1：中文位图字体图集（font42_chi = 4366×4329）
@@ -157,7 +145,6 @@ namespace Diablo2.Editor
             new NineSliceSpec("ExperienceBar.png", Vector4.zero),
         };
 
-        // ★★★ agent-10 新增：横向多帧条带（一个 png 里并排 N 帧）的切分参数 ★★★
         //  帧矩形全部**实测**（见文件头「实测依据」）；改表必须重跑 tools/buildcheck/frame_probe.py。
         //  取帧方式（UI 侧）：`Resources.LoadAll<Sprite>("Clover/D2/UI/Panel/buysellbtn.DC6.0")`
         //  拿到全部帧；或按子资源名 `{文件名}_{帧号}` 逐帧取（与字体图集同口径，
@@ -259,7 +246,6 @@ namespace Diablo2.Editor
 
             if (inRuntime && assetPath.StartsWith(D2FontsDir, StringComparison.Ordinal))
             {
-                // ★ 片 1：中文位图字体整幅图集（`font{N}_chi.png`）—— 按 Single 导入 + 放宽尺寸上限。
                 //   必须排在字体切分分支**之前**：它不在 FontGrids 表里，走下面会打一条"未登记切分参数"
                 //   的 Warn（误导：那是**有意**不登记），且 4366×4329 的图会被 4096 上限**降采样**（糊，不报错）。
                 if (IsChineseFontAtlas(assetPath))
@@ -275,7 +261,6 @@ namespace Diablo2.Editor
                 return;
             }
 
-            // ★ agent-10 修复点（唯一一处逻辑改动）：多帧条带 ⇒ Multiple + 实测帧矩形。
             //   必须排在下面通用 Single 分支**之前**：按 Single 导入时整幅 1024x64 被当成一张图，
             //   UI 侧取不到单帧（且**不报任何错**）。
             StripSpec strip = FindStrip(assetPath);
@@ -410,7 +395,7 @@ namespace Diablo2.Editor
                 int col = i % spec.Cols;
                 int row = i / spec.Cols; // 图集是自顶向下、自左向右逐字形打包的
 
-                // ★ 行号 → Unity 矩形：Unity 的 sprite 矩形 y 轴自底向上，必须翻 y。
+                // 行号 → Unity 矩形：Unity 的 sprite 矩形 y 轴自底向上，必须翻 y。
                 //   忘了翻会整表上下错位，而且"看起来也像对的"，很容易蒙混过去。
                 var rect = new Rect(
                     col * spec.CellW,
@@ -511,8 +496,6 @@ namespace Diablo2.Editor
         }
 
         /// <summary>
-        /// 是否是**中文位图字体整幅图集**（`font{N}_chi.png`，片 1 由
-        /// `tools/d2codec/export_d2ui.py --only chifont` 产出）。
         /// 命名口径与生成员一致（`UI/../Fonts/font16_chi.png` 这类）；判据只用文件名，够稳。
         /// </summary>
         private static bool IsChineseFontAtlas(string assetPath)

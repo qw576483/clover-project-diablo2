@@ -1,5 +1,4 @@
 // =============================================================================
-// travelblack_drive.cs -- 片 travel-black 的实机取证 + 定案驱动
 //   （主题：**传送落地整屏黑** 是不是"整图重铺窗口"，以及窗口有多长）
 //
 //   WHY: play-verify 已证明传送逻辑全绿（`CHK ... area 0->1 ok=1`），但落地那张图
@@ -7,17 +6,15 @@
 //        钉到 MapView 的 T0FIX-H 分帧双缓冲，但**从未量过"落地那一刻"**：
 //          · 是**旧区画面**撑不到新相机位置（交换前就黑）？
 //          · 还是**交换那一刻**新集不含相机可见块（交换后才黑）？
-//        两者修法完全不同 ⇒ 必须先分帧量出来，⛔ 不许猜。
 //
 //   WHAT IT DOES（boot 链 = **复用** mapborder2_drive.cs / automap_drive.cs 的既有写法；
-//                 读数反射 = **复用** chunkhole_probe.cs 的同名字段口径，⛔ 不从零写）：
+//                 读数反射 = **复用** chunkhole_probe.cs 的同名字段口径，不从零写）：
 //     ① 反射把 FSM 走到 Stage（`_roster` Load 第 1 个存档 → `_selected` → `GoStage(Town)`）；
 //     ② 等地图生成（`WalkableCount>0` 且 `Ctx.Player != null`）；
 //     ③ 探针把目标区域塞进 `AppWaypoint.Visited`（否则面板/请求都会拒绝"未激活目的地"，
 //        这一段**只改探针侧静态集合**，产品代码一词不动；日志记 `PROBE-VISITED-ADD`）；
 //     ④ `MoveCommand(锚点)` 走过去 ⇒ 面板开（玩家真实路径）；
 //     ⑤ 发 `Events.WaypointTravelRequest(dest)` —— 与面板按钮**同一个事件**（AppWaypoint 收它才发
-//        `ExitEntered`）；⛔ 未做真鼠标点击（那条链已由 play-verify 实机证绿，本片要的是落地读数）；
 //     ⑥ **落地那一帧起**逐帧采样（8 s 或直到 `job=null && missAct=0` 且三张图都拍完）：
 //        `job/idx/chunks` · `ground/bufGround/pending/retire` · 期望可见块范围（与生产同公式）
 //        · `actCov`（可见块里**当前生效集**已建的块数）· `bufCov`（缓冲集）· `missAct`（屏上没块的块数）
@@ -25,9 +22,7 @@
 //     ⑦ 三张图：落地帧（+0s）/ +0.5s / +2.0s（`ScreenCapture.CaptureScreenshot`）。
 //
 //   判据（**动手前**就定死）：
-//     · 若"交换前"就有若干帧 `actCov=0` ⇒ 根因 = **旧区画面撑不到新相机位置**（旧图范围与新区不符）；
 //     · 若"交换那一帧"起 `actCov` 从 total 掉到 0、随后靠 `pending`/逐块补齐爬回 ⇒
-//       根因 = **交换后的新集不含相机可见块**（登记范围是**落地前**那台相机算出来的）；
 //     · 若两者都不成立而仍黑 ⇒ 如实写"假设不成立 + 测到的东西"。
 //
 //   Entry: TBlackDrv.Api.Go(spec)   spec = "<outDir>|<tag>"
@@ -108,7 +103,7 @@ namespace TBlackDrv
             var go = new GameObject("TravelBlackDrvHost");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<Host>();
-            // ★ 落地判据 = `Events.AreaChanged`（= AppFlow 换区的**第二拍**那一帧）。⛔ 不能用"玩家格变了"——
+            // 落地判据 = `Events.AreaChanged`（= AppFlow 换区的**第二拍**那一帧）。不能用"玩家格变了"——
             //   走到传送点锚点那一格也会让玩家格变（第一版就是这么被带偏的）。
             try
             {
@@ -217,7 +212,7 @@ namespace TBlackDrv
             Emit(Diablo2.Core.Events.WaypointTravelRequest, dest);
 
             // ⑦ 落地帧起逐帧采样。
-            //    ★ 两拍切换：`map.Area` 在第一拍（生成+登记重铺）就变了，但玩家/相机**第二拍才挪**
+            //    两拍切换：`map.Area` 在第一拍（生成+登记重铺）就变了，但玩家/相机**第二拍才挪**
             //      ⇒ "落地"必须按**玩家格跳变**判（否则把旧区画面当落地画面）。
             var t3 = Time.realtimeSinceStartup;
             var phase1 = false;
@@ -499,7 +494,7 @@ namespace TBlackDrv
         }
 
         /// <summary>
-        /// 集合里的块号集合。⚠️ `Dictionary` 直接枚举出来的是 `KeyValuePair`（不是键）⇒ 必须走 `IDictionary.Keys`；
+        /// 集合里的块号集合。`Dictionary` 直接枚举出来的是 `KeyValuePair`（不是键）⇒ 必须走 `IDictionary.Keys`；
         /// `Queue&lt;Vector2Int&gt;` 直接枚举就是元素。（第一版漏了这一条，`actKeys=0@-` 与 `actCov=0` 全是假读数。）
         /// </summary>
         private static List<Vector2Int> Keys(object o, string name)

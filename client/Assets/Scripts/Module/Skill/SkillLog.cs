@@ -2,17 +2,16 @@
 // Diablo2 · Module/Skill/SkillLog.cs
 // 技能模块的**统一日志入口**（tag 固定 = `Skill`，在 `Core/Log.cs` 的白名单内）。
 //
-// ★★ 降频设施已**收敛到引擎**（本片 d2-log）：`WarnOnce` / `ErrorOnce` / `WarnThrottled` 的状态与闸门
 //    全部交给 `CloverEngine.LogThrottle`，本文件**不再自持任何 `HashSet` / `Dictionary`**：
 //      · `WarnOnce` / `ErrorOnce` ⇒ `LogThrottle.ShouldLog(key, float.PositiveInfinity)`（只报一次）；
 //      · `WarnThrottled`          ⇒ `LogThrottle.ShouldLogEvery(key, ThrottleEveryN)`（计数口径降频）。
 //    `WarnOnce` 与 `ErrorOnce` 在引擎表里**共用同一个 key**（`Skill/` + key）—— 与原实现共用同一个
 //    `OnceDone` 集合的行为一致（同一个 key 先 Warn 过，之后的 Error 也不再出）。
 //    离线宿主安全性由引擎保证（`Runtime/Core/LogThrottle.cs`：三级时钟、永不抛异常、自动降级），
-//    故本文件可以直接委托；要确定性计时请注入 `Log.Clock`（⛔ 本层不自行改全局时钟）。
+//    故本文件可以直接委托；要确定性计时请注入 `Log.Clock`（本层不自行改全局时钟）。
 //    逐条理由 / 两处语义差异（计数间隔改为"第 1 次 + 之后每 100 次"、行尾不再补 `（第 N 次）`）见
 //    `Module/Combat/CombatLog.cs` 文件头，不在此重复。
-// ⛔ 禁止裸 `Debug.Log`。
+// 禁止裸 `Debug.Log`。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -89,7 +88,7 @@ namespace Diablo2.Module.Skill
         }
 
         /// <summary>
-        /// 清空降频记录。⚠️ 引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>）⇒ 其他模块的限频
+        /// 清空降频记录。引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>）⇒ 其他模块的限频
         /// 记录会一并被清（各自的"只报一次"重新生效一次）。**无玩家可见影响**：只影响日志密度，
         /// 不触碰游戏状态 / 数值 / 存档。
         /// </summary>

@@ -2,7 +2,6 @@
 // Diablo2 · Module/Item/ItemModule.cs
 // 物品门面实现：**掉落 / 拾取 / 背包 / 装备 / 腰带 / 金币 / 修理 / 词缀**。
 //
-// 装配契约（`docs/agents/_common.md` §3.5）：`internal sealed class ItemModule : IItemModule`，
 //   无参构造 ⇒ `AppContext.AutoWire()` 能反射实例化。
 //
 // 依赖获取方式（**不许 using 别的模块的具体类型**）：
@@ -49,8 +48,6 @@ namespace Diablo2.Module.Item
         /// 内的地面物品才算"点了那件物品"。**本项目新增的手感参数**（原版是"点哪件就捡哪件"，
         /// 本项目点击只有 `Events.MoveCommand` 一种落点 ⇒ 用容差把"点了物品"识别出来）。
         /// <para>
-        /// ★ 2026-09-23（N1 同族）：口径由**欧氏**改成 **Chebyshev**（`GroundItems.Nearest` 内部走
-        /// `Iso.GridDistance`）。原来 `1.0` 格欧氏会把**斜邻**（√2 ≈ 1.414）排除在外 ⇒ 一个 2×2 的
         /// 物品铺在 4 格里，**点它右下角那格**（与锚点斜对角）识别不到。现在四角都能点中，且**没有**
         /// 放宽成"任意格"（>1 格仍然不认，见 `GroundItems.Nearest` 的比较）。
         /// </para>
@@ -100,7 +97,6 @@ namespace Diablo2.Module.Item
             // ⇒ 本模块用 `MoveCommand` 的落点识别"点了哪件物品"，走到位后自动拾取一次。
             // 若将来 Input/UI 补上 `PickupRequest`，两条路径并存且不冲突（本路径只对"新点击"生效一次）。
             bus.On<Vector2Int>(Events.MoveCommand, OnMoveCommand);
-            // ★ 双武器组（本轮新增）：原版 W 键切武器组 —— 读键在 `Module/Input/InputReader`
             //   （`SwapWeaponPressed`，键位唯一来源 `Def/GameKeyAlias.KeySwapWeapon`），
             //   `Module/Player` 发本事件 ⇒ 装备数据的持有方（本模块）在这里改状态。
             //   与腰带数字键同一条路子（`Events.UseBeltRequest` 的收方也是本模块）。
@@ -130,11 +126,10 @@ namespace Diablo2.Module.Item
         /// <summary>
         /// **当前生效的装备集**（= `Equipment.ToActiveList()`：双武器组只含**生效组**那把武器）。
         /// <para>
-        /// ⚠️ **本轮语义收紧（T0 缺口 2 的另一半，必须在此说明白）**：原先返回"全部已装备物品"，
         /// 导致 `Module/Combat/CombatModule.GetWeaponDamage`（**唯一的生产消费方**，`CombatModule.cs:222-230`）
         /// 把两把武器的 `dmgMin/dmgMax` **相加** ⇒ 切武器组时基础伤害**不变**（"背着两把武器 = 两把伤害之和"）。
         /// 原版只有当前那一套武器生效，所以这里改成"生效集"。
-        /// ⛔ **签名未动**（仍是 `IReadOnlyList&lt;ItemStack&gt; Equipment { get; }`）；**写档不受影响**
+        /// **签名未动**（仍是 `IReadOnlyList&lt;ItemStack&gt; Equipment { get; }`）；**写档不受影响**
         /// （`WriteTo` 用的是内部 `_equip.ToList()` 全集 ⇒ 两套都存得下、切组切得回来）；
         /// `GetRepairAllCost` 同样走内部全集 ⇒ 备用组的耐久照旧能修。
         /// 全部消费方已逐一核对：生产代码里只有 Combat 一处（见上），其余是自检宿主与一次性驱动。
@@ -166,7 +161,7 @@ namespace Diablo2.Module.Item
         /// <summary>
         /// 背包 / 装备 / 腰带 / 金币快照（`Events.InventoryChanged` / `Events.EquipChanged` 的参数）。
         /// <para>
-        /// ★ 双武器组：`equip` 取的是 <see cref="Equipment.ToActiveList"/>（**去掉了非生效组的武器**）——
+        /// 双武器组：`equip` 取的是 <see cref="Equipment.ToActiveList"/>（**去掉了非生效组的武器**）——
         /// 目的有二：① `PlayerStats.ApplyEquipment` 据此只算**当前那一套**武器的词缀（否则背着两把
         /// 武器会双倍加成）；② `UI/InventoryPanel` 的右手槽（`rarm`）据此显示**当前生效**的那把武器
         /// ⇒ 切组有可见反馈。存档写盘走的是 `WriteTo`（**全集**，不受此处影响）。
@@ -183,7 +178,6 @@ namespace Diablo2.Module.Item
             };
         }
 
-        // ── 双武器组（原版 W 键；★ 本轮新增，T0 判据缺口 2）────────────────────────
 
         /// <summary>当前生效的武器组下标（0 = Ⅰ组 / 1 = Ⅱ组；非契约入口，供自检/UI 取用）。</summary>
         public int ActiveWeaponGroup => _equip.ActiveWeaponIndex;
@@ -255,9 +249,8 @@ namespace Diablo2.Module.Item
 
         /// <summary>
         /// 按掉落表生成一批掉落（怪物死亡时由 `Module/Combat/DeathFlow` 调用）。
-        /// ⚠️ 契约签名是 `int treasureClassId`，而 `treasureclass_c` 主键是字符串 ⇒
+        /// 契约签名是 `int treasureClassId`，而 `treasureclass_c` 主键是字符串 ⇒
         /// **口径 = `Tables.Default.Treasureclass.All()` 的 1 基行序**，与唯一真实调用方
-        /// agent-07 `DeathFlow.TreasureClassIdOf()` 完全一致（`DeathFlow.cs:227-243`，已逐行核对）。
         /// 无效值 Warn + 按等级退回兜底 TC（不让怪变得不掉东西）。
         /// </summary>
         public void DropLoot(int treasureClassId, int monsterLevel, Vector2Int grid, Rng rng)
@@ -312,12 +305,10 @@ namespace Diablo2.Module.Item
             var p = Player;
             if (p != null)
             {
-                // ★ 2026-09-23（N1，阻断级缺陷修复）：判定口径 = **格邻接（Chebyshev ≤ 1，含 8 邻域）**，
-                //   ⛔ 不再是欧氏阈值 `GameConst.PickupRange = 1.4`（< √2≈1.41421 ⇒ **四个斜角 100% 捡不到**，
-                //   实测日志见 `.ai-tmp/test/report-inspect.md` §1 N1）。
+                //   不再是欧氏阈值 `GameConst.PickupRange = 1.4`（< √2≈1.41421 ⇒ **四个斜角 100% 捡不到**，
                 //   为什么用 Chebyshev：① 原版就是"相邻格（含斜角）可拾取"；② 本项目"最近可走格回退"
                 //   （`Module/Player/PlayerModule`）与 `Iso.IsAdjacent` 本来就是同一套 8 邻域口径。
-                //   ⛔ **不是**"任意格都能远程拾取"：Chebyshev ≥ 2 一律拒绝（含斜向 2 格）。
+                //   **不是**"任意格都能远程拾取"：Chebyshev ≥ 2 一律拒绝（含斜向 2 格）。
                 if (!Iso.IsAdjacent(p.Grid, cell))
                 {
                     var steps = Iso.GridDistance(p.Grid, cell);
@@ -363,8 +354,8 @@ namespace Diablo2.Module.Item
 
         /// <summary>
         /// 拾取离某格最近、且在范围内的物品。
-        /// <para>★ 2026-09-23（N1）：<paramref name="maxRange"/> 的口径 = **Chebyshev 格数（八向步数）**，
-        /// 与 <see cref="Pickup"/> 的格邻接判定一致（斜邻 = 1 格）；⛔ 不是欧氏距离。
+        /// <para><paramref name="maxRange"/> 的口径 = **Chebyshev 格数（八向步数）**，
+        /// 与 <see cref="Pickup"/> 的格邻接判定一致（斜邻 = 1 格）；不是欧氏距离。
         /// 传 `GameConst.PickupRange`（1.4）或 1.0 都等价于"8 邻域"。</para>
         /// </summary>
         public bool PickupNearest(Vector2Int grid, float maxRange)
@@ -420,7 +411,6 @@ namespace Diablo2.Module.Item
         }
 
         /// <summary>
-        /// **背包内移动/交换**（★ 片 G1 新增，修用户报的「道具没法拖动！」）。
         /// 落地实现 = `Inventory.Move`（摘下来 → 试放 → 不成就按原格位放回）。
         /// 失败**不改动任何格**并把原因写进 <paramref name="failReason"/>（调用方用同一句做 Toast）。
         /// </summary>
@@ -436,7 +426,6 @@ namespace Diablo2.Module.Item
 
             EmitInventoryChanged();
 
-            // ★ 防作弊口径（任务书）：走后**总件数必须不变**（不许把物品复制出两份/drop 掉一件）
             var after = CountAnchors();
             if (after != before)
             {
@@ -512,7 +501,7 @@ namespace Diablo2.Module.Item
                 }
             }
 
-            // ★ 双武器组：刚装上的这把武器 = 玩家此刻要用的那一把 ⇒ **生效组切到它所在的组**
+            // 双武器组：刚装上的这把武器 = 玩家此刻要用的那一把 ⇒ **生效组切到它所在的组**
             //   （另一把自动成为备用组：其词缀不再计入派生属性，见 `Equipment.ToActiveList`）。
             //   为什么让"生效组跟着新武器走"而不是固定组 0：本项目的 `Equipment.TryEquip` 是
             //   "填第一个空位"（不换下已有武器）⇒ 不跟着走的话，"装上第二把武器后画面没任何变化"，
@@ -701,18 +690,18 @@ namespace Diablo2.Module.Item
             _inv.LoadFrom(save.inventory);
             _equip.LoadFrom(save.equip);
 
-            // ★ 起始装备（配表 `start_item_c` ← 官方 charstats.txt 的 item1..item10）：
+            // 起始装备（配表 `start_item_c` ← 官方 charstats.txt 的 item1..item10）：
             //   **刚创出来、还什么都没发过的角色**（见 `StartItems.IsFreshDraft`：等级 ≤ 1 + 装备栏空
             //   + 背包无锚点 + 腰带全空）在这里按职业补上 —— 原版 D2 新角色自带「武器（+ 盾）+ 药水 + 卷轴」，
             //   否则新角色徒手打不动怪（用户实测反馈）。落位复用本模块的 `Inventory` / `Equipment`
-            //   （⛔ 不另写格子算法）；装配结果由 `WriteTo` 落档（`AppFlow.OnCharCreateSubmit`
+            //   （不另写格子算法）；装配结果由 `WriteTo` 落档（`AppFlow.OnCharCreateSubmit`
             //   在写档之前调这条链），到达 `Stage` 时读的是**已有装备的档** ⇒ 不会重复发。
             if (StartItems.IsFreshDraft(save)
                 && _equip.Items.Count == 0 && StartItems.CountAnchors(_inv) == 0)
             {
                 StartItems.ApplyInto(_equip, _inv, save.cls, save.name);
             }
-            // ★ 双武器组：恢复生效组。**向后兼容**：旧档 JSON 里没有 `activeWeaponIndex` 字段
+            // 双武器组：恢复生效组。**向后兼容**：旧档 JSON 里没有 `activeWeaponIndex` 字段
             //   ⇒ `SaveJson.TryParse` 读缺字段取默认值 **0（= Ⅰ组）**，不抛异常、读档照常成功；
             //   越界（存档被手改 / 武器被卸掉）由 `Equipment.SetActiveWeapon` 钳制 + Warn 一次。
             _equip.SetActiveWeapon(save.activeWeaponIndex);
@@ -730,7 +719,7 @@ namespace Diablo2.Module.Item
             Game.Event?.Emit(Events.EquipChanged, Snapshot());
             Log.Info("Item", $"读档：背包锚点 {CountAnchors()} 个 / 装备 {_equip.Items.Count} 件 / "
                 + $"腰带 {_belt.Slots.Count} 格 / 地面物品已清 {_ground.Count}");
-            // ★ 双武器组：读档口径**逐行写清**（旧档兼容是硬要求 ⇒ 每次读档留一条 Info，不是只在异常时留）
+            // 双武器组：读档口径**逐行写清**（旧档兼容是硬要求 ⇒ 每次读档留一条 Info，不是只在异常时留）
             Log.Info("Item", $"[SwapWeapon] 读档恢复武器组：生效 = {GroupName(_equip.ActiveWeaponIndex)} 组"
                 + $"（存档字段 activeWeaponIndex={save.activeWeaponIndex}，共 {_equip.WeaponCount} 件武器）；"
                 + "**旧档没有该字段 ⇒ 默认 0 = Ⅰ组**（`SaveJson` 缺字段取默认值，不抛异常）");
@@ -941,7 +930,6 @@ namespace Diablo2.Module.Item
                 _pendingPickupId = -1;                       // 已被别人捡走
                 return;
             }
-            // ★ 2026-09-23（N1 同族）：与 `Pickup` 同一口径 —— Chebyshev ≤ 1（八向步数），不是欧氏阈值。
             if (!Iso.IsAdjacent(p.Grid, cell)) return;
 
             var id = _pendingPickupId;

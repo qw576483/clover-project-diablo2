@@ -31,7 +31,6 @@ import os
 import sys
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else r"c:\Work\Server\f-v2\clover-project-diablo2"
-# team rule 2026-09-24 (shopart's trap): every path below is derived from ROOT, and this script
 # WRITES => a relative ROOT silently writes into whichever tree the process CWD points at (from the
 # workspace root that is `c:\Work\Server\f-v2\.ai-tmp\test\`). Refuse instead of guessing.
 if not os.path.isabs(ROOT):

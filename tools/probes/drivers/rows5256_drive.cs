@@ -236,7 +236,6 @@ namespace RS
         }
     }
 
-    /// <summary>Public one-shot entries (run_script --entry RS.Api.XXX).</summary>
     public static class Api
     {
         public static string Ping() { return "PONG frame=" + Time.frameCount; }

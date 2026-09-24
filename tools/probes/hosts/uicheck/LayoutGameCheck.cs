@@ -1,16 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// UI 自检宿主 · 游戏内面板布局断言（agent-09 · 1:1 轮）
 //
-// 为什么单独一个文件：`Program.cs` 是 §A（流程面板）与 §B（游戏内面板）**共用**的，
-// 两边都在动它 ⇒ 把 §B 的全部断言收在本文件里，`Program.cs` 只多一行调用，
 // 把并发写冲突面压到最小。
 //
-// ★ 判据（`docs/agents/agent-15-UI一対一复刻.md` §0 + §B；2026 主 agent 裁决：×1.8 → **×1.8 居中**）：
 //   ① **每个元素 == 原版 prefab 的精确 RectTransform 值 × 1.8**（下面把原版值**硬编码进断言**，
 //      不是"拿我们的常量去比我们的常量"）；
 //   ② HUD 图元**两两不重叠**、格子总数 = 40、装备槽 = 10；
 //   ③ 面板在该在的那半边（背包贴中线右侧、属性贴左侧 —— 原版 `m_Pivot` 决定）；
-//   ④ **HUD 控制面板底边贴画布底边、不出屏**（原版在宽屏下的做法；旧 E5 的根因）。
 //
 // 依据文件（原版 `Diablerie/Assets/Prefabs/`，脚本逐节点解析，非肉眼估）：
 //   ControlPanel.prefab / InventoryPanel.prefab / CharstatPanel.prefab /
@@ -58,7 +53,7 @@ namespace Uicheck
         /// <summary>
         /// 两个矩形是否分离。
         /// <para>
-        /// ⚠️ 带 `TouchEps` 容差：技能树的行距 = 图标高 48×1.8 ⇒ **相邻两行恰好相接**
+        /// 带 `TouchEps` 容差：技能树的行距 = 图标高 48×1.8 ⇒ **相邻两行恰好相接**
         /// （`a.yMax == b.yMin`）。而 `48f*1.8f` 的浮点结果让两侧差 1e-4 量级 ⇒ 不给容差会把
         /// "恰好相接"判成"重叠"（假阳性）。相接不算重叠。
         /// </para>
@@ -75,7 +70,6 @@ namespace Uicheck
             Console.WriteLine($"{(ok ? "[ OK ]" : "[FAIL]")} {what}   ({detail})");
         }
 
-        /// <summary>跑完全部 §B 布局断言。</summary>
         public static void Run()
         {
             CheckScale();
@@ -109,7 +103,6 @@ namespace Uicheck
             Check("HUD 控制面板中心 y = (原版 pos.y −21.3 + 高 80 + 贴底抬升 21.3) ×1.8 − 540 = −396",
                 Near(HudPanel.PanelBgPos.y, BottomY(-21.3f + 80f)) && Near(HudPanel.PanelBgPos.x, 0f),
                 HudPanel.PanelBgPos.ToString());
-            // ★★ hud-redo2 改判据（**实测驱动**，2026-09-23）：
             //   旧判据「图框底边 == 画布底边」是错的 —— 它逼着 `HudBaseLift = 21.3`，
             //   而实测（`python .ai-tmp/test/hudredo/measure_art.py`）`ControlPanel.png` 的
             //   **不透明内容只到第 138 行**（139..159 行 alpha 全 0）⇒ 图框底部那 21.3px 本来就透明，
@@ -122,7 +115,7 @@ namespace Uicheck
                 $"rect 底边 y = {HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f:0.###}"
                 + $"（画布底边 −540；期望 −540−38.34）; 内容底 = "
                 + $"{HudPanel.PanelBgPos.y - HudPanel.PanelBgSize.y * 0.5f + (160f - 138f) * K:0.###}");
-            // ★★ hud-redo2：旧判据「整体在画布内」在 `HudBaseLift = 0` 下必然为假（rect 底边低 38.34，
+            // hud-redo2：旧判据「整体在画布内」在 `HudBaseLift = 0` 下必然为假（rect 底边低 38.34，
             //   因为底图自己那 21.3 行是透明的）⇒ 改成两条**可判的**判据：
             //   ① 水平方向整个在画布内（948×1.8 = 1706.4 ≤ 1920，左右各留 106.8）；
             //   ② 垂直方向**越出量正好等于底图的透明尾巴**（21.3×1.8 = 38.34，容差 0.5）。
@@ -152,12 +145,11 @@ namespace Uicheck
                 NearV(HudPanel.RightSkillPos, new Vector2(-192.2f * K, BottomY(35.5f))),
                 HudPanel.RightSkillPos.ToString());
 
-            // ★ w3 审计改口径（**不是放宽**：从"照 prefab 节点 sizeDelta"改成"照素材原生尺寸 ×1.8"）：
+            // w3 审计改口径（**不是放宽**：从"照 prefab 节点 sizeDelta"改成"照素材原生尺寸 ×1.8"）：
             //   原版这张底图（`Panel/minipanel.png`）实测 **173×26**，而 `ControlPanel.prefab` 的
             //   `ImageMinipanel` 节点写 152×26 ⇒ 照 152 贴会把图**水平压到 87.9%**（垂直不动）＝ 非等比拉伸，
             //   且同批的 7 个按钮（20×20 原生）是按 ×1.8 摆的 ⇒ 一块 HUD 上两种水平比例。
             //   判据 = 本次审计统一口径「控件矩形 == 原版像素 ×1.8」（原版像素 = 素材自己的像素）。
-            // ★★ hud-redo（2026-09-23，用户新给**基准图**轮）：72.7 → **90**，依据 = 原版实机像素量。
             //   量法 `tools/probes/measure/hud_measure.py`（把"原版实机图"与"本项目实机图"都换算到
             //   `ControlPanel.png` 的 art 坐标系，artY 自面板顶量、PY 距画布底边）：
             //   原版基线 `策划/基线图/原版_实机_UI基准_20260923.png` 里这一排按钮的中心 PY =
@@ -170,7 +162,7 @@ namespace Uicheck
                 NearV(HudPanel.MiniPanelSize, new Vector2(173f * K, 26f * K))
                 && Near(HudPanel.MiniPanelY, BottomY(90f)),
                 $"{HudPanel.MiniPanelSize} @ y={HudPanel.MiniPanelY}（期望 {BottomY(90f)}）");
-            // ★ U3：**按钮数 7 → 8**。依据 = `minipanelbtn.DC6` 16 帧 = 8 对（常态/按下）
+            // U3：**按钮数 7 → 8**。依据 = `minipanelbtn.DC6` 16 帧 = 8 对（常态/按下）
             //   + `string.tbl` 的 8 条 `minipanel*` tooltip + `strpanel1..8`（见 UiLayoutGame.MiniButtonCount）。
             //   8 钮按 pitch 21 居中排 ⇒ 中心 ±10.5/±31.5/±52.5/±73.5（占宽 167 ≤ 173）。
             Check("小面板 = 原版 8 按钮 20×20、pitch 21 居中（±10.5..±73.5）、y 与底图同 ×1.8",
@@ -183,8 +175,7 @@ namespace Uicheck
                 && Near(HudPanel.MiniButtonX[1] - HudPanel.MiniButtonX[0], 21f * K),
                 string.Join(",", HudPanel.MiniButtonX));
 
-            // ★ 2026 修正（实测驱动，**不是为过而乱改**）：原版底图上画出来的**格内凹槽**是 27×25，
-            //   旧值 31×29 是「相邻格 pitch / 可见格高」，比原版格子大 15% ⇒ 图标会压格线。
+            // 2026 修正（实测驱动，**不是为过而乱改**）：原版底图上画出来的**格内凹槽**是 27×25，
             //   实测：竖分隔饰条 art x 613..616 / 644..647 / 675..678 / 706 ⇒ 格内宽 27；
             //        上/下沿 art y 86..88 / 114..116 ⇒ 格内高 25。
             Check("腰带 4 格 = 原版底图实测**格内凹槽 27×25** ×1.8（旧值 31×29 = pitch/可见高，偏大 15%）",
@@ -210,7 +201,6 @@ namespace Uicheck
             Check("跑/走按钮尺寸 = 原版 ImageExpBarLeft 子 Button 16×20 → ×1.8 = 28.8×36",
                 NearV(HudPanel.RunButtonSize, new Vector2(16f * K, 20f * K)),
                 HudPanel.RunButtonSize.ToString());
-            // ★ agent-27：**y 不再照 prefab 原值**。实测原版 `ControlPanel.prefab` YAML：
             //   跑/走按钮的父容器 `ImageExpBarLeft`(GO 1692291003419990) 与小面板开关的父容器
             //   `ImageExpBarRight`(GO 1161153139115278) 都是 **`m_IsActive: 0`**，参考工程
             //   `Scenes/Game.unity` 对这两个对象**没有 active 覆盖** ⇒ **原版 HUD 上看不到这两个按钮**。
@@ -232,7 +222,6 @@ namespace Uicheck
                 && Near(HudPanel.MiniPanelArrowPos.y, 14f * K - 540f),
                 $"{HudPanel.MiniPanelArrowSize} @ {HudPanel.MiniPanelArrowPos}");
 
-            // ★ agent-27：这两个「本项目保留的鼠标入口」**不得压在任何原版格子/球/经验条/小面板条上**
             {
                 var blockers = new List<(string name, Rect rect)>();
                 blockers.Add(("LeftSkill", RectAt(HudPanel.LeftSkillPos, HudPanel.SkillSlotSize)));
@@ -248,9 +237,8 @@ namespace Uicheck
                 blockers.Add(("LifeOrb", RectAt(HudPanel.LifeOrbPos, new Vector2(HudPanel.OrbSize, HudPanel.OrbSize))));
                 blockers.Add(("ManaOrb", RectAt(HudPanel.ManaOrbPos, new Vector2(HudPanel.OrbSize, HudPanel.OrbSize))));
 
-                // ★★ hud-redo2：这两个入口**默认隐藏**（`SetActive(false)`，画面上不存在）
+                // hud-redo2：这两个入口**默认隐藏**（`SetActive(false)`，画面上不存在）
                 //   ⇒ 它们的矩形**不参与本判定**（矩形相交对画面没有后果）。
-                //   为什么现在必须点明：`HudBaseLift` 归零（本片实测修正）后，经验条回到原版行
                 //   art y 129..133，而"空白条"（格带下沿 115 → 经验条上沿 129）只剩 **14 行**，
                 //   装不下 20 行高的按钮 ⇒ 旧抬升下"恰好不冲突"只是坐标巧合，不是设计。
                 //   ⇒ 判据 ①（本节）= 只判**会显示**的图元不压原版格子；
@@ -268,7 +256,7 @@ namespace Uicheck
                     hit.Count == 0, hit.Count == 0 ? "0 冲突（两个入口当前均隐藏）" : string.Join(", ", hit.ToArray()));
             }
 
-            // ★★ hud-redo2 新增：把「这两个入口是隐藏的」做成**源码断言**（把豁免换成判据）。
+            // hud-redo2 新增：把「这两个入口是隐藏的」做成**源码断言**（把豁免换成判据）。
             //   依据：`HudPanel.BuildRunButton()` / `BuildMiniPanelToggle()` 里各有一行
             //   `SetActive(false)`（带量化理由：素材上无处可放）。若谁把它们打开 =
             //   `RunButton×ExpBar`（盖经验条 16×4 原版px）与 `MiniArrow×ExpBar` 立刻成立
@@ -296,29 +284,27 @@ namespace Uicheck
 
             // 图元两两不重叠（底图本身包住全部元素 ⇒ 不参与两两判定）
             //
-            // ⚠️ **原版本身就重叠**的豁免（不豁免 = 把"照抄原版"判成 bug = 假阳性）：
+            // **原版本身就重叠**的豁免（不豁免 = 把"照抄原版"判成 bug = 假阳性）：
             //   ① `SkillPanel`（6 格技能栏）与 `ImageMinipanel` 的 7 个按钮：
             //      两者 art y 带完全重合（技能栏 art y 18.2..53.32；minipanel 子按钮 art y 73..93 附近
             //      —— 见原版 `ControlPanel.prefab` 的 `ImageMinipanel` pos(0,60)、按钮 20×20）⇒
             //      **原版 prefab 里就重叠**，不是我们的 bug；
-            //   （★ agent-27 已删掉旧豁免 ②「SkillBar0×RunButton / SkillBar4×MiniArrow」：
             //    那两个按钮的 y 已从 prefab 原值挪到格带下方的空白条 ⇒ 不再压技能格，
             //    豁免没必要了 —— 留着反而会掩盖回归。见 `UiLayoutGame.HudSubBarArtY`。）
             //
-            // ★★ U3 又删掉豁免 ①（`SkillBar×MiniBtn`）—— 同一条理由：底条 y 已改成
+            // U3 又删掉豁免 ①（`SkillBar×MiniBtn`）—— 同一条理由：底条 y 已改成
             //   「下沿贴住格带上沿」（origY 60 → 72.7，见 `UiLayoutGame.MiniPanelY`），
             //   实测 MiniBtn 底沿 = −388.8、SkillBar 顶沿 = −405.7 ⇒ **不再相交**
             //   ⇒ 豁免已无对象，留着只会掩盖"以后谁把底条挪回去"这种回归。
-            //   ⛔ 除下面一条外，HUD 图元仍是**零豁免**：任何一对相交都算失败。
+            //   除下面一条外，HUD 图元仍是**零豁免**：任何一对相交都算失败。
             //
-            // ★★ hud-redo2（2026-09-23）新增的唯一豁免：`RunButton×ExpBar` / `MiniArrow×ExpBar`。
             //   背景：`HudBaseLift` 由 21.3 改成 0（实测：底图底部 21px 本就是透明的，抬升会让屏幕
             //   底部露 39 画布px 场景）⇒ 经验条回到原版行 art y 129..133，而"空白条"只剩 14 行，
             //   装不下 20 行高的跑/走按钮 ⇒ 这两对矩形必然相交。**但这两个节点默认隐藏**
             //   （`SetActive(false)`）⇒ 画面上不存在、无任何视觉后果；
             //   且"它们确实隐藏"已被上一条 `HiddenEntriesStillHidden` 源码断言钉住。
-            //   ⛔ 谁把它们打开 ⇒ 那条断言先红 ⇒ 必须回来重解坐标（本条豁免不构成"随便相交"的许可）。
-            //   ⚠️ 豁免范围 = **凡是涉及这两个隐藏节点的对**（`RunButton×*` / `MiniArrow×*`）：
+            //   谁把它们打开 ⇒ 那条断言先红 ⇒ 必须回来重解坐标（本条豁免不构成"随便相交"的许可）。
+            //   豁免范围 = **凡是涉及这两个隐藏节点的对**（`RunButton×*` / `MiniArrow×*`）：
             //      `HudBaseLift` 归零后它们与 `ExpBar` 相交是必然（见上），而
             //      `SkillBar0×RunButton` / `SkillBar4×MiniArrow` 是同一个坐标巧合的另一面
             //      —— 只列其中几条会留下"改一个 y 就红、改另一个不红"的伪信号。
@@ -354,7 +340,7 @@ namespace Uicheck
                 && InCanvas(new Vector2(HudPanel.BeltCellX[3], HudPanel.BeltCellY),
                     new Vector2(HudPanel.BeltCellSize, HudPanel.BeltCellH)),
                 $"生命球 {HudPanel.LifeOrbPos}");
-            // ★ 2026 主 agent 裁决：改 ×1.8（按高）后 948×1.8 = 1706.4 **≤ 1920** ⇒ 控制面板横向不再越界，
+            // 2026 主 agent 裁决：改 ×1.8（按高）后 948×1.8 = 1706.4 **≤ 1920** ⇒ 控制面板横向不再越界，
             //   左右各留 106.8（这部分空间交给相机/背景，**不把 UI 横向拉伸**；原版 ×1.8 时 948*2.4=2275.2>1920 会越界）。
             Check("控制面板底图横向**不再越界**（948×1.8 = 1706.4 ≤ 1920）",
                 HudPanel.PanelBgSize.x <= UiArt.RefWidth
@@ -457,7 +443,6 @@ namespace Uicheck
                 !HasField(typeof(InventoryPanel), "BeltCell") && !HasField(typeof(InventoryPanel), "BeltY"),
                 "已按原版删除（见 InventoryPanel.cs 文件头 ④）");
 
-            // ★ agent-27：**物品按自身占格铺开**（用户报「背包里道具占格子还是不对」的判据）
             {
                 var r11 = InventoryPanel.ItemIconRect(new Diablo2.Def.ItemStack { gridW = 1, gridH = 1 });
                 var r24 = InventoryPanel.ItemIconRect(new Diablo2.Def.ItemStack { gridW = 2, gridH = 4 });
@@ -598,7 +583,7 @@ namespace Uicheck
                   && NearV(UiLayoutGame.CharDerivedSize, new Vector2(74.3f * K, 27.9f * K));
             ok &= NearV(UiLayoutGame.CharClosePos, new Vector2(-15.4f * K, -188.3f * K))
                   && NearV(UiLayoutGame.CharCloseSize, new Vector2(32f * K, 31f * K));
-            // ★ 2026 修正（**原断言 128.5 是过期的自造值**）：
+            // 2026 修正（**原断言 128.5 是过期的自造值**）：
             //   原版 `CharstatPanel.prefab` 里**根本没有加点箭头节点**（该 prefab 只有 CharName /
             //   四维 4 行 / 派生 4 行 / CloseButton / DefenseLabel —— 逐节点解析过，见本文件头「依据文件」），
             //   所以唯一依据是**底图** `D2/UI/Panel/charstat.png`(320×432)：四维行右侧的三角槽实测
@@ -646,7 +631,6 @@ namespace Uicheck
                 "右上凹槽 / 第二排中·右空框 / 右下两细框 / 左下空白区（本项目新增，原版 prefab 无这些行）");
 
             // 新增的 3 个空框必须在**面板内**（旧 CharTopRight 尺寸 150×26 时右端已到面板边缘，
-            // 加上那一串 12 字的文案就越出去了 —— 见 §U3 的实测）。
             Check("新增空框（右上凹槽 / 第二排中·右）都在面板矩形内",
                 InPanel(RectAt(CharacterPanel.PanelPos + UiLayoutGame.CharTopRightPos, UiLayoutGame.CharTopRightSize),
                     CharacterPanel.PanelPos, CharacterPanel.PanelSize)
@@ -658,7 +642,6 @@ namespace Uicheck
                 + $"中 {UiLayoutGame.CharBand2MidPos}、右 {UiLayoutGame.CharBand2RightPos}");
 
             // ═════════════════════════════════════════════════════════════════
-            // ③-b ★ U3（2026-09-24）：**数值列的 x 取自底图凹槽**（不是从标签矩形里切出来的）
             //
             // 出处 = `client/Assets/Resources/Clover/D2/UI/Panel/charstat.png`（320×432）
             //   **逐像素暗色连通域实测**（脚本 `tools/probes/measure/charstat_slots.py`，
@@ -682,9 +665,7 @@ namespace Uicheck
                 && Near(UiLayoutGame.CharRowTextDy, (27.9f - 18f) / 2f),
                 $"slotH={UiLayoutGame.CharRowSlotH} textDy={UiLayoutGame.CharRowTextDy:0.###}");
 
-            // ── 判据自检（**退化样本**，⛔ 不许恒真）─────────────────────────────
-            //   旧写法（`CharacterPanel` 改前）：数值 = 标签矩形中心 + 0.29×矩形宽
-            //   = −115.4 + 0.29×74.3 = −93.85（node）。若它与新值相等，这条断言就判不到列位。
+            // ── 判据自检（**退化样本**，不许恒真）─────────────────────────────
             var oldValueX = -115.4f + 0.29f * 74.3f;
             Check("退化样本：旧数值列（标签矩形 + 0.29×宽）≠ 底图数值隔间中心（判据真的在判列位）",
                 Math.Abs(oldValueX - UiLayoutGame.CharStatValueX) > 20f,
@@ -692,24 +673,18 @@ namespace Uicheck
                 + $"（差 {Math.Abs(oldValueX - UiLayoutGame.CharStatValueX):0.##} 原版px）");
 
             // ═════════════════════════════════════════════════════════════════
-            // ③-c ★ U3（2026-09-24）：**关闭命中区可见化**（主 agent 裁决，用户原话
-            //   「连关闭都没有」在这一格字面成立：旧实现把 CloseButton 的 alpha 写成 0
-            //   ⇒ 点得到、屏上完全看不见；实机放大图 `.ai-tmp/test/cs_zoom_bottom.png` 里
-            //   底图那个方形凹槽是空的）。
             //   本宿主（离线）判**构建口径**（面板实例要 Unity 运行时，判不到）：
             //     · 关闭节点必须用**可见的**兜底色（`UiArt.ButtonBg`，alpha 0.94 > 0.9）
-            //     · 必须有原版按钮帧 + 「关闭」文案（⛔ 不许自画 X）
+            //     · 必须有原版按钮帧 + 「关闭」文案（不许自画 X）
             //     · 几何仍是原版 prefab 的 32×31（上面已逐条断言）
-            //   运行时的 `alpha > 0.9` 由 Play 驱动的 `find_close` 判据补（见返回报告 §6）。
             // ═════════════════════════════════════════════════════════════════
-            // ★★ 2026-09-24 自纠（团队级教训：**假红 / 假绿**，主 agent 广播 + 我独立复核时抓到）：
             //   本判据读的是**源码文本** ⇒ 有两个必须堵的窟窿：
             //     ① **假红**：注释里出现同一个词就会被算成"代码里有"（实证：文件头注释写了
             //        `editor_play` ⇒ "必须在取锁之后"那条静态断言报 False，而真实调用点是对的）；
             //     ② **假绿**：旧的自检写成 `oldClose.Contains("0f)")` —— 常量包含自己的子串，
             //        **恒真**，等于没判。
             //   ⇒ 现在改成：**先剥 C# 注释**（`StripCsComments`）+ **双向样本**（已知正确样本必须绿、
-            //      已知错误样本必须红、只写在注释里的旧写法必须仍然绿）。⛔ 别再把自检写回恒真。
+            //      已知错误样本必须红、只写在注释里的旧写法必须仍然绿）。别再把自检写回恒真。
             var cpPath = System.IO.Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts",
                 "UI", "CharacterPanel.cs");
             var cpSrc = System.IO.File.Exists(cpPath) ? System.IO.File.ReadAllText(cpPath) : string.Empty;
@@ -736,7 +711,7 @@ namespace Uicheck
                 cpSrc.Length > 0 && closeHasOriginalFrameAndText(cpSrc),
                 "命中区 32×31 几何不动（上一条已判），本判只判可见化与素材来源");
 
-            // ── 双向自检（⛔ 三条缺一不可，任何一条恒真/恒假都说明判据坏了）──────────
+            // ── 双向自检（三条缺一不可，任何一条恒真/恒假都说明判据坏了）──────────
             // A. 已知**错**样本：把旧写法作为**代码**注入 ⇒ 同一条判据必须变红
             var badSrc = cpSrc + "\n        var __old_close = new Color(1f, 1f, 1f, 0f), true);\n";
             Check("自检 A（已知错样本）：注入旧的 alpha 0 代码行 ⇒ `closeVisible` 必须变红",
@@ -761,7 +736,7 @@ namespace Uicheck
         /// 反向也会**假绿**（把旧写法注释掉就"通过"）。⇒ 剥离后再搜，且配**双向样本**自检。</para>
         /// <para>★ 2026-09-24（team-lead 指派 §5.2 第 34 条）：本 helper 从 `private` 升为
         /// <c>internal</c>，作为**本宿主唯一的剥注释实现**供 `Program.cs` 复用 ——
-        /// ⛔ 不要再在别的 Check 类里写第 N 份副本（宿主里已各有 `StripComments`×3 / `CodeOnly`×1）。</para>
+        /// 不要再在别的 Check 类里写第 N 份副本（宿主里已各有 `StripComments`×3 / `CodeOnly`×1）。</para>
         /// </summary>
         internal static string StripCsComments(string s)
         {
@@ -785,12 +760,11 @@ namespace Uicheck
         //    生成器：`tools/d2codec/export_skilltree_layout.py`（从
         //    `Panel/skltree_{cls}_back_{0..3}.png` 逐像素解析 + 与原版 `skilldesc.txt` 对账 15/15）。
         //    口径：面板 = 原版 320×432 ×1.8 = 576×777.6；节点框 = 原版画出的框（45×50 原版px）；
-        //          技能图标 = **原版位图原生 48×48**（×1.8 = 86.4；★ w3 审计由"框内径 41×46"改来，
+        //          技能图标 = **原版位图原生 48×48**（×1.8 = 86.4；w3 审计由"框内径 41×46"改来，
         //          理由与出处见 `UiLayoutGame.SkillIconCell`：节点处画的是 L 形管线不是插座方框，
         //          把 48×48 缩到 41 会让图标小 15% 且让管线露在图标外一圈）。
-        //    ⛔ 上一版那套「由原版图标尺寸反推」的常量（SkillNodeSize / SkillNodeX/Y /
-        //       SkillTreeColumnX / SkillNodeStepY / SkillLinkW / SkillPanelW/H …）**已删除**。
-        //    ⚠️ 本节的断言只覆盖**结构不变量**（表自洽、网格值、页签槽、说明区）；
+        //    上一版那套「由原版图标尺寸反推」的常量（SkillNodeSize / SkillNodeX/Y /
+        //    本节的断言只覆盖**结构不变量**（表自洽、网格值、页签槽、说明区）；
         //       「框的位置确实等于底图画的那条线」由**生成器**对着 PNG 逐像素判（它不一致就 abort）。
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckSkill()
@@ -899,7 +873,7 @@ namespace Uicheck
 
         /// <summary>
         /// 图标中心与框中心的**原版px**偏差（取全表最大值）。
-        /// <para>★ w3 审计：图标层不再是"框内缩 2px"，而是**框的原生 48×48 图标居中于框中心**
+        /// <para>w3 审计：图标层不再是"框内缩 2px"，而是**框的原生 48×48 图标居中于框中心**
         /// （`SkillTreePanel.CreateNode` 把 Icon 建成 Hit 的居中子节点、`anchoredPosition = 0`；
         /// Hit 自己居中于 `SkillTreeCell.box` 的中心）⇒ 偏差仍恒为 0。
         /// 这里保留"逐格算一遍"的形式（不是恒返回 0），因为它是**映射规则**的等价改写：

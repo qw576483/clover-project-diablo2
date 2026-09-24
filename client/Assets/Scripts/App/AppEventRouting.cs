@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · App/AppEventRouting.cs    （agent-12「最后一次接线」，agent-12 §3 的第 7 项落地）
 // **UI / 输入发来的「请求事件」→ 门面方法**的转发层。
 //
 // 为什么需要这一层：`UI/**` 不许 `using Diablo2.Module`（分层自检 ③），只能 `Game.Event.Emit`
@@ -11,14 +10,9 @@
 //   · **没有订阅者**（本层补齐）：
 //       `SkillLearnRequest`      技能树面板点「学习」—— `SkillModule` 一个事件都没订阅
 //       `SkillSelected`          技能树面板右键设按钮技能 —— 同上
-//       `UnequipRequest`         装备栏点击卸下（**agent-12 新增的常量**）
-//       `ShopOpenRequest`        显式「打开商店」（**agent-12 新增的常量**）
-//       `Revived`                复活完成通知（**agent-12 新增的常量**；发送方见下）
-//       `MoveInInventoryRequest` 背包内移动物品（**agent-12 新增的常量**）—— ★ 片 G1 起**真的落地**：
 //                                   `IItemModule.MoveItem(from, to, out reason)`（八年前那句
-//                                   「无 Move/Swap ⇒ 无法移动物品」的 Warn 已删除）
 //
-// ⛔ 本层**不做判定**：不查血量/距离/金币/背包空间 —— 那些由模块的门面方法自己判并打日志。
+// 本层**不做判定**：不查血量/距离/金币/背包空间 —— 那些由模块的门面方法自己判并打日志。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -79,7 +73,7 @@ namespace Diablo2.App
 
         /// <summary>
         /// 技能树面板右键「设为按钮技能」→ `ISkillModule.SelectSkill`。
-        /// ⚠️ `SelectSkill` 内部会 Emit `SkillSelected` ⇒ 必须防回灌（否则无限递归）。
+        /// `SelectSkill` 内部会 Emit `SkillSelected` ⇒ 必须防回灌（否则无限递归）。
         /// </summary>
         private static void OnSkillSelected(int skillId)
         {
@@ -138,10 +132,9 @@ namespace Diablo2.App
         /// 背包内移动/交换：参数 = `fromAnchor | (toAnchor &lt;&lt; 16)`（口径同 `Core/Events.cs` 与
         /// `UI/InventoryPanel.PackMoveInInventory`）。
         /// <para>
-        /// ★ **片 G1 落地**（修用户报的「道具没法拖动！」）：本层原先只打一条
         /// 「`IItemModule` 无 Move/Swap 方法 ⇒ 无法移动物品」的 Warn（UI 侧意图对了，**落格没地方去**）。
         /// `IItemModule.MoveItem(from, to, out reason)` 补齐后，这里**真的转发**；失败时把模块给出的
-        /// **同一句话**既写日志又弹 Toast（⛔ 不许只把 Warn 换成另一条 Warn）。
+        /// **同一句话**既写日志又弹 Toast（不许只把 Warn 换成另一条 Warn）。
         /// </para>
         /// </summary>
         private static void OnMoveInInventoryRequest(int packed)
@@ -172,14 +165,10 @@ namespace Diablo2.App
         /// 若玩家确实不再 `IsDead`，就广播 `Events.Revived`（**`CombatModule` / `PlayerModule`
         /// 都不发这个事件**，已登记为需返工项；本层是临时发送方）。
         /// <para>
-        /// ★ **片 11 修正（BL-5，实测）**：旧实现假设"本类订阅晚于 `CombatModule`" —— **实测相反**：
         /// 本层 handler 在 `01:56:17.290` 跑、Combat 的复活在 `01:56:17.293` ⇒ 判 `IsDead` 时它**还是 true**
-        /// ⇒ 旧实现直接 `Warn` + `return`，**从不广播 `Revived`**，死亡屏只能靠 3s 看门狗放开按钮
         /// （用户看到"复活未完成，请重试"，点「繼續」后屏不自动关）。
         /// </para>
         /// <para>
-        /// 修法 = **把复查推到下一帧**：`ReviveRequest` 的全部订阅者都在**本帧内**跑完（Combat 的复活是
-        /// 同步写 `IsDead`），下一帧读到的一定是最终值 ⇒ 不再依赖"谁先订阅"这个脆弱假设。
         /// 必须用 `AfterUnscaled`：死亡屏时 `Time.timeScale == 0`，`After` 永不触发（`constraints.md` #2）。
         /// </para>
         /// </summary>

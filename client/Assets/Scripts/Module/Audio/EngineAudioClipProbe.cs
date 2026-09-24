@@ -6,7 +6,6 @@
 //     · 实现：`Runtime/Resource/ResourceManager.cs:251  public bool Exists(string path)`
 //       （:254 命中 `_existsCache` ⇒ **按路径缓存**，只降不升）。
 //
-// ★ 片 sinkup6-d2 · d2-audio（收敛与引擎平行的第二套探测）：
 //   原实现 = `Game.Res.LoadAsset<AudioClip>(path, clip => …)` **＋ 自己算「按路径缓存」**，
 //   等于把引擎的「加载 + 缓存」那条路又走了一遍（还多付一次真实加载）。引擎的既有口径是
 //   「要问在不在用 `Game.Res.Exists`」（`Runtime/Presentation/Sound.cs` 文件头语义约束 ⑤ 原文），

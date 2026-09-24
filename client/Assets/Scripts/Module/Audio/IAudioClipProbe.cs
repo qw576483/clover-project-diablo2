@@ -3,9 +3,7 @@
 // **音频资源存在性接缝**：`AudioModule` 判断「`Sound/{BGM,SFX}/{键}` 到底取不取得到音频」
 // 只经这一个接口。
 //
-// ★ 片 sinkup6-d2 · d2-audio（收敛）：接缝**保留**，但实现口径已收敛到引擎既有的存在性入口
 //   `Game.Res.Exists`（见 `EngineAudioClipProbe`）—— 不再自建异步 `LoadAsset<AudioClip>` 探测
-//   与自算缓存（那是与引擎「加载 + 缓存」路径平行的第二套）。`AudioModule` 侧原先配套的
 //   `_missingSfx/_missingBgm/_probedSfx/_probedBgm` 四张表已随之删除。
 //
 // 为什么还留这个接缝（而不是在 `AudioModule` 里直接写 `Game.Res.Exists`）：

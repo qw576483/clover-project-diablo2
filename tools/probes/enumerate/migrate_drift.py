@@ -2,7 +2,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Diablo2 · tools/probes/enumerate/migrate_drift.py
 #
-# **枚举漂移收口器**：把「盘上三张表」迁移到「当前源码能复现的新骨架」，并**逐行可核**地
 #   搬运已有结论。为什么需要（实测事故）：并发的写 `client/**` 的片改了源码（删了 2 个按键别名 +
 #   1 个空素材目录、新增 2 个 Map 源文件）⇒ `enum_all.py --check` 变成 1366 / 4963，而盘上三张表
 #   仍是 1370 / 4977 ⇒ **清单不能由当前源码复现**（`t0_keyfix.py --verify` 必红）。
@@ -10,9 +9,8 @@
 # 处方（主 agent 裁决）：
 #   ① `EA.build()` 生成**新骨架**（清单 / 矩阵 / 差异登记 三张，全部由脚本产出）；
 #   ② 按 **四元组 (维度, 实体, 状态/事件, 边界值)** 把**旧矩阵已有结论**（第 6/7/8 列）搬进新矩阵
-#      —— ⛔ 不按行号（行号会平移）；实体**改名的**用改名映射（如 `sys:Map(11 cs)` → `sys:Map(13 cs)`）；
+#      —— 不按行号（行号会平移）；实体**改名的**用改名映射（如 `sys:Map(11 cs)` → `sys:Map(13 cs)`）；
 #      **消失的行**自然不在新骨架里（= 删除）；
-#   ③ 把「须按**改后**代码重判」的行**清空**（`REJUDGE` 列表）⇒ 交给 `fill_offline.py` 重新填；
 #   ④ 取写表锁后写三张表（`策划/{实体清单,状态矩阵,差异登记}.tsv`）。
 #
 # 复现（`cd <项目根>`，**migrate → fill_offline 是一个单元，中间别插别的**）：
@@ -20,7 +18,7 @@
 #     python tools/probes/enumerate/migrate_drift.py             # 取锁 → 写三张表
 #     python tools/probes/enumerate/fill_offline.py              # 补离线行（含被清空的那批）
 #
-# ⛔ 写表协议：`FileMode.CreateNew` 新建 `.ai-tmp/test/matrix.lock`；拿不到就等 2s 重试（≤60 次）；
+# 写表协议：`FileMode.CreateNew` 新建 `.ai-tmp/test/matrix.lock`；拿不到就等 2s 重试（≤60 次）；
 #    拿到后**重读**、只改目标行、写完删锁。
 # ─────────────────────────────────────────────────────────────────────────────
 import io
@@ -43,8 +41,6 @@ REGISTRY = os.path.join(ROOT, '策划/差异登记.tsv')
 LOCK = os.path.join(ROOT, '.ai-tmp/test/matrix.lock')
 LOCK_TRIES, LOCK_WAIT = 60, 2.0
 
-#: 须按**改后代码**重判 ⇒ 先清空，交给 `fill_offline.py` 重新填（⛔ 不搬旧结论、⛔ 不照抄别人的叙述）。
-#: 来源 = T0FIX 的爆炸半径表 `.ai-tmp/test/impact-radius.tsv`（按 **实体 + 状态** 重定位，不用行号）。
 REJUDGE = [
     # D-D10：`Events.SaveDone` 已接生产者（SaveModule.SignalSaveDone）+ 消费者（AppFlow.OnSaveDone）
     ('D10逻辑', 'evt:D2.Save.Done', '有订阅者（被消费）'),
@@ -67,7 +63,7 @@ REJUDGE = [
     # E-D3：六个 `mat:*` 的「非纯色占位」判据（唯一色 = 1）由 **E42** 定性 ——
     #   这些"实心单色"是**原版原生平色/模板帧**或**从不被请求的帧**（机械证据 =
     #   `tools/probes/enumerate/d3_flatcolor.py`，重跑 ⇒ VERDICT OK）⇒ 结论应为
-    #   `允许的差异(→E42)`，⛔ 不是 `不一致`（旧结论是 E42 定案**之前**填的）。
+    #   `允许的差异(→E42)`，不是 `不一致`（旧结论是 E42 定案**之前**填的）。
     #   清空后由 `fill_offline.py::fill_d3`（`E42_DIRS`）重填。
     ('D3材质', 'mat:Objects/warp', '非纯色占位（颜色值个数 > 1）'),
     ('D3材质', 'mat:Objects/town_trees', '非纯色占位（颜色值个数 > 1）'),

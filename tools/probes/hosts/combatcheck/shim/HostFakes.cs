@@ -4,7 +4,6 @@
 // 为什么需要替身模块：
 //   `Module/{Monster,Combat,Skill,View}` 依赖 `AppContext` 注入的**接口**
 //   （`IPlayerModule` / `IItemModule` / `IAudioModule` / `IViewModule`）。
-//   agent-06 / 08 / 11 的实现可能还没落地（或与本宿主无关），因此本文件提供
 //   **功能可用的最小替身**：能真的扣血/加经验/加技能点、能记录"有没有被调用"，
 //   从而让「伤害链 / 掉落触发 / 音效钩子 / 飘字」这些**跨模块交接点**在离线状态下可断言。
 //
@@ -17,7 +16,6 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-// agent-33 引擎下沉 A2：`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` 同名 ⇒ 裸 Dir8 会 CS0104。
 using Dir8 = Diablo2.Def.Dir8;
 using Diablo2.Module;
 using UnityEngine;
@@ -231,7 +229,6 @@ namespace CombatCheck
         }
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
 
-        // ★ agent-34（引擎下沉 A3）：引擎新增的两个**同步**入口 —— 宿主无素材 ⇒ 恒 false / 空数组。
         public bool Exists(string path) => false;
         public T[] LoadAll<T>(string path) where T : UnityEngine.Object => Array.Empty<T>();
     }
@@ -274,7 +271,6 @@ namespace CombatCheck
         public bool IsMoving { get; private set; }
 
         /// <summary>
-        /// ★ 片 2b 新增的契约成员（`IPlayerModule.IsRunning`）：原版走/跑状态。
         /// 本宿主不测表现层 ⇒ 固定 `true`（= 原版默认跑，与 `PlayerModule._running` 的默认值一致）。
         /// </summary>
         public bool IsRunning => true;
@@ -416,10 +412,8 @@ namespace CombatCheck
         public void RestoreMana(int amount) { Mana = Math.Max(0, Math.Min(MaxMana, Mana + amount)); }
 
         /// <summary>
-        /// ★ w7 契约新增（`IPlayerModule.TrySpendMana`）的替身实现：与真实 `PlayerModule` **同语义** ——
+        /// w7 契约新增（`IPlayerModule.TrySpendMana`）的替身实现：与真实 `PlayerModule` **同语义** ——
         /// 成功扣减返回 true；`amount ≤ 0` 或法力不足返回 false 且**不扣**。
-        /// （此前 SkillModule 用 `RestoreMana(-cost)` 扣蓝，本替身对负数**放行** ⇒ 离线断言"扣蓝生效"
-        ///  通过、而实机真实实现把负数钳掉 ⇒ 这个替身与真实实现的语义差正是本项目漏掉该 bug 的原因。）
         /// </summary>
         public bool TrySpendMana(int amount)
         {
@@ -519,14 +513,12 @@ namespace CombatCheck
     // 业务替身：IItemModule / IAudioModule / IViewModule（记录调用）
     // ═════════════════════════════════════════════════════════════════════════
 
-    /// <summary>物品替身：只记录"掉落有没有被触发"（掉落内容由 agent-08 的模块负责）。</summary>
     internal sealed class RecordingItem : IItemModule
     {
         public readonly List<string> DropLootCalls = new List<string>();
         public readonly List<Vector2Int> DropGrids = new List<Vector2Int>();
 
         /// <summary>
-        /// ★ 片 N：本宿主用 —— 让断言能摆出「徒手 vs 装备武器」两组
         /// （`CombatModule.GetWeaponDamage` 读的就是它）。默认空 = 徒手。
         /// </summary>
         public readonly List<ItemStack> EquipmentOverride = new List<ItemStack>();

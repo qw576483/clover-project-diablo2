@@ -1,43 +1,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Uicheck · WaypointFlowCheck.cs   ★ 片 u32-close（2026-09-24）
 //
 // 为什么需要它（补的是哪条断链，逐条）：
 //   已有离线判据只覆盖了传送点的**两端**：
-//     · `mapcheck §25`      —— 锚点生成 1 个 / 坐标 / 可走 / 可达（生成侧）；
 //     · `uicheck ①-b`       —— `WaypointPanel.PlanDests` 纯函数 + 接线文本守卫 + 预制体在盘（面板侧）；
-//     · `savecheck §14`     —— 存档字段 `visitedWaypoints` 的存/读往返（落盘侧）。
-//   **中间那段没有任何离线判据**，而它恰好是"整功能此前不存在"（台账 `U32`）最贵的一类失败形态：
 //     ① `App/AppWaypoint.RestoreVisited` / `SnapshotVisited` / `ResetStaticForNewPlaySession`
 //        —— 读档回灌 / 存盘快照 / 新局清空，三者的**行为**从未被断言过（只有 AppWiring 的一行文本检索）；
 //     ② 点锚点 ⇒ 走过去 ⇒ **开面板** 这条链路（`OnMoveCommand` / `OnPlayerGridChanged` / `OpenPanel`）；
 //     ③ 选目的地 ⇒ **切区** 的四个拒绝分支 + 一个放行分支（`OnTravelRequest`）。
-//   ⛔ 本条不是"再抄一遍源码"：本文件**真跑**生产类（`AppWaypoint` 与 `WaypointPanel` 由 csproj 直接编进来，
+//   本条不是"再抄一遍源码"：本文件**真跑**生产类（`AppWaypoint` 与 `WaypointPanel` 由 csproj 直接编进来，
 //      与 `Assets/Scripts` 同一份文件），断言的是**行为**（返回值 / 事件载荷 / 日志），不是文本匹配。
 //
-// 判据形态（skill §2/§4：判**过程**不判**结果**，且每条判据必须有**退化样本**）：
-//   · 每个断言的"退化样本"都写在紧邻处，形状 = **旧缺陷**（未接线 / 未回灌 / 未激活 / 非法载荷）。
 //     若把退化样本喂进同一条判据，它**必须变红** —— 下面的 `D*` 就是这一步的实测留痕。
-//   · 退化样本之所以能立刻复现历史缺陷，靠的是两件事：
 //       ㈠ `ConsoleEventBus` 与真引擎同口径（同优先级 = **后注册先执行**，见 shim 头注）；
 //       ㈡ 本文件**先**在"未 Install"的总线上跑一遍同一条链（= `33f75bb5` 修前的形状），
 //          再 Install 后跑第二遍 ⇒ 两遍的差值就是"接线"这一个变量。
 //
-// ①-d（★ 片 waypoint 2026-09-24，接在 ①-c 之后）：台账 `U32` 的**表现线残余**里，只有两条是
 //   **离线可判**的 —— R1「锚点无渲染写入方」（视图层 0 消费者 + 素材不在盘 + 缺口登记，三者自洽）
 //   与 R3「驱动同帧两次 `ScreenCapture`」。R3 **判两半**：① **文本级** = 面板截图与发传送请求之间
 //   必须有帧界（`PanelShotYieldsFrame`）；② **数据级** = `SHOT …_1_panel.png frame=N` ⇒
 //   `SHOT …_2_landed.png frame=M` 必须 `M ≥ N + 2`（`ShotFrameGapOk`，坏样本 = **真实旧批次**
 //   `u32play` 的 `N = M = 192`）。其余（进营地肉眼找传送台 / 落地黑窗 0.428s / 面板图重采）
-//   **只能上机**，⛔ 不在这里假装判过。
+//   **只能上机**，不在这里假装判过。
 //
-// 桩（`StubMap` / `FakeUI`）为什么必须存在（skill §4 第 10 条：验不了就要说清楚）：
 //   `AppWaypoint` 只经 `AppWiring.Ctx`（= `AppContext.I`）与 `Game.Event` / `Game.UI` 取世界；
 //   离线没有 Unity 场景 ⇒ 桩是**唯一**能让这些分支真跑的载体。
-//   ⛔ 桩**不镜像**生产的判定逻辑（不复制任何 if/阈值）—— 它只提供"地图长什么样"这一件事，
+//   桩**不镜像**生产的判定逻辑（不复制任何 if/阈值）—— 它只提供"地图长什么样"这一件事，
 //      判定全部落在被验证的生产类里。
 //
-// ⚠️ 桩坐标刻意用一个**明显是桩**的值（4,7），**不是**原版锚点：原版锚点 (31,26) 的出处与断言
-//    归 `mapcheck §25`（本文件不重复那个常量、也不复制它的出处，避免两处漂移）。
+// 桩坐标刻意用一个**明显是桩**的值（4,7），**不是**原版锚点：原版锚点 (31,26) 的出处与断言
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -56,12 +46,11 @@ namespace Uicheck
     /// <summary>传送点**链路中段**的离线行为断言（见文件头）。</summary>
     internal static class WaypointFlowCheck
     {
-        /// <summary>桩锚点格（**明显是桩**：不是原版锚点，原版那个归 `mapcheck §25`）。</summary>
         private static readonly Vector2Int WpStub = new Vector2Int(4, 7);
 
         private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
 
-        /// <summary>入口（由 `Program.CheckWaypoint` 调；只加断言，⛔ 不动既有步骤）。</summary>
+        /// <summary>入口（由 `Program.CheckWaypoint` 调；只加断言，不动既有步骤）。</summary>
         public static void Run()
         {
             Console.WriteLine("── ①-c 传送点·链路中段（交互 ⇒ 面板 ⇒ 切区 / 列表回灌与快照）──");
@@ -71,7 +60,7 @@ namespace Uicheck
             Game.Event = new ConsoleEventBus();
             var map = new StubMap { Area = AreaId.Town, IsGenerated = true, WalkableCell = WpStub };
             map.WaypointCells.Add(WpStub);
-            // ⚠️ 必须写成 `Diablo2.App.AppContext`：本文件有 `using System;` ⇒ 裸 `AppContext`
+            // 必须写成 `Diablo2.App.AppContext`：本文件有 `using System;` ⇒ 裸 `AppContext`
             //    会与 `System.AppContext` 二义（CS0104，实测撞过）。
             var ctx = Diablo2.App.AppContext.Create();
             ctx.Map = map;
@@ -88,7 +77,7 @@ namespace Uicheck
             }
             finally
             {
-                // 收尾：把静态状态与三个门面复位，⛔ 不让本文件影响后续检查
+                // 收尾：把静态状态与三个门面复位，不让本文件影响后续检查
                 AppWaypoint.ResetStaticForNewPlaySession();
                 Diablo2.App.AppContext.ResetStaticForNewPlaySession();
                 Game.UI = null;
@@ -122,8 +111,6 @@ namespace Uicheck
                 destsAfter.Count == 1 && destsAfter[0].area == (int)AreaId.BloodMoor,
                 $"count={destsAfter.Count}");
 
-            // 退化样本（D1）＝旧缺陷形状：**不回灌**（= 修前：读档后 Visited 里只有本会话进过的区域）
-            //   ⇒ 同一条判据必须给出 0 条（正是用户看到的原版字串「尚未啟動其他傳送點」）。
             var destsNoRestore = WaypointPanel.PlanDests(new List<int> { (int)AreaId.Town }, (int)mapArea());
             Check("★ 退化（D1）：不回灌（旧缺陷形状）⇒ 同一判据给 0 条 ⇒ 上一条不是恒真",
                 destsNoRestore.Count == 0, $"count={destsNoRestore.Count}");
@@ -142,7 +129,7 @@ namespace Uicheck
                 addNull == 0 && addEmpty == 0 && !Program._logger.Has("WARN", "App", "回灌"),
                 $"null→{addNull} empty→{addEmpty} warn={Program._logger.Has("WARN", "App", "回灌")}");
 
-            // ── 坏值：表外的区域号 ⇒ 跳过 + Warn（⛔ 不把坏值塞进集合，否则面板会列出非法目的地）──
+            // ── 坏值：表外的区域号 ⇒ 跳过 + Warn（不把坏值塞进集合，否则面板会列出非法目的地）──
             Program._logger.Clear();
             var addBad = AppWaypoint.RestoreVisited(new List<int> { 999 });
             var snapBad = AppWaypoint.SnapshotVisited();
@@ -172,8 +159,7 @@ namespace Uicheck
 
         // ═════════════════════════════════════════════════════════════════════
         // ③ 点锚点 ⇒ 走过去 ⇒ 开面板
-        //    缺口（修前）：`AppWaypoint` 写好了但**没人调 `Install`** ⇒ 四条订阅都不存在 ⇒ 整链静默失效。
-        //    ⛔ 本组的关键设计 = **同一段代码在"未接线"与"已接线"下各跑一遍**，
+        //    本组的关键设计 = **同一段代码在"未接线"与"已接线"下各跑一遍**，
         //       两遍的唯一变量就是 `Install` ⇒ 第二遍的"开"一定是接线带来的。
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckPanelOpen(Diablo2.App.AppContext ctx)
@@ -211,7 +197,7 @@ namespace Uicheck
                 "(App tag 的 Info 留痕)");
 
             // ── 退化（D4）：距离 > 1 ⇒ **不许**开（证明 8 邻门槛不是摆设）──────
-            //   ⚠️ ⛔ 这里**不许**再调 `AppWaypoint.Install`：它没有幂等守卫，重复调 = 同一事件
+            //   这里**不许**再调 `AppWaypoint.Install`：它没有幂等守卫，重复调 = 同一事件
             //      收到两份回调 ⇒ 面板会被开两次（那会让下面的 `== 1` 变成假红）。接线只做一次。
             ui.Reset();
             Game.Event.Emit(Events.MoveCommand, WpStub);
@@ -236,7 +222,6 @@ namespace Uicheck
             Check("★ 退化（D6）：地图未生成时点锚点 ⇒ 之后走到相邻格也 0 次打开（不拿未生成的地图开面板）",
                 ui.OpenCount == 0, $"open={ui.OpenCount}");
 
-            // ── 退化（D7）：锚点不可走（生成缺陷）⇒ 放弃本次交互 + 点名 Warn，
             //    且**后续走到相邻格也不许"补开"**（证明放弃真的落地，而不是延后触发）────
             ui.Reset();
             Program._logger.Clear();
@@ -339,25 +324,21 @@ namespace Uicheck
             finally
             {
                 // 只摘掉本文件自己加的那个捕获器（`AppWaypoint` 的订阅在 `Run()` 的 finally 里
-                // 随整条总线一起作废 —— 那时换的是**新的空总线**，⛔ 不去动别人的订阅）
+                // 随整条总线一起作废 —— 那时换的是**新的空总线**，不去动别人的订阅）
                 Game.Event.Off<AreaId>(Events.ExitEntered, onExit);
             }
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑤ 表现线残余里**离线可判**的那两条（★ 片 waypoint 2026-09-24）
         //
         //   台账 `U32` 状态 = 「**部分**（功能线闭环；**表现线残余见右**）」。三条残余逐条归类，
-        //   ⛔ 不把"只能上机看"的东西硬塞成离线断言：
+        //   不把"只能上机看"的东西硬塞成离线断言：
         //     · R1 锚点看不出是传送台（`WP-ART-1`）—— 拆成**两个半边**：
         //       ① 【外部素材】原版世界内传送台美术（`data/global/objects/wp/*`）**不在盘**，
-        //          载体 `d2exp.mpq` 也不在归档 ⇒ **本片解不了，要用户给包**（登记行已存在）；
         //       ② 【功能/代码 · 离线可判】视图层**没有任何消费者**写 `IMapModule.WaypointPoints`
         //          ⇒ 即使素材到齐也**无处可画**（台账点名的「`MapView.cs` 对 Waypoint 0 命中」就是它）。
         //          本组判②：把「缺口 ↔ 登记」做成**自洽闸门** + 一条素材到齐当天自动生效的判据。
         //     · R2 换区落地黑窗 0.428s —— **只能上机**（逐帧覆盖率 + 帧计时；`travelblack` 驱动在采）。
-        //         其中"永久黑已修"那一半归 `mapcheck §27` + `MapView.ChunkRangeCovered`，本文件不重复。
-        //     · R3 1 张面板图待重采 —— **只能上机**（观感）；根因 = 驱动同帧两次 `ScreenCapture`
         //         （后一张顶掉前一张），`drivers/d2u32_drive.cs` 已修 ⇒ 本组判「让帧还在」（防复发）。
         //
         //   判据形态（同上：判过程 + 每条必须有能变红的退化样本）：
@@ -365,7 +346,7 @@ namespace Uicheck
         //       真输入绿、三条退化样本（D12/D13/D14）各自单独红；
         //     · 扫描器配**注入式直证**（`README` 第 33 条：作用在整份文件文本 + 注入真文本必须转红）
         //       与一条"注释里的同串不算"的正例（剥注释走 `LayoutGameCheck.StripCsComments`，本宿主唯一实现）；
-        //     · R3 守卫判的是「两个**真调用点**之间有没有帧界」，⛔ 不是"两常量行号比大小"。
+        //     · R3 守卫判的是「两个**真调用点**之间有没有帧界」，不是"两常量行号比大小"。
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckPresentationResiduals()
         {
@@ -373,7 +354,7 @@ namespace Uicheck
 
             // ── R1-b 读数：读的**路径**逐条写明（`README` 第 35 条）——
             //   视图层 = `Scripts/Module/View/**/*.cs` + `Scripts/Module/Map/MapView.cs`；
-            //   ⛔ 不含 `UI/` 与 `App/`：那些消费者是"面板/交互"，不是"把锚点画出来"。
+            //   不含 `UI/` 与 `App/`：那些消费者是"面板/交互"，不是"把锚点画出来"。
             var viewDir = Path.Combine(Program.ProjectRoot,
                 "client", "Assets", "Scripts", "Module", "View");
             var mapViewFile = Path.Combine(Program.ProjectRoot,
@@ -434,18 +415,15 @@ namespace Uicheck
                 mapViewReal.Length > 0 && realHits == 0 && injectedHits == 1,
                 "真文本 " + realHits + " 处 ⇒ 注入后 " + injectedHits + " 处（证明扫描不是恒 0、也不是恒真）");
 
-            // ③ 正例片段 + "注释里的同串不算"（旧版 `Contains` 判据的假绿形状）
             Check("★ 正例片段：最小片段 1 处 ⇒ 不是永 0；且**注释里的同串算 0**（剥注释后）",
                 CountNeedle("void X(){ var w = m.WaypointPoints; }", "WaypointPoints") == 1
                 && CountNeedle("// m.WaypointPoints\nvoid X(){ }", "WaypointPoints") == 0,
                 "needle 走 LayoutGameCheck.StripCsComments（本宿主唯一的剥注释实现）");
 
             // ── R3：驱动"同帧双拍"守卫（`tools/probes/drivers/d2u32_drive.cs`）────────────
-            //   残余③ = 面板那张图没落盘。根因（驱动自述 L208-211）= 面板打开后**同帧**就发
             //   `WaypointTravelRequest` ⇒ 同帧两次 `ScreenCapture`，而它只在**帧末**写一次
-            //   ⇒ 后一张把前一张顶掉。修法 = 面板那张 Shot 之后让出 2 帧再走传送。
             //   判据 = 「面板那张截图」与「发传送请求」两个**真调用点**之间必须有帧界
-            //   （`yield return null;`）—— ⛔ 不是行号比大小，作用在整份（剥注释后的）文件文本上。
+            //   （`yield return null;`）—— 不是行号比大小，作用在整份（剥注释后的）文件文本上。
             var drvFile = Path.Combine(Program.ProjectRoot,
                 "tools", "probes", "drivers", "d2u32_drive.cs");
             var drvSrc = File.Exists(drvFile)
@@ -466,7 +444,6 @@ namespace Uicheck
             Check("★ 正例片段：shot ⇒ yield ⇒ travel 的最小片段 ⇒ 绿（守卫不是永假）",
                 PanelShotYieldsFrame(positiveDrv), "三事件按正确顺序的最小正例");
 
-            // ── R3-c 帧号判据（★ 2026-09-24 主 agent 裁定：判**帧号差**，坏样本 = **真实旧批次读数**）────
             //   上面那条是**文本级**补充（判源码里有没有让帧）；本条判**数据级结果**：
             //   机制 = `ScreenCapture.CaptureScreenshot` 只在**帧末**写一次 ⇒ 同帧两次只留**后**一张
             //   （当年 `_1_panel.png` 因此整张没落盘）。⇒「面板那张」必须**先于**「落地那张」至少 **2 帧**
@@ -482,7 +459,7 @@ namespace Uicheck
             Check("★ R3-c 边界：差 1 帧（99→100）判红、差 2 帧（99→101）判绿（门槛 = 驱动里那两处让帧）",
                 !ShotFrameGapOk(99, 100) && ShotFrameGapOk(99, 101), "边界两侧对立读数");
             // 实盘解析（比常量更硬：证明「帧号」是从真文本解析出来的，不是我抄的）
-            // ⚠️ 证据文件在 `.ai-tmp/screenshots/`（**临时件，会被清理**）⇒ 不在位时打 `[SKIP]`、⛔ 不算失败。
+            // 证据文件在 `.ai-tmp/screenshots/`（**临时件，会被清理**）⇒ 不在位时打 `[SKIP]`、不算失败。
             var evDir = Path.Combine(Program.ProjectRoot, ".ai-tmp", "screenshots");
             var evGood = Path.Combine(evDir, "u32_evidence_u32p2.txt");
             var evBad = Path.Combine(evDir, "u32_evidence_u32play.txt");
@@ -529,7 +506,7 @@ namespace Uicheck
         /// <summary>
         /// 整份文件文本里 <paramref name="needle"/> 的出现次数（**先剥注释**，同
         /// <see cref="LayoutGameCheck.StripCsComments"/>）。
-        /// ⛔ 判据作用在**整份文本**上、不依赖任何行号 ⇒ 将来新增的代码也自动落在判据内。
+        /// 判据作用在**整份文本**上、不依赖任何行号 ⇒ 将来新增的代码也自动落在判据内。
         /// </summary>
         private static int CountNeedle(string src, string needle)
         {
@@ -582,7 +559,7 @@ namespace Uicheck
         /// <summary>
         /// 从一次 Play 批次的证据日志里取某张图的帧号（形如
         /// `[time] [Info] [U32] SHOT u32_u32p2_1_panel.png frame=99 note=…`）。
-        /// 找不到名字 / 找不到 `frame=` / 后面不是数字 ⇒ **-1**（⛔ 不返回 0：0 是合法帧号）。
+        /// 找不到名字 / 找不到 `frame=` / 后面不是数字 ⇒ **-1**（不返回 0：0 是合法帧号）。
         /// </summary>
         private static int FrameOfShot(string evidenceText, string shotNameTail)
         {
@@ -599,7 +576,7 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 桩：只提供"世界长什么样"，⛔ 不镜像任何生产判定
+        // 桩：只提供"世界长什么样"，不镜像任何生产判定
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>`IMapModule` 的离线桩（成员签名与 `Module/Contracts.cs` 逐条一致）。</summary>
@@ -642,7 +619,7 @@ namespace Uicheck
 
         /// <summary>
         /// `IUIManager` 的离线桩：只记录"谁被开/关过"。
-        /// <para>⛔ 不实例化任何 MonoBehaviour（离线进程建不了 Unity 对象）—— 面板的像素布局由
+        /// <para>不实例化任何 MonoBehaviour（离线进程建不了 Unity 对象）—— 面板的像素布局由
         /// Play 驱动采（本片不进 Play），本桩只判"开没开、参数是什么"。</para>
         /// </summary>
         private sealed class FakeUI : IUIManager

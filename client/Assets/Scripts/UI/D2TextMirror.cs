@@ -1,19 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/D2TextMirror.cs  ★ 本项目新增（片 3「原版中文位图字体接入」）
 //
 // 把**已存在的一个 uGUI `Text` 节点**改造成"用原版字模画"的节点。
 //
 // 为什么要这么绕（而不是把全项目 `Text` 全换成别的类）：
 //   · 工程里的面板都按 uGUI `Text` 的成员写（`_x.text = ...` / `.color` / `rectTransform` /
 //     `horizontalOverflow` / `resizeTextForBestFit`），共 14 个文件、上百处；
-//   · 面板的**布局坐标一律不许动**（片 3 的硬要求）⇒ 不能改节点尺寸/位置，也不该改调用面；
 //   · uGUI 的 `Text` 只要 `enabled = false` + `font = null` 就**不产生任何绘制**，但它仍是
 //     "文案 / 颜色 / 对齐 / 溢出策略"的**数据持有者**。
 //   ⇒ 于是：数据留在 `Text` 上，**画面由 `D2Label` 用原版字模画**。
 //     实机判据：画面上没有一个像素由引擎默认字体产生（见回报的实机截图 + 日志）。
 //
 // 逐帧只做"变了才重画"（字符串/颜色/字号/对齐/换行策略的**变化检测**），不是每帧重建。
-// ⚠️ 本文件只有一个 MonoBehaviour（`constraints.md` #1：一个 `.cs` 不许放多个 MonoBehaviour）。
+// 本文件只有一个 MonoBehaviour（`constraints.md` #1：一个 `.cs` 不许放多个 MonoBehaviour）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -37,9 +35,8 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 强制走 chi（原版中文）字模，即使文案全是 ASCII。
-        /// <para>★ 为什么存在：**原版拉丁字模 `font{16,24,30,42}` 不分大小写** —— 码位 97..122 的格子是
+        /// <para>为什么存在：**原版拉丁字模 `font{16,24,30,42}` 不分大小写** —— 码位 97..122 的格子是
         /// 缩小号的同形大写、且没有降部 ⇒ `by clover-engine` 会被画成 `BY CLOVER-ENGINE`（小型大写），
-        /// 违反全局 skill §1.6 的「逐字」判据。原版 `font{N}_chi` 里 ASCII 是真小写
         /// （实测 `font24_chi`：97＝真 a、103＝带降部 g、121＝带降部 y）⇒ 品牌署名行走它。
         /// 细节与实测见 `D2Text.D2Label._forceChi` 的注释。</para>
         /// </summary>
@@ -78,7 +75,7 @@ namespace Diablo2.UI
 
         private void Update()
         {
-            // ★ V6：启动期（`Game.Res` 未就绪）被**延迟**的字模在这里自愈 ——
+            // V6：启动期（`Game.Res` 未就绪）被**延迟**的字模在这里自愈 ——
             //   引擎那条 Text 挂钩有 `FlushPending`（Bootstrap 里紧跟 CloverRes.Init 调一次），
             //   但业务面板自己建的标签（`UiArt.Label` / `D2Label.Create`）没有那个人，
             //   只能靠每帧一次的这里把"延后的加载"补上（见 `D2Text.EnsureChi` 的注释）。

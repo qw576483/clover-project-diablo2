@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/GroundItemLabelView.cs  ★ 本项目新增（impl-I-input，审计 R5）
+// Diablo2 · UI/GroundItemLabelView.cs  本项目新增（impl-I-input，审计 R5）
 //
 // 地面物品**名牌层**：原版 D2 的两条表现 ——
 //   ① 鼠标悬停地面物品 ⇒ 该物品显示名牌（名字按品质配色）；
@@ -14,16 +14,15 @@
 // 为什么挂在 HUD（`UI/HudPanel` 持有）：HUD 是进图后常驻的画布层，名牌必须画在
 //   角色/物品之上、又不该被面板遮住；节点与 HUD 同生命周期（`StageEntered` 建 / `StageLeft` 拆）。
 //
-// ── ★ agent-eng2 本轮：**机制下沉引擎**（本文件只留 D2 语义与取值）─────────────────
 //   「按 id 池化复用 + 世界点投影到画布 + 显隐 + 收尾隐藏」这一套机制移入引擎件
 //   `CloverEngine.WorldProjectedLabelLayer`（`clover-client-unity-engine/Runtime/Presentation/
 //   WorldOverlayWidgets.cs`）；本文件只剩三件事：
 //     ① D2 取值：文案（名字 / "物品 #id" 兜底）、品质配色、世界落点（格中心 + 半格高）；
 //     ② 渲染注入：把 `D2Label` 包成引擎认得的 `IOverlayLabelView`（引擎不许引用项目类）；
 //     ③ 事件订阅与日志（调用点 / 公开 API **零改动**）。
-//   ⛔ 屏幕点 ⇄ 画布局部点换算由引擎件统一走 `ScreenPointUtil`（本文件不再自己调 `RectTransformUtility`）。
+//   屏幕点 ⇄ 画布局部点换算由引擎件统一走 `ScreenPointUtil`（本文件不再自己调 `RectTransformUtility`）。
 //
-// 样式口径（⛔ 不自创）：
+// 样式口径（不自创）：
 //   · 字体 = `D2Text.D2Font.Font16` —— 与 HUD 技能格热键标签同一号（原版最小号，项目 UI 口径）；
 //   · 颜色 = 品质色 `ItemQualityColor.Of(quality)` —— 与 `UI/ItemTooltip` 的名称配色**同一张表**；
 //   · 尺寸 = 一格的像素盒（`GameConst.IsoTilePxW` × `GameConst.HalfTilePxH`，契约常量）——
@@ -31,7 +30,7 @@
 //   · 位置 = 该格中心的世界坐标再抬**半格高**（`GameConst.IsoHalfH` = 瓦片半高的世界单位）
 //     ⇒ 字落在物品所在格的顶边上（原版名牌就在物品上方）。
 //
-// ⛔ 一个 `.cs` 一个 MonoBehaviour：本类**不是** MonoBehaviour（由 HudPanel 持有并驱动）。
+// 一个 `.cs` 一个 MonoBehaviour：本类**不是** MonoBehaviour（由 HudPanel 持有并驱动）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -52,7 +51,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 名牌矩形尺寸 = 一格的像素盒（出处见文件头「样式口径」），**换算到画布 px**（× `UiLayoutGame.K`）。
-        /// <para>★ 片 font-scale 修（与 V6 给 `EntityTooltip` 的修法同一口径）：原来这里是**世界格 px**
+        /// <para> 修（与 给 `EntityTooltip` 的修法同一口径）：原来这里是**世界格 px**
         /// （`GameConst.IsoTilePxW = 128`），而 `D2Label` 的**换行宽度/字号都是画布单位** ⇒ 两套单位混用
         /// 会让换行阈值等于 128/scale（把名牌文字提前折行）。补上显式字号后必须同时换算，
         /// 否则"字变大但框还是世界格 ⇒ 名字被折成两行"。判据：`uicheck` FontScaleCheck 的框单位断言。</para>
@@ -151,7 +150,6 @@ namespace Diablo2.UI
         /// </summary>
         private static IOverlayLabelView CreateLabelView(int id, Transform parent)
         {
-            // ★ 片 font-scale：补显式字号（默认 0 = 按原版 px 1:1 画 ⇒ 名牌只有应有的 ~55%）。
             var label = D2Label.Create(parent, NodePrefix + id, string.Empty, D2Text.D2Font.Font16,
                 TextAnchor.LowerCenter, Color.white, LabelSize, Vector2.zero, (int)UiLayoutGame.FontPx16);
             if (label == null)
@@ -168,7 +166,7 @@ namespace Diablo2.UI
         /// <summary>
         /// `D2Label` → 引擎 <see cref="IOverlayLabelView"/> 的适配器。
         /// <para>为什么要有它：引擎件**不许引用项目类**（`D2Label` 属 `Diablo2.UI`）⇒ 适配只能落在项目侧。
-        /// 引擎只通过这 5 个动作驱动标签，⛔ 不认识位图字模、也不知道字号。</para>
+        /// 引擎只通过这 5 个动作驱动标签，不认识位图字模、也不知道字号。</para>
         /// </summary>
         private sealed class LabelView : IOverlayLabelView
         {

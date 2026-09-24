@@ -14,7 +14,7 @@
 //   收 `MonsterKilled(int)` / `AreaChanged(AreaId)` / `ExitEntered(AreaId)` /
 //      `QuestAcceptRequest(int)` / `QuestTurnInRequest(int)`
 //   发 `QuestChanged(QuestStateDto)` / `QuestCompleted(int)` / `QuestTurnInDenied(int)`
-//   （⚠️ 契约里 `IQuestModule` **没有 Tick**，所以本模块不放 `Tick` 逻辑。）
+//   （契约里 `IQuestModule` **没有 Tick**，所以本模块不放 `Tick` 逻辑。）
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -254,7 +254,7 @@ namespace Diablo2.Module.Quest
             else
             {
                 _den.LoadFrom(dto);
-                // ⚠️ **读档这一刻不调 Refresh**：此时洞穴还没生成，`DenRemaining` 必然是 0，
+                // **读档这一刻不调 Refresh**：此时洞穴还没生成，`DenRemaining` 必然是 0，
                 //    拿它刷新会把"进行中 3/5"误判成"已清光"。真正的刷新发生在
                 //    进洞穴（AreaChanged）或收到击杀通知时 —— 见 `_caveObserved`。
                 Log.Info("Quest", $"读档：「{DenOfEvilQuest.Name}」state={_den.State} progress={_den.Progress}/{_den.Required} "

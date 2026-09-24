@@ -1,19 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/HudPanel.cs（agent-09 · 1:1 轮）
 // 游戏内 HUD：底部控制面板 = 左右两颗球（左红生命 / 右蓝法力）+ 经验条 + 左右技能格 +
 // 腰带 4 格 + 小面板 7 按钮 + 跑/走按钮。
 //
-// ★★ 本文件改了什么、为什么（原版值 → **×1.8 居中**，见 `UI/UiLayoutGame.cs` 的口径说明）：
-//   上一轮把**原版像素值**直接画在 1920×1080 的 Canvas 上（ControlPanel 948×160、球 108、
+// 本文件改了什么、为什么（原版值 → **×1.8 居中**，见 `UI/UiLayoutGame.cs` 的口径说明）：
 //   技能格 33.5、小按钮 20 …）⇒ 整个 HUD 只有应有的 1/1.8 大小；中间一版又用了**宽度比 ×2.4**
 //   （948×2.4 = 2275.2 > 1920、600×2.4 = 1440 > 1080）⇒ 控制面板底边出屏 51px（旧 E5）。
 //   现口径 = **按高度等比 ×1.8 + 水平居中**：常量集中在 `UI/UiLayoutGame.cs`
 //   （每个值都注明「原版值 → ×1.8 居中」与来源 prefab 节点），本文件只消费它、不再自己写数字。
-//   ★ agent-27：跑/走按钮与小面板开关的 **y** 已从 prefab 原值挪到「技能格带下方的空白条」
 //     （原版这两个按钮的父容器 `m_IsActive=0` ⇒ 原版不显示；按原值摆会压住第 1/第 5 个技能格），
 //     详见 `UiLayoutGame.HudSubBarArtY` 与 `策划/验收表.md` 的 E7。
 //
-// ★ 依据（原版精确 RectTransform，脚本从 prefab YAML 逐节点解析，非肉眼估）：
+// 依据（原版精确 RectTransform，脚本从 prefab YAML 逐节点解析，非肉眼估）：
 //   `_assets_tmp/d2src/Diablerie/Assets/Prefabs/ControlPanel.prefab`
 //     Background(948×160, pivot(0.5,0), pos(0,-21.3))
 //     Lifebulb(108×108 @ -316.01,66.96)   Manabulb(108×108 @ 299.56,66.96)
@@ -26,15 +23,11 @@
 //     661.5/692.5、pitch 31、格内 27×25、art y 中心 101），正好被 prefab 的
 //     `ImageBeltRight`(128×104 @ pos(166,3)) 框住 ⇒ 这是原版腰带格（在画布中线**右侧**、紧邻法力球）。
 //
-// ★ 本轮**移除**的两个非原版元素（1:1 硬标准：原版没有的就不画）：
 //   · HUD 右上那行长「快捷键提示」——原版没有这条；原版的做法是**技能格上的热键标签**
-//     （`SkillSlot.prefab` 的 `HotkeyLabel`），本轮改为给左/右技能格加同款标签。
-//   · HUD 左上「Lv N」标签——原版 HUD 不显示等级（等级/经验在人物属性面板里，本轮的
 //     `CharacterPanel` 已按原版右上空框补上）。
 //
-// ★ 打开方式（`docs/agents/_common.md` §3.5）：HUD 监听 `Events.StageEntered` 打开、
 //   `Events.StageLeft` 关闭；它同时是**游戏内面板的总入口**（小面板 7 按钮 = 各面板入口）。
-// ⛔ 零 `using Diablo2.Module`（分层自检 ③）。
+// 零 `using Diablo2.Module`（分层自检 ③）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -113,7 +106,6 @@ namespace Diablo2.UI
         /// 展开/收起小面板的箭头贴图（原版 `PANEL/menubutton.DC6` 帧 0..3，15×24，逐帧文件）：
         /// `[0]` 上箭头常态、`[1]` 上箭头按下、`[2]` 下箭头常态、`[3]` 下箭头按下。
         /// <para>
-        /// ★ 本轮（w3 游戏内 UI 审计）**换数据源**：原版这张图在工程里有**两套导出**
         /// （素材双份，见审计 TSV 的「双套素材」节）——
         ///   · `menubutton_{0..3}.png` = 本项目 `tools/d2codec/export_d2ui.py` 从原版
         ///     `data/global/ui/PANEL/menubutton.DC6` 直接解出（**索引 0 = 透明**，即 D2 的口径）；
@@ -124,7 +116,7 @@ namespace Diablo2.UI
         /// 旧代码走的是副本 ⇒ 箭头周围会带一圈**黑点**（原版那里是透出大理石底）。
         /// 现走 DC6 导出那一套（同画面、alpha 正确），尺寸/帧序/位置**一个都没动**。
         /// </para>
-        /// <para>★ w4 已收口：`ResPaths.PanelArrowUp/Down*` 四个常量已改指 `menubutton_{0..3}`
+        /// <para>w4 已收口：`ResPaths.PanelArrowUp/Down*` 四个常量已改指 `menubutton_{0..3}`
         /// 且 4 个副本文件已从磁盘删除（`Core/ResPaths.cs`）。本文件仍不直接经它们取图；
         /// 路径以 `ResPaths.D2UiPanel` 为唯一前缀来源，**帧名唯一来源 = `UiArt.ArrowFrame`**
         /// （本节与人物属性面板的加点箭头共用它）—— 两处同值，`uicheck` ㉑ 节断言磁盘存在。</para>
@@ -149,10 +141,8 @@ namespace Diablo2.UI
         /// <summary>小面板按钮边长（原版 20 → ×1.8 = 36）。</summary>
         public const float MiniButtonSize = UiLayoutGame.MiniButtonSize;
 
-        /// <summary>腰带格边长（原版底图**格内凹槽宽 27** → ×1.8 = 48.6；旧值 31 = pitch，偏大 15%）。</summary>
         public const float BeltCellSize = UiLayoutGame.BeltCellSize;
 
-        /// <summary>腰带格高度（原版底图**格内凹槽高 25** → ×1.8 = 45；旧值 29 是可见格高，偏高）。</summary>
         public const float BeltCellH = UiLayoutGame.BeltCellH;
 
         /// <summary>腰带 4 格中心的 x（原版底图实测 125.5/156.5/187.5/218.5 → ×1.8 = 225.9..393.3）。</summary>
@@ -193,19 +183,19 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 6 格技能栏的图标层（原版 `SkillPanel`）。
-        /// <para>★ impl-I-input（审计 R4）：本层现在由 `OnSkillTreeChanged` 按**已学技能顺序**
+        /// <para>impl-I-input（审计 R4）：本层现在由 `OnSkillTreeChanged` 按**已学技能顺序**
         /// 贴上真实技能图标（改动前恒空 + 点击只打「未接线」日志）。</para>
         /// </summary>
         private readonly Image[] _skillBarIcons = new Image[SkillBarSlots];
 
         /// <summary>
-        /// 左右键技能格的图标层（★ impl-I-input，审计 R1/R4）：由 `OnSkillButtonsChanged`
+        /// 左右键技能格的图标层（impl-I-input，审计 R1/R4）：由 `OnSkillButtonsChanged`
         /// 换成当前绑定的技能图标；未绑（-1）时回退普通攻击图标（原版左右键默认都是 Attack）。
         /// </summary>
         private Image _leftSkillIcon;
         private Image _rightSkillIcon;
 
-        /// <summary>地面物品名牌层（★ impl-I-input，审计 R5；见 `UI/GroundItemLabelView.cs`）。</summary>
+        /// <summary>地面物品名牌层（impl-I-input，审计 R5；见 `UI/GroundItemLabelView.cs`）。</summary>
         private GroundItemLabelView _groundLabels;
 
         /// <summary>最近一次收到的左右键技能格绑定快照（自证/断言用）。</summary>
@@ -229,7 +219,6 @@ namespace Diablo2.UI
         /// <summary>小面板是否展开（原版靠箭头按钮 `ShowNavigationalBar` 切换；原版默认**收起**）。</summary>
         private bool _miniOpen;
 
-        /// <summary>★ agent-18 §B：每格"最近一次贴上的原版物品图标路径"（`null` = 空）⇒ 不重复发起异步加载。</summary>
         private readonly string[] _beltIconPath = new string[GameConst.BeltSlots];
         private readonly D2Label[] _beltTexts = new D2Label[GameConst.BeltSlots];
 
@@ -242,17 +231,15 @@ namespace Diablo2.UI
         /// <summary>
         /// 最近一次 `Events.MapGenerated` 的小地图快照。
         /// **必须缓存并传给 `MiniMapPanel`**：该面板在 `OnOpen` 里才订阅 `MapGenerated`，
-        /// 所以「打开时才派发」的快照它收不到（agent-13 §B-3）。
         /// </summary>
         private MinimapArgs _minimap;
 
         /// <summary>
-        /// ★ agent-a3：**区域名弹出**（原版 `LevelEntryTitle`，见 `UI/LevelEntryTitle.cs`）。
+        /// agent-a3：**区域名弹出**（原版 `LevelEntryTitle`，见 `UI/LevelEntryTitle.cs`）。
         /// <para>触发口径 = **首次进入某区域**（本局内每个区域弹一次）。两条触发路径：</para>
         /// <list type="bullet">
         ///   <item>`Events.MapGenerated`（参数 `MinimapArgs.areaId`）——**进图**那次由
         ///     `AppSnapshots.Broadcast` 在 HUD 打开**之后**补发 ⇒ 覆盖"开局第一次进入某区域"。
-        ///     ⚠️ **更正（2026-09-24，只改注释、不改行为）**：`Events.AreaChanged` 有**两个**发送方
         ///     —— `Module/Map/MapModule.cs:581`（**生成地图时**，即**进图那次也会发**）
         ///     与 `Module/Flow/AppFlow.cs:1569`（换区第二拍）⇒ 一次换区消费方会收到**两次**
         ///     （`waypoint` 的 L3 实机实测：`AREA-CHANGED area=0 frame=75` 就是进图那一次）。
@@ -318,7 +305,7 @@ namespace Diablo2.UI
         /// <inheritdoc/>
         public override void OnUpdate(float dt)
         {
-            // ★ agent-a3：区域名的淡入/停留/淡出**先推**（它是纯表现，不该受输入后端的可用性影响；
+            // agent-a3：区域名的淡入/停留/淡出**先推**（它是纯表现，不该受输入后端的可用性影响；
             //   下面 `Game.Input` 为空时本方法会提前 return，放在后面就会让区域名卡住不淡出）。
             _levelTitle?.Tick(dt);
 
@@ -358,7 +345,7 @@ namespace Diablo2.UI
         // 构件
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// 构件（★ 顺序 = **原版 `ControlPanel.prefab` 的兄弟顺序**；uGUI 里后者画在越上层）。
+        /// 构件（顺序 = **原版 `ControlPanel.prefab` 的兄弟顺序**；uGUI 里后者画在越上层）。
         /// <para>
         /// 原版顺序：Background → LeftSkill/RightSkill → Lifebulb/Manabulb → ImageExpBarLeft(跑/走)
         /// → ImageExpBarRight(小面板开关) → ImageBeltRight(腰带) → ImageMinipanel(7 键)
@@ -401,11 +388,9 @@ namespace Diablo2.UI
 
         private void BuildOrbs()
         {
-            // ★ 原版 `Lifebulb` / `Manabulb` **只有三层**：
+            // 原版 `Lifebulb` / `Manabulb` **只有三层**：
             //   `HealthBar`/`ManaAnimation`（Filled 填充）+ `*BulbOverlay`（玻璃高光）+ `*Label`（球内数字）。
             //   球体本身是**底图 `ControlPanel.png` 画好的** —— 原版**没有**深色底球节点。
-            //   ⛔ 上一轮自加的 `*OrbBack`（同贴图 ×0.30 压暗的 108×108 方块）会把底图球体整块盖掉，
-            //      画面变成"一块平色圆盘"，正是"球不对"的成因 ⇒ **本轮删除**（1:1：原版没有的就不画）。
             _lifeFill = BuildOrb("LifeOrb", LifeOrbPos, ResPaths.PanelHealthBar, 0, out var lifeHolder);
             _manaFill = BuildOrb("ManaOrb", ManaOrbPos, ResPaths.PanelManaBar, 1, out var manaHolder);
 
@@ -413,14 +398,9 @@ namespace Diablo2.UI
             // 文本格式照原版自己的写法「Life: 123/123」（见 ControlPanel.prefab 的 m_Text）。
             // 挂在球容器**之内**、且在填充/高光之后 ⇒ 数字画在球的最上层（与 prefab 子节点顺序一致）。
             //
-            // ★ 片 font-scale（用户报「文字太小」的第 2 层根因；V6 报告 §4-② 的 6 处之一）：
-            //   原来这两条**没给 fontSize**（默认 0 = 按原版 px 1:1 画 ⇒ chi 格只有 ~16 画布px，
-            //   是本画布应有字号的 16/28.8 ≈ 55%）⇒ 球内数字明显偏小。
             //   字号**唯一出处** = `UiLayoutGame.FontPx16`（原版行距 16 × K 1.8 = **28.8**，取整 28；
-            //   见 `UiLayoutGame` 的「全 UI 字号唯一出处」一节）；⛔ 本文件不另写字号字面量。
+            //   见 `UiLayoutGame` 的「全 UI 字号唯一出处」一节）；本文件不另写字号字面量。
             //   判据：`uicheck` 的 FontScaleCheck（本处 9th 实参 = `(int)UiLayoutGame.FontPx16`）。
-            // ★ 2026-09-23「用户基准图」轮：文案改**中文**（原版实机基线图里就是
-            //   「生命: 776/879」「法力: 335/335」——中文版口径；旧值是英文 "Life:"/"Mana:"，
             //   是自创文案，1:1 硬标准下不允许）。字号/位置/外框见 `UiLayoutGame.OrbLabelSize`
             //   与 `OrbLabelOffsetY`（都按基线图逐像素重定过）。
             _lifeText = D2Label.Create(lifeHolder, "LifeText", "生命: 0/0", D2Text.D2Font.Font16,
@@ -439,7 +419,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 造一颗球：**填充球**（原版 `HealthBar`/`ManaAnimation` = Filled + Vertical + fillOrigin=Bottom）
         /// + 玻璃高光。两层都在**同尺寸容器**（`{name}Holder`）里：`UiBar` 的锚点降级模式以父节点为基准。
-        /// <para>⛔ 不铺"深色底球"——原版没有这个节点，底图自带球体（见 <see cref="BuildOrbs"/> 的说明）。</para>
+        /// <para>不铺"深色底球"——原版没有这个节点，底图自带球体（见 <see cref="BuildOrbs"/> 的说明）。</para>
         /// </summary>
         /// <param name="holder">球容器（球内数字标签挂在它下面）。</param>
         private Image BuildOrb(string name, Vector2 pos, string spritePath, int overlayFrame,
@@ -498,15 +478,14 @@ namespace Diablo2.UI
         private void BuildSkillSlots()
         {
             // 原版 `ControlPanel.prefab` 的 `LeftSkill`/`RightSkill` 各有一个子标签，**文本就是 "L" / "R"**
-            // （实测 prefab 的 m_Text: 'L' 与 m_Text: R）——不是"Attack"，上一轮写成 L/R 是对的。
-            // ★ impl-I-input：两格的 Image 要留着 ⇒ 收到 `Events.SkillButtonsChanged` 时换图标。
+            // impl-I-input：两格的 Image 要留着 ⇒ 收到 `Events.SkillButtonsChanged` 时换图标。
             _leftSkillIcon = BuildSkillSlot("LeftSkill", LeftSkillPos, "L", ResPaths.SkillIconAttack);
             _rightSkillIcon = BuildSkillSlot("RightSkill", RightSkillPos, "R", ResPaths.SkillIconAttack);
         }
 
         /// <summary>
         /// 左右键技能格换图标（原版：两个技能格显示**当前绑定的技能**的图标；未绑 = 普通攻击图标）。
-        /// 收方 = `Events.SkillButtonsChanged`（★ impl-I-input，审计 R4）。
+        /// 收方 = `Events.SkillButtonsChanged`（impl-I-input，审计 R4）。
         /// </summary>
         private void ApplySkillButtons(SkillButtonsArgs args)
         {
@@ -543,7 +522,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 6 格技能栏（原版 `SkillPanel.prefab` 根：224.97×35.12 @ pos(-44.58,35.76)，6 个子槽位等分）。
         /// <para>
-        /// ★ 底图 `ControlPanel.png` 已经把 6 个格子画出来了（实测 art x 320..542、pitch 38），
+        /// 底图 `ControlPanel.png` 已经把 6 个格子画出来了（实测 art x 320..542、pitch 38），
         /// 所以这里**不铺底色、不抢先贴图标**，只放「透明命中区 + 热键标签」：
         /// 原版 `SkillSlot.prefab` 的 `HotkeyLabel` 相对格子铺满、偏移 (2,3)、左上对齐；
         /// 原版 6 格绑的是 **F1~F6**（`Diablerie/Engine/PlayerController.cs` 的
@@ -551,7 +530,7 @@ namespace Diablo2.UI
         /// 与本项目 `Def/GameKeyAlias.cs` 的 `KeySkillSlot1..6` 同口径）。
         /// </para>
         /// <para>
-        /// ★ impl-I-input（审计 R4）：「哪一格装哪个技能」= **已学技能顺序**的第 i 个（`OnSkillTreeChanged`
+        /// impl-I-input（审计 R4）：「哪一格装哪个技能」= **已学技能顺序**的第 i 个（`OnSkillTreeChanged`
         /// 按 `Def.SkillTreeArgs.skills` + `learnedLevels` 贴图标）；点击第 i 格 = 按 `F(i+1)`，
         /// 发 `Events.SkillSlotAssignRequest`（发给技能模块去绑左右键技能格）。
         /// </para>
@@ -573,7 +552,7 @@ namespace Diablo2.UI
                 button.targetGraphic = slot;
                 button.onClick.AddListener(() =>
                 {
-                    // ★ impl-I-input：点第 i 格 = 按 F(i+1)（原版口径：技能栏格与 F 键同源）
+                    // impl-I-input：点第 i 格 = 按 F(i+1)（原版口径：技能栏格与 F 键同源）
                     UiLog.Info($"技能栏第 {index + 1} 格（F{index + 1}）被点击 ⇒ 发 {Events.SkillSlotAssignRequest}"
                         + $"（槽号 {index + 1}）");
                     Game.Event.Emit(Events.SkillSlotAssignRequest, index + 1);
@@ -598,7 +577,6 @@ namespace Diablo2.UI
         /// <summary>给技能格加原版样式的热键标签（左上角、暖黄色）。</summary>
         private static void AddHotkeyLabel(Transform slot, string hotkey, string owner)
         {
-            // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 热键字只有应有的 ~55%）。
             //   字号唯一出处 = `UiLayoutGame.FontPx16`。
             var label = D2Label.Create(slot, "HotkeyLabel", hotkey, D2Text.D2Font.Font16,
                 TextAnchor.UpperLeft, new Color(1f, 0.92f, 0.70f, 1f),
@@ -623,9 +601,8 @@ namespace Diablo2.UI
         /// <summary>
         /// 腰带 4 格。
         /// <para>
-        /// ★ 原版**格线已经画在 `ControlPanel.png` 底图里**（art x 中心 599.5/630.5/661.5/692.5）⇒
+        /// 原版**格线已经画在 `ControlPanel.png` 底图里**（art x 中心 599.5/630.5/661.5/692.5）⇒
         /// 这里只需要「可点的透明命中区 + 物品图标层 + 数量」三层，**不铺底色**（铺了就会盖住原版格线，
-        /// 上一轮就是拿深色方块顶掉了原版格子）。
         /// </para>
         /// </summary>
         private void BuildBelt()
@@ -650,7 +627,6 @@ namespace Diablo2.UI
 
                 _beltCells[i] = cell;
                 _beltIcons[i] = icon;
-                // ★ 片 font-scale：补显式字号（默认 0 = 原版 px 1:1 ⇒ 腰带数量只有应有的 ~55%）。
                 _beltTexts[i] = D2Label.Create(cell.transform, "Count", string.Empty, D2Text.D2Font.Font16,
                     TextAnchor.LowerRight, new Color(1f, 0.92f, 0.70f, 1f), size, Vector2.zero,
                     (int)UiLayoutGame.FontPx16);
@@ -664,18 +640,16 @@ namespace Diablo2.UI
                 Color.white, false);
             UiArt.SetSprite(_miniPanelBg, ResPaths.D2UiPanel + "minipanel");
 
-            // ★★ U3 更正（用户 2026-09-23 报「下面的栏 100% 不是原版」「找不到入口只能按 c」）：
             //   ① **按钮数 7 → 8**（依据见 `UiLayoutGame.MiniButtonCount`：`minipanelbtn.DC6` 16 帧
             //      = 8 对 + `string.tbl` 的 8 条 `minipanel*` tooltip）。原版那一排（按原版 tooltip 名）
             //      = 人物 / 物品 / 技能樹 / 隊伍畫面 / 自動地圖 / 訊息記錄 / 任務記錄 / 遊戲選單。
-            //   ② **默认展开**。上一轮按 Diablerie `ControlPanel.prefab` 的 `ImageMinipanel m_IsActive=0`
             //      默认收起，并且把唯一的开合箭头也 `SetActive(false)` ⇒ **鼠标入口 0 个**（只剩键盘），
             //      用户报的「找不到入口」即此。原版控制面板上这一排**就在画面里**（`string.tbl` 的
             //      `StrHelp17迷你面板（開啟人物的物品欄，以及其他畫面）` 是它的 tooltip）⇒ 默认展开。
             //   帧对（每钮 = 常态 `2i` / 按下 `2i+1`，见 `AddMiniButton` 下的 `ApplyMiniButtonPressFrame`）：
             //      i=0 人物 2/3 · i=1 物品 4/5 · i=2 技能樹 6/7 · i=3 隊伍畫面 8/9 ·
             //      i=4 自動地圖 10/11 · i=5 訊息記錄 12/13 · i=6 任務記錄 14/15 · i=7 遊戲選單 16/17
-            //      ⚠️ `ControlPanel.prefab` 记的是 0/2/4/8/10/12/14（跳过 6）—— 那是"漏了第 4 个按钮"
+            //      `ControlPanel.prefab` 记的是 0/2/4/8/10/12/14（跳过 6）—— 那是"漏了第 4 个按钮"
             //      之后**把后面的整体前移一档**得到的错序；本表按 DC6 帧对的自然顺序重排。
             AddMiniButton(0, 0, nameof(CharacterPanel), "人物（C）");
             AddMiniButton(1, 2, nameof(InventoryPanel), "物品（I）");
@@ -724,9 +698,7 @@ namespace Diablo2.UI
                 UiLog.Info($"小面板开关被点击 ⇒ {(_miniOpen ? "展开" : "收起")}（原版：箭头按钮切换导航条）");
             });
             ApplyMiniToggleSprite();
-            // ★ 本轮（E7 收口）：原版该箭头的父容器 `ImageExpBarRight` 同样是 `m_IsActive: 0`
-            //   ⇒ **原版 HUD 上看不到它**；而小面板本身在原版也是**默认收起**（见 `_miniOpen` 注释）
-            //   ⇒ 按原版默认态隐藏本按钮。原版「导航条展开」的完整实现未拿到 ⇒ 保持 E7 登记。
+            //   原版小面板默认收起（见 `_miniOpen` 注释）⇒ 按原版默认态隐藏本按钮。
             _miniToggle.gameObject.SetActive(false);
         }
 
@@ -820,7 +792,7 @@ namespace Diablo2.UI
         {
             _runButton = UiArt.Panel(transform, "RunButton", RunButtonSize, RunButtonPos, Color.white, true);
             ApplyRunButton();
-            // ⛔ **保持隐藏**（hud-redo2 试过打开，**量过之后又关回去**——理由必须留痕）：
+            // **保持隐藏**（hud-redo2 试过打开，**量过之后又关回去**——理由必须留痕）：
             //   用户基线实机图（`策划/基线图/原版_实机_UI基准_20260923.png`）**确实画着这个"跑/走小人"**，
             //   但**在我们这套素材上它无处可放**：
             //     · 实测 `ControlPanel.png`：格带凹槽占 art y 87..115、经验条轨道占 art y 129..133
@@ -830,8 +802,6 @@ namespace Diablo2.UI
             //     · 实机图里那个小人**在经验条左边、与经验条同一行**——而那颗经验条在我们素材上
             //       左端在 art x 221（早于左键技能格 230），实机图那套面板的版面与 948×160 素材
             //       **不是同一套**（见回报 B-3 的量化证明）⇒ **抄不到一个"有出处"的坐标**。
-            //   ⇒ 按 §0「写不出出处的量不许进工程」**保持隐藏**（节点与 `R` 键入口都在，
-            //     ⛔ 不发明替代坐标），并把「是否要为它改素材/改版面」交主 agent 裁决。
             _runButton.gameObject.SetActive(false);
             var button = _runButton.gameObject.AddComponent<Button>();
             button.targetGraphic = _runButton;
@@ -912,7 +882,6 @@ namespace Diablo2.UI
                     : (item != null ? item.count : 0);
 
                 // 图标层：有物品才显示（原版格线由底图提供，格子本身保持透明）
-                // ★ agent-18 §B：图标换成**原版物品图**（`D2/Items/inv{code}.png`，配表 item_c.code），
                 //   取不到时才退回品质色块（`D2Icon.ApplyItemIcon` 内已点名 Warn）。
                 D2Icon.ApplyItemIcon(_beltIcons[i], _beltIconPath, i, item);
                 _beltTexts[i]?.SetText(count > 0 ? count.ToString() : string.Empty);
@@ -947,7 +916,7 @@ namespace Diablo2.UI
             Game.Event.On<NpcDialogArgs>(Events.DialogOpen, OnDialogOpen);
             Game.Event.On<ShopOpenArgs>(Events.ShopOpen, OnShopOpen);
             Game.Event.On(Events.PlayerDied, OnPlayerDied);
-            // ★ impl-I-input（审计 R1/R4/R5）：左右键技能格绑定快照 + 地面物品名牌（都是 Def 载荷）
+            // impl-I-input（审计 R1/R4/R5）：左右键技能格绑定快照 + 地面物品名牌（都是 Def 载荷）
             Game.Event.On<SkillButtonsArgs>(Events.SkillButtonsChanged, OnSkillButtonsChanged);
             Game.Event.On<GroundItemLabelsArgs>(Events.GroundItemLabelsChanged, OnGroundItemLabels);
         }
@@ -978,7 +947,7 @@ namespace Diablo2.UI
 
         private void OnStageEntered()
         {
-            // ★ agent-a3：进（新一局的）舞台 ⇒ 清掉"区域名已弹过"记录。
+            // agent-a3：进（新一局的）舞台 ⇒ 清掉"区域名已弹过"记录。
             //   `Events.StageEntered` 只在本局真正装配舞台时发（Pause→Resume 走 `OnEnterStage` 的
             //   `_stageActive` 提前返回，**不会**发本事件，见 `Module/Flow/AppFlow.cs:582-595`）
             //   ⇒ 这里清空不会出现"一暂停一恢复就重弹一遍区域名"。
@@ -1062,7 +1031,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 技能栏 6 格贴图（★ impl-I-input，审计 R4）：第 i 格 = 本职业**已学技能顺序**的第 i 个
+        /// 技能栏 6 格贴图（impl-I-input，审计 R4）：第 i 格 = 本职业**已学技能顺序**的第 i 个
         /// （顺序 = `Def.SkillTreeArgs.skills` 的顺序 = 技能树 tree→reqLevel→id）。
         /// 已学数不足 6 ⇒ 多出来的格保持空（原版 1 级时技能栏也是空的）。
         /// </summary>
@@ -1110,7 +1079,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 左右键技能格图标刷新（`Events.SkillButtonsChanged` 的收方；★ impl-I-input，审计 R4）。
+        /// 左右键技能格图标刷新（`Events.SkillButtonsChanged` 的收方；impl-I-input，审计 R4）。
         /// </summary>
         private void OnSkillButtonsChanged(SkillButtonsArgs args)
         {
@@ -1118,7 +1087,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 地面物品名牌（`Events.GroundItemLabelsChanged` 的收方；★ impl-I-input，审计 R5）。
+        /// 地面物品名牌（`Events.GroundItemLabelsChanged` 的收方；impl-I-input，审计 R5）。
         /// 名牌层**按需创建**（第一次收到非空载荷时建），避免"没人开道具时白建一层节点"。
         /// </summary>
         private void OnGroundItemLabels(GroundItemLabelsArgs args)
@@ -1158,7 +1127,6 @@ namespace Diablo2.UI
             _quest = quest;
         }
 
-        /// <summary>缓存小地图快照：打开 `MiniMapPanel` 时作为 `OnOpen` 参数传入（agent-13 §B-3）。</summary>
         private void OnMapGenerated(MinimapArgs map)
         {
             _minimap = map;
@@ -1169,7 +1137,7 @@ namespace Diablo2.UI
             }
             UiLog.Info($"HUD 已缓存小地图快照（{map.width}×{map.height} seed={map.seed}）⇒ 打开自动地图时直接传入");
 
-            // ★ agent-a3：**进图那一次**的区域名触发点（`MinimapArgs.areaId`）。
+            // agent-a3：**进图那一次**的区域名触发点（`MinimapArgs.areaId`）。
             //   为什么用这里：进图时 `Events.AreaChanged` **不发**（它只在过门时发，见 `AppFlow.EnterArea`），
             //   而 `AppSnapshots.Broadcast("StageEntered")` 在 HUD 打开之后会补发一次 `MapGenerated`
             //   （`App/AppSnapshots.cs:123-128`）⇒ 这是 UI 侧能拿到的"进图后当前区域"的唯一权威来源。
@@ -1178,7 +1146,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// ★ agent-a3：过门换区 ⇒ 可能弹区域名（`AppFlow.EnterArea` 在换区完成后发本事件）。
+        /// agent-a3：过门换区 ⇒ 可能弹区域名（`AppFlow.EnterArea` 在换区完成后发本事件）。
         /// </summary>
         private void OnAreaChanged(Diablo2.Def.AreaId area)
         {
@@ -1205,7 +1173,6 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 「面板类名 → 打开参数」的映射（**纯函数，离线可断言**；`OnPanelToggle` 就是调它）。
-        /// 关键点：`MiniMapPanel` 必须拿到缓存的 `MinimapArgs`（**不再传 null**，agent-13 §B-3）。
         /// </summary>
         public static object PanelParam(string panelName, PlayerStatsDto stats, InventoryChangedArgs inventory,
             SkillTreeArgs tree, QuestStateDto quest, MinimapArgs minimap)
@@ -1223,15 +1190,8 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 「角色屏家族」= 共用 HUD 小面板入口（`I`/`C`/`T`/`Q`）的四个面板。
-        /// <para>★ R8-close（2026-09-24）**为什么必须显式补这一条**：这四个面板在本次修复前**全是
-        /// `UILayer.Popup`** ⇒ 「开另一个 ⇒ 旧的自动关掉」是引擎替我们做的
-        /// （`UIManager.Open&lt;T&gt;` 的 `CloseMutexPanels()`，`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159,431-441`）。
-        /// 而 `SkillTreePanel` / `QuestLogPanel` 本次**降到 `Normal`**（理由：原版没有全屏模态遮罩，
-        /// 遮罩会把 HUD 的鼠标出口整个掐掉 ⇒ 纯鼠标玩家关不掉面板；先例 = `NpcDialogPanel` 的 R1-E），
-        /// 降层之后 `CloseMutexPanels()` **不再覆盖它们** ⇒ 若不在这里补，按 `T` 会同时留下背包（面板中心
-        /// `(288,0)`）与技能树（`(0,0)`，两者矩形在 `x 0..288` 重叠）= 肉眼可见的排版退化。</para>
-        /// <para>只在**本入口**补「同族互斥」，⛔ 不改别的进入点的语义：NPC 点「交易」开商店、传送点开面板
-        /// 走的仍是引擎的 `Popup` 互斥（`InventoryPanel`/`CharacterPanel` 仍留 `Popup`，行为与修前一致）。</para>
+        /// <para>只在**本入口**补「同族互斥」，不改别的进入点的语义：NPC 点「交易」开商店、传送点开面板
+        /// 走的仍是引擎的 `Popup` 互斥（`InventoryPanel`/`CharacterPanel` 仍留 `Popup`）。</para>
         /// </summary>
         private static readonly string[] ScreenFamily =
         {

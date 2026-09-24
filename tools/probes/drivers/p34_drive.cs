@@ -1,7 +1,5 @@
-// p34_drive.cs -- one-off Pipeline probe for agent-34 (engine sink A3: Exists / LoadAll).
 // NOT shipped: lives in <project>/.ai-tmp/drivers/ and is deleted before delivery.
 //
-// Derived from the agent-29 probe (p29_drive.cs) -- same install/entry shape, but the tour is
 // SHORT and targeted at the three art classes the task requires in ONE frame-set:
 //   01 main menu   -> original panel art (menu screen) + CJK bitmap font (menu button labels)
 //   02 stage HUD   -> original control-panel art + original item icons (inv*) + latin bitmap font
@@ -620,7 +618,7 @@ namespace P34
                     return;
 
                 // ---- 01 main menu: original menu art + latin bitmap font + original buttons ----
-                // ⚠️ NO mutation in the same frame as the capture: `ScreenCapture.CaptureScreenshot`
+                // NO mutation in the same frame as the capture: `ScreenCapture.CaptureScreenshot`
                 //    fires at the END of the frame, so a click issued right after it would already be
                 //    visible in the file (found live in run r1: tile 1 showed CharSelect instead of the
                 //    main menu). Every capture therefore gets its own step.

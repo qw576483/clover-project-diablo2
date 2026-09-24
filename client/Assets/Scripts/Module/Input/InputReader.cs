@@ -5,25 +5,18 @@
 // 职责：把「鼠标左键点击地面 / 按住左键持续走 / 悬停格 / 键盘快捷键」翻译成**格坐标与意图**，
 // 交给 `Module/Player` 使用；`Module/Camera` 若开启可选缩放/边缘滚动也走这里读轴。
 //
-// ⛔ 一律走 `Game.Input`（引擎封装：旧 InputManager / 新 InputSystem 双后端都能用）。
-//    直连 `UnityEngine.Input` / `Keyboard.current` 在只有新后端的工程里**静默失效**
-//    （`docs/步骤文档.md` §3.4 已记为坑）。
-// ⛔ 屏幕 → 地面反投影**必须**用 `Core/Iso.ScreenToWorldOnGround`（`constraints.md` #6：
+// 一律走 `Game.Input`（引擎封装：旧 InputManager / 新 InputSystem 双后端都能用）。
+// 屏幕 → 地面反投影**必须**用 `Core/Iso.ScreenToWorldOnGround`（`constraints.md` #6：
 //    要显式给「到地面的距离」= -camera.z，否则点击位置整体偏移）。
 //
-// ── 悬停 / 光标（`docs/agents/agent-13-修复轮.md` §A）────────────────────────────
-//   `Events.HoverTargetChanged` / `Events.CursorChanged` **全工程原先没有发送方**
-//   ⇒ 本类补上：`UpdateHover` 每帧把 `HoverGrid` 交给 `HoverPicker` 解析，
 //   目标变化时发 `HoverTargetChanged`（载荷 `Def.HoverTarget`）+ `CursorChanged`（载荷 `Def.CursorKind`）。
 //   解析细节（怪物/地面物品/NPC、分层与契约缺口）见 `Module/Input/HoverPicker.cs` 头注释。
 //
 // ── 点 UI 的鼠标左键不再被读成"点地面"（R1-E 的 S2）──────────────────────────────
-//   症状（`策划/自审对比/实机-A.md:37` 记的实机现象）：点商店格/面板按钮时，同一次左键
 //   既被 uGUI 吃掉、又被这里当成"点地面"⇒ 角色乱走；落点若在 NPC 的 `TalkRange` 内
 //   还会触发 `NpcModule.TryAutoInteract` **自动开对话顶掉商店面板**。
-//   修法：`TryGetGroundClick` / `TryGetGroundHoldTarget` 两个取点入口在反投影**之前**
 //   先过 `UiEatsIntent(按下/按住, 指针是否在 UI 上)`（纯函数，离线宿主逐行断言）。
-//   ⛔ 判定源**不读裸 `UnityEngine.Input`**：转调**引擎探针** `Game.Input.PointerOverUi`
+//   判定源**不读裸 `UnityEngine.Input`**：转调**引擎探针** `Game.Input.PointerOverUi`
 //      （内部走 uGUI `UnityEngine.EventSystems` 的指针命中；离线宿主 / 无 EventSystem ⇒ 恒 false；
 //      见本文件下方 `UiPointerProbe` 的说明：为什么判定源归引擎、为什么本文件不出现 uGUI 类型名）。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,7 +28,7 @@ using Diablo2.Def;
 using UnityEngine;
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ⚠️ 命名空间**刻意**用 `Diablo2.Module`，**不是** `Diablo2.Module.Input`（目录仍是 `Module/Input/`）。
+// 命名空间**刻意**用 `Diablo2.Module`，**不是** `Diablo2.Module.Input`（目录仍是 `Module/Input/`）。
 //
 // 三条理由（第 1 条是实测报错，见 `Module/Camera/CameraRig.cs` 的同款注释）：
 //   ① 命名空间 `Diablo2.Module.X` 里若 X 与常用 Unity 类型同名（`Camera` / `Input`），
@@ -56,7 +49,6 @@ namespace Diablo2.Module
         /// <summary>滚轮轴名（与引擎自带的 `Runtime/Presentation/CloverThirdPersonCamera.cs:221` 同口径
         /// —— 该处处说明「滚轮轴（"Mouse ScrollWheel"）两个后端都已支持」，用点在 `:238` 的
         /// `input.GetAxis("Mouse ScrollWheel")`；轴名换算见 `Runtime/Presentation/Input.cs:544/563`。
-        /// ★ 2026-09-23 更正：原文引的 `ThirdPersonCamera.cs:219` **全盘不存在**（该文件已更名/拆分为
         /// `CloverThirdPersonCamera.cs`）⇒ 由 audit-C-logic-num §13 的引用可达性复核抓出，本行按现盘更正）。</summary>
         public const string ScrollWheelAxis = "Mouse ScrollWheel";
 
@@ -64,7 +56,7 @@ namespace Diablo2.Module
         public const int PrimaryMouseButton = 0;
 
         /// <summary>
-        /// 右键的鼠标键号（原版「右键 = 右手技能」；★ impl-I-input 新增读取点，见 <see cref="SecondaryDown"/>）。
+        /// 右键的鼠标键号（原版「右键 = 右手技能」；impl-I-input 新增读取点，见 <see cref="SecondaryDown"/>）。
         /// <para>取值出处 = Unity/引擎 `Game.Input.GetMouseButton(int)` 的键号约定（0 = 左 / 1 = 右 / 2 = 中），
         /// 与既有 <see cref="PrimaryMouseButton"/> 的 `0` 同源；这是唯一的右键读取点。</para>
         /// </summary>
@@ -99,7 +91,7 @@ namespace Diablo2.Module
         /// <para>默认值 = <see cref="UiPointerProbe.PointerOverUi"/>（**转调引擎探针**
         /// `Game.Input.PointerOverUi` —— uGUI `EventSystem` 的指针命中，实现见
         /// `Runtime/Presentation/Input.cs`）；离线自检宿主注入替身来断言两种情形。</para>
-        /// <para>⛔ 本字段**不参与 <see cref="Reset"/>**：它可能是宿主/集成方注入的替身（同 `GroundItemAt` 的口径）。</para>
+        /// <para>本字段**不参与 <see cref="Reset"/>**：它可能是宿主/集成方注入的替身（同 `GroundItemAt` 的口径）。</para>
         /// </summary>
         public Func<bool> PointerOverUi { get; set; }
 
@@ -127,14 +119,14 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 鼠标反投影到地面的**世界点**（与 <see cref="HoverGrid"/> **同一帧、同一次投影**得到）。
-        /// ★ S3：悬停怪物要按「贴图实际矩形」命中（原版口径），而矩形判定要用世界点，
+        /// S3：悬停怪物要按「贴图实际矩形」命中（原版口径），而矩形判定要用世界点，
         /// 只有格是不够的（同一个格覆盖不到怪物上半身）。见 `HoverPicker.Resolve(Vector2Int, Vector2)`。
         /// </summary>
         private Vector3 _hoverWorld;
 
         /// <summary>
         /// <see cref="_hoverWorld"/> 是否与当前 <see cref="HoverGrid"/> 配对有效。
-        /// <para>⛔ 只有 `Poll` 里**同一次**反投影算出来的两个值才算配对：任何"只给格、不给点"的
+        /// <para>只有 `Poll` 里**同一次**反投影算出来的两个值才算配对：任何"只给格、不给点"的
         /// 调用（<see cref="OverrideHoverGrid"/>、离线宿主）都会把它置 false ⇒ 那里**一字不变**地
         /// 走旧口径（怪物只认脚下格），不会用上一次的残留世界点误命中。</para>
         /// </summary>
@@ -160,7 +152,7 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 本帧**右键**是否按下（原版 D2：右键 = 使用**右手技能**）。
-        /// <para>★ impl-I-input：改动前 `Poll()` 只读 button 0，全仓 0 处读 button 1
+        /// <para>impl-I-input：改动前 `Poll()` 只读 button 0，全仓 0 处读 button 1
         /// ⇒ HUD 上已经画出来的 `RightSkill` 技能格**没有任何入口**（审计 R1）。
         /// 消费方 = `Module/Player/PlayerModule`（右键意图 → 已有的技能施放入口 `ISkillModule.TryCast`）。</para>
         /// </summary>
@@ -205,7 +197,7 @@ namespace Diablo2.Module
             _down = input.GetMouseButtonDown(PrimaryMouseButton);
             _held = input.GetMouseButton(PrimaryMouseButton);
             _up = input.GetMouseButtonUp(PrimaryMouseButton);
-            // ★ impl-I-input（审计 R1）：右键 = 右手技能，唯一读取点就是这三行（全仓别处不许再读 button 1）。
+            // impl-I-input（审计 R1）：右键 = 右手技能，唯一读取点就是这三行（全仓别处不许再读 button 1）。
             _secDown = input.GetMouseButtonDown(SecondaryMouseButton);
             _secHeld = input.GetMouseButton(SecondaryMouseButton);
             _secUp = input.GetMouseButtonUp(SecondaryMouseButton);
@@ -214,7 +206,7 @@ namespace Diablo2.Module
             var cam = ResolveCamera();
             if (cam != null)
             {
-                // ★ S3：格与世界点必须来自**同一次**反投影（`_hoverWorldValid` = 两者配对）。
+                // S3：格与世界点必须来自**同一次**反投影（`_hoverWorldValid` = 两者配对）。
                 HoverGrid = Iso.ScreenToGrid(cam, input.MousePosition);
                 _hoverWorld = Iso.ScreenToWorldOnGround(cam, input.MousePosition);
                 _hoverWorldValid = true;
@@ -224,7 +216,7 @@ namespace Diablo2.Module
         /// <summary>
         /// 本帧左键按下 → 该点的**地面格**（点击移动入口）。
         /// 相机不可用 / 输入不可用 → 返回 false 并（首次）留下可定位日志，不做任何"猜一个格"的兜底。
-        /// <para>★ 指针压在 UI 上（点面板/面板按钮）⇒ 本次按下**不算**地面意图（见 <see cref="UiEatsIntent"/>）。</para>
+        /// <para>指针压在 UI 上（点面板/面板按钮）⇒ 本次按下**不算**地面意图（见 <see cref="UiEatsIntent"/>）。</para>
         /// </summary>
         public bool TryGetGroundClick(out Vector2Int grid)
         {
@@ -237,7 +229,7 @@ namespace Diablo2.Module
         /// <summary>
         /// 按住左键时的当前目标格（配合 <see cref="ShouldRetarget"/> 实现「按住持续走」）。
         /// 未按住 → false。
-        /// <para>★ 同 <see cref="TryGetGroundClick"/>：指针在 UI 上时按住也不产生地面目标
+        /// <para>同 <see cref="TryGetGroundClick"/>：指针在 UI 上时按住也不产生地面目标
         /// （否则"按下 UI"的那一帧 `_held` 同时为真 ⇒ 会从这一支漏出一条移动/攻击）。</para>
         /// </summary>
         public bool TryGetGroundHoldTarget(out Vector2Int grid)
@@ -249,7 +241,7 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// 本帧**右键按下** → 该点的**地面格**（右键技能施放入口；★ impl-I-input 新增）。
+        /// 本帧**右键按下** → 该点的**地面格**（右键技能施放入口；impl-I-input 新增）。
         /// <para>与 <see cref="TryGetGroundClick"/> 同一套护栏：相机/输入不可用 ⇒ false + 首次日志；
         /// 指针压在 UI 上（点面板/按钮）⇒ 本次右键**不算**施放意图（<see cref="UiEatsIntent"/>）。
         /// **不产生任何移动意图**（原版右键不移动角色）。</para>
@@ -265,7 +257,6 @@ namespace Diablo2.Module
         /// <summary>
         /// 「这次按下/按住是否该被 **UI 命中**吃掉」——**纯判定**（离线宿主逐行断言，不碰真实 EventSystem）：
         /// 只有"确实按下/按住" **且** "指针在 UI 上"才算被吃掉。
-        /// <para>两种情形的判据（`tools/probes/hosts/playercheck` §12.7 逐行核对）：</para>
         /// <list type="bullet">
         /// <item><c>(true, true)</c> = 「UI 面板开着的区域」⇒ true ⇒ 不产生落点、不发 `MoveCommand`、
         /// 不触发 `NpcModule` 的自动对话（面板按钮照常被 uGUI 收到）。</item>
@@ -281,19 +272,7 @@ namespace Diablo2.Module
         /// <para>规则出处 = `策划/策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行「鼠标点击移动 … **按住左键持续更新目标**」
         /// （同口径：`策划/自审对比/README.md` 第 5 行「左键点地面 → 8 向逐格寻路」）⇒
         /// **目标格一变就跟着光标重算**，原版没有「必须差够 N 格」这一说。</para>
-        /// <para>★ 2026-09-23 修 U33「鼠标在人附近移动没效果，必须要远」：删掉旧实现里两条**本项目自创**的抑制规则
-        /// （它们的出处是派活文档 `docs/agents/agent-06-主角相机与输入.md` §4 第 4 条
-        /// 「目标格变化超过 1 格才重算路径（避免每帧 A*）」—— 那是工程优化，**不是原版语义**）：
-        /// <list type="bullet">
-        /// <item>「目标只差 1 格 ⇒ 忽略」：鼠标**慢慢移动**时每帧只跨 1 格 ⇒ 永远触发不了重算，
-        /// 只有把光标甩到 ≥2 格外才有反应 ⇒ 用户报的症状逐字对得上；</item>
-        /// <item>「点到脚下格 ⇒ 忽略」：与**同一条链路**的单击分支不一致 ——
-        /// `PlayerModule.HandlePrimaryClick` 对脚下格照样 `Emit(Events.MoveCommand)`，
-        /// `MoveTo` 自己有「已在目标格 ⇒ 清空路径（原地不动）」分支 ⇒ 按住时把光标挪到脚下 = 该停下来。</item>
-        /// </list>
-        /// 唯一保留的节流 = **同一格不重算**（目标没跑 ⇒ 不重复跑 A*，与"避免每帧 A*"等价且不损失手感）。</para>
         /// </summary>
-        /// <param name="from">玩家当前格（★ 2026-09-23 起**不参与**是否重算的判定，仅为保持调用点签名不变）。</param>
         /// <param name="previous">上一次已经下发的目标格（`null` = 还没有）。</param>
         /// <param name="now">本次鼠标所指格。</param>
         public static bool ShouldRetarget(Vector2Int from, Vector2Int? previous, Vector2Int now)
@@ -303,7 +282,6 @@ namespace Diablo2.Module
             return true;                                    // 变了就跟着光标重算（脚下格 / 相邻格同样算）
         }
 
-        // ── 悬停 / 光标（agent-13 §A）──────────────────────────────────────────
 
         /// <summary>
         /// 每帧：把 <see cref="HoverGrid"/> 解析成悬停目标，**变化时**发 `Events.HoverTargetChanged`
@@ -313,17 +291,17 @@ namespace Diablo2.Module
         public HoverTarget UpdateHover(bool canInteract)
         {
             if (!canInteract) return _hover;
-            // ★ S3：拿到了与 HoverGrid 同帧配对的世界点 ⇒ 走新口径（怪物按贴图实际矩形命中，
+            // S3：拿到了与 HoverGrid 同帧配对的世界点 ⇒ 走新口径（怪物按贴图实际矩形命中，
             //   原版语义）；否则（含 `OverrideHoverGrid` 的离线/自证路径）**一字不变**走旧口径。
             Publish(_hoverWorldValid ? _picker.Resolve(HoverGrid, _hoverWorld) : _picker.Resolve(HoverGrid));
             return _hover;
         }
 
         /// <summary>
-        /// 发布**地面物品名牌**（事件 <see cref="Events.GroundItemLabelsChanged"/>；★ impl-I-input，审计 R5）。
+        /// 发布**地面物品名牌**（事件 <see cref="Events.GroundItemLabelsChanged"/>；impl-I-input，审计 R5）。
         /// <para>两种触发（与原版一致）：① 按住 Alt（`altHeld = true`）⇒ **全部**地面物品；
         /// ② 没按 Alt 时，只显示**当前悬停的那一件**（`Events.HoverTargetChanged` 解析出的 `Pickup` 目标）。</para>
-        /// <para>★ 为什么 Alt 态由**调用方**（`PlayerModule.Tick`）传进来，而不是本类自己读
+        /// <para>为什么 Alt 态由**调用方**（`PlayerModule.Tick`）传进来，而不是本类自己读
         /// <see cref="ShowGroundItems"/>：审计 B 的静态对账口径是「属性消费点在 `InputReader` **之外**」
         /// （`audit-B-static-out.txt` ④：`InputReader` 内部引用不算消费方）⇒ 消费者放到 `PlayerModule`
         /// 那一条 `_input.ShowGroundItems` 上，脚本才判得出「已有消费方」。</para>
@@ -445,7 +423,7 @@ namespace Diablo2.Module
         public void OverrideHoverGrid(Vector2Int grid)
         {
             HoverGrid = grid;
-            // ★ S3：合成的格**没有**配对的世界点 ⇒ 明确作废旧点，保证这里仍是"只认脚下格"的旧口径。
+            // S3：合成的格**没有**配对的世界点 ⇒ 明确作废旧点，保证这里仍是"只认脚下格"的旧口径。
             _hoverWorldValid = false;
         }
 
@@ -492,8 +470,7 @@ namespace Diablo2.Module
                    && a.gridY == b.gridY;
         }
 
-        // ⛔ 这里**没有**「方向键备选移动」读取器：原版 D2 只有鼠标点地面移动，
-        //   曾经那一族（读取器 + `Cfg` 开关 + `Game.Setting` 设置项）已按全局 skill §0
+        // 这里**没有**「方向键备选移动」读取器：原版 D2 只有鼠标点地面移动，
         //   「A 没有 ⇒ 不加」整体删除（删除清单与 grep 判据见验收表 U-1 与 bug 表 B35）。
 
         /// <summary>站立不动（原版 `Shift`）：按住时不因点击而移动（战斗模块判「原地攻击」用）。</summary>
@@ -508,7 +485,7 @@ namespace Diablo2.Module
         /// <summary>
         /// 本帧是否按下「切换武器组」（原版 `W`）。
         /// <para>键位**唯一来源** = <see cref="GameKeyAlias.KeySwapWeapon"/>；消费方 =
-        /// `Module/Player/PlayerModule.Tick`（⇒ 发 `Events.SwapWeaponRequest`）。⛔ 本文件与消费方
+        /// `Module/Player/PlayerModule.Tick`（⇒ 发 `Events.SwapWeaponRequest`）。本文件与消费方
         /// 都不出现 `GameKey.W` 字面量（改键位只改 `Def/GameKeyAlias.cs` 一处）。</para>
         /// </summary>
         public bool SwapWeaponPressed => GetKeyDown(GameKeyAlias.KeySwapWeapon);
@@ -531,7 +508,7 @@ namespace Diablo2.Module
         /// 腰带快捷键（原版数字键 1~4）→ 发 `Events.UseBeltRequest`（参数 = 0..3 格号）；
         /// **技能槽键**（原版 `F1`~`F8`）→ 发 `Events.SkillSlotAssignRequest`（参数 = 槽号 1..8）。
         /// `canUse` = 角色存活且未暂停；false 时不读、不发。
-        /// <para>★ impl-I-input（审计 R4）：`GameKeyAlias.KeySkillSlot1..8` / `SkillSlotKey(int)` /
+        /// <para>impl-I-input（审计 R4）：`GameKeyAlias.KeySkillSlot1..8` / `SkillSlotKey(int)` /
         /// `SkillSlotCount` 在改动前**全仓 0 消费**（登记了没消费者）。这里只做"读键 → 发意图"，
         /// 槽号 → 具体技能 id 的解析在 `Module/Skill/SkillModule`（业务不塞进输入层）。</para>
         /// </summary>
@@ -583,7 +560,7 @@ namespace Diablo2.Module
             _hoverLogged = false;
             _lastMonsterHoverId = -1;
             _uiBlockedLogged = false;
-            // ⚠️ 不动 `_picker.GroundItemAt`：那可能是宿主/集成方注入的替身，复位不该把它清掉。
+            // 不动 `_picker.GroundItemAt`：那可能是宿主/集成方注入的替身，复位不该把它清掉。
             //    同理**不动** `PointerOverUi`（同一类注入点，见其属性注释）。
         }
 
@@ -591,7 +568,7 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 指针是否压在 UI 上（取 <see cref="PointerOverUi"/> 的当前值；判定源抛异常 ⇒ 按"不在 UI 上"降级）。
-        /// <para>★ `[R1-E] S2` 的**只报一次**留痕就在本方法里：第一次真命中时打一条 Info，
+        /// <para>`[R1-E] S2` 的**只报一次**留痕就在本方法里：第一次真命中时打一条 Info，
         /// 把"生效口径"写清楚（点了面板就不会再产生移动指令）；不是高频回调，故用就地一次性标志。</para>
         /// </summary>
         private bool IsPointerOverUi()
@@ -655,9 +632,7 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 取当前可用的主相机（**每帧校验缓存**；与 `CameraRig.ResolveCamera` 同一处置，见其文件头
-        /// 「缺陷修复」）：引擎换场是**单场景加载**（`Runtime/Presentation/Scene.cs:27`）⇒
         /// Boot → Menu → Stage 每次都会销毁上一台主相机；缓存住那个「已销毁引用」会让
-        /// **点击移动的屏幕反投影静默失效**（点哪都不走，且没有任何日志）。
         /// </summary>
         private Camera ResolveCamera()
         {
@@ -731,7 +706,7 @@ namespace Diablo2.Module
     /// 「指针是否压在 UI 上」的**默认判定源**（`InputReader.PointerOverUi` 的默认值）——
     /// 走 Unity/uGUI 的 `UnityEngine.EventSystems.EventSystem.IsPointerOverGameObject()`。
     ///
-    /// <para>★ 为什么用反射，而不是直接 `using UnityEngine.EventSystems;`：</para>
+    /// <para>为什么用反射，而不是直接 `using UnityEngine.EventSystems;`：</para>
     /// <para>`EventSystem` 定义在 **uGUI 包程序集 `UnityEngine.UI`** 里（不是 UnityEngine 内置模块），
     /// 而本目录（`Module/Input/*.cs`）被离线自检宿主 `tools/probes/hosts/playercheck` **编入**，
     /// 那个宿主只引用 `UnityEngine.CoreModule` / `JSONSerializeModule` —— 一旦这里出现
@@ -739,12 +714,11 @@ namespace Diablo2.Module
     /// 反射把这条依赖变成**运行期可选**：解析不到（离线宿主）⇒ 恒 <c>false</c>（按"指针不在 UI 上"
     /// 降级，与改动前逐字一致），Play 下解析得到 ⇒ 真判定。</para>
     ///
-    /// <para>★ 为什么不用裸 `UnityEngine.Input`：本项目 `Active Input Handling` 可能是"只新输入"，
-    /// 裸 `Input.*` 会抛异常静默失效（`docs/步骤文档.md` §3.4 已记为坑）；`EventSystem` 由引擎在
+    /// <para>为什么不用裸 `UnityEngine.Input`：本项目 `Active Input Handling` 可能是"只新输入"，
     /// `CloverInput.Init()` 时保证存在（`Runtime/Presentation/Input.cs:941 EnsureEventSystem`），
     /// 且它自己就是两套输入后端都认的**指针命中**权威（uGUI 的 `PointerInputModule` 口径）。</para>
     ///
-    /// <para>★ 代价与边界：`EventSystem.current` / `IsPointerOverGameObject()` 每帧最多解析一次
+    /// <para>代价与边界：`EventSystem.current` / `IsPointerOverGameObject()` 每帧最多解析一次
     /// （`PropertyInfo` / `MethodInfo` 缓存一次，之后只有一次属性读 + 一次方法调用），且**只在
     /// 左键按下/按住的帧**才会被调用（不是逐帧高频路径）。</para>
     /// </summary>

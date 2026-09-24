@@ -13,14 +13,13 @@
 //
 // 与其他模块的边界：
 //   · 伤害结算**不在这里**：走 `Module/Combat` 的 `DamagePipeline`（抗性只减一次 + 三件套只有一份实现）。
-//   · 扣法力走 `IPlayerModule.TrySpendMana(cost)`（★ w7 主 agent 授权的契约新增）：
-//     此前契约里只有 `RestoreMana(int amount)`（且实现对非正数一律**忽略**）⇒ 用
+//   · 扣法力走 `IPlayerModule.TrySpendMana(cost)`（w7 主 agent 授权的契约新增）：
 //     `RestoreMana(-cost)` 扣蓝会被静默钳掉（实测「施法不扣法力」）。现在消耗走独立入口；
 //     顺序固定为 **校验法力足够（Warn，不是 Error）→ 扣蓝 → 再施放**；见 `SpendMana`。
 //   · 技能树面板布局（行列）由本模块算好放进 `SkillDef.slotRow/slotCol`（`skill_c` 没有该列）。
 //
-// ⛔ 单机：不碰引擎的网络类门面（`Game` 的 Net / Sync / Http 等，全为 null）。
-// ⛔ 随机一律注入式 `CloverEngine.Rng`（地图 seed 派生，可复现）。
+// 单机：不碰引擎的网络类门面（`Game` 的 Net / Sync / Http 等，全为 null）。
+// 随机一律注入式 `CloverEngine.Rng`（地图 seed 派生，可复现）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -69,7 +68,7 @@ namespace Diablo2.Module.Skill
         private Rng _rng;
 
         /// <summary>
-        /// `Events.SkillSlotAssignRequest` 是否已订阅（**幂等**；★ impl-I-input，审计 R4）。
+        /// `Events.SkillSlotAssignRequest` 是否已订阅（**幂等**；impl-I-input，审计 R4）。
         /// <para>为什么不在构造函数里订阅：本模块由 `AppContext.AutoWire` 在**很早**的时刻创建，
         /// 那一刻 `Game.Event` 可能还没挂上（构造时订阅会静默丢订阅）⇒ 改为首个
         /// `ResetForClass`（= 创角/读档进图，必然发生在任何游戏内按键之前）时补订阅。</para>
@@ -220,7 +219,7 @@ namespace Diablo2.Module.Skill
         }
 
         /// <summary>
-        /// 订阅 `Events.SkillSlotAssignRequest`（原版 `F1`~`F8` 技能槽绑定意图；★ impl-I-input，审计 R4）。
+        /// 订阅 `Events.SkillSlotAssignRequest`（原版 `F1`~`F8` 技能槽绑定意图；impl-I-input，审计 R4）。
         /// 幂等；`Game.Event` 还没挂上时**不置位**（下次 `ResetForClass` 再试）。
         /// </summary>
         private void EnsureSubscribed()
@@ -449,11 +448,9 @@ namespace Diablo2.Module.Skill
             // ── 效果 ──
             Combat.DamageFormula.SkillDamageRange(row, level, out var dmgMin, out var dmgMax);
 
-            // ★ 片 N（修审计 R1：21 个武器伤害类技能"零效果"）：官方 `skills.txt` 列 219 `SrcDam`
             //   非空 = **武器伤害类**攻击技能（Bash/Smite/Zeal/Sacrifice/...）。它们的
             //   `MinDam/MaxDam/EMin/EMax` 官方**本来就是空**（伤害 = 武器伤害 × `calc1` 的 damage%）
             //   ⇒ `dmgMin/dmgMax` 会是 0，但**绝不是**"辅助/增益技能"。
-            //   ⚠️ 本片只接「官方伤害列全空、完全靠武器出伤害」的行（`dmgMax<=0`）：
             //      像「火焰箭」这类 `SrcDam` 也非空、但**另有元素伤害**的行维持原路径
             //      （原版 = 武器伤害 + 元素，本项目只结算元素 ⇒ 已登记，不在此处静默改口径）。
             var weaponOnly = row.SrcDam > 0 && dmgMax <= 0;
@@ -475,18 +472,16 @@ namespace Diablo2.Module.Skill
 
             if (!hasDamage)
             {
-                // ★ 片 N：走到这里的**必须**是"真正的辅助/增益/诅咒/召唤"技能 ——
                 //   判据（三选一都不成立）= 官方该行①无伤害值（`dmgMax<=0`）、
                 //   ②非武器伤害源（`SrcDam==0`）、③无投射物（`Missile` 为空）。
-                //   ⛔ 武器伤害类技能（`SrcDam>0`）已被上面的 `weaponOnly` 接走，不会再落到这里。
+                //   武器伤害类技能（`SrcDam>0`）已被上面的 `weaponOnly` 接走，不会再落到这里。
                 SkillLog.WarnOnce("cast.nobuff",
                     $"TryCast：{def.name}#{skillId} 没有伤害、非武器伤害源、无投射物（辅助/增益/召唤/诅咒类）" +
                     "⇒ 当前只消耗法力+进冷却，增益数值未建模（已登记未决：需要 `SkillCalc.txt` 的加成列）");
                 return true;
             }
 
-            // ── ★ 片 N：武器伤害类技能 ⇒ 走 `DamageFormula` 的物理伤害**生产入口**结算 ──
-            //    （⛔ 不新写公式；武器区间与加成系数复用普攻那一处 `CombatModule.GetWeaponDamage`）
+            //    （不新写公式；武器区间与加成系数复用普攻那一处 `CombatModule.GetWeaponDamage`）
             if (weaponOnly)
             {
                 var targetW = targetMonsterId >= 0
@@ -641,7 +636,7 @@ namespace Diablo2.Module.Skill
         /// 目标类型推断（`skill_c` 没有 target 列 ⇒ **本项目新增**的映射，规则写在这里唯一一处）：
         /// 被动 → None；有投射物 → Ground（指向地面飞出）；**武器伤害类（官方 SrcDam≠0）或有伤害 → Enemy**；
         /// 其余 → Self（辅助/增益）。
-        /// <para>★ 片 N：新增 `SrcDam > 0` 一条 —— 官方 `SrcDam` 非空的技能（如「重击」Bash）自身伤害列为空，
+        /// <para>新增 `SrcDam > 0` 一条 —— 官方 `SrcDam` 非空的技能（如「重击」Bash）自身伤害列为空，
         /// 只看 `DmgMin/DmgMax` 会把它误判成 `Self`（辅助/增益）⇒ 施放时零效果（审计 R1）。</para>
         /// </summary>
         private static SkillTarget TargetOf(Table.BaseSkillRow row)
@@ -739,7 +734,6 @@ namespace Diablo2.Module.Skill
         /// <summary>
         /// 推进全部投射物：飞行 → **地形逐格步进** → 命中判定 → 消散。
         /// <para>
-        /// ★ **计算已下沉**（2026-09-24 片 eng-geom）：飞行积分 / 逐格扫掠 / 最近命中全部搬到引擎件
         /// `CloverEngine.ProjectileRuntime`（`clover-client-unity-engine/Runtime/Core/ProjectileRuntime.cs`
         /// 的 `Advance`），本方法只做**编排 + 项目侧副作用**（表现同步 / 伤害管线 / 音效 / 日志 / 回收）。
         /// </para>
@@ -789,7 +783,7 @@ namespace Diablo2.Module.Skill
                 }
 
                 // ── 一帧推进（引擎件）─────────────────────────────────────────
-                //    ★ 审计 B 红行 R3：地形扫掠**必须排在命中怪物之前** —— 一帧跨多格（高速 / 卡帧后的 dt）
+                //    审计 B 红行 R3：地形扫掠**必须排在命中怪物之前** —— 一帧跨多格（高速 / 卡帧后的 dt）
                 //    时端点会越过墙，若先判怪物就会判成"命中墙后那只怪" = 隔墙射杀。
                 //    引擎件内部次序：飞行积分 → 地形逐格扫掠（截停 + 回退射程）→ 最近命中
                 //    （截停后**还要再判一次**：贴墙站着的怪必须能被打到）→ 分类。
@@ -828,11 +822,9 @@ namespace Diablo2.Module.Skill
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 投射物 × 地形（★ 审计 B 红行 R3）
+        // 投射物 × 地形（审计 B 红行 R3）
         //
-        // 原版：投射物撞上墙体/障碍即**消散**，不穿墙、不隔墙射杀。此前 `Projectile.Step` 只做距离
-        // 积分、`TickProjectiles` 只判怪物+射程 ⇒ 隔墙 / 隔栅栏 / 隔水 / 隔树都能射杀（审计 B §3 R3）。
-        // ⛔ 沿用项目**已有**的地形查询（`IMapModule.TileAt` + 契约方的 `TileKind`），**不新造一份地形**。
+        // 沿用项目**已有**的地形查询（`IMapModule.TileAt` + 契约方的 `TileKind`），**不新造一份地形**。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -845,11 +837,10 @@ namespace Diablo2.Module.Skill
         /// **该地形是否阻挡投射物** —— 逐类裁决的**唯一出处**（`internal` 供 `tools/combatcheck` 逐类断言）。
         ///
         /// <para><b>裁决表</b>（判据 = 该地形在本项目的**几何/占格语义**，见 `MapGenTown` /
-        /// `MapGenWilderness` / `MapGenCave` 的铺图点；⛔ 不是"随手把 Walkable 抄一遍"）：</para>
+        /// `MapGenWilderness` / `MapGenCave` 的铺图点；不是"随手把 Walkable 抄一遍"）：</para>
         /// <list type="table">
         /// <item><description><c>Grass / Dirt / Road / CaveFloor / TownFloor / Exit</c> = **可穿** —
         /// 全是**可穿的地面层**（= `TileKindInfo.IsGroundLayer` 的 6 个**非水**值；`Water` 虽然也是
-        /// 地面层（原版 `river.dt1` 的水面画在 floor 层，见片 L 的 R12），但它**占满整格** ⇒ 本表单列判
         /// **阻挡**，故"可穿集合"与 `IsGroundLayer` **不再同集合**），投射物贴地飞过；桥面（deck）也是
         /// `Dirt` + deck 登记 ⇒ 桥上射出的投射物照常飞。</description></item>
         /// <item><description><c>Void</c> = **阻挡** — 图外 / 未生成，没有可飞的空间。</description></item>
@@ -864,18 +855,16 @@ namespace Diablo2.Module.Skill
         /// <item><description><c>Rock</c> = **阻挡** — 石头矮墙 / **桥栏杆**（<c>'s'</c>）/ 崖壁 / 碎石 /
         /// 杂物；它们都是**占据整格的实体障碍**（桥栏杆正是 R2 里能盖住桥上实体的那个遮挡物）
         /// ⇒ 一律阻挡。</description></item>
-        /// <item><description><c>Water</c> = **阻挡**（★ 2026-09-23 片 L 把水从 `Rock` 拆成独立值 `12` 后
+        /// <item><description><c>Water</c> = **阻挡**（把水从 `Rock` 拆成独立值 `12` 后
         /// **回来重判的结论**，见 `Def/Enums.cs:115-134`）—— 裁决依据 = ① 水格在本项目模型里是
         /// **占满整格、不可走**的地形（`TileKindInfo.IsWalkable` = false），② 项目对 `TileKind`
         /// **只有一个"可走性"轴**（`TileKindInfo` 没有"仅挡行走、不挡弹道"这种数据位），③ 拆值**前**
         /// 水就是 `Rock` ⇒ 判"挡"**保持行为不变**（零回归）。
-        /// ⚠️ **仍待参考物裁决**：原版 `ds1` 的碰撞位里 `BlockWalk` 与 `BlockMissile` 是**两个位**，
+        /// **仍待参考物裁决**：原版 `ds1` 的碰撞位里 `BlockWalk` 与 `BlockMissile` 是**两个位**，
         /// 若原版水格只置 `BlockWalk`，则投射物应当**飞过水面** ⇒ 那时改**本表一行** +
         /// `combatcheck §15.1` 一行即可（两处都有断言/闸门守着）。**本片不拍板原版语义。**</description></item>
         /// </list>
-        /// <para>⛔ **不许在别处再写一份判等表**；本表当前与 `TileKindInfo.IsWalkable` **同集**，
-        /// 但语义不同（这里是"挡不挡投射物"）⇒ `combatcheck §15.1` 有"**每个枚举值都必须有显式裁决**"
-        /// 的闸门：新增 `TileKind` 却忘了裁决，会当场变红（2026-09-23 实测：片 L 新增 `Water` 时，
+        /// <para>**不许在别处再写一份判等表**；本表当前与 `TileKindInfo.IsWalkable` **同集**，
         /// 本闸门**确实当场变红**并逼出上面那条重判）。</para>
         /// </summary>
         internal static bool BlocksProjectile(TileKind kind)
@@ -917,7 +906,7 @@ namespace Diablo2.Module.Skill
         /// **"这一格能不能走"** —— 注入给引擎件 `ProjectileRuntime.Advance` 的地形探针
         /// （逐格扫掠的内核在引擎件 `TrySweepTerrain` 里，见 `Runtime/Core/ProjectileRuntime.cs`）。
         /// <para>
-        /// ⛔ 逐类**裁决表**仍在本文件的 <see cref="BlocksProjectile"/>（唯一出处）——
+        /// 逐类**裁决表**仍在本文件的 <see cref="BlocksProjectile"/>（唯一出处）——
         /// 引擎件只问"这一格挡不挡"，不抄第二份地形语义（新增 `TileKind` 时只需改这一处）。
         /// </para>
         /// </summary>
@@ -967,7 +956,7 @@ namespace Diablo2.Module.Skill
 
         /// <summary>
         /// 投射物撞上不可穿越地形 ⇒ **消散**。
-        /// 表现 = 复用在已有命中音效（`SfxKeys.Hit`）+ 日志留痕，⛔ **不新增任何特效资源**
+        /// 表现 = 复用在已有命中音效（`SfxKeys.Hit`）+ 日志留痕，**不新增任何特效资源**
         /// （`client/Resources/**` 不许动）。
         /// </summary>
         private static void ResolveTerrainHit(Projectile p, Vector2Int cell, TileKind kind)
@@ -1131,7 +1120,6 @@ namespace Diablo2.Module.Skill
 
         /// <summary>
         /// 扣法力。走契约的**消耗**入口 `IPlayerModule.TrySpendMana(cost)`
-        /// （★ w7 主 agent 授权的契约新增；此前只有 `RestoreMana`，负数被钳 ⇒ 施法不扣法力）。
         /// 调用方（<see cref="TryCast"/>）已先做过「法力足够」的 Warn 校验；
         /// 这里若仍失败，说明校验与真实扣减不一致（不应发生）⇒ 记一条 **Warn**（不是 Error）并放弃施放。
         /// </summary>
@@ -1188,15 +1176,14 @@ namespace Diablo2.Module.Skill
         }
 
         /// <summary>
-        /// ★ 片 N：**武器伤害类技能**（官方 `skills.txt` 列 219 `SrcDam ≠ 0`）的一次伤害结算：
         /// `武器伤害 × SrcDam/128 × (1 + 官方 calc1 伤害倍率%)`，**走 `DamageFormula` 的既有生产入口**
-        /// （⛔ 不新写公式；武器区间与 `str/dex` 加成系数复用普攻那一处的 `CombatModule.GetWeaponDamage`）。
+        /// （不新写公式；武器区间与 `str/dex` 加成系数复用普攻那一处的 `CombatModule.GetWeaponDamage`）。
         /// <para>出处三处：① `SrcDam` —— D2 数据指南定义 *"percentage modifier for how much weapon damage
         /// is transferred to the skill's damage (Out of 128)"*（⇒ 分母 128，**不是位标志**）；
         /// ② 技能倍率 —— 官方 `calc1` + `*calc1 desc`，打表已解析成
         /// `skill_c.dmg_pct_base/per_lvl/parsed`（见 `tools/table-convert/convert.py::_damage_pct_of`）；
         /// ③ 武器数值 —— `item_c.dmg_min/dmg_max/str_bonus/dex_bonus`（官方 `Weapons.txt`）。</para>
-        /// <para>非预期分支**都留日志**（⛔ 不静默退化）：
+        /// <para>非预期分支**都留日志**（不静默退化）：
         /// ① `DmgPctParsed=0`（官方 `calc1` 不是 `ln12/ln34` 前导，例如 `skill('Bash'.blvl)*par8`）
         /// ⇒ 技能倍率按 **0%** 结算并 WarnOnce；
         /// ② 结算为 0（武器区间为 0 / 倍率把伤害压到 0，例如 `Whirlwind` 1 级的 `-50%`）⇒ WarnThrottled；

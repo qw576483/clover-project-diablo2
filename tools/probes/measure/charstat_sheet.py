@@ -106,7 +106,6 @@ def main(argv):
     ap.add_argument("--scale", type=int, default=2)
     a = ap.parse_args(argv[1:])
 
-    # Path discipline (team-lead 2026-09-24, trap #1 / rule "every read and write uses an ABSOLUTE
     # path"): Python's `open()`/`Image.open()` follow the PROCESS cwd, which on this box is the
     # WORKSPACE ROOT (`c:\Work\Server\f-v2`) while this script lives under the project -- so a
     # relative `--out .ai-tmp/test/x.png` writes into ANOTHER project's tree **silently** (the

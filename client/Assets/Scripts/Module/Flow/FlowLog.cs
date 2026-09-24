@@ -2,7 +2,6 @@
 // Diablo2 · Module/Flow/FlowLog.cs
 // Flow 的日志出口：**tag 固定 = `Flow`**。
 //
-// ★ 站点迁移是验收硬指标（`docs/agents/agent-05-流程与菜单链路.md` §5）：
 //     「站点迁移完整：[Flow] → Boot/MainMenu/CharSelect/CharCreate/Loading/Stage/Pause 各出现一次」
 //   因此每次站点切换都由 `AppFlow` 经 `FlowLog.Station` 打**一行** `[Flow] → <站点>`，
 //   日志落盘后可直接 grep `[Flow] →` 抄进验收表。

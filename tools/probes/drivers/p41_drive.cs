@@ -12,14 +12,11 @@
 //     A png written UNDER Assets/ while Play runs makes the asset database run
 //     StopAssetImportingV2(ForceSynchronousImport|ForceDomainReload); after that forced reload the
 //     play session half-initialises (Game.Res null, ticks stop) and the rest of the tour is void
-//     (measured: agent-40a run 1, and it is why p38/p40 ordered "drive first, land the png last").
-//     => a per-tile CLI capture is impossible without destroying the session it is capturing.
 //   * So the driver captures itself, into <repo>/.ai-tmp/test/raw/ (outside the Unity project, never
 //     imported), and p41_run.ps1 copies the tiles into client/Assets/Screenshots/p41_*.png AFTER
 //     editor_stop:
 //       - UI tiles (boot / menu): `ScreenCapture.CaptureScreenshot` == the composited game view,
 //         i.e. exactly what `capture_game_view --source screen` returns (it is the same mechanism
-//         agent-34 used for its 1920x1080 UI tiles; --source screen also returns a CACHED frame
 //         when the editor is unfocused, which the driver cannot check).
 //       - world tiles: the main camera rendered into a RenderTexture and encoded with
 //         EncodeToPNG == exactly what `capture_game_view --source camera` does (camera render only,
@@ -50,7 +47,6 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-// `CloverEngine` also defines a Dir8 (agent-33 engine sink) -> pin the bare name to the project enum
 using Dir8 = Diablo2.Def.Dir8;
 
 namespace P41
@@ -736,7 +732,7 @@ namespace P41
             var parts = (spec ?? string.Empty).Split('|');
             if (parts.Length > 1) _tag = parts[1];
             if (parts.Length > 2) _rawDir = parts[2];
-            // ⚠️ MUST set the statics from HERE (not from a separate `run_script` call): each
+            // MUST set the statics from HERE (not from a separate `run_script` call): each
             //    run_script invocation compiles+loads its own ephemeral assembly, so a static set by
             //    `P41.Api.Paths` in an earlier invocation is NOT visible to this one (measured: the
             //    tiles went to "/p41_03_town.png", i.e. the drive root, and the done marker never
@@ -1601,7 +1597,7 @@ namespace P41
                 // ---- 01 Main menu: SINGLE PLAYER / EXIT only + byline -------------------------
                 case 3:
                     if (!MenuOpen() || SceneName() != "Menu") { TimeoutStep("mainmenu", 40f); return; }
-                    // ⚠️ settle: the menu art (backdrop + original button frames) is loaded through
+                    // settle: the menu art (backdrop + original button frames) is loaded through
                     //    Game.Res.LoadAsset, i.e. asynchronously.  Captured immediately the menu is a
                     //    white panel with bare labels (measured in run r1: 38 KB tile) instead of the
                     //    original art -- so wait for it, timed from the moment the panel appeared.
@@ -1648,7 +1644,7 @@ namespace P41
                     return;
 
                 // ---- 03 town overview ---------------------------------------------------------
-                // ⚠️ ONE action per step.  `WaitShot` advances the step itself, so two `Next()` calls
+                // ONE action per step.  `WaitShot` advances the step itself, so two `Next()` calls
                 //    in one case silently SKIPPED the following case (measured in run r1: the restore
                 //    steps 10/17 were never reached, so the camera kept the probe ortho 12 and the
                 //    anchor focus for the rest of the tour -> 6 of the tiles were framed wrongly).

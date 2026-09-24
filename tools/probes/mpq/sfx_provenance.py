@@ -68,7 +68,6 @@ KEYS = [
     ("portal",         r"skill\misc\portalcast.wav"),
     ("area_enter",     r"object\stairs.wav"),
     ("quest_complete", r"object\cairnsuccess.wav"),
-    # ── ★ 片 monster-audio：逐类怪物音效（8 类 × 受击/攻击/死亡/脚步）──────────
     # 条目名出处 = `MonSounds.txt`（Attack1 / HitSound / DeathSound / Footstep / FootstepLayer）；
     # 文件名出处 = `Sounds.txt` 的 FileName 列；类别码 = `MonStats.txt` 的 Code 列。
     ("monster_hit_fa", r"monster\fallen\gethit1.wav"),
@@ -113,7 +112,6 @@ IDENT = {
     "gold_pickup": "GoldPickup", "item_use": "ItemUse", "ui_click": "UiClick",
     "dialog_open": "DialogOpen", "shop_open": "ShopOpen", "portal": "Portal",
     "area_enter": "AreaEnter", "quest_complete": "QuestComplete",
-    # ★ 片 monster-audio：逐类怪物键的 C# 常量标识符（调用点在 `Module/Monster/MonsterSfx.cs`）
     "monster_hit_fa": "MonsterHitFa", "monster_atk_fa": "MonsterAtkFa",
     "monster_die_fa": "MonsterDieFa", "monster_step_fa": "MonsterStepFa",
     "monster_hit_fs": "MonsterHitFs", "monster_atk_fs": "MonsterAtkFs",
@@ -146,8 +144,6 @@ EVENT = {
     "ui_click": "UI 点击（面板/对话选项/买/卖）", "dialog_open": "NPC 对话开始",
     "shop_open": "商店打开", "portal": "传送 / 踩出入口",
     "area_enter": "进入场景（Stage）", "quest_complete": "任务完成",
-    # ★ 片 monster-audio：逐类怪物（fa 沉沦魔 / fs 沉沦魔萨满 / si 尖刺鼠 / zm 僵尸 /
-    #   ye 野兽 / cr 腐化罗格 / bk 血鹰 / wr 幽灵）
     "monster_hit_fa": "沉沦魔受击", "monster_atk_fa": "沉沦魔挥击起手",
     "monster_die_fa": "沉沦魔死亡", "monster_step_fa": "沉沦魔脚步",
     "monster_hit_fs": "沉沦魔萨满受击", "monster_atk_fs": "沉沦魔萨满挥击起手",
@@ -166,7 +162,6 @@ EVENT = {
     "monster_die_wr": "幽灵死亡",
 }
 
-# 名字带注释的键：原版没有一一对应条目，取语义最近的原版音（理由见 SoundMap.md §3）
 NOTE = {
     "player_revive": "※1 原版无“玩家复活”条目 ⇒ 取 necromancer_revive_target",
     "dialog_open":   "※2 原版开对话不播专用音 ⇒ 取 cursor_select",

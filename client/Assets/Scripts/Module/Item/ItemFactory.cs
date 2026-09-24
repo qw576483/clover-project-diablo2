@@ -7,7 +7,6 @@
 //   · 词缀等级 / 可穿物品类型 / 排除类型 / 组互斥 / 数值范围 → `affix_c`（`Tables.Default.Affix`）
 //   · 品质权重基准（unique/set/rare/magic 成色系数）→ `treasureclass_c` 行的同名四列
 //
-// 配表没有、只能落在代码里的两处（已在 agent-08 回报「未决」中登记）：
 //   ① 品质权重**上限系数**（见 RollQuality 常量表）—— 配表无品质列，按 TC 成色系数×等级系数折算；
 //   ② 耐久上限 —— `item_c` 无耐久列，按 `price` 分档（见 MaxDurabilityOf）。
 //   两处都是"算法参数"，不是同质化配置；要调数值只改这里。
@@ -56,7 +55,7 @@ namespace Diablo2.Module.Item
         private const int FactorBase = 1024;
 
         // ── 限频告警 ──────────────────────────────────────────────────────────
-        // ⚠️ 这里**不用** `Log.WarnThrottled`：它内部读 `UnityEngine.Time.realtimeSinceStartup`（原生 API），
+        // 这里**不用** `Log.WarnThrottled`：它内部读 `UnityEngine.Time.realtimeSinceStartup`（原生 API），
         //    在 `tools/itemcheck/` 这种离线宿主里会抛 SecurityException ⇒ 掉落/生成这类核心路径没法离线自检。
         //    改用本类自带的"同 key 只报一次"（同样的防刷屏目的，且不依赖 Unity 原生）。
         private static readonly HashSet<string> Warned = new HashSet<string>();
@@ -264,7 +263,6 @@ namespace Diablo2.Module.Item
 
         /// <summary>
         /// 拼显示名：`前缀名… 基础名 之 后缀名…`（无词缀时就是配表 `item_c.name`）。
-        /// 词缀显示名取 `affix_c.name_cn`，为空退回英文 `name`（见 `docs/agents/agent-08...md` §4）。
         /// </summary>
         public static void RebuildName(ItemStack stack, BaseItemRow row)
         {
@@ -310,7 +308,7 @@ namespace Diablo2.Module.Item
 
         /// <summary>
         /// 配表大类 → <see cref="ItemType"/>。
-        /// ⚠️ 列语义（以真实打表产物为准）：`item_c.source` = **weap / armo / misc**（大类），
+        /// 列语义（以真实打表产物为准）：`item_c.source` = **weap / armo / misc**（大类），
         /// `item_c.type` = 官方 `type`（axe / swor / hpot / helm / ring …），`item_c.subtype` = 官方 `type2`
         /// （1hs / stf / bow / xbw / tpot …，护具与药剂**为空**）⇒ 大类只看 `source`。
         /// </summary>

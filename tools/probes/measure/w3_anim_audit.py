@@ -64,8 +64,6 @@ OUT_DIR = os.path.join(REPO, ".ai-tmp", "screenshots")
 OUT_AUDIT = os.path.join(OUT_DIR, "w3_anim_audit.tsv")
 OUT_TRIGGER = os.path.join(OUT_DIR, "w3_anim_trigger.tsv")
 
-#: 任务书点名的**全部单位**（顺序 = 报告顺序）。
-#: (显示名, 种类, 单位键 == 磁盘目录名 == `SpriteFrameCounts.ByUnit` 的键, 资源子路径)
 UNITS = [
     ("Amazon（亚马逊）", "player", "amazon", "Chars/amazon"),
     ("Barbarian（野蛮人）", "player", "barbarian", "Chars/barbarian"),
@@ -275,7 +273,6 @@ def parse_view_sources():
 
 
 #: 哪一类单位的运行期会走哪些方法（触发点必须落在这些方法里才算"真被触发"）。
-#: `SelectPlayer` / `SelectMonster` = 片 W5 抽出的**动作选择纯函数**（分别只被 TickPlayer / UpdateMonster 调用）。
 KIND_METHODS = {
     "player": ["TickPlayer", "SelectPlayer", "IsHitHolding", "OnSkillCast", "OnPlayerAttacked",
                "PlayHit", "PlayDeath"],
@@ -286,8 +283,6 @@ KIND_METHODS = {
 #: NPC 在原版城镇里**只站着**（不移动、不参战、不受伤）⇒ 这些动作对它不适用。
 NPC_ONLY_IDLE = ("walk", "attack", "cast", "hit", "death", "run")
 
-#: **已登记**的触发不一致（`(种类, 动作)` → 理由）。按任务书"⛔ 拿不到出处就只登记、不许编"：
-#: 这两条的根因是**原版触发条件缺出处**，不是工程漏接线 ⇒ 登记不改（登记 ≠ 交付，回报里逐条列）。
 REGISTERED_TRIGGER = {
     ("monster", "run"):
         "原版怪物 `RN` 的触发条件（`monstats.txt` 的 `Run` 列语义）本机无出处 —— 素材实测只有 `zm`/`cr` "
@@ -470,7 +465,7 @@ def main():
                             dup.append("%s==%s" % (DIRS[a1], DIRS[a2]))
 
             # ── 帧/方向/文件 的判定（col7 只放这两个值）──
-            #   ⚠️ "原版无该动作" **不是** 不一致：原版没有 ⇒ 工程也不该有（铁律 1）。
+            #   "原版无该动作" **不是** 不一致：原版没有 ⇒ 工程也不该有（铁律 1）。
             #      工程侧若被误请求，会沿 `FallbackChain` 回退到**该单位自己的**原版动画
             #      （`SpriteFrames.ResolveAnim`，每条只报一次日志），不产生占位色块。
             reasons, blocking = [], []
@@ -530,7 +525,6 @@ def main():
                               _sites_txt(vm, all_sites) if all_sites else "—",
                               ("%s（%s）" % (v, why)) if why else v])
 
-    # ── 投射物 / 传送门（任务书点名要求覆盖）──
     rows.append(["投射物（Table/Missile.tsv：箭矢 arrow / 火弹 / 冰弹 … 22 行）", "idle（单帧）",
                  "原版素材未到手：`d2data.mpq` 的 `.dcc`（`missile_c.cel_file` 已登记名，如 Arrow/"
                  "Firebolt）⇒ 无 `framesPerDirection` 可对 │ 已登记：`client/资源欠缺清单.md`",
@@ -544,7 +538,6 @@ def main():
                  "+ 金色占位色（`SpriteFrames.PlaceholderColorOfMonster` 的 `isChampion` 分支；"
                  "`ApplyTint` 只在 `UsingPlaceholder` 时上色 ⇒ **真素材到位后精英与普通怪一模一样**）",
                  "同基础怪（0 缺）", "0", "不一致"])
-    # ↑ 第 3 列已含判定理由；补齐"为什么登记不改"一句话（口径 = 任务书"拿不到出处不许编"）
     rows[-1][2] += (" │ 原版精英 = **调色板移位**（可见差异），本项目没有该调色板 ⇒ 「拿不到出处只登记、"
                     "不许编金色 tint」；影响域 = `Module/View/SpriteFrames.cs` + `ViewModule.ApplyTint`")
     rows.append(["传送门（D2/Objects/warp 81 瓦片；回城卷轴 item_c#89）", "无（原版为调色板循环，非逐帧）",

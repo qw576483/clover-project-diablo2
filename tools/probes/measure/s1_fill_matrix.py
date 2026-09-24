@@ -312,7 +312,7 @@ def build_row_text(ln, entity, state, rowrec, fieldrecs, ours, affix_lines, st):
     if rowrec[5] != "0":
         die("L%d：行级产物差值 = %r（必须 0）" % (ln, rowrec[5]))
 
-    # ② 字段级断言：字段级产物逐 (矩阵行 × 字段) 与 FIELD_MAP **同序等长**（⛔ 不靠标签反查 ——
+    # ② 字段级断言：字段级产物逐 (矩阵行 × 字段) 与 FIELD_MAP **同序等长**（不靠标签反查 ——
     #    monumod 的 6 条 res_* 标签完全相同，按标签反查必然歧义）；0 个 `不一致`；
     #    每个 `一致` 字段两侧同值；缺官方值字段集合 == EXPECTED_NO_CARRIER
     fm = C.FIELD_MAP[logical]
@@ -515,7 +515,7 @@ def main():
                 and l.split("\t")[5].strip() == ""]
     print("  矩阵：S1数值 空「实测」行 = %d ；行级产物行号 = %d" % (len(s1_empty), len(rowrecs)))
     # 目标集 = 行级产物的行号（**不是**「实测为空的行」）⇒ 填充后重跑仍然命中同一批行、写同样的文本。
-    # 唯一要求：矩阵里**任何**还空着的 S1 行都必须在产物里覆盖到（⛔ 不许静默漏行）。
+    # 唯一要求：矩阵里**任何**还空着的 S1 行都必须在产物里覆盖到（不许静默漏行）。
     miss = sorted(set(s1_empty) - set(rowrecs.keys()))
     if miss:
         die("矩阵还有 %d 个空 S1 行不在行级产物里（⛔ 不许漏）：%s" % (len(miss), miss[:10]))

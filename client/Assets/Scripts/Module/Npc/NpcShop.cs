@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Npc/NpcShop.cs
 // **商店货物与价格**：恰西（铁匠：武器/防具/修理）、基德 & 阿卡拉（杂货：药水/卷轴/钥匙/弹药）。
-// 赌博**不做**（`docs/步骤文档.md` §1 明确排除）。
 //
 // 数值来源（**取配表，不硬编码价格**）：
 //   · 买入价 = `item_c.price`（`Def.ItemStack.price` 原样带过来）；
@@ -11,7 +10,7 @@
 //     只用配表列，见 MakeConsumable 注释）。
 //   · 货物确定性：铁匠装备的随机器 seed = `mapSeed * 31 + npcId` ⇒ **同一局同一家店货物不变**。
 //
-// ⚠️ 为什么消耗品要本地落成：冻结的 `IItemModule` 只有 `CreateRandom(level, rng)`，**没有"按 id 造物品"**，
+// 为什么消耗品要本地落成：冻结的 `IItemModule` 只有 `CreateRandom(level, rng)`，**没有"按 id 造物品"**，
 //    而商店必须能卖指定的药水/卷轴 ⇒ 只能由本模块按配表行构造（已在回报「未决」第 5 条登记）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -208,17 +207,13 @@ namespace Diablo2.Module.Npc
         {
             var idx = _entries.Count;
 
-            // ★ 片 impl-shop：把**物品自身占格**一起带进 `ShopEntry`（原版口径：大盾 2×3、法杖 1×4，
-            //   与背包同规则 —— 见 `Module/Contracts.cs` 的 `ShopEntry.gridW/gridH` 注释）。
-            //   旧实现只拷 itemId/name/quality/price/count ⇒ 面板侧 `gridW/gridH` 取默认 1×1
-            //   ⇒ 只能"1 件 = 1 格"（用户报「商店商品占的格子不对」）。
             //   尺寸的唯一来源 = `ItemFactory` 从配表 `item_c.grid_w/grid_h` 填进 `ItemStack` 的那一份
             //   （本模块**不另算**；消耗品见 `MakeConsumable` 的同源赋值）。
             var gw = st.gridW > 0 ? st.gridW : 1;
             var gh = st.gridH > 0 ? st.gridH : 1;
             if (st.gridW <= 0 || st.gridH <= 0)
             {
-                // 非预期分支（配表缺列/为 0）：收敛到 1×1 并点名，⛔ 不静默（只报一次，避免刷屏）
+                // 非预期分支（配表缺列/为 0）：收敛到 1×1 并点名，不静默（只报一次，避免刷屏）
                 if (!_warnedBadGrid)
                 {
                     _warnedBadGrid = true;

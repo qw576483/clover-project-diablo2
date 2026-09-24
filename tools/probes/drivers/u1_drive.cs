@@ -4,7 +4,6 @@
 //    ground click really walks the character).
 //
 // WHY THIS FILE EXISTS (promotion of a deleted one-off probe):
-//   The 2026-09-22 U-1 recapture (".ai-tmp/screenshots/u1_evidence_recapture.txt")
 //   was produced by a one-off probe ".ai-tmp/test/u1_probe.cs" that was deleted
 //   afterwards, so the live chain could not be re-run from the repo.  Per
 //   clover-engine skill 3.5 a judging asset (probe / driver / measuring script)

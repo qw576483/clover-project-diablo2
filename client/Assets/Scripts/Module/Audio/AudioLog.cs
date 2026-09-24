@@ -2,16 +2,14 @@
 // Diablo2 · Module/Audio/AudioLog.cs
 // 音频模块的日志出口（tag 固定 = `Audio`，见 `Core/Log.cs` 的 tag 白名单）。
 //
-// ★★ "只报一次"的设施已**收敛到引擎**（本片 d2-log）：原先本类用 **4 个 `HashSet` + 8 个 `bool` 标志**
 //    自己维护"每键一次 / 每事一次"；现在全部换成引擎的时间口径闸门
 //    `CloverEngine.LogThrottle.ShouldLog(key, float.PositiveInfinity)`（= 同一 key 整个进程只放行一次）。
-//    ⛔ 本文件**不再持有任何限频状态容器**；`MissingWarnCount` / `UnregisteredWarnCount` /
+//    本文件**不再持有任何限频状态容器**；`MissingWarnCount` / `UnregisteredWarnCount` /
 //    `ThrottledWarnCount` 三个**计数**是给离线宿主断言用的业务账目，保留。
-//    为什么原先要自实现：老 `Core/Log.WarnOnce` 的闸门读 `UnityEngine.Time.realtimeSinceStartup`
 //    （原生 ECall），在**纯 .NET 宿主**（`tools/probes/hosts/audiocheck`）里会抛 `SecurityException`
 //    ⇒「只报一次」变成「报一次就崩」。该性质现在由**引擎**保证（`Runtime/Core/LogThrottle.cs`
 //    §语义约束 ①：三级时钟、**永不抛异常**，非 Unity 进程首次探测失败即自动降级到进程单调时钟）
-//    ⇒ 本类可以直接委托；要确定性计时请注入 `Log.Clock`（⛔ 本层不自行改全局时钟）。
+//    ⇒ 本类可以直接委托；要确定性计时请注入 `Log.Clock`（本层不自行改全局时钟）。
 //
 // key 都加了 `Audio/` 前缀 + 用途段（引擎的限频表是**全局一张**，原实现是每类一张
 // ⇒ 必须防跨用途/跨模块撞 key；前缀对调用方不可见，key 从不进日志）。
@@ -43,7 +41,6 @@ namespace Diablo2.Module.Audio
         /// <summary>「未登记键」累计告警条数（自检用）。</summary>
         internal static int UnregisteredWarnCount;
 
-        /// <summary>「同键重复过快」累计告警条数（★ 片 C4，自检用；生产只读）。</summary>
         internal static int ThrottledWarnCount;
 
         // ── 普通转发（重载引擎 `Game.Logger`，tag 固定）────────────────────────
@@ -77,7 +74,6 @@ namespace Diablo2.Module.Audio
         }
 
         /// <summary>
-        /// ★ 片 C4：**同一音效键重复过快，本次被节流丢弃**（每键一条，见 `SfxThrottle`）。
         /// <para>闸门 = 引擎 <see cref="LogThrottle.ShouldLog"/>（`+∞` ⇒ 每键一条）：不再依赖
         /// `UnityEngine.Time`，纯 .NET 宿主也跑得通（引擎自动降级，永不抛）。</para>
         /// </summary>
@@ -163,7 +159,7 @@ namespace Diablo2.Module.Audio
 
         /// <summary>
         /// "只报一次"的闸门 = 引擎时间口径 <see cref="LogThrottle.ShouldLog"/>（`+∞` ⇒ 同一 key 只放行一次）。
-        /// ⛔ 与 <see cref="Log.ShouldLog"/> 的区别：这里**不**先短路项目静默开关（`Log.Suppress`）——
+        /// 与 <see cref="Log.ShouldLog"/> 的区别：这里**不**先短路项目静默开关（`Log.Suppress`）——
         /// 原实现（`HashSet.Add`）在静默期同样会**推进**"已报"状态，换成先短路会让静默期后的首条告警
         /// 与本类计数账目对不上。输出仍然走 `Log.Warn`（tag 规范化 + 静默开关在那一层）。
         /// </summary>
@@ -172,7 +168,7 @@ namespace Diablo2.Module.Audio
         /// <summary>
         /// 清空"只报一次"状态与计数器。**仅供离线自检宿主**（同一进程里跑多个场景用例）：
         /// 生产流程**没有**调用点（素材到位后这些告警本来就不会再出现）。
-        /// <para>⚠️ 引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>，时间口径 + 计数口径一起清），
+        /// <para>引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>，时间口径 + 计数口径一起清），
         /// 没有"按 key 清"的入口 ⇒ 这里会把 `Log` / 其他模块的限频记录一并清掉。宿主用例本来就要求
         /// 干净起点，故可接受；已在回报中登记。</para>
         /// </summary>

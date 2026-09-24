@@ -4,7 +4,6 @@
 #
 # **T0 实体键唯一化（一次性迁移 + 常驻对账）** —— 修 `tools/verify.ps1::coverage-rows` 的恒真红。
 #
-# 为什么需要（上游片已定位、本片归口修）：
 #   `coverage-rows` 的第一条子判 = 「`策划/实体清单.tsv` 行数 == `策划/状态矩阵.tsv` 去重实体数」。
 #   实测清单 1370 行、去重后只有 1367 个 `(维度,实体)` ⇒ **无论矩阵填成什么样这一条都红**。
 #   3 对重复（共 6 行）：
@@ -12,9 +11,7 @@
 #     · `D4UI · ui:背包·装备槽·inv_ring_amulet（右半）` ×2 ← `w3_uigame_audit.tsv:39` 与 `:41`
 #     · `D10逻辑 · evt:Pause` ×2                        ← `Core/Events.cs:364 StatePause` 与 `:389 TriggerPause`
 #
-# 修法（⛔ 不是删行、⛔ 不是改闸门）：把**来源行号**并入实体名消歧 ⇒ `…@w3_uigame_audit:33` / `…@Events.cs:364`。
 #   · 命名规则由 `enum_all.py` 生成（本脚本调它的 `discover_d4/discover_d10` 取**新名**，
-#     ⛔ 不手抄新名 ⇒ 与本脚本的旧名映射不会漂移）；
 #   · **只改这 6 行**：清单行数仍 1370、Σ状态数仍 4977、矩阵行数/行序/行数不变，
 #     被同步改名的矩阵行**只动第 2 列（实体）**；
 #   · 其余行**逐字节不变**（本脚本在迁移前后各算一遍「每行前五列 SHA256」与
@@ -24,8 +21,6 @@
 #     python tools/probes/enumerate/t0_keyfix.py --verify     # 只读对账（不取锁、不写盘）
 #     python tools/probes/enumerate/t0_keyfix.py --migrate    # 取 `.ai-tmp/test/matrix.lock` 后原地改名
 #
-# ⛔ 写表协议（任务书 §3）：改 `策划/状态矩阵.tsv` 前必须先取锁（`FileMode.CreateNew` 语义），
-#    拿不到就等 2s 重试（最多 60 次）；拿到后**重新读整表**、只改本片负责的行、写完删锁。
 # ─────────────────────────────────────────────────────────────────────────────
 import io
 import os
@@ -210,7 +205,7 @@ def migrate():
         print('（自比对口径：排除 **S1 行** 与 **本次改名的 6/16 行**，按**物理行号**排除 —— 改名后行号不变）')
         print()
 
-        # ★ 幂等：已经迁移过 ⇒ 旧名 0 命中 ⇒ 直接退出（**不写盘**），第二次跑必然字节不变
+        # 幂等：已经迁移过 ⇒ 旧名 0 命中 ⇒ 直接退出（**不写盘**），第二次跑必然字节不变
         hits_mf = sum(1 for l in mf_raw.splitlines() if len(l.split('\t')) > 1
                       and (l.split('\t')[0], l.split('\t')[1]) in pairs)
         hits_mx = sum(1 for l in mx_raw.splitlines() if len(l.split('\t')) > 1
@@ -283,7 +278,7 @@ def migrate():
         print()
         print('== 自比对 ==')
         ok = cmp_fp(mf_before, mf_after, True) and cmp_fp(mx_before, mx_after, True)
-        # 矩阵行数/行序不变（⛔ 只改第 2 列：逐行断言其余列逐字节相同）
+        # 矩阵行数/行序不变（只改第 2 列：逐行断言其余列逐字节相同）
         if len(mf_lines) != len(mf_raw.splitlines()) or len(mx_lines) != len(mx_raw.splitlines()):
             print('  ⛔ 物理行数变了'); ok = False
         for tag, before, after in (('清单', mf_raw, mf_after_text), ('矩阵', mx_raw, mx_after_text)):
@@ -364,7 +359,6 @@ def verify():
     reg_raw, _b, _n, _t = read_text(REGISTRY)
     print('差异登记：盘上数据行=%d ｜ enum_all 现算=%d ⇒ %s'
           % (len(rows_of(reg_raw)), len(rows3), len(rows_of(reg_raw)) == len(rows3)))
-    # ★ 期望总量（漂移收口后钉住；2026-09-21 漂移收口片实测重钉）：
     #   实体清单 1367 / Σ状态数 4965（= 矩阵行数）。
     #   上一版 1366 / 4963 是「T0FIX 片改 client 之后、T0GAP 片改 client 之前」的快照；
     #   T0GAP 片（死亡扣金币 + 双武器组）又改了 `client/**` ⇒ 实体集合再漂一次：
@@ -373,7 +367,7 @@ def verify():
     #     ⇒ 1366 + 1 = **1367** 实体 / 4963 + 2 = **4965** 状态行。
     #   （`Def/GameKeyAlias.cs` 删的 2 个别名 / `D2/UI/UI` 空目录 / `Module/Map` 新增 2 文件
     #     —— 那批的收口见 `migrate_drift.py` 的改名映射 `sys:Map(11 cs) → sys:Map(13 cs)`。）
-    #   ⛔ 这两个数只在「实体集合变化」时改，且必须同时改本行 + 说明原因（否则闸门会变成假红/假绿）。
+    #   这两个数只在「实体集合变化」时改，且必须同时改本行 + 说明原因（否则闸门会变成假红/假绿）。
     EXP_ENTITIES, EXP_STATES = 1367, 4965
     good = (not dup1) and (not badcnt) and (not extra) and len(rows1) == EXP_ENTITIES and sum_states == EXP_STATES \
         and len(mx_rows) == EXP_STATES and len(mxcnt) == EXP_ENTITIES and mf_ok and mx_ok and not missing_dims

@@ -9,7 +9,6 @@
 //     本项目尚无对应配表列"的**行为节奏参数**。
 //
 // ═════════════════════════════════════════════════════════════════════════════
-// 出处表（片 6「战斗伤害 + 怪物数值 1:1」逐条补出处；**每条常量都在下面标了出处或【例外】编号**）
 // ═════════════════════════════════════════════════════════════════════════════
 // 权威表（LoD 1.10 官方 txt，随参考工程一起落盘）：`<根>/原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/`
 //   · `MonStats.txt`  的 `aidel`（**AI 思考延迟，帧**；本项目 8 只怪全是 15）、`aip1..8`、`Velocity`、`Run`、
@@ -22,10 +21,8 @@
 //   · `gameserver.zig:3604-3606` 尸体保留 `CORPSE_TTL = 500` 帧（注释原文 "~20s at 25fps"）
 //   · `monai.zig:139-149` 堕落者的逃跑触发 = **同伴尸体在 15 subtiles 内**（不是血量比例）
 //
-// ⚠️ **明确不采信**：`libd2/.../ai.zig` 自己的文件头写着 "a slice-level approximation …
-//    exact per-AI behaviours (fleeing, casting, packs) are a TODO" ⇒ 本片**不**拿它当出处。
+// **明确不采信**：`libd2/.../ai.zig` 自己的文件头写着 "a slice-level approximation …
 //
-// 距离类常量**不在这里**：走 `Core/GameConst`（契约常量，见 `docs/步骤文档.md` §3.5）：
 //   `MonsterAggroRange`(8) / `MonsterLeashRange`(14) / `MeleeRange`(1.6) / `RangedRange`(8)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -83,7 +80,7 @@ namespace Diablo2.Module.Monster
         /// <para>
         /// 官方**出处是动画帧数**（`MonStats.Code` 对应的 `.cof` 动画里 A1 模式的帧数 ÷ 25），
         /// 本批没有把 `.cof` 的逐怪 A1 帧数解析成表 ⇒ **本项目新增**近似值（登记 E28）。
-        /// ⛔ 注意 `AiParms.txt` 的 `P1`（如 Brute/Fallen 的 "Pct chance to strike - set this to affect
+        /// 注意 `AiParms.txt` 的 `P1`（如 Brute/Fallen 的 "Pct chance to strike - set this to affect
         /// attack speed"）是**出手概率**，不是间隔秒数 ⇒ 不能拿它当出处。
         /// </para>
         /// </summary>
@@ -98,14 +95,10 @@ namespace Diablo2.Module.Monster
         // ── 移动 ─────────────────────────────────────────────────────────────
         /// <summary>
         /// 【本项目新增】（防配表写成 0 导致怪物永远不动的**守卫**，不是手感参数）：速度下限（格/秒）。
-        /// <para>★ 片 2b：随 <see cref="SpeedToTilesPerSecond"/> 一起从 0.8 降到 **0.2**
-        /// —— 量纲改对之后最快的怪也只有 1.0 格/秒（`Velocity` 5），原下限 0.8 会把
-        /// **僵尸（官方 `Velocity` 1 ⇒ 0.2 格/秒）抬成 4 倍速**（等于把配表值吃掉）。</para>
         /// </summary>
         public const float MinMoveSpeed = 0.2f;
 
         /// <summary>
-        /// 【**片 2b 消除 E29**】配表 `monster_c.speed`（官方 `MonStats.Velocity`）→ **格/秒** 的换算系数。
         /// <para>为什么是 0.2：官方 `Velocity` 的单位是 **map 单位/秒**，而 **1 格 = 5 map 单位**
         /// ⇒ 1 ÷ 5 = **0.2**（旧值 1.0 把"5 map 单位/秒"当成了"5 格/秒" ⇒ 怪物快 5 倍 = 用户说的"飘着走"）。</para>
         /// <para>出处（逐条可查）：
@@ -136,7 +129,6 @@ namespace Diablo2.Module.Monster
         /// <summary>
         /// 【例外 **E28**（新增一条）】**远程 / 萨满出手距离的上限（格）** —— 不得在画面外攻击。
         /// <para>
-        /// 起因（用户本轮原话）：「**屏幕外都能打我？？？？？**」。
         /// 旧口径 = `GameConst.RangedRange`(8 格)：8 格 = **16 世界单位**，而**可见半宽**
         /// = 相机 ortho 尺寸 **6** ×(16/9 画幅) ÷ **2.0 世界单位/格**（`GameConst.IsoTilePxW` 128 ÷ `PixelsPerUnit` 64
         /// ⇒ 一格宽 2.0、高 1.0）= **5.33 格** ⇒ 8 格一定在画面外。
@@ -146,7 +138,7 @@ namespace Diablo2.Module.Monster
         /// ⇒ **出手时怪物一定在画面内**；② 仍是"远程"（远大于近战 1.6 格、且 &gt; `RangedKeepDistance`
         /// 的计算区间）；③ 原版 `AiParms.txt`「Spike Fiend」`P1`（= 考虑发射飞弹的距离，`quillrat1` 的 `aip1 = 10`）
         /// 的单位是 **world subtiles**，而 subtile → 格 的换算本项目**未确证**（同
-        /// <see cref="ShamanReviveRange"/> 的 E28 备注）⇒ ⛔ 不拿 `aip1` 当出处，登记 E28。
+        /// <see cref="ShamanReviveRange"/> 的 E28 备注）⇒ 不拿 `aip1` 当出处，登记 E28。
         /// </para>
         /// </summary>
         public const float RangedAttackMaxRange = 5.0f;
@@ -164,8 +156,6 @@ namespace Diablo2.Module.Monster
         /// 【例外 **E28**】可复活目标的最大距离（格）。官方 = `fallenshaman1` 的 `aip4 = 24`
         /// （`AiParms.txt`「Fallen Shaman」段：`aip4` = 复活扫描半径；参考实现 `monai.zig:170-175` 原文
         /// "aip4 (revive scan radius) is applied by the host's corpse scan"）。
-        /// ⚠️ 其单位是**世界 subtiles**，而本项目坐标的单位是**格**；`subtile → 格` 的换算本片未确证
-        /// ⇒ **值未改**（保持 7.0），登记 E28（拿到换算即可改）。
         /// </summary>
         public const float ShamanReviveRange = 7.0f;
 
@@ -176,12 +166,11 @@ namespace Diablo2.Module.Monster
         /// <summary>
         /// 【例外 **E28**】触发逃跑的血量比例（≤ 该值即逃）。
         /// <para>
-        /// ⛔ 这条**与官方机制不同**：堕落者的官方逃跑触发是**同伴尸体在 15 subtiles 内**
+        /// 这条**与官方机制不同**：堕落者的官方逃跑触发是**同伴尸体在 15 subtiles 内**
         /// （参考实现 `monai.zig:139-149`：`FALLEN_CORPSE_FLEE_RANGE = 15`，
         /// `fallenShouldFlee(corpseWithinRange)` —— 原版 AI_Function1_Fallen 的**无条件**逃跑标志），
         /// **不是**血量比例。官方按血量比例逃的只有 `Conservative` AI（`AiParms.txt`「Conservative」`P4`
         /// = "Pct health to flee"，如 Evil Spider）与 `Sand Raider`（`P1`）——本项目 8 只怪都不是它。
-        /// 改触发条件要动 `MonsterAi.cs`（不在本片归口）⇒ 值保持，登记 E28。
         /// </para>
         /// </summary>
         public const float CowardFleeHpRatio = 0.35f;

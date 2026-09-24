@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Player / Camera / Input 自检宿主（`docs/agents/agent-06-主角相机与输入.md` §5 的验收项逐条自证）
 //
 // 运行：dotnet run --project <项目根>/tools/playercheck/PlayerCheck.csproj -c Release
 //
@@ -7,9 +6,9 @@
 //   ① 离线宿主编译/运行：0 错 0 警告（编译期）+ 断言全过（运行期）
 //   ② 点击移动：Town 出生点 → 远端可走格，逐帧 Tick(0.02f) 直到到达（贴起点/终点/路径长度/帧数）
 //   ③ 绕障：目标与出生点无视线 ⇒ 路径非直连，且**每一格**都可走、玩家全程 Walkable==true
-//   ④ ★ R1-B 新口径：**图上有地形但阻挡** ⇒ 最近可走格回退（≤2 格，原版 D2「点不可走处走向最近
+//   ④ R1-B 新口径：**图上有地形但阻挡** ⇒ 最近可走格回退（≤2 格，原版 D2「点不可走处走向最近
 //      合法点」）；图外（越界）/ 图内 `TileKind.Void` / 半径内无可走格 ⇒ 仍拒绝（不移动 + 日志 + 计数）
-//   ④b ★ R1-B 桥/水专项：点桥栏杆 ⇒ 走到桥面；点水面 ⇒ 走到岸上；点河中央 ⇒ 仍拒绝
+//   ④b R1-B 桥/水专项：点桥栏杆 ⇒ 走到桥面；点水面 ⇒ 走到岸上；点河中央 ⇒ 仍拒绝
 //   ⑤ 受阻：桩地图给出「穿过不可走格」的路径 ⇒ 停在原地（不穿墙）+ Warn + BlockedStops++
 //   ⑥ 踩出入口：Town 的出城口 ⇒ 发 Events.ExitEntered(BloodMoor)，且同一格只发一次
 //   ⑦ 升级公式：AddExp 到 experience_c 阈值 ⇒ 等级 +1、生命上限按配表增长、日志 `[Player] level 1→2`
@@ -19,9 +18,8 @@
 //   ⑪ 相机：等距参数（跟随位置/正交尺寸/边界钳制/缩放钳制/震动衰减）纯数学断言 + 无相机时优雅降级
 //   ⑫ 输入：ShouldRetarget 真值表 / 按住状态机 / 无相机时点击被拒 / 腰带快捷键发事件
 //
-// ⛔ 不覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后验）：
+// 不覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后验）：
 //    · 真实 `Camera.main` 的屏幕→地面反投影（离线宿主里 `Camera.main`/`Screen` 不可用，已断言降级路径）；
-//    · 精灵渲染/动画/朝向帧（属 agent-07 的 View 模块）；
 //    · 手感（跟随是否"抖"）与像素级画面。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -34,7 +32,7 @@ using Diablo2.Module;              // 12 个门面接口 + CameraRig + InputRead
 using Diablo2.Module.Player;       // PlayerModule / PlayerStats / PlayerMotor / PlayerLog
 using Diablo2.Module.Save;         // ★ u52block：SaveModule / SaveJson（链路级一跳要用**真**存档模块）
 using UnityEngine;
-// ⚠️ 故意**不** `using Table;`：`Table` 命名空间里有一个 `Table.Vector3` 结构，
+// 故意**不** `using Table;`：`Table` 命名空间里有一个 `Table.Vector3` 结构，
 //    与 `UnityEngine.Vector3` 同名 ⇒ 一旦 `using Table;` + `using UnityEngine;` 同时出现，
 //    裸写 `Vector3` 就是 CS0104（本宿主需要 UnityEngine.Vector3）。故配表一律写全名 `Table.TableLoader`。
 // 别名：`AppContext` 与 BCL 的 `System.AppContext` 同名（同时 using System 会 CS0104）。
@@ -71,10 +69,8 @@ namespace PlayerCheck
         public IReadOnlyList<Vector2Int> NpcPoints => new List<Vector2Int>();
         public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
 
-        /// <summary>桩地图无传送点（契约成员见 `Module/Contracts.cs` 的 `IMapModule.WaypointPoints`，2026-09-23 新增）。</summary>
         public IReadOnlyList<Vector2Int> WaypointPoints => new List<Vector2Int>();
 
-        /// <summary>桩地图不记已探索（契约成员见 `Module/Contracts.cs` 的 `IMapModule.ExploredCells`，2026-09-23 新增）。</summary>
         public IReadOnlyCollection<Vector2Int> ExploredCells => new List<Vector2Int>();
 
         public bool InBounds(Vector2Int g) => g.x >= 0 && g.y >= 0 && g.x < 8 && g.y < 8;
@@ -99,7 +95,6 @@ namespace PlayerCheck
     }
 
     /// <summary>
-    /// 桩怪物门面（agent-13 §A 悬停自证用）：本宿主只编 `Map/Player/Camera/Input`，
     /// `Module/Monster` 不在其中 ⇒ 注入本桩来走**真实的**悬停怪物解析路径（`IMonsterModule.All`）。
     /// </summary>
     internal sealed class StubMonsters : IMonsterModule
@@ -148,16 +143,15 @@ namespace PlayerCheck
     }
 
     /// <summary>
-    /// 桩技能门面（★ impl-I-input，审计 R1）：本宿主**没有编入** `Module/Skill`
+    /// 桩技能门面（impl-I-input，审计 R1）：本宿主**没有编入** `Module/Skill`
     /// （`PlayerCheck.csproj` 的编译清单里没有它，既有断言「未编入的模块保持 null」依赖这一点）
-    /// ⇒ 用记录桩来判**本片真正改的那一段**：「右键输入 → 走到施放入口 `ISkillModule.TryCast`」。
-    /// <para>⛔ 不判 `TryCast` 内部（扣蓝/冷却/投射物）—— 那由既有 `tools/probes/hosts/combatcheck`
+    /// <para>不判 `TryCast` 内部（扣蓝/冷却/投射物）—— 那由既有 `tools/probes/hosts/combatcheck`
     /// 用**真实 `SkillModule`** 覆盖（其 §9「TryCast：扣法力 + 进冷却」）。</para>
     /// </summary>
     internal sealed class StubSkill : ISkillModule
     {
         /// <summary>
-        /// ⚠️ **刻意不给无参构造**：`AppContext.AutoWire` 的规则是「程序集里第一个实现该接口的类型」
+        /// **刻意不给无参构造**：`AppContext.AutoWire` 的规则是「程序集里第一个实现该接口的类型」
         /// （`App/AppContext.cs:136-154`）⇒ 若本桩能被无参实例化，它会被自动装配成 `ctx.Skill`，
         /// 从而破坏既有断言「本宿主未编入的模块保持 null」（实测：加了这个桩之后那条断言立刻 FAIL）。
         /// 带一个必填参数 ⇒ `Activator.CreateInstance` 抛 `MissingMethodException` 被 AutoWire 吞掉
@@ -225,7 +219,7 @@ namespace PlayerCheck
     }
 
     /// <summary>
-    /// ★ R1-D：`IAppFlow` 的**最小桩** —— 让 <c>CameraRig.RefreshFocus</c> 走「跟主角世界坐标」那条路
+    /// R1-D：`IAppFlow` 的**最小桩** —— 让 <c>CameraRig.RefreshFocus</c> 走「跟主角世界坐标」那条路
     /// （真机由 `AppFlow` 提供同一个判据，见 `CameraRig.FlowReady`）。
     /// <para>为什么需要它：`AppContext.Flow == null` 时相机**不接管机位**（宿主/菜单语义）
     /// ⇒ §15 c 就测不到「Player → Camera 同帧跟随」这条真链路。</para>
@@ -241,10 +235,8 @@ namespace PlayerCheck
 
     public static class Program
     {
-        // ★ 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
-        //   原先写死 `@"client\Assets"`（cwd 相对）⇒ `tools/probes/hosts/run_all_hosts.ps1`
+        // 仓库根改为**运行期推导**（见 ResolveProjectRoot），不再依赖调用方 cwd。
         //   用 `Push-Location <宿主目录>` 驱动时被解析成 `<宿主目录>\client\Assets`（不存在）
-        //   ⇒ 配表 0 行、断言 10 项红、exit 1（实测 2026-09-20 复现）。
         private static readonly string ClientAssets = ResolveProjectRoot() + @"\client\Assets";
 
         /// <summary>
@@ -391,18 +383,8 @@ namespace PlayerCheck
                 "PlayerModule()/CameraRig() 均为隐式 public 无参构造");
             Check("PlayerModule 已订阅装备/加点事件", ((PlayerModule)ctx.Player).EquipSubscribed,
                 "Game.Event.On(EquipChanged / StatAllocateRequest)");
-            // ⚠️ 与 agent-06 原版的差别：本宿主现在自带 `StubMonsters` / `StubNpcs`
-            //    （§13 悬停自证的桩，见文件下方）⇒ `AutoWire` 会**如实**把它们装配到 Monster / Npc。
             //    这里改为断言「本宿主**没有编入**的模块仍保持 null」——这才是该用例的本意（降级不崩）。
-            //    ★ 本轮（T0 判据缺口 2）：`Module/Item` 已加入本宿主的编译清单（见 `PlayerCheck.csproj`），
-            //      §17 要用**真实** `ItemModule` 断言双武器组 ⇒ 从"未编入"名单里移出并单独断言它是真实现。
-            //   ★ 本片（U27 三分判据）：`Module/View` **也**加进了本宿主的编译清单
-            //     （§15 f 要调生产件 `ViewModule.EntityWorld` = 角色渲染节点位置的唯一口径）
-            //     ⇒ "未编入"名单里把 View 移出，并像 ItemModule 那样**单独断言它是真实现**。
-            //   ★ 本片（u52block 链路级一跳）：`Module/Save` **也**加进了本宿主的编译清单
-            //     （§9d 要真 `SaveModule.Load` → 真 `PlayerModule.LoadFrom`，见 `PlayerCheck.csproj`）
-            //     ⇒ 按**同一处置**再走一遍："未编入"名单里把 Save 移出，并**单独断言它是真实现**。
-            //     ⚠️ **这不是放宽**（README §57(a)：加文件 = 改既有断言的输入 ⇒ 要按新输入改判据）：
+            //    本轮（T0 判据缺口 2）：`Module/Item` 已加入本宿主的编译清单（见 `PlayerCheck.csproj`），
             //        名单里剩下的 4 个（Combat/Skill/Quest/Audio）仍必须为 null，
             //        而 Save 必须**恰好**是生产实现（不是桩）。
             Check("本宿主未编入的模块保持 null（降级，不崩）",
@@ -432,7 +414,6 @@ namespace PlayerCheck
             Section("1. 五职业 1 级 MaxLife/MaxMana/MaxStamina ↔ **官方起始值**（charstats.txt + Arreat Summit）");
             var player = (PlayerModule)ctx.Player;
 
-            // ★★ U3（2026-09-24）判据换口径 —— 为什么要换（原断言是**恒真**的）：
             //   旧断言的"期望值"是**用同一个错公式现算**（`row.Vit * row.LifePerVit`）再和 PlayerModule 比，
             //   两边同源 ⇒ 无论公式多错它都 OK（实测：它给 60/22/20 全绿，而官方 1 级是 50/15/84）。
             //   现在期望值 = **官方原始数据，硬编码**（出处逐条写在下面三行数组旁），
@@ -473,9 +454,8 @@ namespace PlayerCheck
 
             Check("5 职业逐一相符（官方起始值）", allOk, "见上表；期望值逐条硬编码自 charstats.txt + Arreat Summit");
 
-            // ── 判据自检（**退化样本**，⛔ 不许恒真）─────────────────────────────
+            // ── 判据自检（**退化样本**，不许恒真）─────────────────────────────
             //   把**旧公式**（起始四维 × 成长系数）喂进同一条判据：必须 5 个职业全部变红。
-            //   若旧公式还能全绿 ⇒ 这条断言判不到"起始截距"，等于没判（本片修的就是这个截距）。
             var degGreen = 0;
             for (var id = 1; id <= 5; id++)
             {
@@ -490,7 +470,7 @@ namespace PlayerCheck
                 degGreen == 0, $"旧公式与官方起始值相同的职业数 = {degGreen}（要求 0）");
 
             // 与创角屏同口径的抽查（验收 #17：创角预览要跟进图后对得上）
-            //   ⚠️ 这里把 `UI/CharCreatePanel.LifeOf` 的**表达式逐字抄一遍**（UI 层不进本宿主；
+            //   这里把 `UI/CharCreatePanel.LifeOf` 的**表达式逐字抄一遍**（UI 层不进本宿主；
             //      分层自检 ③ 也禁止 UI 引用 Module）—— 真正"屏上预览 == 面板"的比对在 Play 驱动里做。
             var amazon = Table.TableLoader.Class(1);
             player.CreateNew(PlayerClass.Amazon, "Check1");
@@ -538,8 +518,7 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 2b. ★ U33「鼠标在人附近移动没效果，必须要远」：近距点击矩阵
-        //     出处 = `策划/策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行「鼠标点击移动 …
+        // 2b. U33「鼠标在人附近移动没效果，必须要远」：近距点击矩阵
         //            按住左键持续更新目标」⇒ 近处（脚下/8 邻域/距离 2）一样要有反应。
         //     走**单击真链路** `PlayerModule.HandlePrimaryClick`（= `HandleMoveIntent` 的 ① 支），
         //     每一步先把角色放回 P，保证矩阵各格互不干扰。
@@ -584,7 +563,7 @@ namespace PlayerCheck
                     player.HandlePrimaryClick(m);
                     WalkUntilArrive(player, map, 400, assertWalkableEachFrame: true);
 
-                    // ⛔ 放开近距 ≠ 放开阻挡：任何一格走完都不能停在不可走格上
+                    // 放开近距 ≠ 放开阻挡：任何一格走完都不能停在不可走格上
                     if (!map.Walkable(player.Grid)) blockedMoves++;
                     if (!map.Walkable(m)) continue;                    // 不可走落点 ⇒ 由既有的 R1-B 回退口径覆盖
 
@@ -737,7 +716,7 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 4b. ★ R1-B 桥 / 水专项（用户报「为什么不是从桥上走？」）
+        // 4b. R1-B 桥 / 水专项（用户报「为什么不是从桥上走？」）
         //     判据全部取自**逐格原版瓦片键**（`MapModule.TryGetTileKeys`），不是靠坐标猜：
         //       ① 点**桥栏杆**格（floor+wall 都来自 `bridge.dt1`）⇒ 落到**桥面**格
         //          （floor 来自 `bridge.dt1` 且 wall 为空）
@@ -1029,8 +1008,7 @@ namespace PlayerCheck
             Check("生命上限按配表增长（+life_per_lvl）",
                 player.MaxLife == lv1Life + Mathf.RoundToInt(row.LifePerLvl),
                 $"{lv1Life} → {player.MaxLife}（life_per_lvl={row.LifePerLvl}）");
-            // ★ U3：期望值同样换成**官方起始口径**（起始精力 + 1 级 × mana_per_lvl），
-            //   旧写法 `row.Eng × manaPerMag` 把"起始精力"又乘了一遍成长系数（正是本片修掉的错）。
+            // U3：期望值同样换成**官方起始口径**（起始精力 + 1 级 × mana_per_lvl），
             Check("法力上限按配表增长（起始精力 + mana_per_lvl）",
                 player.MaxMana == Mathf.RoundToInt(row.Eng + 1 * row.ManaPerLvl),
                 $"法力上限 {player.MaxMana}（起始精力 {row.Eng} + mana_per_lvl={row.ManaPerLvl}）");
@@ -1143,11 +1121,10 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 9b. ★ u52block（R6）：格挡 —— 盾牌**基材** block 接入 / 合成式 / 上限 / 闸门 / 退化样本
+        // 9b. u52block（R6）：格挡 —— 盾牌**基材** block 接入 / 合成式 / 上限 / 闸门 / 退化样本
         //     用户报的「人物状态框，数值信息不对」含这一格：装了盾格挡仍是 0%。
-        //     出处（逐条；⛔ 无一条来自"看起来合理"）：
+        //     出处（逐条；无一条来自"看起来合理"）：
         //       ① **合成式**：Arreat Summit「Basics: Character Information → Blocking」
-        //          （`https://classic.battle.net/diablo2exp/basics/characters.shtml`，2026-09-24 实取原文）
         //          `Total Blocking = (Blocking * (Dexterity - 15)) / (Character Level * 2)`
         //          `Blocking = A total of the Blocking on all of your items.`
         //          `The block value itself is a combination of a value inherent to that particular
@@ -1155,9 +1132,7 @@ namespace PlayerCheck
         //       ② **盾牌基材 block** = 官方 `Armor.txt` 第 11 列 `block`
         //          （`原版资源/d2lod1.10txt-1.10f/data/global/excel/Armor.txt`；打表 ⇒ `item_c.block`）
         //       ③ **职业固有值** = 官方 `charstats.txt` 第 32 列 `BlockFactor`（打表 ⇒ `class_c.block_factor`）
-        //       ④ **官方公布值交叉核对**：`https://www.diablo-2.net/items/shields`（2026-09-24 实取）
         //          + `https://d2grail.com/items/bases/armor/shields/normal/buckler`（Buckler 同行一致）
-        //     类别：**数值类** ⇒ 运行时日志 + 断言（⛔ 本片不进 Play、不截图）。
         // ═════════════════════════════════════════════════════════════════════
         private static void Step9b_Block(AppContext ctx, PlayerModule player, RecordingEventBus bus)
         {
@@ -1184,9 +1159,8 @@ namespace PlayerCheck
                 var exp = kv.Value - palFactor;
                 if (r == null)
                 {
-                    // ⚠️ Act I 打表口径（`tools/table-convert/convert.py` 的 `ITEM_MAX_LEVEL = 12`）：
+                    // Act I 打表口径（`tools/table-convert/convert.py` 的 `ITEM_MAX_LEVEL = 12`）：
                     //    官方 qlvl > 12 的盾不进 `item_c`（Kite 15 / Bone 19 / Tower 22 / Gothic 30）
-                    //    ⇒ 本工程 Act I 里有 4 种普通盾（Buc/Sml/Lrg/Spk）。这是**既有口径**，本片不改。
                     missing.Add(kv.Key);
                     continue;
                 }
@@ -1201,7 +1175,7 @@ namespace PlayerCheck
                 string.Join(",", missing) == "kit,bsh,tow,gts",
                 "不在表里的：" + string.Join(",", missing));
 
-            // ── ② 合成式（逐职业期望值；期望值**硬编码自官方公式**，⛔ 不由被测代码现算）──
+            // ── ② 合成式（逐职业期望值；期望值**硬编码自官方公式**，不由被测代码现算）──
             //   盾 = Small Shield（官方 block = 5）；等级两档：Lv1 与 Lv10。
             //   Lv1（各职业起始敏/固有值都读 `class_c`）：敏25+BF25 → (10×30)/2 = 150 → 钳 75；…全部顶到 75
             //   Lv10（各职业分道，验的是"**盾 block 与职业 BlockFactor 两项都进去了**"）：
@@ -1261,7 +1235,6 @@ namespace PlayerCheck
 
             // ── ⑤ 退化样本：把**修前形状**喂进同一判据 ⇒ 必须变红 ──
             //   修前：盾基材 block 没接入 ⇒ 装备项只等于词缀 block 之和（本样例无词缀 ⇒ 0）
-            //   ⇒ 旧闸门 "装备项 <= 0 ⇒ 0%" 把装盾也判成 0%（= 用户报的症状）。
             var preFixAma = PreFixBlockChance(25, 0, 25, 1);
             var preFixBar = PreFixBlockChance(20, 0, 25, 1);
             Check("退化样本①（装盾后=公式值）：修前形状（装备项恒 0）在同一判据上**变红**（Ama 0≠75 / Bar 0≠62）",
@@ -1279,7 +1252,6 @@ namespace PlayerCheck
                 "去掉闸门：徒手亚马逊 = " + PlayerStats.ComputeBlockChance(true, 25, 0, 25, 1) + "%（官方 0%）");
 
             // ── ⑥ 事件链（真入口）：装盾 ⇒ `Events.EquipChanged` ⇒ 面板那一格（`BlockChance`）不再 0 ──
-            //   这一条判的是"接线"（根因的那一环）：盾基材 block 真的进了 `BonusBlock`。
             player.CreateNew(PlayerClass.Barbarian, "Shield");
             var noShield = player.Stats.BlockChance;
             Check("装盾前（徒手）= 0%（既有读数：`Check1 … 格挡0%` / `row17.json` 指着它，⛔ 未放宽）",
@@ -1298,7 +1270,7 @@ namespace PlayerCheck
             bus.Emit(Events.EquipChanged, equipArgs);
 
             // 野蛮人 1 级：起始敏 20（`class_c.dex`）+ 盾 block 5 + BF 25
-            //   ⇒ (20−15) × (5+25) / (2×1) = 150 / 2 = 75（硬编码自官方公式，⛔ 不由被测代码现算）
+            //   ⇒ (20−15) × (5+25) / (2×1) = 150 / 2 = 75（硬编码自官方公式，不由被测代码现算）
             const int barbExpect = 75;
             Check("装盾后（Barbarian 1 级 + Small Shield）= 官方公式值 75%",
                 player.Stats.BlockChance == barbExpect && barbExpect > 0,
@@ -1323,21 +1295,14 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 9c. ★ u52cur（缺陷 A/B）：三资源 cur/max —— 新建即满 / 旧档迁移 / "沿用"语义不许被改掉
-        //     实机症状（`u52play` 11:38:35 那批，判为有效）：
         //       `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`
         //       `[D2U3C] DTO name=S2203805 cls=Amazon level=1 … life=50/50 mana=15/15 stamina=**20/84**`
         //     活档（**只读**）：`client/setting/saves/S2203805.json` =
         //       `{version:1, name:S2203805, cls:1, level:1, str:20, dex:25, vit:20, eng:15,
-        //         life:60, mana:22, stamina:20, statPoints:0, …}`（mtime 2026-09-23 20:38 = charstat 片修前）
-        //       ⇒ 该档是**旧口径**档：`life/mana/stamina` 是"起始四维 × 成长系数"那套式子的产物，
         //         与现在的官方起始上限（50 / 15 / 84）**不同源**。
         //     出处（起始量 = 满值）：`charstats.txt:2..6` 的 `hpadd`(30)+起始体力(20)=50 / 起始精力(15) /
-        //       `stamina`(84)；表内落位 = `class_c.hp_add / base_stamina`（★ charstat 片 §1 已判）。
-        //     类别：**数值类** ⇒ 运行时日志 + 断言（⛔ 不截图、不进 Play）。
-        //     ⚠️ **本段与 `itemcheck` §13b 是同一组断言的镜像（有意的重复，main 已批）**：本宿主编
+        //     类别：**数值类** ⇒ 运行时日志 + 断言（不截图、不进 Play）。
         //       `Module/View`（别的片把 View 改坏时整宿主编不过，本轮真实发生过一次），而 `itemcheck`
-        //       不编 View ⇒ 那侧留一份**独立的可跑副本**。⛔ **两处改动必须同步**（§9c ↔ itemcheck §13b）。
         // ═════════════════════════════════════════════════════════════════════
         private static void Step9c_Resources(AppContext ctx, PlayerModule player, RecordingEventBus bus)
         {
@@ -1412,18 +1377,15 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 9d. ★ u52block（链路级一跳）：真 `SaveModule.Load`（读盘）→ 真 `PlayerModule.LoadFrom`
+        // 9d. u52block（链路级一跳）：真 `SaveModule.Load`（读盘）→ 真 `PlayerModule.LoadFrom`
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// ★ u52block（缺陷出处：U52「老档耐力 20/84」，实机读数
-        /// `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`）。
         /// <para>**为什么单开一节**：本宿主此前只编 `Module/Player/**`，而 `savecheck` 只编 Save（Player 是
         /// shim）⇒ 「真 `SaveModule.Load` → 真 `PlayerModule.LoadFrom`」这**一跳是断的**。而本轮那个 bug
         /// 恰恰是**单元级绿 / 链路级红**：`Load` 若把 `data.version` 抬到当前，下游
         /// `PlayerModule.cs:448` 的 `save.version &lt; GameConst.SaveVersion` 恒 false ⇒ 迁移分支成死代码；
-        /// 而 `savecheck`（只到 `Load` 的返回值）与 `playercheck` §9c（夹具是测试自己 `new` 出来的、
         /// **跳过 `Load`**）**两边都绿**。§9c 与本节的唯一差别 = 夹具**从磁盘经真 `Load` 拿**。</para>
-        /// <para>⛔ 不复制 `SaveModule.cs` / 不镜像它的逻辑：本节调的就是 `Assets/Scripts` 里**同一份**源文件
+        /// <para>不复制 `SaveModule.cs` / 不镜像它的逻辑：本节调的就是 `Assets/Scripts` 里**同一份**源文件
         /// （由 `PlayerCheck.csproj` 链入）。槽位目录 = 临时目录，跑完删除；`Game.Config` / `ctx.Save` 复原。</para>
         /// </summary>
         private static void Step9d_SaveToPlayerHop(AppContext ctx, PlayerModule player)
@@ -1475,15 +1437,13 @@ namespace PlayerCheck
                       "（日志增量 ≥1；若 `Load` 把版本抬到当前，这里**不会**有增量）",
                     loaded != null && !threw && migDelta >= 1, "threw=" + threw + " 迁移日志增量=" + migDelta);
 
-                // ③ 三资源按当前口径补满（实机症状 = 耐力卡在 20/84）
                 Check("4) 迁移后三资源 cur == max，且**逐值** 生命 50 / 法力 15 / 耐力 84（实机症状 = 耐力 20/84）",
                     player.Life == 50 && player.Mana == 15 && player.Stamina == 84
                     && player.Life == player.MaxLife && player.Mana == player.MaxMana && player.Stamina == player.MaxStamina,
                     "生命 " + player.Life + "/" + player.MaxLife + " 法力 " + player.Mana + "/" + player.MaxMana
                     + " 耐力 " + player.Stamina + "/" + player.MaxStamina);
 
-                // ④ ★ 判据**能红**：把同一份夹具的版本改成"当前"（= 模拟旧契约「Load 抬版本」之后的形状）
-                //     ⇒ 迁移分支**不触发** ⇒ 耐力**停在 20**。谁把 `Load` 改回"抬到当前"，这条链就退回实机症状。
+                // ④ 判据**能红**：把同一份夹具的版本改成"当前"（= 模拟旧契约「Load 抬版本」之后的形状）
                 var asCurrent = LegacySave();
                 asCurrent.name = "HopAsCurrentHero";
                 asCurrent.version = GameConst.SaveVersion;         // = 旧契约（Load 抬版本）之后的形状
@@ -1508,7 +1468,6 @@ namespace PlayerCheck
 
         /// <summary>
         /// **旧口径活档的逐值副本**（`client/setting/saves/S2203805.json`，**只读**抄写；
-        /// `version` 取 `GameConst.SaveVersion - 1` ⇒ 走"更旧版本"的迁移分支，**与本片未改的常量值无关**）。
         /// </summary>
         private static CharacterSave LegacySave()
         {
@@ -1612,8 +1571,6 @@ namespace PlayerCheck
                 Math.Abs(rig.Position.x - want.x) < 1e-4f && Math.Abs(rig.Position.y - want.y) < 1e-4f
                 && Math.Abs(rig.Position.z + CameraRig.CameraDistance) < 1e-4f,
                 $"Position={rig.Position} 期望 {want}");
-            // ★ 片 2b：默认正交尺寸 6 → 3.75（原版 600px / 80ppu / 2；见 `CameraRig.DefaultOrthographicSize`
-            //   的注释）。本断言读的是**常量**（不是字面量 6）⇒ 改值后仍成立，标签里的数字跟着常量走。
             Check($"正交尺寸 = 默认 {CameraRig.DefaultOrthographicSize}",
                 Math.Abs(rig.OrthographicSize - CameraRig.DefaultOrthographicSize) < 1e-4f,
                 $"size={rig.OrthographicSize}，可见格高 = 2×size = {2f * CameraRig.DefaultOrthographicSize} 格");
@@ -1643,8 +1600,6 @@ namespace PlayerCheck
             Check("Tick(0) 时不动（暂停不抖）", Vector3.Distance(rig.Position, posBeforeZero) < 1e-6f,
                 $"Position 保持 {rig.Position}（新目标 {Iso.GridToWorld(spawn)}）");
 
-            // 纯函数：跟随 —— ★ 本片（镜头抖）已把能力**下沉到引擎** `CloverEngine.CameraMath`，
-            //   `CameraRig.SmoothTowards` 私有副本已删除 ⇒ 这里断言的是**引擎**那一份（同一个被调用的实现）。
             var a = new Vector3(0f, 0f, 0f);
             var b = new Vector3(10f, 0f, 0f);
             Check("CameraMath.Follow(dt<=0) 保持不动",
@@ -1761,7 +1716,6 @@ namespace PlayerCheck
                 CaptureLogger.Last("Shake(amp="));
 
             // ═════════════════════════════════════════════════════════════════
-            // 11.9 ★ 取景断言（agent-14 §A 验收要求）：
             //      「给定地图尺寸与焦点格，断言 焦点世界坐标 → 屏幕坐标 ≈ 屏幕中心」
             //      并量化「屏幕不出现大片黑」：视口被地图覆盖的比例。
             //      全部走纯函数（`CameraPosForFocus` / `WorldToScreen`），无 Unity 原生调用。
@@ -1797,7 +1751,6 @@ namespace PlayerCheck
                     CameraRig.MapWorldBounds(cs.W, cs.H, out var mbMin, out var mbMax);
                     var halfW = CameraRig.DefaultOrthographicSize * aspect;
                     var halfH = CameraRig.DefaultOrthographicSize;
-                    // ★ camera-clamp 片（2026-09-23）：`needClamp` 改用**生产夹制**
                     //   `CameraBounds.ClampFocusGrid`（格空间）——旧口径用世界 AABB 的 `ClampFocus`，
                     //   会与生产"两套算法"（AABB 说没夹、生产说夹了 ⇒ 分支选错、断言判的是另一件事）。
                     var clamped = CameraBounds.ClampFocusGrid(new Vector2(focusWorld.x, focusWorld.y), cs.W, cs.H, halfW, halfH);
@@ -1846,8 +1799,6 @@ namespace PlayerCheck
             Check("[1096×500（本局实测 Game View）] Town (15,19) 覆盖 ≥ 95%", cov2 >= 0.95f,
                 $"覆盖率={cov2 * 100f:0.0}% 机位={covCam2}");
 
-            // ── 反向对照（证明这条断言真的抓得住那个缺陷）──
-            //    缺陷现场：相机停在场景出生机位 (0,0,-10) ⇒ 焦点 (15,19) 落在屏幕外
             var brokenCam = new Vector3(0f, 0f, -CameraRig.CameraDistance);
             var brokenScreen = CameraRig.WorldToScreen(Iso.GridToWorld(15, 19), brokenCam,
                 CameraRig.DefaultOrthographicSize, 1096f / 500f, 1096f, 500f);
@@ -1868,9 +1819,7 @@ namespace PlayerCheck
                 float.IsNaN(vpBad.x) && float.IsNaN(vpBad.y), $"= {vpBad}");
 
             // ═════════════════════════════════════════════════════════════════
-            // 11.10 ★ black-why2：贴边不露「地图外虚空」——**生产** `CameraPosForFocus`
-            //       的格空间夹制（用户症状「一大片是黑的」的离线判据）。
-            //       与 mapcheck §29 同源：那边是**规格**（`GridSpaceClamp`），
+            // 11.10 black-why2：贴边不露「地图外虚空」——**生产** `CameraPosForFocus`
             //       这边断言**生产实现**真的做到了（不然规格永远变不了绿）。
             // ═════════════════════════════════════════════════════════════════
             Console.WriteLine();
@@ -1932,13 +1881,12 @@ namespace PlayerCheck
             }
 
             // ═════════════════════════════════════════════════════════════════
-            // 11.11 ★ camera-follow 片（2026-09-23）：**玩家焦点必须在视口内（含安全边距）**
             //   前一片只断言「可见格 ⊆ 地图」⇒ 判据全绿、实机玩家却被顶到画面角落
             //   （play-verify 实测 玩家↔相机 屏幕距离 p50=598.6px / max=1065.8px / 75.8% 帧 > 半格）。
             //   本组用例覆盖 **地图四角 + 四边 + 图心**（80×80 血腥荒野、56×40 城镇（实机那张）、
             //   32×32 `GameConst.Town`），逐条把焦点投影到视口归一化坐标，
             //   判据 = 焦点必须落在 [inset, 1−inset]（inset = (1 − FocusSafeMarginRatio)/2）。
-            //   ⛔ 退化校验见 report-camerafollow.md：把生产退回「夹焦点」（去掉主角可见预算）
+            //   退化校验见 report-camerafollow.md：把生产退回「夹焦点」（去掉主角可见预算）
             //      ⇒ 四角用例必须变红，否则本判据是摆设。
             // ═════════════════════════════════════════════════════════════════
             Console.WriteLine();
@@ -1978,7 +1926,7 @@ namespace PlayerCheck
             foreach (var fc in focusCases)
             {
                 var fw = Iso.GridToWorld(fc.G);
-                // ★ 夹**机位**（camera = 想停在玩家身上的理想机位），焦点只当位移上限的参照
+                // 夹**机位**（camera = 想停在玩家身上的理想机位），焦点只当位移上限的参照
                 var camF = CameraRig.CameraPosForCamera(fw, fw, fc.W, fc.H,
                     CameraRig.DefaultOrthographicSize, covA, -CameraRig.CameraDistance);
                 var vpf = CameraRig.WorldToViewport(fw, camF, CameraRig.DefaultOrthographicSize, covA);
@@ -2000,17 +1948,14 @@ namespace PlayerCheck
                 $"最紧 = {worstTag} 余量={worstInset:0.####}（下限 {insetF:0.####}）");
 
             // ═════════════════════════════════════════════════════════════════
-            // 11.12 ★ cam-verify（2026-09-24）：**贴边时两条判据必须同时成立**
             //   (a) 可见格范围 ⊆ 地图（地图外虚空 = 0）
             //   (b) 玩家（焦点）仍在视口内
             //   11.10 只断言 (a)、11.11 只断言 (b)，各自都能"绿"；实机（`.ai-tmp/test/report-camverify.md`
-            //   §2，Play tag `cv3`）在**最外侧可走格**上同时读到 offTile=0% 与 margin>=0
-            //   ⇒ 本组把这两条**同时**断言，用例形状 = 实机量到的可走区：
             //     · 血腥荒野 80×80：四边内缩 8 格（cv3 实测 outerGx=[8..71] outerGy=[8..71]，ringFromEdge=8）
             //     · 罗格营地 56×40：实测最外侧可走格 (8,20)(8,31)(55,25)(55,27)(27,17)(27,38)
             //       （桥面 `x=W-1` 与南边界行 `gy=38` 是 map-border2 明确保留的例外）
-            //   ⛔ 不弱化任何既有断言（只新增）；真实可走区**之外**的最外圈另列，如实打印
-            //      "两条不可兼得"的两个数 —— 那属于地图边界环该解决的事，⛔ 不是相机。
+            //   不弱化任何既有断言（只新增）；真实可走区**之外**的最外圈另列，如实打印
+            //      "两条不可兼得"的两个数 —— 那属于地图边界环该解决的事，不是相机。
             // ═════════════════════════════════════════════════════════════════
             Console.WriteLine();
             Console.WriteLine("    ── 贴边同时判：可见格 ⊆ 地图 **且** 玩家在视口内（用例形状 = 实机实测的可走区）──");
@@ -2091,12 +2036,9 @@ namespace PlayerCheck
                     $" margin={marginU:0.####} 机位=({camU.x:0.##},{camU.y:0.##})");
             }
 
-            // (4) ★ cam-verify 追补（主 agent 追补口径）：**真实可达性** —— 从出生点洪水填充，
-            //     取「离地图边界最近的可达格」。这才是"玩家真的能走到多靠边"，⛔ 不是人造落点
-            //     （`mapcheck §29` 的 (1,20) 是封环前的人造极端点，§29 通过只证明"夹制函数在极端机位下
-            //      不再放行虚空"，**不等于**玩家会走到那儿）。
+            // (4) cam-verify 追补（主 agent 追补口径）：**真实可达性** —— 从出生点洪水填充，
+            //     取「离地图边界最近的可达格」。这才是"玩家真的能走到多靠边"，不是人造落点
             //     判据：可达格离边界 ≥ (半屏半跨 a+b) 格 ⇔「零虚空」与「玩家居中」处处同时成立；
-            //     若 < a+b ⇒ 该格上夹制**必然**咬合 ⇒ 玩家被顶到画面角 ⇒ 如实打印两个数（剩余缺陷）。
             var im = (mapObj as Diablo2.Module.IMapModule) ?? ctx.Map;
             if (im != null && im.IsGenerated)
             {
@@ -2121,7 +2063,6 @@ namespace PlayerCheck
                     }
                 }
                 // 零虚空要求**机位**离地图边界 ≥ (a+b)/2 格（a=halfW/HalfW、b=halfH/HalfH；
-                // 1080p/ortho3.75 ⇒ 7.083 格）—— 与 camera-follow §5 的推理同一个数。
                 var need = (halfWA / Iso.HalfW + halfHA / Iso.HalfH) * 0.5f;
                 var fw4 = Iso.GridToWorld(minCell);
                 var cam4 = CameraRig.CameraPosForCamera(fw4, fw4, w4, h4,
@@ -2148,7 +2089,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ black-why2：**图外格量** = 可见格包围盒越过地图矩形的**总格数**（0 = 整屏都在图内）。
+        /// black-why2：**图外格量** = 可见格包围盒越过地图矩形的**总格数**（0 = 整屏都在图内）。
         /// 比「面积占比」更适合当判据：它是**格**口径，与 `VisibleGridRect` 同源，可直接读出"越了几列/几行"。
         /// </summary>
         private static float OffGridAmount(float camX, float camY, float halfW, float halfH, int mw, int mh)
@@ -2164,7 +2105,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ cam-verify：**真实"虚空"格量** = 可见格包围盒越过 `[0,W)×[0,H)` 的总格数（0 = 整屏都有地砖）。
+        /// cam-verify：**真实"虚空"格量** = 可见格包围盒越过 `[0,W)×[0,H)` 的总格数（0 = 整屏都有地砖）。
         /// <para>与 `OffGridAmount` 的口径差别（两处都打印，避免"换个口径变绿"）：
         /// 格子 g 覆盖连续区间 `[g, g+1)`（= `Iso` 的 `WorldToGridContinuous` 口径）
         /// ⇒ 地图真正铺了砖的范围是 `[0,W)×[0,H)`；`OffGridAmount` 用 `W-1` 作上界，
@@ -2183,7 +2124,6 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// 采样法量化「视口矩形被地图铺装覆盖的比例」（agent-14 §A「屏幕不出现大片黑」的断言）。
         /// 用 `Iso.WorldToGrid` 反投影采样点 ⇒ 与瓦片实际铺装位置**同一套投影**（不是另写一份几何）。
         /// </summary>
         private static float ViewCoverage(Diablo2.Module.Map.MapModule map, Vector2 cam, float halfW, float halfH)
@@ -2216,9 +2156,6 @@ namespace PlayerCheck
             reader.Reset();
 
             // 12.1 目标变化判定（纯函数）
-            //   ★ 2026-09-23 U33：原验收口径「变化超过 1 格才重算」是 `docs/agents/agent-06` §4 第 4 条的
-            //   **本项目自创**工程优化，不是原版语义（原版口径 = `策划案/暗黑破坏神2参考规格.md` §3.3 第 12 行
-            //   「按住左键持续更新目标」）⇒ 下面两行按原版口径改判：**目标格一变就重算**。
             var from = new Vector2Int(5, 5);
             Check("ShouldRetarget：首次按住 → true",
                 InputReader.ShouldRetarget(from, null, new Vector2Int(6, 5)), "(5,5) 按住到 (6,5)");
@@ -2231,7 +2168,7 @@ namespace PlayerCheck
             Check("ShouldRetarget：★ U33 目标移到脚下格 → true（由 MoveTo 的「已在目标格 ⇒ 清空路径」落地）",
                 InputReader.ShouldRetarget(from, new Vector2Int(9, 9), from), "now == 玩家当前格");
 
-            // 12.1b ★ U33 矩阵式断言（**真因所在的那一型**：鼠标**只挪了 1 格**也要重算）
+            // 12.1b U33 矩阵式断言（**真因所在的那一型**：鼠标**只挪了 1 格**也要重算）
             //   棋局：上一次下发的目标 G0 = M + (1,0)（滚滚手的鼠标在当前目标旁挪一格）
             //   ⇒ 本次鼠标格 M 取：脚下格 + 8 邻域 + 距离 2 圈（共 25 格）⇒ **全部应为 true**。
             //   退化：旧口径在这里「next== 玩家格」与「差 ≤1 格」两条都返回 false ⇒ 25 格全红。
@@ -2268,7 +2205,7 @@ namespace PlayerCheck
                 CaptureLogger.Count("TryGetGroundClick：找不到主相机") == noCamLogs + 1,
                 $"次数 {CaptureLogger.Count("TryGetGroundClick：找不到主相机")}");
 
-            // 12.2b ★ R1-E 的 S2：**点 UI 的那次左键不许被读成"点地面"**
+            // 12.2b R1-E 的 S2：**点 UI 的那次左键不许被读成"点地面"**
             //   两种情形都要覆盖：①「UI 面板开着的区域」（拦掉）②「面板外的地面」（照旧）。
             //   判据 = 纯函数真值表（4 行）+ 给 `PointerOverUi` 注入替身走一遍**真实入口**
             //   （离线宿主没有真 EventSystem，所以走注入；见 `InputReader.PointerOverUi` 的注释）。
@@ -2309,7 +2246,7 @@ namespace PlayerCheck
             Check("松开后 PrimaryHeld=false、PrimaryUp=true", !reader.PrimaryHeld && reader.PrimaryUp,
                 $"held={reader.PrimaryHeld} up={reader.PrimaryUp}");
 
-            // 12.3 ★ 本段原为「方向键备选移动」读取器断言（已随该功能整体删除，见验收表 U-1）。
+            // 12.3 本段原为「方向键备选移动」读取器断言（已随该功能整体删除，见验收表 U-1）。
             //      断言改为**反向判据**：原版只有鼠标点地面移动 ⇒ 按方向键不得产生任何移动意图。
 
             // 12.4 腰带快捷键 → 事件
@@ -2363,7 +2300,6 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 13. 交互：悬停目标 / 左键点怪 / Shift 站立攻击 / 走跑切换（agent-13 §A）
         // ═════════════════════════════════════════════════════════════════════
         private static void Step13_Interaction(AppContext ctx, object mapObj, PlayerModule player,
             ScriptedInput input, RecordingEventBus bus)
@@ -2482,7 +2418,7 @@ namespace PlayerCheck
                     bus.LastArgOf(Events.CursorChanged));
             }
 
-            // ── A2. ★ S3：怪物按**贴图实际矩形**命中（原版口径：精灵覆盖到就算悬停到）──
+            // ── A2. S3：怪物按**贴图实际矩形**命中（原版口径：精灵覆盖到就算悬停到）──
             //   实机依据：`s3_evidence.tsv` 的 HOVER round=1 —— 鼠标从怪 (15,53) 的脚下沿屏幕上移
             //   0/24/48/72px 仍解出 (15,53) 命中；**96px 起**解出 (14,52)（≠ 脚下格）⇒ 旧口径
             //   hasTarget=False（怪的上半身完全无反馈）。这里注入"贴图矩形覆盖到上半身那一格的世界点"，
@@ -2537,7 +2473,7 @@ namespace PlayerCheck
             Check("留下了悬停命中日志（验收 #14 取证）", CaptureLogger.Has("[Hover] 首个悬停命中"),
                 CaptureLogger.Last("[Hover]"));
 
-            // ── A3. ★ hover-probe 片：`D2.Input.HoverChanged` **往返**（发送方 → 真实订阅回调）──
+            // ── A3. hover-probe 片：`D2.Input.HoverChanged` **往返**（发送方 → 真实订阅回调）──
             //   为什么补它：状态矩阵 L3801/L3802 的判定是「有订阅者（被消费）」，旧证据只引
             //   `Events.cs` / `Contracts.cs`（事件的**声明处本身**）⇒ 只证得出"事件名 + 载荷类存在"，
             //   证不出"真有人收到"。这里订阅一个真实回调，走真实入口 `InputReader.UpdateHover`
@@ -2641,14 +2577,11 @@ namespace PlayerCheck
             player.MoveTo(far);
             var walkFrames = WalkFrames(player, FrameCap);
 
-            // ★ 片 2b：期望比值**由常量推出**，容差**保持原来同一个相对量**（⛔ 没有放宽）——
             //   旧断言 `> 1.85 && < 2.15` 的中心点 = 2.0（写死的"走 = 跑的一半"，值本身无出处）、
-            //   **相对容差 = ±7.5%**；本片把走速按原版改成 `walkSpeed 7 / runSpeed 15`（= 0.4667）
-            //   ⇒ 新中心点 = 1 / WalkSpeedFactor = **15/7 ≈ 2.143**，同一 ±7.5% 得 [1.982, 2.304]。
             //   为什么必须留这个量级的容差：这两段是"逐帧位移"的离散计数，还夹着 A* 逐格转向的
             //   世界/格量纲换算 ⇒ 精确到小数位本来就不成立。实测（同一条 44 格路径、同起点同终点）：
             //   跑 856 帧 / 走 1779 帧 = 2.078，与 2.143 差 3% —— 落在旧断言同样的 ±7.5% 里。
-            //   ⛔ 判据仍是"实测比值 == 由常量推出的速度比"；若 R 切换没生效，比值会跑到 1.0 附近，照样红。
+            //   判据仍是"实测比值 == 由常量推出的速度比"；若 R 切换没生效，比值会跑到 1.0 附近，照样红。
             var ratio = runFrames > 0 ? (float)walkFrames / runFrames : 0f;
             var expectRatio = 1f / PlayerModule.WalkSpeedFactor;
             var lo = expectRatio * 0.925f;
@@ -2667,13 +2600,12 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 16. ★ 扣蓝 / 回蓝（w7：SkillModule.TryCast 扣法力修复的契约侧回归）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// w7 契约新增 <c>IPlayerModule.TrySpendMana(int)</c>（**扣蓝**入口）的回归 + <c>RestoreMana</c> 既有语义不变：
         /// ① 成功扣减并走 <c>Events.HudDirty</c> 属性刷新路径；② 法力不足 ⇒ false 且不扣；
-        /// ③ 非正数 ⇒ false 且不扣；④ **<c>RestoreMana(-n)</c> 仍按非正数忽略**（⛔ 不许为扣蓝把它改成减法）。
+        /// ③ 非正数 ⇒ false 且不扣；④ **<c>RestoreMana(-n)</c> 仍按非正数忽略**（不许为扣蓝把它改成减法）。
         /// </summary>
         private static void Step16_ManaSpend(AppContext ctx, PlayerModule player, RecordingEventBus bus)
         {
@@ -2703,7 +2635,7 @@ namespace PlayerCheck
             Check("TrySpendMana(-5) = false 且不扣", !player.TrySpendMana(-5) && player.Mana == 1,
                 $"法力 {player.Mana}");
 
-            // ④ RestoreMana 既有语义不变：非正数仍忽略（⛔ 没被改成扣蓝）
+            // ④ RestoreMana 既有语义不变：非正数仍忽略（没被改成扣蓝）
             player.RestoreMana(10);
             var afterRestore = player.Mana;
             player.RestoreMana(-5);
@@ -2730,7 +2662,7 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 15. ★ 移动抖动（R1-D · 用户投诉「人物移动抖动」）
+        // 15. 移动抖动（R1-D · 用户投诉「人物移动抖动」）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -2839,7 +2771,7 @@ namespace PlayerCheck
                 Check("c1 相机每帧位移 ≤ 焦点标称单帧位移 ×1.1（低通：不放大、不超调）",
                     camMax <= limitFixed * 1.1f + 1e-4f,
                     $"单帧位移 相机最大 {camMax:0.#####} vs 焦点标称上限 {limitFixed:0.#####} 格（{camFixed.Count} 帧）");
-                // ⚠️ 「单调收敛」只对**匀速直线**成立：锯齿路径换向时相机的滞后矢量要先转向
+                // 「单调收敛」只对**匀速直线**成立：锯齿路径换向时相机的滞后矢量要先转向
                 //    （单帧位移小幅回落是**正确的低通行为**，不是抖动）⇒ 必须用一条**真·单方向直线**
                 //    （同一行/列的连续可走格）单独判，而不是"有视线的目标"（A* 仍会先斜后直）。
                 Vector2Int lineFrom, lineTo;
@@ -2866,7 +2798,7 @@ namespace PlayerCheck
                     var j = Math.Abs(camLine[i] - camLine[i - 1]);
                     if (j > lineJump) lineJump = j;
                 }
-                // ⚠️ 判定范围**只取匀速段**（焦点单帧位移 == 标称上限的那些帧）：
+                // 判定范围**只取匀速段**（焦点单帧位移 == 标称上限的那些帧）：
                 //    到达帧焦点会停下（位移 < 标称），相机随之减速 —— 那是正确的末端行为，不是"来回"。
                 var steady = 0;
                 var steadyOk = true;
@@ -2884,9 +2816,7 @@ namespace PlayerCheck
                 Check("c2 匀速**单方向直线**段：相机每帧位移单调不减（收敛过程无来回）",
                     hasLine && steadyOk && steady > 5,
                     $"直线段 {lineFrom}→{lineTo}（{camLine.Count} 帧）；末帧位移 {(camLine.Count > 0 ? camLine[camLine.Count - 1] : 0f):0.#####} ⇒ 渐近标称 {limitFixed:0.#####} 格；{probe}");
-                // ⚠️ 本片**改过阈值**（0.25 → 0.6），改法与依据必须写清（⛔ 不许把闸门偷偷放宽）：
                 //   · 旧阈值 0.25 是为**旧口径**（纯指数滞后 τ=0.12，把一切高频都抹平）标定的；
-                //     本片换成临界阻尼 + 小 smoothTime 后，相机更贴住焦点，换向时"每帧位移大小"的
                 //     波纹自然更大 —— 这是**有意交换**：用这一点位移波纹换掉用户看到的**横向摆动**
                 //     （见下方 c7 / c8 的配对实测）。
                 //   · 0.6 仍在"有低通"这一侧：**刚性跟随（smoothTime=0）**换一次 45° 向时
@@ -2916,7 +2846,6 @@ namespace PlayerCheck
                     amp <= 1.3f && cvPlay > 0.05f,
                     $"输入 dt 抖动 CV={cvPlay:0.###} → 相机单帧位移 CV={cvCam:0.###}，传导比 {amp:0.###}（稳态取样，剔除首 {skip} 帧与末 5 帧）");
 
-                // ── c7 ★ 本片新增（用户投诉「镜头移动得很抖，不平滑」的**根因行**）─────────────
                 //   旧口径（纯指数滞后 τ=0.12s）：稳态滞后 = 速度×τ = 3.0×0.12 = 0.36 格，而 A* 走 8 向
                 //   锯齿、每 1~2 格换一次向 ⇒ 滞后矢量每帧要转 45° ⇒ 相对偏移的**横向**分量来回摆
                 //   （实测 before：峰峰值 0.5 格级 ≈ 70+ 屏幕像素 @1080p）—— 这就是用户看到的"抖"。
@@ -2942,9 +2871,7 @@ namespace PlayerCheck
                     $"横向偏移峰峰值 {swing:0.#####} 格（{zigLat.Count} 帧；阈值 {CameraRig.ZigZagLateralSwingMax:0.#####} 格" +
                     "= 本口径的解析上界 2×speed×smoothTime×sin45°（+余量），来历见 CameraRig.ZigZagLateralSwingMax 注释）");
 
-                // ── c8 ★ 本片新增：**同一段路径上的配对实测**（旧口径 vs 新口径）─────────────────
-                //   旧口径 = 本片删掉的那个实现（纯指数滞后 τ=0.12）—— 作为**冻结参照模型**写在本行里
-                //   （⛔ 不写回产品代码）；两条模型喂**同一条玩家路径、同一个 dt**，只换相机那一行，
+                //   （不写回产品代码）；两条模型喂**同一条玩家路径、同一个 dt**，只换相机那一行，
                 //   因此差值只可能来自相机口径本身（不是地图/路径/帧长差异）。
                 {
                     player.Stop();
@@ -3017,7 +2944,7 @@ namespace PlayerCheck
                 $"targetFrameRate={FramePacing.TargetFrameRate} vSyncCount={FramePacing.VSyncCount}" +
                 "（旧口径：QualitySettings.asset 逐档 vSync 0/1 ⇒ 选 LOW/MED 时无帧率上限）");
 
-            // ★ U27（帧节奏下沉）**新增**断言：把"离线宿主拿到的档位"实打实打出来 —— 它必须是
+            // U27（帧节奏下沉）**新增**断言：把"离线宿主拿到的档位"实打实打出来 —— 它必须是
             //   **兜底口径**（刷新率读不到 ⇒ 60/0）。这条断言是给 e1/e3 的**前提**做锚：
             //   离线档位没变 ⇒ e1/e3 一行都不用改（改判据只许因为口径真的变了，不许为了凑绿）。
             int recFps, recVsync;
@@ -3081,10 +3008,10 @@ namespace PlayerCheck
                 $" ⇒ 每块 {chunkCells * perCellMax} 个节点（不在本片改动范围，只登记）");
 
             // ═════════════════════════════════════════════════════════════════
-            // f) ★ U27 三分判据：**相机 / 角色渲染节点 / 角色逻辑** 三层位置分列
+            // f) U27 三分判据：**相机 / 角色渲染节点 / 角色逻辑** 三层位置分列
             //    （同一段输入驱动，逐帧采样；回答"抖出现在哪一层"）
             //
-            //  层定义（每层都取生产件的**唯一出口**，⛔ 不镜像公式）：
+            //  层定义（每层都取生产件的**唯一出口**，不镜像公式）：
             //    ① 相机 = `CameraRig.Position`（跟随 + 边界夹制算出来的机位）
             //    ② 渲染 = `ViewModule.EntityWorld(PlayerEntityId, w)` —— 它正是
             //             `ViewModule.TickPlayer` 写 `EntityView.Root.transform.position` 的
@@ -3093,12 +3020,11 @@ namespace PlayerCheck
             //
             //  为什么要这条判据（用户报「人物抖动」有两种**互相排斥**的形态，必须分开判）：
             //    · **层间差**：渲染 ≠ 逻辑（表现层又插了一次值 / 用了另一套坐标），
-            //      或相机相对玩家来回摆 ⇒ 表现层缺陷，改表现层；
             //    · **层内时间不匀**：三层位置各自都"干净"，但位置是 f(t) 按 dt 积分 ⇒
             //      **帧间隔不匀直接变成每帧推进量不匀** ⇒ 帧节奏问题，改表现层没用。
             //    ⇒ f1/f3 判层间差；f2 判层内推进量（按 8 方向分组，因为等距投影是各向异性的）。
             //
-            //  ⚠️ 判据自检（"退化样本必须变红"）：f1b/f2b/f3b 三条 = 对**同一批采样**故意注入
+            //  判据自检（"退化样本必须变红"）：f1b/f2b/f3b 三条 = 对**同一批采样**故意注入
             //     退化量，断言检测函数能抓出来 —— 否则"全绿"可能只是检测函数没睡醒。
             // ═════════════════════════════════════════════════════════════════
             {
@@ -3152,9 +3078,9 @@ namespace PlayerCheck
                     //   出处 = 原版 `unit.runSpeed = 15` map 单位/秒 ÷ 5 单位/格 = 3 格/秒，
                     //   见 `GameConst.PlayerWalkSpeed` 注释与 `Engine/Iso.SubTileCount = 5`）。
                     //   ⇒ 同一个格空间方向上的世界步长/格步长 比值必须**逐帧同一个数**。
-                    //   ⚠️ **跨方向**的比值本来就不等（等距投影 HalfW:HalfH = 2:1 的必然，
+                    //   **跨方向**的比值本来就不等（等距投影 HalfW:HalfH = 2:1 的必然，
                     //      解析值 0.7071(屏幕正下) ~ 1.4142(屏幕正右)）—— 那是**投影口径**，
-                    //      本判据**只登记不判**（⛔ 不为了让数字好看去改积分口径）。
+                    //      本判据**只登记不判**（不为了让数字好看去改积分口径）。
                     int buckets3;
                     string dirDetail;
                     var budget3 = player.MoveSpeed * dt;              // 标称单帧格步长（移动积分口径的输入）
@@ -3171,11 +3097,11 @@ namespace PlayerCheck
                     // ── f3 层间差②：**相机层不许"跳"/"冻"** ──
                     //   量的是「相机与逻辑的相对偏移」的逐帧变化量（世界空间，方向无关）。
                     //   上界 = 玩家该帧最大位移 ×1.1（解析：相机最坏 = 完全冻结 ⇒ 变化量 = 玩家位移；
-                    //   ×1.1 余量与 c1 同口径）。⚠️ **绝不用"相机单帧步长 vs 逻辑单帧步长"比大小**：
+                    //   ×1.1 余量与 c1 同口径）。**绝不用"相机单帧步长 vs 逻辑单帧步长"比大小**：
                     //   相机是低通，换向时它的速度矢量要转，单帧步长**可以**大于玩家该帧步长
                     //   （实测第一版就这么误判了 416 帧，见 report-u27.md）。
                     // 玩家单帧**世界**位移的上限 = 标称格步长 × 「世界/格」比值的最大值
-                    // （比值上限由 `Iso.GridToWorld` 对 8 个格方向现算，⛔ 不写死数字）
+                    // （比值上限由 `Iso.GridToWorld` 对 8 个格方向现算，不写死数字）
                     var perFrameLimit3 = budget3 * MaxWorldPerGridRatio() * 1.1f;
                     int relJumpAt;
                     var relJump = RelativeOffsetJump(camSeq, logicSeq, perFrameLimit3, out relJumpAt);
@@ -3184,7 +3110,7 @@ namespace PlayerCheck
                         $"最大单帧相对偏移变化量 = {perFrameLimit3 + (relJumpAt < 0 ? 0f : relJump) + 0f:0.#####} 格（上限 {perFrameLimit3:0.#####}）" +
                         $"；超限帧 = {(relJumpAt < 0 ? "无" : relJumpAt.ToString())}（共 {camSeq.Count} 帧）");
 
-                    // f3b ★ 判据自检（退化样本必须变红）：把某一帧的**相机位置**猛地挪一格 ⇒ 必须抓出
+                    // f3b 判据自检（退化样本必须变红）：把某一帧的**相机位置**猛地挪一格 ⇒ 必须抓出
                     {
                         var injectedCam = new List<Vector3>(camSeq);
                         var im = camSeq.Count / 2;
@@ -3214,18 +3140,16 @@ namespace PlayerCheck
                     }
                     Console.WriteLine("    [INFO ] " + sb3);
 
-                    // ── f5 ★ 相机夹制带（**补的判据缺口**）─────────────────────────────
+                    // ── f5 相机夹制带（**补的判据缺口**）─────────────────────────────
                     //   既有 c1~c8 的路径是 (32,28)→(8,20)（镇西北），而且**离线时
                     //   `CameraRig.ClampToMapBounds` 因 `_cam == null` 直接 return**
                     //   （`CameraRig.cs:913`：拿不到 aspect ⇒ 不做半屏换算）
                     //   ⇒ **既有 8 条相机断言从未覆盖"边界夹制"**。
                     //   这里换一条可离线判的入口：直接调**生产纯函数** `CameraBounds.ClampCameraGrid`
-                    //   （`mapcheck §29` 用的同一份实现，⛔ 不镜像公式），对 Town 的**真实可走格**
                     //   逐格算"机位被夹到哪"。
                     //   半屏口径（有出处，不是自创参数）：
                     //     halfH = `CameraRig.DefaultOrthographicSize`（3.75，出处见该常量注释）
                     //     halfW = halfH × aspect，aspect = 1920/1080（出处 = 本机 Play 采集分辨率
-                    //             1920×1080，见 `.ai-tmp/test/report-camverify.md` §3）
                     //   解析边界：机位可行域 = 焦点格 g 满足 g.y ≤ H − (a+b)/2（此处 a=halfW/HalfW=6.667、
                     //   b=halfH/HalfH=7.5 ⇒ (a+b)/2 = 7.0833）⇒ Town 40 行时 g.y ≤ 32.917；
                     //   同式 g.x ≤ W − 7.0833 = 48.917。
@@ -3281,7 +3205,7 @@ namespace PlayerCheck
             }
 
             // ═════════════════════════════════════════════════════════════════
-            // g) ★ U27 **时间轴判据**（team-lead 追补）：同一段输入，**只换 dt 序列**
+            // g) U27 **时间轴判据**（team-lead 追补）：同一段输入，**只换 dt 序列**
             //
             //  为什么必须补：f1 的读数（渲染 ≡ 逻辑 逐帧 0 偏差）已把"渲染层自己抖"排除，
             //  三层位置也各自干净 ⇒ 剩下唯一能造"一顿一顿"的候选是**帧时间**
@@ -3289,13 +3213,12 @@ namespace PlayerCheck
             //  判据形态（team-lead 指定，机械可判）：
             //    **把 dt 序列置换成均匀值后重算位移序列** —— 抖动能被均匀 dt 消掉 ⇒ 抖源在**帧节奏**。
             //
-            //  dt 序列出处（⛔ 不是自创数据）：`tools/probes/drivers/d2u27_real_dt.txt`
+            //  dt 序列出处（不是自创数据）：`tools/probes/drivers/d2u27_real_dt.txt`
             //    = 既有**真机** TSV `.ai-tmp/test/cam-jitter-cvkeep.tsv` 的 dt 列（1185 帧，
-            //      片 cam-verify 的 cvkeep = 客户端自己钉的帧节奏），由 `d2u27_dt_extract.py`
             //      抽取，文件头带 n/mean/sd/min/p95/p99/max 与出处。取不到 ⇒ 非预期分支：
-            //      打 Warn 并**跳过本判据**（如实登记为未判，⛔ 不假装绿）。
+            //      打 Warn 并**跳过本判据**（如实登记为未判，不假装绿）。
             //
-            //  ⚠️ 量的空间 = **格空间**（`CellOf`）：格空间的单帧步长 = `speed×dt`，**与方向无关**
+            //  量的空间 = **格空间**（`CellOf`）：格空间的单帧步长 = `speed×dt`，**与方向无关**
             //     ⇒ 它是"时间轴"的干净坐标；世界空间的步长还夹着 2:1 投影的方向因子（f2 已登记）。
             // ═════════════════════════════════════════════════════════════════
             {
@@ -3367,7 +3290,7 @@ namespace PlayerCheck
                         for (var i = 1; i <= n5; i++)
                         {
                             sb4.Append("\n        #").Append(i)
-                               // ⚠️ 配对口径：`TraceCamera` 在第 f 帧用 `dtSeq[f % n]` 推进，
+                               // 配对口径：`TraceCamera` 在第 f 帧用 `dtSeq[f % n]` 推进，
                                //    并把**该帧的步长**追加到 `camSteps[f]` ⇒ 打印 `camA[i]` 必须配 `dtReal[i % n]`
                                .Append(" dt=").Append(dtReal[i % dtReal.Count].ToString("0.######"))
                                .Append(" 玩家步=").Append(playA[i].ToString("0.######"))
@@ -3385,9 +3308,7 @@ namespace PlayerCheck
             }
 
             // ═════════════════════════════════════════════════════════════════
-            // h) ★ U27 **夹制段**判据（补本片最大的判据缺口）：输出侧夹制的**连续性**
             //
-            //  为什么以前判不了：修前 `CameraRig.ClampToMapBounds()` 在 `_cam == null` 时直接
             //  `return`（"拿不到 aspect ⇒ 不做半屏换算"）⇒ **离线宿主永远走不到夹制**，
             //  c1~c8 八条相机断言从未覆盖它。修后该逻辑抽成**纯函数** `CameraRig.StepFollow`
             //  （不碰 `Camera` / 原生 API），本判据**逐帧驱动这一份生产实现** ⇒ 覆盖成立。
@@ -3397,7 +3318,7 @@ namespace PlayerCheck
             //
             //  判据：**全程最大单帧显示机位位移 ≤ 全程最大单帧玩家位移 ×1.05**（h2；f3 同一余量口径），
             //  并拿**旧口径**（状态被改写 + 清零速度）在同一段输入上当退化样本（h3 必须红）。
-            //  ⛔ 别把"7.3604 格"当成脱开时的跳变量：那是「玩家偏离屏幕中心」的**静态位移量**
+            //  别把"7.3604 格"当成脱开时的跳变量：那是「玩家偏离屏幕中心」的**静态位移量**
             //  （f5/f6；与实机同格逐字相同）。实测旧口径脱开时的代价只有 **+15.5%（1.3px@1080p）**
             //  —— 咬合点与脱开点重合，账不累积；详见 `CameraRig.StepFollow` 的注释与本段 h4 的澄清。
             // ═════════════════════════════════════════════════════════════════
@@ -3420,7 +3341,6 @@ namespace PlayerCheck
                 // 每帧同时算两条口径（**同一条路径、同一串 dt**）：
                 //   ① 生产口径 = `CameraRig.StepFollow`（本帧唯一实现）
                 //   ② 旧口径对照 = 状态被改写成夹制值 + 清零速度状态（**已删掉的实现**，只作对照实验；
-                //      与 §15 c8 的"旧口径（纯指数 τ=0.12）峰峰值"同一类对照，⛔ 不是生产实现）
                 var pShown = new List<float>();      // 新口径：显示机位的逐帧位移（格空间）
                 var pFocus = new List<float>();      // 玩家（焦点）的逐帧位移（格空间）
                 var oJump = 0f;
@@ -3499,9 +3419,7 @@ namespace PlayerCheck
                     clampedFrames > 5 && unclampedAfterClamp > 5,
                     $"{startH}→{southH}→{startH}：被夹帧 {clampedFrames}，脱开后帧 {unclampedAfterClamp}（共采 {pShown.Count} 帧）");
 
-                // ⚠️ 判据口径（第一版踩坑，如实记录）：**不能**用"逐帧 |Δ显示机位| ≤ 该帧玩家位移×1.1" ——
                 //   相机是低通，玩家**换向**时相机要先把速度反号，那几帧它**合法地**比玩家单帧位移大
-                //   （实测第一版 388/389 帧"超限"，全是这个原因，不是缺陷）。
                 //   有效口径 = 全程比对**最大值**：新口径下显示机位单帧位移**不超过**玩家单帧位移（状态只滞后、
                 //   输出是状态的单调函数 ⇒ 不会领跑）；旧口径会把"攒下的账"在释放后补一帧 ⇒ 超出来。
                 var maxShown = Max(pShown);
@@ -3518,13 +3436,13 @@ namespace PlayerCheck
                     $"（= +{(oJump / maxShown - 1f) * 100f:0.#}%，{(oJump - maxShown) * 144f:0.#} px@1080p）" +
                     " ⇒ 旧口径「脱开后从静止起步 / 补攒下的账」造成的单帧超出可被判据抓出");
 
-                // ── h4 ★ team-lead 指定的口径：**相机格空间「步长序列」在咬合期/脱开后不存在阶跃** ──
+                // ── h4 team-lead 指定的口径：**相机格空间「步长序列」在咬合期/脱开后不存在阶跃** ──
                 //   度量 = 步长序列自身的一阶差分 `max|step[i] − step[i−1]|`（"阶跃"二字的直接量化）。
                 //   判据线**不引绝对常数**：拿同一次运行里的**旧口径**当尺（新口径要 ≤ 旧口径的一半）。
-                //   ⚠️ 一处如实说明：旧口径的"脱开首帧速度归零"在本配置下**不表现为步长掉到 0**
+                //   一处如实说明：旧口径的"脱开首帧速度归零"在本配置下**不表现为步长掉到 0**
                 //   （`smoothTime = 0.02s` 远小于 `dt = 1/60s` ⇒ `SmoothDamp` 那一帧由**误差项**主导、
                 //   照样输出一大步）——它表现为**步长过冲**（h3 的 +15.5%）+ **步长序列的阶跃**（本条）。
-                // ⛔ **实测反例（本判据改成"把反例钉住"）**：team-lead 指定的"脱开首帧速度**不归零**"
+                // **实测反例（本判据改成"把反例钉住"）**：team-lead 指定的"脱开首帧速度**不归零**"
                 //    这条**在两口径下都不成立为差异** —— 实测两个口径的脱开首帧步长都 ≈ 玩家步长：
                 //      · 新口径 `pShown[r]` / 旧口径 `oSteps[r]` 与玩家该帧步长之比都接近 1；
                 //      · 原因：`smoothTime = 0.02s` **远小于** `dt = 1/60s` ⇒ `SmoothDamp` 那一帧由**误差项**
@@ -3546,7 +3464,7 @@ namespace PlayerCheck
                 }
                 // 实测读数（脱开首帧步长 / 玩家该帧步长）：新 **0.5627**、旧 **0.5932** —— **两口径几乎同一个数**
                 //   ⇒ 钉住的结论 = "清零速度状态**不**改变脱开首帧的步长"（差异 0.031，判据线 0.1 = 区分"同/不同"的分辨率）
-                //   同时要求两者都 > 0.2（只看数量级：证的是"**不**掉到 0"，⛔ 不承担精细判定）。
+                //   同时要求两者都 > 0.2（只看数量级：证的是"**不**掉到 0"，不承担精细判定）。
                 Check("h4 口径澄清（⭐ 实测反例已钉住）：脱开首帧步长**两口径相同**且**不为 0**（\"清零速度\"不改变它）",
                     relNew == relNew && relOld == relOld
                     && MathF.Abs(relNew - relOld) <= 0.1f && relNew > 0.2f && relOld > 0.2f,
@@ -3558,10 +3476,10 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 17. ★ 双武器组（T0 判据缺口 2）—— 读键 → 事件 → 装备侧真的换了主手 → 派生重算
+        // 17. 双武器组（T0 判据缺口 2）—— 读键 → 事件 → 装备侧真的换了主手 → 派生重算
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
-        /// ★ 本轮新增：原版 <c>W</c> 键切武器组的**端到端**自证。
+        /// 本轮新增：原版 <c>W</c> 键切武器组的**端到端**自证。
         /// <para>
         /// 断言分三层，每层都咬在生产代码上：
         /// ① **读键层**：`InputReader.SwapWeaponPressed` 只由 `GameKeyAlias.KeySwapWeapon` 驱动
@@ -3610,7 +3528,7 @@ namespace PlayerCheck
             ctx.Item.AddToInventory(wB);
             var a2 = FirstItemAnchor(ctx.Item);
             Check("装 Ⅱ组武器", a2 >= 0 && ctx.Item.EquipFromInventory(a2), "anchor=" + a2);
-            // ★ `IItemModule.Equipment` 的语义已收紧为**生效集**（只含生效组那把武器）⇒
+            // `IItemModule.Equipment` 的语义已收紧为**生效集**（只含生效组那把武器）⇒
             //   `CombatModule.GetWeaponDamage` 不再把两把武器的 dmg 相加；两套都存得住由 `WriteTo` 保证。
             Check("两把武器都装着（组数 = 2）而生效集只有 1 把（基础伤害也只算这一把）",
                 itemMod.WeaponGroupCount == 2 && ctx.Item.Equipment.Count == 1,
@@ -3664,7 +3582,7 @@ namespace PlayerCheck
                 "次数=" + bus.CountOf(Events.SwapWeaponRequest));
         }
 
-        /// <summary>（★ 本轮新增）装备载荷里的武器（`ItemStack.type == ItemType.Weapon`）。</summary>
+        /// <summary>（本轮新增）装备载荷里的武器（`ItemStack.type == ItemType.Weapon`）。</summary>
         private static List<ItemStack> WeaponsIn(List<ItemStack> equip)
         {
             var res = new List<ItemStack>();
@@ -3676,7 +3594,7 @@ namespace PlayerCheck
             return res;
         }
 
-        /// <summary>（★ 本轮新增）装备载荷里武器的可读清单（断言失败时的详情）。</summary>
+        /// <summary>（本轮新增）装备载荷里武器的可读清单（断言失败时的详情）。</summary>
         private static string WeaponNamesOf(List<ItemStack> equip)
         {
             var w = WeaponsIn(equip);
@@ -3690,7 +3608,7 @@ namespace PlayerCheck
             return sb.ToString();
         }
 
-        /// <summary>（★ 本轮新增）背包里第一个"有物品的锚点格"（本步先 Reset 过背包 ⇒ 就是刚放进去那件）。</summary>
+        /// <summary>（本轮新增）背包里第一个"有物品的锚点格"（本步先 Reset 过背包 ⇒ 就是刚放进去那件）。</summary>
         private static int FirstItemAnchor(Diablo2.Module.IItemModule item)
         {
             var inv = item.Inventory;
@@ -3702,7 +3620,6 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 18. ★ 死亡扣金币 10%（T0 判据缺口 1）—— 与 itemcheck §13 互相独立复验
         // ═════════════════════════════════════════════════════════════════════
         private static void Step18_DeathGold(AppContext ctx, PlayerModule player, object mapObj, RecordingEventBus bus)
         {
@@ -3749,24 +3666,23 @@ namespace PlayerCheck
         private static Vector2 CellOf(Vector3 world) => Iso.WorldToGridContinuous(new Vector3(world.x, world.y, 0f));
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ U27：三分判据（相机 / 渲染节点 / 逻辑）用的检测函数
-        //   ⛔ 每一个都配一条"退化样本"用法（§15 f1b/f2b），证明它**真的在判**：
+        // U27：三分判据（相机 / 渲染节点 / 逻辑）用的检测函数
         //      没睡醒的检测函数会让"全绿"变成假绿。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ★ U27 层②的口径：角色**渲染节点**的世界坐标 = 直接调**生产件** `ViewModule.EntityWorld`
+        /// U27 层②的口径：角色**渲染节点**的世界坐标 = 直接调**生产件** `ViewModule.EntityWorld`
         /// （`internal static`，本宿主已把 `Module/View` 编入；它就是 `ViewModule.TickPlayer`
         /// 写 `EntityView.Root.transform.position` 的那一行，见 `ViewModule.cs:787` / `:1345`）。
-        /// ⛔ 不在宿主里镜像这个公式 —— 镜像 = 改了生产也不变红的假闸门。
+        /// 不在宿主里镜像这个公式 —— 镜像 = 改了生产也不变红的假闸门。
         /// </summary>
         private static Vector3 RenderWorldOf(Vector3 logicWorld) =>
             Diablo2.Module.View.ViewModule.EntityWorld(GameConst.PlayerEntityId, logicWorld);
 
         /// <summary>
-        /// ★ U27 f3：**「世界步长 / 格步长」比值的最大值**（8 个格方向里取最大）。
+        /// U27 f3：**「世界步长 / 格步长」比值的最大值**（8 个格方向里取最大）。
         /// 同一个格方向下这个比值是常数（`Iso` 是线性映射）⇒ 它的最大值就是"同样的速度 ×dt
-        /// 最多能在世界里走多远"的量纲换算因子。⛔ 现算（走生产件 `Iso.GridToWorld`），不写死 1.414。
+        /// 最多能在世界里走多远"的量纲换算因子。现算（走生产件 `Iso.GridToWorld`），不写死 1.414。
         /// </summary>
         private static float MaxWorldPerGridRatio()
         {
@@ -3788,9 +3704,8 @@ namespace PlayerCheck
             return best;
         }
 
-        // ── ★ U27 §15 g) 时间轴判据用的小工具 ─────────────────────────────────
         //   口径逐条对齐 `tools/probes/drivers/camjitter_who.py`（既有真机量法），
-        //   ⛔ 不引新参数：J = 逐帧步长相对**局部均值**（±win 帧）的纵向偏差 sd；
+        //   不引新参数：J = 逐帧步长相对**局部均值**（±win 帧）的纵向偏差 sd；
         //      corr = corr(纵向偏差, dt)。这两个量在真机 TSV 上就是那支 python 脚本算的同一把尺。
 
         /// <summary>真机逐帧 dt 序列（判据资产，文件头带出处；取不到返回 null，由调用方如实留痕）。</summary>
@@ -3802,7 +3717,7 @@ namespace PlayerCheck
                 // ⇒ 从**可执行文件目录**逐级向上找「仓库根」（判据资产按仓库相对路径登记）。
                 var resolved = (string)null;
                 var candidates = new List<string> { path };
-                // ⚠️ 必须写全名 `System.AppContext`：本文件有 `using AppContext = Diablo2.App.AppContext;`
+                // 必须写全名 `System.AppContext`：本文件有 `using AppContext = Diablo2.App.AppContext;`
                 //    的别名（组合根），裸写会解析到别名 ⇒ CS0117。
                 var up = System.AppContext.BaseDirectory;
                 // 10 级 = 从 `<宿主>/bin/Debug/net10.0` 一直找到**仓库根**（实测 8 级只到 `tools/`）
@@ -3860,7 +3775,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ U27 g2：逐帧步长序列的**抖动 sd**（局部均值 ±<paramref name="win"/> 帧的纵向偏差 sd）。
+        /// U27 g2：逐帧步长序列的**抖动 sd**（局部均值 ±<paramref name="win"/> 帧的纵向偏差 sd）。
         /// 序列是**一维标量**（格空间步长 = speed×dt，与方向无关）⇒ 纵向偏差 = 该帧步长 − 局部均值，
         /// 与 `camjitter_who.py` 的两维版在同一把尺上（直线段上等价）。
         /// </summary>
@@ -3884,7 +3799,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ U27 g3：`corr(逐帧步长的纵向偏差, dt)` —— 与 `camjitter_who.py` 的 `corr_dt()` 同口径。
+        /// U27 g3：`corr(逐帧步长的纵向偏差, dt)` —— 与 `camjitter_who.py` 的 `corr_dt()` 同口径。
         /// 高相关 ⇒ 不匀就是帧时间造成的（位移 = v·dt ⇒ 理想相关 = 1）。
         /// </summary>
         private static float CorrDt(List<float> steps, List<float> dts, int win)
@@ -3915,7 +3830,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ U27 h4：「步长序列」的一阶差分最大值 `max|step[i] − step[i−1]|` = **阶跃量**（格）。
+        /// U27 h4：「步长序列」的一阶差分最大值 `max|step[i] − step[i−1]|` = **阶跃量**（格）。
         /// 用于判"咬合期/脱开后速度不连续"：序列平滑 ⇒ 这个量小。
         /// </summary>
         private static float MaxAbsStepDelta(List<float> steps)
@@ -3929,7 +3844,7 @@ namespace PlayerCheck
             return worst;
         }
 
-        /// <summary>★ U27 f1：两条世界坐标序列的**逐帧最大偏差**（xy 平面；层间差判据）。</summary>
+        /// <summary>U27 f1：两条世界坐标序列的**逐帧最大偏差**（xy 平面；层间差判据）。</summary>
         private static float LayerDiffMax(List<Vector3> a, List<Vector3> b)
         {
             var max = 0f;
@@ -3944,7 +3859,7 @@ namespace PlayerCheck
             return max;
         }
 
-        /// <summary>★ U27 f1b：同一条判据，先把 <paramref name="a"/> 整体加一个偏移（**退化样本**）。</summary>
+        /// <summary>U27 f1b：同一条判据，先把 <paramref name="a"/> 整体加一个偏移（**退化样本**）。</summary>
         private static float LayerDiffMaxWithInjection(List<Vector3> a, List<Vector3> b, float offset)
         {
             var injected = new List<Vector3>(a.Count);
@@ -3953,16 +3868,16 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ U27 f2：**层内**判据 —— 逐帧算「世界步长 / 格步长」的比值，按 8 个格空间方向分组，
+        /// U27 f2：**层内**判据 —— 逐帧算「世界步长 / 格步长」的比值，按 8 个格空间方向分组，
         /// 返回**组内** spread（max/min）的最大值（1.0 = 同一方向每帧推进量恒定）。
         /// <para>为什么按方向分组：格空间恒定速度 × 等距 2:1 投影 ⇒ **跨方向**的比值本来就不等
-        /// （解析 0.7071 ~ 1.4142），那是投影口径（登记在案，⛔ 不判、不改）；能判的是"同一方向内"。</para>
+        /// （解析 0.7071 ~ 1.4142），那是投影口径（登记在案，不判、不改）；能判的是"同一方向内"。</para>
         /// <para>分组键 = `Iso.DirectionTo(符号化的格增量)`（生产件；增量取符号后 8 方向各一桶）。</para>
         /// </summary>
         private static float AdvanceSpread(List<Vector3> seq, float budget, bool filterTurns,
             out int buckets, out string detail)
         {
-            // 桶键 = **格增量的符号对**（8 个），⛔ 不用 `Iso.DirectionTo`：
+            // 桶键 = **格增量的符号对**（8 个），不用 `Iso.DirectionTo`：
             //   实测（本判据第一版）：`DirectionTo` 判的是**屏幕**朝向 ⇒ 屏幕空间里
             //   `(1,-1)` 与 `(1,0)` 落在同一个 45° 扇区（投影角 0° 与 −26.6°）⇒ 两个不同的
             //   格方向被并成一桶，桶内 spread 假红 1.581（实测读数见 `.ai-tmp/test/report-u27.md`）。
@@ -3977,11 +3892,11 @@ namespace PlayerCheck
                 // 「纯」帧（只走一个方向）：整帧预算全花在同一段 ⇒ |Δ格| == 标称预算。
                 //   跨路点那一帧会把**两段不同方向**的位移相加（|Δ格| < 预算，比值是两段混合）
                 //   —— 那是**换向帧**，不是"同一方向推进量不齐"，必须剔出样本。
-                //   ⛔ 尺子就是**标称预算本身**（`speed×dt`，移动积分口径的输入），不引新阈值。
+                //   尺子就是**标称预算本身**（`speed×dt`，移动积分口径的输入），不引新阈值。
                 if (filterTurns && dgl < budget * (1f - 1e-3f)) { skippedTurn++; continue; }
                 var dw = seq[i] - seq[i - 1];
                 var dwl = MathF.Sqrt(dw.x * dw.x + dw.y * dw.y);
-                // ⚠️ **零分量必须带容差**：轴方向步长的"零"那一维是浮点残渣（~1e-7），
+                // **零分量必须带容差**：轴方向步长的"零"那一维是浮点残渣（~1e-7），
                 //    直接判符号会把它当成 ±1 ⇒ 纯轴向帧被塞进对角桶 ⇒ 桶内 spread 假红 1.581
                 //    （实测第一版就是这个假红；`dirsign` 用预算的 1e-3 当零带，与上面的"纯帧"尺同源）。
                 var eps = budget * 1e-3f;
@@ -4019,7 +3934,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ U27 f2b（**判据自检 / 退化样本**）：同一条检测函数，**把"纯帧"过滤关掉**再喂同一批采样。
+        /// U27 f2b（**判据自检 / 退化样本**）：同一条检测函数，**把"纯帧"过滤关掉**再喂同一批采样。
         /// <para>为什么这才是这条判据的退化样本：世界→格的映射是**固定线性**的 ⇒ 单帧的
         /// 「世界步长/格步长」比值**只由格方向决定**，世界坐标上的任何扰动都会连带改掉格增量
         /// ⇒ 你**造不出**"同方向、不同比值"的样本（实测：注入 5% 步长改动比值恒为 0.0）。
@@ -4035,7 +3950,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// ★ U27 f3：**相机层不许"跳"/"冻"** —— 逐帧量「相机与逻辑的相对偏移」的变化量
+        /// U27 f3：**相机层不许"跳"/"冻"** —— 逐帧量「相机与逻辑的相对偏移」的变化量
         /// （世界空间；方向无关，故可用一把尺）。
         /// <para>上界有解析出处：**相机最坏情况 = 完全冻结**（机位不动）⇒ 相对偏移的变化量 = 玩家该帧位移；
         /// 低通只允许"跟不上一帧"，不允许"冲出去"（同一余量口径见 `CameraRig` c1 的 ×1.1）。
@@ -4168,7 +4083,6 @@ namespace PlayerCheck
                 var c = CellOf(rig.Position);
                 var p = CellOf(player.World);
 
-                // ★ 本片新增：相对偏移（玩家 − 相机）在**本帧行进方向的正交方向**上的分量。
                 //   定义与离线量法 `tools/probes/drivers/camjitter_metrics.py` 的 lat_i 逐字一致
                 //   （r·perp(u)，u = 本帧玩家位移方向）⇒ 线上 Play 证据与离线断言同一把尺。
                 if (latOffsets != null)
@@ -4282,7 +4196,7 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 19. ★ R1：鼠标右键（原版「右键 = 使用右键技能」）
+        // 19. R1：鼠标右键（原版「右键 = 使用右键技能」）
         // ═════════════════════════════════════════════════════════════════════
         private static void Step19_RightClick(AppContext ctx, object mapObj, PlayerModule player,
             ScriptedInput input, RecordingEventBus bus)
@@ -4299,7 +4213,6 @@ namespace PlayerCheck
             input.Available = true;
             input.BeginFrame();
 
-            // ── ① Poll 真的读了 button 1（改动前只读 button 0 —— 审计 R1 的根因）──
             input.RightMouseDown();
             player.Tick(0.02f);
             Check("Poll 读 button 1 ⇒ SecondaryDown / SecondaryHeld 都为 true（改动前恒 false）",
@@ -4386,7 +4299,7 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 20. ★ R4：F1~F8 技能槽 → SkillSlotAssignRequest
+        // 20. R4：F1~F8 技能槽 → SkillSlotAssignRequest
         // ═════════════════════════════════════════════════════════════════════
         private static void Step20_SkillSlots(AppContext ctx, PlayerModule player,
             ScriptedInput input, RecordingEventBus bus)
@@ -4450,13 +4363,12 @@ namespace PlayerCheck
             Check("死亡/暂停（canUse=false）时 F 键不发（与腰带键同一条闸门）", received.Count == n0,
                 $"仍为 {received.Count}");
 
-            // 收方（Module/Skill）不编入本宿主 ⇒ 这里只判输入侧；绑定与存档往返由 combatcheck §19 用真 SkillModule 判。
             Console.WriteLine("    [说明] 本宿主未编入 Module/Skill ⇒ 只判「读键 → 发意图」；" +
                               "槽号→技能 id 的解析与存档镜像见 combatcheck §19。");
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 21. ★ R5：Alt 常显 / 悬停单件地面物品名牌
+        // 21. R5：Alt 常显 / 悬停单件地面物品名牌
         // ═════════════════════════════════════════════════════════════════════
         private static void Step21_GroundItemNames(AppContext ctx, object mapObj, PlayerModule player,
             ScriptedInput input, RecordingEventBus bus)

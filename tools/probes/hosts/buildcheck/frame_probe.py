@@ -224,10 +224,9 @@ def main():
     try:
         print(txt)
     except UnicodeEncodeError:
-        # 本机控制台代码页是 GBK，编不出 `⚠️` 这类字符 ⇒ 旧写法会在这里抛 UnicodeEncodeError，
-        # 把一整趟「产物已写好、结论也正常」的跑判成 exit 1（实测 2026-09-20）。
+        # 本机控制台代码页是 GBK，编不出 `` 这类字符 ⇒ 旧写法会在这里抛 UnicodeEncodeError，
         # 证据留档文件（UTF-8）已经写完，这里只把控制台输出降级成「可打印字符替换版」，
-        # ⛔ 不让一次纯输出问题污染退出码。
+        # 不让一次纯输出问题污染退出码。
         enc = sys.stdout.encoding or "ascii"
         print(txt.encode(enc, "replace").decode(enc, "replace"))
     return 1 if _problems else 0

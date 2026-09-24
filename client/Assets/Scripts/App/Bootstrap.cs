@@ -2,15 +2,12 @@
 // Diablo2 · App/Bootstrap.cs
 // **全项目唯一手动挂载的脚本**（挂 `Boot` 场景），也是唯一组装点。
 //
-// 职责（照 `docs/agents/agent-05-流程与菜单链路.md` §4.2 与 §2 任务边界）：
 //   ① `Game.Launch`（单机最小集：不设 ServerAddr、**不调** `CloverNet.Init`）
 //   ② `CloverRes.Init(ResPaths.Root)`（不 Init 资源模块，贴图/模型会静默加载失败）
 //   ③ `CloverInput.Init()`（必须**在建 UI 之前**，否则按钮点不动）
-//   ④ 配表：`Table.TableLoader.LoadAll(...)`（agent-02 指定的唯一加载入口）
 //   ⑤ 存档里的设置应用到引擎（音量/全屏 ⇒ 重进后仍在）
 //   ⑥ 装配 `AppContext`（`AutoWire` 反射接入全部模块；缺实现 ⇒ 留 null + Warn 降级）
 //   ⑦ 注入 `Stage` 场景根节点（序列化字段 / `App/StageRoots.cs`）
-//   ⑧ ★ **最后一次接线** `AppWiring.Install`（agent-12）：Stage 进/出（HUD + 全量快照）/
 //      过门去重断言 / 根节点转交 / UI 请求转发
 //   ⑨ `Game.Fsm.Force("Boot")` → `Flow.Enter()`（菜单链路从这里开始，**不直接进游戏场景**）
 //   `Update()` 只做「转发 Tick」，不写业务；本文件刻意保持在 200 行以内。
@@ -30,7 +27,7 @@ namespace Diablo2.App
         private static bool _started;
 
         /// <summary>
-        /// ★ **每次进 Play 复位本层/流程的静态闸门**（skill `reference/pipeline-and-unity-cli.md` **P-3**）。
+        /// **每次进 Play 复位本层/流程的静态闸门**（skill `reference/pipeline-and-unity-cli.md` **P-3**）。
         /// <para>真因：工程若开了「Enter Play Mode Options（**不重载域**）」
         /// （`ProjectSettings/EditorSettings.asset`：`m_EnterPlayModeOptionsEnabled: 1` + `m_EnterPlayModeOptions: 1`），
         /// `static` 字段会**跨 Play 局残留** ⇒ 第二次进 Play 时 `_started == true`，新一局的 Bootstrap
@@ -88,7 +85,7 @@ namespace Diablo2.App
             DontDestroyOnLoad(gameObject);
 
             // ① 引擎（单机：不设 ServerAddr）
-            // ★ P-3：域不重载时 `Game.IsRunning` 会残留为 true ⇒ `Game.Launch` 会**直接 return**
+            // P-3：域不重载时 `Game.IsRunning` 会残留为 true ⇒ `Game.Launch` 会**直接 return**
             //    （`Runtime/Core/Game.cs:321-325`：`if (IsRunning) { Debug.LogWarning("Already running"); return; }`）
             //    ⇒ UI/Scene/Timer 全不初始化。先显式关掉上一局，再 Launch。
             if (Game.IsRunning)
@@ -98,9 +95,9 @@ namespace Diablo2.App
                 Game.Shutdown();
             }
 
-            // ①b ★ 引擎下沉 A5（消验收表 E19）：装配"文字渲染挂钩" —— 引擎通用件（Toast / Loading /
+            // ①b 引擎下沉 A5（消验收表 E19）：装配"文字渲染挂钩" —— 引擎通用件（Toast / Loading /
             //    确认框 / 飘字 / 引导）建的 Text 从此与业务面板一样走**原版字模**。
-            //    ⚠️ **必须在 Game.Launch 之前**：引擎的 LoadingLayer 在 `UIManager` 构造时
+            //    **必须在 Game.Launch 之前**：引擎的 LoadingLayer 在 `UIManager` 构造时
             //    （= Launch 内的 `CloverPresentation.Init` → `new UIManager()`）就把「加载中...」
             //    那条 Text 建好并通知过了，晚于 Launch 装配会**永久漏掉它**（E19 取证里它正是其中一条）。
             //    未注册时引擎行为逐字不变（`TextHooks.NotifyCreated` 判空即返回）；实现见 `UI/D2EngineTextHook.cs`
@@ -118,8 +115,8 @@ namespace Diablo2.App
             // ② 资源模块（不 Init ⇒ 贴图静默加载失败）
             CloverRes.Init(ResPaths.Root);
 
-            // ②b ★ A5 挂钩的第二半：**资源就绪后**补挂上一行期间被寄存的引擎 Text（就是 LoadingLayer
-            //    的「加载中...」）。⚠️ 顺序不能提前：`D2Text.EnsureChi` 在 `Game.Res == null` 时会走
+            // ②b A5 挂钩的第二半：**资源就绪后**补挂上一行期间被寄存的引擎 Text（就是 LoadingLayer
+            //    的「加载中...」）。顺序不能提前：`D2Text.EnsureChi` 在 `Game.Res == null` 时会走
             //    `MarkBitmapUnavailable`（**把整个项目的字模永久降级成系统字体**，一局内不再恢复）
             //    ⇒ 挂钩侧刻意把"资源未就绪"的 Text 寄存起来，等这一行。
             Diablo2.UI.D2EngineTextHook.FlushPending();
@@ -127,17 +124,14 @@ namespace Diablo2.App
             // ③ 输入 + EventSystem（必须在建 UI 之前）
             CloverInput.Init();
 
-            // ④ 配表（agent-02 的唯一运行时加载入口；失败只打日志，创角会给出明确提示）
             LoadTables();
 
             // ⑤ 把上次存的设置应用到引擎（音量 / 全屏 ⇒ 「重进后仍在」）
             ApplyStoredSettings();
 
-            // ⑤b ★ R1-D：**帧节奏钉死**（「人物移动抖动」候选①的修复点；口径/论据见 `Core/FramePacing.cs`）。
-            //     ⚠️ 顺序**必须**在 `ApplyStoredSettings` **之后**：它内部的
+            //     顺序**必须**在 `ApplyStoredSettings` **之后**：它内部的
             //     `QualitySettings.SetQualityLevel` 会按档位把 `vSyncCount` 重置成 0/1
-            //     ⇒ 早于它设会被覆盖（帧率上限随画质档位漂移 = 旧口径）。
-            //     ★ U27：档位不再写死 —— `Pin` 内部走引擎 `FramePacingPolicy.Recommend()`
+            //     U27：档位不再写死 —— `Pin` 内部走引擎 `FramePacingPolicy.Recommend()`
             //     （刷新率可读 ⇒ vSync=1 帧交付锁到刷新率；读不到 ⇒ 兜底 60/0）。本行语义/顺序不变。
             FramePacing.Pin("启动");
 
@@ -150,15 +144,12 @@ namespace Diablo2.App
             ctx.MapRoot = mapRoot;
             ctx.EntityRoot = entityRoot;
 
-            // ⑧ ★ 最后一次接线（App 层）：Stage 进/出（HUD 开关 + 全量快照）/ 过门去重断言 /
+            // ⑧ 最后一次接线（App 层）：Stage 进/出（HUD 开关 + 全量快照）/ 过门去重断言 /
             //    根节点转交 / UI 请求转发。必须在 `Flow.Enter()` 之前完成订阅（HUD 的 Awake 晚于本层）。
             AppWiring.Install(ctx);
 
             // ⑨ 进流程：先落到 Boot 站点（启动画面），再由玩家点进主菜单。
-            // ★§B：**唯一入口是 `Flow.Enter()`** —— 它内部 `Force(Boot)`（挂在 Boot 上时幂等）。
             //       这里**不许**再 `Game.Fsm.Force(StateBoot)`：那样 OnChange 已经打过一条
-            //       `[Flow] → Boot`，`Enter()` 再打一条 ⇒ 启动时站点日志两条（agent-14 §B 现象 2，
-            //       Play 日志 seq 47/48 就是这么来的）。
             ctx.Flow.Enter();
 
             Game.Logger.Info("App", ctx.Describe());

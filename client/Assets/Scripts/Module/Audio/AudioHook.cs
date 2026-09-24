@@ -2,10 +2,8 @@
 // Diablo2 · Module/Audio/AudioHook.cs
 // **事件触发点接线**：把"游戏里发生了什么"翻译成"该响哪个音效键"。
 //
-// ⛔ 接线方式只有一种：`Game.Event` 订阅（`_common.md` §2：**不许改别的模块的文件**）。
 //    本类因此不持有任何别的模块的实现类型、也不读 `AppContext`（当前区域由 `Events.AreaChanged` 自己跟）。
 //
-// 覆盖的触发点（`docs/agents/agent-11-音频模块.md` §1 点名的那些里，**尚未被别的模块直连覆盖的**）：
 //   脚步     ← `Events.PlayerGridChanged`（按移动速度节流；静止不发）
 //   拾取     ← `Events.ItemPicked`（金币 / 普通物品两键）
 //   使用物品 ← `Events.ItemUsed`
@@ -26,8 +24,6 @@
 //   —— 命中/未命中/受击/死亡/施法/怪物攻击/萨满复活已经由 `DamagePipeline` / `MonsterModule` /
 //      `SkillModule` **直连** `ctx.Audio.SfxAt(SfxKeys.…)` 发出（见 `AudioModule.cs` 头部说明）。
 //
-// ★ 片 Y（R3）：脚步口径 = **每 `TilesPerFootstep` 格一声**（`TilesPerFootstep` 是项目既有常量 =
-//   原版"每步覆盖约 2 格"），由 `Events.PlayerGridChanged` 的**格增量**累计（`OnPlayerGridChanged`）。
 //   `TilesPerFootstep / GameConst.PlayerWalkSpeed` 只是"跑步时的等效间隔"（`FootstepIntervalSeconds`，
 //   保留给离线判据引用式），生产不再按时间推进 —— 原因见 `Tick` 的注释（帧级标志导致永不触发）。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,13 +47,12 @@ namespace Diablo2.Module.Audio
         /// <summary>是否已订阅（`Attach` 幂等；`Detach` 后可再次 `Attach`）。</summary>
         private bool _subscribed;
 
-        /// <summary>是否已经有"上一次格"（首次格变化只记位、不计距离 —— ⛔ 否则进图落位会被当成一大步）。</summary>
+        /// <summary>是否已经有"上一次格"（首次格变化只记位、不计距离 —— 否则进图落位会被当成一大步）。</summary>
         private bool _hasLastGrid;
 
         /// <summary>最近一次格变化的位置（脚步声用它的世界坐标，也用来算本次走了几格）。</summary>
         private Vector2Int _lastGrid;
 
-        /// <summary>距上一步累积的**格数**（★ 片 Y：改成"按距离"累计，见 <see cref="OnPlayerGridChanged"/>）。</summary>
         private float _stepTiles;
 
         /// <summary>
@@ -79,7 +74,7 @@ namespace Diablo2.Module.Audio
 
         /// <summary>
         /// 跑步时的**等效**脚步间隔（秒）= 每步格数 / 跑速（`GameConst.PlayerWalkSpeed`）。
-        /// <para>★ 片 Y（R3）：这**不是**生产的触发条件（生产按格数累计，见 <see cref="Tick"/>）——
+        /// <para>这**不是**生产的触发条件（生产按格数累计，见 <see cref="Tick"/>）——
         /// 它只是"按跑速走完一步要多久"的换算，留给离线判据当引用值（走路更慢 ⇒ 实际间隔更长）。</para>
         /// </summary>
         public static float FootstepIntervalSeconds => TilesPerFootstep / GameConst.PlayerWalkSpeed;
@@ -170,15 +165,10 @@ namespace Diablo2.Module.Audio
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ★ 片 Y（R3）：脚步累计改在 <see cref="OnPlayerGridChanged"/> 里**按走过的格数**做 ⇒
         /// 本方法只剩"给外部 Tick 链一个位置"（不再按时间累加）。
-        /// <para>⛔ 修前为什么永远不响（运行时实测 `footstep` 播放 0 次）：旧实现
-        /// `if (_movedSinceTick) { _stepAccum += dt; … } else { _stepAccum = 0f; }`，
-        /// 而 `_movedSinceTick` 由格变化事件置位、**每个 Tick 末尾清零** ⇒ 每换一格只有**那一帧**
-        /// 能累加（≈0.017s），下一帧立刻清零 ⇒ 永远到不了阈值 0.667s ⇒ 数学上不可能触发。</para>
-        /// <para>⛔ 不用"本帧是否在动"这种需要**自创超时**的判据：格变化事件本身就是唯一的移动信号，
+        /// <para>不用"本帧是否在动"这种需要**自创超时**的判据：格变化事件本身就是唯一的移动信号，
         /// 按它累计**格数**既天然满足"站着不动不响"，也比时间口径更贴原版（原版一步覆盖固定格数，
-        /// 与走/跑速度无关 ⇒ 修前"走路步频是跑步的 2 倍"的附带缺陷一并消失）。</para>
+        /// 与走/跑速度无关）。</para>
         /// </summary>
         public void Tick(float dt)
         {
@@ -198,10 +188,9 @@ namespace Diablo2.Module.Audio
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 格变化（`IPlayerModule.Tick` 里 `_motor.Grid` 变了才发）⇒ **按走过的格数累计脚步**（★ 片 Y / R3）。
         /// <para>口径：累计格数达到 <see cref="TilesPerFootstep"/>（= 原版"每步覆盖约 2 格"，项目现值）
         /// 就发一声，并把阈值从累计值里扣掉（保留余量 ⇒ 连续移动不丢相位、不攒着连响）。</para>
-        /// <para>⛔ 不按时间累加的理由见 <see cref="Tick"/>：帧级"本帧是否在动"标志会导致每换一格
+        /// <para>不按时间累加的理由见 <see cref="Tick"/>：帧级"本帧是否在动"标志会导致每换一格
         /// 只有一帧能累加 ⇒ 永远到不了阈值（实测 `footstep` 0 次）。按距离则天然"站着不动不响"，
         /// 且与原版一致（一步覆盖固定格数，与走/跑速度无关）。</para>
         /// </summary>
@@ -268,7 +257,7 @@ namespace Diablo2.Module.Audio
 
         /// <summary>
         /// 复活完成（`App/AppEventRouting.cs` 在 `ReviveRequest` 被处理完且玩家不再死亡时广播）。
-        /// ⚠️ 不用 `Events.ReviveRequest`：那是"点击请求"，玩家点了却没复活成功（例如未死亡）时不该出声。
+        /// 不用 `Events.ReviveRequest`：那是"点击请求"，玩家点了却没复活成功（例如未死亡）时不该出声。
         /// </summary>
         private void OnRevived() => _audio.Sfx(SfxRegistry.PlayerRevive);
 

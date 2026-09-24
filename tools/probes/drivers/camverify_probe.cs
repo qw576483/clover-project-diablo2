@@ -1,5 +1,4 @@
 // =============================================================================
-// camverify_probe.cs -- Play-mode readings for the cam-verify piece (2026-09-24).
 //
 //   WHY a live session: "the void is not inside the view" and "the player is
 //   still on screen while standing on the outermost walkable cell" are VISUAL /

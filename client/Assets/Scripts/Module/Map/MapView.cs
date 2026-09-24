@@ -14,7 +14,6 @@
 // 深度排序**随格子变化**（`constraints.md` #5）：`Iso.SortOrder(gx,gy) = (gx+gy)*4 + 100`，
 // 同 `gx+gy` 再按层偏移微调 ⇒ 「后面的树盖住前面的角色」自动成立。
 //
-// ★ 地面层为什么额外 **-SortOrderStep**（本轮"上真瓦片"时才暴露、必须修的东西）：
 //   设格子深度 D = gx+gy。偏移前：地面(D)=4D+100、物件(D)=4D+101、实体(D)=4D+102。
 //   而**前面那一格**的地面 = 4(D+1)+100 = **4D+104 > 4D+101** ⇒ 前面那格的地面会画在
 //   本格物件**之后**。偏巧原版瓦片是"有高度的图像"（栅栏 128×256、树 160×384…），
@@ -30,7 +29,7 @@
 // 调色板 = `data/global/palette/ACT1/Pal.PL2`），路径由 `GroundKeyOf`/`ObjectKeyOf` 给出；
 // **取不到才回退纯色菱形占位**（异步加载成功后会自己重铺一次）。
 //
-// ★ R1-B（用户报「为什么有奇怪的蓝条图片占位」）：**平色水墙瓦片不叠**。
+// R1-B（用户报「为什么有奇怪的蓝条图片占位」）：**平色水墙瓦片不叠**。
 //   原版水域里有一层瓦片是**平色**的（唯一色数 = 1），原版靠 `ACT1/Pal.PL2` 的**调色板循环**
 //   把它变成水波动画；本引擎**没有运行期调色板循环** ⇒ 它静态渲染出来就是一块硬边平色色块，
 //   视觉上等价占位图（用户看到的那条深蓝长条 = `Objects/moor_river/028`，实测 RGBA(0,32,68)、
@@ -40,7 +39,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ★ T0FIX-A（本片）：**单帧尖峰**（`ShowArea`/整图重铺单帧 46.3~73.9 ms ≫ 一帧预算 16.67 ms）
 //   的两条处置 —— 「对象池」+「增量新块分帧」。
 //
 //   ① **对象池**（`TileNodePool`）：节点不再 `Destroy` / 不再每次 `new GameObject`
@@ -50,25 +48,22 @@
 //   ② **增量新块分帧**（`MaxChunksPerFrame`）：相机走进新的块范围时，`RefreshVisibleChunks`
 //      **只登记**待建块，真正的建块在 `Update` 里每帧至多建 `MaxChunksPerFrame` 块
 //      （旧口径 = 同一帧把新进范围的块**全建完**，一次 3~7 块 ⇒ 单帧尖峰）。
-//      「块根先 `SetActive(false)`、块内全部格建完才激活」⇒ ⛔ 不出现"半块地图"可见态。
+//      「块根先 `SetActive(false)`、块内全部格建完才激活」⇒ 不出现"半块地图"可见态。
 //   ③ **整图重铺（`RebuildLayers`）保留一帧铺完、不拆帧**：
-//      ⛔ **这条取舍已被 T0FIX-H 推翻**（见下面那段）—— 旧画面其实**留得住**（整图双缓冲），
+//      **这条取舍已被 T0FIX-H 推翻**（见下面那段）—— 旧画面其实**留得住**（整图双缓冲），
 //      所以整图重铺也纳入了分帧预算；本节其余两条（池化 / 增量分帧）逐字仍生效。
 //
-//   每帧预算的依据（⛔ 不是魔数）：
+//   每帧预算的依据（不是魔数）：
 //     `ComputeVisibleChunkRange` 已把视口**外扩 1 块** = `ChunkSize` 格 = 16 格余量；
 //     相机最快 `GameConst.PlayerWalkSpeed` = 3.0 格/s ⇒ 走完这 16 格余量要
 //     16 / 3.0 = 5.333 s = 5.333 s × `FramePacing.TargetFrameRate`(60) = **320 帧**。
 //     ⇒ 每帧建 1 块（16 格/帧 = 960 格/s）比"刚好跟上相机"快 320 倍，
 //       且一帧 1 块 ⇒ 一帧节点数 ≤ `ChunkSize² × 2 + 3` = 515（出货配置不开迷雾），
-//       远低于"一帧预算"能承受的量级。断言与逐条数字见 `tools/probes/hosts/mapcheck` §17。
 // ═════════════════════════════════════════════════════════════════════════════
 //
 // ═════════════════════════════════════════════════════════════════════════════
-// ★ T0FIX-H（本片）：**整图重铺（`ShowArea` / 贴图到位 / 迷雾开关 → `RebuildLayers`）的单帧尖峰**
 //   也降到一帧预算内 —— 手法 = **整图双缓冲 + 每帧节点预算 + 一帧原子切换 + 分帧回收旧集**。
 //
-//   缺陷（T0E 实测，⛔ 不是推测）：`RebuildLayers` 单帧建 **2824** 个节点
 //   （town-rebuild p50 58714 µs / max 77423 µs ⇒ **27.416 µs/GO**；一帧预算 16666.7 µs ÷ 2824
 //   = 5.902 µs/GO ⇒ **超 4.6 倍**），且 5 次触发里 **4 次**落在 `fsm=Stage / uiLoading=0`
 //   （玩家可操作期，来源 `.ai-tmp/screenshots/t0e_hover/repave_window_{2..5}.txt`）⇒ 掉 3~5 帧。
@@ -79,30 +74,23 @@
 //     · 贴图到位重铺 ⇒ 屏幕上仍是旧（占位/低清）图；
 //     · 迷雾开关 ⇒ 屏幕上仍是旧迷雾态。
 //
-//   四条硬口径（逐条对应任务书的三条约束）：
 //     ① **画面结果逐像素不变**：一格的渲染状态仍是 `GroundState/ObjectState/FogState` 三个**纯函数**
-//        （T0FIX-A 起就是），`ApplyTileState` 仍无条件写全 6 项、零分支；本片只改
 //        "**什么时候算、算到哪个节点上**"：
-//          · 块清单顺序仍是 **cx 外层 / cy 内层**（= 改前 `BuildChunkRange` 与"全图逐块"循环的顺序），
 //            纯函数 `PlannedChunks` 就是它（供离线复算）；
 //          · 块内格序仍是 **x 外层 / y 内层**（游标 `CursorX/CursorY`，跨帧续建也不变）；
 //          · 节点仍一律经 `NewTile` ⇒ `SetParent(parent, false)` **追加到末尾**
-//            ⇒ 兄弟序（同 `sortingOrder` 时的平局次序）与改前逐项一致。
 //     ② **不露空 / 不半张图 / 不闪帧**：新图整幅建在**隐藏**的缓冲层根（`GroundLayerB`…）下，
-//        建完才**一帧**切换（6 次**层根** `SetActive`，⛔ 不逐个节点动）⇒ 任何中间帧上，
+//        建完才**一帧**切换（6 次**层根** `SetActive`，不逐个节点动）⇒ 任何中间帧上，
 //        屏幕上要么是**完整的旧图**、要么是**完整的新图**（不存在"半张"）。
 //     ③ **单帧预算**：每帧**新建节点** ≤ `MaxTileNodesPerFrame`（= 512，算式见该常量注释）；
 //        每帧扫描格 ≤ `MaxTileCellsPerFrame`（= 2×512 —— 一格最多 2 个节点）；
-//        旧集**回收**同样按帧预算分摊（⛔ 不在切换帧里逐个 `SetParent` / `Destroy`）。
+//        旧集**回收**同样按帧预算分摊（不在切换帧里逐个 `SetParent` / `Destroy`）。
 //     ④ **保底**：缓冲层根若被销毁（场景卸载那类非预期态）⇒ 放弃分帧、**一帧铺完**并打 Warn
-//        （⛔ 不许静默、不许留空白）。
+//        （不许静默、不许留空白）。
 //
-//   ⚠️ 本片**纯离线**（任务书明令不进 Play）⇒ 帧时间必须由下一批实机重采；
-//      本片给的是"预算算式 × 实测基线"的对照与结构性断言，逐条见回报与 `mapcheck` §19。
 // ═════════════════════════════════════════════════════════════════════════════
 //
 // ═════════════════════════════════════════════════════════════════════════════
-// ★ T0FIX-I（本片）：修 T0FIX-H 引入的**致命回归 = Stage 黑屏**（双缓冲建出的地图从未被渲染）。
 //
 //   实机（上一棒 DIAG，同机位全屏，机位/几何/贴图一字未改）：
 //     · 进图就绪后：`wholeMapView_totalSR=5134` 而 **`activeSR=0`**、`gRoot_activeChildren=0`、
@@ -110,19 +98,17 @@
 //     · 把同一子树强制 `SetActive(true)` ⇒ `ground_activeSR=2210 / object_activeSR=357`、
 //       **`mean_lum=31.63/255`**（地形出现）。
 //
-//   根因 = **两处 `activeSelf` 残留**（都靠"激活父节点"救不回来，Unity 语义如此）：
 //     ① `EnsureJobChunk` 把缓冲集块根 `SetActive(false)`，而 `SwapToBuilt` 只激活**层根**
 //        ⇒ 新图整棵的 `activeInHierarchy` 恒 false（层根一激活也带不活它们）；
 //     ② `TileNodePool.Return` 把瓦片 `SetActive(false)`，而 `Take` / `ApplyTileState` 只复位
 //        `SpriteRenderer.enabled`，**不复位 `GameObject.activeSelf`** ⇒ 池复用过的瓦片永远不可见。
 //
-//   处置（**保住双缓冲分帧，⛔ 不回退"一帧铺完"**）：
+//   处置（**保住双缓冲分帧，不回退"一帧铺完"**）：
 //     · `TileNodePool.Take`：**取出即 `SetActive(true)`**，与 `Return` 的 `SetActive(false)` 严格配对；
 //     · `MarkJobChunkBuilt`：块内格**建满那一帧**把该块三个块根逐块复活（层根仍隐藏 ⇒ 仍不可见，
 //       成本 3 次 `SetActive`/块，摊在建图帧里、不落在切换帧）；
 //     · `SwapToBuilt`：激活层根**之前**先 `ActivateChunkRoots(...)` 逐块兜底（正常路径空转）。
-//     ⛔ 这三处都是**逐块显式**设置 `activeSelf`，**不依赖**"激活父节点会复活子节点"这条语义。
-//     离线判据（复现黑屏 + 验证修复 + 不露空）见 `tools/probes/hosts/mapcheck` §20。
+//     这三处都是**逐块显式**设置 `activeSelf`，**不依赖**"激活父节点会复活子节点"这条语义。
 // ═════════════════════════════════════════════════════════════════════════════
 
 using System.Collections.Generic;
@@ -143,8 +129,7 @@ namespace Diablo2.Module.Map
         public const int ChunkSize = 16;
 
         /// <summary>
-        /// ★ revive-chunk（2026-09-24）：玩家格坐标**一步跨多少格**就判为「大跨度位移」。
-        /// <para>算式（⛔ 不是魔数）：可见范围的外扩 / 回收的保留带都是 **1 块** = <see cref="ChunkSize"/> 格
+        /// <para>算式（不是魔数）：可见范围的外扩 / 回收的保留带都是 **1 块** = <see cref="ChunkSize"/> 格
         /// ⇒ 跨 ≥ 2 块时，起始位置与落点之间隔着 ≥1 个整块的缓冲带，落点周围的块必然**不在**当前可见集里
         /// ⇒ 必须立刻预建（见 <see cref="PrimeLanding"/>）。</para>
         /// <para>反例（防误触）：走路每步 1 格 ⇒ 永远 &lt; 2 块 ⇒ 一次都不触发
@@ -153,7 +138,7 @@ namespace Diablo2.Module.Map
         public const int PrimeJumpCells = ChunkSize * 2;
 
         /// <summary>
-        /// ★ revive-chunk：大跨度落位后的**预建窗口**（秒）—— 窗口内落点范围的块不许被回收/丢弃，
+        /// revive-chunk：大跨度落位后的**预建窗口**（秒）—— 窗口内落点范围的块不许被回收/丢弃，
         /// 且窗口内若发生整图重铺则按**落点**算范围（与 travel-black 同口径）。
         /// <para>取 1.0 s 的依据：实机缺块窗口 ≈0.5~1 s（`BP-REVIVE-T0.5` 缺 2 块、`T+1.5` 才自愈），
         /// 且落点范围 ≤ 16 块 ÷ `MaxChunksPerFrame`(1 块/帧) ≈ 0.27 s @60fps 就泵完 ⇒ 1 s 足够覆盖。</para>
@@ -161,22 +146,20 @@ namespace Diablo2.Module.Map
         public const float PrimeLandingWindow = 1.0f;
 
         /// <summary>
-        /// ★ T0FIX-A：**增量路径**每帧最多建几块（> 0）。
-        /// <para>依据（⛔ 不是魔数，逐项都是生产常量）：`ComputeVisibleChunkRange` 外扩 1 块
+        /// T0FIX-A：**增量路径**每帧最多建几块（> 0）。
+        /// <para>依据（不是魔数，逐项都是生产常量）：`ComputeVisibleChunkRange` 外扩 1 块
         /// = <see cref="ChunkSize"/> 格余量，相机最快 <see cref="GameConst.PlayerWalkSpeed"/> 格/s
         /// ⇒ 走完余量需 <c>ChunkSize / PlayerWalkSpeed</c> = 5.333 s = 320 帧 @
-        /// <see cref="FramePacing.TargetFrameRate"/>；而一次刷新最多新增 7 块（mapcheck §16 ⑤）
-        /// ⇒ 需要 ≈ 0.02 块/帧 ⇒ <b>取整数下限 1 块/帧</b>（裕度 ≈ 45 倍，且建图速率
         /// 1 块/帧 = 16 格/帧 = 960 格/s ≫ 相机 3.0 格/s）。</para>
-        /// <para>⛔ 整图重铺（<see cref="RebuildLayers"/>）**不受**本常量约束（它走 T0FIX-H 的另一套预算
+        /// <para>整图重铺（<see cref="RebuildLayers"/>）**不受**本常量约束（它走 T0FIX-H 的另一套预算
         /// <see cref="MaxTileNodesPerFrame"/> 节点/帧，见类头的 T0FIX-H 段）：本常量只约束
         /// "相机走进新块范围"这条增量路径。</para>
         /// </summary>
         public const int MaxChunksPerFrame = 1;
 
         /// <summary>
-        /// ★ T0FIX-H：**整图重铺**每帧最多**新建**几个节点（> 0）。
-        /// <para>算式（⛔ 不是魔数，逐项都是生产常量或实测基线）：</para>
+        /// T0FIX-H：**整图重铺**每帧最多**新建**几个节点（> 0）。
+        /// <para>算式（不是魔数，逐项都是生产常量或实测基线）：</para>
         /// <para>· 一帧预算 = 1 s ÷ <see cref="FramePacing.TargetFrameRate"/> = **16666.7 µs**；</para>
         /// <para>· T0E 实测整图重铺的每节点成本 = **27.416 µs/GO**（最差）/ 20.79 µs/GO（p50）
         /// （town-rebuild nodes=2824 p50=58714us max=77423us；出处 = `策划/状态矩阵.tsv` 的
@@ -184,25 +167,24 @@ namespace Diablo2.Module.Map
         /// <para>· ⇒ 16666.7 ÷ 27.416 = **607.9** ⇒ 取 **512**（2 的幂，且 ≤ 一块满铺的节点上限
         /// `ChunkSize²×2 + 3 = 515` ⇒ 与增量路径 <see cref="MaxChunksPerFrame"/> = 1 块/帧**同量级**）。</para>
         /// <para>⇒ 单帧最差 512 × 27.416 = **14037 µs** ≤ 16666.7 µs（裕度 **1.19×**；按 p50 算 10645 µs ⇒ 1.57×）。
-        /// ⛔ 而且本路径每帧**只做"建"或"回收"之一**，单位节点的开销比实测基线（建 + Destroy 挤在同一帧）更低。</para>
+        /// 而且本路径每帧**只做"建"或"回收"之一**，单位节点的开销比实测基线（建 + Destroy 挤在同一帧）更低。</para>
         /// </summary>
         public const int MaxTileNodesPerFrame = 512;
 
         /// <summary>
-        /// ★ T0FIX-H：整图重铺每帧最多**扫描**几格 = `MaxTileNodesPerFrame × 2`。
-        /// <para>⛔ 不是随手写的：一格最多 2 个节点。它保证"本帧扫过的格数"也有上界 ——
+        /// T0FIX-H：整图重铺每帧最多**扫描**几格 = `MaxTileNodesPerFrame × 2`。
+        /// <para>不是随手写的：一格最多 2 个节点。它保证"本帧扫过的格数"也有上界 ——
         /// 否则洞穴里成片的"原版那格不画"（`groundKey == ""`）格子会让一帧扫过整张图
         /// （虽不建节点，但同样是白花帧）。</para>
         /// </summary>
         public const int MaxTileCellsPerFrame = MaxTileNodesPerFrame * 2;
 
-        /// <summary>★ T0FIX-H：一个块在三个层上各有一个**块根**节点 ⇒ 建一块 = 3 个结构节点（= `BuildChunk` 的 3 处 `NewChild`）。</summary>
+        /// <summary>T0FIX-H：一个块在三个层上各有一个**块根**节点 ⇒ 建一块 = 3 个结构节点（= `BuildChunk` 的 3 处 `NewChild`）。</summary>
         private const int ChunkRootNodeCount = 3;
 
         /// <summary>可见区域的检查间隔（秒）——避免每帧算相机视口。</summary>
         private const float ChunkRefreshInterval = 0.25f;
 
-        // ── ★ R1-D：贴图异步到位后的「整图重铺」合并口径（「人物移动抖动」的第三个根因）──────────
         // 旧口径 = 每来一张贴图就 `_repaintRequested = true` ⇒ 下一帧**整图重铺**
         //   （`RebuildLayers()` = 销毁全部块 + 全图重建）：Town 56×40 = 2240 格 ⇒ 单帧
         //   **2000+ 个 GameObject**（ground 每非 Void 格 1 个 + 物件层 + 迷雾层；洞穴最坏 ≈ 9000）。
@@ -213,16 +195,15 @@ namespace Diablo2.Module.Map
         //   ② 两次重铺之间至少隔 `RepaintMinInterval`；
         //   ③ 从第一次请求算起最多等 `RepaintMaxDelay`（**超时无条件重铺** ⇒ 贴图一定会换上）。
         // 画面不变：重铺的**内容**（建哪些节点 / 什么 sprite / 什么 sortingOrder）一字未改。
-        // 离线断言：`tools/probes/hosts/playercheck` §15 e。
         // ─────────────────────────────────────────────────────────────────────────────
 
-        /// <summary>★ R1-D：两次整图重铺之间的最小间隔（秒）。</summary>
+        /// <summary>R1-D：两次整图重铺之间的最小间隔（秒）。</summary>
         public const float RepaintMinInterval = 0.5f;
 
-        /// <summary>★ R1-D：最后一次贴图到位后静默这么久才重铺（避免把重铺无限期推后）。</summary>
+        /// <summary>R1-D：最后一次贴图到位后静默这么久才重铺（避免把重铺无限期推后）。</summary>
         public const float RepaintQuietTime = 0.25f;
 
-        /// <summary>★ R1-D：从第一次请求算起的**最长等待**（超时无条件重铺）。</summary>
+        /// <summary>R1-D：从第一次请求算起的**最长等待**（超时无条件重铺）。</summary>
         public const float RepaintMaxDelay = 1.0f;
 
         /// <summary>迷雾不透明度。</summary>
@@ -242,12 +223,10 @@ namespace Diablo2.Module.Map
         private bool _repaintCoalesceLogged;                          // ★ R1-D：口径日志只报一次
         private float _nextChunkRefresh;
 
-        // ── ★ travel-black：换区时"**按落点**算重铺范围 + 建满才通知落位" ─────────────────────────
-        //   缺陷（实机逐帧量到，见 `.ai-tmp/screenshots/travelblack_tb1.log`）：`AppFlow.EnterArea` 的顺序是
+        // ── travel-black：换区时"**按落点**算重铺范围 + 建满才通知落位" ─────────────────────────
         //   `Generate` → `ShowArea` → **然后**才挪玩家/相机 ⇒ `StartRebuild` 那一刻相机还停在**旧区**，
         //   按它算出来的块范围与落地画面无关（实测旧区 (32,27) 算出 16 块，落地后屏上要的是另 9 块）；
         //   建满一帧切换 ⇒ **交换本身**把屏上地砖撤光 = 落地整屏黑（≈1.84 s，直到第二次重铺才补回来）。
-        //   修法 = ① 换区那次重铺的可见范围改按**落点**（= 出生点，玩家即将站的地方）算；
         //          ② 交换**之前**再对一次账（不完整就继续建，见 `ExtendJobToPlanRange`）；
         //          ③ 建满交换后发 `Events.MapAreaReady` ⇒ Flow 才挪玩家/相机（那一帧渲染出来就是完整新图）。
         private bool _hasLandingFocus;          // 本次重铺是否按落点算范围（换区置位，发完 AreaReady 清掉）
@@ -257,50 +236,47 @@ namespace Diablo2.Module.Map
         private Vector2Int _chunkMin;
         private Vector2Int _chunkMax;
 
-        // ── ★ revive-chunk（2026-09-24）：**大跨度落位预建**（死亡重生 / TeleportTo / 未来的位移技能）─
-        //   缺陷（实机逐帧量到，`.ai-tmp/test/re_readings_re3.txt:345-412`）：**同区域内**的一步大跨度位移
         //   （`PlayerModule.Revive` → `Teleport(SpawnPoint)` / `IPlayerModule.TeleportTo`）**不走**
         //   `Generate` / `ShowArea` / `StartRebuild`，而落点周围的块**早已被 `ReleaseFarChunks` 回收**
         //   ⇒ 只能等 `ChunkRefreshInterval`(0.25 s) 的登记周期 + `MaxChunksPerFrame`(1 块/帧) 逐帧补：
         //   实测 `builtGround 4 → 8 → 10`、`T+0.5s MISSING=2 [(2,3)(2,4)]`、`T+1.5s` 才自愈。
-        //   修法 = 落位**当帧**就把落点范围的缺块入队（`PrimeLanding`）⇒ 窗口从 ~1 s 压到 ~1 帧。
-        //   ⛔ 不动 `MaxChunksPerFrame` / `ChunkRefreshInterval`（拿性能换视觉）；⛔ 不走 `StartRebuild`。
+        //   不动 `MaxChunksPerFrame` / `ChunkRefreshInterval`（拿性能换视觉）；不走 `StartRebuild`。
         private bool _primeActive;              // 预建窗口是否生效（窗口内 `PlanRange` 也按落点算）
         private float _primeUntil;              // 预建窗口截止时刻（unscaledTime）
         private Vector2Int _primeMin;           // 预建范围（落点，闭区间）
         private Vector2Int _primeMax;
         private int _primeQueued;               // 本次预建真正新入队的块数（自证）
 
-        // ── ★ T0FIX-A：节点池 + 增量建块队列 ────────────────────────────────────
+        // ── T0FIX-A：节点池 + 增量建块队列 ────────────────────────────────────
         /// <summary>节点池（唯一创建者；`Take` 冷分支才 `new GameObject`）。</summary>
         private TileNodePool _pool;
 
         /// <summary>池化节点的挂载点（在 `MapRoot` 下 ⇒ 随场景一起销毁，不跨场景泄漏）。</summary>
         private Transform _poolRoot;
 
-        /// <summary>★ T0FIX-A：待建块队列（`RefreshVisibleChunks` 只登记，建块在 `Update` 按帧预算摊平）。</summary>
+        /// <summary>T0FIX-A：待建块队列（`RefreshVisibleChunks` 只登记，建块在 `Update` 按帧预算摊平）。</summary>
         private readonly Queue<Vector2Int> _pendingChunks = new Queue<Vector2Int>();
 
-        /// <summary>★ T0FIX-A：本节流口径只报一次。</summary>
+        /// <summary>T0FIX-A：本节流口径只报一次。</summary>
         private bool _pacingLogged;
 
-        /// <summary>★ T0FIX-A：本帧已经建了几块（自证用；`Update` 每帧开头清零）。</summary>
+        /// <summary>T0FIX-A：本帧已经建了几块（自证用；`Update` 每帧开头清零）。</summary>
         private int _builtThisFrame;
 
-        /// <summary>★ T0FIX-A：历史单帧建块数的最大值（自证用）。</summary>
+        /// <summary>T0FIX-A：历史单帧建块数的最大值（自证用）。</summary>
         private int _builtPeakPerFrame;
 
         private Transform _groundRoot;
         private Transform _objectRoot;
         private Transform _overlayRoot;
 
-        // ★ T0FIX-H：这三份字典**不再是 readonly** —— 整图重铺完成时它们与"缓冲集"的三份字典
+        // T0FIX-H：这三份字典**不再是 readonly** —— 整图重铺完成时它们与"缓冲集"的三份字典
         //   整份互换（见 `SwapToBuilt`）。语义不变：它们永远描述**当前可见集**。
         private Dictionary<Vector2Int, Transform> _groundChunks = new Dictionary<Vector2Int, Transform>();
         private Dictionary<Vector2Int, Transform> _objectChunks = new Dictionary<Vector2Int, Transform>();
         private Dictionary<Vector2Int, Transform> _overlayChunks = new Dictionary<Vector2Int, Transform>();
 
-        // ── ★ T0FIX-H：整图重铺的**双缓冲**（新图先建在隐藏的缓冲集上，建完一帧切换）──────────────
+        // ── T0FIX-H：整图重铺的**双缓冲**（新图先建在隐藏的缓冲集上，建完一帧切换）──────────────
         /// <summary>缓冲集的三层层根（`GroundLayerB` / `ObjectLayerB` / `OverlayLayerB`；**恒隐藏**）。</summary>
         private Transform _bufGroundRoot;
         private Transform _bufObjectRoot;
@@ -372,7 +348,7 @@ namespace Diablo2.Module.Map
             get { return _groundChunks.Count + _objectChunks.Count + _overlayChunks.Count; }
         }
 
-        // ── ★ T0FIX-A 自证量（供离线/实机断言读，纯读数、无副作用）──────────────
+        // ── T0FIX-A 自证量（供离线/实机断言读，纯读数、无副作用）──────────────
 
         /// <summary>待建块数（排队中、尚未建）。</summary>
         public int PendingChunkCount { get { return _pendingChunks.Count; } }
@@ -389,7 +365,7 @@ namespace Diablo2.Module.Map
         /// <summary>历史「单帧建块数」峰值（应恒 ≤ <see cref="MaxChunksPerFrame"/>；整图重铺走另一套预算）。</summary>
         public int BuiltPeakPerFrame { get { return _builtPeakPerFrame; } }
 
-        // ── ★ T0FIX-H 自证量（供下一批实机/离线断言读，纯读数、无副作用）──────────────────
+        // ── T0FIX-H 自证量（供下一批实机/离线断言读，纯读数、无副作用）──────────────────
 
         /// <summary>整图重铺是否在进行中（新图正在隐藏的缓冲集上分帧建）。</summary>
         public bool RebuildInProgress { get { return _job != null; } }
@@ -457,7 +433,7 @@ namespace Diablo2.Module.Map
 
             if (areaChanged)
             {
-                // ★ travel-black：换区这次整图重铺的可见范围**按落点算**（此刻相机还停在旧区 ——
+                // travel-black：换区这次整图重铺的可见范围**按落点算**（此刻相机还停在旧区 ——
                 //   `AppFlow.EnterArea` 是先 `ShowArea` 再挪玩家/相机；按相机算出来的范围与落地画面无关），
                 //   并欠一次 `Events.MapAreaReady`（建满交换那一帧才发，Flow 收到才挪玩家/相机）。
                 _landingFocus = _map.SpawnPoint;
@@ -484,11 +460,9 @@ namespace Diablo2.Module.Map
         /// <summary>
         /// 标记某格已探索（迷雾揭开）。由 `MapModule` 订阅 `Events.PlayerGridChanged` 转发。
         /// <para>
-        /// ★ 2026-09-23（S2，`Events.MapExplored` 的"首次"判定）：返回 = **本次调用是否真的改变了状态**
         /// （true = 这一格刚刚第一次被探索）。调用方（`MapModule`）用它来保证"只在首次发事件"
-        /// —— 重复走过同一格返回 false ⇒ ⛔ 不发（否则边走边刷屏）。
+        /// —— 重复走过同一格返回 false ⇒ 不发（否则边走边刷屏）。
         /// </para>
-        /// <para>返回 false 的三种情形：未铺装 / 图外 / 该格此前已探索（都是"没有新增"）。</para>
         /// </summary>
         public bool MarkExplored(Vector2Int g)
         {
@@ -502,7 +476,6 @@ namespace Diablo2.Module.Map
             var first = !_explored[g.x, g.y];
             MarkOne(g.x, g.y);                       // 脚下这一格（幂等）
 
-            // ★ automap-panel2（2026-09-24）—— 把 automap 的揭示口径搬到**数据源头**：
             //   首次走到一格时按**已登记口径**一次揭开"玩家可能看到的一片"，而不是只揭开脚下那一格。
             //   **出处（逐条）**：
             //     · 半径 6 = `UI/MiniMapPanel.RevealRadius`（同一条口径，那里写了推导）：
@@ -513,14 +486,14 @@ namespace Diablo2.Module.Map
             //     · 形状 = **只走可通行格**（`GridMap.Walkable`，唯一判定 `Def.TileKindInfo.IsWalkable`）
             //       ⇒ 不穿墙；再把已揭示地面格的**相邻阻挡格**一并揭示（原版"地板先、墙后"的轮廓；
             //       `TileKind.Void` 不揭示）。
-            //     · ⛔ 与**原版按房间揭示**仍不同（本机没有 DRLG 房间层）⇒ 差异仍登记 **E23 ④**；
+            //     · 与**原版按房间揭示**仍不同（本机没有 DRLG 房间层）⇒ 差异仍登记 **E23 ④**；
             //       本段只是把**已经登记并验收**的口径从"面板开图那一次"移到数据源头
             //       ⇒ `_explored`（**存档权威持有者**）与画面口径天然一致，不再有"画面 ⊃ 存档"的口径差。
-            //   ⚠️ 返回值语义**一个字未改**（true = **脚下这一格**首次被探索）：`MapModule` 靠它决定是否
+            //   返回值语义**一个字未改**（true = **脚下这一格**首次被探索）：`MapModule` 靠它决定是否
             //      发 `Events.MapExplored`（载荷仍 `{g}`）。被本段顺带揭开的格**不**单独发事件，
             //      而由开图/进图时的**全量快照**（`App/AppSnapshots.EmitExploredSnapshot` 读
             //      `IMapModule.ExploredCells`）下发 ⇒ 面板与存档拿到的是**同一份集合**。
-            //   ⚠️ 幂等：重复走过同一格只补"还没揭到的"格，不再做一次 BFS 以外的事（开销 = 一次 ≤13×13 邻域）。
+            //   幂等：重复走过同一格只补"还没揭到的"格，不再做一次 BFS 以外的事（开销 = 一次 ≤13×13 邻域）。
             if (first)
             {
                 const int R = 6;                     // = UI/MiniMapPanel.RevealRadius（同一口径，见上）
@@ -633,12 +606,10 @@ namespace Diablo2.Module.Map
         // 铺装
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>某个层根「曾经建过、后来又没了」是否已报过（只报一次，agent-16）。</summary>
         private bool _layerRootsLostLogged;
 
         /// <summary>
         /// 三个层根（Ground/Object/Overlay）。
-        /// ★ agent-16：**逐个判空重建**而不是「三个都在就返回」—— 层根会随 Stage 场景卸载被销毁
         /// （Unity 的 `==` 重载把已销毁对象判成 null），若只判「三个都在」就会在「一个没了、两个还在」
         /// 时整批重建（旧的两个变成孤儿），并在 `SetParent(已销毁父节点)` 上抛 `MissingReferenceException`。
         /// </summary>
@@ -658,12 +629,10 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ R1-D **纯函数**：现在该不该整图重铺（离线可断言：`tools/probes/hosts/playercheck` §15 e）。
         /// <para>语义 = 「合并口径」三条（见 <see cref="RepaintMinInterval"/> 上方注释）：
         /// ① 有超时兜底 ⇒ 贴图一定会换上；② ③ 是节流 ⇒ 不在贴图潮流里反复整图重铺。</para>
         /// </summary>
         /// <param name="now">当前时刻（`Time.unscaledTime`）。</param>
-        /// <param name="firstRequestAt">本轮第一次贴图到位的时刻；**负数 = 没有待办**。</param>
         /// <param name="lastRequestAt">最近一次贴图到位的时刻。</param>
         /// <param name="lastRepaintAt">上一次重铺的时刻（从未 = 负无穷）。</param>
         public static bool ShouldRepaintNow(float now, float firstRequestAt, float lastRequestAt, float lastRepaintAt)
@@ -676,7 +645,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ R1-D：登记「贴图到位 ⇒ 需要重铺」（由异步回调调用）。只置标志 + 记时刻，
+        /// R1-D：登记「贴图到位 ⇒ 需要重铺」（由异步回调调用）。只置标志 + 记时刻，
         /// **不直接重铺** —— 何时真的重铺由 <see cref="ShouldRepaintNow"/> 决定。
         /// </summary>
         private void RequestRepaint()
@@ -699,7 +668,6 @@ namespace Diablo2.Module.Map
         /// <summary>
         /// 重建全部三层（`ShowArea` / 迷雾开关 / 贴图异步到位时调用）。
         /// <para>
-        /// ★ T0FIX-H（本片）**改口径**：本方法不再"一帧铺完"，而是**开一个分帧重铺任务** ——
         /// 新图建在**隐藏的缓冲集**（`GroundLayerB`…）上，每帧至多 <see cref="MaxTileNodesPerFrame"/> 个节点，
         /// 建满后**一帧原子切换**；旧集再按同一预算分帧归还池。
         /// </para>
@@ -707,7 +675,7 @@ namespace Diablo2.Module.Map
         /// 这三条触发路径都有旧画面（换区 = 旧区、贴图到位 = 旧图、迷雾开关 = 旧迷雾态），
         /// 只要新图建在隐藏缓冲集上，旧图就能一直留到新图就绪 ⇒ 中间帧**要么完整旧图、要么完整新图**。
         /// 逐条依据见类头的 T0FIX-H 段。</para>
-        /// <para>本方法**只做登记与建缓冲集**（⛔ 不在调用点泵帧：`ShowArea`/`SetFogOfWar` 是同步调用，
+        /// <para>本方法**只做登记与建缓冲集**（不在调用点泵帧：`ShowArea`/`SetFogOfWar` 是同步调用，
         /// 当场泵会把它变成"调用方那一帧的尖峰"）；真正的推进在 <see cref="Update"/> 的
         /// <see cref="PumpRebuild"/>（每帧一次，含首次）。</para>
         /// </summary>
@@ -717,7 +685,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H：开一次整图重铺任务（缓冲集 + 块清单 + 游标）。
+        /// T0FIX-H：开一次整图重铺任务（缓冲集 + 块清单 + 游标）。
         /// <para>块清单顺序由纯函数 <see cref="PlannedChunks"/> 给出（= 改前 `BuildChunkRange` /
         /// "全图逐块"循环的顺序：cx 外层、cy 内层）⇒ 兄弟序与改前一致。</para>
         /// </summary>
@@ -771,9 +739,9 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H 的**保底**（非预期态专用）：一帧铺完（= T0FIX-H 之前的口径）。
+        /// T0FIX-H 的**保底**（非预期态专用）：一帧铺完（= T0FIX-H 之前的口径）。
         /// <para>唯一触发条件 = 分帧重铺期间缓冲层根被销毁（场景卸载那类）⇒ 宁可有尖峰，
-        /// 也不许静默留一张空图。⛔ 它与分帧路径**共用**判定与建节点
+        /// 也不许静默留一张空图。它与分帧路径**共用**判定与建节点
         /// （`PlanCell` / `ApplyCellPlan` / `BuildChunk`），差别只有"目标集 + 分不分帧"。</para>
         /// </summary>
         private void RebuildImmediate(string why)
@@ -814,14 +782,14 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H **纯函数**（离线可断言）：整图重铺要建的**块清单**与顺序。
+        /// T0FIX-H **纯函数**（离线可断言）：整图重铺要建的**块清单**与顺序。
         /// <para>顺序 = 改前两条路径的顺序，逐字保留：分块模式 = `BuildChunkRange`（**cx 外层、cy 内层**）；
         /// 非分块模式 = "全图逐块"循环（同样 cx 外层、cy 内层）。兄弟序（同 `sortingOrder` 的平局次序）
         /// 就靠它不变 ⇒ 画面逐像素不变。</para>
-        /// <para>★ **枚举已下沉**（2026-09-24 接线）：循环搬到引擎件
+        /// <para>循环搬到引擎件
         /// `CloverEngine.ChunkedTilePlanner.AppendChunkCoords`，`xOuter: true` 就是这里的
         /// 「cx 外层 / cy 内层」；本方法**仍是纯函数**（离线断言口径不变），且**不清空** `into`
-        /// （与改前一致：调用方决定清不清）。⛔ 别改 `xOuter`——那是画面逐像素不变的判据之一。</para>
+        /// 别改 `xOuter`——那是画面逐像素不变的判据之一。</para>
         /// </summary>
         public static void PlannedChunks(bool chunked, int buildX0, int buildY0, int buildX1, int buildY1,
             int chunksX, int chunksY, List<Vector2Int> into)
@@ -838,7 +806,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H **纯函数**（离线可断言）：本帧还能不能再处理**一格**（成本 <paramref name="cost"/> 个节点）。
+        /// T0FIX-H **纯函数**（离线可断言）：本帧还能不能再处理**一格**（成本 <paramref name="cost"/> 个节点）。
         /// <para>MapView 的分帧循环与离线断言**共用这一条** ⇒ 预算口径不可能漂。两条闸门：
         /// ① 本帧已用节点 + 本格成本 ≤ <paramref name="nodeBudget"/>；
         /// ② 本帧已扫格数 &lt; <paramref name="cellBudget"/>（防"成片不画的格子让一帧扫过整张图"）。</para>
@@ -850,10 +818,10 @@ namespace Diablo2.Module.Map
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ T0FIX-H：整图重铺的**分帧双缓冲**（建缓冲集 → 一帧切换 → 分帧回收旧集）
+        // T0FIX-H：整图重铺的**分帧双缓冲**（建缓冲集 → 一帧切换 → 分帧回收旧集）
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>★ T0FIX-H：一次整图重铺任务的进度（同时只有一个；`_job == null` = 空闲）。</summary>
+        /// <summary>T0FIX-H：一次整图重铺任务的进度（同时只有一个；`_job == null` = 空闲）。</summary>
         private sealed class RebuildJob
         {
             /// <summary>目标（**恒隐藏**的）缓冲层根。</summary>
@@ -865,7 +833,6 @@ namespace Diablo2.Module.Map
             /// <summary>下一块在 <see cref="Chunks"/> 里的下标。</summary>
             public int ChunkIndex;
 
-            /// <summary>当前块内的续建游标（**x 外层 / y 内层**，与改前块内格序逐字一致）。</summary>
             public int CursorX, CursorY;
 
             /// <summary>true = 已进入"建"阶段（false = 先等旧集回收完，缓冲集必须是空的）。</summary>
@@ -886,12 +853,12 @@ namespace Diablo2.Module.Map
             /// <summary>任务开始时的池计数（用来算"这次重铺新建/复用了多少"）。</summary>
             public int CreatedBefore, ReusedBefore;
 
-            /// <summary>★ travel-black：交换前对账追加过几轮（见 <see cref="ExtendJobToPlanRange"/>，上限 4）。</summary>
+            /// <summary>travel-black：交换前对账追加过几轮（见 <see cref="ExtendJobToPlanRange"/>，上限 4）。</summary>
             public int Extends;
         }
 
         /// <summary>
-        /// ★ T0FIX-H：缓冲集（`GroundLayerB` / `ObjectLayerB` / `OverlayLayerB`）—— 新图先建在这里、
+        /// T0FIX-H：缓冲集（`GroundLayerB` / `ObjectLayerB` / `OverlayLayerB`）—— 新图先建在这里、
         /// **恒隐藏**，建满才一帧切换。懒创建；场景卸载后会判空重建（与 `EnsureLayerRoots` 同口径）。
         /// </summary>
         private void EnsureBufferRoots()
@@ -900,14 +867,14 @@ namespace Diablo2.Module.Map
             if (_bufObjectRoot == null) _bufObjectRoot = NewChild(transform, "ObjectLayerB");
             if (_bufOverlayRoot == null) _bufOverlayRoot = NewChild(transform, "OverlayLayerB");
 
-            // ⛔ 恒隐藏：任何时刻缓冲集都不可见（可见性只由 SwapToBuilt 的 6 次层根 SetActive 决定）
+            // 恒隐藏：任何时刻缓冲集都不可见（可见性只由 SwapToBuilt 的 6 次层根 SetActive 决定）
             _bufGroundRoot.gameObject.SetActive(false);
             _bufObjectRoot.gameObject.SetActive(false);
             _bufOverlayRoot.gameObject.SetActive(false);
         }
 
         /// <summary>
-        /// ★ T0FIX-H：丢弃"建到一半"的重铺任务。缓冲集里的节点**不逐个归还池**（那正是要避免的单帧尖峰，
+        /// T0FIX-H：丢弃"建到一半"的重铺任务。缓冲集里的节点**不逐个归还池**（那正是要避免的单帧尖峰，
         /// 实测每节点 20.79~27.416 µs）⇒ 直接销毁缓冲层根（连子树）。**非预期分支** ⇒ 一定打 Warn。
         /// </summary>
         private void CancelRebuildJob(string why)
@@ -930,7 +897,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H：把"已不可见"的旧块**按帧预算**归还池（每帧 ≤ <paramref name="budget"/> 个节点）。
+        /// T0FIX-H：把"已不可见"的旧块**按帧预算**归还池（每帧 ≤ <paramref name="budget"/> 个节点）。
         /// 返回 true = 回收完（队列空）。
         /// <para>为什么回收也要分帧：切换帧里逐个 `SetParent` + `SetActive` 上万次 = 又一个尖峰
         /// （实测每节点 20.79~27.416 µs ⇒ 2824 个节点 ≈ 59~77 ms）。</para>
@@ -954,7 +921,7 @@ namespace Diablo2.Module.Map
             return _retireChunks.Count == 0;
         }
 
-        /// <summary>★ T0FIX-H：把一份块字典里的块根全部登记进"待回收"队列（只登记，⛔ 不回收）。</summary>
+        /// <summary>T0FIX-H：把一份块字典里的块根全部登记进"待回收"队列（只登记，不回收）。</summary>
         private void EnqueueRetire(Dictionary<Vector2Int, Transform> dict)
         {
             foreach (var kv in dict)
@@ -964,7 +931,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H：把整图重铺推进一帧（`Update` 每帧一次；预算 = <see cref="MaxTileNodesPerFrame"/> /
+        /// T0FIX-H：把整图重铺推进一帧（`Update` 每帧一次；预算 = <see cref="MaxTileNodesPerFrame"/> /
         /// <see cref="MaxTileCellsPerFrame"/>）。
         /// <para>四个出口：① 预算用尽 ⇒ 下帧续建；② 全部建完 ⇒ **同一帧**切换（O(1)）；
         /// ③ 缓冲层根被销毁（非预期）⇒ 转一帧铺完保底；④ 没任务 ⇒ 什么都不做。</para>
@@ -982,7 +949,7 @@ namespace Diablo2.Module.Map
 
             if (job.GroundRoot == null || job.ObjectRoot == null || job.OverlayRoot == null)
             {
-                // 非预期分支：缓冲层根被销毁（场景卸载那类）⇒ 放弃分帧，退回一帧铺完（⛔ 不静默留空白）
+                // 非预期分支：缓冲层根被销毁（场景卸载那类）⇒ 放弃分帧，退回一帧铺完（不静默留空白）
                 _bufGroundRoot = null;
                 _bufObjectRoot = null;
                 _bufOverlayRoot = null;
@@ -1036,10 +1003,9 @@ namespace Diablo2.Module.Map
                 if (deferred) break;
 
                 job.ChunkIndex++;
-                // ★ T0FIX-I：这一块的格**已全部建完** ⇒ 把它的三个块根 `activeSelf` 逐块置回 true。
+                // T0FIX-I：这一块的格**已全部建完** ⇒ 把它的三个块根 `activeSelf` 逐块置回 true。
                 //   层根此刻仍隐藏 ⇒ **仍然不可见**（缓冲集的可见性只由 `SwapToBuilt` 的层根 SetActive 决定）；
                 //   这么做的意义 = 切换那一帧「层根一激活，整块就出来」，且**不依赖**"激活父节点顺带复活
-                //   `activeSelf=false` 的子节点"这种 Unity 语义（那正是本片 Stage 黑屏的根因）。
                 MarkJobChunkBuilt(chunk);
                 if (job.ChunkIndex < job.Chunks.Count)
                 {
@@ -1057,14 +1023,14 @@ namespace Diablo2.Module.Map
 
             if (job.ChunkIndex >= job.Chunks.Count)
             {
-                // ★ travel-black：交换**之前**再对一次账 —— 交换那一帧屏上必须是"完整的（新）图"。
+                // travel-black：交换**之前**再对一次账 —— 交换那一帧屏上必须是"完整的（新）图"。
                 //   不完整（相机在重铺期间动过 / 落点范围与登记范围不一致）⇒ 把缺块追加进本次清单、
-                //   继续建（下一帧），⛔ 不在这时候交换（否则交换本身就把屏上地砖撤光 = 落地黑）。
+                //   继续建（下一帧），不在这时候交换（否则交换本身就把屏上地砖撤光 = 落地黑）。
                 if (!ExtendJobToPlanRange(job)) SwapToBuilt(job);       // 建满 ⇒ 同一帧切换
             }
         }
 
-        /// <summary>★ T0FIX-H：在**缓冲集**里建一块的三层块根（建出来即失活 ⇒ 切换前绝不可见）。</summary>
+        /// <summary>T0FIX-H：在**缓冲集**里建一块的三层块根（建出来即失活 ⇒ 切换前绝不可见）。</summary>
         private void EnsureJobChunk(Vector2Int chunk)
         {
             var name = $"Chunk_{chunk.x}_{chunk.y}";
@@ -1081,7 +1047,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-I：把**一个已建满的块**的三个块根逐块复活（`activeSelf = true`）。
+        /// T0FIX-I：把**一个已建满的块**的三个块根逐块复活（`activeSelf = true`）。
         /// <para>为什么要单独一步：`EnsureJobChunk` 建块时把块根 `SetActive(false)`（缓冲集恒隐藏的双保险），
         /// 而 Unity 的语义是「激活父节点**不**复活 `activeSelf=false` 的子节点」⇒ 只激活层根的话，
         /// 双缓冲建出的整张图**一次都不会被渲染**（实机实测：整图 `activeSR=0`、全屏 `mean_lum=5.42/255`）。</para>
@@ -1097,9 +1063,9 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-I：切换前的**不变量兜底** —— 逐块确认新集每个块根 `activeSelf` 已为 true
+        /// T0FIX-I：切换前的**不变量兜底** —— 逐块确认新集每个块根 `activeSelf` 已为 true
         /// （正常路径上 `MarkJobChunkBuilt` 已复活过 ⇒ 这里是 O(块数) 的空转，不碰任何瓦片节点）。
-        /// <para>⛔ 它的存在意义 = 「不靠层根整体激活」：块根是否可见由它**逐个**负责，而不是赌
+        /// <para>它的存在意义 = 「不靠层根整体激活」：块根是否可见由它**逐个**负责，而不是赌
         /// Unity 会替我们把 `activeSelf=false` 的子节点复活。</para>
         /// </summary>
         private static void ActivateChunkRoots(Dictionary<Vector2Int, Transform> ground,
@@ -1110,7 +1076,7 @@ namespace Diablo2.Module.Map
             ActivateChunkRootsIn(overlay);
         }
 
-        /// <summary>★ T0FIX-I：见 <see cref="ActivateChunkRoots"/>（单层）。</summary>
+        /// <summary>T0FIX-I：见 <see cref="ActivateChunkRoots"/>（单层）。</summary>
         private static void ActivateChunkRootsIn(Dictionary<Vector2Int, Transform> dict)
         {
             foreach (var kv in dict)
@@ -1121,8 +1087,8 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H：**一帧原子切换**（新图就绪 ⇒ 缓冲集显示、旧集隐藏）。
-        /// <para>⛔ 本方法体内**不许**出现任何"逐个节点"的操作（`SetParent` / `Destroy` / `Return` /
+        /// T0FIX-H：**一帧原子切换**（新图就绪 ⇒ 缓冲集显示、旧集隐藏）。
+        /// <para>本方法体内**不许**出现任何"逐个节点"的操作（`SetParent` / `Destroy` / `Return` /
         /// `new GameObject` / 写 `sprite`/`color`/`sortingOrder`）—— 那正是尖峰的来源。
         /// 这里只有：6 次**层根** `SetActive` + 三份字典的引用互换 + `O(块数)` 次入队
         /// （旧块进 <see cref="_retireChunks"/>，由 <see cref="PumpRetire"/> 按帧预算归还池）。
@@ -1139,11 +1105,9 @@ namespace Diablo2.Module.Map
             EnqueueRetire(_overlayChunks);
 
             // ② 新集：整根激活（内容在隐藏状态下已经建满 ⇒ 一次切换就是完整新图）
-            //   ★ T0FIX-I（**根因修复**）：先**逐块**把新集每个块根的 `activeSelf` 置 true，再激活层根。
             //     `EnsureJobChunk` 建块时置过 false；正常路径上 `MarkJobChunkBuilt` 已在块建满那一帧复活
             //     （⇒ 这里实测是空转），本行是切换帧的**不变量兜底**。
-            //     ⛔ 不许删掉它退回"只做下面 3 次层根 SetActive"—— Unity 激活父节点**不**复活
-            //     `activeSelf=false` 的子节点，那正是本片 Stage 黑屏到 `mean_lum=5.42/255` 的根因。
+            //     不许删掉它退回"只做下面 3 次层根 SetActive"—— Unity 激活父节点**不**复活
             ActivateChunkRoots(_bufGroundChunks, _bufObjectChunks, _bufOverlayChunks);
             job.GroundRoot.gameObject.SetActive(true);
             job.ObjectRoot.gameObject.SetActive(true);
@@ -1193,8 +1157,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-A 的**纯函数**（离线可断言）：本帧该建几块 = `min(待建块数, 预算)`。
-        /// 逐条数字与断言见 `tools/probes/hosts/mapcheck` §17。
+        /// T0FIX-A 的**纯函数**（离线可断言）：本帧该建几块 = `min(待建块数, 预算)`。
         /// </summary>
         public static int ChunksThisFrame(int pendingCount, int budgetPerFrame)
         {
@@ -1203,7 +1166,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-A：把队列里的待建块**按帧预算**建出来（`Update` 每帧调用一次）。
+        /// T0FIX-A：把队列里的待建块**按帧预算**建出来（`Update` 每帧调用一次）。
         /// 一帧至多建 <paramref name="budget"/> 块 ⇒ 单帧新增节点 ≤ 预算 × 单块节点上限。
         /// </summary>
         private void PumpChunkBuild(int budget)
@@ -1223,8 +1186,8 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-A：把「本帧建块摊平 + 节点池」的**生效口径**报一次（tag `T0FIX`），
-        /// 数字全部由生产常量现算（⛔ 不写裸数字）。
+        /// T0FIX-A：把「本帧建块摊平 + 节点池」的**生效口径**报一次（tag `T0FIX`），
+        /// 数字全部由生产常量现算（不写裸数字）。
         /// </summary>
         private void LogPacingOnce(string how)
         {
@@ -1246,7 +1209,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ R1-B：把「平色水墙瓦片不叠」的**生效口径 + 实测格数**报一次（tag `R1-B`），
+        /// R1-B：把「平色水墙瓦片不叠」的**生效口径 + 实测格数**报一次（tag `R1-B`），
         /// 供下一批进 Play 当**数值证据**（不必截图即可判定这条渲染规则生效）。
         /// 只报一次（整个进程），且只在真的跳过过格子的地图上报（野外/洞穴不会产生这条）。
         /// </summary>
@@ -1265,13 +1228,12 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 按可见区域**登记**待建块 / 回收远处块（只在大图模式下走）。
-        /// <para>★ T0FIX-A：旧口径是"本帧把新进范围的块**全建完**"（一次 3~7 块 ⇒ 单帧尖峰）；
+        /// <para>T0FIX-A：旧口径是"本帧把新进范围的块**全建完**"（一次 3~7 块 ⇒ 单帧尖峰）；
         /// 新口径 = **只登记**，建块交给 `Update` 的 <see cref="PumpChunkBuild"/> 按
         /// <see cref="MaxChunksPerFrame"/> 摊平。登记顺序 = 行主序（块内格序不变）。</para>
         /// </summary>
         private void RefreshVisibleChunks()
         {
-            // ★ agent-16：层根被销毁（场景卸载）时**绝不**继续铺（否则在已销毁父节点上建子节点）。
             //   外层 `MapModule`/`Update` 也会判，但这里是唯一真正 new 节点的路径，必须自己再判一次。
             if (_groundRoot == null || _objectRoot == null || _overlayRoot == null)
             {
@@ -1298,7 +1260,7 @@ namespace Diablo2.Module.Map
             _chunkMax = new Vector2Int(buildX1, buildY1);
             _hasChunkRange = true;
 
-            // ★ T0FIX-A：只登记（不建）；已建的不重复排队，队列里已有的不重复入队
+            // T0FIX-A：只登记（不建）；已建的不重复排队，队列里已有的不重复入队
             for (var cx = buildX0; cx <= buildX1; cx++)
             {
                 for (var cy = buildY0; cy <= buildY1; cy++)
@@ -1314,7 +1276,6 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ chunk-hole 修复（2026-09-23，血沼泽大片黑）**纯函数**（离线可断言）：
         /// `[x0,x1]×[y0,y1]` 里的**每一块**都已建好、或已在待建队列里吗？
         /// <para>为什么"登记范围没变就早退"不够：`StartRebuild` 会**清空待建队列**（见 :593 的
         /// `_pendingChunks.Clear()`）并把登记范围改成"**那一刻**相机算出来的范围"，而可见集要等
@@ -1386,11 +1347,11 @@ namespace Diablo2.Module.Map
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ travel-black：换区重铺的**落点范围** + 交换前的完整性对账
+        // travel-black：换区重铺的**落点范围** + 交换前的完整性对账
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ★ travel-black **纯函数**（离线可断言）：以 <paramref name="focusX"/>,<paramref name="focusY"/>（落点）
+        /// travel-black **纯函数**（离线可断言）：以 <paramref name="focusX"/>,<paramref name="focusY"/>（落点）
         /// 为中心、用**当前视口的格半跨**（<paramref name="halfX"/>/<paramref name="halfY"/> — 由视口四角与屏幕
         /// 中心算出的格坐标差，**平移不变**）算块范围，外扩 1 块（口径与 <see cref="ComputeVisibleChunkRange"/> 一致）。
         /// <para>为什么需要"按落点算"：`AppFlow.EnterArea` 是 `Generate` → `ShowArea` → **然后**才挪玩家/相机
@@ -1416,16 +1377,13 @@ namespace Diablo2.Module.Map
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ revive-chunk（2026-09-24）：**大跨度落位预建**（死亡重生 / TeleportTo / 位移技能）
         //   口径与 travel-black 的 `LandingRange` 同一份（落点 + 视口格半跨），但**不重铺**：
         //   只把落点范围里缺的块**当帧**入 `_pendingChunks`（跳过 0.25 s 登记等待），
         //   真正的建块仍由 `PumpChunkBuild` 按既有 `MaxChunksPerFrame` 摊平
-        //   ⇒ 单帧尖峰口径**一字未改**（⛔ 不是"拿性能换视觉"）。
+        //   ⇒ 单帧尖峰口径**一字未改**（不是"拿性能换视觉"）。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ★ revive-chunk **纯函数**（离线可断言，`mapcheck` §34）：玩家格坐标一步 `<paramref name="from"/>`
-        /// → `<paramref name="to"/>` 是否算「大跨度位移」（Chebyshev 距离 ≥ <see cref="PrimeJumpCells"/>）。
         /// <para>为什么用 Chebyshev：块是**轴对齐**的 ⇒ "斜着跨 30 格"与"横着跨 30 格"在块网格上跨的块数一样，
         /// 用 <c>max(|dx|,|dy|)</c> 判"块网格上跳了几格"最直接。</para>
         /// </summary>
@@ -1435,10 +1393,8 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ revive-chunk **纯函数**（离线可断言，`mapcheck` §35）：落点 `focus` 处"落地那一刻"要看的块清单
-        /// = <see cref="LandingRange"/> + <see cref="PlannedChunks"/>（与整图重铺**同一口径**）。
         /// <para>小图（<c>mapW*mapH ≤ BuildAllTileThreshold</c> ⇒ 不分块、**从不回收块**）⇒ 写空清单返回
-        /// （⛔ 不做无谓的全量对账 —— 那是把"重生"变成"重进区域"）。</para>
+        /// （不做无谓的全量对账 —— 那是把"重生"变成"重进区域"）。</para>
         /// </summary>
         public static void PrimeChunks(int focusX, int focusY, int halfX, int halfY, int mapW, int mapH,
             List<Vector2Int> into)
@@ -1456,10 +1412,9 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ revive-chunk：**大跨度落位预建** —— 落位当帧把落点范围的缺块入队（⛔ 不建节点、⛔ 不重铺）。
+        /// revive-chunk：**大跨度落位预建** —— 落位当帧把落点范围的缺块入队（不建节点、不重铺）。
         /// <para>调用点 = `MapModule.OnPlayerGridChanged`（<see cref="IsLargeShift"/> 为真时）⇒ 覆盖**所有**
-        /// "玩家格坐标一步大跨度变化"的情形（死亡重生 / `IPlayerModule.TeleportTo` / 未来的位移技能），
-        /// ⛔ 不是给 `Revive()` 打的单点补丁。</para>
+        /// "玩家格坐标一步大跨度变化"的情形（死亡重生 / `IPlayerModule.TeleportTo` / 未来的位移技能）。</para>
         /// <para>返回 = 真正新入队的块数（0 = 无需预建：小图 / 未铺装 / 换区重铺进行中 / 落点范围的块都已就位）。
         /// 非预期分支（拿不到相机跨度 / 层根被销毁 / 换区重铺进行中 / 小图）都有日志。</para>
         /// </summary>
@@ -1537,8 +1492,8 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ revive-chunk：预建窗口收尾（`Update` 每帧一次）—— 到期即撤下"落点口径"，
-        /// 回收/丢弃恢复按相机算（⛔ 窗口不会无限期留着 ⇒ 不会长期多留块）。
+        /// revive-chunk：预建窗口收尾（`Update` 每帧一次）—— 到期即撤下"落点口径"，
+        /// 回收/丢弃恢复按相机算（窗口不会无限期留着 ⇒ 不会长期多留块）。
         /// </summary>
         private void TickPrimeLanding()
         {
@@ -1549,7 +1504,7 @@ namespace Diablo2.Module.Map
                         $"已建 {_groundChunks.Count} / 待建 {_pendingChunks.Count}（回收口径恢复按相机算）");
         }
 
-        /// <summary>★ revive-chunk：该块是否在**预建窗口**的落点范围内（窗口内不许被回收 / 从队列里撤掉）。</summary>
+        /// <summary>revive-chunk：该块是否在**预建窗口**的落点范围内（窗口内不许被回收 / 从队列里撤掉）。</summary>
         private bool InPrimeRange(Vector2Int c)
         {
             return _primeActive
@@ -1591,7 +1546,7 @@ namespace Diablo2.Module.Map
         {
             var min = Vector2Int.zero;
             var max = Vector2Int.zero;
-            // ★ revive-chunk：预建窗口内（刚发生大跨度落位）也按**落点**算 —— 否则窗口里若来一次贴图驱动的
+            // revive-chunk：预建窗口内（刚发生大跨度落位）也按**落点**算 —— 否则窗口里若来一次贴图驱动的
             //   整图重铺，会按"还在半路上的相机"算范围（与 travel-black 同一形态的黑窗）。
             if (_hasLandingFocus || _primeActive)
             {
@@ -1620,11 +1575,11 @@ namespace Diablo2.Module.Map
             max = new Vector2Int(x1, y1);
         }
 
-        /// <summary>★ travel-black：交换前的对账最多追加几轮（非预期态 —— 相机每帧都在跑 —— 的兜底，⛔ 不无限拖）。</summary>
+        /// <summary>travel-black：交换前的对账最多追加几轮（非预期态 —— 相机每帧都在跑 —— 的兜底，不无限拖）。</summary>
         private const int MaxExtendPasses = 4;
 
         /// <summary>
-        /// ★ travel-black：交换**之前**的完整性对账（纯逻辑，⛔ 不建节点、不碰画面）：
+        /// travel-black：交换**之前**的完整性对账（纯逻辑，不建节点、不碰画面）：
         /// 目标范围（<see cref="PlanRange"/>）里"清单里还没有"的块追加进 <paramref name="job"/> 的清单并返回 true
         /// ⇒ 本帧不交换、下一帧继续建。
         /// <para>为什么必须有它：`SwapToBuilt` 是**撤掉整屏旧地砖**的那一刻。只要新集不含"交换那一帧的可见块"，
@@ -1668,7 +1623,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ travel-black：欠着的那次"换区铺装完成"通知 —— 发一次 <see cref="Events.MapAreaReady"/>，并把
+        /// travel-black：欠着的那次"换区铺装完成"通知 —— 发一次 <see cref="Events.MapAreaReady"/>，并把
         /// 落点范围口径收掉（此后重铺恢复按相机算）。
         /// <para>收方 = `Module/Flow/AppFlow.cs`：它收到才挪玩家/相机/怪 + 关读条屏 ⇒ **落地那一帧**渲染出来
         /// 的就是完整的新区域（旧区画面一直保留到这一刻）。</para>
@@ -1693,7 +1648,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 建一块（3 个块根 + 逐格）。
-        /// <para>★ T0FIX-A：块根一建出来先 `SetActive(false)`，**块内全部格建完才激活**
+        /// <para>T0FIX-A：块根一建出来先 `SetActive(false)`，**块内全部格建完才激活**
         /// ⇒ 任何时刻都不会出现"半块地图"可见态（分帧也安全）。同帧建完时激活点仍是同一帧
         /// ⇒ 画面与改前逐像素一致。节点全部走 <see cref="EnsurePool"/> 的池（冷池才 `new`）。</para>
         /// </summary>
@@ -1731,7 +1686,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 建一格（**增量路径**用：目标是当前可见集的块）。
-        /// <para>★ T0FIX-H：判定与落地拆成 `PlanCell`（纯函数、零节点）+ `ApplyCellPlan`（建节点）——
+        /// <para>T0FIX-H：判定与落地拆成 `PlanCell`（纯函数、零节点）+ `ApplyCellPlan`（建节点）——
         /// 分帧预算必须**在建节点之前**知道本格要几个节点，否则单帧会超预算。
         /// 本方法 = 两者的薄壳（判定逐条与改前 `BuildCell` 同源）。</para>
         /// </summary>
@@ -1742,7 +1697,7 @@ namespace Diablo2.Module.Map
             ApplyCellPlan(plan, g, _groundChunks[chunk], _objectChunks[chunk], _overlayChunks[chunk]);
         }
 
-        /// <summary>★ T0FIX-H：一格的**建/画决定**（纯值；`NodeCount` = 本格要几个节点：0/1/2）。</summary>
+        /// <summary>T0FIX-H：一格的**建/画决定**（纯值；`NodeCount` = 本格要几个节点：0/1/2）。</summary>
         internal readonly struct CellPlan
         {
             /// <summary>这格要不要画（false = `TileKind.Void`：图外/未生成 —— 连迷雾都不画）。</summary>
@@ -1793,7 +1748,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H **纯函数**（离线可断言）：一格要画什么。⛔ 零副作用（不建节点、不动
+        /// T0FIX-H **纯函数**（离线可断言）：一格要画什么。零副作用（不建节点、不动
         /// `_flatWallOverlaySkipped`、不请求贴图）—— 与 <see cref="ApplyCellPlan"/> 的分工见 `BuildCell`。
         /// <para>判定逐条与改前 `BuildCell` 同源：逐格「原版瓦片键」覆盖（罗格营地 / 邪恶洞穴）、
         /// 地面层排序下移、物件层不做 `TileKind` 兜底、R1-B 平色水墙不叠、洞穴实心岩体不画物件。</para>
@@ -1805,28 +1760,28 @@ namespace Diablo2.Module.Map
 
             // ── 逐格「原版瓦片键」覆盖：**罗格营地**（`MapGenTownLayout`，源 `townW1.ds1`）
             //    与**邪恶洞穴**（`MapGenCaveLayout`，源 `CAVES/*.ds1`）都用它。
-            //    ★ 语义（见 `GridMap.TryGetTiles` 注释）：
+            //    语义（见 `GridMap.TryGetTiles` 注释）：
             //      · 返回 false ⇒ 本图没有逐格覆盖（= 野外），按 `TileKind` 分类取默认瓦片；
             //      · 返回 true 且 groundKey == "" ⇒ **原版这格不画**（洞穴里的纯黑实心岩体就是
-            //        这种格），⛔ 不许兜底成占位菱形 —— 兜底会把它变成一堆灰方块。
+            //        这种格），不许兜底成占位菱形 —— 兜底会把它变成一堆灰方块。
             string ds1Ground = null, ds1Object = null;
             var fromDs1 = map.TryGetTiles(g.x, g.y, out ds1Ground, out ds1Object);
 
             // ── 地面层 ──
-            // ★ 地面整体下移一个排序步长：见文件头「地面层为什么额外 -SortOrderStep」
+            // 地面整体下移一个排序步长：见文件头「地面层为什么额外 -SortOrderStep」
             var groundKind = TileKindInfo.IsGroundLayer(kind) ? kind : BaseGroundOf(area);
             var groundKey = fromDs1 ? ds1Ground : GroundKeyOf(groundKind, area, g);
 
             // ── 物件层 ──
             // **有逐格覆盖的区域（营地 / 洞穴）**：只画原版那一格真的有的瓦片 —— 原版那格没有
             //   wall 层瓦片（水上、纯黑岩体、被连通性修整改成 Wall 的死地…）就**什么都不画**。
-            //   ⛔ 这里刻意**不做** `TileKind` 兜底：兜底会画出一堆纯色占位方块（实测 170 个），
+            //   这里刻意**不做** `TileKind` 兜底：兜底会画出一堆纯色占位方块（实测 170 个），
             //   比"没有物件"难看得多，而且掩盖了"原版这里本来就没东西"这个事实。
             // **其它区域（野外）**：按 `TileKind` 分类取默认瓦片；取不到才用纯色占位（便于发现问题）。
             var ds1HasObject = fromDs1 && !string.IsNullOrEmpty(ds1Object);
-            // ★ R1-B：**平色水墙瓦片不叠**（该格 floor 层已经是同一 dt1 的水瓦片 ⇒ 河面由它呈现）。
+            // R1-B：**平色水墙瓦片不叠**（该格 floor 层已经是同一 dt1 的水瓦片 ⇒ 河面由它呈现）。
             //   口径与出处见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay` 的注释；
-            //   ⛔ 只影响本帧画不画这一张物件，**不动** `GridMap` 的键 / `TileKind` / 可走性。
+            //   只影响本帧画不画这一张物件，**不动** `GridMap` 的键 / `TileKind` / 可走性。
             var skipFlatWallOverlay = ds1HasObject && IsPaletteCycledFlatWallOverlay(ds1Ground, ds1Object);
 
             var drawObject = fromDs1 ? (ds1HasObject && !skipFlatWallOverlay) : IsObjectKind(kind);
@@ -1840,7 +1795,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-H：把一格的计划**落地**（建节点），返回本格**新建的节点数**（恒等于
+        /// T0FIX-H：把一格的计划**落地**（建节点），返回本格**新建的节点数**（恒等于
         /// <see cref="CellPlan.NodeCount"/> —— 帧预算就是按它扣的）。
         /// <para>本方法**不含任何决定**（决定全在 `PlanCell`）；贴图请求（`TrySprite` 的异步侧效）
         /// 与 R1-B 计数都在这里，顺序与改前 `BuildCell` 逐字一致：地面 → 物件 → 迷雾。</para>
@@ -1885,7 +1840,7 @@ namespace Diablo2.Module.Map
         /// <summary>
         /// 洞穴实心岩体（`CaveWall` 且四周没有一格可走）不画物件层：
         /// 原版洞穴里那些区域是**全黑**的，画出来反而多余，也省下几千个 GameObject。
-        /// <para>★ T0FIX-H：改成**静态**（吃 `map` 参数）—— `PlanCell` 是纯函数，它必须能被离线复算。</para>
+        /// <para>T0FIX-H：改成**静态**（吃 `map` 参数）—— `PlanCell` 是纯函数，它必须能被离线复算。</para>
         /// </summary>
         private static bool IsHiddenSolidInterior(GridMap map, Vector2Int g, TileKind kind)
             => kind == TileKind.CaveWall && !map.HasWalkableNeighbor(g);
@@ -1956,7 +1911,6 @@ namespace Diablo2.Module.Map
                 case TileKind.CaveWall:
                 case TileKind.Exit:      // 出入口要看得见（营地出口 = 围栏缺口；野外洞穴口 = `CAVES/cavedr.dt1`）
                     return true;
-                // ★ 片 L / R12：水**显式登记为"不是物件"**（原版水面是 floor 层）。
                 //   显式写出来 = 即便将来 default 改成 true，水也不会被画成石头/崖壁的物件。
                 case TileKind.Water:
                     return false;
@@ -2011,7 +1965,6 @@ namespace Diablo2.Module.Map
         /// 水面（`TileKind.Water`）的 floor 瓦片 —— 原版 `ACT1/OUTDOORS/river.dt1` 解出的
         /// `Tiles/moor_river/*`（44 张水面瓦片，见 `PaletteCycledFlatWallTiles` 的 R1-B 取证）。
         /// <para>
-        /// ★ 片 L / R12：本表按**原版数据**取，不靠挑图 —— 键集合 = `MapGenTownLayout` 里
         /// 全部 `'r'` 格实际引用的 floor 键（去重 **41** 个，离线脚本逐格解 6 字符 packId+idx 得到）。
         /// </para>
         /// <para>
@@ -2088,7 +2041,6 @@ namespace Diablo2.Module.Map
             "cave/091", "cave/093", "cave/095", "cave/096",
         };
 
-        // ⛔ **片 4 删除**：这里原先有一张 `ExitWarpTiles = { warp/000 … warp/003 }`，注释写
         //    "城镇/野外的传送点，`BARRACKS/warp.dt1` orientation==10"。**两条都是错的**（实测）：
         //    ① 出处不对：`BARRACKS/warp.dt1` 的瓦片在**营地内部** 3 格上（参考块 `TownW1.ds1`
         //       本地 (12,18)/(14,18)/(16,25)，合并后同坐标）——**不是出城口**，也不是任何一个
@@ -2102,7 +2054,6 @@ namespace Diablo2.Module.Map
         //    ③ `D2/Tiles/` 下没有 `warp` 目录（只有 `D2/Objects/warp/`，从 `warp.dt1` 解出的
         //       81 张**纯色填充菱形**）—— 真按它取图会得到一块纯色方块。
         //    ⇒ 出入口的**真实口径**：营地出口 = 关卡自己的地面瓦片（`MapGenTownLayout` 逐格键，
-        //      片 4 起外围 17 列也是原版瓦片）；野外洞穴口 = `CAVES/cavedr.dt1`（下面这张表）。
 
         /// <summary>
         /// 洞穴口物件（`CAVES/cavedr.dt1`，出处：`LvlPrest.txt`「Act 1 - Cave Entrance」→
@@ -2114,12 +2065,12 @@ namespace Diablo2.Module.Map
         };
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ R1-B：「靠 PL2 调色板循环成动画的**平色** wall 层瓦片」白名单 + 不叠判定
+        // R1-B：「靠 PL2 调色板循环成动画的**平色** wall 层瓦片」白名单 + 不叠判定
         //   （用户原始投诉：「为什么有奇怪的蓝条图片占位」—— 罗格营地东侧河上的深蓝硬边长条）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ★ R1-B：**平色**且**靠 `PL2` 调色板循环成动画**的 wall 层瓦片白名单。
+        /// R1-B：**平色**且**靠 `PL2` 调色板循环成动画**的 wall 层瓦片白名单。
         /// <para>
         /// 取证（离线判据 `.ai-tmp/test/r1b_probe.py`，扫的是 `MapGenTownLayout` 真正引用到的
         /// **295 个**瓦片键 → 逐张 PNG 采样）：其中**唯一色数 = 1（平色）的只有一个** ——
@@ -2134,7 +2085,7 @@ namespace Diablo2.Module.Map
         /// （`data/global/tiles/ACT1/OUTDOORS/river.dt1` → pack `moor_river`）×
         /// `Tiles/moor_river/manifest.json`（同一张 dt1 的 44 张 **floor** 水瓦片自带纹理，
         /// 唯一色 11~97，不透明像素同为 6400 px ⇒ 它们本来就铺满整格）。</para>
-        /// <para>⛔ 这是**具体键的白名单**，不是「凡平色/透明就丢」的泛化规则：上述扫描证明本项目
+        /// <para>这是**具体键的白名单**，不是「凡平色/透明就丢」的泛化规则：上述扫描证明本项目
         /// 被引用到的平色瓦片只有这一个；将来出现第二个必须**重新取证并登记**，不许把判定放宽。</para>
         /// </summary>
         private static readonly string[] PaletteCycledFlatWallTiles =
@@ -2144,13 +2095,13 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 白名单的**只读视图**（离线自检宿主 `tools/probes/hosts/mapcheck` 的 `Step15` 用它钉住
-        /// "恰 1 个键且就是取证出来的那一个"）。⛔ 业务代码不要用它做判定 —— 判定走
+        /// "恰 1 个键且就是取证出来的那一个"）。业务代码不要用它做判定 —— 判定走
         /// <see cref="IsPaletteCycledFlatWallOverlay"/>。
         /// </summary>
         internal static string[] FlatWallTileWhitelist { get { return PaletteCycledFlatWallTiles; } }
 
         /// <summary>
-        /// ★ R1-B：该格的 wall 层瓦片是否应该**不叠**（河面改由**同 dt1 的 floor 水瓦片**呈现）。
+        /// R1-B：该格的 wall 层瓦片是否应该**不叠**（河面改由**同 dt1 的 floor 水瓦片**呈现）。
         /// <para>生效口径（三条**同时**成立）：</para>
         /// <para>① <paramref name="objectKey"/> 在 <see cref="PaletteCycledFlatWallTiles"/> 白名单里
         /// （= 平色 + 靠 PL2 循环）；</para>
@@ -2158,7 +2109,7 @@ namespace Diablo2.Module.Map
         /// <para>③ 两者**同一个 pack**（同一张 `.dt1`）⇒ 是"同一片水的两层"，不是"水面上压了别的东西"。</para>
         /// <para>实测效果：罗格营地河带 `x∈[47,54]` 里 `x=47` / `x=54` 两列的 **49 格**不再出现
         /// 那条硬边深蓝长条（`RebuildLayers` 会把这 49 格作为 `R1-B` 日志报一次）。</para>
-        /// <para>⛔ 只影响**渲染**：`GridMap` 的逐格键、`TileKind`、可走性一个字都不动（桥/水的
+        /// <para>只影响**渲染**：`GridMap` 的逐格键、`TileKind`、可走性一个字都不动（桥/水的
         /// 可走性仍由 `MapGenTown` 的 kind 决定，`mapcheck` 的桥/水断言不受影响）。</para>
         /// </summary>
         internal static bool IsPaletteCycledFlatWallOverlay(string groundKey, string objectKey)
@@ -2204,8 +2155,7 @@ namespace Diablo2.Module.Map
                     // 出入口本身是块地：城镇/野外的门走土路，洞穴口走洞内地面
                     set = area == AreaId.DenOfEvil ? CaveFloorTiles : DirtTiles;
                     break;
-                // ★ 片 L / R12：水**有独立的地面瓦片表**（原版 `river.dt1` 水面）。
-                //   ⛔ 不走 default（default = "未登记 ⇒ 纯色占位 + Warn"），否则水面退化成灰块。
+                //   不走 default（default = "未登记 ⇒ 纯色占位 + Warn"），否则水面退化成灰块。
                 case TileKind.Water: set = WaterTiles; break;
                 case TileKind.Rock:
                 case TileKind.Tree:
@@ -2241,11 +2191,9 @@ namespace Diablo2.Module.Map
                     set = area == AreaId.Town ? TentTiles : WallMoorTiles;
                     break;
                 case TileKind.CaveWall: set = CaveWallTiles; break;
-                // ★ 片 L / R12：水**没有物件层**（原版水面是 floor 层；`moor_river/028` 那张平色水墙
-                //   瓦片已由 R1-B 判为"不叠"）。显式分支 = 不靠 default 兜底，语义明确。
                 case TileKind.Water: return null;
                 case TileKind.Exit:
-                    // ⛔ 只有**洞穴口**有物件瓦片；营地/野外的出口原版**不画物件**
+                    // 只有**洞穴口**有物件瓦片；营地/野外的出口原版**不画物件**
                     //    （营地出口 = 围栏缺口，wall 层本来就是空的）。别再给营地出口编一张物件。
                     if (area != AreaId.DenOfEvil) return null;
                     set = ExitCaveTiles;
@@ -2257,8 +2205,6 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 同一类地形在若干张原版瓦片里**确定性地**挑一张（让地面不呆板）。
-        /// **不用 `UnityEngine.Random`**（项目禁用它，见 `_common.md` §3.5）：用格坐标做整数散列
-        /// ⇒ 同一格每次铺出来都一样，地图看起来一致又可复现。
         /// </summary>
         private static int PickVariant(Vector2Int g, int count)
         {
@@ -2282,7 +2228,6 @@ namespace Diablo2.Module.Map
                 case TileKind.CaveFloor: return new Color(0.55f, 0.50f, 0.45f);
                 case TileKind.CaveWall: return new Color(0.07f, 0.07f, 0.09f);   // 洞穴实心岩体：近黑
                 case TileKind.Exit: return new Color(0.00f, 0.85f, 1.00f);       // 出入口：亮青（显眼）
-                // ★ 片 L / R12：水面的占位色 = **深蓝**（区分于岩石的灰）。只在贴图缺失时可见；
                 //   取值照原版 R1-B 取证到的那张平色水瓦片 `Objects/moor_river/028` 的实测色
                 //   RGBA(0,32,68)（= `PaletteCycledFlatWallTiles` 注释），不是随手挑的蓝。
                 case TileKind.Water: return new Color(0f, 32f / 255f, 68f / 255f);
@@ -2372,7 +2317,7 @@ namespace Diablo2.Module.Map
         /// <summary>
         /// 一格瓦片的节点：**从池里取**（池空才新建），然后由
         /// <see cref="ApplyTileState"/> **无条件**重设全部渲染字段。
-        /// <para>★ T0FIX-A：全工程**只有这一处**建/复用瓦片节点（`new GameObject` 只出现在
+        /// <para>T0FIX-A：全工程**只有这一处**建/复用瓦片节点（`new GameObject` 只出现在
         /// <see cref="TileNodePool.Take"/> 的冷分支）⇒「新建」与「复用」不可能出现两种渲染结果。
         /// 断言见 `tools/probes/hosts/mapcheck` §17。</para>
         /// </summary>
@@ -2384,7 +2329,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// 把一格瓦片的**全部**渲染字段无条件写到节点上（★ T0FIX-A 的"池化前后逐项相等"就靠这里）：
+        /// 把一格瓦片的**全部**渲染字段无条件写到节点上（T0FIX-A 的"池化前后逐项相等"就靠这里）：
         /// <list type="number">
         ///   <item>`transform.SetParent(parent, false)` —— **追加到末尾** ⇒ 块内格序与新建时一致；</item>
         ///   <item>`sprite`；</item>
@@ -2392,10 +2337,10 @@ namespace Diablo2.Module.Map
         ///   <item>`transform.localScale`；</item>
         ///   <item>`transform.position`（世界坐标，含 x/y/z）；</item>
         ///   <item>`sortingOrder`；</item>
-        ///   <item>`enabled` —— ⛔ **池化必须复位它**：迷雾节点会被 `MarkExplored` 置
+        ///   <item>`enabled` —— **池化必须复位它**：迷雾节点会被 `MarkExplored` 置
         ///       `enabled = false`，若不复位，复用到它的一格会**静默不可见**。</item>
         /// </list>
-        /// ⛔ 本方法里**不许**出现"是不是复用节点"的分支（一个字都不许）—— 一旦有分支，
+        /// 本方法里**不许**出现"是不是复用节点"的分支（一个字都不许）—— 一旦有分支，
         /// 「逐项相等」就不再是结构性保证。
         /// </summary>
         private static void ApplyTileState(SpriteRenderer sr, Transform parent, TileRenderState st)
@@ -2411,7 +2356,7 @@ namespace Diablo2.Module.Map
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ T0FIX-A：一格瓦片的**渲染状态**（纯函数；离线可断言、与节点/池无关）
+        // T0FIX-A：一格瓦片的**渲染状态**（纯函数；离线可断言、与节点/池无关）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>地面层一格的状态（`kind` 决定占位色；有贴图则色 = 白、按 80 px/单位缩放）。</summary>
@@ -2448,11 +2393,10 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ 像素对齐 / 缩放 / 占位色的纯内核**已下沉到引擎件** `CloverEngine.TileRenderer`（2026-09-24 接线）。
         /// <para>度量口径**逐项相同**（不是"差不多"）：契约 PPU = `GameConst.PixelsPerUnit`(64)、
         /// 格图像素高 = <see cref="D2TilePixelsPerUnit"/>(80)、半格高 = `GameConst.IsoHalfH`
         /// —— 与 `Core/Iso.cs` 里那个私有 `IsoLayout` 的构造参数**同源**，故 `PlaceOfPx` 的 `dy` 逐位相同。</para>
-        /// <para>⛔ 改这里等于改画面：本文件的下述方法现在是**薄转发**，语义由引擎件注释负责。</para>
+        /// <para>改这里等于改画面：本文件的下述方法现在是**薄转发**，语义由引擎件注释负责。</para>
         /// </summary>
         private static readonly CloverEngine.TileRenderer TileKernel = new CloverEngine.TileRenderer(
             new CloverEngine.IsoLayout(GameConst.IsoHalfW, GameConst.IsoHalfH,
@@ -2497,8 +2441,7 @@ namespace Diablo2.Module.Map
             => PlaceOfPx(cellCenter, CloverEngine.TileRenderer.HeightPxOf(sprite), isFloor);
 
         /// <summary>
-        /// <see cref="PlaceOf"/> 的**纯内核**（接口只吃"图像高(px)"，⛔ 不碰 `Sprite`）
-        /// —— 离线自检宿主因此能逐格复算并断言"画面逐像素不变"（mapcheck §17）。
+        /// <see cref="PlaceOf"/> 的**纯内核**（接口只吃"图像高(px)"，不碰 `Sprite`）
         /// </summary>
         /// <param name="cellCenter">格中心的世界坐标（`Iso.GridToWorld`）。</param>
         /// <param name="spriteHeightPx">图像高（px）；0 = 占位菱形（与格同心，不做对齐修正）。</param>
@@ -2513,7 +2456,7 @@ namespace Diablo2.Module.Map
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 拆掉全部块。★ T0FIX-A：块内节点**归还池**（不再 `Destroy`），只销毁 3 个块根空节点。
+        /// 拆掉全部块。T0FIX-A：块内节点**归还池**（不再 `Destroy`），只销毁 3 个块根空节点。
         /// 归还的节点已 `SetParent(池根)` ⇒ 块根被销毁时**不会**连带销毁它们。
         /// </summary>
         private void DestroyAllChunks()
@@ -2521,7 +2464,7 @@ namespace Diablo2.Module.Map
             RecycleChildren(_groundRoot);
             RecycleChildren(_objectRoot);
             RecycleChildren(_overlayRoot);
-            // ★ T0FIX-H：**缓冲集也要清**（它可能装着"上一次重铺"的旧内容或"建到一半"的新内容）
+            // T0FIX-H：**缓冲集也要清**（它可能装着"上一次重铺"的旧内容或"建到一半"的新内容）
             RecycleChildren(_bufGroundRoot);
             RecycleChildren(_bufObjectRoot);
             RecycleChildren(_bufOverlayRoot);
@@ -2544,7 +2487,7 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// ★ T0FIX-A：把"待建队列里已经走远"的块撤掉（否则会补一块**永远看不到**的图，
+        /// T0FIX-A：把"待建队列里已经走远"的块撤掉（否则会补一块**永远看不到**的图，
         /// 白花帧预算；也不会有第二次机会被回收）。
         /// </summary>
         private void DropFarPendingChunks(int keepX0, int keepY0, int keepX1, int keepY1)
@@ -2573,7 +2516,7 @@ namespace Diablo2.Module.Map
             {
                 var c = kv.Key;
                 if (c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1) continue;
-                // ★ revive-chunk：预建窗口内落到"落点范围"的块**保住** —— 此刻相机还停在旧处，
+                // revive-chunk：预建窗口内落到"落点范围"的块**保住** —— 此刻相机还停在旧处，
                 //   按它算出来的保留带不含落点 ⇒ 不保就会"刚建好又被回收"（预建白做 + 反复建/销毁）。
                 if (InPrimeRange(c)) continue;
                 if (drop == null) drop = new List<Vector2Int>();
@@ -2600,7 +2543,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 回收一个块：块内所有瓦片节点归还池 ⇒ 再销毁块根空节点。
-        /// <para>★ T0FIX-H：**返回归还的节点数**（供 <see cref="PumpRetire"/> 按帧预算摊平；
+        /// <para>**返回归还的节点数**（供 <see cref="PumpRetire"/> 按帧预算摊平；
         /// 已销毁的块根判空返回 0 ⇒ 保底/取消路径上的悬空引用不会抛异常）。</para>
         /// </summary>
         private int RecycleChunk(Transform chunkRoot)
@@ -2626,16 +2569,15 @@ namespace Diablo2.Module.Map
         {
             if (!_showing || _map == null) return;
 
-            // ★ agent-16：本组件挂在 `MapRoot` 上，正常会随场景一起销毁 ⇒ `Update` 自然不再被调；
             //   但**层根被单独销毁 / 销毁延时一帧**的窗口里仍可能进来 ⇒ 先过一道安全闸门。
             if (_groundRoot == null && _objectRoot == null && _overlayRoot == null) return;
 
             if (_repaintRequested)
             {
-                // ★ R1-D：贴图流式到位期间**合并**重铺（旧口径 = 每来一张贴图就整图重建一次），
+                // 贴图流式到位期间**合并**重铺（不是每来一张贴图就整图重建一次），
                 //   是否到点由纯函数决定（超时兜底保证贴图一定会换上）。见 `ShouldRepaintNow`。
                 var now = Time.unscaledTime;
-                // ★ T0FIX-H：上一次重铺**还在进行/还在回收**时**不消费**这次请求（否则会把
+                // 上一次重铺**还在进行/还在回收**时**不消费**这次请求（否则会把
                 //   "建到一半的缓冲集"丢掉重来 ⇒ 白干 + 多一次销毁尖峰）；留在下一帧再判。
                 if ((_job == null && _retireChunks.Count == 0)
                     && ShouldRepaintNow(now, _repaintFirstAt, _repaintLastAt, _lastRepaintAt))
@@ -2645,11 +2587,10 @@ namespace Diablo2.Module.Map
                     _lastRepaintAt = now;
                     RebuildLayers();
                 }
-                // ⛔ 这里**不 return**（T0FIX-A 的旧口径是 return）：重铺已改成分帧，
+                // 这里**不 return**：重铺已改成分帧，
                 //   必须每帧继续泵（下面几步就是它）。新开的任务在同一帧就吃到第一份预算。
             }
 
-            // ★ chunk-hole 修复（2026-09-23）：**登记**（只入队、不建块）不再被重铺/回收挡住。
             //   旧口径把 `RefreshVisibleChunks` 放在两个 early-return 之后 ⇒ 整图重铺进行中的那几秒
             //   （实测 1~4 s：重铺每帧 ≈ 0.3 s）相机走进新区域时**没人登记新块**，`PendingChunks=0`
             //   而 `MISSING=4`，切完之后若登记范围恰好没再变 ⇒ 洞**永久**留着（血沼泽大片黑）。
@@ -2659,28 +2600,28 @@ namespace Diablo2.Module.Map
             if (_chunked && Time.unscaledTime >= _nextChunkRefresh)
             {
                 _nextChunkRefresh = Time.unscaledTime + ChunkRefreshInterval;
-                RefreshVisibleChunks();          // ★ T0FIX-A：只**登记**新进入范围的块（本帧不建）
+                RefreshVisibleChunks();          // 只**登记**新进入范围的块（本帧不建）
             }
 
-            // ★ revive-chunk：落位预建窗口收尾（到期即撤下"落点口径"，回收恢复按相机算）
+            // revive-chunk：落位预建窗口收尾（到期即撤下"落点口径"，回收恢复按相机算）
             TickPrimeLanding();
 
-            // ★ T0FIX-H：分帧重铺进行中 ⇒ 本帧只泵它（增量建块等它做完，避免两套铺装互相打架）
+            // 分帧重铺进行中 ⇒ 本帧只泵它（增量建块等它做完，避免两套铺装互相打架）
             if (_job != null)
             {
                 PumpRebuild();
                 return;
             }
 
-            // ★ T0FIX-H：旧集还没回收完 ⇒ 先按帧预算回收（它已不可见，不影响画面）
+            // 旧集还没回收完 ⇒ 先按帧预算回收（它已不可见，不影响画面）
             if (_retireChunks.Count > 0)
             {
                 PumpRetire(MaxTileNodesPerFrame);
                 return;
             }
 
-            // ★ T0FIX-A：每帧至多建 `MaxChunksPerFrame` 块 —— 单帧尖峰就此摊平。
-            //   队列空时是 0 开销（小图 `!_chunked` 从不入队 ⇒ 等价于旧口径的"无逐帧工作"）。
+            // 每帧至多建 `MaxChunksPerFrame` 块 —— 单帧尖峰就此摊平。
+            //   队列空时是 0 开销（小图 `!_chunked` 从不入队 ⇒ 没有逐帧工作）。
             PumpChunkBuild(MaxChunksPerFrame);
         }
     }

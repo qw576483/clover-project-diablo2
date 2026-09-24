@@ -81,7 +81,7 @@ namespace Uicheck
 
     public static class Program
     {
-        // ★ agent-a3：下面几项由 `private` 放宽到 `internal`，只为了新加的
+        // agent-a3：下面几项由 `private` 放宽到 `internal`，只为了新加的
         //   `LoadingCheck.cs`（进图读条画面 + 区域名弹出）能复用同一套路径与 Check()/失败计数。
         //   行为零变化。
         internal static readonly string ProjectRoot = ResolveProjectRoot();
@@ -91,7 +91,6 @@ namespace Uicheck
             Path.Combine(ProjectRoot, "client", "Assets", "Resources");
 
         /// <summary>
-        /// 原版素材/串表树（skill §1.9：下载 / 解包素材的唯一落点）。**`.gitignore` 里明确「不进 git」**
         /// （体积大 + 版权物）⇒ 干净检出 / 未下载素材的机器上它必然不存在。见 <see cref="CheckOriginalRes"/>。
         /// </summary>
         internal static readonly string OriginalResDir = Path.Combine(ProjectRoot, "原版资源");
@@ -100,7 +99,6 @@ namespace Uicheck
         /// 从宿主自己的可执行目录向上找“含 client/Assets 的那一层” = 仓库根。
         /// 宿主位于 tools/probes/hosts/&lt;名&gt;/bin/&lt;cfg&gt;/&lt;tfm&gt;/；若按调用方 cwd 定位，
         /// 从仓库根运行时会被拼成 &lt;仓库根&gt;/clover-project-diablo2/client/...（一个文件都找不到）。
-        /// 找不到就回退成原来的相对写法，保持“从仓库上一级目录运行”的老用法不变。
         /// </summary>
         private static string ResolveProjectRoot()
         {
@@ -151,7 +149,7 @@ namespace Uicheck
             CheckHoverRoundTrip();      // ★ hover-probe 片：悬停事件 D2.Input.HoverChanged 往返（消费侧）
             LoadingCheck.Run();         // ★ agent-a3：进图读条画面（原版 10 帧动画）+ 区域名弹出（LevelEntryTitle）
             P5Check.Run();              // ★ 片 5：死亡屏（EndGame）拼装+布局 / 小地图（原版 mapicon、标题已删）
-                                        //   ★ w6：automap 素材「在不在」（AUTOMAP 图块表 + AutoMap.txt 不在本机；
+                                        //   w6：automap 素材「在不在」（AUTOMAP 图块表 + AutoMap.txt 不在本机；
                                         //     在的只有横幅 5 张 + mapicons 8 帧）+ 现行画法口径（暗底 #1C1C1C /
                                         //     格心小点 #484848 / 格心小色块 #C4C4C4、超采样 4）+ 与原版的 3 条差异项
             CheckR1EDialogUi();         // ★ R1-E：对话/商店 UI 逻辑（S1~S7，引擎互斥 + 几何 + 字模宽度）
@@ -173,10 +171,9 @@ namespace Uicheck
             FontScaleCheck.Run();       // ★ 片 font-scale：全仓 `D2Label.Create` 零处漏字号 + 字号唯一出处（FontPx*）
             DialogOptionsCheck.Run();   // ★ 片 dialog-options2：对话选项可读性（空文案 / 悬停坏图盖住文案）
                                         //   + tooltip 可见性三条件（`ShouldBeVisible` 真值表 + 调用点真的接线）。
-                                        //   ⚠️ 唯一调用点就这一处：2026-09-24 该组断言曾同时在 `V6Check.Run()`
                                         //   与此处被调用 ⇒ 输出里跑两遍；现已收敛到本行。
             U52ResistCheck.Run();       // ★ 片 u52-resist：人物属性面板「四系抗性」行的折行判据（U52/D10 + U1）
-                                        //   （口径 = 生产折行 `needNative < availPx`；⛔ 不用裸 lineCount /
+                                        //   （口径 = 生产折行 `needNative < availPx`；不用裸 lineCount /
                                         //    preferredWidth —— 镜像 Text 的 font 被置 null，两者恒为 0）
             CharTopRightTextCheck.Run();// ★ 片 u52-resist：人物面板「等级/经验/技能点」三框的单行判据（P-2b）
                                         //   （复用 ⑧ 的 NeedNative / 字模表；值域出处 = Experience.tsv）
@@ -229,11 +226,10 @@ namespace Uicheck
                     Events = new[]
                     {
                         "InventoryChanged", "EquipChanged", "InventoryFull",
-                        // ⚠️ `UseBeltRequest` 已从本面板移除：原版 `InventoryPanel.prefab` **没有腰带行**
+                        // `UseBeltRequest` 已从本面板移除：原版 `InventoryPanel.prefab` **没有腰带行**
                         //    （腰带只在底部控制面板上）⇒ 1:1 轮把面板里那 4 格删了，
                         //    发 `UseBeltRequest` 的只剩 `HudPanel`（它的 spec 里仍列着这条）。
                         "EquipToggleRequest", "ItemDropRequest",
-                        // agent-13 §B-1：点装备槽卸下 / 背包内拖放（载荷口径见 Core/Events.cs 注释）
                         "UnequipRequest", "MoveInInventoryRequest",
                     },
                 },
@@ -244,7 +240,6 @@ namespace Uicheck
                 },
                 new PanelSpec
                 {
-                    // ★ R8-close（2026-09-24，用户「连关闭都没有」）改层：`Popup` → **`Normal`**。
                     //   为什么必须改：`Popup` 层会让引擎插一块**全屏模态遮罩**
                     //   （`UI.cs:155-159` → `:443-461` `ShowMask()`，`raycastTarget = true`），遮罩把
                     //   `Normal` 的 HUD 整个盖住且吃射线，而本屏**一个关闭控件都没有** ⇒
@@ -256,24 +251,22 @@ namespace Uicheck
                 },
                 new PanelSpec
                 {
-                    // ★ R8-close：同上（`Popup` → `Normal`）—— 本屏同样没有任何关闭控件，出口 = Q 键 /
+                    // R8-close：同上（`Popup` → `Normal`）—— 本屏同样没有任何关闭控件，出口 = Q 键 /
                     //   HUD「任務記錄」按钮；详细理由见 `UI/QuestLogPanel.cs` 类头注释与 `CloseExitCheck.cs`。
                     Type = typeof(QuestLogPanel), Layer = "Normal",
-                    // ★ 本轮（UI 全量对照）改口径：**接取/交付任务只走 NPC 对话**（原版就没有任务面板按钮），
+                    // 本轮（UI 全量对照）改口径：**接取/交付任务只走 NPC 对话**（原版就没有任务面板按钮），
                     //   这两个事件归 `NpcDialogPanel`（下面的 spec 里仍然核对）⇒ 本面板不再引用它们。
                     //   本面板只收 QuestChanged（刷新）+ QuestCompleted / QuestTurnInDenied（给玩家回馈）。
                     Events = new[] { "QuestChanged", "QuestCompleted", "QuestTurnInDenied" },
                 },
                 new PanelSpec
                 {
-                    // ★ R1-E 的 S1（2026-09-20）改层：`Popup` → **`Normal`**。
                     //   为什么必须改：`Popup` 是引擎的**互斥层**（`UIManager.Open` 打开任何 Popup 面板
                     //   时会把同层其它面板全部 `Close` = `Object.Destroy`）⇒ 点商店的「交易」会把对话条
                     //   销毁，模块侧 `_currentNpcId` 残留（本文件 ⑬ 有逐条锚定）。原版行为是**共存**
                     //   （商店打开、对话条仍在）⇒ 只能让对话条降到 `Normal`、商店留在 `Popup`
                     //   （遮罩挂在 Popup 层 ⇒ 遮罩之上的商店才点得动）。依据见 `UI/NpcDialogPanel.cs` 文件头 S1。
                     Type = typeof(NpcDialogPanel), Layer = "Normal",
-                    // ★ 本片改口径：面板**不再直接发** `QuestAcceptRequest` / `QuestTurnInRequest` /
                     //   `ShopOpenRequest` —— 面板只发**选项下标**（`DialogOptionChosen`），
                     //   由 `NpcModule.ChooseOption` 反解成接取/交付/开商店（**一条路径**，
                     //   不再有"面板按钮绕开模块"的第二条路径）。动作语义见 `Module/Npc/NpcModule.cs`。
@@ -288,10 +281,7 @@ namespace Uicheck
                         "ShopBuyRequest", "ShopSellRequest", "ShopRepairRequest",
                     },
                 },
-                // ★ 片 S2（2026-09-23，用户「传送点没效果」）：`WaypointPanel` 之前**不在这张表里**
-                //   ⇒ 「是 UIPanel 子类 / 覆写了 Layer / 声明的层 / 事件双向核对 / 一个文件一个
-                //   MonoBehaviour」这五类契约断言对它是**空集**（本项目最高频的缺陷形态）。
-                //   ⚠️ 它**不收**任何事件（打开参数由 `App/AppWaypoint` 直接传给 `Game.UI.Open`），
+                //   它**不收**任何事件（打开参数由 `App/AppWaypoint` 直接传给 `Game.UI.Open`），
                 //   只**发** `WaypointTravelRequest`（点列表里的一条目的地）。
                 new PanelSpec
                 {
@@ -303,15 +293,12 @@ namespace Uicheck
                     Type = typeof(DeathPanel), Layer = "Top",
                     Events = new[] { "PlayerDied", "StageLeft", "ReviveRequest", "Revived" },
                 },
-                // ★★ 本片（w3 流程屏逐控件审计 I3）：**7 个流程屏原先根本不在这张表里** ⇒
                 //   「预制体路径 / 是 UIPanel 子类 / 覆写了 Layer / 源文件存在 / 声明的层 / 事件常量双向核对 /
                 //     一个文件一个 MonoBehaviour」这**七类契约断言对流程屏全部是空集**。
-                //   这正是本项目最高频的缺陷形态（"定义了但没人查"）。
-                //   ⚠️ 其中 4 个屏（Boot / MainMenu / CharSelect / CharCreate）修前**没有显式 override Layer**
+                //   其中 4 个屏（Boot / MainMenu / CharSelect / CharCreate）修前**没有显式 override Layer**
                 //   —— 靠基类默认值（`PresentationContracts.cs:174` = Normal）走通，文件头那句「层：Normal」
-                //   只是**散文**。本片给这 4 个屏补了显式 override（值 = 基类默认值 ⇒ 行为零变化），
                 //   下面这条断言才立得起来。
-                //   ⚠️ 事件列只放**顶层字符串常量**（`typeof(Events).GetField` 查不到嵌套类 `Events.Fsm.*`）
+                //   事件列只放**顶层字符串常量**（`typeof(Events).GetField` 查不到嵌套类 `Events.Fsm.*`）
                 //   ⇒ `Fsm.TriggerNewGame` 这类触发器不在列内，由第 ⑲ 节单独断言。
                 new PanelSpec
                 {
@@ -354,7 +341,7 @@ namespace Uicheck
                 },
                 new PanelSpec
                 {
-                    // ★ 本轮新增：原版风格的二次确认弹窗（替掉引擎默认 uGUI 弹窗）。
+                    // 本轮新增：原版风格的二次确认弹窗（替掉引擎默认 uGUI 弹窗）。
                     //   它**不发也不收任何 `Events.*`**（确认/取消走构造时传入的 `Action` 回调，
                     //   动作由调用方——选角屏 / 暂停菜单——自己 `Emit`）⇒ 事件列空着是**事实**。
                     //   层 = `Top`：与引擎确认框同层（`UI.cs:93` 的整段注释解释了为什么必须是最上层）。
@@ -410,7 +397,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ①-b ★ 片 S2（2026-09-23）：传送点（用户报「传送点没效果」）
         //   判据 2/3 = **面板列表 == 已激活目的地**（= 已去过 − 当前区域；纯函数逐条断言）。
         //   判据 1/3（生成 1 个且坐标与原版表一致）在 `mapcheck Step25`；
         //   判据 3/3（点锚点 ⇒ 面板开 / 选目的地 ⇒ 区域切换）由 Play 驱动采（离线造不出 `Game.Event`）。
@@ -453,8 +439,6 @@ namespace Uicheck
                 "罗格营地 / 血腥荒野 / 邪恶洞穴 / 999→占位名");
 
             // ③ 接线守卫（**回归闸门**）：`App/AppWaypoint.cs` 写好但没人调 `Install` ⇒ 点击 / 到达 /
-            //   面板 / 选目的地四条订阅一个都不存在 —— 类在、编译过、日志干净，功能整条静默失效。
-            //   ⚠️ 这是**源码级**断言（弱于行为断言），但本片撞上的正是这个失败形态。
             var wiring = File.ReadAllText(
                 Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "App", "AppWiring.cs"));
             Check("AppWiring.Install 调了 AppWaypoint.Install（否则整条传送链路静默失效）",
@@ -462,7 +446,7 @@ namespace Uicheck
             Check("AppWiring 复位调了 AppWaypoint.ResetStaticForNewPlaySession（防第二局带上一局的已激活集）",
                 wiring.Contains("AppWaypoint.ResetStaticForNewPlaySession()"), "在 App/AppWiring.cs 内检索");
 
-            // ④ ★ ui-fix3（实机"面板底图是一整块纯白矩形"）：底图必须引用**原版窗框素材**，
+            // ④ ui-fix3（实机"面板底图是一整块纯白矩形"）：底图必须引用**原版窗框素材**，
             //    且加载在途的占位底色**不得是白色**（白色兜底就是实机那块白矩形的来源 ——
             //    `UiArt.Art` 缺省兜底 = 白，贴图异步在途的头几帧整块画白）。
             var wpSrc = File.ReadAllText(Path.Combine(UiDir, "WaypointPanel.cs"));
@@ -471,7 +455,7 @@ namespace Uicheck
             Check("WaypointPanel：加载在途占位底色 = UiArt.PanelBg（深色，⛔ 不是 UiArt.Art 的白色兜底）",
                 wpSrc.Contains("boxFrame.color = UiArt.PanelBg"), "在 UI/WaypointPanel.cs 内检索");
 
-            // ⑤ ★ ui-fix3：原版窗框素材本体在盘上且不是纯色块（IHDR 尺寸 = 432×348，d2codec 实测）。
+            // ⑤ ui-fix3：原版窗框素材本体在盘上且不是纯色块（IHDR 尺寸 = 432×348，d2codec 实测）。
             var framePng = Path.Combine(ResourceRoot, "Clover", "D2", "UI", "Panel", "boxframe_settings.png");
             Check("原版窗框 boxframe_settings.png 在盘上（Resources/Clover/D2/UI/Panel）", File.Exists(framePng), framePng);
             if (File.Exists(framePng))
@@ -481,14 +465,12 @@ namespace Uicheck
                 Check("原版窗框尺寸 = 432×348（d2codec 拼装实测；≠ 纯色占位）", w == 432 && h == 348, w + "x" + h);
             }
 
-            // ⑥ ★ ui-fix3（拖影三条）：① 图标 = 被拖物品的原版图标（同一条 `D2Icon.ItemIconPath`）；
-            //    ② 拖影保持半透明（⛔ 不是实心色块）；③ 拖拽结束拖影/高亮必然隐藏（⛔ 无残留节点）。
-            // ★ 2026-09-24（team-lead 指派，§5.2 第 34 条）：这一族原来是 `File.ReadAllText` + `Contains`
-            //   ⇒ **注释敏感** —— 文件头注释里写一句 `UiArt.SetSprite(_ghost, iconPath)` 就能把"没实现"
+            // ⑥ ui-fix3（拖影三条）：① 图标 = 被拖物品的原版图标（同一条 `D2Icon.ItemIconPath`）；
+            //    ② 拖影保持半透明（不是实心色块）；③ 拖拽结束拖影/高亮必然隐藏（无残留节点）。
             //   判成"实现了"（**假绿**）；反过来把旧写法注释掉也算"通过"。现在改走
             //   **`LayoutGameCheck.StripCsComments`（本宿主唯一剥注释实现，已升 internal）**，
             //   并按第 34 条补**三向自检**：① 真文件 ⇒ 绿 ② 已知错（删真调用 + 只在注释里留同串）⇒ 红
-            //   ③ 正例片段 ⇒ 绿。⛔ 只做②会得到"会失败但因错误的理由失败"的判据。
+            //   ③ 正例片段 ⇒ 绿。只做②会得到"会失败但因错误的理由失败"的判据。
             var invSrc = File.ReadAllText(Path.Combine(UiDir, "InventoryPanel.cs"));
             const string IconNeedle = "UiArt.SetSprite(_ghost, iconPath)";
             const string AlphaNeedle = "new Color(ghostTint.r, ghostTint.g, ghostTint.b, 0.65f)";
@@ -513,7 +495,6 @@ namespace Uicheck
             Check("InventoryPanel：OnEndDrag 隐藏拖影 + 目标格高亮（结束无残留；去注释后）",
                 dragEndHidesBoth(invSrc), "在 UI/InventoryPanel.cs OnEndDrag 内检索");
 
-            // ── 三向自检（§5.2 第 34 条：① 真文件⇒绿 ② 已知错⇒红 ③ 正例片段⇒绿）──────────
             Check("自检① 真文件 ⇒ 三条全绿（判据在真产物上成立）",
                 invSrc.Length > 0 && ghostUsesOriginalIcon(invSrc) && ghostIsTranslucent(invSrc)
                 && dragEndHidesBoth(invSrc), "真 UI/InventoryPanel.cs");
@@ -528,14 +509,13 @@ namespace Uicheck
                 && dragEndHidesBoth("a." + HideNeedle + "; b." + HiNeedle + ";"),
                 "最小正例片段");
 
-            // ⑦ ★ btn-label-fix（2026-09-23，实机「目的地按钮上的字读不出来」）：**字色可读性**离线断言。
             //   事故形态：`FlowButton` 的默认字色 = 原版 `WideButton.prefab` 的 #191919（0.098 近黑），
             //   而本屏用的原版中等按钮底图是**深板岩灰** ⇒ 字与底图都暗，13px 中文密笔画糊成一块黑。
-            //   门槛口径（两条都可复算，⛔ 不是拍的数）：
+            //   门槛口径（两条都可复算，不是拍的数）：
             //     ① 底板亮度 = `tools/probes/measure/btn_plate_luma.py` 对 `Menu/btn_med_normal.png`
             //        内区（x 22..78% / y 25..75%，alpha>200）实测的**平均 sRGB 亮度** ⇒ 落 btn_plate_luma.tsv；
             //     ② 门槛 = **WCAG 2.1 AA 正文**对比度 **4.5:1**（按钮字按原版 18px Bold 渲染，
-            //        18px < 大号文本阈值 18.66px ⇒ 取正文档，⛔ 不取宽松的 3:1）。
+            //        18px < 大号文本阈值 18.66px ⇒ 取正文档，不取宽松的 3:1）。
             //   对照实测：改动前默认字色（照抄原版 prefab 的 #191919 = 0.098）= 2.79:1 ✗；
             //             改动后 `UiArt.TitleColor`(0.95/0.87/0.60) = 4.70:1 ✓。
             var plateTsv = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.tsv");
@@ -550,7 +530,6 @@ namespace Uicheck
 
             var wpColor = WaypointPanel.DestLabelColor;
             var wpRatio = ContrastRatioSrgb(wpColor, plateLuma);
-            // 已知坏样本 = 本次缺陷的原值（照抄原版 prefab 的 #191919）—— 用它当"判据自检"的负样本
             var oldRatio = ContrastRatioSrgb(OldPrefabButtonText, plateLuma);
             Check("传送点面板每颗目的地按钮的 glyph 颜色：对按钮底图的对比度 ≥ 4.5:1（WCAG 2.1 AA 正文）",
                 plateLuma > 0.01f && wpRatio >= 4.5f,
@@ -559,7 +538,7 @@ namespace Uicheck
             Check("传送点按钮字色 = 既有配色常量 UiArt.TitleColor（⛔ 不新造颜色）",
                 wpColor == UiArt.TitleColor, Describe(wpColor));
 
-            // 源码点计数（⚠️ 不是运行期颗数）：目的地那一处在 for 循环里**只写一次**（覆盖
+            // 源码点计数（不是运行期颗数）：目的地那一处在 for 循环里**只写一次**（覆盖
             // `MaxDests` 颗），加关闭钮一处 ⇒ 源码里应当**恰好 2 处** `FlowButton.Create(`，
             // 且**每一处**都把 `DestLabelColor` 作为实参传进去（少传 = 那颗按钮又变回近黑）。
             var flowCreateN = System.Text.RegularExpressions.Regex.Matches(wpSrc, @"FlowButton\.Create\(").Count;
@@ -569,7 +548,7 @@ namespace Uicheck
                 flowCreateN >= 2 && flowColorN == flowCreateN,
                 $"{flowColorN}/{flowCreateN} 处带 DestLabelColor");
 
-            // ⑧ ★ btn-label-fix：字模 uvRect 面积 == 图集单格面积（防「uv 取到空白/邻格 ⇒ 看着像黑块」）。
+            // ⑧ btn-label-fix：字模 uvRect 面积 == 图集单格面积（防「uv 取到空白/邻格 ⇒ 看着像黑块」）。
             //   判据全是磁盘事实：`font16_chi_map.txt` 表头 COLS/CELL + 图集 PNG 的 IHDR（无图像库解密）。
             var chiMap = Path.Combine(ResourceRoot, "Clover", "D2", "Fonts", "font16_chi_map.txt");
             var chiAtlas = Path.Combine(ResourceRoot, "Clover", "D2", "Fonts", "font16_chi.png");
@@ -608,9 +587,7 @@ namespace Uicheck
                 cellW > 0 && cols > 0 && maxCol >= 0 && maxCol < cols && (maxRow + 1) * cellH <= ah,
                 $"maxCol={maxCol} < cols={cols}；maxRow={maxRow} ⇒ 末行底边 {(maxRow + 1) * cellH} ≤ {ah}；表 COUNT={glyphN}");
 
-            // ①-c ★ 片 u32-close（2026-09-24）：上面 ①-b 只判了"列表纯函数 + 接线文本 + 素材在盘"，
             //   **链路中段**（列表回灌/新局复位、点锚点 ⇒ 开面板、选目的地 ⇒ 切区的 4 拒 1 放）
-            //   此前没有任何离线判据 ⇒ 转到独立文件（避免与并发改本文件的人冲突）。
             WaypointFlowCheck.Run();
 
             Console.WriteLine();
@@ -639,8 +616,7 @@ namespace Uicheck
         }
 
         /// <summary>
-        /// 本次缺陷的原值 = 照抄原版 `WideButton.prefab` 的 `Text.m_Color`（#191919 = 0.098）。
-        /// <para>⚠️ **它不是任何地方的"当前口径"** —— 只作为「判据自检」的**负样本**存在
+        /// <para>**它不是任何地方的"当前口径"** —— 只作为「判据自检」的**负样本**存在
         /// （SKILL §8.3：改判据必须证明它"对已知坏样本会红"）。⛔ 不要把它拿去当按钮字色。</para>
         /// </summary>
         private static readonly Color OldPrefabButtonText
@@ -700,7 +676,6 @@ namespace Uicheck
                 for (var i = 0; i < lines.Length; i++)
                 {
                     var line = lines[i];
-                    // 锚定版（`_common.md` §4 提醒：非锚定会命中注释里的禁令）
                     if (System.Text.RegularExpressions.Regex.IsMatch(line, @"^\s*using\s+Diablo2\.Module"))
                         moduleHits.Add(Path.GetFileName(f) + ":" + (i + 1));
                     if (line.Contains("GameObject.Find") || line.Contains("FindObjectOfType") || line.Contains("FindObjectsOfType"))
@@ -721,13 +696,10 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ②-c ★ agent-34（引擎下沉 A3）：**项目侧不许再直连 Unity 的 `Resources.Load*`**
         //
         // 为什么做成脚本：验收表 **E1** 登记的唯一例外就是「为绕开 `Game.Res` 而直连 `Resources.Load*`」，
-        //   根因是引擎缺两个能力（① 条带子 sprite 按名取不到、只有整条取才拿得到；② 需要**同步**回答
         //   "这条原版图到底在不在"）。引擎补齐 `IResourceManager.Exists` / `LoadAll<T>` 后项目侧已全部
         //   切走 ⇒ 这条从"例外"升级为**硬判据（0 命中）**：下次谁图省事直连回去，资源根前缀 / 缓存 /
-        //   卸载策略 / 热更后端就会静默失效（而画面往往看起来还正常）。
         // 与 `tools/verify.ps1` 的 `hard-rules:Resources.Load` 同口径，但那个只给汇总行；
         //   这里按**文件:行**逐条点名（改错时能直接定位），并顺带断言接口真有这两个能力。
         // ═════════════════════════════════════════════════════════════════════
@@ -768,14 +740,12 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ②-b ★ 片 8：**原版没有方向键移动**（全局 skill §0「A 没有 ⇒ 不加」）
         //
-        // 为什么做成脚本而不是"写在 skill 里"（§0.6：提示词是请求，闸门才是保证）：
         //   这一族东西横跨 6 个文件（键位别名 / 输入读取器 / Player 开关 / 配置字段 /
         //   `Game.Setting` 键 / 选项面板行），任何一处漏删都会"看着已经删了"。
         //   判据 = **全仓源码 0 命中**（注释里也不留），并且**不许删过头**：
         //   `KeySwapWeapon`（原版 W = 切换武器组）必须仍在。
-        // ⚠️ 判据字符串只在**本宿主**里出现（`.ai-tmp/` 不进交付）⇒ 不影响"源码 0 命中"。
+        // 判据字符串只在**本宿主**里出现（`.ai-tmp/` 不进交付）⇒ 不影响"源码 0 命中"。
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckNoDirectionKeyMove()
         {
@@ -792,9 +762,8 @@ namespace Uicheck
                 var lines = File.ReadAllLines(f);
                 for (var i = 0; i < lines.Length; i++)
                 {
-                    // ⚠️ 跳过注释行（skill 模板硬坑 3：「`Select-String` 会给注释行也报命中」）：
+                    // 跳过注释行（skill 模板硬坑 3：「`Select-String` 会给注释行也报命中」）：
                     //   说明性注释会**引用**被禁的名字 —— 例 `PlayerMotor.cs` 写着
-                    //   「这里**没有** `StepTowards`：已按 §0 删除」⇒ 扫进去就是**假阳性**，
                     //   而会误报的检查比没有检查更糟（模板第 11 条的教训）。
                     var t = lines[i].TrimStart();
                     if (t.StartsWith("//") || t.StartsWith("*") || t.StartsWith("/*")) continue;
@@ -829,7 +798,6 @@ namespace Uicheck
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckInventoryGrid()
         {
-            // ③ 的逐条断言已收进 `LayoutGameCheck.CheckInventory()`（agent-09 §B：×1.8 口径）。
             Console.WriteLine();
         }
 
@@ -896,7 +864,6 @@ namespace Uicheck
                 $"UiBar.Set×{CountOf(hud, "UiBar.Set(")}（BuildOrb 共用一处 + 经验条一处），"
                 + $"裸 fillAmount×{CountOf(hud, "fillAmount")}");
 
-            // ★ 片 d2-bar（2026-09-24）：条状控件收敛 —— 横向锚点数学**只有引擎一份实现**
             //   （`UIWidgetControls.cs` 的 `UIFactory.SetBarWidth`）；项目侧 `UiBar` 委托它、
             //   `UiArt.SetBarRatio` 已整条删除。断言从"两处各有一套"改成"项目侧不再有那一套"。
             var bar = File.ReadAllText(Path.Combine(UiDir, "UiBar.cs"));
@@ -968,7 +935,7 @@ namespace Uicheck
                 Hex(colors[ItemQuality.Normal]));
 
             // 未知品质的分支必须留下日志。
-            // ⚠️ 这里**不能真调** `Of((ItemQuality)99)`：它会走 `Log.WarnOnce` → `Log.ShouldLog`
+            // 这里**不能真调** `Of((ItemQuality)99)`：它会走 `Log.WarnOnce` → `Log.ShouldLog`
             //    → `Time.realtimeSinceStartup`（Unity 原生 API），离线宿主调用会抛
             //    SecurityException（与 `tools/flowcheck` 注释里那条同一个原因）。
             //    故改为核对源码里的降级分支（`UiLog.Require` 的 Warn 那条已真跑，证明日志链可用）。
@@ -1031,9 +998,6 @@ namespace Uicheck
                 && D2Text.CellWidth(D2Text.D2Font.Font42) == 41 && D2Text.CellHeight(D2Text.D2Font.Font42) == 43,
                 "见 D2Text.CellWidth/CellHeight");
 
-            // ★ agent-15 §A 修复回归：位图字模兜底必须用**图集文件名**做前缀。
-            //   实测（Play 2026-09-17，`client/_dev/p_font.cs`）：`LoadAll<Sprite>("Clover/D2/Fonts/font42")`
-            //   = 256 个子 sprite，名字是 `font42_0..font42_255`（**不含路径**）；旧写法
             //   `AtlasPath(font) + "_"` = `"D2/Fonts/font42_"` ⇒ taken==0 ⇒ 整体降级为默认字体。
             var d2TextSrc = File.ReadAllText(Path.Combine(UiDir, "D2Text.cs"));
             Check("位图字模兜底的前缀 = 图集**文件名**（子 sprite 名 `font42_67` 不含 `D2/Fonts/`）",
@@ -1104,7 +1068,6 @@ namespace Uicheck
             var done = new QuestStateDto { state = QuestState.Done, progress = 6, required = 6, rewardClaimed = true };
             Check("已完成 ⇒ Remaining 不出现负数", QuestLogPanel.Remaining(done) == 0, "0");
 
-            // ★ 本片改口径：正文**不再有自写的"状态：X"行**，改成原版串表的任务条目行
             //   （未接取 = `noactivequest` 3723；进行中 = 任务名 + 目标 + 进度行；…见 UI对照.md §②）
             Check("正文 = 原版串：未接取 / 进行中（含进度行）/ 可交付 / 已完成 四态逐字正确",
                 QuestLogPanel.TextOf(null) == QuestLogPanel.TextNoActiveQuest
@@ -1149,7 +1112,7 @@ namespace Uicheck
                 && Math.Abs(UiLayoutGame.QuestTabY - (216f - 15f) * K) < 0.01f,
                 $"x={UiLayoutGame.QuestTabX(0)},{UiLayoutGame.QuestTabX(3)} y={UiLayoutGame.QuestTabY}");
 
-            // ★ 2026「任务框」轮：石纹区实测净高 = 200（满宽金线 y=28/230）⇒ 2×95 上下各余 5
+            // 2026「任务框」轮：石纹区实测净高 = 200（满宽金线 y=28/230）⇒ 2×95 上下各余 5
             //   ⇒ 行心 82.5 / 177.5（旧断言按"y28..230 + 各留 6"取 81.5/176.5，差 1px，已按实测改准）。
             Check("任务格 = 原版 3×2 个 80×95（240×190 嵌进石纹区实测净高 200）",
                 UiLayoutGame.QuestSlotCount == 6
@@ -1162,9 +1125,7 @@ namespace Uicheck
                 $"colX={UiLayoutGame.QuestSlotX(0)}/{UiLayoutGame.QuestSlotX(2)} " +
                 $"rowY={UiLayoutGame.QuestSlotY(0)}/{UiLayoutGame.QuestSlotY(1)}");
 
-            // ★ 本片改口径：石龛里画的是**原版任务图**（`a{章}q{序号}.dc6` / `questdone.dc6`，72×86），
             //   石龛 80×95 ⇒ (80−72)/2=4、(95−86)/2=4.5 ⇒ **居中**（偏移 0）。
-            //   ⛔ 旧的 `questicon`（50×52 徽记板 + (−2,+11) 偏移）已不再使用（见 UI对照.md §⑥）。
             Check("任务图 72×86 在石龛 80×95 里居中（偏移 0）",
                 Math.Abs(UiLayoutGame.QuestArtSize.x - 72f * K) < 0.01f
                 && Math.Abs(UiLayoutGame.QuestArtSize.y - 86f * K) < 0.01f
@@ -1172,7 +1133,6 @@ namespace Uicheck
                 && Math.Abs(UiLayoutGame.QuestArtPos.y) < 0.01f,
                 $"artSize={UiLayoutGame.QuestArtSize} artPos={UiLayoutGame.QuestArtPos}");
 
-            // ★ 本片改口径：正文 = **一个文本框**（不再是 5 个手填魔数行）⇒ 断言"框在黑芯内 + 行距口径"。
             {
                 var boxH = UiLayoutGame.QuestTextBoxSize.y;
                 var top = UiLayoutGame.QuestTextTopY;
@@ -1225,9 +1185,8 @@ namespace Uicheck
                 bannerBottom >= tabTop - 0.01f && bannerBottom >= UiLayoutGame.QuestPanelSize.y * 0.5f - 0.01f,
                 $"bannerBottom={bannerBottom} tabTop={tabTop} panelTop={UiLayoutGame.QuestPanelSize.y * 0.5f}");
 
-            // ★ 本片新增：NPC 对话面板 = **原版石框实测分区**（台词槽/下带），菜单项落在下带内
             {
-                // ★ U3 改口径（**不是放宽**）：底图按 `DialogArtScale`(=2) 画 —— 判据改成
+                // U3 改口径（**不是放宽**）：底图按 `DialogArtScale`(=2) 画 —— 判据改成
                 //   「整幅尺寸 == 210×158 × DialogArtScale × K」+「内容行宽 == (205−2×6) × DialogArtScale × K」，
                 //   石框下沿钉在 HUD 控制面板上沿（−252）。依据/推导见 `NpcDialogPanel.DialogArtScale`。
                 var sc = NpcDialogPanel.DialogArtScale;
@@ -1281,7 +1240,6 @@ namespace Uicheck
                 && QuestLogPanel.SlotOf(0) == -1,
                 $"DenOfEvil→{QuestLogPanel.SlotOf((int)QuestId.DenOfEvil)} 7→{QuestLogPanel.SlotOf(7)}");
 
-            // ★ 本片改口径：四态 → **原版任务图**（`a1q1` / `questdone` / 不画）+ 石龛金框（可交付）
             Check("四态 → 原版任务图：未接取=不画 / 进行中=a1q1 / 可交付=a1q1+金框 / 已完成=questdone",
                 QuestLogPanel.SlotArtPathOf(1, QuestState.NotStarted) == null
                 && QuestLogPanel.SlotArtPathOf(1, QuestState.InProgress) == ResPaths.QuestImage("a1q1", 0)
@@ -1309,10 +1267,7 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑧-2 任务日志 / NPC 对话的**画面文案 ↔ 原版串表（TBL）逐条对账**（本片新增）
         //
-        // 判据来源（任务书）：「面板里出现的每一句中文都能指出 TBL 串 id（给 id 清单）；
-        //   ⛔ 自写文案 0 条」。⇒ 把它做成脚本判定（§1.12：判定权交给脚本，不靠自觉）：
         //   ① **正向**：代码里逐句声明"这句是串 id N" ⇒ 去串表按 N 取原文，逐字（忽略空白/换行）比对；
         //   ② **反向**：两个面板 `.cs` 里**所有含中日韩字符的字符串字面量**都必须能在串表里找到
         //      —— 唯一豁免 = 控制台日志（行内含 `UiLog.` / `Log.`）与引擎 Toast（行内含 `Toast(`），
@@ -1418,7 +1373,7 @@ namespace Uicheck
                 var path = Path.Combine(UiDir, panel);
                 if (!File.Exists(path)) continue;
 
-                // ⚠️ 必须**按语句**分组扫描（不能按行）：日志/Toast 的中文经常跨行拼接
+                // 必须**按语句**分组扫描（不能按行）：日志/Toast 的中文经常跨行拼接
                 //    （`UiLog.Warn(...` + 下一行的 `+ $"…"`），按行会把续行误判成"画面文案"。
                 var buf = new StringBuilder();
                 foreach (var raw in File.ReadAllLines(path, Encoding.UTF8))
@@ -1478,8 +1433,6 @@ namespace Uicheck
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckHudOriginalLayout()
         {
-            // ⑨ 的逐条断言已收进 `LayoutGameCheck`（agent-09 §B：HUD / 背包 / 属性 / 技能 / 顶栏，
-            //    全部按「原版 prefab 精确 RectTransform × 1.8」判）。
             LayoutGameCheck.Run();
             _fail += LayoutGameCheck.Failures;
             Console.WriteLine();
@@ -1502,8 +1455,7 @@ namespace Uicheck
                 ResPaths.PanelInventory,
                 ResPaths.PanelCharStat,
                 ResPaths.D2UiPanel + "minipanel",
-                // ★ w3 审计：帧名改走 `UiArt` 的唯一来源（= DC6 直出那一套，索引 0 = 透明）。
-                //   旧值 `menubutton__0__0` / `runbutton_{run,walk}_NotPressed` 是 Diablerie 副本，
+                // w3 审计：帧名改走 `UiArt` 的唯一来源（= DC6 直出那一套，索引 0 = 透明）。
                 //   同画面但把原版透明像素写成不透明黑（判据见 §㉑ 与 `scan_uigame.py --pairs`）。
                 UiArt.ArrowFrame(0),
                 UiArt.RunButtonRunFrame,
@@ -1540,7 +1492,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑪ agent-13 §B：UI 侧事件补发 + 小地图数据
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckPanelWiring()
         {
@@ -1557,7 +1508,6 @@ namespace Uicheck
             Game.Event.On<int>(Events.UnequipRequest, v => { unequipCount++; unequipPayload = v; });
             Game.Event.On<int>(Events.MoveInInventoryRequest, v => { moveCount++; movePayload = v; });
             Game.Event.On<int>(Events.ItemDropRequest, v => { dropCount++; dropPayload = v; });
-            // 本片起**对话面板不再直接发** ShopOpenRequest（见下面 ④ 的源码层断言）
             Game.Event.On<int>(Events.ShopOpenRequest, _ => { });
             Game.Event.On<string>(Events.PanelToggleRequest, _ => strayCount++);   // 不该在这四条路径里出现
 
@@ -1593,7 +1543,6 @@ namespace Uicheck
             Check("拖到面板外 ⇒ ItemDropRequest 恰好 1 次，载荷 = 锚点 7",
                 dropCount == 1 && dropPayload == 7, $"payload={dropPayload}");
 
-            // ④ 本片改口径（**删除项的两层证据之一：源码层**）：对话面板**不再直接发**商店/任务请求，
             //    只发选项下标（`DialogOptionChosen`），动作由 `NpcModule.ChooseOption` 反解。
             //    ⇒ 这里断言的正是"那三条 Emit 已从面板消失"（另一层证据 = 上面 PanelSpec 的事件表）。
             {
@@ -1637,7 +1586,6 @@ namespace Uicheck
             Check("落点锚点换算：越界 / 空数据 = -1",
                 InventoryPanel.DropAnchorOf(inv, 999) == -1 && InventoryPanel.DropAnchorOf(null, 0) == -1, "-1");
 
-            // ⑥ 小地图参数：HUD 缓存 → 打开时传给 MiniMapPanel（agent-13 §B-3）
             var map = new MinimapArgs { areaId = (int)AreaId.Town, width = 32, height = 32, seed = 20260311 };
             Check("HUD 对 MiniMapPanel 的打开参数 = 缓存的 MinimapArgs（非 null）",
                 ReferenceEquals(HudPanel.PanelParam(nameof(MiniMapPanel), null, null, null, null, map), map),
@@ -1669,9 +1617,7 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑫ agent-14 §C：菜单/创角屏的「原版亮度 + 原版底图」保真断言
         //    为什么这些可以离线断言：
-        //      · 「背景太暗」的根因是 **Image.color 是颜色乘数**（贴图到位后仍乘着深色占位底），
         //        这条是**纯数据**（色调常量 + 源码顺序），不需要 GameObject 就能钉死；
         //      · 「不受 2D 光照」的判据是**shader 名判定**（纯函数 `UiArt.IsLitShader`）；
         //      · 「按钮用原版帧」的判据是**帧名/帧数/条带导入模式**——可直接对磁盘上的
@@ -1679,7 +1625,7 @@ namespace Uicheck
         //    仍然不能离线验证的：贴图像素在屏幕上的实际观感 ⇒ 由主 agent 进 Play 截图（本文件末尾已声明）。
         // ═════════════════════════════════════════════════════════════════════
         // ═════════════════════════════════════════════════════════════════════
-        // 悬停事件 `D2.Input.HoverChanged` **往返**（★ hover-probe 片，消费侧）
+        // 悬停事件 `D2.Input.HoverChanged` **往返**（hover-probe 片，消费侧）
         //
         //   为什么补它：状态矩阵 L3801/L3802 判「有订阅者（被消费）」，旧证据只引
         //   `Core/Events.cs`（事件的**声明处本身**）⇒ 只证得出"事件名存在"，证不出"真有人收到"
@@ -1689,7 +1635,7 @@ namespace Uicheck
         //   ④ 真实消费点 `UI/EntityTooltip.OnHoverChanged(Diablo2.Def.HoverTarget)` 存在
         //      —— 反射查**编译产物**（不是 grep 文本）⇒ 改签名 / 删订阅必红。
         //
-        //   ⚠️ 载荷类型必须写全限定名 `Diablo2.Def.HoverTarget`：本宿主 `using Diablo2.UI;`，
+        //   载荷类型必须写全限定名 `Diablo2.Def.HoverTarget`：本宿主 `using Diablo2.UI;`，
         //      而 `UI/HoverTarget.cs` 里另有一个同名 MonoBehaviour ⇒ 裸写 `HoverTarget` 是 CS0104。
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckHoverRoundTrip()
@@ -1723,7 +1669,6 @@ namespace Uicheck
             Check("★ 退化：摘掉订阅方（Off）⇒ 同一条派发不再进回调（断言不是摆设）",
                 received == afterOff, $"回调 {afterOff} → {received}");
 
-            // ★ 片 u44（悬停选择表现）：消费点从 `UI/EntityTooltip`（头顶 tooltip，已按契约 C4 删除）
             //   换成 `UI/EnemyBarView`（屏幕顶部怪名血条 + NPC 名字牌，契约 C3/C5）。
             //   反射查**编译产物** ⇒ 改签名 / 删订阅必红（这一条比 grep 文本强）。
             var mi = typeof(EnemyBarView).GetMethod("OnHoverChanged",
@@ -1812,14 +1757,12 @@ namespace Uicheck
                 ("MainMenuPanel.cs", "ResPaths.MenuMainScreen", "主菜单 main_screen"),
                 ("CharCreatePanel.cs", "ResPaths.MenuClassSelectScreen", "创角屏 class_select_screen"),
                 ("CharSelectPanel.cs", "ResPaths.MenuClassSelectScreen", "选角屏 class_select_screen"),
-                // ★ agent-a3：`LoadingPanel.cs` 从这条里**移出** —— 读条屏不再是"整屏贴图背景"，
+                // agent-a3：`LoadingPanel.cs` 从这条里**移出** —— 读条屏不再是"整屏贴图背景"，
                 //   改成原版进图画面「黑底 + 居中 10 帧读条图」（见 `LoadingCheck.CheckLoadingScreen`）。
-                //   原来用的 `load_screen`（EXPANSION SET 标题画）是**前端标题画**，不是进图读条图。
             };
             foreach (var (file, pathConst, note) in backdrops)
             {
                 var src = File.ReadAllText(Path.Combine(UiDir, file));
-                // agent-15 §A / 2026 主 agent 裁决：整屏贴图改由 `UiLayoutFlow.BackdropArt` 建
                 // （原版 800×600 → **按高度 ×1.8 = 1440×1080、水平居中** + 左右留白纯色底；
                 //  不再用"铺满"的 FullPanel：那会因为 800×600 与 1920×1080 纵横比不同而**拉长素材**）。
                 // 两条路径都不改色（`UiArt.SetSprite` 到位后一律套原版亮度白）⇒ 断言接受二者之一。
@@ -1908,12 +1851,9 @@ namespace Uicheck
                 && Body(uiArt, "public static Image Button(").Contains("ApplyButtonFrame("),
                 "见 UiArt.Button");
 
-            // ★ Play 实测（2026-09-17，`client/_dev/p_frames.cs`）：本工程这套导入设置下，
             //   子 sprite **按名加载失效**（`LoadAsset<Sprite>("…/button_wide_0") == null`），
             //   只有整条取（`Game.Res.LoadAll<Sprite>(条带)`）才能拿到 3 帧。离线这里钉死"兜底必须存在"，
             //   否则下次有人删掉兜底就会静默退回纯色块（Play 里才看得出来）。
-            //   ⚠️ 片 34 起这条兜底走**引擎资源模块**（不再是 Unity 的 `Resources.LoadAll` ——
-            //      那条路是验收表 E1 的例外，已收口；见 ②-c 的 0 命中判据）。
             var bulk = Body(uiArt, "private static bool TryBulkLoad(");
             Check("取帧有「整条 LoadAll」兜底（本工程逐帧按名加载实测取不到）+ 按 `{条带名}_{帧号}` 装帧",
                 bulk.Contains("Game.Res.LoadAll<Sprite>(")
@@ -1922,8 +1862,6 @@ namespace Uicheck
                 && Body(uiArt, "private static void CompleteFrames(").Contains("TryBulkLoad(set)"),
                 "见 UiArt.TryBulkLoad / CompleteFrames（同 UI/D2Text.cs 的字模兜底）");
 
-            // ★ 片 8（B33）新增不变量：**先跑能取到图的那条路**。
-            //   根因：原先 `RequestFrames` 无条件先逐帧 `Game.Res.LoadAsset<Sprite>(…)`，
             //   而那条路在本工程必然失败、引擎对每次失败都 `Log.Error("[Resource] 加载失败：…")`
             //   ⇒ 每建一次 HUD（= 每次进 Stage）白刷 2 条 Error（实测 `D2/UI/Panel/overlap_{0,1}`）。
             //   判据 = 在 `RequestFrames` 体内 `TryBulkLoad(set)` 的**位置必须早于** `Game.Res.LoadAsset<Sprite>(`。
@@ -1940,9 +1878,6 @@ namespace Uicheck
                 && Body(uiArt, "private static void CompleteFrames(").Contains("set.Ready = true;"),
                 "见 UiArt.RequestFrames / CompleteFrames（⛔ 不是把 Error 降级，是别预先跑已知取不到的路径）");
 
-            // 异步竞态：面板在贴图回来之后才表达"选中"时不能被覆盖（**片 4 起：创角屏 5 个职业半身像**）
-            // （agent-15 §A 曾用"底图色调"表达选中；片 4 换成**原版三态** NU1/NU2/NU3 换图 ⇒
-            //   异步竞态的防法也变了：**进屏预热 15 张**（命中引擎缓存 ⇒ 换图同步生效），断言改成这一条。）
             var createSrc = File.ReadAllText(Path.Combine(UiDir, "CharCreatePanel.cs"));
             Check("创角屏半身像三态：进屏预热 5 槽 × 3 态 ⇒ 换图走缓存同步生效（不会因异步乱序停在错态）",
                 createSrc.Contains("PreloadPortraits()")
@@ -1958,7 +1893,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑬ ★ agent-15 §A：**流程面板 1:1 复刻**的布局口径
         //
         // 为什么这些能离线断言：
         //   · 依据是**原版 prefab 的真实 RectTransform**（`Prefabs/Menu/MainMenu.prefab` /
@@ -1973,9 +1907,9 @@ namespace Uicheck
         {
             Console.WriteLine("── ⑬ §A：流程面板 1:1（原版 800×600 → 1920×1080，逐元素 ×1.8 水平居中）──");
 
-            // ★ 2026 主 agent 裁决（取代旧的宽度比 ×2.4）：原版是 **4:3（800×600）**，画布是 **16:9（1920×1080）**
+            // 2026 主 agent 裁决（取代旧的宽度比 ×2.4）：原版是 **4:3（800×600）**，画布是 **16:9（1920×1080）**
             //   ⇒ **缩放系数 = 1080/600 = 1.8（按高度等比）**，水平居中，左右多出的空间交给相机/背景。
-            //   ⛔ 旧口径 ×2.4（= 1920/800，宽度比）会让 600×2.4 = 1440 > 1080 ⇒ 纵向必然溢出
+            //   旧口径 ×2.4（= 1920/800，宽度比）会让 600×2.4 = 1440 > 1080 ⇒ 纵向必然溢出
             //   （实测代价：HUD 控制面板底边出屏 51px、选角屏标题与底部按钮被顶出画布）。
             Check("缩放口径 = 1080/600 = **1.8**（按高度等比；原版 |y| ≤ 300 ⇒ 全部落在 ±540 内）",
                 Math.Abs(UiLayoutFlow.Scale - 1.8f) < 1e-6f
@@ -2015,7 +1949,7 @@ namespace Uicheck
             //   `MainMenu.prefab` 的 `Buttons` 容器 anchor(0.5,0.5) pos(0,-100) size(272,200) 且
             //   `VerticalLayoutGroup.m_ChildAlignment: 1`(UpperCenter)、`m_Spacing: 10`、
             //   `m_ChildControlHeight: 0` ⇒ 首行中心 = 容器顶边 0 − 35/2 = −17.5，行节奏 35+10 = 45。
-            // ⚠️ 浮点：`272f*1.8f` 的结果与字面量 `489.6f` 不完全相等 ⇒ 用带容差的 `Near2` 比。）
+            // 浮点：`272f*1.8f` 的结果与字面量 `489.6f` 不完全相等 ⇒ 用带容差的 `Near2` 比。）
             Check("主菜单/暂停按钮 = WideButton.prefab 272×35 → ×1.8 = 489.6×63",
                 Near2(UiLayoutFlow.WideButtonOrig, new Vector2(272f, 35f))
                 && Near2(UiLayoutFlow.WideButton, new Vector2(489.6f, 63f)),
@@ -2026,8 +1960,6 @@ namespace Uicheck
                 && Near2(UiLayoutFlow.MediumButton, new Vector2(230.4f, 63f)),
                 $"{UiLayoutFlow.MediumButtonOrig} → {UiLayoutFlow.MediumButton}");
 
-            // ★ 片 4b 修：片 4 把 `Menu.SettingsPos` 改名成了 `CinematicsPos`（那一槽本来
-            //   就是原版的 `CINEMATICS`），但本宿主没跟着改 ⇒ 引用不存在的成员、uicheck 编译不过。
             Check("主菜单 4 个原版槽位中心 = 原版 -17.5/-62.5/-107.5/-152.5 → -31.5/-112.5/-193.5/-274.5",
                 Near2(UiLayoutFlow.Menu.SinglePos, new Vector2(0f, -31.5f))
                 && Near2(UiLayoutFlow.Menu.MultiPos, new Vector2(0f, -112.5f))
@@ -2051,13 +1983,10 @@ namespace Uicheck
 
             // ── 文字：英文/数字走原版位图字体，中文回退默认字体 ──
             var flowSrc = File.ReadAllText(Path.Combine(UiDir, "UiLayoutFlow.cs"));
-            // ★ 片 4b 修：下面 1214 行那组断言引用了 `createSrc`，但它只在前一个方法
             //   （`CheckFlowClass` 附近的 1075 行）里声明过 ⇒ **本宿主整体编译不过**（CS0103），
             //   即 `run_all_hosts.ps1` 的 uicheck 一直 FAIL。这里补上同口径的声明。
             var createSrc = File.ReadAllText(Path.Combine(UiDir, "CharCreatePanel.cs"));
-            // ★ 片 4b 修：这条断言里有**两句恒不成立的字面量**，把它钉死成 FAIL：
             //   ① `flowSrc.Contains("UiArt.Label(")` —— `UiLayoutFlow.cs` 里 `UiArt.Label(` 出现 **0 次**
-            //      （那是片 3 之前的载体；片 3 起流程面板文字一律走 `D2Label.Create`）；
             //   ② `flowSrc.Contains("D2Text.IsLatinOnly(")` —— 出现 **0 次**（中英分派在 `D2Text.cs` 的
             //      `D2Label.Render` 里，不在本文件）。
             //   ⇒ 换成当前**真实存在**的四个字面量（都已在源码里核对过次数）。
@@ -2067,14 +1996,11 @@ namespace Uicheck
                 && flowSrc.Contains("ChineseFontSize"),
                 "见 UiLayoutFlow.FlowLabel.Render");
 
-            // ★ 片 4b 改口径：整体缩放从「恒定 ×1.8」改成「屏换算 ×1.8 × 文字级缩放」（按钮 = 原版字号 18/16），
-            //   所以这行断言跟着改成新表达式 + 顺带断言换算系数本身（`ButtonFontScale`）。
             Check("位图字模按**原版 px** 排版后整体 ×1.8（与整屏原版贴图的放大倍率一致），按钮再乘原版字号换算",
                 flowSrc.Contains("var s = Scale * _fontScale;")
                 && flowSrc.Contains("_bitmap.Root.localScale = new Vector3(s, s, 1f)"),
                 "见 UiLayoutFlow.FlowLabel.Render");
 
-            // ★ 片 4b 新增断言：按钮字号换算 = 原版字号 18 ÷ 位图档 font16 名义字号 16（口径与出处见常量注释）。
             Check("按钮字号换算 ButtonFontScale = 原版 18 / font16 名义 16 = 1.125（原版 WideButton/MediumButton 的 m_FontSize:18）",
                 Math.Abs(UiLayoutFlow.ButtonFontScale - 1.125f) < 1e-6f
                 && flowSrc.Contains("ButtonFontScale = 18f / 16f"),
@@ -2093,15 +2019,13 @@ namespace Uicheck
                 && flowSrc.Contains("builtin.gameObject.SetActive(false)"),
                 "见 UiLayoutFlow.FlowButton.Create");
 
-            // ── 按钮字色：**判过程**（⛔ 不再判"常量有没有被动过"）───────────────────────────
-            // ★ btn-label-fix（2026-09-23，主 agent 裁决 ①）：
+            // ── 按钮字色：**判过程**（不再判"常量有没有被动过"）───────────────────────────
             //   旧断言 = 「`UiLayoutFlow.ButtonText` 字面等于原版 prefab 的 #191919」——
-            //   它判的是"**常量没被人改过**"，**不判"字读不读得出来"**。这是 SKILL §4.7 点名的
             //   脆弱判据形态：改一个数字就能让它变绿/变红，而那个数字与用户看到的东西没有必然关系
             //   （实测：它一直是绿的，而实机图里按钮字糊成一块黑 —— `.ai-tmp/screenshots/uifix4_z_before_btn1.png`）。
             //   新口径 = **对比度**：字色 vs **按钮底图实测亮度**（量法 `btn_plate_luma.py`，可原地复跑）
             //   ≥ **4.5:1**（WCAG 2.1 AA 正文；按钮字按原版 18px **Bold** 渲染，18px < 大号文本阈值
-            //   18.66px ⇒ 取更严的正文档 4.5:1，⛔ 不取宽松的 3:1）。
+            //   18.66px ⇒ 取更严的正文档 4.5:1，不取宽松的 3:1）。
             //   全项目只有两条按钮字色来源：① `UiLayoutFlow.ButtonText`（FlowButton 默认，7 个流程屏）
             //   ② `UiArt.ButtonText`（UiArt.Button/SquareButton/OrigButton：NPC 对话/商店/死亡屏）——两条都判。
             var btnLuma = ReadPlateLuma();
@@ -2155,7 +2079,7 @@ namespace Uicheck
                     ? "扫描 0 行 —— 扫描口径已失效（这是「永真」形态，必须修）"
                     : string.Join(" ¦ ", scanRows.ToArray()));
 
-            // ⛔ 不许在调用点自造按钮字色（粗筛：工厂实参窗口里出现 `new Color(` ⇒ 绕过了唯一真源）
+            // 不许在调用点自造按钮字色（粗筛：工厂实参窗口里出现 `new Color(` ⇒ 绕过了唯一真源）
             var literalHits = new List<string>();
             foreach (var pf in panelFiles)
             {
@@ -2168,9 +2092,7 @@ namespace Uicheck
                 literalHits.Count == 0,
                 literalHits.Count == 0 ? "0 处" : string.Join(", ", literalHits.ToArray()));
 
-            // ── 判据自检（SKILL §8.3：改判据必须做**两次**自检）────────────────────────────
             //   ① 已知**好**样本（= 生产现值）必须 PASS；
-            //   ② 已知**坏**样本（= 本次缺陷原值 #191919）必须 FAIL —— 证明这条判据**不是永真**。
             Check("(判据自检①) 已知好样本 = 现值按钮字色 ⇒ PASS",
                 ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f,
                 $"{ratioOf(UiArt.ButtonText)} ≥ 4.5:1");
@@ -2181,8 +2103,6 @@ namespace Uicheck
             Check("色调 = 原版亮度（白）：UiArt.ArtFullBright == Color.white（贴图加载成功后套的色）",
                 UiArt.ArtFullBright == Color.white, Describe(UiArt.ArtFullBright));
 
-            // ★ 片 4 改口径：职业屏的"选中态"不再用色调近似（`FlowButton.SetSelected` + `UiLayoutFlow.ArtDim`
-            //   已删），改用**原版自己的三态** `NU1/NU2/NU3`。断言改成"旧机制确实没了 + 新机制在"。
             Check("职业屏选中态 = 原版三态（NU1/NU2/NU3），不再是色调近似：旧 `SetSelected`/`ArtDim` 已删干净",
                 !flowSrc.Contains("public void SetSelected(") && !flowSrc.Contains("public static Color ArtDim")
                 && flowSrc.Contains("PortraitState") && flowSrc.Contains("Spot.Of(")
@@ -2226,7 +2146,6 @@ namespace Uicheck
             //   改按高度 ×1.8 后：原版 600×1.8 = 1080 = 画布高 ⇒ **所有屏都不需要再压**
             //   （`FitClass` 从旧的 0.75 = 1080/1440 改回 1；旧 0.75 是为"宽度比 ×2.4 后 1440 高"服务的，
             //    那个口径会把 4:3 素材/坐标纵向撑出画布 —— 实测：选角屏标题与 NEW HERO/MAIN MENU 跑出画面）。
-            // ★ 本片（w3 流程屏审计）：屏分组从 6 个变 7 个 —— 选角屏的**专属**元件从 `Class` 组
             //   分到新组 `CharSelect`（理由见 `UiLayoutFlow.Panel.CharSelect` 的注释：`Class` 组同时装着
             //   选角 + 创角两屏的元件，跨屏的"两两重叠"比较毫无意义）。
             Check("屏适配系数：**8 个流程屏/弹窗分组全部 = 1**（按高度 ×1.8 后原版整屏正好 1080 高，无需再压）",
@@ -2272,7 +2191,7 @@ namespace Uicheck
                     : string.Join("；", outside.ToArray()));
 
             // 整屏贴图口径（2026 主 agent 裁决）：原版 800×600 → **按高度 ×1.8 = 1440×1080、水平居中**，
-            //   左右各留 240 由纯色底（`BackdropFill`）补 —— ⛔ 不许"铺满画布"（那会把 4:3 素材横向拉伸 1.33×）。
+            //   左右各留 240 由纯色底（`BackdropFill`）补 —— 不许"铺满画布"（那会把 4:3 素材横向拉伸 1.33×）。
             Check("整屏贴图走 BackdropArt：原版整屏 ×1.8 = 1440×1080 居中 + 左右留白纯色底（**不横向拉伸**）",
                 flowSrc.Contains("public static Image BackdropArt(")
                 && flowSrc.Contains("OrigWidth * Scale, OrigHeight * Scale")
@@ -2281,8 +2200,6 @@ namespace Uicheck
                 "见 UiLayoutFlow.BackdropArt（1440×1080 居中 + BackdropFill；旧的「铺满画布 / 横向拉伸 1.33×」写法已删）");
 
             // ── 同屏元素**两两不重叠**（离线拦住"两根文本框压在一起"这类"界面乱七八糟"）──
-            //   ★ 为什么加这一条：实测漏过一个真缺陷 —— 启动屏的「署名行」当初**没进这张表**
-            //     ⇒ 画布断言只查"在不在画面内"，压字完全查不出来（它与版权行重叠 48px）。
             //   豁免（都是"原版/本项目有意为之"，不是压字）：
             //     · 度量行（尺寸/节奏行，不是真实元素）；· 零宽/零高行；· 透明热点（原版点击区，压在职业按钮下面）；
             //     · 容器行（角色列表容器 / 选项面板底板，本来就包住子元素）；
@@ -2295,8 +2212,6 @@ namespace Uicheck
                 if (text.Contains("(热点)")) return true;                        // 透明热点（原版点击区）
                 if (text.Contains("容器") || text.Contains("底板")) return true;   // 容器（本来就包住子元素）
                 if (r.Node.Contains("/ClassName")) return true;                  // 原版 ClassName 行（名字输入框故意同排）
-                // ★ 片 4b 补：职业半身像的**三态是互斥显示**（同一槽位同一时刻只显示 NU1/NU2/NU3 之一），
-                //   所以三行的矩形互相交叠是**设计如此**、不是压字 —— 片 4 加这三态行时就在表里给它们
                 //   标了「半身像」后缀并写明"被重叠检查按互斥显示豁免"，但**这一句豁免当时没写进来**
                 //   ⇒ uicheck 一直报 24 处"重叠"（全是同一槽位的三态两两相交）。这里按原意补上。
                 if (text.Contains("半身像")) return true;
@@ -2325,7 +2240,6 @@ namespace Uicheck
             Check($"{panels.Length} 个流程屏分组共 {checkedCount} 个元素**两两不重叠**（度量行/热点/容器/原版 ClassName 行已豁免）",
                 overlaps.Count == 0, overlaps.Count == 0 ? "0 冲突" : string.Join("；", overlaps.ToArray()));
 
-            // ── 启动屏「署名行」（规范 §1.6：`by clover-engine` 居底居中）必须在表里 ──
             FlowLayoutEntry byLine = null;
             for (var i = 0; i < table.Length; i++)
                 if (table[i].Node.Contains("署名")) { byLine = table[i]; break; }
@@ -2336,13 +2250,11 @@ namespace Uicheck
                 byLine == null ? "表里找不到 署名行" : byLine.Line.Trim());
 
             // ═════════════════════════════════════════════════════════════════════
-            // ★ 本轮新增：二次确认弹窗（`D2ConfirmPanel`）= 原版窗框 + 原版中等按钮
-            //   缺陷（实机图 `.ai-tmp/screenshots/x_b3_delete_confirm.png`）：选角屏 / 暂停菜单的
-            //   二次确认原先走引擎默认 uGUI 弹窗（深灰方块 + 纯蓝按钮，`UIWidgets.cs:628-649`），
+            // 本轮新增：二次确认弹窗（`D2ConfirmPanel`）= 原版窗框 + 原版中等按钮
             //   与同一屏的原版石雕按钮**两种风格**。
             //   本节能离线判的：素材在位 / IHDR / 矩形 == 原版×1.8 / 常量互推一致 / 源码真的换过去了；
             //   只剩"画面上两种风格是否已统一"要看图（留给主 agent 采联络图）。
-            //   ⛔ 为什么不是"给引擎 `Confirm` 传参数换皮"：见 `UI/D2ConfirmPanel.cs` 文件头（签名无外观参数）。
+            //   为什么不是"给引擎 `Confirm` 传参数换皮"：见 `UI/D2ConfirmPanel.cs` 文件头（签名无外观参数）。
             // ═════════════════════════════════════════════════════════════════════
 
             // ① 底板素材：原版 `MENU/boxpieces.DC6` 拼装的那块窗框（= 暂停菜单同一张，IHDR 288×180）
@@ -2363,8 +2275,8 @@ namespace Uicheck
             Check("确认弹窗按钮 = 原版中等按钮三态素材在职且 IHDR == 128×35（btn_med_normal / _pressed / _sel）",
                 btnBad.Count == 0, btnBad.Count == 0 ? "3/3 = 128×35" : string.Join("；", btnBad.ToArray()));
 
-            // ③ 矩形 == 原版 × 1.8（逐个写死期望值，⛔ 不引用常量自证）
-            //   ⚠️ 不能写 `var cc = UiLayoutFlow.Confirm;`：`Confirm` 是嵌套**类型**，
+            // ③ 矩形 == 原版 × 1.8（逐个写死期望值，不引用常量自证）
+            //   不能写 `var cc = UiLayoutFlow.Confirm;`：`Confirm` 是嵌套**类型**，
             //      用 `var` 接类型名 = CS0119（本宿主首次就踩到）。
             Check("确认弹窗 5 个矩形 == 原版 × 1.8（底板 288×180 / 标题 (0,67.5) / 正文 (0,0) / 两钮 (±72,−67.5)）",
                 Near2(UiLayoutFlow.Confirm.BoxSize, new Vector2(518.4f, 324f))
@@ -2377,7 +2289,7 @@ namespace Uicheck
                 $"底板 {UiLayoutFlow.Confirm.BoxSize}；标题 {UiLayoutFlow.Confirm.TitlePos}；"
                 + $"正文 {UiLayoutFlow.Confirm.MessagePos}；钮 {UiLayoutFlow.Confirm.CancelPos}/{UiLayoutFlow.Confirm.ConfirmPos}");
 
-            // ④ 派生关系自证（⛔ 不许自己拍几何）：底板 = 暂停底板；行位 = 暂停按钮行相对底板的偏移；
+            // ④ 派生关系自证（不许自己拍几何）：底板 = 暂停底板；行位 = 暂停按钮行相对底板的偏移；
             //    两钮横向偏移 = ±(原版宽按钮 272 − 原版中等按钮 128)/2 = ±72 原版px。
             var halfGap = (UiLayoutFlow.WideButtonOrig.x - UiLayoutFlow.MediumButtonOrig.x) * 0.5f;
             Check("确认弹窗几何**由暂停菜单那一套原版度量派生**（底板同值 / 行位 = Pause 行 − Pause 底板 / 钮距 ±72 原版px）",
@@ -2406,8 +2318,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑰ ★ R1-C：创角屏两条修复的离线断言
-        //   用户 2026-09-20 原话：「创建人物时候，点击人物动画变形，很诡异」+
         //                     「输入框输入…数字的时候会有奇怪的粘连」
         //
         // 为什么这两条**能离线判**（而不是"只能进 Play 看"）：
@@ -2467,7 +2377,6 @@ namespace Uicheck
                         frames++;
                         if (ps == null) { sizeBad.Add($"{c.cls}/{code}#{f} Transition.Of 返回 null"); continue; }
 
-                        // ① 表的尺寸 == 磁盘 PNG 实测（逐个像素级相等，这是"表不漂移"的判据）
                         if (!Near2(ps.OrigSize, png, 0.001f))
                             sizeBad.Add($"{c.cls}/{code}#{f} 表 {ps.OrigSize.x:0}×{ps.OrigSize.y:0} ≠ PNG {png.x:0}×{png.y:0}");
 
@@ -2715,13 +2624,11 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑱ ★ R1-F：默认名「Hero」是**整体单元**（用户报的"输入框粘连"残留的那一半）
+        // ⑱ R1-F：默认名「Hero」是**整体单元**（用户报的"输入框粘连"残留的那一半）
         //
         // 为什么单独一节（而不是并进 ⑰）：⑰ 修的是"字符丢 / 光标不动"（uGUI 那两条抛点），
-        //   本节修的是**默认名与用户输入共用一个字符串**这个语义缺陷 —— 判据 = `EditNameDefault`
         //   这个纯函数的击键序列（离线可逐击断言），与"抛点不可达 / 显示串由面板驱动"是两件事。
         //
-        // 修复前的实测出处（逐行可点，Play 原始日志）：
         //   `.ai-tmp/screenshots/r1_evidence_r1.txt:325` `CC-OPEN … nameBuffer="Hero" nameCaret=4`
         //   `.ai-tmp/screenshots/r1_evidence_r1.txt:752`
         //     `NAME where=after-typing typed="Ama65x" buffer="HeroAma65x" digitsInBuffer=1 visible_input="HeroAma65x|" caret=10`
@@ -2734,7 +2641,6 @@ namespace Uicheck
             const string Def = "Hero";        // = client/Assets/Configs/config.json 的 game.default_player_name
             var mark = CharCreatePanel.CaretMark;
 
-            // ── ① 默认态：开屏可见文本 == `Hero|`（既有口径，本片未改动）──
             Check("① 默认态：缓冲 == 默认名「Hero」、插入点 == 4、可见文本 == 「Hero" + mark + "」",
                 CharCreatePanel.DisplayName(Def, Def.Length) == Def + mark,
                 $"DisplayName(\"{Def}\",4)=\"{CharCreatePanel.DisplayName(Def, Def.Length)}\"");
@@ -2814,7 +2720,6 @@ namespace Uicheck
                 && Body(createSrc, "public override void OnOpen(").Contains("_nameDefaultPending"),
                 "见 CharCreatePanel.ApplyNameEdit / OnOpen");
 
-            // ── ⑥ 「Hero」的出处链：值来自配置，不是面板写死、也不是本片新加 ──
             var cfg = File.ReadAllText(Path.Combine(ProjectRoot, "client", "Assets", "Configs", "config.json"));
             Check("⑥ 「Hero」来自 `config.json` 的 `game.default_player_name`（面板不写死默认名）",
                 cfg.Contains("\"default_player_name\"") && cfg.Contains("\"Hero\""),
@@ -2953,7 +2858,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑬ ★ R1-E（「人物对话时 UI 逻辑乱七八糟」）的 7 条修复：能离线判的那部分
         //
         // 为什么这些可以离线判：
         //   · S1 / S3 / S4 / S5 / S7 的判据是**源码语义 + 引擎语义**（谁的层是什么、谁补发哪个事件、
@@ -3008,8 +2912,7 @@ namespace Uicheck
                 "对话 Normal（遮罩之下，被压暗不可点=模态）/ 商店 Popup（遮罩之上，点得动）");
 
             // ── S2：点 UI 不产生地面意图（两个入口都过纯判定；判定源不是裸 UnityEngine.Input）──
-            //   ⚠️ 判据必须锚在**代码**上：本文件的头注释里**引用**了被禁的写法
-            //      （"直连 `UnityEngine.Input` / `Keyboard.current` 会静默失效"）⇒ 不剥注释就是假阳性。
+            //   判据必须锚在**代码**上：本文件的头注释里**引用**了被禁的写法
             var inputCode = NoComments(inputSrc);
             Check("S2：两个取点入口都过 UI 命中判定（单击 + 按住）",
                 CountOf(inputCode, "UiEatsIntent(_down,") == 1 && CountOf(inputCode, "UiEatsIntent(_held,") == 1,
@@ -3061,7 +2964,7 @@ namespace Uicheck
                 "见 NpcDialogPanel.Subscribe");
 
             // ── S6：菜单项挪出雕花方槽（几何）────────────────────────────────────────
-            // ★ U3：雕槽也随底图一起按 `DialogArtScale` 放大 ⇒ 矩形尺寸 = 34 × K × scale
+            // U3：雕槽也随底图一起按 `DialogArtScale` 放大 ⇒ 矩形尺寸 = 34 × K × scale
             //   （`OptionY/OptionX/Cx/Cy` 已内含 scale，两侧同倍 ⇒ 不相交的判定口径不变）。
             var k = UiLayoutGame.K * NpcDialogPanel.DialogArtScale;
             var slotSize = new Vector2(NpcDialogPanel.SlotCellSize * k, NpcDialogPanel.SlotCellSize * k);
@@ -3110,7 +3013,6 @@ namespace Uicheck
                 "W=" + NpcDialogPanel.OptionW + " OptionX=" + NpcDialogPanel.OptionX.ToString("0.#"));
 
             // ── S7：漏参数不复用旧状态 ─────────────────────────────────────────────
-            //   ⚠️ 同样必须剥注释：本文件头的 S7 说明里**引用**了改前那行写法。
             var dlgCode = NoComments(dlgSrc);
             Check("S7：`OnOpen` 的 null 参数分支置空态（`_dialog = null`）、且**没有**复用旧值那行",
                 dlgCode.Contains("_dialog = null;") && !dlgCode.Contains("if (dialog != null) _dialog = dialog;"),
@@ -3181,7 +3083,6 @@ namespace Uicheck
                       + " ≤ 行宽 " + UiLayoutGame.ShopInfoLineSize.x.ToString("0.#") + " 画布px"
                     : shopBad);
 
-            // ── 7 条修复各有「只报一次」的 R1-E 日志（实机对账用）────────────────────
             var all = dlgSrc + shopSrc + inputSrc + npcSrc;
             var noLog = "";
             for (var s = 1; s <= 7; s++)
@@ -3190,7 +3091,7 @@ namespace Uicheck
                 noLog.Length == 0, noLog.Length == 0 ? "S1~S7 全在" : "缺：" + noLog);
 
             // ── 回归：不许把"本来已经对的三条"改回去（上一轮已修好）──────────────────
-            //   判据 = `NpcDialog.cs` 的**字符串字面量**（⛔ 不扫注释：文档注释里满是 markdown 的 `**`）
+            //   判据 = `NpcDialog.cs` 的**字符串字面量**（不扫注释：文档注释里满是 markdown 的 `**`）
             // 先剥注释再取字面量：`NpcDialog.cs` 的文档注释里**引用了**"接受任务 / 交付任务 / 结束对话"
             // 这三个自造词（作为禁令说明），直接扫原文会把注释里的引号当字面量 ⇒ 假阳性。
             var dlgLits = Literals(NoComments(dialogSrc));
@@ -3241,9 +3142,7 @@ namespace Uicheck
 
         /// <summary>
         /// 去掉注释（`//…` 与 `/*…*/`，字符串里的不算）后的源码。
-        /// 为什么必须有它：这些源码的**文档注释里会引用被禁的写法**（"⛔ 一律走 `Game.Input`，
-        /// 直连 `UnityEngine.Input` 会静默失效"、"改前是 `if (dialog != null) _dialog = dialog;`"）
-        /// ⇒ 拿整份文本做 `!Contains(...)` 就是**假阳性**，会误报成"没修"。
+        /// 为什么必须有它：这些源码的**文档注释里会引用被禁的写法**（"一律走 `Game.Input`，
         /// </summary>
         private static string NoComments(string src)
         {
@@ -3294,7 +3193,7 @@ namespace Uicheck
             => new Rect(cx - size.x * 0.5f, cy - size.y * 0.5f, size.x, size.y);
 
         /// <summary>原版中文字模度量（font16）：码位 → 步进（px）+ 简繁映射 + 格高。</summary>
-        // ★ w3（游戏内 UI 审计）：由 `private` 放宽到 `internal` —— 供 `W3GameCheck` 复用同一份
+        // w3（游戏内 UI 审计）：由 `private` 放宽到 `internal` —— 供 `W3GameCheck` 复用同一份
         //   字模度量（**单源**：不让第二个宿主各自解析一遍 font16_chi_map.txt）。
         internal sealed class ChiMetrics
         {
@@ -3377,9 +3276,7 @@ namespace Uicheck
         /// <summary>
         /// 「原版依据在磁盘上」这一类断言（原版串表 / 原版 DC6 等）。
         /// 为什么要有这条分支：`原版资源/` **按约定不进 git**（`.gitignore` 末段："下载/解包素材唯一来源，
-        /// 体积大 + 版权物，不进 git"）⇒ 干净检出、或没下载过素材的机器上它必然不存在，**那不是缺陷**。
-        /// 口径（2026-09-20 定）：
-        ///   · 原版资源树**在位** ⇒ 照旧逐条 `Check(File.Exists(...))`（⛔ 在位就必须过，没有放宽）；
+        ///   · 原版资源树**在位** ⇒ 照旧逐条 `Check(File.Exists(...))`（在位就必须过，没有放宽）；
         ///   · 原版资源树**不在位** ⇒ 打 `[SKIP]` + 期望路径，**不计失败**（否则这台机器永远到不了 FAILED=0，
         ///     而"红"表达的是「素材没下载」这件与代码无关的事）。
         /// 实测依据：本机 `原版资源/` 不存在（`Test-Path` 假、`git ls-files 原版资源` 空、全工作区搜
@@ -3399,14 +3296,13 @@ namespace Uicheck
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // ★ 片 U4：悬停（物品/怪物）/ 拖拽 / 自动地图 —— 离线断言节
     //
     //  判什么（对应用户本轮报的 6 条里归 U4 的那几条）：
     //   ① **自动地图不压暗**：`MiniMapPanel.BackdropAlpha == 0`
     //      （判据原话 =「遮罩 alpha == 0 或不存在压暗层」；`Build()` 在 alpha<=0 时根本不建该节点）。
     //   ② **悬停感应（世界→格换算）在「离玩家 1 格内」也准**：玩家格 + 8 邻域逐格断言
     //      `Iso.WorldToGrid(Iso.GridToWorld(g)) == g`，再断言远处（8 格外）与负数格同样精确
-    //      ⇒ 反证不存在「必须把鼠标拉远才生效」的吸附/偏移。⛔ 断言的是**具体格号相等**，
+    //      ⇒ 反证不存在「必须把鼠标拉远才生效」的吸附/偏移。断言的是**具体格号相等**，
     //      任何吸附或半格偏移都会红（不放松成"任意距离都算过"）。
     //   ③ **物品 tooltip 有名字 + 会折行**：短名 1 行、长魔法名 >= 2 行、空名兜底 1 行；
     //      并断言悬停载荷带 `name` 字段。
@@ -3414,11 +3310,9 @@ namespace Uicheck
     //      的 6 种落点组合逐条核对 + 载荷 `fromAnchor | (toAnchor << 16)` 编解码往返一致。
     //
     //  为什么能离线判：以上全是**纯函数 / 常量 / 字段存在性**，不需要 Unity 运行时。
-    //  面板实例与像素观感进 Play（本片实机取证那一条链）。
     //
     //  为什么写在 `Program.cs` 里而不是新开 `U4Check.cs`：本目录的编译清单是**白名单**
     //  （`EnableDefaultCompileItems=false` + 逐个 `<Compile Include>`）⇒ 新文件必须同时改
-    //  `UiCheck.csproj`；本片对本机 `UiCheck.csproj` 的写入**不落盘**（实测两次 `replace`/一次
     //  整体重写都"成功"返回但内容不变，疑似另一片并发重写该文件）⇒ 退回到「宿主已有的编译单元」
     //  里加一个兄弟类（`Program.cs` 已在清单里，且同文件已有 `CheckR1EDialogUi` 这类先例）。
     // ═════════════════════════════════════════════════════════════════════════
@@ -3492,7 +3386,7 @@ namespace Uicheck
         // ③ 物品 tooltip：有名字 + 会折行 ────────────────────────────────────
         private static void CheckTooltip()
         {
-            // ⚠️ 必须全限定：`Diablo2.Def` 与 `Diablo2.UI` 两个命名空间各有一个 `HoverTarget`
+            // 必须全限定：`Diablo2.Def` 与 `Diablo2.UI` 两个命名空间各有一个 `HoverTarget`
             //   （前者 = 悬停快照载荷，后者 = `UI/HoverTarget.cs` 的 uGUI 指针接线件）。
             var t = typeof(Diablo2.Def.HoverTarget);
             var fName = t.GetField("name");
@@ -3503,12 +3397,10 @@ namespace Uicheck
             var shortLines = Diablo2.UI.ItemTooltip.TitleLineCount("短劍");
             var longName = "傷害強化 21~30 阔斧 之 最小傷害 1~2 最大傷害 3~4";
             var longLines = Diablo2.UI.ItemTooltip.TitleLineCount(longName);
-            // ⚠️ 口径修正（2026-09-23，片 U4 实测）：原计划离线断言「长魔法名折成 >= 2 行」，
             //   实测恒为 1 行 —— 原因是**本宿主取不到字模指标**：`D2Text.FontFor(26)` 走引擎
             //   `Resources/Clover/...`（`D2Text.cs:133/587`），离线进程没有 Unity Resources ⇒
             //   字模 advance 表为空 ⇒ `CountLines` 无法判满行、只能返回 1。
             //   ⇒ 离线只能判「不崩 + 单调不减」；**折行判据归实机截图行**
-            //   （长魔法名悬停截图，见本片回报的 `u4_*` 图）。⛔ 不把这条改成"任意值都算过"。
             Check("U4/tooltip：短名 1 行、且行数随名字变长单调不减（折行本体的判据见实机截图）",
                 shortLines == 1 && longLines >= shortLines,
                 $"「短劍」={shortLines} 行；长名={longLines} 行"
@@ -3614,10 +3506,7 @@ namespace Uicheck
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // uicheck · 片 u44「悬停选择表现」机械判据
-    //   （顶部怪名血条 / NPC 名字牌 / 悬停变亮 / 头顶那份不再存在）
     //
-    // 挡的是什么缺陷（用户原话：「为什么选中怪物没有什么选择效果啊！！！」）：
     //   改动前 ① **完全没有"悬停变亮"**（全仓 `Brightness` 0 命中）；② 原版"屏幕顶部怪名+血条"在本工程
     //   **只有布局常量与断言、零消费方**；③ NPC 悬停**没有任何名字牌**；④ 替代品是把「怪名+血量」画在
     //   **怪物头顶**（`UI/EntityTooltip.cs`，自陈"原版无载体"）—— 原版对可击杀怪**只有顶部条**。
@@ -3625,7 +3514,7 @@ namespace Uicheck
     // 判据（**判过程**：读的是"接线/载体/几何在不在"，不是"某个数字被改绿"）：
     //   · C1：着色器资产**逐字节**等于参考实现（git-blob-sha1 复算）+ 两个属性 + 两条 frag 行逐字；
     //   · C2：数值（3.0/1.01/1.0/1.0）+ 属性名 + 手段（`MaterialPropertyBlock`/`sharedMaterial`，
-    //     ⛔ 0 处 `renderer.material` 克隆）+ 真被 `ViewModule` 调用；
+    //     0 处 `renderer.material` 克隆）+ 真被 `ViewModule` 调用；
     //   · C3：顶部条几何/颜色/字体**逐值用原版数**（`EnemyBar.prefab` 的 150/20/22/200/2/−4）重算；
     //   · C4：头顶那份**反向断言**（`EntityTooltip.cs` 必须不存在 + `UI/**` 下 0 处旧抬升算式）；
     //   · C5：名字牌偏移 = `pixHeight / pixelsPerUnit`（MonStats2 实测 80 / Iso 的 80 = 1.0 世界单位）。
@@ -3634,17 +3523,14 @@ namespace Uicheck
     //   ⓑ 高亮值喂 1.0/1.0 ⇒ C2 红；ⓒ Title 原版 px 未乘 K / 丢掉 (0,2) ⇒ C3 红（两条）；
     //   ⓓ 头顶那份"存在" ⇒ C4 红；ⓔ 名字牌偏移喂 1.5（旧自陈值）⇒ C5 红。
     //
-    // ⚠️ 为什么这个类写在 `Program.cs` 里（**不是**自己的 `HoverSelectCheck.cs`）：
+    // 为什么这个类写在 `Program.cs` 里（**不是**自己的 `HoverSelectCheck.cs`）：
     //   `Uicheck.csproj` **不接受写入**（`replace_in_file` / `write_to_file` 都报成功，但磁盘上的
-    //   `<Compile Include>` 一行都没落盘 —— 片 font-scale 2026-09-24 实测同款，V6Check.cs 的
     //   `FontScaleCheck` 也是因此写在同一文件里的）。⇒ 本宿主的编译清单只能靠**已列在清单里的文件**
     //   承载新类。**若哪天 csproj 能写了**，请把这个类整体搬到 `HoverSelectCheck.cs` 并补一行
     //   `<Compile Include="HoverSelectCheck.cs" />`。
     //
-    // ⚠️ 离线边界（不夸大）：★ 2026-09-24 片 u44impl 离线收口后，`Module/View/EntityHighlight.cs`
     //   （与它唯一的依赖 `ViewLog.cs`）**已链进本宿主**（见 `Uicheck.csproj`）⇒ C2 的数值现在是
     //   **真值断言**（直接读 `EntityHighlight.BrightnessFor/ContrastFor` 与被引用的常量），
-    //   原先"从源码文本提取"那几条**保留**作互补（一条判值、一条判形状）。
     //   **运行时真值**仍由实机日志回读（`[悬停变亮] … 回读 _Brightness=3.0 _Contrast=1.01`
     //   = 被测程序自己写的 L3 标记）—— 离线判的是"代码里写的是不是 3.0/1.01"，判不了"那一刻真的生效了"。
     //   本文件也不判**像素观感**（变亮的绝对亮度 / 名字牌黑底实际大小）——那是实机表现类。
@@ -3714,8 +3600,6 @@ namespace Uicheck
 
         private static void CheckC1Shader()
         {
-            // ⚠️ 位置在 2026-09-24 第 3 轮改过：`D2/**` 的语义是"原版素材"，着色器是**代码资产**
-            //   ⇒ 按 main 裁决挪出 `D2/` 树（`mapcheck` 的 `D2/** 空目录 = 0` 因此转绿）。
             var path = Path.Combine(AssetsDir, "Resources", "Clover", "Shaders", "Sprite.shader");
             if (!File.Exists(path))
             {
@@ -3758,7 +3642,7 @@ namespace Uicheck
                 return;
             }
 
-            // ⚠️ 离线边界：该文件不在本宿主白名单里（csproj 不可写）⇒ 数值只能从源码文本提取核对
+            // 离线边界：该文件不在本宿主白名单里（csproj 不可写）⇒ 数值只能从源码文本提取核对
             var hoverB = ExtractFloat(hlSrc, @"HoverBrightness\s*=\s*([0-9.]+)f");
             var hoverC = ExtractFloat(hlSrc, @"HoverContrast\s*=\s*([0-9.]+)f");
             var normalB = ExtractFloat(hlSrc, @"NormalBrightness\s*=\s*([0-9.]+)f");
@@ -3772,8 +3656,6 @@ namespace Uicheck
                 hlSrc.Contains("BrightnessProperty = \"_Brightness\"") && hlSrc.Contains("ContrastProperty = \"_Contrast\""),
                 "BrightnessProperty/ContrastProperty 行");
 
-            // ★ 片 u44impl 离线收口（2026-09-24）：`EntityHighlight.cs` 已由 `Uicheck.csproj` 链进本宿主
-            //   ⇒ C2 从"源码文本提取"升级为**真值断言**（上面那几条读文本的判据**保留**：一条判值、一条判形状，互补）。
             //   为什么要升级：**uicheck 判不到的文件 = 判据的盲区** —— 任何"改了但没接上"的错都会在这里显示为绿
             //   （同族先例：`Shader.HasProperty` 的 CS1061 就是源码文本级判据绿、编译级才红）。
             Check("C2 真值①：`EntityHighlight.BrightnessFor(true) == 3.0`（悬停档 `_Brightness`，出处 `Materials.cs:51`）",
@@ -3834,7 +3716,7 @@ namespace Uicheck
             if (!Near(title.height, 16f * k, 0.02f)) return false;
             if (!Near(title.center.x, bar.center.x, 0.02f)) return false;
             if (!Near(title.center.y, bar.center.y + 2f * k, 0.02f)) return false;
-            // ⚠️ **不做"完全落在血条内"** —— 原版 Title 的框（200 原版px）本来**比血条（150）宽**：
+            // **不做"完全落在血条内"** —— 原版 Title 的框（200 原版px）本来**比血条（150）宽**：
             //    每边溢出 (200−150)/2 = **25 原版px**（文字居中 ⇒ 只有超长名字才看得出溢出）。
             //    改成断言"溢出量正好是 25×K" = 更贴原版、也更严（首版写成"包含"，实测红——那是判据错，不是代码错）。
             if (!Near(title.xMin, bar.xMin - 25f * k, 0.02f)) return false;
@@ -3897,20 +3779,17 @@ namespace Uicheck
                 $"有状态={EnemyBarView.TitleTextFor(st, enemyTarget)} / 无状态={EnemyBarView.TitleTextFor(null, enemyTarget)}");
         }
 
-        // ── C4 · 头顶那份不再存在（反向断言，防复活）─────────────────────────────
         /// <summary>
-        /// C4 判据本体（**纯函数**）："头顶 tooltip 不再存在" = 那个文件不在了 **且** UI 层里
         /// 不再有旧的自陈抬升算式（`GameConst.IsoHalfH *` —— 旧 `EntityTooltip.cs:52/306` 的那条）。
         /// </summary>
         private static bool HeadTopDisplayAbsent(bool oldFileExists, int oldLiftFormulaHits)
             => !oldFileExists && oldLiftFormulaHits == 0;
 
         /// <summary>
-        /// ★ u44impl 第 7 轮 + 离线收口（2026-09-24）：**头顶血条（引擎件 `CloverEngine.WorldHpBar`）在生产代码里 0 处使用**。
         /// <para>出处：原版对可击杀怪**只有**屏幕顶部 `EnemyBar`（`MouseSelection.cs:62-65` ⇒ `ShowEnemyBar`；
         /// `EnemyBar.cs:26-35`），参考实现里**没有**头顶血条 ⇒ 头顶那条是本工程自加件，按 U44-C4
-        /// 「⛔ 不许两份并存」删掉（`EntityView.Bar` 字段与 `ViewModule` 的 4 处调用点）。</para>
-        /// <para>⛔ 只吃**代码行文本**（调用方先用 <see cref="CodeLinesOnly"/> 掩掉 `//` 注释行）——
+        /// 「不许两份并存」删掉（`EntityView.Bar` 字段与 `ViewModule` 的 4 处调用点）。</para>
+        /// <para>只吃**代码行文本**（调用方先用 <see cref="CodeLinesOnly"/> 掩掉 `//` 注释行）——
         /// 本工程刻意在注释里留了"已删"的说明；把注释当命中 = 假红。</para>
         /// </summary>
         private static bool OverheadHpBarAbsent(string codeText)
@@ -3924,12 +3803,10 @@ namespace Uicheck
             => string.Join("\n", Array.FindAll((src ?? string.Empty).Split('\n'),
                 l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
         /// <summary>
-        /// ★ u44impl（team-lead §63「待窗口项要拆半」）：台账 W3 的**离线那一半** ——
         /// 每个「产生 `CursorKind.Attack`」的站点都必须配一个 `!m.alive ⇒ continue` 守卫；
         /// 否则**死怪也能被悬停**（`Attack`）⇒ `EnemyBarView.IsEnemyBarTarget` 恒 true ⇒
-        /// 击杀后顶部条**不会**收起 = 正是 W3 那个「两次读数不一致」的症状。
-        /// <para>⛔ 边界（诚实，不夸大）：这是**源码形状**判据（判「守卫与站点**数量配对**」），
-        /// ⛔ 不判控制流先后；「那一刻事件真的按这个顺序到达」必须进 Unity 窗口连采 3 拍（台账 W3）。
+        /// <para>边界（诚实，不夸大）：这是**源码形状**判据（判「守卫与站点**数量配对**」），
+        /// 不判控制流先后；「那一刻事件真的按这个顺序到达」必须进 Unity 窗口连采 3 拍（台账 W3）。
         /// 退化样本保证它**能失败**（喂「2 站点 / 1 守卫」⇒ 必须红）。</para>
         /// </summary>
         private static bool DeadMonsterGuardOk(int aliveGuards, int attackSites)
@@ -3965,7 +3842,7 @@ namespace Uicheck
             Check("C4 退化ⓓ：喂修前形状（`EntityTooltip.cs` 在 + 1 处 `IsoHalfH *`）⇒ 同一判据必须变红",
                 !HeadTopDisplayAbsent(true, 1), $"HeadTopDisplayAbsent(true,1)={HeadTopDisplayAbsent(true, 1)}（必须 False）");
 
-            // ★ u44impl 第 7 轮（离线收口）：**头顶血条（引擎件 `WorldHpBar`）也必须有离线判据** ——
+            // u44impl 第 7 轮（离线收口）：**头顶血条（引擎件 `WorldHpBar`）也必须有离线判据** ——
             //   全仓 grep（`*.cs`）即可判：`Module/View` 生产代码里 `WorldHpBar` / `v.Bar` 必须 0 处**使用**。
             //   只算**代码行**（掩掉 `//` 注释行）：本工程刻意在注释里留了"已删"的说明（假红陷阱）。
             var viewDir = Path.Combine(AssetsDir, "Scripts", "Module", "View");
@@ -4046,15 +3923,13 @@ namespace Uicheck
                 && EnemyBarView.NameplateFont == D2Text.D2Font.Font16,
                 $"a={EnemyBarView.NameplateBackColor.a} pad={EnemyBarView.NameplatePadLeft}/{EnemyBarView.NameplatePadRight}/{EnemyBarView.NameplatePadTop}/{EnemyBarView.NameplatePadBottom}");
 
-            // ⚠️ 用 **ASCII 样本**的原因 = 生产路径 `D2Text.MeasureNative(..., chi: true)` 在本宿主里**恒返 0**
+            // 用 **ASCII 样本**的原因 = 生产路径 `D2Text.MeasureNative(..., chi: true)` 在本宿主里**恒返 0**
             //    （chi 字模异步加载、`EnsureChi` 要 `Game.Res`，本宿主 `Game.Res == null`）⇒ 中文样本喂进去
             //    是**恒真断言**，当判据只会假绿（`popupaudit` 已实证同族两例）。
-            //    ★ 2026-09-24 更正（本片复核，台账 W9 的"数值半"）：**素材本身是能离线解析的** ——
             //    `client/Assets/Resources/Clover/D2/Fonts/font16_chi_map.txt`（280 532 B）+ `font_chi_s2t.txt`
             //    （39 055 B）都在盘上，且 `U52ResistCheck.cs` **已经**用它算出 chi 串的 `needNative`（口径 = `D2Text.ParseChiMap`/`HasGlyph`）。
             //    ⇒ 所以本行下面那句"离线宿主里取不到 chi 宽度表"**不成立**；现状是**空档**：本宿主没有
             //    中文名牌**绝对宽度**的判据（只有下面的 ASCII 相对判据）⇒ 需 1 个可复用的 chi 度量入口
-            //    （⛔ 本片不重写第二份解码 = 不做重复实现；⛔ 也不改别片的 `U52ResistCheck.cs`）⇒ 见报告 §32。
             var sA = EnemyBarView.NameplateSizeFor("Akara");
             var sB = EnemyBarView.NameplateSizeFor("Akara the Witch");
             Check("C5 黑底尺寸 = 文本实测宽 + padding(6,6)×K（`ContentSizeFitter` 口径）：ASCII 样本必须严格变宽、行高不变",
@@ -4064,16 +3939,14 @@ namespace Uicheck
             var sLong = EnemyBarView.NameplateSizeFor("阿卡拉·女巫会首领");
             Console.WriteLine($"      │ [登记·非失败] 中文样本：「阿卡拉」={sShort} /「阿卡拉·女巫会首领」={sLong}"
                 + "（离线宿主无 CJK 字模宽表 ⇒ 两者相等属预期；中文黑底实际宽度由实机采）");
-            // ★ u44impl（team-lead 裁定 (a)，2026-09-24）：W9「中文名牌黑底**绝对**宽度」——把能离线判的那半判掉。
             //   ① 素材侧真值：`U52ResistCheck.NeedNative(...)`（它自己解 `font16_chi_map.txt` + `font_chi_s2t.txt`，
             //      `internal` 已暴露、同程序集可直接调）⇒ 期望宽 = `chiNative × scale + (6+6) × K`。
             //   ② **高度是可真判的**：生产 `NameplateSizeFor` 的行高走 `D2Text.ChiCellH`（来自 fontsettings，
             //      宿主可读，实测 35.20）⇒ 判"生产行高 == `ChiCellH × scale + (0+4) × K`"。
             //   ③ **宽度在宿主里不可真判**：生产 `D2Text.MeasureNative(..., chi:true)` 走**异步**字形步进表、
             //      宿主 `Game.Res == null` ⇒ 恒 0（实测 `NameplateSizeFor("阿卡拉").x = 21.60 = 12 × K`，正是 padding-only）
-            //      ⇒ ⛔ 不许判"生产宽 == 期望宽"（那是把**宿主局限**当产品缺陷，会让共享闸门假红）。
             //      改判**到期哨**：生产宽必须**恰好**等于 padding-only —— 哪天它在宿主里能算宽度了，这条**必红**，
-            //      那一刻就把判据升级成 ① 的真比较（⛔ 红 = 升级信号，不是"坏了"）。
+            //      那一刻就把判据升级成 ① 的真比较（红 = 升级信号，不是"坏了"）。
             //      像素半（编辑器里实际画多宽）仍进窗口，目标值 = 下面打印的 `期望宽`。
             var chiText = "阿卡拉";
             // 幂等：本检查可能早于 `U52ResistCheck.Run()` 执行 ⇒ 先确保素材已解析（否则 chiNative 会是 0 + 全字数缺字形）
@@ -4108,7 +3981,6 @@ namespace Uicheck
             var ms2 = Path.Combine(root, "MonStats2.txt");
             if (!File.Exists(ms1) || !File.Exists(ms2))
             {
-                // `原版资源/` 按约定不进 git ⇒ 不在位时打 [SKIP]、不计失败；在位而缺文件才是真缺陷
                 Program.CheckOriginalRes("C5 `MonStats2.pixHeight`（5 个 NPC 全 80）真值核对", ms2);
                 return;
             }
@@ -4155,21 +4027,17 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 收口组（`select` §9 对账表提的 6 条；片 u44impl 第 2 轮）
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckU44Closeout()
         {
             var hlPath = Path.Combine(AssetsDir, "Scripts", "Module", "View", "EntityHighlight.cs");
             var hlSrc = ReadIfExists(hlPath) ?? string.Empty;
 
-            // ── ② 撞名静默失效：取着色器必须走 Resources 路径优先 + HasProperty 校验 ──
             var byFind = hlSrc.Contains("Shader.Find(ShaderName)");
-            // ⚠️ 校验是 `Material.HasProperty`（本工程 Unity 的 `Shader` **没有** `HasProperty` ——
-            //   片 u44 第 2 轮实测由 `playercheck` 编译报 CS1061 才发现的）
+            // 校验是 `Material.HasProperty`（本工程 Unity 的 `Shader` **没有** `HasProperty` ——
             var hasProp = hlSrc.Contains("mat.HasProperty(BrightnessProperty)")
                 && hlSrc.Contains("mat.HasProperty(ContrastProperty)");
             // 判 "有没有直连 Resources API" 必须先**掩掉注释行**：类头注释里正解释"为什么撤回它"
-            // （⛔ 不许把注释里的字面量当代码命中——本片第 2 轮踩过一次，红了才发现）。
             var hlCode = string.Join("\n", Array.FindAll(hlSrc.Split('\n'),
                 l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
             var rlCount = Regex.Matches(hlCode, @"Resources\s*\.\s*Load").Count;
@@ -4200,12 +4068,11 @@ namespace Uicheck
             Check("收口④ 退化：若高亮也写 `Renderer.color`（混用通道）⇒ 同一判据必须变红",
                 !mixedOk, $"混用样本合格={mixedOk}（必须 False）");
 
-            // ── ★ u44impl（§63 拆半）：W3「击杀后顶部条是否立即收起」的**离线那一半** ──────────
             //   判定链三跳：① 死怪**不可能**成为 `CursorKind.Attack`（`HoverPicker.Resolve` 里产生 `Attack`
             //   的站点都必须配 `!m.alive ⇒ continue`）② `cursor != Attack` ⇒ `IsEnemyBarTarget == false`
             //   （**真值断言**已在本宿主 C3 组：`enemyTarget/npcTarget/groundTarget/none` 四例）
             //   ③ 非目标分支 ⇒ `HideAll()`（两显示 `SetActive(false)`）。三跳全在盘上 ⇒ 只剩"事件真的
-            //   按这个顺序到达"要进窗口。⛔ 本条是源码形状判据，不当"已验 W3"。
+            //   按这个顺序到达"要进窗口。本条是源码形状判据，不当"已验 W3"。
             var hpkPath = Path.Combine(AssetsDir, "Scripts", "Module", "Input", "HoverPicker.cs");
             var hpkSrc = ReadIfExists(hpkPath);
             var guardHits = hpkSrc == null ? -1 : Regex.Matches(hpkSrc, @"!\s*m\.alive\s*\)\s*continue\s*;").Count;
@@ -4235,7 +4102,6 @@ namespace Uicheck
                     if (l.StartsWith("#")) continue;
                     var c = l.Split('\t');
                     if (c.Length >= 4 && c[0] == "diff") { long.TryParse(c[1], out diffPixels); long.TryParse(c[3], out maxAbs); }
-                    // `off` 行的第 4 段是 `_Brightness=1.0`（第 3 段是文件字节数 ⇒ 别把它当亮度读，本片第 2 轮踩过一次）
                     if (c.Length >= 4 && c[0] == "off")
                     {
                         var m = Regex.Match(c[3], @"_Brightness=([0-9.]+)");

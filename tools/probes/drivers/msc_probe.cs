@@ -12,7 +12,7 @@
 //   the REAL gesture PlayerModule.HandlePrimaryClick(grid) -- the very method InputReader calls
 //   for "left click on a monster" -- and reports hp before/after per attempt.
 //
-//   ⛔ It does NOT re-implement the boot/menu/stage chain (that is s2_drive.cs) and does NOT
+//   It does NOT re-implement the boot/menu/stage chain (that is s2_drive.cs) and does NOT
 //   fake damage: it only calls the two production entries above, exactly like the earlier probe.
 //
 // OUTPUT (absolute paths, all under .ai-tmp):

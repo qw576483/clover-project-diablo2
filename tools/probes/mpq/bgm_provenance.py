@@ -345,7 +345,7 @@ def main():
     log("② 逐字节 sha256 一致 = %d / %d（未判定 = %s）"
         % (n_good, len(rows), ",".join(pending) or "无"))
 
-    # ⛔ 台账只在**真的做过 mpq 侧比对**（无 pending）时写：否则会留下一份"看似有台账、
+    # 台账只在**真的做过 mpq 侧比对**（无 pending）时写：否则会留下一份"看似有台账、
     #    其实 src 侧是 0"的文件，下游宿主会误以为溯源已完成。
     if pending:
         log("（pending ⇒ 不写 %s：mpq 侧未判定时留下的台账会误导下游）" % prov_path)
@@ -365,7 +365,7 @@ def main():
     if bad:
         status, code = "FAIL", 2
     elif pending:
-        # ⛔ 不许把"mpq 侧未知"算成绿：这是 PENDING（未判定），不是 PASS。
+        # 不许把"mpq 侧未知"算成绿：这是 PENDING（未判定），不是 PASS。
         status, code = "PENDING", 3
     else:
         status, code = "PASS", 0

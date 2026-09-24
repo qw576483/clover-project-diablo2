@@ -1,7 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// uicheck · 弹框「关闭出口」机械判据（片 R8-close / u53-closefix，2026-09-24）
 //
-// 挡的是什么缺陷（用户第三批投诉：「你检查所有弹框…甚至连他妈的关闭都没有」）：
 //   面板开在 `UILayer.Popup` 时，引擎会插一块**全屏模态遮罩**
 //   （`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` → `:443-461` `ShowMask()`，
 //   `img.raycastTarget = true`，挂在 `_layers[Popup]` 首位）⇒ 遮罩**之下**的一切（含 `Normal` 的 HUD）
@@ -18,7 +16,7 @@
 // 覆盖口径 = 影响域（R8-close 只动了这几屏的层与关闭控件）：
 //   `InventoryPanel`（关闭控件可见化）· `SkillTreePanel` / `QuestLogPanel`（Popup → Normal）
 //   · `MiniMapPanel`（本来就 Normal，登记"无控件"为允许差异）。
-//   ⚠️ `CharacterPanel` 归片 `charstat`、`ShopPanel` 归片 `shopart` ⇒ **只打印读数，不参与判定**
+//   `CharacterPanel` 归片 `charstat`、`ShopPanel` 归片 `shopart` ⇒ **只打印读数，不参与判定**
 //   （避免跨片把别人的进行中改动算成红）。
 //
 // 退化样本（**同一 `Judge` 判，同进程对立读数，不是文字声明**）：
@@ -44,7 +42,6 @@ namespace Uicheck
     {
         private static void Check(string what, bool ok, string detail) => Program.Check(what, ok, detail);
 
-        /// <summary>影响域：本片负责的屏（逐条给出为什么在这一格）。</summary>
         private static readonly (string Panel, string Why)[] Scope =
         {
             ("InventoryPanel", "关闭按钮从 alpha=0 命中区改成可见的原版字模「X」"),
@@ -85,8 +82,6 @@ namespace Uicheck
         {
             var r = new Reading { Panel = panel };
 
-            // ⛔ 先剥注释再判：本片自己的文档注释里写了 `UiArt.SetSprite(close, …)`（作为"拿到原版 X 后
-            //    怎么换"的说明）—— 不剥就会被 rule ② 当成"真的贴了贴图"⇒ 退化样本会假绿。实测踩到过。
             src = StripComments(src);
 
             var m = Regex.Match(src, @"Layer\s*=>\s*UILayer\.(\w+)");

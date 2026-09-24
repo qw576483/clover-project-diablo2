@@ -260,7 +260,7 @@ def _decode_direction(data, bit_offset, frames_per_dir, tag):
         if bottom_up:
             # 非预期分支：D2 正式数据里几乎没有；解下去会整帧上下颠倒 ⇒ 拒绝并留痕
             raise ValueError('%s: bottomUp 帧未支持（dcc.zig:202 同样报错）' % tag)
-        # ★ yoffset = 帧**底边**（dcc.zig:204）
+        # yoffset = 帧**底边**（dcc.zig:204）
         fr.box = Rect(xoffset, yoffset - height + 1, width, height)
         fr.width = width
         fr.height = height

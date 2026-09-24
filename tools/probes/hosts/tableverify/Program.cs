@@ -1,8 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · tools/probes/hosts/tableverify/Program.cs
-// **打表产物**的离线自检宿主（判据资产；来历 = classcols 片 2026-09-24）。
 //
-// 它替代 `docs/配表说明.md` §1 第⑤步里那个**在盘上不存在**的入口
 // `_table_discard/verify/TableVerify.csproj`（全仓 `TableVerify.csproj` 0 命中）。
 // 为什么只编「不引引擎」的那一半产物 ⇒ 见 TableVerify.csproj 的文件头（三条理由）。
 //
@@ -12,11 +10,11 @@
 //      逐职业断言 classcols 片新增的 3 列（hp_add / base_stamina / block_factor）== 官方
 //      `charstats.txt` 原值（= 该片删掉的代码常量的逐条值）；
 //   ③ **退化样本**：把 Class.tsv 的 3 个新列**摘掉**（还原成改动前的 19 列）再读 ⇒
-//      断言必须**不**等于官方值（证明 ② 真的在判"这三列"，⛔ 不是恒真）；
+//      断言必须**不**等于官方值（证明 ② 真的在判"这三列"，不是恒真）；
 //   ④ 无附带损伤：其余 10 张表行数不变（防"重打表"把别的表带歪）。
 //
 // 退出码：全部通过 0 / 任一失败 1（`tools/probes/hosts/run_all_hosts.ps1` 靠它判 PASS/FAIL）。
-// ⛔ 本宿主不碰 Unity、不碰引擎、不进 Play（纯离线、秒级）。
+// 本宿主不碰 Unity、不碰引擎、不进 Play（纯离线、秒级）。
 // ─────────────────────────────────────────────────────────────────────────────
 using System;
 using System.IO;
@@ -39,8 +37,7 @@ namespace TableVerify
         /// <summary>
         /// 从宿主自己的可执行目录向上找「含 client/Assets 的那一层」= 仓库根。
         /// 与 playercheck / corecheck / fullcheck / savecheck / uicheck **同一套写法**
-        /// （⛔ 不写死相对层数：`run_all_hosts.ps1` 用 Push-Location 驱动，写死会随目录深度失效 ——
-        /// playercheck 2026-09-20 就是这么被坑出 10 项红的）。
+        /// （不写死相对层数：`run_all_hosts.ps1` 用 Push-Location 驱动，写死会随目录深度失效 ——
         /// </summary>
         private static string ResolveProjectRoot()
         {

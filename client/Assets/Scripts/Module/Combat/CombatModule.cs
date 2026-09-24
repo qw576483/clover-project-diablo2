@@ -12,9 +12,9 @@
 //             × `MonLvl.txt`，由 `MonsterModule` 在刷怪时填入）
 //   · 公式：`DamageFormula`（官方公式，出处见该文件头）
 //
-// ⛔ 本文件**不**碰引擎的网络类门面（`Game` 的 Net / Sync / Http / Alert 等，单机下全为 null，
+// 本文件**不**碰引擎的网络类门面（`Game` 的 Net / Sync / Http / Alert 等，单机下全为 null，
 //    见 `tools/ai-skill/constraints.md` #8）。
-// ⛔ 随机一律注入式 `CloverEngine.Rng`（**本局地图 seed 派生**，同 seed 可复现）。
+// 随机一律注入式 `CloverEngine.Rng`（**本局地图 seed 派生**，同 seed 可复现）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -156,15 +156,11 @@ namespace Diablo2.Module.Combat
                 return;
             }
 
-            // ★ C3（用户本轮：「你是圆形判断的打击范围」「为什么打击范围这么奇怪」）：
             //   旧口径 = **纯半径**（圆）⇒ 背后的 / 正侧方的 / 隔着墙水的目标只要在 1.6 格内就能打到。
             //   新口径 = **正面扇形（±60°）+ 以朝向为轴的矩形走廊 + 线段不得被地形阻断**，三关都过才结算。
             //   形状函数唯一出处 = `Module/Combat/MeleeShape.cs`（纯函数，`combatcheck` 第 18 节逐例驱动）。
-            //   ⛔ 不消耗冷却（不合格 = 没挥出去，与"超距"同一口径）：由 Player/Input 先转身/靠近。
-            //   ★ melee-samecell（2026-09-23）：**同格（偏移 0,0）必须命中** —— 原版近战触及是距离/框口径
+            //   不消耗冷却（不合格 = 没挥出去，与"超距"同一口径）：由 Player/Input 先转身/靠近。
             //     （`Weapons.txt` rangeadder / `MonStats2.txt` MeleeRng），0 ≤ reach 恒真；而玩家沿
-            //     `MoveCommand` 会走到怪所在格（`report-audioverify2.md` §2.3 实测 40/40 被拒）
-            //     ⇒ 该退化点已在 `MeleeShape.InFrontCone` 补为"命中"，本处形状闸门随之放行。
             var shape = ShapeGate(player.Dir, player.Grid, monsterGrid, GameConst.MeleeRange);
             if (shape != null)
             {
@@ -179,8 +175,6 @@ namespace Diablo2.Module.Combat
             _attackCd = GameConst.PlayerAttackInterval;
             monster.NotifyAttacked(monsterId);         // 官方：被打的怪立刻转入仇恨
 
-            // ★ 片 8 B35：**挥击动画的发送方**（原版一次普攻 = 挥击动作 + 音效 + 受击反馈三件套，
-            //   而本工程原先只发了后两件 —— 玩家视图从不播 `attack` 动作）。
             //   位置刻意放在"冷却已扣、距离已够"之后：命中与未命中都算一次**真的挥了**，
             //   而超距/冷却丢弃的请求**不算**（那种情况角色并没有出手）⇒ 视图不会空挥。
             if (Game.Event != null) Game.Event.Emit(Events.PlayerAttacked, monsterId);
@@ -188,8 +182,6 @@ namespace Diablo2.Module.Combat
                 "Game.Event 为 null（Game.Launch 未调用？）⇒ 挥击动画事件未派发（伤害结算不受影响）");
 
             // ── 伤害（官方公式，见 DamageFormula 文件头）──
-            // ★ 片 14（消除 E25）：连武器的 str_bonus/dex_bonus 一起取 —— 弓/弩是 DexBonus=100，
-            //   旧实现一律按力量算 ⇒ 拿弓的伤害是错的。
             int wMin, wMax, wStrBonus, wDexBonus;
             GetWeaponDamage(ctx, out wMin, out wMax, out wStrBonus, out wDexBonus);
             var roll = DamageFormula.RollWeaponDamage(wMin, wMax, CombatRng());
@@ -223,14 +215,11 @@ namespace Diablo2.Module.Combat
         /// <summary>
         /// 玩家武器伤害区间 + **该武器的官方加成系数**（所有已装备武器之和；无武器 ⇒ 官方空手 1~2）。
         /// <para>
-        /// ★ 片 14（**消除【例外 E25】**）：新增 `strBonus` / `dexBonus` 两个出口 —— 逐武器从配表
         /// `item_c` 的 `str_bonus` / `dex_bonus` 读（打表来源 = 官方 `Weapons.txt` 的
         /// `StrBonus` / `DexBonus`）。近战多为 `100/0`、**弓弩为 `0/100`**；空手按官方近战口径 `100/0`。
         /// </para>
         /// <para>
-        /// ★ 片 N：改为 `internal` —— **武器伤害类技能**（官方 `skills.txt` 列 219 `SrcDam ≠ 0`，
-        /// 如「重击」Bash）必须与普攻**同一处**取武器区间/加成系数，
-        /// 调用点 = `Module/Skill/SkillModule.RollWeaponSkillDamage`。⛔ 不许在 Skill 侧另写一份。
+        /// 调用点 = `Module/Skill/SkillModule.RollWeaponSkillDamage`。不许在 Skill 侧另写一份。
         /// </para>
         /// </summary>
         internal static void GetWeaponDamage(AppContext ctx, out int min, out int max,
@@ -288,20 +277,19 @@ namespace Diablo2.Module.Combat
         }
 
         /// <summary>
-        /// 玩家近战**判定形状**闸门（★ C3）。返回 null = 通过；否则返回可读的拒绝原因。
+        /// 玩家近战**判定形状**闸门（C3）。返回 null = 通过；否则返回可读的拒绝原因。
         /// <para>
         /// 三关：① **正面扇形**（±`FrontConeHalfAngleDeg`）② **以朝向为轴的矩形走廊**
         /// （长 = `reach`，半宽 = `MeleeShape.MeleeHalfWidth`）③ **线段不得被不可走地形阻断**。
         /// </para>
-        /// 形状口径只在 `MeleeShape` 里（⛔ 这儿不复制常量）；逐例判据 = `combatcheck` 第 18 节。
+        /// 形状口径只在 `MeleeShape` 里（这儿不复制常量）；逐例判据 = `combatcheck` 第 18 节。
         /// </summary>
-        // ⚠️ 2026-09-23 主 agent 修编译（C3 落卡时引入）：本文件既有 `using Diablo2.Def;` 又为
         //    `Iso.DirectionDelta` 加了 `using CloverEngine;` ⇒ **两个命名空间都有 `Dir8`** ⇒ CS0104 歧义，
         //    整棵树编不过（4 个并行片全部因它无法进 Play）。这里显式限定为**项目自己的** `Diablo2.Def.Dir8`
         //    （`Iso.DirectionDelta` 签名要的也是它），语义零改动。
         private static string ShapeGate(Diablo2.Def.Dir8 dir, Vector2Int from, Vector2Int to, float reach)
         {
-            // 朝向 → 格增量：走引擎权威表 `Iso.DirectionDelta`（⛔ 不在 MeleeShape 里另写一份映射）
+            // 朝向 → 格增量：走引擎权威表 `Iso.DirectionDelta`（不在 MeleeShape 里另写一份映射）
             var dv = Iso.DirectionDelta(dir);
             float fx, fy;
             if (!MeleeShape.ToUnit(dv.x, dv.y, out fx, out fy))
@@ -322,14 +310,13 @@ namespace Diablo2.Module.Combat
         /// **「这次出手的线段是否通畅」的唯一口径** —— 结算层（本文件 `RequestMonsterAttack`）与
         /// **发起方**（`Diablo2.Module.Monster.MonsterAi` 出手前自检）共用同一句。
         /// <para>
-        /// ★ 片 lineclear-fix 的根因：本句以前只在结算层用 ⇒ 线段被判不通时**只打了一条日志**
         /// （`monatk.blocked`），发起方拿不到任何返回值/事件 ⇒ `MonsterAi.TryAttack` 照常
         /// 置出手动画 + 播出手音效 + 每 `AttackIntervalSeconds` 再发起一次，**每次都被拒** ⇒
         /// 用户看到的「怪物隔墙反复挥空」。把同一把尺子暴露给发起方后，AI 在**发起前**就能
         /// 自检 ⇒ 不再发出注定被拒的请求（原版语义：够不着就不挥，绕路或停手）。
         /// </para>
         /// <para>
-        /// ⛔ 判据本身（`MeleeShape.LineClear`）一字未放宽 —— 只是把它从"只有结算层知道"
+        /// 判据本身（`MeleeShape.LineClear`）一字未放宽 —— 只是把它从"只有结算层知道"
         /// 变成"两侧同一句"。
         /// </para>
         /// </summary>
@@ -338,7 +325,7 @@ namespace Diablo2.Module.Combat
 
         /// <summary>
         /// 把 `IMapModule.Walkable` 适配成 `MeleeShape.LineClear` 需要的委托。
-        /// ⛔ 拿不到地图（未接入 / 未生成）⇒ 一律 true = **放行**（不把"没地图"变成"打不到"，由调用方留痕）。
+        /// 拿不到地图（未接入 / 未生成）⇒ 一律 true = **放行**（不把"没地图"变成"打不到"，由调用方留痕）。
         /// </summary>
         private static bool WalkableProbe(Vector2Int grid)
         {
@@ -425,7 +412,6 @@ namespace Diablo2.Module.Combat
 
             var monsterGrid = new Vector2Int(state.gridX, state.gridY);
             var dist = Iso.GridDistanceEuclidean(player.Grid, monsterGrid);
-            // ★ C3（用户本轮：「**屏幕外都能打我？？？？？**」）：旧口径里远程/萨满用
             //   `GameConst.RangedRange`(8 格) —— 8 格 = 16 世界单位，而**可见半宽只有
             //   6 ×(16/9) ÷ 2.0 格/单位 = 5.33 格**（相机 ortho 6 / 一格 2.0×1.0 世界单位，
             //   见 `GameConst.IsoTilePxW/HalfTilePxW` 与 `Editor/ProjectBuilder` 的主相机）
@@ -443,9 +429,8 @@ namespace Diablo2.Module.Combat
                 return;
             }
 
-            // ★ C3：**线段不得被不可走地形阻断**（隔墙 / 隔水 / 跨河不许打到 —— 与玩家侧同一把尺子）。
-            //   形状函数唯一出处 = `Module/Combat/MeleeShape.LineClear`；本句的**唯一出口** = `AttackLineClear`，
-            //   发起方（`MonsterAi`）出手前也调它 ⇒ 拒绝结果不会再"只留在日志里"（★ 片 lineclear-fix）。
+            // C3：**线段不得被不可走地形阻断**（隔墙 / 隔水 / 跨河不许打到 —— 与玩家侧同一把尺子）。
+            // 形状函数唯一出处 = `Module/Combat/MeleeShape.LineClear`；本句的**唯一出口** = `AttackLineClear`。
             if (!AttackLineClear(monsterGrid, player.Grid))
             {
                 CombatLog.WarnThrottled("monatk.blocked",

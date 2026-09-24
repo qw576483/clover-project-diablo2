@@ -3,8 +3,6 @@
 // 全部资源路径**唯一来源**（`tools/ai-skill/conventions.md`：禁止散落字面量）。
 // 目的：**换素材不动逻辑** —— 素材到位/替换时只改本文件。
 //
-// 目录口径（与 agent-03 的落位表一致，见 `docs/agents/agent-03-原版素材落位.md` §4.1）：
-//   D2/UI/Cursor/      光标                     （pixel 由 agent-03 切分）
 //   D2/UI/Panel/       控制面板 / 血球 / 蓝球 / 经验条 / 背包 / 人物属性 / 买卖与金币按钮
 //   D2/UI/Menu/        主菜单屏 / 职业选择屏 / 载入屏 / 多人屏 / 按钮
 //   D2/UI/EquipSlot/   装备栏底图
@@ -13,19 +11,9 @@
 //   D2/Tiles/ D2/Objects/ D2/Chars/ D2/Monsters/ D2/Items/   （官方本体解包，后台下载中）
 //   Sound/BGM/ Sound/SFX/                                     （引擎约定路径）
 //
-// ⛔ 契约冻结：带「契约」标记的常量逐字来自 `docs/步骤文档.md` §3.5，**不许改**。
-//    只有 `D2/UI/Menu/main_screen` 这类**已被 agent-03/agent-05 引用的具名资源**才允许增补；
-//    未确认文件名的素材**不要在这里臆造常量**（先问 agent-03 的 `_dev/assetreport.txt`）。
-//
-// ★ agent-01 修复（`docs/agents/agent-13-修复轮.md` §C，**主 agent 明确授权**）：
 //   ① 具名资源常量**必须与磁盘文件名逐字相符**（`Resources.Load` 只去扩展名、不做模糊匹配）：
-//        `PanelBuySellButton` 旧值 `buysellbtn` → **真实** `buysellbtn.DC6.0`；
-//        `PanelGoldCoinButton` 旧值 `goldcoinbtn` → **真实** `goldcoinbtn.dc6.0`；
 //        并新增 `PanelOverlap`（`overlap`）。
-//      旧值**不是报错**，是**静默返回 null** —— 这正是最贵的一类失败，故按实测改正。
 //   ② 新增 5 个**多帧条带帧数**常量与 `Frame(path, index)` 帧名助手（见各自注释的实测出处）。
-//   ⚠️ §3.5 的**冻结项**（`Root` / `UiPanels` / `D2Ui` / `D2Fonts` / `D2Tiles` / `D2Objects` /
-//      `D2Chars` / `D2Monsters` / `D2Items` / `D2Sfx` / `D2Bgm`）**一个字符都没动**。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Diablo2.Def;
@@ -35,7 +23,6 @@ namespace Diablo2.Core
     /// <summary>资源路径常量与拼接助手。</summary>
     public static class ResPaths
     {
-        // ── 契约 §3.5：根与分类（**不许改值**）────────────────────────────────
         /// <summary>契约：`CloverRes.Init("Clover")` 的 Resources 根前缀。</summary>
         public const string Root = "Clover";
 
@@ -69,7 +56,6 @@ namespace Diablo2.Core
         /// <summary>契约：BGM（引擎约定路径 `Sound/BGM/{name}`）。</summary>
         public const string D2Bgm = "Sound/BGM/";
 
-        // ── D2/UI 子目录（agent-03 落位口径）──────────────────────────────────
         /// <summary>主菜单 / 职业选择 / 载入屏 / 多人屏 / 按钮。</summary>
         public const string D2UiMenu = D2Ui + "Menu/";
 
@@ -88,7 +74,6 @@ namespace Diablo2.Core
         /// <summary>语音（引擎约定；本项目暂未使用）。</summary>
         public const string SoundVoice = "Sound/Voice/";
 
-        // ── 具名资源（文件名来自 `策划/素材调研.md` §4 与 agent-03 任务书 §3）──
         /// <summary>原版主菜单屏（动态壁纸 + 4 个菜单项）。</summary>
         public const string MenuMainScreen = D2UiMenu + "main_screen";
 
@@ -121,7 +106,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 原版买卖按钮（**多帧条带，22 帧** —— 见 <see cref="FrameCountBuySellButton"/> 与 <see cref="Frame"/>）。
-        /// <para>⚠️ 文件名是磁盘上的真实拼写 `buysellbtn.DC6.0.png`（**DC6 大写 + `.0`**）：
+        /// <para>文件名是磁盘上的真实拼写 `buysellbtn.DC6.0.png`（**DC6 大写 + `.0`**）：
         /// `Resources.Load` 的路径要去掉扩展名 ⇒ 常量值 = `D2/UI/Panel/buysellbtn.DC6.0`。
         /// 出处：`client/_dev/assetreport.txt` 实测 + `Assets/Editor/AssetImporter.cs` 的
         /// `MultiFrameStrips[0].FileName`（agent-10 实测表）。写成 `buysellbtn` 会**静默取不到图**。</para>
@@ -130,7 +115,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 原版金币按钮（**多帧条带，2 帧** —— 见 <see cref="FrameCountGoldCoinButton"/> 与 <see cref="Frame"/>）。
-        /// <para>⚠️ 真实文件名 `goldcoinbtn.dc6.0.png`（**全小写 + `.0`**，与买卖按钮大小写不同，别照抄）：
+        /// <para>真实文件名 `goldcoinbtn.dc6.0.png`（**全小写 + `.0`**，与买卖按钮大小写不同，别照抄）：
         /// 常量值 = `D2/UI/Panel/goldcoinbtn.dc6.0`。</para>
         /// </summary>
         public const string PanelGoldCoinButton = D2UiPanel + "goldcoinbtn.dc6.0";
@@ -148,19 +133,17 @@ namespace Diablo2.Core
         /// <summary>原版普通攻击技能图标。</summary>
         public const string SkillIconAttack = D2UiSkillIcon + "SkilliconAttack";
 
-        // ── ★ agent-09（1:1 轮）新增：控制面板上的小箭头按钮（4 帧，逐帧文件）─────────
         //  用途：① 控制面板「展开/收起小面板」的箭头（原版 `ImageExpBarRight` 的子 Button，
         //        见 `ControlPanelNavBarOpeningHandler.ShowNavigationalBar`）；
         //        ② 人物属性面板的四维加点箭头（原版同尺寸 15×24，见 `UiLayoutGame.CharPlusSize`）。
         //
-        //  ★★ w4 修（**数据源换成 DC6 导出的那一套**）：原值指向 `menubutton__0__{0..3}.png` ——
+        //  w4 修（**数据源换成 DC6 导出的那一套**）：原值指向 `menubutton__0__{0..3}.png` ——
         //     那是社区复刻工程 Diablerie（`Assets/Images/ControlPanel/`）的副本，
         //     实测**同画面**但把原版"调色板索引 0 = 透明"写成了**不透明黑 (0,0,0,255)**
-        //     （每帧 38 个像素 ⇒ 箭头周围一圈黑点）。现改指本项目 `tools/d2codec/export_d2ui.py`
         //     从原版 `data/global/ui/PANEL/menubutton.DC6` 直接解出的 `menubutton_{0..3}.png`
         //     （尺寸/帧序/内容**一个都没动**），并把 20 个副本文件从磁盘删除。
         //     复跑对账：`python tools/probes/measure/scan_uigame.py --pairs`。
-        //     ⚠️ 运行时实际取图走 `UI/UiArt.ArrowFrame(i)`（= 同一个拼法），本 4 个常量供
+        //     运行时实际取图走 `UI/UiArt.ArrowFrame(i)`（= 同一个拼法），本 4 个常量供
         //        "路径唯一来源"与自检宿主使用；两处**必须同值**（`uicheck` ㉑ 节断言磁盘存在）。
         /// <summary>原版上箭头·常态（= `PANEL/menubutton_0.png`，DC6 直出）。</summary>
         public const string PanelArrowUp = D2UiPanel + "menubutton_0";
@@ -193,7 +176,7 @@ namespace Diablo2.Core
         //       `name = spec.FileName + "_" + i`，与字体图集的 `AtlasPath + "_" + i` 同口径）；
         //    ③ 取第 i 帧 = `Resources.Load<Sprite>(ResPaths.Frame(path, i))`，i ∈ [0, 下面的帧数)。
         //  也可以一次取全部：`Resources.LoadAll<Sprite>(path)`（顺序 = 帧号序）。
-        //  ⚠️ 帧数是**实测值**（`tools/buildcheck/frame_probe.py` 读真实像素得出，输出留档
+        //  帧数是**实测值**（`tools/buildcheck/frame_probe.py` 读真实像素得出，输出留档
         //     `tools/buildcheck/frame_probe_out.txt`）。**改这里 = 改契约**：必须重跑那个脚本并同步
         //     `AssetImporter.cs` 的 `MultiFrameStrips`，否则 UI 会取到空图且**不报错**。
         /// <summary>`buysellbtn.DC6.0` 的帧数 = **22**（实测；`AssetImporter.cs` 的 `MultiFrameStrips[0]`）。</summary>
@@ -212,28 +195,21 @@ namespace Diablo2.Core
         public const int FrameCountMenuButtonWide = 3;
 
         // ═════════════════════════════════════════════════════════════════════
-        // ★ agent-18 §B 新增（**只增不改**；上面一个字都没动）
-        //   本轮把 `.TBL/.DC6` 解出的**原版像素**接进来（`tools/d2codec/export_d2ui.py`）。
         //   来源行：原版素材取自 Diablo II (Blizzard North, 2000) 的 d2data.mpq / patch_d2.mpq，非商用。
         //
-        //   ⚠️ 为什么按钮**不用**多帧条带（`MenuButtonWide` + `Frame()`）：
+        //   为什么按钮**不用**多帧条带（`MenuButtonWide` + `Frame()`）：
         //     条带的帧矩形是"从连通块反推"的（`AssetImporter.MultiFrameStrips`），而原版
         //     `FrontEnd/WideButtonBlank.dc6` 实测就是 **4 帧 = 2 个按钮 × (256+16 两段)**
-        //     ⇒ 本轮直接解出**单个按钮的整幅 PNG**（272×35），路径唯一、帧矩形不需要猜。
         // ═════════════════════════════════════════════════════════════════════
 
-        // ── ★ agent-a3 新增（「经典 load 动画」轮；**只增不改**，上面一个字都没动）────
+        // ── agent-a3 新增（「经典 load 动画」轮；**只增不改**，上面一个字都没动）────
         //   进图读条画面 = 原版 `data/global/ui/Loading/loadingscreen.dc6` 的 **10 帧 256×256**，
         //   逐帧导出为**独立 PNG**（`UI/Menu/loadingscreen_{i}.png`，i 从 0 起）。
         //   为什么要它：原版进图/读条屏就是「**黑底 + 居中这张 256×256 图**」，
         //   进度靠**帧号**推进（门/传送门开得越大 = 越接近读完），见 Diablerie
         //   `Assets/Scripts/Diablerie/Game/UI/LoadingScreen.cs:10,43,51,58-61,66-68`；
-        //   以前 `LoadingPanel` 用的是 `load_screen`（那是**前端标题画**，不是进图读条图）
-        //   ⇒ 用户报「那个经典的 load 动画也没做」。
         //   取帧口径与 `AssetImporter.MultiFrameStrips` 那批条带**不同**：本批是**一帧一个文件**
         //   （不是一张条带切 N 帧）⇒ 直接用 <see cref="Frame"/> 拼帧名即可，
-        //   每帧都能走 `Resources.Load&lt;Sprite&gt;`（实测：单帧 PNG 按名取稳定，
-        //   条带的子 sprite 按名取在本工程会**静默取不到** —— 见 `UiArt.cs` 文件头 §C-④）。
 
         /// <summary>
         /// 原版进图读条图·**帧名前缀**（10 帧独立 PNG，`UI/Menu/loadingscreen_{i}`，i ∈ [0,10)）。
@@ -319,14 +295,11 @@ namespace Diablo2.Core
         public const int FrameCountMiniMapIcon = 8;
 
         /// <summary>
-        /// ★ 片 5：小地图标记**统一使用的是哪一帧**。
         /// <para>
-        /// ⚠️ **BLOCKED（片 5，语义出处缺失）**：`MINIMAP/mapicons.DC6` 的 8 帧**没有任何权威
         /// 语义映射**（没有 txt 表、参考工程 `Diablerie/Assets/**` 与 `libd2/**` **都不引用**
         /// 这个 DC6 —— 全仓 grep `mapicons|MINIMAP` 只在 `原版 d2dc6` 里命中），
         /// 而 8 帧是**白色模板**（实测 8 帧只用调色板索引 32 = `#F4F4F4`，原版在运行期用色表
         /// shift 给它们上色）⇒ **光看形状不能断定"哪一帧 = 出入口 / NPC / 玩家"**，
-        /// 按任务书「⛔ 不许自己指定语义」⇒ **统一用帧 0**（`mapicon_0`）并把语义登记为 BLOCKED。
         /// 拿到语义后**只改这一个常量**即可（面板代码不用动）。
         /// </para>
         /// </summary>
@@ -345,17 +318,13 @@ namespace Diablo2.Core
         public static string ItemIcon(string code) => D2Items + "inv" + code;
 
         // ── 配置文件（`Core/ClientConfig.cs` 用）──────────────────────────────
-        // ── ★ 片 1（「原版 UI 素材地基」轮）新增：**只增不改**，上面一个字都没动 ────────
         //  出处：`tools/d2codec/export_d2ui.py` 的 `skilltree` / `chifont` / `menu` 组
         //        （`--only skilltree` / `--only chifont` / `--only menu`）。
-        //  口径：本轮**只做 1:1 逐帧落位**（不拼 tile），文件名 = `{stem}_{DC6 帧号}`，帧号从 0 起。
         //  取帧：单帧 PNG ⇒ 直接用 <see cref="Frame"/> 拼帧名（与 `loadingscreen` 同口径；
-        //        条带的子 sprite 按名取在本工程会静默取不到，见 `UI/UiArt.cs` 文件头 §C-④）。
 
         /// <summary>
         /// 技能树底图目录（原版 `SPELLS/skltree_{a,b,n,p,s}_back.DC6` 逐帧解出，每类 **16 帧**）。
         /// <para>帧尺寸循环 256×256 / 64×256 / 256×176 / 64×176 ⇒ 4 帧一"页"（320×432）；
-        /// **拼页口径未定**（原版是 tile 打包，怎么摆缺权威依据）⇒ 本轮只逐帧落位，
         /// 拼装留给后续片。早先 `panels` 组已拼过 4 页到 `D2/UI/Panel/skltree_*_back_{0..3}.png`。</para>
         /// </summary>
         public const string D2UiSkillTree = D2Ui + "SkillTree/";
@@ -377,7 +346,7 @@ namespace Diablo2.Core
         /// <summary>
         /// 任务说明图路径：例 `QuestImage("a1q1", 0)` → `D2/UI/Quest/a1q1_0`。
         /// <para>`file` = 源 DC6 名（小写，`a1q1`..`a4q3`，共 21 个）；帧号从 0 起。
-        /// 原版每文件 27 帧 72×86（"哪一帧是哪个任务"的口径未定 ⇒ 本轮只落位，用法留给后续片）。</para>
+        /// 原版每文件 27 帧 72×86。</para>
         /// </summary>
         public static string QuestImage(string file, int frame)
             => D2UiQuest + file + "_" + frame;
@@ -387,15 +356,12 @@ namespace Diablo2.Core
         /// <para>源：`data/LOCAL/FONT/chi/Font{N}.DC6`（每种 **13806 帧**，整幅打进一张图集，
         /// 列/行与格子尺寸见 `<原版资源>/导出的字体映射/font{N}_chi.tsv` 头部注释与
         /// `tools/d2codec/export_d2ui.py::group_chifont`）。</para>
-        /// <para>⚠️ 当前**没有任何 UI 代码在用它**（中文位图字体的排版实现尚未开始）；
+        /// <para>当前**没有任何 UI 代码在用它**（中文位图字体的排版实现尚未开始）；
         /// 且此图集在 `AssetImporter` 里按 Single 导入（未切子 sprite）——
         /// 将来接排版时要么走 `Texture2D` + UV，要么补切分表。</para>
         /// </summary>
         public static string FontChi(int size) => D2Fonts + "font" + size + "_chi";
 
-        // ── ★ 片 3（「原版中文位图字体接入」轮）新增：**只增不改**，上面一个字都没动 ────
-        //  出处：`tools/d2codec/make_chifont_assets.py`（把片 1 的 `font{N}_chi.tsv` 转成
-        //        运行期数据资产）。两个文件都在 `Assets/Resources/Clover/D2/Fonts/` 下。
         /// <summary>
         /// 中文位图字体的 **帧→字符 + 排版度量** 表：例 `FontChiMap(16)` → `D2/Fonts/font16_chi_map`。
         /// <para>格式（`font{N}_chi_map.txt`，TextAsset）：`COLS` / `CELL` / `COUNT` 三行表头 +
@@ -411,12 +377,9 @@ namespace Diablo2.Core
         /// </summary>
         public const string FontChiS2T = D2Fonts + "font_chi_s2t";
 
-        // ── ★ 片 4（「启动链路三屏 1:1」轮）新增：**只增不改**，上面一个字都没动 ──────────
         //  出处：`tools/d2codec/export_d2ui.py` 的 `frontend` / `logo` 两组
         //        （`--only frontend,logo`），调色板 = `fechar/Pal.PL2`（依据见该脚本 PL2_FECHAR 注释）。
         //  取帧：**单帧 PNG**（一帧一个文件）⇒ 直接用 <see cref="Frame"/> 拼帧名
-        //        （与 `loadingscreen` / `questsocket` 同口径；条带的子 sprite 按名取在本工程会静默取不到，
-        //         见 `UI/UiArt.cs` 文件头 §C-④）。
 
         /// <summary>原版**前端职业半身像**目录根（`data/global/ui/FrontEnd/{cls}/`）。</summary>
         public const string D2UiFrontEnd = D2Ui + "FrontEnd/";
@@ -443,7 +406,6 @@ namespace Diablo2.Core
             public const int Front = 2;
 
             /// <summary>
-            /// ★ 片 22：**转身过渡**两段的文件名码（不是"状态"，是播完即隐藏的一次性序列）。
             /// <para>
             /// 出处 = 参考物源码 `Diablerie/.../Menu/ClassSelect/ClassSelector.cs:207-233`：
             /// `FrontTransition.Sprites = {CLS}FW`、`BackTransition.Sprites = {CLS}BW`，
@@ -497,13 +459,12 @@ namespace Diablo2.Core
         /// 职业半身像帧路径，例：`ClassPortrait(PlayerClass.Amazon, ResPaths.Portrait.Idle, 0)`
         /// → `D2/UI/FrontEnd/amazon/nu1_0`。
         /// <para>帧数 = 源 DC6 的帧数（每职业每态不同，见 `export_d2ui.py::group_frontend` 的输出统计）；
-        /// 本轮 UI **只取帧 0**（逐帧播放器登记为范围边界，见回报）。</para>
+        /// UI **只取帧 0**。</para>
         /// </summary>
         public static string ClassPortrait(PlayerClass cls, int state, int frame)
             => PortraitDir(cls) + Portrait.Code(state) + "_" + frame;
 
         /// <summary>
-        /// ★ 片 22：**转身过渡**帧路径，例：
         /// `ClassTransition(PlayerClass.Amazon, ResPaths.Portrait.TransitionFront, 0)` → `D2/UI/FrontEnd/amazon/fw_0`。
         /// <para>语义与出处见 <see cref="Portrait.TransitionFront"/> / <see cref="Portrait.TransitionBack"/>
         /// （原版 `{CLS}FW` / `{CLS}BW`，`Loop=false`、`HideOnFinish=true`、`Fps=25`）。</para>
@@ -519,7 +480,6 @@ namespace Diablo2.Core
         /// <summary>`Logo/logo.DC6` 的帧数 = **1**（实测，见 <see cref="MenuLogo"/> 注释）。</summary>
         public const int FrameCountMenuLogo = 1;
 
-        // ── ★ 片 5（「小地图 + 死亡屏 1:1」轮）新增：**只增不改**，上面一个字都没动 ──────────
         //  出处：`tools/d2codec/export_d2ui.py` 的 `menu` 组（`--only menu`）。
         //  取帧：**单帧 PNG**（一帧一个文件）⇒ 直接用 <see cref="Frame"/> 拼帧名
         //        （与 `loadingscreen` / `questsocket` / `logo` 同口径）。
@@ -530,9 +490,7 @@ namespace Diablo2.Core
         /// 实测（`python tools/d2codec/dc6.py info 原版资源/d2dc6/data/global/ui/MENU/EndGame.dc6`）：
         /// `dir=1 fpd=8 frames=8  256x256 64x256 256x224 64x224  256x256 64x256 256x224 64x224`
         /// ⇒ 每 4 帧一"页"：左列 256 宽 + 右列 64 宽 = **320**；上行 256 高 + 下行 224 高 = **480**
-        /// ⇒ **2 页，每页 320×480**（片 1 遗留的"是 320×480×2 还是 320×960"疑问**就此定案**）。
         /// </para>
-        /// <para>调色板 = `EndGame/Pal.PL2`（片 1 已定案，判据见 `export_d2ui.py` 的 PL2 注释块）。</para>
         /// </summary>
         public const string MenuEndGameBack = D2UiMenu + "endgame";
 
@@ -552,10 +510,8 @@ namespace Diablo2.Core
         /// <summary>
         /// 原版**死亡屏按钮**（`data/global/ui/MENU/endgameok.dc6`，96×32 ×**2**：常态 / 按下）。
         /// <para>
-        /// ★ 调色板 = `EndGame/Pal.PL2`，**片 5 定案**（片 1 用的是 ACT1 = 错的）：
         /// ① 麻点度量（相邻不透明像素对的平均颜色跳变，越小越平滑）实测
         ///    **ACT1 84.5 vs EndGame 28.8**（2.9 倍差距，与 `EndGame.dc6` 同一口径同一方向）；
-        /// ② 肉眼复核（联络图 **`Screenshots/p5_palette_check.png`**，片 5 留档）：
         ///    @ACT1 = 满屏**彩色噪点**（错色），@EndGame = 干净的深灰石板按钮。
         /// 复跑命令：`python tools/d2codec/export_d2ui.py 原版资源/d2dc6 client --only menu`。
         /// </para>
@@ -565,14 +521,14 @@ namespace Diablo2.Core
         /// <summary>`MENU/endgameok.dc6` 的帧数 = **2**（常态 / 按下；实测）。</summary>
         public const int FrameCountEndGameOK = 2;
 
-        // ── ★ w5（「选项/暂停底板 = 原版窗框」轮）新增：**只增不改**，上面一个字都没动 ────
+        // ── w5（「选项/暂停底板 = 原版窗框」轮）新增：**只增不改**，上面一个字都没动 ────
         //  出处：`tools/d2codec/assemble_boxpieces.py` —— 把**已在磁盘上的**原版
         //        `MENU/boxpieces.DC6` 22 帧（14×15，`D2/UI/Menu/boxpieces_{0..21}.png`）
         //        按**像素自证反推出来的偏移**拼成整幅窗框，输出到 `D2/UI/Panel/`。
         //  为什么不是直接从 DC6 拼：`原版资源/`（DC6 本体）被 .gitignore 排除、**本机没有**，
         //        那 22 帧的 DC6 offset 表拿不到 ⇒ 用「接缝连续 + 外沿是矩形」两条约束反推
         //        （推导与逐像素判据见该脚本文件头；离线复检在 `uicheck` ㉑ 节 `BoxFrameSide()`）。
-        //  ⚠️ 文件名**不带尺寸**（角色名）⇒ 「窗框该多大」的唯一来源是
+        //  文件名**不带尺寸**（角色名）⇒ 「窗框该多大」的唯一来源是
         //     `UI/UiLayoutFlow.BoxFrame` 派生的 `Settings.BoxSize` / `Pause.BoxSize`，
         //     两者是否一致由 `uicheck` 按 PNG 的 IHDR 断言（不一致必红）。
         /// <summary>选项面板的窗框（原版 `boxpieces` 拼装，432×348 = 36×29 个 12px 格）。</summary>
@@ -600,11 +556,11 @@ namespace Diablo2.Core
             return D2Monsters.Replace("{name}", monsterKey ?? string.Empty);
         }
 
-        // ── ★ 片「武器外观接线」新增：角色**装备外观套**目录（**只增不改**，上面一个字都没动）──
+        // ── 片「武器外观接线」新增：角色**装备外观套**目录（**只增不改**，上面一个字都没动）──
         //  出处：`tools/d2codec/export_chars.py --equip-sets` 的产物 = 「身体层 + 武器/盾层合成一张」
         //        的整套 PNG（与徒手套同命名 `{动作}_{方向}_{帧号}.png`，每套带一份 `manifest.json`）；
         //        落位口径见判据脚本 `tools/probes/measure/d2_equip_sets_check.py` 的文件头。
-        //  ⛔ 本方法 = 该目录的**路径唯一来源**（不许在别的文件里拼 `"equip"` 这段字符串）。
+        //  本方法 = 该目录的**路径唯一来源**（不许在别的文件里拼 `"equip"` 这段字符串）。
 
         /// <summary>
         /// 「装备外观套」目录的目录名模板：`{class}` 填职业小写、`{key}` 填外观 key。
@@ -615,7 +571,7 @@ namespace Diablo2.Core
         /// <summary>
         /// 角色**装备外观套**目录，例：`CharEquipDir(PlayerClass.Amazon, "jav")` →
         /// `D2/Chars/amazon/equip/jav/`。
-        /// <para>⛔ 空 key 返回空串（徒手 = 走 <see cref="CharDir"/> 那套，调用方必须先判空）。</para>
+        /// <para>空 key 返回空串（徒手 = 走 <see cref="CharDir"/> 那套，调用方必须先判空）。</para>
         /// </summary>
         public static string CharEquipDir(PlayerClass cls, string key)
         {

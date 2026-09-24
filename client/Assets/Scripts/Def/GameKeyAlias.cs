@@ -5,12 +5,10 @@
 //
 // 为什么要这层别名：
 //   ① 业务/UI 只写 `GameKeyAlias.KeyInventory`，不写 `GameKey.I` —— 原版键位集中一处，
-//      改键位只改本文件（`tools/ai-skill/conventions.md`「不写裸字面量」）；
-//   ② `GameKey` 是引擎枚举，本项目**不许**再定义一个自己的按键枚举（会两处漂移）。
+// 改键位只改本文件（`tools/ai-skill/conventions.md`「不写裸字面量」）。
 //
 // 键位取值 = **暗黑破坏神 II 原版默认键位**（与原版一致是保真要求）。
 // 读取一律走 `Game.Input.GetKey/GetKeyDown(GameKey)`；
-// ⛔ 禁止直连 `UnityEngine.Input` / `Keyboard.current`（引擎已封装，旧输入后端下会静默失效）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -37,7 +35,7 @@ namespace Diablo2.Def
         public const GameKey KeyMinimap = GameKey.Tab;
 
         /// <summary>
-        /// 暂停菜单（原版 <c>Esc</c>）。★ T0FIX-C：**已接线** ——
+        /// 暂停菜单（原版 <c>Esc</c>）。T0FIX-C：**已接线** ——
         /// 消费方 = `Module/Flow/AppFlow.EscPressed()`（Stage 站点 ESC = 暂停 / Pause 站点 ESC = 继续）。
         /// 出处：`策划/策划案/暗黑破坏神2参考规格.md:140`（原版做法 = 「ESC 菜单（继续 / 选项 /
         /// 保存并退出 / 退出）」）。旧写法定点改直连 `GameKey.Escape`（绕过别名）⇒ 键位不再是单一来源。
@@ -45,14 +43,12 @@ namespace Diablo2.Def
         public const GameKey KeyPause = GameKey.Escape;
 
         /// <summary>
-        /// 关闭当前面板 / 返回上一级（原版 <c>Esc</c>）。★ T0FIX-C：**已接线** ——
+        /// 关闭当前面板 / 返回上一级（原版 <c>Esc</c>）。T0FIX-C：**已接线** ——
         /// 消费方 = `UI/SettingsPanel.OnUpdate`（ESC 关闭选项面板）。
-        /// 出处：原版**无** options 屏 prefab（见 `UI/SettingsPanel.cs` 文件头 agent-15 §A），
         /// 其关闭键沿用原版 ESC 返回上一级的口径（同 `KeyPause` 的规格行）。
         /// </summary>
         public const GameKey KeyClosePanel = GameKey.Escape;
 
-        // ★ T0FIX-C 删除两条**无出处**的别名（全局 skill §0「A 没有 ⇒ 不加」）：
         //   ① `KeyDialogAdvance`（Space）= 「对话/提示推进」：原版 D2 的 NPC 对话**靠点选项按钮推进**
         //      （`UI/NpcDialogPanel` 的选项列本来就是鼠标点击，原版亦无键盘推进键）；
         //      全仓无任何出处支持"Space 推进对话" ⇒ 删。
@@ -60,7 +56,7 @@ namespace Diablo2.Def
         //      （`UI/D2ConfirmPanel` 的 Confirm/Cancel、`UI/CharCreatePanel` 的 OK）——
         //      原版 D2 同样没有"Enter = 确认"的键盘口径（Enter 在原版是聊天输入），
         //      全仓 0 处消费且无出处 ⇒ 删。
-        //   ⚠️ 两条都**不是**"接线能解决"的：接线等于**新造一个原版没有的键位行为**。
+        //   两条都**不是**"接线能解决"的：接线等于**新造一个原版没有的键位行为**。
 
         // ── 战斗与操作（原版键位）──────────────────────────────────────────────
         /// <summary>站立不动攻击（原版 <c>Shift</c>）。</summary>
@@ -73,16 +69,12 @@ namespace Diablo2.Def
         public const GameKey KeyRunToggle = GameKey.R;
 
         /// <summary>
-        /// 切换武器组（原版 <c>W</c>）。★ T0FIX-C：**保留但不接线** ——
+        /// 切换武器组（原版 <c>W</c>）。T0FIX-C：**保留但不接线** ——
         /// 原版 D2 **确有**双武器组切换（`W` 在第一/第二套武器之间切），但本项目**没有**双武器组系统
-        /// （`IItemModule` 的装备表只有一套主手/副手，无Ⅱ组）⇒ 按任务书"⛔ 不要临时造"，本别名
-        /// **留作"缺失功能"条目上报主 agent 裁决**（实现面估算见回报），不在本片接线也不删。
         /// </summary>
         public const GameKey KeySwapWeapon = GameKey.W;
 
-        // ⛔ 本文件**不登记方向键移动**：原版 D2 只有「鼠标点地面移动」（没有方向键备选移动）
-        //   ⇒ 按全局 skill §0「A 没有 ⇒ 不加」，曾经那一族方向键常量已删除
-        //   （删除理由与 grep 判据见 `策划/验收表.md` 自审对比段与 §本轮修掉的 bug B35）。
+        // 本文件**不登记方向键移动**：原版 D2 只有「鼠标点地面移动」（没有方向键备选移动）
 
         // ── 腰带（4 格药水，数字键 1~4）─────────────────────────────────────────
         /// <summary>腰带第 1 格。</summary>
@@ -118,7 +110,7 @@ namespace Diablo2.Def
         /// <summary>
         /// 技能槽里**属于左键**的个数 = 4 ⇒ `F1`~`F4` 绑左键、`F5`~`F8` 绑右键
         /// （见 <see cref="SkillSlotIsLeftHand"/>）。
-        /// <para>出处/口径（★ impl-I-input 落地，改动前这 8 个键**全仓 0 消费**，见审计 R4）：
+        /// <para>出处/口径（impl-I-input 落地，改动前这 8 个键**全仓 0 消费**，见审计 R4）：
         /// 原版 D2 的技能栏格与 `F1`~`F8` 同源 —— 参考工程
         /// `Diablerie/Engine/PlayerController.cs` 的 `hotSkillsBindings = {F1..F6}` +
         /// `SkillPanel.SetHotKey(i, ...)`（本项目 HUD 文件头已逐字记下这条出处，技能栏 = 6 格）；
@@ -129,7 +121,7 @@ namespace Diablo2.Def
         /// <para>与前 6 个技能栏格的关系：`F1`~`F4` = 技能栏 1~4 格（绑左键），
         /// `F5`/`F6` = 技能栏 5/6 格（绑右键），`F7`/`F8` 本工程无对应格（alias 已登记 8 个键
         /// ⇒ 照常映射为右键第 3/4 个候选，不删键位）。</para>
-        /// <para>⚠️ 「第 N 个已学技能」而不是"键位自带技能 id"：技能树是**职业相关**的（5 职业各一套），
+        /// <para>「第 N 个已学技能」而不是"键位自带技能 id"：技能树是**职业相关**的（5 职业各一套），
         /// 键位常量里写死 id 会在换职业时错位 ⇒ 由 `Module/Skill/SkillModule` 在收到
         /// `Events.SkillSlotAssignRequest` 时按**当前职业的已学技能顺序**解析。</para>
         /// </summary>

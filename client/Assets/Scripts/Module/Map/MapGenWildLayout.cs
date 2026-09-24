@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Map/MapGenWildLayout.cs
-// ⚠️ **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_wild_layout.py`）。
+// **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_wild_layout.py`）。
 //
 // 数据来源 = **原版** `data/global/tiles/ACT1/{OUTDOORS,CAVES}/*.ds1`
 //   （Blizzard North, 2000，取自 d2data.mpq；本项目非商用）。

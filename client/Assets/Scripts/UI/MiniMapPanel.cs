@@ -3,22 +3,16 @@
 // 自动地图（原版 Tab 切换）**按原版口径重画**：满屏叠加层 + 逐格把
 // `ui/AUTOMAP/MaxiMap.dc6` 的 cel（16×32，ACT1 调色板）blit 到**等距位置**。
 //
-// ★★ 片 `automap-original-verdict`（2026-09-22）改了什么（= 消除 E23/E38 的素材缺失项）：
-//   旧版 = 「右上角定尺框 + 逐格程序化点阵 + 本项目自选配色 `#1C1C1C/#484848/#C4C4C4`」
-//   （E23 登记：素材不在本机 ⇒ 只能近似）。**本轮原版包到位**，按实测口径重写：
 //     ① **满屏叠加层**（原版自动地图没有窗口框 —— `D2/UI/Banner/` 那一族只有标题/开关条
 //        `automap* / AutoMapCenter / AutoMapParty / AutoMapOptions`）⇒ 本面板不再有定尺框，
 //        贴图按原版比例铺开、**以玩家格为中心**平移（`UpdateView`）。
 //     ② **图形 = 原版 cel**：逐格从 `Core/AutoMapCel.generated.cs`（生成物）取 Cel 号，
 //        把 `MaxiMap.dc6` 该帧的像素（稀疏索引）用 **ACT1 调色板**上色后 blit。
-//        ⛔ 本文件里**没有任何自选颜色常量**（旧版的 `ColBackdrop/ColFloor/ColBlock`、
-//        `SuperSample/FloorDotPx/BlockDotPx/ExitDotPx` 全部删除）。
 //     ③ **逐格 Cel 号** = 原版 `AutoMap.txt` 的查询键
 //        `(LevelName = <act> <LevelType>、Style = DS1 格 prop3 & 0x0F、Sequence = DS1 格 prop2)`
 //        → `CelN`（= `MaxiMap.dc6` 帧序号）。逐格值由 `MapModule.BuildMinimap` 走
 //        `MinimapArgs.cels / celsOver` 送进来（见 `Contracts.cs` 的 `# contract:` 注释）。
 //
-//   §几何（实测，可复跑；见 `.ai-tmp/test/automap-plan.md` §1.4）
 //     · 世界地砖 = 160×80（`tools/d2codec/dt1.py` 的 `FLOOR_TILE_PX_W/H`）
 //       ⇒ automap 比例 **1/10**：一格 = **16×8** 等距菱形。
 //     · `MaxiMap` 每帧 16×32，地面花纹落在帧**底部 8 行**（帧 0..3 的 bbox y=24..31）
@@ -26,13 +20,11 @@
 //         `posX = ((x − y) + (H−1)) × 8`、`posY = (x + y) × 4`（世界同投影，缩到 1/10）。
 //     · 画布缩放 = `UiLayoutGame.K`（= 1080/600；与 HUD/其它原版素材同口径）。
 //
-//   §与原版**仍不同**的（⛔ 不许当"一致"；登记 E23 残余 + 本片回报）
 //     ① **多行命中时挑哪一行**（`AutoMap.txt` 的 `TileName` 有 13 个家族名，同一
 //        (LevelName, Style, Seq) 常有多行）与 **4 个变体（`Cel1..Cel4`）挑哪一个**：
 //        原版规则在本机**没有载体**（没有引擎源码；DT1 头里也没有 type/style 字段）
 //        ⇒ 生成器按**可复跑规则**定死（文件里最先出现的那一行、取该行第一个 `CelN ≥ 0`），
 //        逐条登记。⇒ 原版逐格"变体/朝向"的细微差别，本项目是**同族 cel 的确定性子集**。
-//     ② **揭示粒度**（★ 片 g2-resume 改写，E23 ④ 由"本格 + 8 邻域"改为**记忆式已探索**）：
 //        · 旧口径：每换一格只把「本格 + 8 邻域」标记为已探索 ⇒ 走一大圈后地图仍只有一串
 //          3×3 小块（实测 `explored=9 / opaquePixels=135`），用户看到的仍是"地图没画出来"。
 //        · 新口径（`Reveal` 纯函数，离线可断言）：**访问过即记忆**（集合只增不减），
@@ -44,17 +36,16 @@
 //          HalfW=1.0 / HalfH=0.5）⇒ 同屏条件 = |dx−dy| ≤ 3.75·aspect = 6.67 且 |dx+dy| ≤ 3.75/0.5 = 7.5；
 //          而 |dx|+|dy| = max(|dx+dy|, |dx−dy|) ⇒ 取紧的那个下界 floor(6.67) = **6** ⇒
 //          「凡是能被玩家看到的格，走过就都记下来」。
-//        · ⛔ 仍与原版**不同**：原版按**房间**揭示（引擎 `DRLG` 的房间层，本机无载体），
-//          本项目是"视野半径 + 不穿墙"的近似 ⇒ 保留登记 E23 ④（口径已改，条目内容本轮已更新）。
+//        · 仍与原版**不同**：原版按**房间**揭示（引擎 `DRLG` 的房间层，本机无载体），
 //     ③ **标记图标语义**：`MINIMAP/mapicons.DC6` 8 帧是白色模板且无权威语义映射
 //        ⇒ 仍统一用帧 0 + 本项目色调（登记 BLOCKED），只把**位置**口径照原版 blit。
 //     ④ 面板底色（半透明黑）沿用旧表现（原版不透明度无载体；登记）。
 //
-// ★ 数据来源（**零模块耦合**）：`Events.MapGenerated`（`Def.MinimapArgs`，含逐格 Cel）
+// 数据来源（**零模块耦合**）：`Events.MapGenerated`（`Def.MinimapArgs`，含逐格 Cel）
 //   + `Events.PlayerGridChanged`（`Vector2Int`）+ **`Events.MapExplored`**（`IReadOnlyCollection<Vector2Int>`，
 //   Map 的"首次探索"增量 ⇒ 已探索的**权威口径**，接管后本面板不再自行累积）。
 //
-// ★★ U46（用户：「tab 渲染地图不对 / 地图没画出来」）——「画哪些格」与「哪些格已探索」拆开：
+// U46（用户：「tab 渲染地图不对 / 地图没画出来」）——「画哪些格」与「哪些格已探索」拆开：
 //   本面板的**画法只有一处** `RenderExplored(..., bool[] explored, ...)`（纯函数，实例 `Redraw`
 //   与离线 `CountDrawn` 都走它），而 `explored` 是**入参**：
 //     · **已接线**（S2 的 `Events.MapExplored` 到位后）：Map 每次"某格**首次**被记为已探索"
@@ -62,11 +53,11 @@
 //       **口径由外部接管**、本面板不再自行揭示（`ExploredInjected == true`）；
 //     · 接管**之前**（进区到玩家开腿之间，Map 还一格都没报）⇒ 走 `Reveal` + `RevealRadius`
 //       的**兜底**口径 —— 否则"刚进区还没走路"时地图全空，正是用户报的"地图没画出来"。
-//   ⚠️ **仍未 1:1 的部分**（登记 E23 ④）：原版按**房间**揭示，本项目数据里没有房间层 ⇒
+//   **仍未 1:1 的部分**（登记 E23 ④）：原版按**房间**揭示，本项目数据里没有房间层 ⇒
 //   兜底那段只能是"视野半径 6 格 + 不穿墙 BFS + 墙轮廓"的近似，且同一张图上
-//   **兜底段与接管段是并集**（接管只加不减）。画法侧与口径侧已彻底解耦（⛔ 不留第二份画法）。
-// ★ Tab 键由 `UI/HudPanel.cs` 轮询并发 `Events.PanelToggleRequest`（本面板自身不读输入）。
-// ⛔ 零 `using Diablo2.Module`（分层自检 ③）。
+//   **兜底段与接管段是并集**（接管只加不减）。画法侧与口径侧已彻底解耦（不留第二份画法）。
+// Tab 键由 `UI/HudPanel.cs` 轮询并发 `Events.PanelToggleRequest`（本面板自身不读输入）。
+// 零 `using Diablo2.Module`（分层自检 ③）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -169,17 +160,14 @@ namespace Diablo2.UI
             if (_built) return;
             _built = true;
 
-            // ① 叠加层底：**铺满画布**（原版 = 满屏叠加层，⛔ 不再是右上角定尺框）
-            //   ⚠️ `raycastTarget` **必须 = false（不吃射线）**，理由是"原版语义 + 一条实测缺陷"：
+            // ① 叠加层底：**铺满画布**（原版 = 满屏叠加层，不再是右上角定尺框）
             //     · 原版 automap 是**纯显示叠加层**（`D2/UI/Banner/automap*` 那一族只有标题/开关条，
             //       本面板里也没有任何 `IPointer*Handler`）⇒ 它不该吃掉任何鼠标事件；
             //     · 这块 Image **铺满整个画布**（下面 `anchorMin/anchorMax` = 0..1）⇒ 若吃射线，
             //       uGUI 指针命中**恒为真**，`Module/Input/InputReader.IsPointerOverUi()` 随之恒真，
             //       于是 `UiEatsIntent(pressed:true, pointerOverUi:true)` 把**每一次**点击都判成
             //       "点 UI"⇒ `TryGetGroundClick/HoldTarget` 全部返回 false ⇒ **开着地图时人物一步都走不了**
-            //       （2026-09-22 用户实测：「tab 看地图时候动不了」）。
             //     · 面板外点地面照走是原版行为（Tab 开着也能点地面移动）⇒ 这一层必须是"看得见、点不到"。
-            //   ★ 2026-09-23（U4，用户报「tab 背景不用压暗」）：`BackdropAlpha == 0` 时**不建**这一层
             //     —— 原版 automap 是纯图形叠加层（见常量注释）。连着老表现一起删掉，
             //     否则「alpha=0 的满屏黑块」仍在节点树里（判据要求「不存在压暗层」）。
             if (BackdropAlpha > 0f)
@@ -356,18 +344,18 @@ namespace Diablo2.UI
         /// **渲染侧注入入口（U46）**：把外部报来的已探索格**并入**本面板的位图（只增不减），
         /// 并把口径来源标记为外部 ⇒ 此后本面板**不再自行揭示**。
         ///
-        /// <para>⛔ 本方法**只操作渲染状态**（`_explored` 位图 + 重画），⛔ 不碰任何模块、不读输入、
+        /// <para>本方法**只操作渲染状态**（`_explored` 位图 + 重画），不碰任何模块、不读输入、
         /// 不决定"什么算已探索" —— 那是数据源的事（原版按**房间**揭示，本项目无该载体，
         /// 见文件头 ② 与登记 E23 ④）。</para>
         ///
         /// <para><b>载荷口径</b>：收 `Events.MapExplored`（`MapModule.OnFirstExplored` 发，
         /// **增量**：当前实现每次恰 1 格）⇒ 因此本方法是**并入**语义。`cells == null` 只忽略 + 留痕，
-        /// ⛔ 不用它"清空"：清空只发生在 <see cref="ApplyMap"/>（换图 / 换区）。</para>
+        /// 不用它"清空"：清空只发生在 <see cref="ApplyMap"/>（换图 / 换区）。</para>
         ///
         /// <para><b>为什么要有这个入口</b>：用户报的"地图没画出来 / 画得不对"里，"画哪些格"
         /// 与"哪些格已探索"是两件事。把后者做成入参 ⇒ ① 判据可以**自己造集合**判渲染
         /// （离线 uicheck 的 <see cref="CountDrawn"/> / <see cref="RenderExplored"/>）；
-        /// ② 换揭示口径不必改渲染代码（⛔ 不留第二份画法）。</para>
+        /// ② 换揭示口径不必改渲染代码（不留第二份画法）。</para>
         /// </summary>
         /// <param name="cells">外部报来的已探索格（格坐标，增量）；null ⇒ 忽略并留痕。</param>
         /// <returns>本次真正**新**并入的格数（越界 / 重复不算）。</returns>
@@ -427,7 +415,7 @@ namespace Diablo2.UI
         {
             if (_map == null || _explored == null) return;
 
-            // ★ U46：口径已被外部接管（Map 发 `Events.MapExplored`）⇒ 面板**不自行揭示**
+            // U46：口径已被外部接管（Map 发 `Events.MapExplored`）⇒ 面板**不自行揭示**
             //   （口径只有一处权威来源；"接管"那条日志在 ApplyExplored 里打，这里不重复播报）
             if (_fromSource) return;
 
@@ -460,12 +448,12 @@ namespace Diablo2.UI
         public int OpaquePixels { get; private set; }
 
         /// <summary>
-        /// **纯函数渲染核心（⛔ 全项目唯一一份 automap 画法）**：把 <paramref name="explored"/> 里
+        /// **纯函数渲染核心（全项目唯一一份 automap 画法）**：把 <paramref name="explored"/> 里
         /// 每个已探索格的 cel 按等距几何 blit 进 <paramref name="pixels"/>（进入时先清空整块）。
         ///
-        /// <para>★ U46（用户：「tab 渲染地图不对 / 地图没画出来」）：**已探索集合是入参**（= 注入集合），
+        /// <para>U46（用户：「tab 渲染地图不对 / 地图没画出来」）：**已探索集合是入参**（= 注入集合），
         /// 本函数**不决定揭示口径** —— 口径属数据源（Map 模块 / 注入方）。实例 <see cref="Redraw"/>
-        /// 与离线 <see cref="CountDrawn"/> 都走这一条：判据与产品**同源**，⛔ 不留第二份画法
+        /// 与离线 <see cref="CountDrawn"/> 都走这一条：判据与产品**同源**，不留第二份画法
         /// （这是"只允许一处权威实现"在渲染侧的执行面）。</para>
         /// </summary>
         /// <param name="pixels">目标像素缓冲（长度 ≥ texW×texH）。</param>
@@ -526,7 +514,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// **纯函数版 blit**（实例 `Blit` 的实现体；离线宿主可直接调它做"图元数"断言，
-        /// ⛔ 不复制第二份画法）：把一个 cel 的稀疏像素按等距几何写进像素缓冲。
+        /// 不复制第二份画法）：把一个 cel 的稀疏像素按等距几何写进像素缓冲。
         /// </summary>
         /// <returns>本格实际写入的**图元数**（不透明像素个数）。</returns>
         public static int BlitInto(Color32[] pixels, int texW, int texH, int mapHeight,
@@ -580,11 +568,11 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// **纯函数：给定已探索集合 ⇒ 数出图元**（离线断言的判据入口；⛔ 与实例 `Redraw` 走**同一条**
+        /// **纯函数：给定已探索集合 ⇒ 数出图元**（离线断言的判据入口；与实例 `Redraw` 走**同一条**
         /// <see cref="RenderExplored"/> —— 判据与产品同源，不是第二份实现）。
         /// <para>口径（判"过程"不判"结果"）：`cellsWithCel` = 已探索格中**至少有一层 cel ≥ 0** 的格数；
         /// `cellsDrawn` = 其中**真的写出 ≥1 图元**的格数 ⇒ **两者必须相等**（不相等 = 静默丢格）。</para>
-        /// <para>★ U46：<paramref name="explored"/> 是**注入集合**（判据自己造、产品只画）——
+        /// <para>U46：<paramref name="explored"/> 是**注入集合**（判据自己造、产品只画）——
         /// 这样"揭示口径"改了不会把渲染判据一起改掉（反之亦然）。</para>
         /// </summary>
         public static void CountDrawn(MinimapArgs map, bool[] explored, int texW, int texH, Color32[] palette,
@@ -673,7 +661,7 @@ namespace Diablo2.UI
             _subscribed = true;
             Game.Event.On<MinimapArgs>(Events.MapGenerated, OnMapGenerated);
             Game.Event.On<Vector2Int>(Events.PlayerGridChanged, OnPlayerGrid);
-            // ★ U46：已探索的**权威来源** = Map 模块（`MapModule.OnFirstExplored` 发增量格）——
+            // U46：已探索的**权威来源** = Map 模块（`MapModule.OnFirstExplored` 发增量格）——
             //   收到即接管（此后本面板不再自行揭示，见 ApplyExplored / RevealPlayer）。
             Game.Event.On<IReadOnlyCollection<Vector2Int>>(Events.MapExplored, OnMapExplored);
         }
@@ -713,8 +701,8 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// ★ U46：Map 模块报来**新**被记为已探索的格（增量）⇒ 并入本面板位图（口径接管见
-        /// <see cref="ApplyExplored"/>）。⛔ 本面板不自己决定"哪些格已探索"。
+        /// U46：Map 模块报来**新**被记为已探索的格（增量）⇒ 并入本面板位图（口径接管见
+        /// <see cref="ApplyExplored"/>）。本面板不自己决定"哪些格已探索"。
         /// </summary>
         private void OnMapExplored(IReadOnlyCollection<Vector2Int> cells)
         {

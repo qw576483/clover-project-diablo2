@@ -1,5 +1,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · App/AppSnapshots.cs      （agent-12「最后一次接线」，agent-12 §3 的第 2、3 项）
 // **进图全量快照 + 面板打开前补发**。
 //
 // 为什么必须有这一步（否则必然出现"面板打开是空的"）：
@@ -10,17 +9,16 @@
 //   ⇒ 约定：**App 在 `Events.StageEntered` 之后主动广播一次全量快照**（本文件），
 //     并在 `Events.PanelToggleRequest` 到达时**再补发一次对应快照**（HUD 打开面板时把缓存传进去）。
 //
-// ⚠️ 唯一没被这套机制覆盖的是 `MiniMapPanel`：HUD 对它传的是 `null`（`UI/HudPanel.cs` 里
+// 唯一没被这套机制覆盖的是 `MiniMapPanel`：HUD 对它传的是 `null`（`UI/HudPanel.cs` 里
 //   `Toggle<MiniMapPanel>(null)`），而面板是在 `OnOpen` 里才订阅 `MapGenerated`
 //   ⇒ 本次派发它收不到。本文件用「下一帧用 `AfterUnscaled` 再发一次」补齐，并已登记为**需返工**项。
 //
-// ⛔ 只做搬运，不改任何模块状态（`Snapshot()` / `BuildTree()` / `BuildMinimap()` 都是只读快照）。
+// 只做搬运，不改任何模块状态（`Snapshot()` / `BuildTree()` / `BuildMinimap()` 都是只读快照）。
 //
-// ★ `EchoInFlight`（agent-05 按 agent-14 §B 现象 3 加）：本类发 `Events.MapGenerated` 时用的是
 //   **同一张已生成的地图**（`ctx.Map.BuildMinimap()`）⇒ 那是"把图再播一次"的**回声**，不是
 //   "又生成了一张图"。`App/AppDoorGuard` 靠这个标志把回声从"重复生成"的计数里剔除
 //   （否则每次进图都会出现 `…（>1）⇒ 重复生成！` 的假警报）。
-//   ⚠️ 本文件里**每一处** `Emit(Events.MapGenerated, …)` 都必须走 `EmitMapEcho()`，不许裸 Emit。
+//   本文件里**每一处** `Emit(Events.MapGenerated, …)` 都必须走 `EmitMapEcho()`，不许裸 Emit。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;      // ★ 片 save-progress：已探索集合快照的载荷类型
@@ -38,7 +36,7 @@ namespace Diablo2.App
         private const string Tag = AppWiring.Tag;
 
         /// <summary>
-        /// 正在派发"地图快照回声"（= 本类把**已有的**地图再播一次，见文件头 ★）。
+        /// 正在派发"地图快照回声"（= 本类把**已有的**地图再播一次，见文件头 ）。
         /// `AppDoorGuard.OnMapGenerated` 见到它为 true 就直接跳过计数。
         /// 同步 `Emit` ⇒ 这个标志在派发期间绝对可靠（不需要锁，也不会跨线程）。
         /// </summary>
@@ -60,17 +58,16 @@ namespace Diablo2.App
         }
 
         /// <summary>
-        /// ★ 片 save-progress 新增（2026-09-24）：把**当前权威已探索集合**（`IMapModule.ExploredCells`）
         /// 再播一次 `Events.MapExplored`。
         /// <para>
         /// 为什么必须有这一步：读档回灌（`App/AppProgress` → `Events.MapExploredRestore` → 渲染层位图）
         /// 发生在**小地图面板存在之前** —— 面板是懒创建的（HUD 对它传 null，面板在 `OnOpen` 才订阅，
-        /// 见文件头 ⚠️），而 `Events.MapExplored` 是**增量**事件 ⇒ 面板收不到"读档带回来的那批格"，
+        /// 见文件头 ），而 `Events.MapExplored` 是**增量**事件 ⇒ 面板收不到"读档带回来的那批格"，
         /// 打开后只剩它自己的**半径 6 兜底**揭示（用户看到的就还是"地图没画出来"）。
         /// </para>
         /// <para>
         /// 口径：本方法发的是"**当前权威集合**"，而收方（`MiniMapPanel.ApplyExplored`）语义是**并入（union）**
-        /// ⇒ 重播全量幂等（⛔ 收方不得把它当"清空/替换"）。顺序要紧：必须在 `EmitMapEcho`（面板据此
+        /// ⇒ 重播全量幂等（收方不得把它当"清空/替换"）。顺序要紧：必须在 `EmitMapEcho`（面板据此
         /// 重建 `_explored` 位图并复位 `_fromSource`）**之后**发，否则那一次重建会把刚并入的格冲掉。
         /// </para>
         /// </summary>
@@ -156,7 +153,6 @@ namespace Diablo2.App
             {
                 if (ctx.Map.IsGenerated) { EmitMapEcho(ctx.Map.BuildMinimap()); n++; }
                 else Game.Logger.Warn(Tag, $"地图未生成 ⇒ 未广播 {Events.MapGenerated}（小地图将是空白）");
-                // ★ 片 save-progress：紧跟地图回声补一次"已探索集合"（顺序见 EmitExploredSnapshot 注释）
                 EmitExploredSnapshot("StageEntered 全量快照");
             }
             else AppWiring.Missing("IMapModule");
@@ -213,19 +209,17 @@ namespace Diablo2.App
                     break;
 
                 case nameof(MiniMapPanel):
-                    // HUD 对小地图传的是 null ⇒ 刚创建的那个收不到本次派发（见文件头 ⚠️）
+                    // HUD 对小地图传的是 null ⇒ 刚创建的那个收不到本次派发（见文件头 ）
                     if (ctx.Map == null) { AppWiring.Missing("IMapModule"); break; }
                     if (!ctx.Map.IsGenerated)
                     {
                         Game.Logger.Warn(Tag, "小地图被请求打开，但地图未生成 ⇒ 面板会显示空白");
                         break;
                     }
-                    // ★ 此时机的作用 = **面板打开时刷新一次快照（新鲜度）** —— 不是用来修正"图心"。
+                    // 此时机的作用 = **面板打开时刷新一次快照（新鲜度）** —— 不是用来修正"图心"。
                     //   图心 / 揭示中心 = "玩家当前格" 由**源头**负责：`Module/Map/MapModule.BuildMinimap`
                     //   的 `playerX/Y` 填 `_lastPlayerGrid`（契约见 `Module/Contracts.cs` 的「玩家所在格」；
-                    //   片 automap-panel 2026-09-24，实机 `mapPlayer==livePlayer 0→1`）。
-                    //   ⇒ 后人：⛔ 别把这里当"冗余回声"删掉（删了面板打开那一刻会拿到旧快照）；
-                    //     ⛔ 也别在这里再修一次"中心/揭示"（那是重复修同一件事，源头已经承担）。
+                    //     也别在这里再修一次"中心/揭示"（那是重复修同一件事，源头已经承担）。
                     //   下一帧的补发（`EmitDeferredMapSnapshot`）同理：补的是"刚创建的面板还没订完"。
                     EmitMapEcho(ctx.Map.BuildMinimap());
                     EmitExploredSnapshot("面板打开：MiniMapPanel");
@@ -263,7 +257,6 @@ namespace Diablo2.App
             if (ctx?.Map == null || !ctx.Map.IsGenerated) return;
             EmitMapEcho(ctx.Map.BuildMinimap());
             Game.Logger.Info(Tag, $"小地图快照补发（下一帧）：刚打开的面板已订完 {Events.MapGenerated}，能收到");
-            // ★ 片 save-progress：面板此刻确实订完了（上一行刚证明）⇒ 紧接着把"已探索集合"补上 ——
             //   顺序不能反：`ApplyMap` 会按新图重建 `_explored` 位图，先并格会被这次重建冲掉。
             EmitExploredSnapshot("小地图面板下一帧补发");
         }

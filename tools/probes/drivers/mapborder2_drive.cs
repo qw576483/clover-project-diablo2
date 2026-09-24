@@ -1,11 +1,9 @@
 // =============================================================================
-// mapborder2_drive.cs -- 片 map-border2 的实机取证驱动（裁决第 3 条：城镇边界封环的画面）
 //
 //   WHY: 主 agent 二次裁决要求"玩家站在城镇最边上的可走格"的**实机图** + 读图判定
-//        "画面里能看到多少地图外虚空"。离线 `mapcheck §32` 已给出 167/638 格、最大 1.1%，
 //        但离线数字**不能冒充画面** ⇒ 必须进一次 Play，把机位摆到三个位置各拍一张。
 //
-//   WHAT IT DOES (boot 链**复用** automap_drive.cs / blackwhy_probe.cs 的既有写法，⛔ 不从零写)：
+//   WHAT IT DOES (boot 链**复用** automap_drive.cs / blackwhy_probe.cs 的既有写法，不从零写)：
 //        ① 反射把 FSM 走到 Stage（`_roster` Load 第 1 个存档 → `_selected` → `GoStage(Town)`）；
 //        ② 等 `AppContext.I.Map.Generated`；
 //        ③ 三个机位各：TeleportTo → 等 0.5s → 记一行（格 / 相机世界坐标 / **同口径地图外占比**）
@@ -102,7 +100,7 @@ namespace MapBorder2Drv
                 yield return null;
             }
 
-            // ⛔ `Diablo2.App.AppContext` 是 **internal**（`public` 只在同程序集内可见）⇒ 只能反射拿
+            // `Diablo2.App.AppContext` 是 **internal**（`public` 只在同程序集内可见）⇒ 只能反射拿
             //    （同 `blackwhy_probe.cs` 的 `Ctx()/CtxMember()` 写法，不是自创）。
             var map = CtxMap();
             var player = CtxPlayer();
@@ -236,7 +234,6 @@ namespace MapBorder2Drv
 
         private static bool IsCampInterior(Vector2Int g) => g.x > 17 && g.x < 47 && g.y > 16 && g.y < 39;
 
-        // ---- 与 `mapcheck §31/§32` 同口径的"屏幕里地图外占比" ---------------
         internal static float OffMapFraction(Vector3 cam, float halfW, float halfH, int mw, int mh)
         {
             const int n = 96;

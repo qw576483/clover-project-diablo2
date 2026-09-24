@@ -1,17 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · Core/FramePacing.cs  ★★ 本项目新增 ★★
+// Diablo2 · Core/FramePacing.cs  本项目新增
 // **帧节奏的唯一调用点**（`Application.targetFrameRate` / `QualitySettings.vSyncCount`）。
 //
-// ★ 本片（镜头/帧节奏下沉）：**机制已下沉到引擎** `CloverEngine.FramePacingPolicy`
 //   (`clover-client-unity-engine/Runtime/Presentation/FramePacing.cs`)。
 //   本文件只剩下「业务口径 + 日志文案 + 只报一次」这三件业务侧的事：
 //     · 口径常量（60 / 0）与"为什么是 60"的论据；
 //     · 留痕（成功一条 Info、失败/未生效各一条 Warn，均只报一次）；
 //     · `Describe(...)` 的**业务尾注**（动画复位口径 / 移动积分口径）。
-//   ⛔ 本文件**不再**出现 `Application.targetFrameRate =` / `QualitySettings.vSyncCount =`
+//   本文件**不再**出现 `Application.targetFrameRate =` / `QualitySettings.vSyncCount =`
 //      这种原生写入 —— 全工程唯一写点 = `CloverEngine.FramePacingPolicy.Pin`。
 //
-// ★ R1-D（用户投诉「人物移动抖动」的候选①，已定根因）：
 //   全工程**从未**设过 `Application.targetFrameRate`（引擎里唯一写点是
 //   `Runtime/Presentation/Quality.cs:179-181`，由 `Game.Quality.SetLevel` 触发；
 //   而本项目**从不**调 `Game.Quality` ⇒ grep 0 命中）⇒ 帧率只由 `QualitySettings.vSyncCount`
@@ -21,22 +19,19 @@
 //   `App/Bootstrap.MaxQualityLevel`）⇒ **选 LOW/MED 时帧间隔无上限且随机抖动**，选 HIGH 时又被
 //   垂直同步接管 —— 同一份移动代码，帧节奏随"画质档位"变，观感就是"人物移动发抖/一顿一顿"。
 //
-// **口径（确定性，与画质档位无关）**：★ U27 起 = **引擎权威推荐**：
+// **口径（确定性，与画质档位无关）**：U27 起 = **引擎权威推荐**：
 //   · 刷新率**可读** ⇒ `vSyncCount = 1`（`FramePacingPolicy.RecommendVSyncCount`）：帧交付锁到
 //     刷新率 ⇒ **帧间隔恒定** ⇒ 世界滚动/角色位移的每帧推进量恒定。为什么必须这样：位置是 `f(t)`
 //     的光滑函数（按 `dt` 积分）⇒ 每帧推进量 = `v·dt`，**帧间隔不匀就直接变成画面推进不匀**。
-//     真机 A/B（片 g2-resume，`camjitter_drive` 逐帧 TSV）：100Hz 面板 + 旧口径 60/0 ⇒
 //     `dt` 8.5~62.6ms（sd 5.0ms）、相机纵向每帧推进 sd **2.97px**、`corr(纵向偏差, dt−均值)=0.923`
 //     ⇒ 不匀就是帧时间造成的（不是相机代码：跟随链路横向 sd 只有 0.19px）；
 //     且 60fps 落在 100Hz 上每帧占 1.67 个刷新周期 ⇒ 呈现节拍本身也不整。
 //   · 刷新率**读不到**（离线宿主 / 无头 / 平台不提供）⇒ **兜底口径** `targetFrameRate = 60` +
-//     `vSyncCount = 0`（= `TargetFrameRate` / `VSyncCount` 两个常量，⛔ 不许删）。
+//     `vSyncCount = 0`（= `TargetFrameRate` / `VSyncCount` 两个常量，不许删）。
 //   · 为什么兜底是 60 而不是原版 25：原版 25fps 是**逻辑帧**；本项目逻辑早已按 `dt` 积分
-//     （帧率无关 ⇒ 移动速度/动画相位与帧率解耦，断言见 `tools/probes/hosts/playercheck` §15 b
-//     "变 dt 走同一条路径 ⇒ 终点逐格一致"）⇒ 帧率只影响采样密度与平滑度。
-//   · ⛔ 本类**只**写帧节奏：画质内容（阴影 / 分辨率缩放 / LOD / 贴图限制）**一律不碰**。
+//   · 本类**只**写帧节奏：画质内容（阴影 / 分辨率缩放 / LOD / 贴图限制）**一律不碰**。
 //
-// ⛔ `QualitySettings.SetQualityLevel` 会**把 vSyncCount 按档位重置**（Unity 语义），所以
+// `QualitySettings.SetQualityLevel` 会**把 vSyncCount 按档位重置**（Unity 语义），所以
 //   **每次改画质档位之后**都要重新 `Pin` 一次（`UI/SettingsPanel.ApplyQualityToEngine` 已接）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -54,7 +49,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// **兜底**帧率上限（与画质档位无关）= 引擎兜底值，见文件头"为什么是 60"。
-        /// <para>★ U27（帧节奏下沉）：**实际档位由 <see cref="Pin"/> 现取**
+        /// <para>U27（帧节奏下沉）：**实际档位由 <see cref="Pin"/> 现取**
         /// （<see cref="CloverEngine.FramePacingPolicy.Recommend"/>）；只有刷新率**读不到**
         /// （离线宿主 / 无头 / 平台不提供）时才落到本值。</para>
         /// </summary>
@@ -62,7 +57,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// **兜底**垂直同步档位（0 = 关）。刷新率读不到时用它退回"帧率上限"口径。
-        /// <para>⚠️ 刷新率**可读**时 <see cref="Pin"/> 用的是
+        /// <para>刷新率**可读**时 <see cref="Pin"/> 用的是
         /// <see cref="CloverEngine.FramePacingPolicy.RecommendVSyncCount(float)"/>（= 1）而不是本值
         /// —— 本值只在读不到刷新率时生效。两个常量因此仍是"**兜底口径**"，不是"实际口径"，
         /// 判据（`tools/probes/hosts/playercheck` §15 e1/e3）判的正是这条兜底链。</para>
@@ -75,7 +70,7 @@ namespace Diablo2.Core
         /// <summary>「未生效 / 设置失败」那条只报一次（同上）。</summary>
         private static bool _warned;
 
-        /// <summary>★ 每局 Play 复位"只报一次"记录（工程若开了「不重载域」，`static` 会跨局残留）。</summary>
+        /// <summary>每局 Play 复位"只报一次"记录（工程若开了「不重载域」，`static` 会跨局残留）。</summary>
         public static void ResetStaticsForNewPlaySession()
         {
             _logged = false;
@@ -85,7 +80,6 @@ namespace Diablo2.Core
         /// <summary>
         /// 把帧节奏钉死（幂等）。`reason` 只进日志（"启动" / "选项面板应用画质档位 2" / 自检宿主）。
         /// <para>**机制全部在引擎**（`CloverEngine.FramePacingPolicy.Pin` / `TryRead`）：本方法只做
-        /// 「读改前值 → 让引擎写 → 按引擎的返回值分流日志」。**任何非预期分支都留痕**：
         /// 原生 API 抛异常（离线自检宿主属正常现象）⇒ Warn；读回值不等于目标值 ⇒ Warn；
         /// 成功 ⇒ 首次（或"确实被改回去过"时）报一条 Info。各只报一次。</para>
         /// </summary>
@@ -95,14 +89,13 @@ namespace Diablo2.Core
             string readError;
             if (!CloverEngine.FramePacingPolicy.TryRead(out beforeFps, out beforeVsync, out readError))
             {
-                // 非预期分支（离线宿主走这一条）：读不成 ⇒ 改前值无从得知，用占位值并如实写进日志
                 beforeFps = 0;
                 beforeVsync = 0;
             }
 
-            // ★ U27：**档位由引擎权威给** —— `Recommend` = 刷新率可读 ⇒ vSyncCount=1（帧交付锁到
+            // U27：**档位由引擎权威给** —— `Recommend` = 刷新率可读 ⇒ vSyncCount=1（帧交付锁到
             //   刷新率，帧间隔恒定）；刷新率读不到（离线宿主 / 无头 / 平台不提供）⇒ **兜底口径**
-            //   `TargetFrameRate`(60) + `VSyncCount`(0)。⛔ 两条都在，不许把兜底删掉。
+            //   `TargetFrameRate`(60) + `VSyncCount`(0)。两条都在，不许把兜底删掉。
             int wantFps, wantVsync;
             float refreshHz;
             var refreshReadable = CloverEngine.FramePacingPolicy.Recommend(out wantFps, out wantVsync, out refreshHz);
@@ -142,13 +135,10 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 「生效口径」的**单行文本**（被 <see cref="Pin"/> 打进日志；离线自检宿主
-        /// `tools/probes/hosts/playercheck` §15 e3 直接断言它的用词 —— 保证口径不会被改日志时丢掉）。
         /// <para>前半段 = 引擎件 <see cref="CloverEngine.FramePacingPolicy.Describe"/>（机制口径）；
         /// 后半段 = 本项目的**业务尾注**（旧口径的代价 + 动画复位口径 + 移动积分口径）。</para>
         /// </summary>
         /// <param name="reason">为什么重钉（"启动" / "选项面板应用画质档位 2" / 宿主自检…）。</param>
-        /// <param name="beforeFps">改前的 `targetFrameRate`。</param>
-        /// <param name="beforeVsync">改前的 `vSyncCount`。</param>
         public static string Describe(string reason, int beforeFps, int beforeVsync)
             => Describe(reason, TargetFrameRate, VSyncCount, beforeFps, beforeVsync, 0f, false);
 
@@ -161,8 +151,6 @@ namespace Diablo2.Core
         /// <param name="reason">为什么重钉（"启动" / "选项面板应用画质档位 2" / 宿主自检…）。</param>
         /// <param name="fps">实际写下去的帧率上限。</param>
         /// <param name="vSync">实际写下去的垂直同步档位。</param>
-        /// <param name="beforeFps">改前的 `targetFrameRate`。</param>
-        /// <param name="beforeVsync">改前的 `vSyncCount`。</param>
         /// <param name="refreshHz">读到的显示器刷新率（读不到为 0）。</param>
         /// <param name="refreshReadable">刷新率是否可读（决定本行的"档位来源"措辞）。</param>
         public static string Describe(string reason, int fps, int vSync, int beforeFps, int beforeVsync,

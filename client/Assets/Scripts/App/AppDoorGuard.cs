@@ -1,8 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · App/AppDoorGuard.cs      （agent-12 建，agent-05 按 agent-14 §B 现象 3 重写）
 // **进图/过门的地图生成次数断言**：一次「进图」或一次「过门」只允许生成 1 次地图。
 //
-// ── 为什么要重写（原实现的根因，都有 Play 实测证据）───────────────────────────
 //   现象：`[Warn] [App] [Assert] 本次过门已第 2 次收到 D2.Map.Generated（>1）⇒ 重复生成！`
 //   真相：**地图只生成了一次**（Play 日志里 `[Map] Generate 完成` 只有 1 条），
 //         第 2 次是 `AppSnapshots` 给 HUD/小地图**补发的同一张图的"回声"**。
@@ -23,7 +21,7 @@
 //      （顺序只影响"哪条边界认领这次生成"：因为 `AppFlow` 的 `ExitEntered` 处理器**总是**晚注册
 //        ⇒ 总是先跑，所以过门这次生成**稳定地**落在本次过门自己的窗口里，不存在错位。）
 //
-// ⛔ 去重规则本身**不在这里**（也不该在这里）：
+// 去重规则本身**不在这里**（也不该在这里）：
 //   · `PlayerModule.CheckExit`   —— 同一出口格只触发一次（`_lastExitGrid`），且目标区域 == 当前区域时不发；
 //   · `AppFlow.EnterArea`        —— `_switchingArea` 防重入 + `to == _area` 直接忽略。
 //   本文件的存在意义 = **把"重复生成"变成一条可检索的日志**（否则它是静默的：玩家只觉得"卡了一下"）。
@@ -146,7 +144,6 @@ namespace Diablo2.App
         private static void OnMapGenerated(MinimapArgs args)
         {
             // ① 快照回声（App 层把**已有的**地图再播一次给 HUD/小地图）⇒ 不是"又生成了一张"。
-            //    必须**在计数之前**判掉，否则就是 agent-14 §B 现象 3 的那条假警报。
             if (AppSnapshots.EchoInFlight)
             {
                 _echoesSinceLastBoundary++;

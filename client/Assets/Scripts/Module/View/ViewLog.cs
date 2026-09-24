@@ -2,7 +2,6 @@
 // Diablo2 · Module/View/ViewLog.cs
 // 精灵视图模块的**统一日志入口**（tag 固定 = `View`，在 `Core/Log.cs` 的白名单内）。
 //
-// ★★ 降频设施已**收敛到引擎**（片 d2-log）：`WarnOnce` / `WarnThrottled` 的状态与闸门全部交给
 //    `CloverEngine.LogThrottle`，本文件**不再自持任何 `HashSet` / `Dictionary`**：
 //      · `WarnOnce`      ⇒ `LogThrottle.ShouldLog(key, float.PositiveInfinity)`（时间口径的"只报一次"）；
 //      · `WarnThrottled` ⇒ `LogThrottle.ShouldLogEvery(key, ThrottleEveryN)`（**计数口径**的无时钟降频）。
@@ -11,11 +10,10 @@
 //    该性质现在由**引擎**保证（`Runtime/Core/LogThrottle.cs` §语义约束 ①：三级时钟、**永不抛异常**，
 //    非 Unity 进程首次探测失败即自动降级到进程单调时钟）⇒ 本文件可以直接委托。
 //    需要**确定性**计时（离线断言逐值可复现）时注入 `Log.Clock`（它转发到 `LogThrottle.Clock`）；
-//    ⛔ 本层**不**自行改全局时钟（那会劫持宿主/其他模块的注入）。
+//    本层**不**自行改全局时钟（那会劫持宿主/其他模块的注入）。
 //
-// ⚠️ 语义差异（引擎能力所限，刻意如此，不是疏漏；与 Combat/Skill/Monster/Audio 那 4 份口径同一裁决）：
+// 语义差异（引擎能力所限，刻意如此，不是疏漏；与 Combat/Skill/Monster/Audio 那 4 份口径同一裁决）：
 //    ① 计数间隔：原实现 = 第 1 次、第 10 次、以及 100 的倍数各一条；引擎 `ShouldLogEvery` 只接受
-//       **单一** `everyN` ⇒ 取 `ThrottleEveryN = 100`：与原来的 100 倍数段**逐点一致**，
 //       只少了"第 10 次"那一条（要更密把该常量改成 10，代价是每百次多 8 行）。
 //    ② 行尾后缀：原实现自己补 `（第 N 次）`；引擎计数口径**不向调用方暴露 N** ⇒ 本层不再追加。
 //       （`*Counted` 那组会补 `（同类第 N 次）`，但它直发 `Game.Logger`、绕过本项目 `Log` 门面的
@@ -29,7 +27,7 @@
 //    输出**一律走本层 `Log.Warn` / `Log.Error`**：tag 规范化 + 项目静默开关在那一层。
 //    空 key 仍按原样处理（不输出 + 打一条本项目文案）——引擎计数口径会把空 key 归并成 `"default"`
 //    （那是另一条口径的刻意设计），本项目要保住"空 key 不输出、且不与其他调用方合并计数"。
-// ⛔ 禁止裸 `Debug.Log`。
+// 禁止裸 `Debug.Log`。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -94,7 +92,7 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 清空降频 / 只报一次记录（离场 / 复位时调用，见 <c>ViewModule.Clear</c>）。
-        /// <para>⚠️ 引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>），没有"按模块清"的入口
+        /// <para>引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>），没有"按模块清"的入口
         /// ⇒ 其他模块（含 `Core/Log`）的限频记录会被一并清掉，它们各自的"只报一次"重新生效一次。
         /// **无玩家可见影响**：只影响日志密度，不触碰游戏状态 / 数值 / 存档。</para>
         /// </summary>

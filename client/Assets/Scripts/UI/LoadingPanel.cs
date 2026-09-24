@@ -2,7 +2,7 @@
 // Diablo2 · UI/LoadingPanel.cs
 // 站点：Loading（读条进图）。层：**System**（要盖住一切）。预制体：`Resources/UI/LoadingPanel`。
 //
-// ★★ agent-a3 重写（「经典 load 动画」轮）：**1:1 复刻原版进图画面**
+// agent-a3 重写（「经典 load 动画」轮）：**1:1 复刻原版进图画面**
 //
 //   用户原话：「进入游戏场景，**那个经典的 load 动画也没做**」。
 //
@@ -19,7 +19,6 @@
 //            ⇒ **进度 = 帧号**（门/传送门开得越大 = 越接近读完），按**原始像素**显示
 //     :27-35 全文**没有**进度条 / 百分比数字 / 提示文字节点。
 //
-//   ⇒ 本面板的构成（**与上面逐项对应，多一项都没有**）：
 //     ① 铺满画布的**纯黑**底（原版 `Background`）；
 //     ② 屏幕正中一张 **原版 256×256 读条图**（10 帧，逐帧独立 PNG，
 //        `ResPaths.Frame(ResPaths.MenuLoadingScreen, i)`），尺寸 = 256 原版px × 1.8 = **460.8**
@@ -30,8 +29,7 @@
 //     为什么删：`LoadingScreen.cs` 的 34-70 行里只有「黑底 + 一张图」；多画一项 = 与原版不一致。
 //     进度反馈**没有丢**：它由**帧号**表达（原版就是这么表达的），驱动源仍是**真实进度**。
 //
-//   ★★ 驱动方式（「经典 load 动画」轮改）：**进度不再只来自 `Game.Scene.Load`**。
-//     修前 `OnSceneProgress` 直接把引擎 `op.progress`（值域 [0,0.9]）整段映射到 [0,1] 喂给本面板
+//   驱动方式（「经典 load 动画」轮改）：**进度不再只来自 `Game.Scene.Load`**。
 //     ⇒ 本工程 Stage 场景极小，引擎 ~40ms 就把进度推到 0.9 ⇒ 实机只闪过「第 1/10 → 第 10/10 帧」
 //     （Play 日志 20:36:40.229 → :40.231，2ms），用户要的「经典的 load 动画」等于看不见。
 //     现在由 `Module/Flow/LoadingSteps.cs` 的**分档表**驱动：
@@ -41,12 +39,12 @@
 //     ⇒ 本面板仍是"哑"的：`SetProgress(completeness, reason)` 进来就把对应帧贴上去，
 //       **不含任何定时器 / 假定曲线**（节奏下限在 `LoadingSteps.FrameCadenceSeconds`，属 Flow 层）。
 //
-//   ⚠️ 一处**本项目换算**（已尽量小、且写在代码里可复核）：引擎 `Runtime/Presentation/Scene.cs:34-43`
+//   一处**本项目换算**（已尽量小、且写在代码里可复核）：引擎 `Runtime/Presentation/Scene.cs:34-43`
 //     在 `allowSceneActivation = false` 期间回调，`op.progress` 的值域是 **[0, 0.9]**（到 0.9 才放行）
 //     ⇒ 那一段**只**喂门的前 5 档（[0, 0.9] → [0, 0.5]），换算在
 //     `LoadingSteps.SceneLoadFrameIndex`（与 `WorldBuilder.cs:33` 的 `Show(0.5f)` 同位置）。
 //
-// ⛔ 不引用任何业务模块（分层自检 ③）。资源路径一律来自 `Core/ResPaths.cs`。
+// 不引用任何业务模块（分层自检 ③）。资源路径一律来自 `Core/ResPaths.cs`。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -110,7 +108,7 @@ namespace Diablo2.UI
             UiArt.PrepareRoot(Root);
             Build();
 
-            // ★ 参数校验（constraints.md #7：漏传要 Warn，不静默）。原版进图画面**没有文字节点**，
+            // 参数校验（constraints.md #7：漏传要 Warn，不静默）。原版进图画面**没有文字节点**，
             //   所以 `FlowConst.LoadingTipStage` 只进日志（当作"当前在做什么"的可检索线索），不上屏。
             var tip = param as string;
             if (param != null && tip == null)
@@ -128,7 +126,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 刷新读条画面：completeness ∈ [0,1] → 帧号。**唯一调用方 = `AppFlow`**（Loading 站点的呈现步）。
-        /// <para>⛔ 本方法不做任何映射/定时/插值：进来的 `completeness` 直接按**原版公式**取帧
+        /// <para>本方法不做任何映射/定时/插值：进来的 `completeness` 直接按**原版公式**取帧
         /// （`(int)((帧数-1) × completeness)`，`LoadingScreen.cs:66`）。节奏与"档位该不该到"
         /// 都在 `Module/Flow` 侧决定（见文件头「驱动方式」）。</para>
         /// </summary>
@@ -202,7 +200,7 @@ namespace Diablo2.UI
                 return;
             }
 
-            // ⚠️ `LoadAsset` 命中缓存时回调可能**同步**触发 ⇒ 先把累计计数清零，再逐帧发起。
+            // `LoadAsset` 命中缓存时回调可能**同步**触发 ⇒ 先把累计计数清零，再逐帧发起。
             _framesLeft = _framePaths.Length;
             for (var i = 0; i < _framePaths.Length; i++)
             {
@@ -266,7 +264,7 @@ namespace Diablo2.UI
             if (sp == null)
             {
                 // 帧还没回来 / 整组缺失：保持黑底 + 已打的 Error（不静默、也不贴错图）。
-                // ⚠️ 此时**不**更新 `_shownFrame`：等帧回调到达后 ApplyFrame 会把这一帧真正贴上。
+                // 此时**不**更新 `_shownFrame`：等帧回调到达后 ApplyFrame 会把这一帧真正贴上。
                 if (!_framesMissing && !_hasWarnedFrameMissing)
                 {
                     _hasWarnedFrameMissing = true;

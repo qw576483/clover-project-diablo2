@@ -1,16 +1,14 @@
-# dialog-options2 (2026-09-24) 判据资产（**可复跑**）：把"哪套调色板对"的判定锚点放在
 # **雕槽宝石 / 金边框**上 —— 这是"只有眼睛能判"那一半，且**肉眼可复核**。
 #
 # 为什么需要它：中段版面在错误调色板下是麻点（噪声），数值度量只能给"平滑度"，判不出**色相对不对**；
 # 而"同一颗宝石 / 同一圈金边框"的色相是硬锚点 —— 某套色若让宝石变灰或变别的色，它就不是这套图的色表。
 #
 # 跑法：cd <项目根>/tools/d2codec && python ../probes/measure/probe_sel_palette_gem_anchor.py
-# 产物（供 AI 读图，⛔ 不许只看数值）：
+# 产物（供 AI 读图，不许只看数值）：
 #   .ai-tmp/screenshots/dialogoptions2_selpal_full.png   四行整条按钮 5×（A 参考 / B sel@ACT1 / C sel@fechar / D 磁盘现状）
 #   .ai-tmp/screenshots/dialogoptions2_selpal_gems.png   同上四行的**左端宝石区 10×**
-# 实测读图结论（2026-09-24）：A（常态@ACT1，已知干净）与 **D == C（fechar 版）** 是**同形同色**的
 #   金边框 + 深蓝宝石；B（sel@ACT1）连边框都撒满白/粉/蓝彩点 ⇒ **fechar 才是这一个 DC6 的调色板**。
-#   ⚠️ 别把这条推广到同族的常态/按下图（那两张要 ACT1，fechar 会让它们烂到 105 —— 见 probe_med_button_palette.py）。
+#   别把这条推广到同族的常态/按下图（那两张要 ACT1，fechar 会让它们烂到 105 —— 见 probe_med_button_palette.py）。
 import os
 import sys
 import numpy as np

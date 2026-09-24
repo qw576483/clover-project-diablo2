@@ -58,7 +58,6 @@ def main():
             continue
         if not c[6].strip():
             continue
-        # 收本维度全部已判定行（本片 + 前几轮已填的），给出完整的 行号 -> 联络图格号 索引
         g = xof(c[1])
         tile = idxline = ""
         for gg in re.split(r"[/,]", g):
