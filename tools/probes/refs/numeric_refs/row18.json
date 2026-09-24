@@ -2,14 +2,14 @@
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 18,
   "spec_md_line": 114,
-  "spec_sha256": "4e942e167465bb942d2f1061451bf3880e289597de7a408a94ce5cd1f2629a7d",
+  "spec_sha256": "457055c9067889b91066456c9e68054819aec00672cad0d0960ef8f1402c8f71",
   "category": "数值类",
   "system": "经验与升级",
   "method": "官方经验曲线",
   "criterion": "杀怪到阈值 → 升级；日志 `[Player] level 1→2`",
   "conclusion": "通过（**注**：升级探针见 `_dev/a21_*`；本轮未重跑「给 100 万经验杀 1 只」的探针）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row18.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 08:57:04",
+  "generated": "2026-09-24 09:12:03",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_playercheck.txt": [

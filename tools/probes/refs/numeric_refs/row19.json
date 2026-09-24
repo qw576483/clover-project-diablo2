@@ -2,14 +2,14 @@
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 19,
   "spec_md_line": 115,
-  "spec_sha256": "4e942e167465bb942d2f1061451bf3880e289597de7a408a94ce5cd1f2629a7d",
+  "spec_sha256": "457055c9067889b91066456c9e68054819aec00672cad0d0960ef8f1402c8f71",
   "category": "数值类",
   "system": "伤害公式（**片 6 换成官方口径**）",
   "method": "官方 `DAMAGE_CalculatePhysicalDamage`：`武器 + 武器×(力量×StrBonus/100 + ED%)/100`（**整数截断**，不再是四舍五入）",
   "criterion": "探针打印期望伤害与实测一致；出处见 `自审对比/数值对照.md` §1 A2",
   "conclusion": "通过（**本行判据 = 数值类，故给运行时日志行**；允许的差异 **E25** 已登记）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row19.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 08:57:04",
+  "generated": "2026-09-24 09:12:03",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
