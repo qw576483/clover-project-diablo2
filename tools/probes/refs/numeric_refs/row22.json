@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 22,
-  "spec_md_line": 117,
-  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "spec_md_line": 118,
+  "spec_sha256": "a2994c076885600e11e3be14e5d825d74a8537fa88547fc75cf5e8aef89bddbb",
   "category": "数值类",
   "system": "区域等级 / 怪物数值（**片 6 逐条对官方公式复算**）",
   "method": "官方 `MONSTER_CalculateLevelScaledStats @006538a0`：`AC/AR/伤害/经验/HP = MonLvl.行 × MonStats.列 / 100`（**截断**）",
   "criterion": "用官方表**逐值复算** 8 只怪 × 8 列 = 64 项；再与实机 `[Monster] spawn` 行比",
   "conclusion": "通过（**行内判据 = 数值类 ⇒ 给复算表 + 运行时日志**；13 项取整差 **未改**，登记 **E30 + BL-7**）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row22.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-23 14:31:39",
+  "generated": "2026-09-24 07:43:44",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [
@@ -26,7 +26,7 @@
         "堕落者 hp=3/3 dmg=1-2",
         "尖刺鼠 hp=4/4",
         "狂热 僵尸 hp=30/30 ar=14 dmg=2-6",
-        "MonLvl.txt",
+        "原版资源/d2lod1.10txt-1.10f/data/global/excel/",
         "AC6/TH8/HP7/DM2/XP30",
         "[Monster] spawn m#"
       ]

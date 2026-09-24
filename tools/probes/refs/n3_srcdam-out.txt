@@ -1,0 +1,46 @@
+==============================================================================
+N3 root cause (criterion = official skills.txt column 219 `SrcDam` non-empty = weapon-damage class; our column `skill_c.src_dam` is the same value)
+official = 原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/skills.txt (sha256 a82097efa82f585ee1189ba6366110c3dfd774154b329774e1cc831f4ec9d0c5)
+ours     = 策划/数值文档/skill_c.txt (sha256 c2b112e575cb76cf648973151e1981ca631f7cf5a3b801350b837b9c06583af5)
+
+skill_c rows whose OFFICIAL SrcDam is non-empty      = 33 rows
+of those, ours dmg_max=0 and missile empty          = 21 rows * (the R1/N3 family, all no-effect)
+
+per row (class / skill_c.id / ours name / official_id / official skill / SrcDam / range / EType / official calc1 desc / official calc1):
+cls=1 id=  5 戳刺         official_id= 10 Jab                    SrcDam= 128 range=h2h   EType='' calc1desc='dmg%' calc1=ln34
+cls=1 id=  7 多重箭        official_id= 12 Multiple Shot          SrcDam=  96 range=rng   EType='' calc1desc='# missiles' calc1="min(24,ln12)"
+cls=1 id= 14 刺穿         official_id= 19 Impale                 SrcDam= 128 range=h2h   EType='' calc1desc='dm%' calc1=ln12
+cls=1 id= 17 导引箭        official_id= 22 Guided Arrow           SrcDam= 128 range=rng   EType='' calc1desc='+ dmg%' calc1=ln34
+cls=1 id= 21 扫射         official_id= 26 Strafe                 SrcDam=  96 range=rng   EType='' calc1desc='#missiles' calc1="min(par3 + lvl - 1, par4)"
+cls=1 id= 25 连击         official_id= 30 Fend                   SrcDam= 128 range=h2h   EType='' calc1desc='max targets' calc1=12
+cls=3 id= 68 淬毒匕首       official_id= 73 Poison Dagger          SrcDam= 128 range=h2h   EType='pois' calc1desc='' calc1=
+cls=4 id= 91 牺牲         official_id= 96 Sacrifice              SrcDam= 128 range=h2h   EType='' calc1desc='damage %' calc1=ln12+skill('Redemption'.blvl)*par8+skill('Fanaticism'.blvl)*par7
+cls=4 id=101 热诚         official_id=106 Zeal                   SrcDam= 128 range=h2h   EType='' calc1desc='max targets' calc1="min((par5 + lvl -1), par6)"
+cls=4 id=102 冲锋         official_id=107 Charge                 SrcDam= 128 range=none  EType='' calc1desc='damage %' calc1=ln34+(skill('Vigor'.blvl)+skill('Might'.blvl))*par8
+cls=4 id=106 复仇         official_id=111 Vengeance              SrcDam= 128 range=h2h   EType='cold' calc1desc='fire damage%' calc1=ln12+skill('Resist Fire'.blvl)*par8+skill('Salvation'.blvl)*par7
+cls=4 id=111 转化         official_id=116 Conversion             SrcDam= 128 range=h2h   EType='' calc1desc='chance to convert' calc1=dm34
+cls=5 id=121 重击         official_id=126 Bash                   SrcDam= 128 range=h2h   EType='' calc1desc='damage%' calc1=ln12+skill('Stun'.blvl)*par8
+cls=5 id=128 双手挥舞       official_id=133 Double Swing           SrcDam= 128 range=h2h   EType='' calc1desc='damage%' calc1=skill('Bash'.blvl)*par8
+cls=5 id=134 击晕         official_id=139 Stun                   SrcDam= 128 range=h2h   EType='stun' calc1desc='' calc1=skill('Bash'.blvl)*par8
+cls=5 id=135 双手投掷       official_id=140 Double Throw           SrcDam= 128 range=rng   EType='' calc1desc='damage%' calc1=skill('Double Swing'.blvl)*par8
+cls=5 id=138 跳跃攻击       official_id=143 Leap Attack            SrcDam= 128 range=none  EType='' calc1desc='' calc1=ln34+skill('Leap'.blvl)*par8
+cls=5 id=139 集中         official_id=144 Concentrate            SrcDam= 128 range=h2h   EType='mag' calc1desc='damage%' calc1=ln12+skill('Bash'.blvl)*par8+skill('Battle Orders'.blvl)*par7
+cls=5 id=142 狂乱         official_id=147 Frenzy                 SrcDam= 128 range=h2h   EType='mag' calc1desc='damage%' calc1=ln12+(skill('Double Swing'.blvl) + skill('Taunt'.blvl))*par8
+cls=5 id=146 旋风暴        official_id=151 Whirlwind              SrcDam= 128 range=none  EType='' calc1desc='damage%' calc1=ln12
+cls=5 id=147 狂暴         official_id=152 Berserk                SrcDam= 128 range=h2h   EType='mag' calc1desc='damage%' calc1=ln12+(skill('Howl'.blvl) + skill('Shout'.blvl))*par8
+
+SrcDam non-empty and ours dmg_max>0 (executable, reference only) = 11
+cls=1 id=  1 魔法箭        official_id=  6 Magic Arrow            SrcDam= 128 range=rng   EType='' calc1desc='' calc1=
+cls=1 id=  2 火焰箭        official_id=  7 Fire Arrow             SrcDam= 128 range=rng   EType='fire' calc1desc='' calc1=
+cls=1 id=  6 寒冰箭        official_id= 11 Cold Arrow             SrcDam= 128 range=rng   EType='cold' calc1desc='' calc1=
+cls=1 id=  9 强力打击       official_id= 14 Power Strike           SrcDam= 128 range=h2h   EType='ltng' calc1desc='' calc1=
+cls=1 id= 11 爆裂箭        official_id= 16 Exploding Arrow        SrcDam= 128 range=rng   EType='fire' calc1desc='' calc1=
+cls=1 id= 15 闪电球        official_id= 20 Lightning Bolt         SrcDam=  96 range=rng   EType='ltng' calc1desc='' calc1=
+cls=1 id= 16 冰箭         official_id= 21 Ice Arrow              SrcDam= 128 range=rng   EType='cold' calc1desc='' calc1=
+cls=1 id= 20 瘟疫标枪       official_id= 25 Plague Javelin         SrcDam= 128 range=rng   EType='pois' calc1desc='' calc1=
+cls=1 id= 22 献祭之箭       official_id= 27 Immolation Arrow       SrcDam= 128 range=rng   EType='fire' calc1desc='fire disc radius' calc1=par1
+cls=1 id= 26 冻结之箭       official_id= 31 Freezing Arrow         SrcDam= 128 range=rng   EType='cold' calc1desc='damage radius' calc1=par1
+cls=1 id= 30 闪电之怒       official_id= 35 Lightning Fury         SrcDam= 128 range=rng   EType='ltng' calc1desc='num targets' calc1=ln12
+
+remainder (SrcDam non-empty, ours dmg_max=0 but a primary missile exists) = 1 rows
+cls=1 id= 10 毒标枪        official_id= 15 Poison Javelin         SrcDam= 128 range=rng   EType='pois' calc1desc='' calc1=

@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 19,
-  "spec_md_line": 114,
-  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "spec_md_line": 115,
+  "spec_sha256": "a2994c076885600e11e3be14e5d825d74a8537fa88547fc75cf5e8aef89bddbb",
   "category": "数值类",
   "system": "伤害公式（**片 6 换成官方口径**）",
   "method": "官方 `DAMAGE_CalculatePhysicalDamage`：`武器 + 武器×(力量×StrBonus/100 + ED%)/100`（**整数截断**，不再是四舍五入）",
   "criterion": "探针打印期望伤害与实测一致；出处见 `自审对比/数值对照.md` §1 A2",
   "conclusion": "通过（**本行判据 = 数值类，故给运行时日志行**；允许的差异 **E25** 已登记）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row19.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-23 14:31:38",
+  "generated": "2026-09-24 07:43:44",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
@@ -21,13 +21,12 @@
     "snippets": {
       ".ai-tmp/screenshots/w1_host_combatcheck.txt": [
         "[p6 现场]",
-        "editor_stop → clear_console → editor_play → eval_file _dev/p_runbg.cs → eval_file .ai-tmp/test/p6_combat.cs",
+        "editor_stop → clear_console → editor_play → eval_file tools/probes/interact/p_runbg.cs → eval_file",
         "AppContext",
         "[P6] A4",
         "17 = 13 + 13×33/100",
         "[离线] tools/probes/hosts/combatcheck",
         "13/33 ⇒ 17",
-        "原版资源/参考工程_Diablerie/libd2/packages/game/src/combat.zig:149-180",
         "@0057b420",
         "物理伤害：武器13 力量33 倍率1.0 → 17",
         "[ OK ] 物理伤害 = 武器 + 武器 × (力×StrBonus/100 + 敏×DexBonus/100 + 技能ED%)/100"

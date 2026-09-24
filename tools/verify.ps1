@@ -3,10 +3,13 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1
 #
-# Every line prints exactly one of: PASS / FAIL / HUMAN-ONLY.
+# Every VERDICT line prints exactly one of: PASS / FAIL / HUMAN-ONLY.
 #   PASS      = computed by this script (or by a tool it really ran)
 #   FAIL      = must be fixed; while any FAIL exists, nobody may say "done"
 #   HUMAN-ONLY= computable by a human / multimodal reader only -- must be looked at
+# INFO lines carry NO verdict and are never counted as a pass -- they register a fact
+# the reader must be able to see (e.g. item 35's derived boundary and its exempt-row
+# count).  Indented continuation lines under a verdict line are detail of that line.
 #
 # Covers (SKILL.md 1.11 items 1..8 + 1.12 contract + this project's own gates):
 #   01 stray-temp-files        no one-off *.cs outside .ai-tmp/test
@@ -28,7 +31,8 @@
 #   12 engine-selfname         (HUMAN-ONLY) the engine calls itself clover-engine
 #   13 no-escaped-artifacts    no one-off artifacts outside the project
 #   14 sampler-selfcheck       repo-wide .ps1/.psm1 syntax + ANSI trap (widened 2026-09-23)
-#   15 impl-by-executor        every changed impl file matches a dispatch record
+#   15 impl-by-executor        every changed impl file matches a dispatch record IN FORCE
+#                              (its own [At, next At) window, or a named direct-fix/adjudicated trace)
 #   16 compile                 unity command recompile + status poll
 #   17 console-errors          unity command console_status: errors == 0 ; exactly one narrow
 #                              whitelist (an entry logged by the Unity.Pipeline tool chain
@@ -54,7 +58,7 @@
 #   engine-selfname -> engine-credit (a source grep REPLACED by a half-machine / half-rendered judge)
 # Added in the same pass (template items this project had under no name; see the template block
 # at the end of this file): 30 verify-entry | 31 spec-doc | 32 asset-research-doc |
-#   33 baseline-images | 34 no-assets-screenshots | 35 no-team-sessions | 36 graphics-device |
+#   33 baseline-images | 34 no-assets-screenshots | 35 no-sync-subagents | 36 graphics-device |
 #   37 numeric-log-only | 38 scale-tier | 39 impact-radius
 #
 # Added 2026-09-24 (gate-hardening): 40 always-true-asserts -- 0 Check() in the offline
@@ -62,9 +66,14 @@
 # tools/probes/scan_always_true_checks.py (character-level C# lexer + balanced parens);
 # the item block at the end of this file explains why it must never become a grep again.
 #
-# This file is ASCII-only ON PURPOSE (see reference/verify-template.md pitfall 1/2):
-# PS 5.1 parses a non-ASCII .ps1 without BOM as ANSI -> Chinese -match silently fails.
-# Every non-ASCII path / word below is built from code points.
+# NOT ASCII-only (corrected 2026-09-24; the old wording claimed "ASCII-only ON PURPOSE"
+# while this file already carried CJK in its COMMENTS): the file contains non-ASCII, so
+# it MUST keep its UTF-8 BOM.  PS 5.1 parses a non-ASCII .ps1 WITH NO BOM as ANSI, which
+# breaks CJK inside string literals and makes -match silently fail (reference/
+# verify-template.md pitfall 1/2 -- the technical finding stands, only the "ASCII-only"
+# description was wrong).  sampler-selfcheck flags the missing-BOM case as an ANSI trap.
+# CODE (as opposed to comments) still keeps every non-ASCII path / word built from code
+# points, so nothing here depends on source encoding at runtime.
 # =============================================================================
 
 $ErrorActionPreference = 'Continue'
@@ -980,7 +989,36 @@ if ($badPs.Count -eq 0) { Say 'PASS' 'sampler-selfcheck' 'scripts under the repo
 else { Say 'FAIL' 'sampler-selfcheck' ($badPs -join '; ') }
 
 # -----------------------------------------------------------------------------
-# 15 impl-by-executor (SKILL 5 / 1.11 item 8): dispatch record must cover them
+# 15 impl-by-executor (SKILL 5 / 1.11 item 8): dispatch record must cover them.
+#    TIGHTENED 2026-09-24 to match reference/verify-template.md.  This project's version
+#    was WEAKER in two ways, and both are "courting the gate" channels (SKILL 8.3):
+#      (1) TIME WINDOW UPPER BOUND.  A dispatch row is in force only inside its OWN
+#          window [this row's At, the NEXT row's At) -- rows sorted by At, and the last
+#          row's bound is +infinity.  Without the upper bound a single early, wide-scoped
+#          row ratifies every later change (this ledger really carries a row whose Scope
+#          is client/** ), i.e. the check becomes a formality.
+#      (2) NAMED TRACES, read the way the template reads them -- from the COMMENT lines of
+#          the dispatch log: `# direct-fix: <path>` (SKILL 2 item 6's narrow exception:
+#          single file, <=20 lines, no new behaviour, no format change, a point defect
+#          the user called out) and `# adjudicated: <path>` (the main agent naming a
+#          carrier file it decided to change).  A hit counts as "this file already has a
+#          record".
+#          ⛔ Neither is a whitewash channel: multi-file / data-format / new-behaviour
+#          changes must still reconcile with a dispatch row.
+#      WHERE THE TRACES LIVE -- ADJUDICATED 2026-09-24: SKILL.md 2 item 6 only says
+#      "leave a `# direct-fix:` line"; it does NOT say WHERE.  The dispatch log is the
+#      single carrier of the dispatch record, and reference/verify-template.md reads the
+#      traces from its COMMENT lines -- so this item reads them there too (template
+#      parity is also what keeps scripts/gate-sync.ps1's item reconciliation valid).
+#      Unifying the SKILL wording (stating "write it into dispatch-log.tsv") is a
+#      SKILL-side edit, recorded as an improvement suggestion in the slice report --
+#      never changed from this file.
+#    Scan surface is UNCHANGED on purpose -- this pass is a TIGHTENING, not a re-scope:
+#    client/Assets/Scripts at 3 levels of .cs + client/Assets/Configs/*.json.
+#    Self-tested 2026-09-24 (anti-gaming.md section 5): real ledger PASS; narrowing one
+#    row's window so it can no longer cover its own file => FAIL naming that file;
+#    a `# direct-fix:` trace for a file that no row covers => PASS; removing that trace
+#    => FAIL again (so the trace path is neither dead code nor always-true).
 # -----------------------------------------------------------------------------
 $logPath = Join-Path $testDir 'dispatch-log.tsv'
 $implGlobs = @('client\Assets\Scripts\*.cs', 'client\Assets\Scripts\*\*.cs', 'client\Assets\Scripts\*\*\*.cs',
@@ -992,27 +1030,42 @@ foreach ($g in $implGlobs) {
                     Where-Object { $_.LastWriteTime -gt $implCut })
 }
 $implFiles = @($implFiles | Sort-Object FullName -Unique)
-$dispatched = @()
+$dispatched = @(); $named = @()
 if (Test-Path $logPath) {
     foreach ($line in @(Lines-Of $logPath)) {
-        if ($line -match '^\s*#' -or $line.Trim().Length -eq 0) { continue }
+        if ($line -match '^\s*#') {
+            # Named traces live in the ledger's own comments (template semantics).
+            if ($line -match '^\s*#\s*(?:adjudicated|direct-fix):\s*([^\s]+)') { $named += $Matches[1].Replace('\', '/') }
+            continue
+        }
+        if ($line.Trim().Length -eq 0) { continue }
         $c = $line -split "`t"
-        if ($c.Count -ge 4) { $dispatched += [pscustomobject]@{ At = $c[0]; By = $c[1]; Task = $c[2]; Scope = $c[3] } }
+        if ($c.Count -ge 4) {
+            $at = $null
+            try { $at = [datetime]$c[0] } catch { $at = $null }
+            if ($at -ne $null) { $dispatched += [pscustomobject]@{ At = $at; By = $c[1]; Task = $c[2]; Scope = $c[3] } }
+        }
     }
+}
+$dispatched = @($dispatched | Sort-Object At)
+for ($i = 0; $i -lt $dispatched.Count; $i++) {
+    $until = if ($i + 1 -lt $dispatched.Count) { $dispatched[$i + 1].At } else { [datetime]'9999-01-01' }
+    $dispatched[$i] | Add-Member -NotePropertyName Until -NotePropertyValue $until -Force
 }
 $orphan = @()
 foreach ($f in $implFiles) {
     $rel = $f.FullName.Substring($root.Length).TrimStart('\', '/').Replace('\', '/')
+    if ($named -contains $rel) { continue }
     $hit = @($dispatched | Where-Object {
         $scopes = @($_.Scope -split '[,;]') | ForEach-Object { $_.Trim().Replace('\', '/') } | Where-Object { $_.Length -gt 0 }
         $inScope = @($scopes | Where-Object { $rel -like ($_ + '*') }).Count -gt 0
-        $inScope -and ([datetime]$_.At) -le $f.LastWriteTime })
+        $inScope -and ($_.At -le $f.LastWriteTime) -and ($f.LastWriteTime -lt $_.Until) })
     if ($hit.Count -eq 0) { $orphan += $rel }
 }
 if ($implFiles.Count -eq 0) { Say 'HUMAN-ONLY' 'impl-by-executor' 'no impl file changed in the last 24h' }
-elseif ($orphan.Count -eq 0) { Say 'PASS' 'impl-by-executor' "$($implFiles.Count) impl file(s) all match a dispatch record" }
+elseif ($orphan.Count -eq 0) { Say 'PASS' 'impl-by-executor' "$($implFiles.Count) impl file(s) all match a dispatch row in force inside its own [At, next At) window, or a named # direct-fix: / # adjudicated: trace" }
 else {
-    Say 'FAIL' 'impl-by-executor' "$($orphan.Count)/$($implFiles.Count) impl file(s) have no dispatch record (SKILL 5) -- if $logPath is missing the MAIN agent skipped the record"
+    Say 'FAIL' 'impl-by-executor' "$($orphan.Count)/$($implFiles.Count) impl file(s) have no dispatch record IN FORCE (SKILL 5) -- a row covers only its own [At, next At) window; if $logPath is missing the MAIN agent skipped the record"
     $orphan | ForEach-Object { Write-Output ('            ' + $_) }
 }
 
@@ -2086,24 +2139,234 @@ if (Test-Path $shotInAsm) {
 }
 
 # -----------------------------------------------------------------------------
-# 35 no-team-sessions -- no async/team dispatch channel (it bypasses model:inherit and
-#    lands a weaker model).  The violation is a team SESSION ARTIFACT, never the bare
-#    existence of a teams/ dir (template item 11: scope the check to the real artifact;
-#    "the directory exists" would be a false positive).
+# 35 no-sync-subagents -- dispatch must go through the ASYNC team channel:
+#    Task(subagent_name=..., name=..., team_name=...) -- all three.  The
+#    synchronous sub-agent channel (subagent_name only, no name / team_name)
+#    makes the caller wait and stalls it (code=10003 "This operation was aborted").
+#
+#    Policy REVERSED on 2026-09-22: SKILL.md item 2 now states the channel has
+#    exactly ONE form -- team members (async) -- and bans the sync sub-agent.
+#    This file previously enforced the OLD polarity under the name
+#    `no-team-sessions`; the template item is REQUIRED under the name
+#    `no-sync-subagents` (reference/verify-template.md, GATE-ITEMS block), and
+#    scripts/gate-sync.ps1 extracts item names from `Say '<STATUS>' '<name>'`, so
+#    keeping the old name read as "template item missing".  Reversal provenance:
+#    reference/rules-full.md L1136 (the old "judge by model name" criterion was
+#    falsified) with L1102 / L1112 (ban on sync dispatch).
+#
+#    LEDGER BOUNDARY IS DERIVED FROM A HOST ARTIFACT -- NEVER a fixed date, and
+#    NEVER from the ledger itself.  Revision 2, 2026-09-24 (adjudicated by main):
+#      - NOT a fixed date: 2026-09-22 is the day the POLICY flipped, but this
+#        project's team channel did not exist on that day.  The d2ui team's
+#        config.json createdAt = 2026-09-23T09:39:04.632Z (= 17:39:04 local), and
+#        the 2026-09-22 sessions under teams/ belong to OTHER projects.  Holding a
+#        2026-09-22 row to a team channel that did not exist yet would assert
+#        something unknowable => a STRUCTURAL FALSE RED (measured 2026-09-24).
+#      - NOT from the ledger: using "the earliest row in the log" (or its newest
+#        row) as the boundary would let the judged artifact define its own
+#        exemption -- the check would grade itself.
+#    So: the team name is read from the ledger's OWN HEADER comment (its declared
+#    `teams/<mainConversationId>/<team>` reference; host-side fallback = the config.json
+#    whose workspacePath is this workspace), and the boundary is the EARLIEST createdAt
+#    over every `teams/<mainConversationId>/<team>/config.json` found under BOTH
+#    <workspace>/.codebuddy/teams and <project>/.codebuddy/teams.  The INFO line prints
+#    all three of: the source file's ABSOLUTE PATH, the RAW createdAt, and the LOCAL time
+#    it converts to -- never a bare date.
+#
+#    WHAT IS JUDGED: every row of .ai-tmp/test/dispatch-log.tsv whose At is
+#    >= that boundary (4 TAB columns: At / By / Task / Scope; '#'/blank skipped).
+#      (a) By must be <team>/<member> -- exactly one '/', both sides non-empty;
+#      (b) that member must have a HOST MEMBER RECORD at
+#          <teams root>/<mainConversationId>/<team>/<member>.json, and that file must
+#          PARSE as JSON.  Both teams roots are scanned: <workspace>/.codebuddy/teams and
+#          <project>/.codebuddy/teams (workspace = the project's parent dir).
+#          Parseability is what closes the "drop an empty file there" hole a bare
+#          existence test leaves open: the harness writes that file as the member's own
+#          message log (a JSON array of {id,from,to,...} with to=<member>).
+#      WHY validMembers[] IS *NOT* THE PASS CONDITION (measured on this project,
+#      2026-09-24): config.json's validMembers[] is a WINDOW, not a registry -- 56
+#      <member>.json files exist while validMembers[] carries only 44, and the genuine
+#      team members automap-redo2 / hud-redo2 / monster-audio are missing from BOTH
+#      validMembers[] and members[] (members[] holds only the 5 currently-running ones).
+#      Gating on validMembers[] failed 10 of 28 rows that ARE real async team dispatches
+#      (each has a host message log and a host anchor in the Task column) -- it
+#      manufactured false reds, so it was demoted (adjudicated by main).  It is still
+#      READ, and its hit count is printed in the INFO line as corroboration -- evidence,
+#      never a verdict.
+#    WHY (b) IS THE RIGHT PROXY: an async team dispatch leaves a member record on the
+#    host, a sync sub-agent leaves none -- so the record is the mechanical equivalent of
+#    "that member was actually spawned", while staying a check on a REAL artifact instead
+#    of on a claim.
+#
+#    WHAT IS NOT JUDGED, on purpose:
+#      - rows BEFORE the boundary are EXEMPT, but never silently: an INFO line
+#        always reports 'exempt (pre-team-channel) rows = N' (anti-gaming.md: an
+#        exemption must be REGISTERED, not quietly allowed).
+#      - the bare existence of a teams/ dir, or a file count > 0.  That is the
+#        mirror image of the old error, and the old header said so itself:
+#        "The violation is a team SESSION ARTIFACT, never the bare existence of a
+#        teams/ dir" -- a dir proves nothing about how THIS project dispatched.
+#      - the model name: that criterion was falsified (rules-full.md L1136).
+#      - a row whose At cannot be parsed: it is neither >= nor < the boundary, so
+#        it cannot be judged; it is reported as 'undated rows = N' in the same
+#        INFO line (visible), and does not by itself fail this item.
+#    ZERO judged rows => FAIL: with no dispatch record at/after the team channel
+#    came into existence, nothing proves the dispatch used the team channel.
+#
+#    Self-tested (anti-gaming.md section 5), against the REAL ledger: PASS once the
+#    boundary came from config.json; FAIL after rewriting one judged By to a single token
+#    ("clover-impl"); FAIL after rewriting one judged By to a member with no host member
+#    record ("d2ui/no-such-member-xyz"); FAIL on a fixture with 0 judged rows (one
+#    pre-boundary row only, correctly reported as exempt); FAIL when the ledger header
+#    names a team that has no host config.json (boundary unanchorable).
 # -----------------------------------------------------------------------------
-$teamDirs = @((Join-Path (Split-Path $root -Parent) '.codebuddy\teams'), (Join-Path $root '.codebuddy\teams'))
-$teamFiles = @()
-foreach ($d in $teamDirs) {
-    if (Test-Path $d) { $teamFiles += @(Get-ChildItem $d -Recurse -File -Force -ErrorAction SilentlyContinue) }
+$nsaLog = Join-Path $root '.ai-tmp\test\dispatch-log.tsv'
+$nsaWs = Split-Path $root -Parent
+$nsaTeamRoots = @((Join-Path $nsaWs '.codebuddy\teams'), (Join-Path $root '.codebuddy\teams'))
+$nsaSeen = @($nsaTeamRoots | Where-Object { Test-Path $_ })
+$nsaWhere = if ($nsaSeen.Count -eq 0) { 'no .codebuddy/teams root on disk' } else { ($nsaSeen -join ' ; ') }
+# Host-side team artifacts: <teams root>/<mainConversationId>/<team>/config.json (exactly
+# 2 levels below a teams root, both roots scanned).  That ONE file carries BOTH anchors
+# this item uses: createdAt (the boundary) and validMembers[] (the member registry).
+$nsaCfgs = @()
+foreach ($nsaTr in $nsaSeen) {
+    foreach ($nsaSess in @(Get-ChildItem $nsaTr -Directory -ErrorAction SilentlyContinue)) {
+        foreach ($nsaTd in @(Get-ChildItem $nsaSess.FullName -Directory -ErrorAction SilentlyContinue)) {
+            $nsaCfg = Join-Path $nsaTd.FullName 'config.json'
+            if (-not (Test-Path $nsaCfg)) { continue }
+            $nsaRaw = ''; $nsaLocal = $null; $nsaWorkspace = ''; $nsaMbrs = $null; $nsaMainConv = ''
+            $nsaTxt = ''
+            try {
+                $nsaTxt = [System.IO.File]::ReadAllText($nsaCfg, [System.Text.Encoding]::UTF8)
+                $nsaObj = ConvertFrom-Json $nsaTxt
+                $nsaRaw = '' + $nsaObj.createdAt
+                $nsaWorkspace = '' + $nsaObj.workspacePath
+                $nsaMainConv = '' + $nsaObj.mainConversationId
+                $nsaMbrs = $nsaObj.validMembers
+                if ($nsaRaw -ne '') {
+                    $nsaUtc = [datetime]::Parse($nsaRaw, [System.Globalization.CultureInfo]::InvariantCulture,
+                                                [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    $nsaLocal = $nsaUtc.ToLocalTime()
+                }
+            } catch { $nsaRaw = '' }
+            $nsaCfgs += [pscustomobject]@{ Team = $nsaTd.Name; Path = $nsaCfg; Raw = $nsaRaw; Local = $nsaLocal;
+                                           Workspace = $nsaWorkspace; Members = $nsaMbrs; MainConv = $nsaMainConv;
+                                           RawText = $nsaTxt }
+        }
+    }
 }
-$teamFiles = @($teamFiles | Sort-Object FullName -Unique)
-$teamSeen = @($teamDirs | Where-Object { Test-Path $_ })
-$teamWhere = if ($teamSeen.Count -eq 0) { 'no teams/ dir present at all' } else { ($teamSeen -join ' ; ') }
-if ($teamFiles.Count -eq 0) {
-    Say 'PASS' 'no-team-sessions' ('0 team/async session artifact (' + $teamWhere + ') -- dispatch must be a plain synchronous sub-agent')
+# The ledger's header comments and its data rows (At stays a DateTime so the boundary
+# comparison happens on a real instant, not on a string prefix).
+$nsaRows = @(); $nsaCmt = @()
+if (Test-Path $nsaLog) {
+    foreach ($nsaLn in [System.IO.File]::ReadAllLines($nsaLog, [System.Text.Encoding]::UTF8)) {
+        if ($nsaLn -match '^\s*#') { $nsaCmt += $nsaLn; continue }
+        if ($nsaLn.Trim() -eq '') { continue }
+        $nsaCol = $nsaLn -split "`t"
+        $nsaAtRaw = $nsaCol[0].Trim()
+        $nsaAt = $null
+        try { $nsaAt = [datetime]::Parse($nsaAtRaw, [System.Globalization.CultureInfo]::InvariantCulture) } catch { $nsaAt = $null }
+        $nsaBy = if ($nsaCol.Count -ge 2) { $nsaCol[1].Trim() } else { '' }
+        $nsaRows += [pscustomobject]@{ AtRaw = $nsaAtRaw; At = $nsaAt; By = $nsaBy; Raw = $nsaLn.Trim() }
+    }
+}
+# Team name: from the ledger HEADER, or failing that from the host's own workspacePath --
+# never from a judged row (that would let the artifact pick its own boundary).
+$nsaDeclTeam = ''; $nsaDeclSrc = ''
+foreach ($nsaC in $nsaCmt) {
+    $nsaM = [regex]::Match($nsaC, 'teams[\\/][^\\/\s]+[\\/]([A-Za-z0-9_\-]{1,40})')
+    if ($nsaM.Success) { $nsaDeclTeam = $nsaM.Groups[1].Value; $nsaDeclSrc = 'ledger header (teams/<session>/<team>)'; break }
+}
+if ($nsaDeclTeam -eq '') {
+    $nsaWsn = $nsaWs.Replace('\', '/').TrimEnd('/').ToLowerInvariant()
+    $nsaCand = @($nsaCfgs | Where-Object { ('' + $_.Workspace).Replace('\', '/').TrimEnd('/').ToLowerInvariant() -eq $nsaWsn })
+    if ($nsaCand.Count -gt 0) {
+        $nsaDeclTeam = (($nsaCand | Sort-Object Local | Select-Object -First 1).Team)
+        $nsaDeclSrc = 'host config.json workspacePath == ' + $nsaWs
+    }
+}
+# BOUNDARY = the EARLIEST createdAt over that team's config.json.  That same config is
+# kept as $nsaBoundaryCfg, because its validMembers[] is the registry rows must hit.
+$nsaBoundary = $null; $nsaBoundarySrc = ''; $nsaBoundaryRaw = ''; $nsaBoundaryCfg = $null
+if ($nsaDeclTeam -ne '') {
+    $nsaHit = @($nsaCfgs | Where-Object { $_.Team -eq $nsaDeclTeam -and $_.Local -ne $null } | Sort-Object Local)
+    if ($nsaHit.Count -gt 0) {
+        $nsaBoundaryCfg = $nsaHit[0]
+        $nsaBoundary = $nsaBoundaryCfg.Local
+        $nsaBoundarySrc = $nsaBoundaryCfg.Path
+        $nsaBoundaryRaw = $nsaBoundaryCfg.Raw
+    }
+}
+if (-not (Test-Path $nsaLog)) {
+    Say 'FAIL' 'no-sync-subagents' 'no .ai-tmp\test\dispatch-log.tsv -- nothing proves dispatch went through the async team channel (SKILL 2 item 2)'
+} elseif ($nsaBoundary -eq $null) {
+    $nsaWant = if ($nsaDeclTeam -ne '') { $nsaDeclTeam } else { '<team named by the ledger header>' }
+    Say 'FAIL' 'no-sync-subagents' ('no host-side team artifact to anchor the boundary: expected <teams root>/<mainConversationId>/' + $nsaWant + '/config.json with a parseable createdAt under ' + $nsaWhere + ' -- nothing proves the async team channel exists (SKILL 2 item 2)')
 } else {
-    Say 'FAIL' 'no-team-sessions' ($teamFiles.Count.ToString() + ' team/async session artifact(s) -- dispatch must be a plain synchronous sub-agent (SKILL 2 item 2)')
-    $teamFiles | Select-Object -First 5 | ForEach-Object { Write-Output ('            ' + $_.FullName) }
+    $nsaBStr = $nsaBoundary.ToString('yyyy-MM-dd HH:mm:ss')
+    Say 'INFO' 'no-sync-subagents' ('boundary = ' + $nsaBStr + ' local (rows with At >= boundary are judged) -- source file = ' + $nsaBoundarySrc + ' ; createdAt raw = ' + $nsaBoundaryRaw + ' ; createdAt local = ' + $nsaBStr + ' ; team = "' + $nsaDeclTeam + '" (' + $nsaDeclSrc + ') ; mainConversationId = ' + $nsaBoundaryCfg.MainConv)
+    # validMembers[] is read ONLY as corroboration (see the note in the block comment: the
+    # host writes it as a truncated WINDOW, so it must never be the pass condition).
+    $nsaMems = @()
+    if ($nsaBoundaryCfg.Members -ne $null) {
+        foreach ($nsaMbr in @($nsaBoundaryCfg.Members)) {
+            if ($nsaMbr -eq $null) { continue }
+            $nsaMn = '' + $nsaMbr.name
+            if ($nsaMn -eq '') { continue }
+            $nsaMems += [pscustomobject]@{ Name = $nsaMn; MemberId = ('' + $nsaMbr.memberId) }
+        }
+    }
+    $nsaJudged = @($nsaRows | Where-Object { $_.At -ne $null -and $_.At -ge $nsaBoundary })
+    $nsaExempt = @($nsaRows | Where-Object { $_.At -ne $null -and $_.At -lt $nsaBoundary })
+    $nsaUndated = @($nsaRows | Where-Object { $_.At -eq $null })
+    $nsaBad = @()
+    $nsaRegHits = 0
+    foreach ($nsaR in $nsaJudged) {
+        if ($nsaR.By -eq '') {
+            $nsaBad += ($nsaR.AtRaw + '  row has no By column: ' + $nsaR.Raw)
+            continue
+        }
+        $nsaSeg = @($nsaR.By -split '/')
+        if ((([regex]::Matches($nsaR.By, '/')).Count -ne 1) -or ($nsaSeg.Count -ne 2) -or
+            ($nsaSeg[0].Trim() -eq '') -or ($nsaSeg[1].Trim() -eq '')) {
+            $nsaBad += ($nsaR.AtRaw + '  By="' + $nsaR.By + '" is not <team>/<member> (exactly one slash, both sides non-empty)')
+            continue
+        }
+        $nsaRowTeam = $nsaSeg[0].Trim()
+        $nsaMember = $nsaSeg[1].Trim()
+        # MEMBER RECORD: <teams root>/<mainConversationId>/<team>/<member>.json, and it must
+        # PARSE as JSON.  Parseability is what closes the "drop an empty file" hole that a
+        # bare existence test leaves open; the harness writes that file as the member's
+        # message log (a JSON array whose entries carry to=<member>).
+        $nsaRec = @()
+        foreach ($nsaTr in $nsaSeen) {
+            $nsaRec += @(Get-ChildItem $nsaTr -Recurse -File -Filter ($nsaMember + '.json') -ErrorAction SilentlyContinue |
+                         Where-Object { (Split-Path $_.DirectoryName -Leaf) -eq $nsaRowTeam })
+        }
+        if ($nsaRec.Count -eq 0) {
+            $nsaBad += ($nsaR.AtRaw + '  By="' + $nsaR.By + '" has no host-side member record (<teams root>\<mainConversationId>\' + $nsaRowTeam + '\' + $nsaMember + '.json)')
+            continue
+        }
+        $nsaParseOk = $false
+        try {
+            $null = ConvertFrom-Json ([System.IO.File]::ReadAllText($nsaRec[0].FullName, [System.Text.Encoding]::UTF8))
+            $nsaParseOk = $true
+        } catch { $nsaParseOk = $false }
+        if (-not $nsaParseOk) {
+            $nsaBad += ($nsaR.AtRaw + '  By="' + $nsaR.By + '" member record ' + $nsaRec[0].FullName + ' is not parseable JSON -- an empty/stray file must not count as a member record')
+            continue
+        }
+        if (@($nsaMems | Where-Object { $_.Name -eq $nsaMember -and $_.MemberId -eq ($nsaMember + '@' + $nsaRowTeam) }).Count -gt 0) { $nsaRegHits++ }
+    }
+    Say 'INFO' 'no-sync-subagents' ('exempt (pre-team-channel) rows = ' + $nsaExempt.Count + ' ; undated rows = ' + $nsaUndated.Count + ' (registered, not silently allowed) ; corroboration: validMembers[] carries ' + $nsaMems.Count + ' name(s), ' + $nsaRegHits + '/' + $nsaJudged.Count + ' judged row(s) also hit it (INFO only -- that array is a truncated window, see the comment)')
+    if ($nsaBad.Count -gt 0) {
+        Say 'FAIL' 'no-sync-subagents' ($nsaBad.Count.ToString() + ' of ' + $nsaJudged.Count + ' judged dispatch row(s) (At >= ' + $nsaBStr + ') do not prove an async team dispatch')
+        $nsaBad | Select-Object -First 5 | ForEach-Object { Write-Output ('            ' + $_) }
+    } elseif ($nsaJudged.Count -eq 0) {
+        Say 'FAIL' 'no-sync-subagents' ('0 dispatch row with At >= ' + $nsaBStr + ' in .ai-tmp\test\dispatch-log.tsv -- nothing proves dispatch went through the async team channel (SKILL 2 item 2)')
+    } else {
+        Say 'PASS' 'no-sync-subagents' ($nsaJudged.Count.ToString() + ' dispatch row(s) with At >= ' + $nsaBStr + ' all carry <team>/<member> with a parseable host-side member record at <teams root>\<mainConversationId>\<team>\<member>.json')
+    }
 }
 
 # -----------------------------------------------------------------------------

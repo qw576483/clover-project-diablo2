@@ -58,6 +58,11 @@ CITEDRE = re.compile(r"(\.ai-tmp/screenshots/w1_host_[A-Za-z0-9_]+\.txt)")
 # 老 CITEDRE 只认 `w1_host_*.txt` ⇒ 这 4 行抽不到任何 source。追加一个「本仓 `.ai-tmp/test/` 下的 .txt」模式，
 # 口径与老的完全一致（**只取该行已引用、且在盘的产物**），⛔ 不新造数值、⛔ 不把不在盘的引用当 source。
 CITEDRE_LOCAL = re.compile(r"(\.ai-tmp/test/[A-Za-z0-9_\-]+\.txt)")
+# 2026-09-24 rows-52-56：第 52 行的枚举产物从 `.ai-tmp/test/`（一次性区 ⇒ 已被清空、悬空）
+# 迁到**判据资产区** `tools/probes/refs/n3_srcdam-out.txt`（生产者 = `gen_n3_srcdam.py`）。
+# 老的两个模式都不认这个落点 ⇒ 第 52 行抽不到任何 source。口径完全一致（**只取该行已引用、
+# 且在盘的产物**），⛔ 不新造数值、⛔ 不把不在盘的引用当 source。
+CITEDRE_REFS = re.compile(r"(tools/probes/refs/[A-Za-z0-9_\-]+\.txt)")
 
 # `--check` 的比对口径：`generated` 是**生成时刻戳**（同一份内容、两次运行的秒数必然不同），
 # 连它一起比 ⇒ 两次运行之间恒报 STALE（实测：剔除该字段后 13/13 逐字节相等）。
@@ -252,7 +257,8 @@ def build_row(num, mdline, cells):
     if C_NUM not in concl:
         raise SystemExit("row %d is not tagged %s" % (num, C_NUM))
 
-    cited = sorted(set(CITEDRE.findall(evid)) | set(CITEDRE_LOCAL.findall(evid)))
+    cited = sorted(set(CITEDRE.findall(evid)) | set(CITEDRE_LOCAL.findall(evid))
+                   | set(CITEDRE_REFS.findall(evid)))
     anchors, unscoped = scoped_anchors(evid, cited)
     snippets = scoped_snippets(evid, cited)
 

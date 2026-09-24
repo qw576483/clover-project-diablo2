@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 5,
-  "spec_md_line": 100,
-  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "spec_md_line": 101,
+  "spec_sha256": "a2994c076885600e11e3be14e5d825d74a8537fa88547fc75cf5e8aef89bddbb",
   "category": "数值类",
   "system": "5 个职业",
-  "method": "初始属性取官方 `charstats.txt`",
+  "method": "初始属性取官方 `原版资源/d2lod1.10txt-1.10f/data/global/excel/`",
   "criterion": "读 5 职业初始四维与日志比对",
   "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row05.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-23 14:31:38",
+  "generated": "2026-09-24 07:43:44",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_playercheck.txt": [
@@ -19,7 +19,7 @@
     "unscoped_anchors": [],
     "snippets": {
       ".ai-tmp/screenshots/w1_host_playercheck.txt": [
-        "[a21 产物] log_a21_r1.txt:74486",
+        "[a21 产物]",
         "[Player] [Load] Hero 职业=Amazon 等级=1 经验=0/500 力20/敏25/体20/精15 生命=60/60 法力=22/22 耐力=20/20 防御=6 AR=95",
         "[离线] tools/probes/hosts/playercheck",
         "Step1_FiveClasses",

@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 20,
-  "spec_md_line": 115,
-  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "spec_md_line": 116,
+  "spec_sha256": "a2994c076885600e11e3be14e5d825d74a8537fa88547fc75cf5e8aef89bddbb",
   "category": "数值类",
   "system": "命中判定（**片 6 换成官方整数口径**）",
   "method": "官方 `DAMAGE_RollAttackHit @0057d9b0`：两次**整数截断** + `<6⇒5` / `>94⇒95`",
   "criterion": "探针手算期望命中率 vs 实机日志里的命中率逐值对账",
   "conclusion": "通过（**U1 未覆盖**：玩家普攻 `[普攻]` 行本轮没取到 —— 断言那一刻玩家到最近怪的距离 > 近战范围 1.6，模块按设计不结算；`HitChance` 已由 `[怪攻]` 覆盖同一函数/同一代码路径，详见 `数值对照.md` §3.1）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row20.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-23 14:31:38",
+  "generated": "2026-09-24 07:43:44",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_combatcheck.txt": [

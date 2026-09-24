@@ -1,0 +1,68 @@
+==============================================================================
+skill_c column-name baseline (frozen record for acceptance row 52)
+carrier   = 策划/数值文档/skill_c.txt
+sha256    = c2b112e575cb76cf648973151e1981ca631f7cf5a3b801350b837b9c06583af5
+bytes     = 35388
+columns   = 52
+
+index	column	declared_type
+0	id	int
+1	class	int
+2	tree	int
+3	name	string
+4	code	string
+5	official_id	int
+6	req_level	int
+7	max_level	int
+8	req_skill	int
+9	skill_points	int
+10	mana_cost	int
+11	mana_per_lvl	int
+12	dmg_min	int
+13	dmg_max	int
+14	phys_min	int
+15	phys_max	int
+16	elem_min	int
+17	elem_max	int
+18	phys_min_lev1	int
+19	phys_min_lev2	int
+20	phys_min_lev3	int
+21	phys_min_lev4	int
+22	phys_min_lev5	int
+23	phys_max_lev1	int
+24	phys_max_lev2	int
+25	phys_max_lev3	int
+26	phys_max_lev4	int
+27	phys_max_lev5	int
+28	elem_min_lev1	int
+29	elem_min_lev2	int
+30	elem_min_lev3	int
+31	elem_min_lev4	int
+32	elem_min_lev5	int
+33	elem_max_lev1	int
+34	elem_max_lev2	int
+35	elem_max_lev3	int
+36	elem_max_lev4	int
+37	elem_max_lev5	int
+38	hit_shift	int
+39	dmg_type	string
+40	passive	int
+41	missile	string
+42	desc	string
+43	src_dam	int
+44	dmg_pct_calc	string
+45	dmg_pct_desc	string
+46	dmg_pct_base	int
+47	dmg_pct_per_lvl	int
+48	dmg_pct_parsed	int
+49	missile_a	string
+50	missile_b	string
+51	missile_c	string
+
+Weapon-damage columns added by the audit R1/N3 fix (NOT in docs/步骤文档.md §2 yet):
+  src_dam = present
+  dmg_pct_calc = present
+  dmg_pct_desc = present
+  dmg_pct_base = present
+  dmg_pct_per_lvl = present
+  dmg_pct_parsed = present

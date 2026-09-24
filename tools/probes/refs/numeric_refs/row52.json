@@ -1,504 +1,319 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 52,
-  "spec_md_line": 1147,
-  "spec_sha256": "6a3336b67f2b37fbc1b8029941a7d67fd141ab4f4b802057e562fdceae3f81cb",
+  "spec_md_line": 1155,
+  "spec_sha256": "a2994c076885600e11e3be14e5d825d74a8537fa88547fc75cf5e8aef89bddbb",
   "category": "数值类",
   "system": "技能·武器伤害类",
   "method": "21 行攻击技能（含重击 #121）应按武器伤害结算",
   "criterion": "离线枚举官方 `SrcDam≠''` 的 21 行 + 断言 `TryCast` 真的扣血",
-  "conclusion": "未修（需先冻结 `skill_c` 列名）  ｜类别：数值类",
+  "conclusion": "通过（21 行真的按武器伤害结算；枚举产物 + 列名冻结凭据 + 运行时断言三者都在盘）  ｜类别：数值类",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-23 14:31:39",
+  "generated": "2026-09-24 07:43:44",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [],
-    "snippets": {}
+    "snippets": {
+      "tools/probes/refs/n3_srcdam-out.txt": [
+        "581C95DF2BFFE6F97FD111563CEA143BEA3449641656B279DEF788B09F21E2F3",
+        "--check",
+        "原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/skills.txt",
+        "SrcDam",
+        "dmg_max=0 ∧ missile=''",
+        "skill_c"
+      ],
+      "tools/probes/refs/skill_c_columns.txt": [
+        "c2b112e575cb76cf648973151e1981ca631f7cf5a3b801350b837b9c06583af5",
+        "gen_skill_c_columns.py"
+      ]
+    }
   },
   "sources": [
     {
-      "path": ".ai-tmp/test/n3_srcdam-out.txt",
+      "path": "tools/probes/refs/n3_srcdam-out.txt",
       "state": "on-disk",
       "encoding": "utf-8",
-      "bytes": 4120,
-      "sha256": "e7cccdf7f449bc437c8c0129449b7ddfefce84799e2c51570f254076c3c7cd5a",
-      "mtime": "2026-09-23 07:23:13",
-      "lines": 42,
+      "bytes": 5817,
+      "sha256": "581c95df2bffe6f97fd111563cea143bea3449641656b279def788b09f21e2f3",
+      "mtime": "2026-09-24 07:41:16",
+      "lines": 47,
       "ok_lines": 0,
       "fail_lines": 0,
       "pass_marks": 0,
       "last_line": [
-        "cls=1 id= 30 闪电之怒       dmg_max=40    missile='lightningfury'"
+        "cls=1 id= 10 毒标枪        official_id= 15 Poison Javelin         SrcDam= 128 range=rng   EType='pois' calc1desc='' calc1="
       ],
-      "matched_lines_total": 0,
-      "checks_written": 38,
+      "matched_lines_total": 15,
+      "checks_written": 14,
+      "checks_truncated": false
+    },
+    {
+      "path": "tools/probes/refs/skill_c_columns.txt",
+      "state": "on-disk",
+      "encoding": "utf-8",
+      "bytes": 1535,
+      "sha256": "a2347f83c28a89e7655d78aefebc6e0f69efe003d334d3e13f59fcf03064f69f",
+      "mtime": "2026-09-24 07:41:44",
+      "lines": 69,
+      "ok_lines": 0,
+      "fail_lines": 0,
+      "pass_marks": 0,
+      "last_line": [
+        "dmg_pct_parsed = present"
+      ],
+      "matched_lines_total": 1,
+      "checks_written": 3,
       "checks_truncated": false
     }
   ],
   "checks": [
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
       "line": 1,
       "selected_by": "file-summary-head",
       "text": "==============================================================================",
       "numbers": []
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
       "line": 2,
-      "selected_by": "numeric-line",
-      "text": "N3 精确根因（判据 = 官方 skills.txt 列 219 `SrcDam` 非空 = 武器伤害类）",
+      "selected_by": "snippet",
+      "text": "N3 root cause (criterion = official skills.txt column 219 `SrcDam` non-empty = weapon-damage class; our column `skill_c.src_dam` is the same value)",
       "numbers": [
         "3",
         "219"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 3,
+      "selected_by": "snippet",
+      "text": "official = 原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/skills.txt (sha256 a82097efa82f585ee1189ba6366110c3dfd774154b329774e1cc831f4ec9d0c5)",
+      "numbers": [
+        "2",
+        "1.10",
+        "256",
+        "82097",
+        "82",
+        "585",
+        "1189",
+        "6366110",
+        "3",
+        "774154",
+        "329774",
+        "1",
+        "831",
+        "4",
+        "9",
+        "0",
+        "5"
+      ]
+    },
+    {
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
       "line": 4,
-      "selected_by": "numeric-line",
-      "text": "skill_c 里官方 SrcDam 非空的行          = 33 行",
+      "selected_by": "snippet",
+      "text": "ours     = 策划/数值文档/skill_c.txt (sha256 c2b112e575cb76cf648973151e1981ca631f7cf5a3b801350b837b9c06583af5)",
+      "numbers": [
+        "256",
+        "2",
+        "112",
+        "575",
+        "76",
+        "648973151",
+        "1981",
+        "631",
+        "7",
+        "5",
+        "3",
+        "801350",
+        "837",
+        "9",
+        "06583",
+        "5"
+      ]
+    },
+    {
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 6,
+      "selected_by": "snippet",
+      "text": "skill_c rows whose OFFICIAL SrcDam is non-empty      = 33 rows",
       "numbers": [
         "33"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 5,
-      "selected_by": "numeric-line",
-      "text": "其中本项目 dmg_max=0 且 missile 为空    = 21 行 ★（= N3 同族，全部无任何效果）",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 9,
+      "selected_by": "snippet",
+      "text": "per row (class / skill_c.id / ours name / official_id / official skill / SrcDam / range / EType / official calc1 desc / official calc1):",
       "numbers": [
-        "0",
-        "21",
-        "3"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 7,
-      "selected_by": "numeric-line",
-      "text": "逐行（class / skill_c.id / 官方 skill / SrcDam / 官方 calc1 说明 / 官方 EType / 官方 range）：",
-      "numbers": [
+        "1",
         "1"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 8,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id=  5 戳刺         official_id= 10 Jab                    SrcDam=128 range=h2h   EType=''      calc1desc='dmg%'",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 10,
+      "selected_by": "snippet",
+      "text": "cls=1 id=  5 戳刺         official_id= 10 Jab                    SrcDam= 128 range=h2h   EType='' calc1desc='dmg%' calc1=ln34",
       "numbers": [
         "1",
         "5",
         "10",
         "128",
         "2",
-        "1"
+        "1",
+        "1",
+        "34"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 9,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id=  7 多重箭        official_id= 12 Multiple Shot          SrcDam= 96 range=rng   EType=''      calc1desc='# missiles'",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 11,
+      "selected_by": "snippet",
+      "text": "cls=1 id=  7 多重箭        official_id= 12 Multiple Shot          SrcDam=  96 range=rng   EType='' calc1desc='# missiles' calc1=\"min(24,ln12)\"",
       "numbers": [
         "1",
         "7",
         "12",
         "96",
-        "1"
+        "1",
+        "1",
+        "24",
+        "12"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 10,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 14 刺穿         official_id= 19 Impale                 SrcDam=128 range=h2h   EType=''      calc1desc='dm%'",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 12,
+      "selected_by": "snippet",
+      "text": "cls=1 id= 14 刺穿         official_id= 19 Impale                 SrcDam= 128 range=h2h   EType='' calc1desc='dm%' calc1=ln12",
       "numbers": [
         "1",
         "14",
         "19",
         "128",
         "2",
-        "1"
+        "1",
+        "1",
+        "12"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 11,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 17 导引箭        official_id= 22 Guided Arrow           SrcDam=128 range=rng   EType=''      calc1desc='+ dmg%'",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 13,
+      "selected_by": "snippet",
+      "text": "cls=1 id= 17 导引箭        official_id= 22 Guided Arrow           SrcDam= 128 range=rng   EType='' calc1desc='+ dmg%' calc1=ln34",
       "numbers": [
         "1",
         "17",
         "22",
         "128",
-        "1"
+        "1",
+        "1",
+        "34"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 12,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 21 扫射         official_id= 26 Strafe                 SrcDam= 96 range=rng   EType=''      calc1desc='#missiles'",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 14,
+      "selected_by": "snippet",
+      "text": "cls=1 id= 21 扫射         official_id= 26 Strafe                 SrcDam=  96 range=rng   EType='' calc1desc='#missiles' calc1=\"min(par3 + lvl - 1, par4)\"",
       "numbers": [
         "1",
         "21",
         "26",
         "96",
-        "1"
+        "1",
+        "1",
+        "3",
+        "1",
+        "4"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 13,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 25 连击         official_id= 30 Fend                   SrcDam=128 range=h2h   EType=''      calc1desc='max targets'",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 15,
+      "selected_by": "snippet",
+      "text": "cls=1 id= 25 连击         official_id= 30 Fend                   SrcDam= 128 range=h2h   EType='' calc1desc='max targets' calc1=12",
       "numbers": [
         "1",
         "25",
         "30",
         "128",
         "2",
-        "1"
+        "1",
+        "1",
+        "12"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 14,
-      "selected_by": "numeric-line",
-      "text": "cls=3 id= 68 淬毒匕首       official_id= 73 Poison Dagger          SrcDam=128 range=h2h   EType='pois'  calc1desc=''",
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 16,
+      "selected_by": "snippet",
+      "text": "cls=3 id= 68 淬毒匕首       official_id= 73 Poison Dagger          SrcDam= 128 range=h2h   EType='pois' calc1desc='' calc1=",
       "numbers": [
         "3",
         "68",
         "73",
         "128",
         "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 15,
-      "selected_by": "numeric-line",
-      "text": "cls=4 id= 91 牺牲         official_id= 96 Sacrifice              SrcDam=128 range=h2h   EType=''      calc1desc='damage %'",
-      "numbers": [
-        "4",
-        "91",
-        "96",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 16,
-      "selected_by": "numeric-line",
-      "text": "cls=4 id=101 热诚         official_id=106 Zeal                   SrcDam=128 range=h2h   EType=''      calc1desc='max targets'",
-      "numbers": [
-        "4",
-        "101",
-        "106",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 17,
-      "selected_by": "numeric-line",
-      "text": "cls=4 id=102 冲锋         official_id=107 Charge                 SrcDam=128 range=none  EType=''      calc1desc='damage %'",
-      "numbers": [
-        "4",
-        "102",
-        "107",
-        "128",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 18,
-      "selected_by": "numeric-line",
-      "text": "cls=4 id=106 复仇         official_id=111 Vengeance              SrcDam=128 range=h2h   EType='cold'  calc1desc='fire damage%'",
-      "numbers": [
-        "4",
-        "106",
-        "111",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 19,
-      "selected_by": "numeric-line",
-      "text": "cls=4 id=111 转化         official_id=116 Conversion             SrcDam=128 range=h2h   EType=''      calc1desc='chance to convert'",
-      "numbers": [
-        "4",
-        "111",
-        "116",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 20,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=121 重击         official_id=126 Bash                   SrcDam=128 range=h2h   EType=''      calc1desc='damage%'",
-      "numbers": [
-        "5",
-        "121",
-        "126",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 21,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=128 双手挥舞       official_id=133 Double Swing           SrcDam=128 range=h2h   EType=''      calc1desc='damage%'",
-      "numbers": [
-        "5",
-        "128",
-        "133",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 22,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=134 击晕         official_id=139 Stun                   SrcDam=128 range=h2h   EType='stun'  calc1desc=''",
-      "numbers": [
-        "5",
-        "134",
-        "139",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 23,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=135 双手投掷       official_id=140 Double Throw           SrcDam=128 range=rng   EType=''      calc1desc='damage%'",
-      "numbers": [
-        "5",
-        "135",
-        "140",
-        "128",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 24,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=138 跳跃攻击       official_id=143 Leap Attack            SrcDam=128 range=none  EType=''      calc1desc=''",
-      "numbers": [
-        "5",
-        "138",
-        "143",
-        "128",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 25,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=139 集中         official_id=144 Concentrate            SrcDam=128 range=h2h   EType='mag'   calc1desc='damage%'",
-      "numbers": [
-        "5",
-        "139",
-        "144",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 26,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=142 狂乱         official_id=147 Frenzy                 SrcDam=128 range=h2h   EType='mag'   calc1desc='damage%'",
-      "numbers": [
-        "5",
-        "142",
-        "147",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 27,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=146 旋风暴        official_id=151 Whirlwind              SrcDam=128 range=none  EType=''      calc1desc='damage%'",
-      "numbers": [
-        "5",
-        "146",
-        "151",
-        "128",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 28,
-      "selected_by": "numeric-line",
-      "text": "cls=5 id=147 狂暴         official_id=152 Berserk                SrcDam=128 range=h2h   EType='mag'   calc1desc='damage%'",
-      "numbers": [
-        "5",
-        "147",
-        "152",
-        "128",
-        "2",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 30,
-      "selected_by": "numeric-line",
-      "text": "SrcDam 非空且 dmg_max>0 的行（可执行，仅参考）= 12",
-      "numbers": [
-        "0",
-        "12"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 31,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id=  1 魔法箭        dmg_max=1     missile='magicarrow'",
-      "numbers": [
-        "1",
         "1",
         "1"
       ]
     },
     {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 32,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id=  2 火焰箭        dmg_max=4     missile='firearrow'",
-      "numbers": [
-        "1",
-        "2",
-        "4"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 33,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id=  6 寒冰箭        dmg_max=4     missile='coldarrow'",
-      "numbers": [
-        "1",
-        "6",
-        "4"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 34,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id=  9 强力打击       dmg_max=16    missile=''",
-      "numbers": [
-        "1",
-        "9",
-        "16"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 35,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 11 爆裂箭        dmg_max=6     missile='explodingarrow'",
-      "numbers": [
-        "1",
-        "11",
-        "6"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 36,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 15 闪电球        dmg_max=40    missile='lightningjavelin'",
-      "numbers": [
-        "1",
-        "15",
-        "40"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 37,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 16 冰箭         dmg_max=10    missile='icearrow'",
-      "numbers": [
-        "1",
-        "16",
-        "10"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 38,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 20 瘟疫标枪       dmg_max=1     missile='plaguejavelin'",
-      "numbers": [
-        "1",
-        "20",
-        "1"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 39,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 22 献祭之箭       dmg_max=20    missile='immolationarrow'",
-      "numbers": [
-        "1",
-        "22",
-        "20"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 40,
-      "selected_by": "numeric-line",
-      "text": "cls=1 id= 26 冻结之箭       dmg_max=50    missile='freezingarrow'",
-      "numbers": [
-        "1",
-        "26",
-        "50"
-      ]
-    },
-    {
-      "source": ".ai-tmp/test/n3_srcdam-out.txt",
-      "line": 41,
+      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "line": 46,
       "selected_by": "file-summary-tail",
-      "text": "cls=1 id= 30 闪电之怒       dmg_max=40    missile='lightningfury'",
+      "text": "cls=1 id= 10 毒标枪        official_id= 15 Poison Javelin         SrcDam= 128 range=rng   EType='pois' calc1desc='' calc1=",
       "numbers": [
         "1",
-        "30",
-        "40"
+        "10",
+        "15",
+        "128",
+        "1",
+        "1"
       ]
+    },
+    {
+      "source": "tools/probes/refs/skill_c_columns.txt",
+      "line": 1,
+      "selected_by": "file-summary-head",
+      "text": "==============================================================================",
+      "numbers": []
+    },
+    {
+      "source": "tools/probes/refs/skill_c_columns.txt",
+      "line": 4,
+      "selected_by": "snippet",
+      "text": "sha256    = c2b112e575cb76cf648973151e1981ca631f7cf5a3b801350b837b9c06583af5",
+      "numbers": [
+        "256",
+        "2",
+        "112",
+        "575",
+        "76",
+        "648973151",
+        "1981",
+        "631",
+        "7",
+        "5",
+        "3",
+        "801350",
+        "837",
+        "9",
+        "06583",
+        "5"
+      ]
+    },
+    {
+      "source": "tools/probes/refs/skill_c_columns.txt",
+      "line": 68,
+      "selected_by": "file-summary-tail",
+      "text": "dmg_pct_parsed = present",
+      "numbers": []
     }
   ]
 }
