@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/GroundItemLabelView.cs  本项目新增（impl-I-input，审计 R5）
+// Diablo2 · UI/GroundItemLabelView.cs  本项目新增
 //
 // 地面物品**名牌层**：原版 D2 的两条表现 ——
 //   ① 鼠标悬停地面物品 ⇒ 该物品显示名牌（名字按品质配色）；
@@ -8,19 +8,19 @@
 // 数据来源 = **事件**（本层零 `using Diablo2.Module`，分层自检 ③）：
 //   `Events.GroundItemLabelsChanged`（载荷 `Def.GroundItemLabelsArgs`，命名空间 `Diablo2.Def`）
 //   由 `Module/Input/InputReader.PublishGroundItemLabels` 发出 —— 它消费两件事：
-//     · `InputReader.ShowGroundItems`（= 原版 `Alt`；改动前该属性**全仓 0 消费**）
+//     · `InputReader.ShowGroundItems`（= 原版 `Alt`）
 //     · `Events.HoverTargetChanged` 解析出的当前悬停格
 //
 // 为什么挂在 HUD（`UI/HudPanel` 持有）：HUD 是进图后常驻的画布层，名牌必须画在
 //   角色/物品之上、又不该被面板遮住；节点与 HUD 同生命周期（`StageEntered` 建 / `StageLeft` 拆）。
 //
-//   「按 id 池化复用 + 世界点投影到画布 + 显隐 + 收尾隐藏」这一套机制移入引擎件
-//   `CloverEngine.WorldProjectedLabelLayer`（`clover-client-unity-engine/Runtime/Presentation/
+//   「按 id 池化复用 + 世界点投影到画布 + 显隐 + 收尾隐藏」这一套机制由引擎件
+//   `CloverEngine.WorldProjectedLabelLayer` 提供（`clover-client-unity-engine/Runtime/Presentation/
 //   WorldOverlayWidgets.cs`）；本文件只剩三件事：
 //     ① D2 取值：文案（名字 / "物品 #id" 兜底）、品质配色、世界落点（格中心 + 半格高）；
 //     ② 渲染注入：把 `D2Label` 包成引擎认得的 `IOverlayLabelView`（引擎不许引用项目类）；
-//     ③ 事件订阅与日志（调用点 / 公开 API **零改动**）。
-//   屏幕点 ⇄ 画布局部点换算由引擎件统一走 `ScreenPointUtil`（本文件不再自己调 `RectTransformUtility`）。
+//     ③ 事件订阅与日志。
+//   屏幕点 ⇄ 画布局部点换算由引擎件统一走 `ScreenPointUtil`（本文件不直接调 `RectTransformUtility`）。
 //
 // 样式口径（不自创）：
 //   · 字体 = `D2Text.D2Font.Font16` —— 与 HUD 技能格热键标签同一号（原版最小号，项目 UI 口径）；
@@ -62,7 +62,7 @@ namespace Diablo2.UI
         /// <summary>引擎通用件：世界投影标签层（**池化复用 / 投影 / 显隐**全在它里面）。</summary>
         private readonly WorldProjectedLabelLayer _layer;
 
-        /// <summary>本次要应用的标签（复用一个列表：`Apply` 是悬停驱动的热路径，不每次分配）。</summary>
+        /// <summary>要应用的标签（复用一个列表：`Apply` 是悬停驱动的热路径，不每次分配）。</summary>
         private readonly List<WorldLabelItem> _items = new List<WorldLabelItem>();
 
         /// <summary>当前显示中的名牌数（自证/断言用；转发引擎件）。</summary>

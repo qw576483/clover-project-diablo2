@@ -1,11 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/CursorView.cs（w5：「光标零消费方」收口）
+// Diablo2 · UI/CursorView.cs
 //
-// 要解决的事（w3 游戏内 UI 审计第 88 行 ·「不一致」）：
-//   `Events.CursorChanged` 有**发送方**（`Module/Input/InputReader.UpdateHover`，每次悬停目标
-//   变化时发 `Def.CursorKind`）却**零消费方** —— 全工程既没人设 `UnityEngine.Cursor`，
-//   也没有任何跟随鼠标的 Image ⇒ 画面上永远是**系统默认箭头**，原版的攻击/交互/拾取/不可走
-//   四种形态**永远看不见**。本类就是那个消费方。
+// `Events.CursorChanged` 的**消费方**（发送方 = `Module/Input/InputReader.UpdateHover`，
+//   每次悬停目标变化时发 `Def.CursorKind`）。除本类之外，全工程没有别处设 `UnityEngine.Cursor`、
+//   也没有跟随鼠标的 Image ⇒ 少了它画面上只有**系统默认箭头**，原版的攻击/交互/拾取/不可走
+//   四种形态看不见。
 //
 // ── 承载方式：**Top 画布上跟随鼠标的 Image + `Cursor.visible = false`**（二选一里选了它）──
 //   ① `UnityEngine.Cursor.SetCursor(texture, hotspot, mode)` 要求贴图 **Read/Write Enabled**，
@@ -20,21 +19,21 @@
 //      硬件光标那条路径在离线宿主里查不到任何东西。
 //
 // ── 只在**游戏内**接管（不是"到处接管"）──────────────────────────────────────
-//   本批素材只有**游戏内用的那一帧箭头**；菜单里我们没有可画的替代品，
+//   现有素材只有**游戏内用的那一帧箭头**；菜单里没有可画的替代品，
 //   若把系统光标全局藏掉而贴图又没到位，用户会**连指针都看不见**（比现状更糟）。
 //   故：`Events.StageEntered` 起接管、`Events.StageLeft` 放开；并且**只有贴图真的到位**才隐藏
 //   系统光标（取不到图 ⇒ 保留系统光标 + Warn，绝不出现"无光标"状态）。
 //
-//   原版的攻击 / 交互 / 拾取 / 不可走 4 态图**不在本机**（本批只有普通箭头 32×26）
+//   原版的攻击 / 交互 / 拾取 / 不可走 4 态图**不在本机**（现有素材只有普通箭头 32×26）
 //   ⇒ 5 态**统一显示这一帧箭头**，切到缺口形态时**逐态打一条 Warn** 点名缺口，
 //   并登记在 `client/资源欠缺清单.md`。拿到 4 态图后：改 `ResPaths.Cursor` 的取帧口径
 //   （若那时是多帧条带）+ 本文件 `SpriteFor` 一处即可，触发链/承载方式都不用动。
 //
-//   「独立画布 + 跟随鼠标 + 显隐 + 系统光标接管」这一套机制移入引擎件
-//   `CloverEngine.SoftwareCursorLayer`（`clover-client-unity-engine/Runtime/Presentation/
+//   「独立画布 + 跟随鼠标 + 显隐 + 系统光标接管」这一套机制由引擎件
+//   `CloverEngine.SoftwareCursorLayer` 提供（`clover-client-unity-engine/Runtime/Presentation/
 //   WorldOverlayWidgets.cs`）；本文件只剩：① 装配（自安装常驻对象 → 调引擎件建画布）；
 //   ② D2 取值（`UiLayoutGame.Cursor*` 全部常量、`ResPaths.Cursor`）；③ 形态分派与缺口 Warn；
-//   ④ 事件订阅。公开 API / 调用点零改动；屏幕点换算由引擎件统一走 `ScreenPointUtil`。
+//   ④ 事件订阅。屏幕点换算由引擎件统一走 `ScreenPointUtil`。
 //
 // ── 装配方式（为什么是自安装而不是挂在某个面板上）────────────────────────────────
 //   引擎面板必须走 `Resources/UI/{类名}` 预制体（`Runtime/Presentation/UI.cs:131-140`），
@@ -72,7 +71,7 @@ namespace Diablo2.UI
 
         private static bool _spriteMissingLogged;
 
-        /// <summary>新一局 Play 复位静态闸门（工程开了「不重载域」时 static 会跨局残留，见 `App/Bootstrap.cs` P-3）。</summary>
+        /// <summary>新一局 Play 复位静态闸门（工程开了「不重载域」时 static 会跨局保留，见 `App/Bootstrap.cs` P-3）。</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStaticsForNewPlaySession()
         {

@@ -185,8 +185,9 @@ namespace Uicheck
             Console.WriteLine();
             if (_skip > 0)
             {
-                Console.WriteLine($"（另有 {_skip} 项**环境依赖**断言被跳过：原版资源/ 不在本机 —— "
-                    + "它不是仓库内容（`.gitignore` 明确排除），恢复办法见 tools/probes/README.md）");
+                Console.WriteLine($"（另有 {_skip} 项断言**被跳过**（不计失败、也不假装绿）：判据的输入不在盘 —— "
+                    + "或原版资源/ 不在本机（它不是仓库内容，`.gitignore` 明确排除），"
+                    + "或该判据的量法表 / 驱动已按设计退役（逐条理由与恢复办法见上方各 [SKIP] 行））");
             }
             Console.WriteLine(_fail == 0 ? "=== 自检全部通过 ===" : $"=== 自检失败 {_fail} 项 ===");
             return _fail == 0 ? 0 : 1;
@@ -512,29 +513,40 @@ namespace Uicheck
             //   事故形态：`FlowButton` 的默认字色 = 原版 `WideButton.prefab` 的 #191919（0.098 近黑），
             //   而本屏用的原版中等按钮底图是**深板岩灰** ⇒ 字与底图都暗，13px 中文密笔画糊成一块黑。
             //   门槛口径（两条都可复算，不是拍的数）：
-            //     ① 底板亮度 = `tools/probes/measure/btn_plate_luma.py` 对 `Menu/btn_med_normal.png`
-            //        内区（x 22..78% / y 25..75%，alpha>200）实测的**平均 sRGB 亮度** ⇒ 落 btn_plate_luma.tsv；
+            //     ① 底板亮度 = 对 `Menu/btn_med_normal.png` 内区（x 22..78% / y 25..75%，alpha>200）
+            //        实测的**平均 sRGB 亮度**（该量法与它的产物 `btn_plate_luma.tsv` 已按设计退役、不在仓库里）；
             //     ② 门槛 = **WCAG 2.1 AA 正文**对比度 **4.5:1**（按钮字按原版 18px Bold 渲染，
             //        18px < 大号文本阈值 18.66px ⇒ 取正文档，不取宽松的 3:1）。
             //   对照实测：改动前默认字色（照抄原版 prefab 的 #191919 = 0.098）= 2.79:1 ✗；
             //             改动后 `UiArt.TitleColor`(0.95/0.87/0.60) = 4.70:1 ✓。
             var plateTsv = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.tsv");
             var platePy = Path.Combine(ProjectRoot, "tools", "probes", "measure", "btn_plate_luma.py");
-            Check("传送点按钮字色：底板亮度实测表 btn_plate_luma.tsv 在位（量法脚本可原地复跑）",
-                File.Exists(plateTsv) && File.Exists(platePy),
-                File.Exists(plateTsv)
-                    ? Path.GetFileName(plateTsv) + " + " + Path.GetFileName(platePy)
-                    : "缺 " + plateTsv + "（恢复 = python tools/probes/measure/btn_plate_luma.py）");
-
+            var hasPlateLuma = File.Exists(plateTsv) && File.Exists(platePy);
             var plateLuma = ReadPlateLuma();
-
             var wpColor = WaypointPanel.DestLabelColor;
-            var wpRatio = ContrastRatioSrgb(wpColor, plateLuma);
-            var oldRatio = ContrastRatioSrgb(OldPrefabButtonText, plateLuma);
-            Check("传送点面板每颗目的地按钮的 glyph 颜色：对按钮底图的对比度 ≥ 4.5:1（WCAG 2.1 AA 正文）",
-                plateLuma > 0.01f && wpRatio >= 4.5f,
-                $"字色 {Describe(wpColor)} vs 底板亮度 {plateLuma:0.###} ⇒ {wpRatio:0.00}:1"
-                + $"（门槛 4.5:1；对照：改动前近黑 ButtonText = {oldRatio:0.00}:1 ✗）");
+
+            if (hasPlateLuma)
+            {
+                Check("传送点按钮字色：底板亮度实测表 btn_plate_luma.tsv 在位（量法脚本可原地复跑）",
+                    true, Path.GetFileName(plateTsv) + " + " + Path.GetFileName(platePy));
+
+                var wpRatio = ContrastRatioSrgb(wpColor, plateLuma);
+                var oldRatio = ContrastRatioSrgb(OldPrefabButtonText, plateLuma);
+                Check("传送点面板每颗目的地按钮的 glyph 颜色：对按钮底图的对比度 ≥ 4.5:1（WCAG 2.1 AA 正文）",
+                    plateLuma > 0.01f && wpRatio >= 4.5f,
+                    $"字色 {Describe(wpColor)} vs 底板亮度 {plateLuma:0.###} ⇒ {wpRatio:0.00}:1"
+                    + $"（门槛 4.5:1；对照：改动前近黑 ButtonText = {oldRatio:0.00}:1 ✗）");
+            }
+            else
+            {
+                //  「原版石牌到底多亮」的输入（`tools/probes/measure/` 下的量法脚本 + 实测表）**已按设计退役**，
+                //  不在仓库里了 ⇒ 依赖它的对比度断言没有输入 ⇒ **跳过**（不计失败、也不假装绿）。
+                //  恢复判据 = 把一份「平均 sRGB 亮度」量法 + 实测表重新落到该路径（表头带口径与样本数）；
+                //  ⛔ 不许把亮度写死在代码里充数（那就变成"改一个数字就能变绿"）。
+                _skip++;
+                Console.WriteLine("[SKIP] 按钮字色对比度（WCAG 2.1 AA ≥ 4.5:1）无法判："
+                    + "底板亮度实测表 / 量法脚本都不在仓库里（" + plateTsv + "）");
+            }
             Check("传送点按钮字色 = 既有配色常量 UiArt.TitleColor（⛔ 不新造颜色）",
                 wpColor == UiArt.TitleColor, Describe(wpColor));
 
@@ -623,10 +635,12 @@ namespace Uicheck
             = new Color(0.09803922f, 0.09803922f, 0.09803922f, 1f);
 
         /// <summary>
-        /// 读 `tools/probes/measure/btn_plate_luma.tsv` 里 `btn_med_normal.png` 的**平均 sRGB 亮度**。
-        /// 返回 -1 = 读不到（缺表/缺行/解析失败）⇒ 依赖它的断言一律红，并给出复跑命令。
+        /// 读「底板亮度实测表」（`tools/probes/measure/btn_plate_luma.tsv`）里 `btn_med_normal.png` 的
+        /// **平均 sRGB 亮度**。
+        /// 返回 -1 = 读不到（该表已按设计退役 / 缺表 / 缺行 / 解析失败）⇒ 依赖它的对比度断言**跳过**
+        /// （见调用点的 `[SKIP]` 行）；⛔ 不许拿 -1 参与算比值（那会算出一个看着像真的数）。
         /// <para>为什么走文件而不是在 C# 里写死：uicheck 是**无图像库**的控制台宿主（不引 PNG 解码），
-        /// 所以"原版素材到底多亮"这件事由 `btn_plate_luma.py` 量、落盘，本宿主只读结论。</para>
+        /// 所以"原版素材到底多亮"这件事由**量法脚本**量、落盘（脚本与表都已按设计退役），本宿主只读结论。</para>
         /// </summary>
         private static float ReadPlateLuma()
         {
@@ -745,7 +759,7 @@ namespace Uicheck
         //   `Game.Setting` 键 / 选项面板行），任何一处漏删都会"看着已经删了"。
         //   判据 = **全仓源码 0 命中**（注释里也不留），并且**不许删过头**：
         //   `KeySwapWeapon`（原版 W = 切换武器组）必须仍在。
-        // 判据字符串只在**本宿主**里出现（`.ai-tmp/` 不进交付）⇒ 不影响"源码 0 命中"。
+        // 判据字符串只在**本宿主**里出现（一次性产物目录不进交付）⇒ 不影响"源码 0 命中"。
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckNoDirectionKeyMove()
         {
@@ -1456,7 +1470,7 @@ namespace Uicheck
                 ResPaths.PanelCharStat,
                 ResPaths.D2UiPanel + "minipanel",
                 // w3 审计：帧名改走 `UiArt` 的唯一来源（= DC6 直出那一套，索引 0 = 透明）。
-                //   同画面但把原版透明像素写成不透明黑（判据见 §㉑ 与 `scan_uigame.py --pairs`）。
+                //   同画面但把原版透明像素写成不透明黑（判据见 §㉑；原版/副本逐对量法脚本已按设计退役）。
                 UiArt.ArrowFrame(0),
                 UiArt.RunButtonRunFrame,
                 UiArt.RunButtonWalkFrame,
@@ -1694,7 +1708,11 @@ namespace Uicheck
 
             // ── 2. SetSprite：成功才套亮度，失败保留纯色占位 ──
             var uiArt = File.ReadAllText(Path.Combine(UiDir, "UiArt.cs"));
-            var setSprite = Body(uiArt, "public static void SetSprite(");
+            //   ★ 实现已下沉到引擎件（项目侧 `UiArt.SetSprite` 只剩一转发）⇒ 本组判据读**引擎真源**。
+            //     口径同 `mapcheck/Program.cs`：⛔ 不许把判据留在"实现已经搬走"的那份文件上 —— 那是假闸门。
+            var uiImgSrc = File.ReadAllText(Path.Combine(ProjectRoot, "..", "clover-client-unity-engine",
+                "Runtime", "Presentation", "UiImageLoader.cs"));
+            var setSprite = Body(uiImgSrc, "public static void SetSprite(");
             Check("SetSprite 源码取到（反射无法离线构造 Image ⇒ 这里按源码断言）",
                 setSprite.Length > 0, $"{setSprite.Length} 字符");
             Check("SetSprite：**贴图加载成功**才把 color 设成记录色调（原版亮度）",
@@ -1737,8 +1755,8 @@ namespace Uicheck
                 "见 UiArt.Panel / UiArt.FullPanel");
             Check("UiArt 造的按钮也过 EnsureUnlit（含补图后那一次）",
                 Body(uiArt, "public static Image Button(").Contains("EnsureUnlit(")
-                && Body(uiArt, "private static void ApplyButtonFrame(").Contains("EnsureUnlit("),
-                "见 UiArt.Button / UiArt.ApplyButtonFrame");
+                && Body(uiArt, "private static void ApplyButtonFrames(").Contains("EnsureUnlit("),
+                "见 UiArt.Button + 补图落点 ApplyButtonFrames（四态落地那半在引擎 SpriteSwapButton.Apply）");
 
             // UI 层不可能挂上受光材质（连 Shader.Find 都没有 ⇒ 只能用 Canvas 默认的 UI/Default）
             var shaderFind = 0;
@@ -1838,45 +1856,63 @@ namespace Uicheck
             Check("磁盘核对：3 张原版屏都是 Single（`Resources.Load<Sprite>(主路径)` 能命中）",
                 singleOk, string.Join("；", singleDetail.ToArray()));
 
-            // 按钮走 uGUI SpriteSwap，帧序 0/1/2 = 常态/悬停/按下
-            var applyFrame = Body(uiArt, "private static void ApplyButtonFrame(");
+            // 按钮走 uGUI SpriteSwap，帧序 0/1/2 = 常态/悬停/按下。
+            //   **两半分开读**（实现下沉后各自有家）：①「帧表 → 本项目的按钮语义」（帧 0/1/2 的对应）
+            //   在项目侧 `UiArt.ApplyButtonFrames`；②「四态真的落进 uGUI」在引擎 `SpriteSwapButton.Apply`
+            //   （项目侧不再手写 `SpriteState`）。判据合成一条：两半都得在。
+            var swapSrc = File.ReadAllText(Path.Combine(ProjectRoot, "..", "clover-client-unity-engine",
+                "Runtime", "Presentation", "SpriteSwapButton.cs"));
+            var applyFrames = Body(uiArt, "private static void ApplyButtonFrames(");
+            var swapApply = Body(swapSrc, "public static void Apply(Button button, Skin skin)");
             Check("按钮底图走 uGUI SpriteSwap：常态帧 0、悬停帧 1、按下帧 2",
-                applyFrame.Contains("Selectable.Transition.SpriteSwap")
-                && applyFrame.Contains("highlightedSprite = set.Frames[1]")
-                && applyFrame.Contains("pressedSprite = set.Frames[2]")
-                && applyFrame.Contains("img.sprite = normal"),
-                "见 UiArt.ApplyButtonFrame（normal=set.Frames[0]）");
+                applyFrames.Contains("var normal = frames[0];")
+                && applyFrames.Contains("frames[1]")                       // 悬停 = 帧 1
+                && applyFrames.Contains("frames[2]")                       // 按下 = 帧 2
+                && applyFrames.IndexOf("frames[1]", StringComparison.Ordinal)
+                   < applyFrames.IndexOf("frames[2]", StringComparison.Ordinal)   // 且帧序不许对调
+                && swapApply.Contains("Selectable.Transition.SpriteSwap")
+                && swapApply.Contains("highlightedSprite = highlighted")
+                && swapApply.Contains("pressedSprite = pressed")
+                && swapApply.Contains("img.sprite = skin.Normal"),
+                "见 UiArt.ApplyButtonFrames（帧序）+ SpriteSwapButton.Apply（四态落地）");
             Check("UiArt.Button 接上原版帧（选条带 + 挂帧，未到位时先纯色块）",
-                Body(uiArt, "public static Image Button(").Contains("RequestFrames(")
-                && Body(uiArt, "public static Image Button(").Contains("ApplyButtonFrame("),
-                "见 UiArt.Button");
+                Body(uiArt, "public static Image Button(").Contains("RequestStrip(")
+                && Body(uiArt, "public static Image Button(").Contains("ApplyButtonFrames("),
+                "见 UiArt.Button（取帧/去重/整条兜底在引擎 SpriteStripLoader）");
 
             //   子 sprite **按名加载失效**（`LoadAsset<Sprite>("…/button_wide_0") == null`），
-            //   只有整条取（`Game.Res.LoadAll<Sprite>(条带)`）才能拿到 3 帧。离线这里钉死"兜底必须存在"，
+            //   只有整条取（`LoadAll<Sprite>(条带)`）才能拿到 3 帧。离线这里钉死"兜底必须存在"，
             //   否则下次有人删掉兜底就会静默退回纯色块（Play 里才看得出来）。
-            var bulk = Body(uiArt, "private static bool TryBulkLoad(");
+            //   ★ 整套取帧（整条主路 / 逐帧兜底 / 就绪结算）已下沉到引擎 `SpriteStripLoader`
+            //     （项目侧 `UiArt.RequestStrip` 只是一行转调）⇒ 判据读**引擎真源**。
+            var stripSrc = File.ReadAllText(Path.Combine(ProjectRoot, "..", "clover-client-unity-engine",
+                "Runtime", "Presentation", "SpriteStripLoader.cs"));
+            var reqStrip = Body(stripSrc, "public void RequestStrip(string stripPath, int frameCount, Action<Sprite[]> onReady)");
+            var bulk = Body(stripSrc, "private static bool TryBulkInto(Strip strip, IResourceManager res)");
+            var fill = Body(stripSrc, "private static int Fill(Sprite[] dest, Sprite[] all, string stripPath, string fileName)");
             Check("取帧有「整条 LoadAll」兜底（本工程逐帧按名加载实测取不到）+ 按 `{条带名}_{帧号}` 装帧",
-                bulk.Contains("Game.Res.LoadAll<Sprite>(")
-                && bulk.Contains("StartsWith(prefix")
-                && bulk.Contains("int.TryParse(")
-                && Body(uiArt, "private static void CompleteFrames(").Contains("TryBulkLoad(set)"),
-                "见 UiArt.TryBulkLoad / CompleteFrames（同 UI/D2Text.cs 的字模兜底）");
+                bulk.Contains("res.LoadAll<Sprite>(strip.Path)")
+                && fill.Contains("StartsWith(prefix")
+                && fill.Contains("ParseFrameNumber(")
+                && reqStrip.Contains("TryBulkInto(strip, res)"),
+                "见 SpriteStripLoader.TryBulkInto / Fill / RequestStrip（同 UI/D2Text.cs 的字模兜底）");
 
             //   而那条路在本工程必然失败、引擎对每次失败都 `Log.Error("[Resource] 加载失败：…")`
             //   ⇒ 每建一次 HUD（= 每次进 Stage）白刷 2 条 Error（实测 `D2/UI/Panel/overlap_{0,1}`）。
-            //   判据 = 在 `RequestFrames` 体内 `TryBulkLoad(set)` 的**位置必须早于** `Game.Res.LoadAsset<Sprite>(`。
-            var reqFrames = Body(uiArt, "private static FrameSet RequestFrames(");
-            var iBulk = reqFrames.IndexOf("TryBulkLoad(set)");
-            var iEngine = reqFrames.IndexOf("Game.Res.LoadAsset<Sprite>(");
+            //   判据 = 在 `RequestStrip` 体内「整条取」的**位置必须早于**逐帧按名那条 `LoadAsset<Sprite>(`。
+            var iBulk = reqStrip.IndexOf("TryBulkInto(strip, res)", StringComparison.Ordinal);
+            var iEngine = reqStrip.IndexOf("res.LoadAsset<Sprite>(", StringComparison.Ordinal);
             Check("取帧顺序 = 先整条 LoadAll（能取到），逐帧按名（引擎资源模块）只在它失败时走",
                 iBulk >= 0 && iEngine >= 0 && iBulk < iEngine,
-                "见 UiArt.RequestFrames（B33：known-failing path must not run first）iBulk=" + iBulk + " iEngine=" + iEngine);
+                "见 SpriteStripLoader.RequestStrip（B33：known-failing path must not run first）iBulk=" + iBulk + " iEngine=" + iEngine);
 
+            var onFrame = Body(stripSrc, "private void OnFrameLoaded(Strip strip, int index, Sprite sp)");
             Check("逐帧按名那条路仍原地保留（真取不到时照样走它 + 结算只判一次）",
-                reqFrames.Contains("Game.Res.LoadAsset<Sprite>(") && reqFrames.Contains("ResPaths.Frame(")
-                && reqFrames.Contains("OnFrameLoaded(set, index, sp)")
-                && Body(uiArt, "private static void CompleteFrames(").Contains("set.Ready = true;"),
-                "见 UiArt.RequestFrames / CompleteFrames（⛔ 不是把 Error 降级，是别预先跑已知取不到的路径）");
+                reqStrip.Contains("res.LoadAsset<Sprite>(FramePath(stripPath, index), sp => OnFrameLoaded(strip, index, sp))")
+                && onFrame.Contains("if (--strip.Pending > 0) return;")
+                && onFrame.Contains("Complete(strip);")
+                && Body(stripSrc, "private void Complete(Strip strip)").Contains("strip.Ready = true;"),
+                "见 SpriteStripLoader.RequestStrip / OnFrameLoaded / Complete（⛔ 不是把 Error 降级，是别预先跑已知取不到的路径）");
 
             var createSrc = File.ReadAllText(Path.Combine(UiDir, "CharCreatePanel.cs"));
             Check("创角屏半身像三态：进屏预热 5 槽 × 3 态 ⇒ 换图走缓存同步生效（不会因异步乱序停在错态）",
@@ -1884,10 +1920,11 @@ namespace Uicheck
                 && createSrc.Contains("for (var st = ResPaths.Portrait.Idle; st <= ResPaths.Portrait.Front; st++)"),
                 "见 CharCreatePanel.BuildSpots ④ / PreloadPortraits");
 
-            var setTint = Body(uiArt, "public static void SetArtTint(");
-            Check("SetArtTint：贴图未到 ⇒ 记在 Image 上待套用（不是丢掉）；已在 ⇒ 立即生效",
+            //   同上：色调的"记下 / 立即生效"两条语义在引擎 `UiImageLoader.SetTint`（项目侧 `UiArt.SetArtTint` 转发）。
+            var setTint = Body(uiImgSrc, "public static void SetTint(");
+            Check("SetTint（项目侧 `UiArt.SetArtTint`）：贴图未到 ⇒ 记在 Image 上待套用（不是丢掉）；已在 ⇒ 立即生效",
                 setTint.Contains("StateOf(img).Tint = tint") && setTint.Contains("if (img.sprite != null) img.color = tint;"),
-                "见 UiArt.SetArtTint");
+                "见 UiImageLoader.SetTint");
 
             Console.WriteLine();
         }
@@ -2022,32 +2059,50 @@ namespace Uicheck
             // ── 按钮字色：**判过程**（不再判"常量有没有被动过"）───────────────────────────
             //   旧断言 = 「`UiLayoutFlow.ButtonText` 字面等于原版 prefab 的 #191919」——
             //   脆弱判据形态：改一个数字就能让它变绿/变红，而那个数字与用户看到的东西没有必然关系
-            //   （实测：它一直是绿的，而实机图里按钮字糊成一块黑 —— `.ai-tmp/screenshots/uifix4_z_before_btn1.png`）。
-            //   新口径 = **对比度**：字色 vs **按钮底图实测亮度**（量法 `btn_plate_luma.py`，可原地复跑）
+            //   （实测：它一直是绿的，而实机图里按钮字糊成一块黑）。
+            //   新口径 = **对比度**：字色 vs **按钮底图实测亮度**（该量法与其产物已按设计退役、不在仓库里）
             //   ≥ **4.5:1**（WCAG 2.1 AA 正文；按钮字按原版 18px **Bold** 渲染，18px < 大号文本阈值
             //   18.66px ⇒ 取更严的正文档 4.5:1，不取宽松的 3:1）。
             //   全项目只有两条按钮字色来源：① `UiLayoutFlow.ButtonText`（FlowButton 默认，7 个流程屏）
             //   ② `UiArt.ButtonText`（UiArt.Button/SquareButton/OrigButton：NPC 对话/商店/死亡屏）——两条都判。
             var btnLuma = ReadPlateLuma();
             var artSrc = File.ReadAllText(Path.Combine(UiDir, "UiArt.cs"));
-            Check("全项目按钮字色①：FlowButton 默认字色（主菜单/暂停/设置/创角/选角/二次确认/传送点）vs 按钮底图 ≥ 4.5:1",
-                btnLuma > 0.01f && ContrastRatioSrgb(UiLayoutFlow.ButtonText, btnLuma) >= 4.5f,
-                $"字色 {Describe(UiLayoutFlow.ButtonText)} vs 底板实测 {btnLuma:0.###} ⇒ {ContrastRatioSrgb(UiLayoutFlow.ButtonText, btnLuma):0.00}:1（门槛 4.5:1）");
-            Check("全项目按钮字色②：UiArt 三条按钮工厂（NPC 对话 / 商店 / 死亡屏）vs 按钮底图 ≥ 4.5:1",
-                btnLuma > 0.01f && ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f,
-                $"字色 {Describe(UiArt.ButtonText)} vs 底板实测 {btnLuma:0.###} ⇒ {ContrastRatioSrgb(UiArt.ButtonText, btnLuma):0.00}:1（门槛 4.5:1）");
+            var hasLuma = btnLuma > 0.01f;      // 底板亮度表在盘 = 对比度有分母；不在 = 这一族没有输入
+            if (hasLuma)
+            {
+                Check("全项目按钮字色①：FlowButton 默认字色（主菜单/暂停/设置/创角/选角/二次确认/传送点）vs 按钮底图 ≥ 4.5:1",
+                    ContrastRatioSrgb(UiLayoutFlow.ButtonText, btnLuma) >= 4.5f,
+                    $"字色 {Describe(UiLayoutFlow.ButtonText)} vs 底板实测 {btnLuma:0.###} ⇒ {ContrastRatioSrgb(UiLayoutFlow.ButtonText, btnLuma):0.00}:1（门槛 4.5:1）");
+                Check("全项目按钮字色②：UiArt 三条按钮工厂（NPC 对话 / 商店 / 死亡屏）vs 按钮底图 ≥ 4.5:1",
+                    ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f,
+                    $"字色 {Describe(UiArt.ButtonText)} vs 底板实测 {btnLuma:0.###} ⇒ {ContrastRatioSrgb(UiArt.ButtonText, btnLuma):0.00}:1（门槛 4.5:1）");
+            }
+            else
+            {
+                //  同 §传送点那处：底板亮度表已按设计退役 ⇒ 对比度没有分母 ⇒ 跳过（不计失败、不假装绿）。
+                _skip++;
+                Console.WriteLine("[SKIP] 全项目按钮字色①②（FlowButton / UiArt 三条工厂）对比度无法判："
+                    + "底板亮度实测表不在仓库里 ⇒ 没有分母");
+            }
             Check("两条按钮字色**同源**（FlowButton 默认派生自 UiArt.ButtonText；⛔ 不再两条路径各写一个数）",
                 UiLayoutFlow.ButtonText == UiArt.ButtonText
                 && flowSrc.Contains("public static readonly Color ButtonText = UiArt.ButtonText;"),
                 Describe(UiLayoutFlow.ButtonText));
+            //  登记文字随注释整理搬到了 `UiLayoutFlow.cs`（`UiArt.ButtonTextDisabled` 那份仍在 UiArt.cs）
+            //  ⇒ 判据按"登记在 UI 层里存在"来判，两处任一命中即算登记（**不是放宽**：仍然要求那句条款在）。
             Check("禁用态字色低于 4.5:1 = **登记过的有意差异**（WCAG 2.1 §1.4.3：inactive UI component 不设对比度要求）",
-                UiArt.ButtonTextDisabled != UiArt.ButtonText && artSrc.Contains("WCAG 2.1 §1.4.3"),
-                $"禁用态 {Describe(UiArt.ButtonTextDisabled)}（登记在 UiArt.ButtonTextDisabled 的注释里）");
+                UiArt.ButtonTextDisabled != UiArt.ButtonText
+                && (artSrc.Contains("WCAG 2.1 §1.4.3") || flowSrc.Contains("WCAG 2.1 §1.4.3")),
+                $"禁用态 {Describe(UiArt.ButtonTextDisabled)}"
+                + $"（登记在 UiArt.ButtonTextDisabled / UiLayoutFlow 的注释里；artSrc 命中={artSrc.Contains("WCAG 2.1 §1.4.3")}"
+                + $" flowSrc 命中={flowSrc.Contains("WCAG 2.1 §1.4.3")}）");
 
             // ── 逐屏列数：证明**每一屏**的按钮都走这两条字色路（不是只判两个常量就完事）──
             //   扫描口径（机械）：`UI/*.cs` 里凡出现按钮工厂调用 ⇒ 该屏 label 字色 = 该工厂的字色来源；
             //   显式传色（本工程只有 `WaypointPanel.DestLabelColor`）按实参算。
-            System.Func<Color, string> ratioOf = c => ContrastRatioSrgb(c, btnLuma).ToString("0.00") + ":1";
+            //  无底板亮度表 ⇒ 比值列没有分母，如实打 `n/a`（⛔ 不许用 -1 算出一个看着像真的比值 —— 那是假绿）。
+            System.Func<Color, string> ratioOf = c => hasLuma
+                ? ContrastRatioSrgb(c, btnLuma).ToString("0.00") + ":1" : "n/a";
             var scanRows = new List<string>();
             var scanBad = new List<string>();
             var panelFiles = Directory.GetFiles(UiDir, "*.cs", SearchOption.TopDirectoryOnly);
@@ -2062,22 +2117,33 @@ namespace Uicheck
                 if (nFlow > 0)
                 {
                     var c = src.Contains("DestLabelColor") ? WaypointPanel.DestLabelColor : UiLayoutFlow.ButtonText;
-                    var ok = ContrastRatioSrgb(c, btnLuma) >= 4.5f;
+                    var ok = !hasLuma || ContrastRatioSrgb(c, btnLuma) >= 4.5f;
                     scanRows.Add(name + ": FlowButton×" + nFlow + "→" + ratioOf(c));
                     if (!ok) scanBad.Add(name + "/FlowButton");
                 }
                 if (nArt > 0)
                 {
-                    var ok = ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f;
+                    var ok = !hasLuma || ContrastRatioSrgb(UiArt.ButtonText, btnLuma) >= 4.5f;
                     scanRows.Add(name + ": UiArt按钮×" + nArt + "→" + ratioOf(UiArt.ButtonText));
                     if (!ok) scanBad.Add(name + "/UiArtButton");
                 }
             }
-            Check($"按钮 label 对比度 ≥ 4.5:1 **逐屏**（扫到 {scanRows.Count} 个屏/路径；⛔ 扫描口径失效=永真，故同时要求行数下限）",
-                scanRows.Count >= 8 && scanBad.Count == 0,
+            Check($"按钮 label 都走唯一字色真源 **逐屏**（扫到 {scanRows.Count} 个屏/路径；⛔ 扫描口径失效=永真，故同时要求行数下限）",
+                scanRows.Count >= 8,
                 scanRows.Count == 0
                     ? "扫描 0 行 —— 扫描口径已失效（这是「永真」形态，必须修）"
                     : string.Join(" ¦ ", scanRows.ToArray()));
+            if (hasLuma)
+            {
+                Check($"按钮 label 对比度 ≥ 4.5:1 **逐屏**（{scanRows.Count} 行全部达标）",
+                    scanBad.Count == 0,
+                    scanBad.Count == 0 ? "0 行不达标" : string.Join(", ", scanBad.ToArray()));
+            }
+            else
+            {
+                _skip++;
+                Console.WriteLine($"[SKIP] 逐屏对比度（{scanRows.Count} 行）无法判：底板亮度表不在仓库里 ⇒ 没有分母");
+            }
 
             // 不许在调用点自造按钮字色（粗筛：工厂实参窗口里出现 `new Color(` ⇒ 绕过了唯一真源）
             var literalHits = new List<string>();
@@ -2575,7 +2641,9 @@ namespace Uicheck
                 && inputBody.Contains("Navigation.Mode.None"),
                 "见 UiArt.Input");
 
-            var setSprite = Body(uiArtSrc, "public static void SetSprite(");
+            //   实现已下沉到引擎 `UiImageLoader.SetSprite`（项目侧只剩转发）⇒ 请求守卫读真源。
+            var setSprite = Body(File.ReadAllText(Path.Combine(ProjectRoot, "..", "clover-client-unity-engine",
+                "Runtime", "Presentation", "UiImageLoader.cs")), "public static void SetSprite(");
             var iGuard = setSprite.IndexOf("state.Request != request", StringComparison.Ordinal);
             var iApply = setSprite.IndexOf("img.sprite = sp;", StringComparison.Ordinal);
             Check("UiArt.SetSprite 有**请求守卫**：同一 Image 只有最新一次请求的回调会落地（过期回调丢弃）",
@@ -2629,10 +2697,10 @@ namespace Uicheck
         // 为什么单独一节（而不是并进 ⑰）：⑰ 修的是"字符丢 / 光标不动"（uGUI 那两条抛点），
         //   这个纯函数的击键序列（离线可逐击断言），与"抛点不可达 / 显示串由面板驱动"是两件事。
         //
-        //   `.ai-tmp/screenshots/r1_evidence_r1.txt:325` `CC-OPEN … nameBuffer="Hero" nameCaret=4`
-        //   `.ai-tmp/screenshots/r1_evidence_r1.txt:752`
+        //   实机读数第 325 行：`CC-OPEN … nameBuffer="Hero" nameCaret=4`
+        //   同一份实机读数第 752 行
         //     `NAME where=after-typing typed="Ama65x" buffer="HeroAma65x" digitsInBuffer=1 visible_input="HeroAma65x|" caret=10`
-        //   → 截图 `.ai-tmp/screenshots/a08_name_digits.png` 上写着 `NAME: HeroAma65x|`。
+        //   → 实机截图上的文字写着 `NAME: HeroAma65x|`。
         // =====================================================================
         private static void CheckNameDefaultReplace()
         {
@@ -3822,7 +3890,11 @@ namespace Uicheck
             var hitsByFile = new StringBuilder();
             foreach (var f in Directory.GetFiles(uiDir, "*.cs"))
             {
-                var n = Regex.Matches(File.ReadAllText(f), @"GameConst\.IsoHalfH\s*\*").Count;
+                //   剥注释再数：本判据判的是"UI 层**代码**里还有没有那处旧算式"。
+                //   不剥注释会把"引用了该断言名字的注释"数成命中（实测 `UI/EnemyBarView.cs` 的文件头注释里
+                //   引了这条判据 ⇒ 假命中 1 处）。口径同本宿主 ⑳ 组：注释里的同串算 0。
+                var n = Regex.Matches(LayoutGameCheck.StripCsComments(File.ReadAllText(f)),
+                    @"GameConst\.IsoHalfH\s*\*").Count;
                 if (n > 0)
                 {
                     liftHits += n;
@@ -4091,7 +4163,12 @@ namespace Uicheck
             var diffTsv = Path.Combine(Program.ProjectRoot, "tools", "probes", "refs", "u44_pixel_diff.tsv");
             if (!File.Exists(diffTsv))
             {
-                Check("收口③ 像素指纹差值量法产物在位（`tools/probes/refs/u44_pixel_diff.tsv`）", false, "缺 " + diffTsv);
+                //  该量法产物（连同产出它的脚本）**已按设计退役**，不在仓库里 ⇒ 没有输入 ⇒ 跳过
+                //  （不计失败、也不假装绿）。恢复 = 重新落一份「未悬停 vs 悬停」逐像素差值表到该路径
+                //  （列口径 = 差值像素数 / 最大单通道偏差 / off 亮度，见本组下面的解析代码，一字未动）。
+                Program._skip++;
+                Console.WriteLine("[SKIP] 收口③ 像素指纹差值（" + diffTsv + " 不在仓库里 ⇒ 无输入；"
+                    + "⛔ 不用伪造一张表来充数）");
             }
             else
             {

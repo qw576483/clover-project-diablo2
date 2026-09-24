@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/EnemyBarView.cs   u44（悬停选择表现 · 契约 C3 + C4 + C5）
+// Diablo2 · UI/EnemyBarView.cs   （悬停选择表现 · 契约 C3 + C4 + C5）
 //
 // 本文件 = **鼠标悬停到"人/怪"时的选择表现**，1:1 对齐参考实现 `MouseSelection.cs` 的**显示那一半**
 // （另一半"命中判定"本工程已有 = `Module/Input/HoverPicker`，本文件不重造）：
@@ -27,12 +27,15 @@
 //     `title.text = unit.title` · `slider.maxValue = unit.maxHealth` · `slider.value = unit.health`
 //     `slider.gameObject.SetActive(unit != null)` ⇒ **不悬停就不存在**（本文件同样整根 active=false）
 //
-// ── C4 · 头顶那份已删 ────────────────────────────────────────────────────────
-//   改动前：`UI/EntityTooltip.cs`（U4 新增）把「名字 + 血量」画在**怪物头顶**（世界坐标投影），
-//   自陈"原版无载体"。原版对可击杀怪**只有顶部条**（`MouseSelection.cs:62-65` ⇒ `ShowEnemyBar`）
-//   **不许两份并存**。判据里的反向断言（`uicheck` 的 HoverSelectCheck）会钉住这件事。
-//   另一处"头顶血量"是引擎件 `CloverEngine.WorldHpBar`（`ViewModule` 建、**无名字**、
-//     `EntityView.Bar` 字段与 `ViewModule` 里 4 处调用点全部移除 ⇒ **本文件现在承担全部"怪血量显示"**。
+// ── C4 · 头顶不画血量 ────────────────────────────────────────────────────────
+//   原版对可击杀怪**只有顶部条**（`MouseSelection.cs:62-65` ⇒ `ShowEnemyBar`）⇒ 本工程只有顶部条，
+//   不在**怪物头顶**另画「名字 + 血量」（世界坐标投影）。
+//   判据 = `uicheck` 的 `HoverSelectCheck`（声明在 `Program.cs` 内的 `public static class HoverSelectCheck`，
+//   由同文件的 `HoverSelectCheck.Run();` 调用）的 **C4 反向断言**（按断言文案检索，不写行号）：
+//     · `Check("C4 头顶那份**已删**：`UI/EntityTooltip.cs` 不存在…")`
+//     · `Check("C4 UI 层 0 处旧的「头顶抬升」算式 `GameConst.IsoHalfH *`…")`
+//     · `Check("C4 头顶血条（引擎件 `CloverEngine.WorldHpBar` / `EntityView.Bar`）在 `Module/View` 生产代码 **0 处使用**…")`
+//   另含 ⓓ/ⓔ 两条退化样本。怪物血量显示全部由本文件承担。
 //
 // ── C5 · NPC 名字牌（世界内、该实体上方）——出处 = 参考实现的三段拼起来 ─────────
 //   ① 触发与分派：`MouseSelection.cs:58-61`（`monStat.interact` ⇒ `ShowLabel`）
@@ -43,20 +46,20 @@
 //      `MonStats2.txt` 的 `pixHeight` 列 ⇒ 5 个城镇 NPC **全部 = 80**（按 `MonStats.txt` 的
 //      `Code ∈ {PS,RC,CI,GH,WA}` 取 `Id` = `akara/kashya/charsi/gheed/warriv1` 后逐行查出）
 //      ⇒ 名字牌上移 **80/80 = 1.0 世界单位**（= 该精灵自己的像素高度 = 头顶）。
-//      不是"抬 1.5 格"那个自陈值 —— 那个值随 `UI/EntityTooltip.cs` 一起删了。
-//   ④ 载体细节（`ScreenLabel.cs:16-47`）：`pivot (0.5,0)`（**锚点在牌子的底边中点**、向上长）+
+
+//   ③ 载体细节（`ScreenLabel.cs:16-47`）：`pivot (0.5,0)`（**锚点在牌子的底边中点**、向上长）+
 //      文字 `MiddleCenter` + `font16` + **半透明黑底** `RGBA(0,0,0,0.95)`，
 //      黑底尺寸 = 文本尺寸 + padding(左6,右6,上0,下4)（`VerticalLayoutGroup.padding`）。
 //      ⇒ 本文件的牌子 = 一个 Image（黑底）+ 一个 D2Label，尺寸按文本实测撑（见 `NameplateSizeFor`）。
 //
 //   「顶部条（背景 + 进度填充 + 标题）」「世界内名牌（跟随 + 投影 + 显隐 + 底板随字伸缩）」
-//   两套机制移入引擎件 `CloverEngine.ScreenTargetBar` / `CloverEngine.WorldNameplate`
+//   两套机制由引擎件 `CloverEngine.ScreenTargetBar` / `CloverEngine.WorldNameplate` 提供
 //   （`clover-client-unity-engine/Runtime/Presentation/WorldOverlayWidgets.cs`）。
 //   本文件只剩：① 原版取值（几何 / 配色 / 字体 / 常量）；② 分派（`CursorKind` → 哪一件）；
 //   ③ 渲染注入（把 `D2Label` 包成引擎认得的 `IOverlayLabelView`）；④ 事件订阅与日志。
-//   公开 API / 调用点零改动（`BarVisible` / `TitleText` / `BarValue` / `BarMaxValue` /
-//   `NameplateText` 全部保留原语义）；画布装配仍在本文件（一块画布上放两件：
-//   引擎件的"一件一画布"不适用，故画布 / `CanvasScaler` 口径留在项目侧）。
+//   公开 API = `BarVisible` / `TitleText` / `BarValue` / `BarMaxValue` / `NameplateText`
+//   （语义见各自注释）；画布装配仍在本文件（一块画布上放两件：引擎件的"一件一画布"不适用，
+//   故画布 / `CanvasScaler` 口径留在项目侧）。
 //   屏幕点 ⇄ 画布局部点换算由引擎件统一走 `ScreenPointUtil`。
 //
 // ── 结构（一个 `.cs` 一个 MonoBehaviour；装配方式沿用同项目先例 `UI/CursorView`）────
@@ -184,7 +187,7 @@ namespace Diablo2.UI
         /// ⇒ 黑底 = 文本外接矩形 + 左右各 6、下 4（上 0）。文本尺寸用本项目位图字模量（`D2Text.MeasureNative`
         /// / `CellHeight`，与 `D2Label` 排版同一套；中文走 chi 字模）。</para>
         /// <para>本方法现在同时是喂给引擎件 `WorldNameplate` 的 `SizeMeasure` 委托 ⇒ 引擎不认识字模，
-        /// 底板尺寸仍由项目侧排版口径决定（没被下沉偷走）。</para>
+        /// 底板尺寸仍由项目侧排版口径决定。</para>
         /// </summary>
         public static Vector2 NameplateSizeFor(string text)
         {

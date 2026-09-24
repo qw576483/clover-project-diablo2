@@ -1,14 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · Module/Map/TileNodePool.cs  eng-tile 下沉后 = **薄转发**
+// Diablo2 · Module/Map/TileNodePool.cs
 //
-// 实现已下沉到引擎：`CloverEngine.TileNodePool`
-//   （clover-client-unity-engine · Runtime/Presentation/TileNodePool.cs）。
-// 本文件**只保留项目侧类型名与公开签名**（一字未改）⇒ 全部调用点（`MapView.EnsurePool` /
-// `NewTile` / `ReturnTiles`）与全部离线判据（`TileNodePool.SplitDemand(...)`）逐字不变。
+// 项目侧门面：类型名与公开签名转发到引擎 `CloverEngine.TileNodePool`
+//   （clover-client-unity-engine · Runtime/Presentation/TileNodePool.cs）——
+//   调用点 `MapView.EnsurePool` / `NewTile` / `ReturnTiles` 与离线判据
+//   `TileNodePool.SplitDemand(...)` 都经它。
 //
-// 本文件不许再长出实现：① 池化逻辑（借/还/清、`SetActive` 配对、跳过已销毁引用）只在引擎那份；
-//   ② 不许在这里新造节点（不写建 `GameObject` / 挂 `SpriteRenderer` 的代码）—— 否则"瓦片节点的
-// 出处与三条硬规矩见引擎文件头注释。
+// 本文件不含池化实现：① 池化逻辑（借/还/清、`SetActive` 配对、跳过已销毁引用）只在引擎那份；
+//   ② 不在这里新造节点（不写建 `GameObject` / 挂 `SpriteRenderer` 的代码）。
+//   瓦片节点的出处与三条硬规矩见引擎文件头注释。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -16,7 +16,7 @@ using UnityEngine;
 
 namespace Diablo2.Module.Map
 {
-    /// <summary>瓦片节点池（`SpriteRenderer` + 其 `GameObject`）—— 薄转发到 <see cref="CloverEngine.TileNodePool"/>。</summary>
+    /// <summary>瓦片节点池（`SpriteRenderer` + 其 `GameObject`）：转发到 <see cref="CloverEngine.TileNodePool"/>。</summary>
     internal sealed class TileNodePool
     {
         private readonly CloverEngine.TileNodePool _inner;

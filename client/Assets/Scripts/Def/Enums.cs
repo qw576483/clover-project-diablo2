@@ -2,7 +2,7 @@
 // Diablo2 · Def/Enums.cs
 // 纯枚举与纯数据（**无逻辑、无 Unity 依赖**）。
 //
-//    落盘后不许改；需要新增请回报主 agent。
+//    取值落盘（存档 / 配表主键）后不许改。
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -116,7 +116,7 @@ namespace Diablo2.Def
         /// 出处：① `MapGenTownLayout.cs:28` 的地图键 —— `'r'` = **水（阻挡）**（生成物，
         /// 源 `data/global/tiles/ACT1/TOWN/*.ds1`）；② 水格的 floor 键全是 `moor_river/*`
         /// （`Tiles/moor_river` = `ACT1/OUTDOORS/river.dt1` 解出的**水瓦片**，
-        /// 见 `MapView.PaletteCycledFlatWallTiles` 的 R1-B 取证）；③ 原版水**不可涉水**
+        /// 见 `MapView.PaletteCycledFlatWallTiles` 的取证）；③ 原版水**不可涉水**
         /// ⇒ 可走性必须保持 `false`（`TileKindInfo.IsWalkable`）。
         /// </para>
         /// <para>

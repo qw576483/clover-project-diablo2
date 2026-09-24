@@ -26,8 +26,7 @@
 // 技能图标尺寸 = 原版**位图原生 48×48**（`UiLayoutGame.SkillIconCell` = 48×48 原版px → 86.4 画布px），
 //   中心 = 节点框（`SkillTreeCell.box`，L 形管线的外接矩形）的中心；`preserveAspect` 在正方形框里
 //   是恒等变换（不拉变形、不放大、不加色调 —— 原版没有色调）。
-//   旧口径「框内径 41×46」把图标缩到 85.4% 并让底图管线露在图标外一圈，w3 审计已按
-//      「控件矩形 == 原版像素 ×1.8」改成原生尺寸（出处见 `UiLayoutGame.SkillIconCell`）。
+//   尺寸口径 = 「控件矩形 == 原版像素 ×1.8」（出处见 `UiLayoutGame.SkillIconCell`）。
 //   「能不能学」用**原版灰化帧**表达（`D2Icon.SkillIconPath(def.id, dull:true)`），不画任何自绘标记。
 //
 // 零 `using Diablo2.Module`（分层自检 ③；`conventions.md` 硬性）。
@@ -46,15 +45,15 @@ namespace Diablo2.UI
 {
     /// <summary>
     /// 技能树面板。层：<see cref="UILayer.Normal"/>。
-    /// <para>本屏原先声明 <see cref="UILayer.Popup"/>，而 `Popup` 层会让引擎
-    /// 插一块**全屏模态遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` 的
+    /// <para>本屏层 = <see cref="UILayer.Normal"/>：`Popup` 层会让引擎插一块**全屏模态遮罩**
+    /// （`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` 的
     /// `Open&lt;T&gt;` ⇒ `:443-461` `ShowMask()`，`img.raycastTarget = true`，插在 `_layers[Popup]` 首位）
     /// —— 遮罩画在 `Normal`（= HUD）之上、且吃射线 ⇒ **纯鼠标玩家打开技能树后点不到 HUD 的任何入口
     /// （本屏自己也没有关闭控件）= 关不掉**。原版**没有**全屏模态遮罩（面板是叠在世界上的半透明页，
-    /// 鼠标仍能点地面与 HUD），所以「降层」才是贴近原版的做法；同一处先例 = `UI/NpcDialogPanel.cs`
-    /// 的 R1-E（对话条 Popup → Normal，理由同为"引擎的 Popup 语义与原版不符"）。
-    /// 降层后引擎的 `CloseMutexPanels()`（`UI.cs:431-441`，只关 `Layer == Popup` 的面板）
-    /// **不再覆盖本屏** ⇒ 「开另一个面板时旧面板关掉」由 HUD 入口处显式补上并留痕
+    /// 鼠标仍能点地面与 HUD）⇒ 本屏取 `Normal`；同层先例 = `UI/NpcDialogPanel.cs`（对话条同为 `Normal`，
+    /// 理由同为"引擎的 Popup 语义与原版不符"）。
+    /// `Normal` 层不由引擎的 `CloseMutexPanels()`（`UI.cs:431-441`，只关 `Layer == Popup` 的面板）管理
+    /// ⇒ 「开另一个面板时已在开的面板关掉」由 HUD 入口处显式补上并留痕
     /// （见 `UI/HudPanel.cs` 的 `CloseScreenFamily`）。</para>
     /// </summary>
     public class SkillTreePanel : UIPanel, IPointerClickHandler, IPointerMoveHandler
@@ -67,8 +66,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 技能图标层尺寸（= 原版**位图原生 48×48** 原版px → **86.4×86.4** 画布px）。
-        /// <para> 审计修正：旧值是「节点框内径 41×46」，会把 48×48 的位图缩到 41（= 原版
-        /// 像素的 85.4%）—— 依据与出处见 `UiLayoutGame.SkillIconCell`。图标中心不变。</para>
+        /// <para>依据与出处见 `UiLayoutGame.SkillIconCell`；图标中心 = 节点框中心，不随尺寸变。</para>
         /// </summary>
         public static readonly Vector2 IconCellSize = UiLayoutGame.SkillIconCell;
 
@@ -114,8 +112,8 @@ namespace Diablo2.UI
         private int _shownSkill = -1;
 
         /// <inheritdoc/>
-        /// <remarks>R8-close：`Popup` → `Normal`（**遮罩消失 ⇒ HUD 的「技能樹 T」入口可点 = 同一入口开合**；
-        /// 理由/出处见类头注释与 `UI/NpcDialogPanel.cs` 的 R1-E）。</remarks>
+        /// <remarks>层 = `Normal`（**无遮罩 ⇒ HUD 的「技能樹 T」入口可点 = 同一入口开合**；
+        /// 理由/出处见类头注释与 `UI/NpcDialogPanel.cs`）。</remarks>
         public override UILayer Layer => UILayer.Normal;
 
         /// <inheritdoc/>
@@ -319,7 +317,7 @@ namespace Diablo2.UI
                 placed++;
             }
 
-            // 数据比已建节点少时把多余节点藏起来（避免上一帧残留）
+            // 数据比已建节点少时把多余节点藏起来（否则画面会留着上一次刷新的图标）
             for (var i = skills.Count; i < _nodes.Count; i++)
                 _nodes[i].Hit.gameObject.SetActive(false);
 
@@ -366,7 +364,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 技能图标 = **原版位图**（`D2/UI/SkillIcon/{cls}Skillicon_{帧}`）。
         /// <para>"还学不了"用原版的**灰化帧**（同技能第 2 帧）表达 —— 原版就是这么区分状态的，
-        /// 因此这里**不加任何色调**（上一版给已学加暖色、锁定加灰是自绘，本片删掉）。</para>
+        /// 因此这里**不加任何色调**（自绘暖色 / 灰化都偏离原版）。</para>
         /// </summary>
         private static void ApplyNodeIcon(Node node, SkillDef def, int learned, bool learnable)
         {

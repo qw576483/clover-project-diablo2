@@ -8,18 +8,14 @@
 //
 // 语义（= 状态跃迁闩锁，不是"记住上一格"）：
 //   · 在出口区（`TileKind.Exit` 格，或 `MapSeam` 判定的东边接缝格）**进入的那一刻**发一次；
-//   · 仍站在出口区（同一格**或**沿出口格逐格挪动）**不再发** —— 旧口径"记住上一格"会在
+//   · 仍站在出口区（同一格**或**沿出口格逐格挪动）**不再发**；
 //   · **离开**出口区 ⇒ 重新武装，下次再进入可再发（出口必须仍能真的触发切换，不许把角色卡住）。
 //
+// 判据本体 = 引擎件 `EnterLatch<Vector2Int>`（这是**任何**"踩到某区域触发一次"——出口 / 接缝 /
+//   陷阱 / 传送门 / 治疗泉 / 拾取区——都用的共享判据）。
+//   唯一的表达差异：引擎用 `HasLastTrigger`（布尔位）表达"从未触发"，本项目对外的哨兵值是
+//   `NoGrid` ⇒ 在 `LastTriggerGrid` 里做一次映射，`int.MinValue` 这个项目侧哨兵不交给引擎。
 // ─────────────────────────────────────────────────────────────────────────────
-
-//   本类型只剩一层**薄封装**，公开 API 一字未改（`NoGrid` / `LastTriggerGrid` / `Fired` /
-//   `ShouldEmit(bool,Vector2Int)` / `Reset()`）。
-//   为什么下沉：这是**任何**"踩到某区域触发一次"（出口 / 接缝 / 陷阱 / 传送门 / 治疗泉 / 拾取区）
-//   都要的判据，且是**共享判据** —— 同一份口径会被"生产路径"与"离线断言"两处用到（本文件 §为什么
-//   单独一个文件的理由，正是这次下沉的理由）。
-//   唯一的表达差异：引擎用 `HasLastTrigger`（布尔位）表达"从未触发"，本项目对外历史口径是哨兵值
-//   `NoGrid` ⇒ 在 `LastTriggerGrid` 里做一次映射，不下沉 `int.MinValue` 这个项目侧哨兵。
 
 using CloverEngine;
 using UnityEngine;
@@ -32,7 +28,7 @@ namespace Diablo2.Module.Map
         /// <summary>「没有格」哨兵（与 `PlayerModule.NoGrid` 同值口径）。</summary>
         public static readonly Vector2Int NoGrid = new Vector2Int(int.MinValue, int.MinValue);
 
-        /// <summary>引擎件闩锁（**唯一**状态；本类型不再自留 `_fired` / `_lastTriggerGrid` 第二份）。</summary>
+        /// <summary>闩锁状态（**唯一**一份；本类型不自留 `_fired` / `_lastTriggerGrid` 副本）。</summary>
         private EnterLatch<Vector2Int> _latch;
 
         /// <summary>最近一次触发时所在的格（`NoGrid` = 从未触发过）。</summary>

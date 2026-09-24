@@ -56,7 +56,7 @@ namespace Diablo2.Module.View
             20,  // Cast   （原版 SC，亚马逊）
             6,   // Hit    （原版 GH，亚马逊）
             23,  // Death  （原版 DT，亚马逊）
-            8,   // Run    （原版 RN，亚马逊；★ 片 2b 新增，**必须与 ViewAnim.Run = 6 同下标**）
+            8,   // Run    （原版 RN，亚马逊；**必须与 ViewAnim.Run = 6 同下标**）
         };
 
         /// <summary>动作名（帧键前缀，下标 = <see cref="ViewAnim"/>）—— 与导出器同一张表。</summary>
@@ -78,7 +78,7 @@ namespace Diablo2.Module.View
             new[] { ViewAnim.Cast, ViewAnim.Attack, ViewAnim.Idle },   // Cast
             new[] { ViewAnim.Hit, ViewAnim.Idle },                     // Hit
             new[] { ViewAnim.Death, ViewAnim.Hit, ViewAnim.Idle },     // Death
-            new[] { ViewAnim.Run, ViewAnim.Walk, ViewAnim.Idle },      // Run（★ 片 2b）
+            new[] { ViewAnim.Run, ViewAnim.Walk, ViewAnim.Idle },      // Run（RN）
         };
 
         /// <summary>
@@ -210,7 +210,7 @@ namespace Diablo2.Module.View
         }
 
         /// <summary>
-        /// 片「武器外观接线」：角色**装备外观套**的某个动作/方向的帧键数组。
+        /// 角色**装备外观套**的某个动作/方向的帧键数组。
         /// <para>与上面那个重载**同形**，只多一个"用哪一套"的维度：目录 =
         /// <see cref="ResPaths.CharEquipDir"/>，单位键 = `"{class}/equip/{key}"`
         /// （见 <see cref="EquipVisual.UnitKeyOf"/>，也是生成物 <see cref="EquipFrameCounts.ByUnit"/> 的键）。

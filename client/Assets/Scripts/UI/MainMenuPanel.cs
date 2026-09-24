@@ -34,7 +34,7 @@
 //     · 色调 = 原版亮度（白），不做任何提亮/压暗
 //   原版 `LogoPlaceholder` 是**透明的空 Image**（m_Color.a=0、无 sprite，运行时由脚本喂图），
 //   而 `main_screen` 贴图里已烘了 "EXPANSION SET / Lord of Destruction" 字标 ⇒ 不再另画 logo
-//   （原版那枚火焰 logo 是 `FrontEnd/D2logoFireLeft/Right` 的**动画**；未接 —— 见回报的「范围边界」）。
+//   （原版那枚火焰 logo 是 `FrontEnd/D2logoFireLeft/Right` 的**动画**，本屏未接）。
 //
 //     `MULTIPLAYER` 在单机形态下只发 `Events.MultiplayerUnavailable`（收方 Toast + Warn）；
 //     `CINEMATICS` 原版 4 段 CG 是 **Bink `.bik`**（`原版资源/d2mpq/d2video.mpq`），
@@ -129,15 +129,14 @@ namespace Diablo2.UI
                 UiLayoutFlow.WideButtonOrig, UiLayoutFlow.Menu.ExitPos,
                 () => Game.Event.Emit(Events.QuitRequest));
 
-            //   `by clover-engine`，判据 = 实机截图可读」（用户原话「1.首界面 by clover-engine 呢？」）。
+            //   `by clover-engine`，判据 = 实机截图可读。
             //   与启动屏 `BootPanel` 的 `ByLine` **共用 `UiLayoutFlow.Brand` 的同一套几何**
             //   （x=0 居中、y=-462、900×54、font24 档、色 0.78/0.76/0.72）⇒ 两个前面板的署名不可能错位。
             //   节点名取 ByLine：`uicheck` 有一条「主菜单不再自画 logo / 页脚 / 提示行」的断言，
             //   它按**带双引号的字面量**查 Logo / Footer / Tip 三个名字（那是原版 LogoPlaceholder
             //   那一族的自画元素）；署名行不属那三类、也不是那三个名字 ⇒ 不会误撞。
-            //   （本行刻意**不写带引号的那三个词** —— 写成带引号就会被那条断言当成真元素命中，
-            //     实测踩过：第一版注释里写了它们，uicheck 直接 FAIL。）
-            //   2026 品牌署名轮：与启动屏同一口径加 `forceChi: true` —— 原版拉丁字模不分大小写
+            //   （本行刻意**不写带引号的那三个词** —— 写成带引号就会被那条断言当成真元素命中。）
+            //   与启动屏同一口径加 `forceChi: true` —— 原版拉丁字模不分大小写
             //   （`by clover-engine` 会被画成 `BY CLOVER-ENGINE`），逐字小写只有原版 `font24_chi` 能画。
             //   见 `BootPanel` 里同一行的注释与 `D2Text.D2Label._forceChi`。
             UiArt.Label(screen, "ByLine", UiLayoutFlow.Brand.ByLineText,

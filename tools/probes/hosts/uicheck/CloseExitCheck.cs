@@ -28,7 +28,7 @@
 //
 // 判据的**自认边界**（不夸大）：`CloseVisible` 是**源码结构**判据（节点底色 alpha / 后续贴原版贴图 /
 //   其下有没有一条 alpha=1 的位图字模标记），**不是像素判据**；"点下去到底关不关"属实机表现类，
-//   由 Play 驱动 `tools/probes/drivers/d2u3_popups_drive.cs` 的 `CLOSE-RESULT before/after` 采。
+//   由 Play 驱动采 `CLOSE-RESULT before/after`（驱动随 `tools/probes/drivers/` 整目录按设计退役）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;

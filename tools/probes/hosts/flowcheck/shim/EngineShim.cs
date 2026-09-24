@@ -311,20 +311,9 @@ namespace CloverEngine
         void ClearAll();
     }
 
-    /// <summary>`Runtime/Core/ResourceContracts.cs`（子集）。</summary>
-    public interface IResourceManager
-    {
-        void LoadAsset<T>(string path, Action<T> cb) where T : UnityEngine.Object;
-        T TryGet<T>(string path) where T : UnityEngine.Object;
-
-        //   （`Exists` = 只回答"在不在"；`LoadAll` = 会加载、批量取）。
-        //   `client/Assets/Scripts/UI/{UiArt,D2Text,D2Icon}.cs` 与 `Core/ClientConfig.cs` 已从
-        //   「直连 Unity 的 Resources」切到它们（验收表 E1 例外消失）⇒ 替身必须跟着长出来，
-        //   否则业务源码在本宿主编不过 —— 本文件就是覆盖率哨兵。
-        //   签名逐字对齐 `clover-client-unity-engine/Runtime/Core/Contracts.cs:1019`。
-        bool Exists(string path);
-        T[] LoadAll<T>(string path) where T : UnityEngine.Object;
-    }
+    // `IResourceManager` 的定义在引擎真实源码 `Runtime/Core/Contracts.cs:1206`（本宿主已链该文件）
+    // ⇒ shim 不再重复声明：重复声明 = CS0101，且会让"引擎给接口加成员"在宿主编译期**不可见**。
+    // 现在引擎加一个成员，本宿主的 `MissRes`（`Program.cs`）会立刻 CS0535 —— 那正是覆盖率哨兵。
 
     /// <summary>`Runtime/Core/PresentationContracts.cs:281`。</summary>
     public enum SoundGroup

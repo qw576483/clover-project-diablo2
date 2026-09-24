@@ -25,10 +25,10 @@ namespace Diablo2.Module.View
         /// <param name="isDead">`IPlayerModule.IsDead`。</param>
         /// <param name="hitAnimPlaying">
         /// 受击动画**还没播完**（调用方传 `Playing == Hit &amp;&amp; !Anim.Finished`）。
-        /// <para>这一项是"玩家受击动作能看见"的关键 —— 旧实现里 `TickPlayer` 的
-        /// want 链**没有受击这一档**，`PlayHit` 设的 `Hit` 会在**同一帧**被覆盖成 `Idle`，
+        /// <para>这一项是"玩家受击动作能看见"的关键：`SelectPlayer` 的 want 链**必须有受击这一档** ——
+        /// 否则 `PlayHit` 设的 `Hit` 会在**同一帧**被覆盖成 `Idle`，
         /// 而两次贴图（`PlayHit` 的 Hit[0] 与随后的 Idle 帧）都发生在**渲染之前**
-        /// ⇒ 该单位那 6 帧受击动画**一帧都不会被渲染**（离线复现：`animcheck` §6d 的旧口径反例出 0 帧）。</para>
+        /// ⇒ 该单位那 6 帧受击动画**一帧都不会被渲染**。</para>
         /// </param>
         /// <param name="castTimerActive">施法动作计时器未走完（`Events.SkillCast` 设置）。</param>
         /// <param name="attackTimerActive">挥击动作计时器未走完（`Events.PlayerAttacked` 设置）。</param>
@@ -60,7 +60,7 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 怪物这一帧该播的动作（原版怪物只有 `NU`/`WL`/`A1`/`GH`/`DT` 五个模式；
-        /// `RN`/`SC` 的触发条件缺出处 ⇒ 这里**不**给它们造句，见回报的登记项）。
+        /// `RN`/`SC` 的触发条件缺出处 ⇒ 这里**不**给它们造句）。
         /// </summary>
         /// <param name="alive">`MonsterState.alive`。</param>
         /// <param name="hitStun">`MonsterState.hitStun`（`MonsterTuning.HitStunSeconds`）。</param>

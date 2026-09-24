@@ -13,7 +13,7 @@
 //
 // 与其他模块的边界：
 //   · 伤害结算**不在这里**：走 `Module/Combat` 的 `DamagePipeline`（抗性只减一次 + 三件套只有一份实现）。
-//   · 扣法力走 `IPlayerModule.TrySpendMana(cost)`（w7 主 agent 授权的契约新增）：
+//   · 扣法力走 `IPlayerModule.TrySpendMana(cost)`（契约已有）：
 //     `RestoreMana(-cost)` 扣蓝会被静默钳掉（实测「施法不扣法力」）。现在消耗走独立入口；
 //     顺序固定为 **校验法力足够（Warn，不是 Error）→ 扣蓝 → 再施放**；见 `SpendMana`。
 //   · 技能树面板布局（行列）由本模块算好放进 `SkillDef.slotRow/slotCol`（`skill_c` 没有该列）。
@@ -68,7 +68,7 @@ namespace Diablo2.Module.Skill
         private Rng _rng;
 
         /// <summary>
-        /// `Events.SkillSlotAssignRequest` 是否已订阅（**幂等**；impl-I-input，审计 R4）。
+        /// `Events.SkillSlotAssignRequest` 是否已订阅（**幂等**）。
         /// <para>为什么不在构造函数里订阅：本模块由 `AppContext.AutoWire` 在**很早**的时刻创建，
         /// 那一刻 `Game.Event` 可能还没挂上（构造时订阅会静默丢订阅）⇒ 改为首个
         /// `ResetForClass`（= 创角/读档进图，必然发生在任何游戏内按键之前）时补订阅。</para>
@@ -120,7 +120,7 @@ namespace Diablo2.Module.Skill
         /// <inheritdoc />
         public void ResetForClass(PlayerClass cls, CharacterSave save)
         {
-            EnsureSubscribed();     // ★ impl-I-input：F1~F8 技能槽绑定意图的订阅点（幂等）
+            EnsureSubscribed();     // F1~F8 技能槽绑定意图的订阅点（幂等）
             _cls = cls;
             _save = save;
 
@@ -152,7 +152,7 @@ namespace Diablo2.Module.Skill
                           $"已学 {_levels.Count} 个，左键={_buttons[0]} 右键={_buttons[1]}");
 
             RaiseTreeChanged();
-            RaiseButtonsChanged();      // ★ impl-I-input：读档后把左右键绑定推给 HUD（重启后 HUD 也一致）
+            RaiseButtonsChanged();      // 读档后把左右键绑定推给 HUD（重启后 HUD 也一致）
         }
 
         /// <inheritdoc />
@@ -196,7 +196,7 @@ namespace Diablo2.Module.Skill
 
             SkillLog.Info($"SelectSkill：当前右键技能 = {Describe(skillId)}");
             if (Game.Event != null) Game.Event.Emit(Events.SkillSelected, skillId);
-            RaiseButtonsChanged();      // ★ impl-I-input：HUD 的左右技能格换图
+            RaiseButtonsChanged();      // HUD 的左右技能格换图
         }
 
         /// <inheritdoc />
@@ -215,11 +215,11 @@ namespace Diablo2.Module.Skill
 
             SkillLog.Info($"AssignToButton：{(button == 0 ? "左键" : "右键")} = {Describe(skillId)}");
             if (button == 1 && Game.Event != null) Game.Event.Emit(Events.SkillSelected, skillId);
-            RaiseButtonsChanged();      // ★ impl-I-input：HUD 的左右技能格换图
+            RaiseButtonsChanged();      // HUD 的左右技能格换图
         }
 
         /// <summary>
-        /// 订阅 `Events.SkillSlotAssignRequest`（原版 `F1`~`F8` 技能槽绑定意图；impl-I-input，审计 R4）。
+        /// 订阅 `Events.SkillSlotAssignRequest`（原版 `F1`~`F8` 技能槽绑定意图）。
         /// 幂等；`Game.Event` 还没挂上时**不置位**（下次 `ResetForClass` 再试）。
         /// </summary>
         private void EnsureSubscribed()
@@ -855,17 +855,16 @@ namespace Diablo2.Module.Skill
         /// <item><description><c>Rock</c> = **阻挡** — 石头矮墙 / **桥栏杆**（<c>'s'</c>）/ 崖壁 / 碎石 /
         /// 杂物；它们都是**占据整格的实体障碍**（桥栏杆正是 R2 里能盖住桥上实体的那个遮挡物）
         /// ⇒ 一律阻挡。</description></item>
-        /// <item><description><c>Water</c> = **阻挡**（把水从 `Rock` 拆成独立值 `12` 后
-        /// **回来重判的结论**，见 `Def/Enums.cs:115-134`）—— 裁决依据 = ① 水格在本项目模型里是
-        /// **占满整格、不可走**的地形（`TileKindInfo.IsWalkable` = false），② 项目对 `TileKind`
-        /// **只有一个"可走性"轴**（`TileKindInfo` 没有"仅挡行走、不挡弹道"这种数据位），③ 拆值**前**
-        /// 水就是 `Rock` ⇒ 判"挡"**保持行为不变**（零回归）。
+        /// <item><description><c>Water</c> = **阻挡**（见 `Def/Enums.cs:115-134`）——
+        /// 裁决依据 = ① 水格在本项目模型里是**占满整格、不可走**的地形（`TileKindInfo.IsWalkable` = false），
+        /// ② 项目对 `TileKind` **只有一个"可走性"轴**（`TileKindInfo` 没有"仅挡行走、不挡弹道"这种数据位），
+        /// ③ 水与 `Rock` 共用同一判等口径 ⇒ 判"挡"**保持行为不变**（零回归）。
         /// **仍待参考物裁决**：原版 `ds1` 的碰撞位里 `BlockWalk` 与 `BlockMissile` 是**两个位**，
         /// 若原版水格只置 `BlockWalk`，则投射物应当**飞过水面** ⇒ 那时改**本表一行** +
-        /// `combatcheck §15.1` 一行即可（两处都有断言/闸门守着）。**本片不拍板原版语义。**</description></item>
+        /// `combatcheck §15.1` 一行即可（两处都有断言/闸门守着），本条不自行拍板原版语义。</description></item>
         /// </list>
-        /// <para>**不许在别处再写一份判等表**；本表当前与 `TileKindInfo.IsWalkable` **同集**，
-        /// 本闸门**确实当场变红**并逼出上面那条重判）。</para>
+        /// <para>**不许在别处再写一份判等表**；本表与 `TileKindInfo.IsWalkable` 的对应关系由
+        /// `combatcheck` 断言守着。</para>
         /// </summary>
         internal static bool BlocksProjectile(TileKind kind)
         {

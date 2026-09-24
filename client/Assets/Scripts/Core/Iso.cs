@@ -29,7 +29,7 @@ using UnityEngine;
 
 // 必须留这个别名：`CloverEngine` 与 `Diablo2.Def` **都有一个 `Dir8`**（引擎自带的那份见
 //    `Runtime/Core/Dir8.cs`），同时 `using` 两个命名空间会让裸 `Dir8` 变成 CS0104 二义。
-//    用别名把裸 `Dir8` 定为**项目枚举**（对外签名文本因而一字未变），
+//    用别名把裸 `Dir8` 定为**项目枚举**，
 //    引擎枚举一律写成 `CloverEngine.Dir8`（只在下面 `DirectionDelta` 的转发里出现一次）。
 using Dir8 = Diablo2.Def.Dir8;
 
@@ -110,7 +110,7 @@ namespace Diablo2.Core
         /// <summary>
         /// **实体（角色 / 怪物 / 地面物品 / 飞行物）节点的排序值** = 该格基准 + 实体层偏移；
         /// <paramref name="isDeck"/>（该格是「可走上方的结构」= 桥面/平台/甲板，
-        /// 判定见 `IMapModule.IsDeckGrid`，登记见 `Module/Map/DeckTiles`）为 true 时改用
+        /// 判定 = `IMapModule.IsDeckGrid`；登记表 = `Module/Map/DeckTiles`）为 true 时改用
         /// <see cref="GameConst.LayerOffsetDeckEntity"/> 抬一档。
         /// <para><b>为什么要有这层</b>（2026-09-22 用户实测「营地出门的桥，还是从桥下走」）：
         /// 桥面格的正南一格恒是桥栏杆物件，而栏杆图形自本格底边向上长 ≈2 格 ⇒ 普通实体档

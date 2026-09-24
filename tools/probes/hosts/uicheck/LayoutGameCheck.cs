@@ -104,7 +104,7 @@ namespace Uicheck
                 Near(HudPanel.PanelBgPos.y, BottomY(-21.3f + 80f)) && Near(HudPanel.PanelBgPos.x, 0f),
                 HudPanel.PanelBgPos.ToString());
             //   旧判据「图框底边 == 画布底边」是错的 —— 它逼着 `HudBaseLift = 21.3`，
-            //   而实测（`python .ai-tmp/test/hudredo/measure_art.py`）`ControlPanel.png` 的
+            //   而实测（原版实机图的量法；该脚本是一次性件、已不在盘）`ControlPanel.png` 的
             //   **不透明内容只到第 138 行**（139..159 行 alpha 全 0）⇒ 图框底部那 21.3px 本来就透明，
             //   原版让它们落到屏幕外即可。抬起来以后画面底部反而露出 39 画布px 的场景。
             //   新判据 = 「**内容收口在画布底边**」：rect 底边 = 画布底边 − 21.3×1.8（那段是透明的），
@@ -150,7 +150,7 @@ namespace Uicheck
             //   `ImageMinipanel` 节点写 152×26 ⇒ 照 152 贴会把图**水平压到 87.9%**（垂直不动）＝ 非等比拉伸，
             //   且同批的 7 个按钮（20×20 原生）是按 ×1.8 摆的 ⇒ 一块 HUD 上两种水平比例。
             //   判据 = 本次审计统一口径「控件矩形 == 原版像素 ×1.8」（原版像素 = 素材自己的像素）。
-            //   量法 `tools/probes/measure/hud_measure.py`（把"原版实机图"与"本项目实机图"都换算到
+            //   量法 `tools/probes/measure/hud_measure.py`（**该脚本仍在盘**；把"原版实机图"与"本项目实机图"都换算到
             //   `ControlPanel.png` 的 art 坐标系，artY 自面板顶量、PY 距画布底边）：
             //   原版基线 `策划/基线图/原版_实机_UI基准_20260923.png` 里这一排按钮的中心 PY =
             //   **91.6**（标定 A：用两只球的球心反解 scale/x0，见量法文件头）/ **113.6**（标定 B：800×600 屏宽比）
@@ -644,8 +644,8 @@ namespace Uicheck
             // ═════════════════════════════════════════════════════════════════
             //
             // 出处 = `client/Assets/Resources/Clover/D2/UI/Panel/charstat.png`（320×432）
-            //   **逐像素暗色连通域实测**（脚本 `tools/probes/measure/charstat_slots.py`，
-            //   读数落 `.ai-tmp/test/report-u3-charstat.md`）：
+            //   **逐像素暗色连通域实测**（量法脚本已按设计退役、不在仓库里；口径见下），
+            //   读数落一次性留档）：
             //     四维行：标签隔间 art 11..74、亮分隔条 75..79、**数值隔间 art 80..112**（中心 96）
             //     派生行 Defense：标签 161..269、**数值 271..309**（中心 290）
             //     派生行 耐力/生命/法力：标签 161..229、**两格数值 231..270 + 272..309**

@@ -124,15 +124,51 @@ namespace AudioCheck
         public string LastBgm() => Bgm.Count > 0 ? Bgm[Bgm.Count - 1] : "(none)";
     }
 
-    /// <summary>资源替身：永远取不到（`TryGet` = null，`LoadAsset` 回调 null）。</summary>
+    /// <summary>资源替身：永远取不到（`TryGet` = null，`LoadAsset` 回调 null）。
+    /// 接口成员表按引擎 `Runtime/Core/Contracts.cs` 的 `IResourceManager` 逐条对齐（差一条就 CS0535
+    /// ⇒ 本文件是覆盖率哨兵：引擎给接口加成员，这里编译期必红）。</summary>
     internal sealed class FakeRes : IResourceManager
     {
         public void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object
             => callback?.Invoke(null);
+
+        /// <summary>带进度的那条重载：无素材 ⇒ 直接报"完成 + null"（与无进度重载同口径）。</summary>
+        public void LoadAsset<T>(string path, Action<float> progress, Action<T> callback) where T : UnityEngine.Object
+        {
+            progress?.Invoke(1f);
+            callback?.Invoke(null);
+        }
+
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
+
+        public void Release(string path) { }
+        public void UnloadAll() { }
+
+        /// <summary>预加载：无素材 ⇒ 立刻报"全部完成"（引擎契约：空列表也必定回调）。</summary>
+        public void Preload(List<string> paths, Action onDone, Action<float> progress = null)
+        {
+            progress?.Invoke(1f);
+            onDone?.Invoke();
+        }
 
         public bool Exists(string path) => false;
         public T[] LoadAll<T>(string path) where T : UnityEngine.Object => Array.Empty<T>();
+
+        // 缓存水位 / 热更（引擎 `IResourceManager` 的其余契约成员）。
+        // 本宿主无资源后端 ⇒ 与引擎"未启用热更时为空操作"同口径：不驻留、不下载、不回调。
+        // ⚠️ 业务源码里没有这几条的调用点（它们没被 shim 的子集接口提供过），列出只为满足契约。
+        public long CachedBytes => 0;
+        public long CacheWatermark { get; set; }
+        public void Tick(float dt) { }
+        public string Version => "0";
+        public string ContentDir => null;
+        public bool IsBundleMode => false;
+        public ResourceUpdateState UpdateState => ResourceUpdateState.Idle;
+        public void CheckUpdate(Action<ResourceUpdateInfo> onResult) { }
+        public void DownloadUpdate(ResourceUpdateInfo info, Action<ResourceUpdateProgress> onProgress,
+            Action<bool, string> onDone) { }
+        public void ClearDownloaded() { }
+        public void CancelUpdate() { }
     }
 
     /// <summary>音频探测替身（**这是离线宿主能跑的前提**：`AudioClip` 在非 Unity 进程里造不出来）。</summary>

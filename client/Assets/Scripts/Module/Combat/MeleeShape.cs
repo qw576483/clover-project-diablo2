@@ -28,13 +28,15 @@
 //     ① `<根>/原版资源/d2lod1.10txt-1.10f/data/global/excel/Weapons.txt` 第 20 列 `rangeadder`
 //        （近战武器追加触及：短短剑 / 手斧 = 空(=0)，战杖 `War Staff` = 1）⇒ 触及 = 1 + rangeadder **格**；
 //     ② 同目录 `MonStats2.txt` 第 8 列 `MeleeRng`（怪物近战触及，`skeleton1` = 0）⇒ 同样是**格数**。
-//     两处都表明"够不够得着"是**沿距离比较**（`0 ≤ reach` 恒真，且同格时两者外接框必然重叠）
-//     —— 角度锥（本文件 ①）是**本项目新增**的量化近似（见上一条），它**不该**在"距离 0"这个
+//     两处都表明"够不够得着"是**沿距离比较**（`0 ≤ reach` 恒真，且同格时两者外接框必然重叠）。
+//     ⇒ 同格（偏移 (0,0)）必命中：这是本文件 ① 唯一补的退化点（角度锥是本项目新增的量化近似，
+//       见上一条）；「不该在"距离 0"这个退化点上判丢」就是它的全部理由。
 //   判据见 `tools/probes/hosts/combatcheck` 第 18 节（同格命中 / 正前方命中 / 正侧方不命中 /
 //     超距不命中 / 隔墙不命中）。
 //
-//   `clover-client-unity-engine/Runtime/Core/HitShape.cs`（`CloverEngine.HitShape`）；
-//   本文件只剩**题材调参常量**（60° / 1.2 格，见上面两条推导）+ **薄转发**（公开签名一字未改）。
+//   判定算法在引擎件 `CloverEngine.HitShape`
+//   （`clover-client-unity-engine/Runtime/Core/HitShape.cs`）；本文件只留**题材调参常量**
+//   （60° / 1.2 格，见上面两条推导）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -45,16 +47,13 @@ namespace Diablo2.Module.Combat
     /// <summary>
     /// 攻击判定形状：正面扇形 + 矩形走廊 + 线段通畅。
     /// <para>
-    /// **实现已下沉到引擎**（`CloverEngine.HitShape`，`Runtime/Core/HitShape.cs`）——
-    /// 本类只留**题材调参常量**（`FrontConeHalfAngleDeg` / `MeleeHalfWidth`，见文件头推导）
-    /// 与**薄转发**（公开签名一字未改，调用点无需改动）。
+    /// 判定算法在引擎件 `CloverEngine.HitShape`（`Runtime/Core/HitShape.cs`）——
+    /// 本类只留**题材调参常量**（`FrontConeHalfAngleDeg` / `MeleeHalfWidth`，见文件头推导）。
     /// </para>
     /// <para>
-    /// 为什么常量留在项目侧：60° 半角与 1.2 格半宽是**本项目 8 向朝向的量化推导结果**
+    /// 常量留在项目侧：60° 半角与 1.2 格半宽是**本项目 8 向朝向的量化推导结果**
     /// （见文件头"正面锥半角 60°"/"走廊半宽"两条），属玩法调参，不是通用底座；
     /// 引擎件只接受 `cosMin` / `reach` / `halfWidth` 参数。
-    /// 出处：`clover-project-diablo2 client/Assets/Scripts/Module/Combat/MeleeShape.cs:48-152`
-    /// ⇒ `clover-client-unity-engine Runtime/Core/HitShape.cs`（整类逐行下沉）。
     /// </para>
     /// </summary>
     internal static class MeleeShape
@@ -70,11 +69,11 @@ namespace Diablo2.Module.Combat
 
         /// <summary>
         /// 朝向的**格增量** → **单位向量**（格坐标下的向量，不是屏幕方向）。
-        /// <para>已下沉：转发到 `CloverEngine.HitShape.ToUnit`（算法与边界逐行照搬）。</para>
+        /// <para>转发到 `CloverEngine.HitShape.ToUnit`。</para>
         /// <para>
         /// 本类**不自己写 `Dir8` 映射表**：格增量一律由调用方用**引擎权威表**
         /// `Iso.DirectionDelta(dir)`（= `CloverEngine.IsoLayout.DirectionDelta`）取好再传进来
-        /// —— 这样本文件对地图/投影零依赖，可被最小自检宿主单独编译驱动（见 §"为什么这样切"）。
+        /// —— 这样本文件对地图/投影零依赖，可被最小自检宿主单独编译驱动。
         /// </para>
         /// </summary>
         /// <returns>false = 朝向向量不可解（0 向量；调用方据此**拒绝**本次攻击并留痕）。</returns>
@@ -89,7 +88,7 @@ namespace Diablo2.Module.Combat
         /// **零偏移（与攻击者同格，dx=dy=0）⇒ 返回 true（命中）** ——
         /// 零距离上"夹角"无定义，而**原版的近战触及是距离/外接框口径**（`Weapons.txt` `rangeadder` /
         /// `MonStats2.txt` `MeleeRng`，见文件头「同格必命中」一条）：`0 ≤ reach` 恒真 ⇒ 同格必命中。
-        /// 只补这一个退化点；扇形本身（±60°）与"正侧方 90° 不命中"的口径一字未动。
+        /// 只补这一个退化点；扇形本身（±60°）与"正侧方 90° 不命中"由 <paramref name="cosMin"/> 决定。
         /// </para>
         /// </summary>
         public static bool InFrontCone(float fx, float fy, float dx, float dy, float cosMin)
@@ -117,7 +116,7 @@ namespace Diablo2.Module.Combat
         /// </summary>
         public static bool LineClear(Func<Vector2Int, bool> walkable, Vector2Int from, Vector2Int to)
         {
-            // 已下沉：转发到引擎件（Bresenham 逐格判可走；两端点不判；null 探针放行）
+            // 转发到引擎件（Bresenham 逐格判可走；两端点不判；null 探针放行）
             return CloverEngine.HitShape.LineClear(walkable, from, to);
         }
     }

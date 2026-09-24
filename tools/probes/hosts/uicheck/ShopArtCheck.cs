@@ -17,7 +17,7 @@
 //  为什么能离线判：① 是源码文本断言（与 `V6Check` 同口径：去注释后再判）；
 //  ③ 是解 PNG 像素（宿主已链 Unity 托管 DLL，不需要 Unity 运行时）。
 //
-//  **结论已硬编码在下面常量里，判据不依赖该脚本存在**；原始输出 `.ai-tmp/test/u53_frames_measure.txt`）：
+//  **结论已硬编码在下面常量里，判据不依赖该脚本存在**；原始输出是一次性件、已不在盘）：
 //    frame  32x32  不透明 992(常态)/900(按下)  内区墨量 = 0:21  1:45  2:228  3:237  10:264  11:284
 //    两两差异 = diff(0,2)=217  diff(0,10)=277  diff(2,10)=265  diff(2,3)=352  diff(10,11)=358
 //    ⇒ 阈值取 150 / 80 / 100（图形帧最低 186、空白帧 21 ⇒ 双向余量都很大）。
@@ -414,11 +414,13 @@ namespace Uicheck
                 squareCall == 0 && squareSites == 2 && inShop == 2,
                 $"UiArt.cs 内自调用={squareCall}（应 0）全仓调用点={squareSites}（应 2，ShopPanel 内 {inShop}）");
 
+            //   ★ 落点名称随下沉更新：`ApplyButtonFrame` → `ApplyButtonFrames`（帧表 → 按钮语义，项目侧；
+            //     四态落进 uGUI 那半在引擎 `SpriteSwapButton.Apply`）。判的仍是「这条工厂真的贴了原版帧」。
             Check("④ 另两条按钮工厂（`UiArt.Button` / `OrigButton`）都真的贴了原版帧（过程断言）",
-                s.IndexOf("ApplyButtonFrame(", StringComparison.Ordinal) >= 0
+                s.IndexOf("ApplyButtonFrames(", StringComparison.Ordinal) >= 0
                 && s.IndexOf("LoadOrig(", StringComparison.Ordinal) >= 0
                 && src.IndexOf("UiArt.TradeButton", StringComparison.Ordinal) < 0,
-                $"ApplyButtonFrame={s.IndexOf("ApplyButtonFrame(", StringComparison.Ordinal) >= 0}"
+                $"ApplyButtonFrames={s.IndexOf("ApplyButtonFrames(", StringComparison.Ordinal) >= 0}"
                 + $" LoadOrig={s.IndexOf("LoadOrig(", StringComparison.Ordinal) >= 0}"
                 + $" 旧 tradebtn 控件={src.IndexOf("UiArt.TradeButton", StringComparison.Ordinal) >= 0}");
         }

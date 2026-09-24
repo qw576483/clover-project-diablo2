@@ -30,19 +30,19 @@
 //         可见总时长 = **3.75s**。
 //
 // ── 「首次进入某区域」的口径 ────────────────────────────────────────────────
-//   本文件按**每个区域在本局游戏里第一次进入**才弹（`_shown` 去重）。
-//   `Diablerie/Level.cs:19-20` 的原写法是「有上一个区域就弹」（等于每次过门都弹）——
-//   并在 `HudPanel` 侧的每条日志里写明「首次/已弹过」，便于核对（差异已写进回报）。
+//   本文件按**每个区域在本局游戏里第一次进入**才弹（`_shown` 去重）—— 原版 `Diablerie/Level.cs:19-20`
+//   是「有上一个区域就弹」（等于每次过门都弹），本工程不取这条。
+//   「首次/已弹过」在 `HudPanel` 侧的每条日志里写明，便于核对。
 //
 // ── 淡入 / 停留 / 淡出（**只有时长分摊是本项目新增**）────────────────────────
 //   原版只有"总时长 3.75s"，`LevelEntryTitle.cs` 里**没有**淡入淡出（到点直接隐藏）。
 //     淡入 0.4s → 停留 2.95s → 淡出 0.4s（0.4 + 2.95 + 0.4 = 3.75 ✓，见 `HoldSeconds`）。
 //
-//   「CanvasGroup 渐隐 + 时间轴（淡入 / 停留 / 淡出）+ 走完自动隐藏 + 透明度曲线」移入引擎件
-//   `CloverEngine.CenterAnnounceLayer`（`clover-client-unity-engine/Runtime/Presentation/
+//   「CanvasGroup 渐隐 + 时间轴（淡入 / 停留 / 淡出）+ 走完自动隐藏 + 透明度曲线」由引擎件
+//   `CloverEngine.CenterAnnounceLayer` 提供（`clover-client-unity-engine/Runtime/Presentation/
 //   WorldOverlayWidgets.cs`）；本文件只剩：① 原版取值（几何 / 颜色 / 字体 / 时长常量）；
 //   ② 官方区域名表与 `"Entering "` 前缀；③ "每个区域首次进入才弹"的去重；④ 文字工厂注入。
-//   公开 API / 调用点零改动；`AlphaAt(float)` 保留为**公开纯函数**，内部转调引擎件的
+//   公开 API = `AlphaAt(float)`（**公开纯函数**），内部转调引擎件的
 //   `CenterAnnounceLayer.AlphaAt(elapsed, fadeIn, hold, fadeOut)`（曲线只有一处真源）。
 //
 // 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def` / UnityEngine(.UI)，
@@ -122,7 +122,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 某一帧的透明度（**纯函数**，0..1）。
         /// <para>分段：`[0,0.4)` 线性 0→1；`[0.4,3.35)` 恒 1；`[3.35,3.75)` 线性 1→0；之后 0。</para>
-        /// <para>曲线实现已下沉引擎件 `CenterAnnounceLayer.AlphaAt`（只有一处真源，本处只转发）。</para>
+        /// <para>曲线实现 = 引擎件 `CenterAnnounceLayer.AlphaAt`（只有一处真源，本处只转发）。</para>
         /// </summary>
         /// <param name="elapsedSeconds">自弹出起的秒数（负数/NaN ⇒ 0 = 还没出现）。</param>
         public static float AlphaAt(float elapsedSeconds)
@@ -239,7 +239,7 @@ namespace Diablo2.UI
         /// <summary>
         /// **首次进入某区域**时弹出区域名（同一区域本局只弹一次）。
         /// </summary>
-        /// <returns>true = 本次真的弹了；false = 已弹过 / 区域未登记（两种情况都留日志）。</returns>
+        /// <returns>true = 真的弹了；false = 已弹过 / 区域未登记（两种情况都留日志）。</returns>
         public bool ShowForFirstEntry(AreaId area)
         {
             if (_announce == null)

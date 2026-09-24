@@ -353,7 +353,7 @@ namespace Uicheck
         /// <para>② 确定性：同一集合渲染两次逐像素一致；超集 ⇒ drawn 格数 = 注入格数（图元只增不减）。</para>
         /// <para>③ cel 几何：相邻格 (0,0)→(1,0) 的图元 bbox 正好平移 **(+8, −4)** 纹理（列,行）
         /// —— 原版 1/10 等距步进（世界向 (x+1) ⇒ (+8,+4)；纹理行号自底向上 ⇒ 行 −4）；
-        /// 出处 `.ai-tmp/test/automap-plan.md` §1.4「相邻格间距」+「锚点 = 帧左上角在格心 −(8,28)」。</para>
+        /// 口径 = 原版 automap 的 §1.4「相邻格间距」+「锚点 = 帧左上角在格心 −(8,28)」。</para>
         /// </summary>
         private static void CheckInjectedRender()
         {

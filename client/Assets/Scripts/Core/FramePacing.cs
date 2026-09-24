@@ -49,7 +49,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// **兜底**帧率上限（与画质档位无关）= 引擎兜底值，见文件头"为什么是 60"。
-        /// <para>U27（帧节奏下沉）：**实际档位由 <see cref="Pin"/> 现取**
+        /// <para>**实际档位由 <see cref="Pin"/> 现取**
         /// （<see cref="CloverEngine.FramePacingPolicy.Recommend"/>）；只有刷新率**读不到**
         /// （离线宿主 / 无头 / 平台不提供）时才落到本值。</para>
         /// </summary>
@@ -134,9 +134,9 @@ namespace Diablo2.Core
         }
 
         /// <summary>
-        /// 「生效口径」的**单行文本**（被 <see cref="Pin"/> 打进日志；离线自检宿主
+        /// 「生效口径」的**单行文本**（被 <see cref="Pin"/> 打进日志）。
         /// <para>前半段 = 引擎件 <see cref="CloverEngine.FramePacingPolicy.Describe"/>（机制口径）；
-        /// 后半段 = 本项目的**业务尾注**（旧口径的代价 + 动画复位口径 + 移动积分口径）。</para>
+        /// 后半段 = 本项目的**业务尾注**（档位来源 + 动画复位口径 + 移动积分口径）。</para>
         /// </summary>
         /// <param name="reason">为什么重钉（"启动" / "选项面板应用画质档位 2" / 宿主自检…）。</param>
         public static string Describe(string reason, int beforeFps, int beforeVsync)

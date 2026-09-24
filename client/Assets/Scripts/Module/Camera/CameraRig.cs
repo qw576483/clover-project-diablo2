@@ -20,25 +20,16 @@
 // 屏幕/相机原生调用一律 try/catch 兜底并打日志：离线自检宿主（非 Unity 进程）里
 //    `Camera.main`/`Screen` 不可用，必须**优雅降级**而不是抛异常（`tools/playercheck` 会断言）。
 //
-//   **实测现象**（`_dev/p_a22_diag.cs`）：进图时 `Camera.main.position` = (1.00,-15.00,-10.00)
-//   （= 出生格 (15,14) 的机位，正确）；随后 `Player.MoveTo((1,4))` 走到 (1,4)，
-//   机位**一动不动**，主角落到屏幕 (600,1620)（屏幕高 1080）⇒ 跑出画面。
-//   本类 `Tick` 从不重取焦点；`Follow(transform)` 存的 `_target` 也**从来没被读过**。
-//     · `_target != null` ⇒ 读它的 `position`（契约 `Follow` 才真的会跟随）；
+// 焦点来源（每帧 `RefreshFocus`，两条按优先级）：
+//     · `_target != null`（契约 `Follow(transform)` 设过）⇒ 读它的 `position`；
 //     · 否则跟 `IPlayerModule.World`（原版语义：镜头跟着主角走）。
 //   两条非预期分支都有日志：读目标失败 / 主角坐标非有限值。
-// ─────────────────────────────────────────────────────────────────────────────
-
-//     · 引擎 `SceneModule.Load` 走 `SceneManager.LoadSceneAsync(name)`（**单场景**，见
-//       `clover-client-unity-engine/Runtime/Presentation/Scene.cs:27`）⇒ Boot → Menu → Stage
-//       每次换场都会把上一台 `Main Camera` **销毁**；
-//       `_cam` 已是「已销毁对象」（Unity 的 `== null` 重载判为 null）而**永不重解析**；
-//     · `ApplyToCamera()` 又在 `_cam == null` 时**静默 return**（无日志）⇒
-//       `Rig.Position` 算对了 `(-4.00,-17.50,-10)`，但场景里的相机**整局停在出生机位
-//       `(0,0,-10)`**，于是 32×32 等距菱形的顶角刚好落在屏幕中央附近、玩家 `(15,19)`
-//       落在屏幕外 `(381.3, -479.2)`（Screen 1096×500）—— 与截图现象完全一致。
-//            ② `ApplyToCamera` 无相机时**必须留日志**（非预期分支不许静默）；
-//            ③ 新增纯函数 `WorldToViewport` / `WorldToScreen`，给「焦点世界坐标 → 屏幕中心」
+//
+// 相机引用：引擎 `SceneModule.Load` 走 `SceneManager.LoadSceneAsync(name)`（**单场景**，见
+//     `clover-client-unity-engine/Runtime/Presentation/Scene.cs:27`）⇒ Boot → Menu → Stage
+//     每次换场都会把上一台 `Main Camera` 销毁 ⇒ `_cam` 必须能被**重新解析**（不缓存销毁后的引用）。
+//     `ApplyToCamera` 在无相机时**必须留日志**（非预期分支不许静默）；
+//     纯函数 `WorldToViewport` / `WorldToScreen` 提供「焦点世界坐标 → 屏幕中心」的离线判据。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -64,7 +55,7 @@ using UnityCamera = UnityEngine.Camera;
 // 故：`CameraRig` 与 `ICameraRig` 同处 `Diablo2.Module`（同文件族里读起来也最自然），
 //     目录仍按 `tools/ai-skill/registry.md` 的约定是 `Module/Camera/`。
 //     `Module/Input/InputReader.cs` 同理（`Diablo2.Module.Input` 会与 `UnityEngine.Input` 同名）。
-//     ⇒ 已回报主 agent 记入 registry/conventions。
+//     ⇒ 目录归属以 `tools/ai-skill/registry.md` 为准。
 // ═════════════════════════════════════════════════════════════════════════════
 namespace Diablo2.Module
 {
@@ -88,7 +79,7 @@ namespace Diablo2.Module
         /// <para>为什么取 600（而不是 800/1080）：原版 D2 的**参考分辨率就是 640×480 / 800×600**
         /// （`Diablerie` 的 `CameraController` 按 `camera.pixelHeight` 算，即"视野高度固定，
         /// 宽高比变宽只会看到更宽"）；600 是其中最高的那一档，取它得到**最宽松**的视野上限，
-        /// 再大就明确超出原版范围（旧值 6 = 12 格高 = 原版 960px 高，原版没有这种分辨率）。</para>
+        /// 再大就明确超出原版范围（12 格高 = 原版 960px 高，原版没有这种分辨率）。</para>
         /// </summary>
         public const float DefaultOrthographicSize = 3.75f;
 
@@ -121,23 +112,21 @@ namespace Diablo2.Module
         /// </list>
         /// <para>**滞后量的原版出处缺失**：原版参考工程（`原版资源/参考工程_Diablerie`）本机只有
         /// `d2lod1.10txt` 数据表，**没有** `Engine/CameraController.cs`（该文件路径在本仓不存在，已全盘查过）
-        /// ⇒ 无法证明"原版相机有无跟随滞后"。故本值按用户明说的「消除抖动」目标取，**并已在回报里登记该缺口**。</para>
+        /// ⇒ 无法证明"原版相机有无跟随滞后"。故本值按「消除抖动」这一目标取（原版滞后量无出处）。</para>
         /// </summary>
         public const float FollowSmoothTime = 0.02f;
 
         /// <summary>
         /// 「8 向锯齿路径上，相机与玩家的相对偏移**横向**摆幅」的验收上界（格）。
-        /// <para>量法（与 `tools/probes/drivers/camjitter_metrics.py` 逐字一致）：取每帧玩家位移方向 `u` 的
-        /// 正交方向 `perp`，摆幅 = `max(r·perp) - min(r·perp)`，`r` = 玩家世界坐标 − 相机世界坐标。</para>
+        /// <para>量法（同一把尺 = `tools/probes/hosts/playercheck` 的 **c7** 断言
+        /// 「8 向锯齿路径：相机与焦点相对偏移的**横向**摆幅 ≤ <see cref="ZigZagLateralSwingMax"/> 格」）：
+        /// 取每帧玩家位移方向 `u` 的正交方向 `perp`，摆幅 = `max(r·perp) - min(r·perp)`，
+        /// `r` = 玩家世界坐标 − 相机世界坐标。</para>
         /// <para>**来历（两个数都要写清）**：
         /// ① **解析上界**（对任意路径成立，故用它可以判别的路径）：摆幅 ≈ `2 × 速度 × smoothTime × sin45°`
         /// = 2 × 3.0 × 0.02 × 0.7071 = **0.085 格** ⇒ 阈值取 0.09（留 ~6% 余量）；
         /// ② **本机实测**（`tools/probes/hosts/playercheck` c7，Town 地图固定种子、同一段 8 向锯齿路径）：
-        /// **0.0148 格**（只有解析上界的 17%）。
-        /// 旧口径（τ=0.12 纯指数滞后）同式 = 0.51 格，且 c8 的**配对实测**给出旧口径的真实值
-        /// ⇒ 本阈值能把旧口径判红（0.51 ≫ 0.09）。</para>
-        /// <para>本行的 Play 侧采集被**他人在飞的编译错误**阻塞（详见 `.ai-tmp/test/report-camera.md`），
-        /// 上列实测值来自**离线同源量法**（同一把尺：c7 的横向分量定义与 `camjitter_metrics.py` 逐字一致）。</para>
+        /// **0.0148 格**（只有解析上界的 17%）。</para>
         /// </summary>
         public const float ZigZagLateralSwingMax = 0.09f;
 
@@ -167,13 +156,13 @@ namespace Diablo2.Module
         private Vector3 _focus;                // 关注点世界坐标（z=0 平面）
         private Vector3 _pos;                  // **显示机位**（= 边界夹制后的；`Position`/`FinalPosition` 用它，语义不变）
         /// <summary>
-        /// U27（夹制连续性）：**自由的平滑状态**（边界夹制**不改写**它）。
+        /// **自由的平滑状态**（边界夹制**不改写**它）。
         /// <para>为什么必须与 <see cref="_pos"/> 分开：夹制是「可见格矩形必须在地图内」这条几何约束，
         /// 状态里就丢掉了一段"还差多少没跟上玩家"的位移。分开后状态永远只滞后
         /// `速度×FollowSmoothTime`（0.06 格）⇒ 无处可积、无可卷绕。</para>
         /// <para>**不要**把这条读成"脱开时会跳 <b>7.3604 格</b>"：那个数是「玩家偏离屏幕中心」的
         /// **单帧过冲 +15.5%（1.3px@1080p）** —— 夹制的咬合点与脱开点重合，账不累积。
-        /// 完整推导与实测读数见 <see cref="StepFollow"/> 的注释（那里是本片根因的唯一权威处）。</para>
+        /// 完整推导与实测读数见 <see cref="StepFollow"/> 的注释。</para>
         /// </summary>
         private Vector3 _posRaw;
         private Vector3 _camVelocity;          // 临界阻尼跟随的**速度状态**（跨帧保留；见 FollowSmoothTime 注释）
@@ -377,7 +366,7 @@ namespace Diablo2.Module
             _hasFocus = false;
             _focus = Vector3.zero;
             _pos = Vector3.zero;
-            _posRaw = Vector3.zero;               // ★ U27：自由的平滑状态一起复位（不然下一局会从上一局的状态开始）
+            _posRaw = Vector3.zero;               // 自由的平滑状态一起复位（不然下一局会从上一局的状态开始）
             _camVelocity = Vector3.zero;          // 速度状态一起复位（否则下一局第一次平滑会带着上一局的速度）
             _panOffset = Vector2.zero;
             _snapPending = false;
@@ -466,8 +455,7 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 纯函数：正交尺寸的钳制结果。
-        /// <para>eng-camera-math 片：**实现已下沉引擎** <see cref="CameraMath.Zoomed"/>
-        /// （逐行同源），本方法是薄转发 —— 签名与调用点一字未改。</para>
+        /// <para>实现 = 引擎 <see cref="CameraMath.Zoomed"/>，本方法转发它。</para>
         /// </summary>
         public static float Zoomed(float current, float delta, float min, float max)
         {
@@ -480,17 +468,15 @@ namespace Diablo2.Module
             return new Vector3(focus.x, focus.y, cameraZ);
         }
 
-        // 本类原有 `public static Vector3 SmoothTowards(...)`（纯指数滞后，`k=1-exp(-dt/tau)`+Lerp）
-        //   已**整条删除** —— 它下沉为引擎 `CloverEngine.CameraMath.Follow(Vector3,Vector3,float,float)`
-        //   （逐字同公式，见该件注释）。跟随实际走的是临界阻尼
-        //   `CloverEngine.CameraMath.SmoothDamp(...)`。项目侧**不再持有任何平滑实现**。
+        // 平滑跟随一律走引擎 `CloverEngine.CameraMath`：跟随用临界阻尼
+        //   `CameraMath.SmoothDamp(...)`。项目侧**不持有任何平滑实现**。
 
         /// <summary>
         /// 纯函数：把焦点夹进「地图包围盒 - 半屏」范围内（视野比地图大时居中）。
         /// 原版相机只在地图范围内滚动。
-        /// <para>**世界 AABB 口径（旧）**：`MapWorldBounds` 取的是等距菱形的轴对齐包围盒，
-        /// 菱形与 AABB 之间的四个三角区**不是地图** ⇒ 夹这个盒子会放行"看得见地图外虚空"的机位
-        /// 生产**已改走格空间** `CameraBounds.ClampFocusGrid`；本函数只作为
+        /// <para>**世界 AABB 口径**：`MapWorldBounds` 取的是等距菱形的轴对齐包围盒，
+        /// 菱形与 AABB 之间的四个三角区**不是地图** ⇒ 夹这个盒子会放行"看得见地图外虚空"的机位。
+        /// 生产夹制走格空间 `CameraBounds.ClampFocusGrid`；本函数只作为
         /// 「夹制的纯函数形状」保留（`tools/playercheck` §11 用它做边界钳制的对照组断言）。</para>
         /// </summary>
         public static Vector2 ClampFocus(Vector2 focus, Vector2 min, Vector2 max, float halfW, float halfH)
@@ -508,9 +494,8 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 纯函数：机位（世界）→ **可见格**包围盒。
-        /// <para>eng-camera-math 片：**实现已下沉引擎** <see cref="CameraMath.VisibleGridRect"/>
-        /// （逐行同源；等距半格宽高按参数传入 = <see cref="Iso.HalfW"/> / <see cref="Iso.HalfH"/>），
-        /// 本方法是薄转发 —— 签名与调用点一字未改。</para>
+        /// <para>实现 = 引擎 <see cref="CameraMath.VisibleGridRect"/>
+        /// （等距半格宽高按参数传入 = <see cref="Iso.HalfW"/> / <see cref="Iso.HalfH"/>）。</para>
         /// <para>用途：`tools/playercheck` §11.10「贴边不露虚空」用它**直接量**生产机位的越界格数
         /// （不在宿主里再镜像一份几何 —— 镜像 = 改了生产也不变红的假闸门）。</para>
         /// <para>`Iso` 是线性变换 ⇒ 矩形映射后的极值必在四个角上 ⇒ 只看四角即可（不必逐像素采样）。</para>
@@ -541,10 +526,10 @@ namespace Diablo2.Module
         /// <summary>
         /// 纯函数：`机位 → 夹制后的机位`，夹制只改**机位**；焦点（玩家）只作为
         /// 「机位最多能挪多远」的参照（`CameraBounds.FocusSafeMarginRatio`），本身**不被改写**。
-        /// <para>为什么必须分开：本机位制下 `机位 == 焦点`（正交、不旋转 ⇒ `DesiredPosition` 只是换 z），
-        /// 前一片于是把两者当同一个量 —— 藏虚空的位移被写回成"焦点被夹"，相机对准那个被夹的点，
-        /// 玩家就被顶到画面角落（`play-verify` 实测 p50 598.6px / max 1065.8px）。
-        /// 分开之后：位移照旧用于藏虚空，但**上限由焦点决定** ⇒ 玩家永远在视口安全边距内。</para>
+        /// <para>为什么必须分开：本机位制下 `机位 == 焦点`（正交、不旋转 ⇒ `DesiredPosition` 只是换 z）
+        /// ⇒ 若把两者当同一个量，"藏虚空"的位移会被写回成"焦点被夹"，相机对准那个被夹的点，
+        /// 玩家就被顶到画面角落。分开之后：位移照旧用于藏虚空，但**上限由焦点决定**
+        /// ⇒ 玩家永远在视口安全边距内。</para>
         /// </summary>
         /// <param name="camera">**机位**世界坐标（被夹的那个量）。</param>
         /// <param name="focus">**焦点**（玩家）世界坐标 —— 只用于限定位移上限。</param>
@@ -563,8 +548,8 @@ namespace Diablo2.Module
         /// <summary>
         /// 纯函数：地图世界包围盒（四角投影取 min/max；`Iso` 是线性变换，角点即极值点）。
         /// <para>这是**菱形的外接矩形**，对角线方向那四个三角区**不是地图** ⇒
-        /// 拿它做夹制会放行"看得见虚空"的机位。生产夹制已改走 `CameraBounds.ClampFocusGrid`；
-        /// 本函数保留给离线宿主的对照断言（AABB 口径 vs 格口径的差异本身就是缺陷的证据）。</para>
+        /// 拿它做夹制会放行"看得见虚空"的机位。生产夹制走 `CameraBounds.ClampFocusGrid`；
+        /// 本函数保留给离线宿主的对照断言（AABB 口径 vs 格口径）。</para>
         /// </summary>
         public static void MapWorldBounds(int width, int height, out Vector2 min, out Vector2 max)
         {
@@ -581,14 +566,13 @@ namespace Diablo2.Module
         /// <summary>
         /// 纯函数：世界坐标 → **视口归一化坐标**（0..1，左下原点）—— 正交、不旋转、沿 +Z 俯视的相机。
         /// 与 `Camera.WorldToViewportPoint` 同语义（本项目相机不旋转、世界是 z=0 的 XY 平面 ⇒ 只剩 xy 平移缩放）。
-        /// <para>eng-camera-math 片：**实现已下沉引擎** <see cref="CameraMath.WorldToViewport"/>
-        /// （逐行同源），本方法是薄转发 —— 签名与调用点一字未改。</para>
-        /// <para>存在的理由（照原样保留）：`Camera.WorldToScreenPoint` 是**原生调用**，离线自检宿主
-        /// （`tools/*check`）里用不了 ⇒ 「焦点世界坐标 → 屏幕中心」这条验收断言就永远没法离线自证。</para>
+        /// <para>实现 = 引擎 <see cref="CameraMath.WorldToViewport"/>，本方法转发它。</para>
+        /// <para>存在的理由：`Camera.WorldToScreenPoint` 是**原生调用**，离线自检宿主
+        /// （`tools/*check`）里用不了 ⇒ 「焦点世界坐标 → 屏幕中心」这条验收断言需要纯函数版。</para>
         /// <para>参数非法（`orthoSize &lt;= 0` / `aspect &lt;= 0`）⇒ 返回 `NaN`**并只报一次日志**
-        /// （返回 NaN 会让断言**明确失败**，比悄悄返回 (0.5,0.5) 假通过安全）。留痕出口随实现一起
-        /// 下沉到引擎：现在走 <see cref="LogThrottle.WarnOnce"/>（= `Game.Logger`，与其余引擎件同口径）；
-        /// 离线宿主里 `Game.Logger` 未装配 ⇒ 该分支**静默**（返回值口径一字未改，宿主断言在 NaN 上）。</para>
+        /// （返回 NaN 会让断言**明确失败**，比悄悄返回 (0.5,0.5) 假通过安全）。留痕出口 =
+        /// <see cref="LogThrottle.WarnOnce"/>（= `Game.Logger`，与其余引擎件同口径）；
+        /// 离线宿主里 `Game.Logger` 未装配 ⇒ 该分支**静默**（宿主断言在 NaN 上）。</para>
         /// </summary>
         /// <param name="world">世界坐标（z 分量被忽略）。</param>
         /// <param name="camPos">相机世界位置（正交相机 = 视口中心的世界坐标）。</param>
@@ -602,7 +586,7 @@ namespace Diablo2.Module
         /// <summary>
         /// 纯函数：世界坐标 → **屏幕像素坐标**（左下原点）—— 与 `Camera.WorldToScreenPoint` 同语义。
         /// 由 <see cref="WorldToViewport"/> 乘以屏幕尺寸得到（验收断言「焦点 → 屏幕中心」用它）。
-        /// <para>eng-camera-math 片：**实现已下沉引擎** <see cref="CameraMath.WorldToScreen"/>（薄转发）。</para>
+        /// <para>实现 = 引擎 <see cref="CameraMath.WorldToScreen"/>。</para>
         /// </summary>
         public static Vector2 WorldToScreen(Vector3 world, Vector3 camPos, float orthoSize, float aspect,
             float screenW, float screenH)
@@ -613,8 +597,7 @@ namespace Diablo2.Module
         /// <summary>
         /// 纯函数：边缘滚动偏移（鼠标进入 `marginPx` 边距内时产生指向外部的位移，满偏 = `maxShift`）。
         /// 屏幕坐标系与 `Game.Input.MousePosition` 一致（左下角原点）。
-        /// <para>eng-camera-math 片：**实现已下沉引擎** <see cref="CameraMath.EdgeScrollOffset"/>
-        /// （逐行同源），本方法是薄转发 —— 签名与调用点一字未改。</para>
+        /// <para>实现 = 引擎 <see cref="CameraMath.EdgeScrollOffset"/>。</para>
         /// </summary>
         public static Vector2 EdgeScrollOffset(Vector2 pointer, float screenW, float screenH,
             float marginPx, float maxShift)
@@ -624,9 +607,8 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 纯函数：震动偏移的幅度（线性衰减到 0；`t &gt;= dur` 恒 0）。
-        /// <para>eng-camera-math 片：**实现已下沉引擎** <see cref="CameraMath.ShakeMagnitude"/>
-        /// （逐行同源），本方法是薄转发 —— 签名与调用点一字未改。方向仍是本项目的
-        /// <see cref="ShakeOffset"/>（三角函数 + <see cref="ShakeAngularSpeed"/>，含项目常量 ⇒ 不下沉）。</para>
+        /// <para>实现 = 引擎 <see cref="CameraMath.ShakeMagnitude"/>。方向仍是本项目的
+        /// <see cref="ShakeOffset"/>（三角函数 + <see cref="ShakeAngularSpeed"/>，含项目常量）。</para>
         /// </summary>
         public static float ShakeMagnitude(float amplitude, float duration, float t)
         {
@@ -638,13 +620,9 @@ namespace Diablo2.Module
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// <para>
-        /// `AppFlow` 只在**进 Stage / 换区域**时调一次 `SetTargetGrid(出生格)` + `SnapToTarget()`，
-        /// 而本类把那次给的 `_focus` 一直用到底 —— `Tick` 只做「`_focus` → 机位」的平滑，
-        /// **从来不重取焦点**（`_target` 也只存不用）。于是：
-        /// 玩家从出生格 (15,14) 走到 (1,4)，`Camera.main.position` 始终停在
-        /// `(1.00, -15.00, -10.00)`，主角落到屏幕 `(600, 1620)`（屏幕高 1080 ⇒ 已在画面外）。
-        /// </para>
+        /// <para>每帧重取焦点（由 `Tick` 调）。`AppFlow` 只在**进 Stage / 换区域**时调一次
+        /// `SetTargetGrid(出生格)` + `SnapToTarget()` ⇒ 之后的跟随必须由本方法逐帧刷新，
+        /// 否则机位会停在出生格不动。</para>
         /// <para>两条来源，按优先级：① 契约 `Follow(transform)` 设过的目标（每帧读它的 position）；
         /// ② 没有显式目标时跟**主角当前世界坐标**（原版语义，`IPlayerModule.World`）。</para>
         /// </summary>
@@ -671,7 +649,7 @@ namespace Diablo2.Module
             //    · 进过 Stage 才有人设过焦点（`_hasFocus`），菜单里焦点恒为假；
             //    · 再加站点判定是因为「有人在 Stage 之外显式设过目标格」（离线自检宿主 `tools/playercheck`
             //      直接 `rig.SetTargetGrid(far)`）时，不该被主角坐标劫持 —— 那里主角是静止的出生点，
-            //      一劫持就永远收敛不到 `far`（实测残留 12.65）。站点判定让两种场景各归各位。
+            //      一劫持就永远收敛不到 `far`（差 12.65 格）。站点判定让两种场景各归各位。
             if (!_hasFocus || !FlowReady()) return;
 
             var player = PlayerOrNull();
@@ -842,8 +820,8 @@ namespace Diablo2.Module
         {
             if (_cam == null)
             {
-                // 这里**不许静默 return**：曾经就是这条静默路径让「相机整局停在出生机位」查不出来
-                //   （位置算对了、场景里没动、日志里什么都没有）。非预期分支必须有可定位日志。
+                // 这里**不许静默 return**：否则会出现「位置算对了、场景里的相机没动、日志里什么都没有」
+                //   这种无法定位的静默失效。非预期分支必须有可定位日志。
                 if (!_applySkippedLogged)
                 {
                     _applySkippedLogged = true;
@@ -869,21 +847,16 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// U27：一步「自由平滑 + **输出侧**夹制」——**纯函数**（不碰 `Camera` / 不碰原生 API）。
+        /// 一步「自由平滑 + **输出侧**夹制」——**纯函数**（不碰 `Camera` / 不碰原生 API）。
         ///
-        /// <para><b>连续性口径（现在）与它的可量收益</b>：夹制是几何约束（"可见格矩形必须在地图内"），
-        /// 它**只能限制输出**，不该改写状态 ⇒ 状态 `raw` 永远自由演化（对 `want` 的一阶滞后），
-        /// 显示机位 = `ClampForAspect(raw)`。于是状态里始终只有 `速度×smoothTime`（0.06 格）的滞后，
-        /// 速度状态全程连续 ⇒ **不需要**再清零（不是"把清零删掉"：清零要治的病 —— 状态被改写 —— 已不存在；
-        /// 这里也不是积分器：一阶滞后跟随移动目标，没有可卷绕的累积量）。
-        /// `max|Δ显示机位|` = **0.060001 格**（新）vs **0.069288 格**（旧）= **+15.5% / 1.3px@1080p 的单帧超出被消掉**，
-        /// 且新口径下 `max|Δ显示机位| ≤ max|Δ玩家|`（0.060001 ≤ 0.060005）—— **相机不再领跑**，
-        /// 这是构造性的（输出只滞后），旧口径做不到。
-        /// 如实登记：**1.3px 不是用户可见量级** ⇒ 本条**不声称**修掉了用户报的"一顿一顿"；
-        /// 用户报的那条已由本片的时间轴判据定位到**帧节奏**（`§15 g2`：均匀 dt 消掉 90.1% 的抖动）。</para>
+        /// <para><b>连续性口径</b>：夹制是几何约束（"可见格矩形必须在地图内"），它**只能限制输出**、
+        /// 不改写状态 ⇒ 状态 `raw` 永远自由演化（对 `want` 的一阶滞后），显示机位 = `ClampForAspect(raw)`。
+        /// 状态里始终只有 `速度×smoothTime`（0.06 格）的滞后，速度状态全程连续 —— 这是
+        /// 「相机不领跑玩家」的构造性来源：`max|Δ显示机位|` = **0.060001 格** ≤ `max|Δ玩家|` = 0.060005 格。
+        /// （一阶滞后跟随移动目标，没有可卷绕的累积量。）</para>
         ///
         /// <para><b>为什么抽成纯函数</b>：离线自检宿主（`tools/probes/hosts/playercheck` §15 h）
-        /// 直接 return，c1~c8 八条相机断言**从未覆盖夹制**（本片补的判据缺口）。</para>
+        /// 可直接驱动它，逐帧断言夹制行为。</para>
         /// </summary>
         /// <param name="raw">**[in/out]** 自由的平滑状态（夹制不改写它）。</param>
         /// <param name="vel">**[in/out]** 临界阻尼的速度状态。</param>
@@ -903,20 +876,20 @@ namespace Diablo2.Module
             if (dt > 0f)
             {
                 // 临界阻尼跟随（带速度状态）：换向时速度连续 ⇒ 不再"滞后矢量转 45°"。
-                //   纯指数滞后已删；实现只在引擎 `CloverEngine.CameraMath.SmoothDamp`（项目侧不留第二份）。
+                //   实现只在引擎 `CloverEngine.CameraMath.SmoothDamp`（项目侧不留第二份）。
                 raw = CameraMath.SmoothDamp(raw, want, ref vel, smoothTime, dt);
             }
             shown = ClampForAspect(raw, focus, mapWidth, mapHeight, orthoSize, aspect);
         }
 
         /// <summary>
-        /// U27：**输出侧**夹制的唯一入口（纯函数；`mapWidth/Height &lt;= 0` 或 `aspect &lt;= 0` ⇒ 原样返回）。
+        /// **输出侧**夹制的唯一入口（纯函数；`mapWidth/Height &lt;= 0` 或 `aspect &lt;= 0` ⇒ 原样返回）。
         /// </summary>
         internal static Vector3 ClampForAspect(Vector3 pos, Vector3 focus, int mapWidth, int mapHeight,
             float orthoSize, float aspect)
         {
             if (mapWidth <= 0 || mapHeight <= 0 || aspect <= 0f) return pos;   // 地图没生成 / 拿不到 aspect
-            // 夹的是**机位**；`focus`（玩家）只作为位移上限的参照（camera-follow 片）。
+            // 夹的是**机位**；`focus`（玩家）只作为位移上限的参照（见 `CameraBounds.FocusSafeMarginRatio`）。
             return CameraPosForCamera(pos, focus, mapWidth, mapHeight, orthoSize, aspect, pos.z);
         }
 

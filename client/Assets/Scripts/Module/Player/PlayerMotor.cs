@@ -49,7 +49,7 @@ namespace Diablo2.Module.Player
         private int _lastSteps;               // 上一次路径长度（自证输出用）
         private bool _blockedLogged;          // 「受阻」只报一次（防刷屏；用标志位不用 Log.WarnThrottled）
         private bool _warnedNoMap;            // 「地图不可用」只报一次
-        private bool _budgetLogged;           // ★ R1-D 移动积分口径只报一次（见 LogBudgetOnce）
+        private bool _budgetLogged;           // 移动积分口径只报一次（见 LogBudgetOnce）
 
         /// <summary>当前格（`World` 反投影的格）。</summary>
         public Vector2Int Grid => _grid;
@@ -191,13 +191,13 @@ namespace Diablo2.Module.Player
                 var delta = target - _pos;
                 var dist = delta.magnitude;
 
-                // 旧口径（**已修掉**）：`dist <= ArriveEpsilon(0.08)` 时先不推进，随后 `_pos = target`
-                //   **吸到格心却不扣预算** ⇒ 吸过去的那段（(0, 0.08] 格）是**白送**的位移，于是"落格"
-                //   那一帧的位移 = 白送量 + 预算(speed×dt)，最多达 **2× speed×dt**
-                //   （实测跑 speed=3、dt=1/60：0.05 → 0.10 格；走 speed=1.4：0.028 → 0.056 格）。
+                // 落格心那一帧必须**同步扣预算**：若 `dist <= ArriveEpsilon(0.08)` 时先不推进、
+                //   随后 `_pos = target` **吸到格心却不扣预算**，吸过去的那段（(0, 0.08] 格）就成了
+                //   **白送的位移**，于是"落格"那一帧的位移 = 白送量 + 预算(speed×dt)，最多达 **2× speed×dt**
+                //   （跑 speed=3、dt=1/60：0.05 → 0.10 格；走 speed=1.4：0.028 → 0.056 格）。
                 //   而 dt=1/60 时预算 0.05 < eps 0.08 ⇒ **每过一个路点必然走这条分支**，
                 //   即"每走一格，必有一帧位移翻倍"⇒ 观感 = 每格顿一下 / 人物发抖（与帧率无关）。
-                // 新口径：**能走到格心就走到并同步扣预算**（位移恒 ≤ speed×dt）；
+                // 口径：**能走到格心就走到并同步扣预算**（位移恒 ≤ speed×dt）；
                 //   `GameConst.ArriveEpsilon` 不再参与积分（它仍是 `Arrive()` 的位置校验阈值）。
                 if (dist <= budget)
                 {
@@ -272,7 +272,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// R1-D（只报一次）：**移动积分口径**——给下一批进 Play 当数值证据用。
+        /// **移动积分口径**（只报一次；Play 期取数值证据的那条判据行）。
         /// 写清"生效口径"：每帧位移 ≤ speed×dt；落格心用赋值（不累加）但**同步扣预算**。
         /// </summary>
         private void LogBudgetOnce()

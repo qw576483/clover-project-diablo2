@@ -51,8 +51,8 @@
 //   怪物契约里没有速度值 ⇒ 用**本帧位移 / dt**（`_prevTickWorld` 逐帧做差，见 `TickOne`）。
 //   静态动作（Idle/Attack/Cast/Hit/Death）**一律不缩放**（`SyncMoveScale` 复位成 1）。
 //
-//   审计产物：`.ai-tmp/screenshots/w3_anim_audit.tsv`（逐单位 × 逐动作，方向数/帧数/帧文件/复用）
-//            + `.ai-tmp/screenshots/w3_anim_trigger.tsv`（"动作是否真被触发"）。
+//   审计口径：逐单位 × 逐动作记「方向数 / 帧数 / 帧文件 / 复用」，并单独记「动作是否真被触发」
+//            （判据入口 = `tools/probes/hosts/animcheck`）。
 //      （`PlayHit` 贴的 Hit[0] 与 `TickPlayer`/`TickOne` 贴回的 Idle 帧都在**渲染之前**的同一个
 //      Update 里 ⇒ 亚马逊那 6 帧受击动画**一帧都不会被渲染** = "定义了但没人用"的最隐蔽形态；
 //      `Hit` 排在 `Death` 之后、`Cast` 之前，保持条件 = **受击动画还没播完**（`!Anim.Finished`）。
@@ -61,8 +61,7 @@
 //      `PlayAnim` 的早退判据**不比较 loop**，连续出手/施法时不会自动重开（会接着放上一次的剩余帧）。
 //   ③ **动作选择抽成纯函数** `ViewAnimState.SelectPlayer/SelectMonster`（本文件只喂状态）——
 //      （这正是①能藏这么久的原因）。抽出后 `tools/probes/hosts/animcheck` 可逐帧驱动断言。
-//   播放速度（`FpsOf` 的基准帧率）**一律未动**：原版 `AnimData.d2` 不在本机 ⇒ 无出处不许编，
-//      只登记（见回报的"无出处项"）。
+//   播放速度（`FpsOf` 的基准帧率）：原版 `AnimData.d2` 不在本机 ⇒ 无出处不许编。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -71,7 +70,7 @@ using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
 //   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
-//   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
+//   用别名把裸 `Dir8` 钉死为**项目枚举**。
 using Dir8 = Diablo2.Def.Dir8;
 using UnityEngine;
 using AppContext = Diablo2.App.AppContext;
@@ -140,7 +139,7 @@ namespace Diablo2.Module.View
             //   而它持有的节点都属于 Stage 场景（会随场景卸载被销毁）⇒ 除 Flow 的 `Clear()` 之外，
             //   本模块自己再监听一次离场事件（幂等：`Clear()` 在已经干净时静默返回，不产生重复日志）。
             Game.Event.On(Events.StageLeft, OnStageLeft);
-            // 片「武器外观接线」：装备变化 ⇒ 重取整套帧键（换的是"套"不是"贴图"，见 OnEquipChanged）。
+            // 装备变化 ⇒ 重取整套帧键（换的是"套"不是"贴图"，见 OnEquipChanged）。
             //   载荷 `Def.InventoryChangedArgs`（装备集已按双武器组收窄 = 只含**生效组**那把武器）。
             Game.Event.On<InventoryChangedArgs>(Events.EquipChanged, OnEquipChanged);
             Game.Event.On(Events.StageEntered, OnStageEntered);
@@ -365,7 +364,7 @@ namespace Diablo2.Module.View
             v.IsPlayer = true;
             v.Cls = cls;
             v.Dir = Dir8.S;
-            // 片「武器外观接线」：先把**装备外观套**定下来，再取帧 —— 帧目录与帧数都由它决定。
+            // 先把**装备外观套**定下来，再取帧 —— 帧目录与帧数都由它决定。
             v.EquipKey = ResolvePlayerEquipKey(cls);
             PlayAnim(v, ViewAnim.Idle, true);
 
@@ -467,7 +466,7 @@ namespace Diablo2.Module.View
             else
             {
                 //   原版怪物只有 `NU`/`WL`/`A1`/`GH`/`DT` 五个模式；`RN`/`SC` 的触发条件缺出处 ⇒
-                //      这里不给它们造句（`zm`/`cr` 有 RN、`wr` 有 SC，登记见回报）。
+                //      这里不给它们造句（`zm`/`cr` 有 RN、`wr` 有 SC）。
                 //   而怪物受击动作最长 9 帧 @12fps = 0.75s（堕落者 `fa` = 7 帧 = 0.583s）
                 //   ⇒ 硬直一结束 `UpdateMonster` 就把 `Hit` 顶成 Idle/Walk，**只渲染出前 3/7 帧**。
                 //   不新增任何时长常量（保持时长 = 该单位受击动作的真实帧数 ÷ 基准帧率）。
@@ -547,7 +546,7 @@ namespace Diablo2.Module.View
             }
             else
             {
-                // 非预期分支：这张原版图不在本批素材里（例：资料片职业专属装备，见
+                // 非预期分支：这张原版图不在素材库里（例：资料片职业专属装备，见
                 // `Module/Item/ItemIconAvailability`）/ 配表缺行 ⇒ **保留品质色块**：
                 // 它是"素材缺失"的可见信号（登记在 `client/资源欠缺清单.md`），不许静默变透明。
                 v.IconPath = null;
@@ -689,7 +688,7 @@ namespace Diablo2.Module.View
 
             TickPlayer(dt);
             TickEntities(dt);
-            TickNpcs(dt);      // ★ 片 Y（R2）：NPC 也要吃 dt —— 它现在负责推进 NPC 的帧游标
+            TickNpcs(dt);      // NPC 也要吃 dt —— 帧游标由它推进
         }
 
         /// <inheritdoc />
@@ -765,7 +764,7 @@ namespace Diablo2.Module.View
                 return;
             }
 
-            // 片「武器外观接线」：**进图首帧复核一次**装备外观套（只做一次，之后只由
+            // **进图首帧复核一次**装备外观套（只做一次，之后只由
             //   `Events.EquipChanged` 驱动 ⇒ 不是每帧重算）。
             //   理由：`CreatePlayer` 与"装备落进 `IItemModule`"是两条独立步骤（`AppFlow.RunBuildStep(1)`
             //   vs `SaveModule` 的读档链路）；顺序若变，`CreatePlayer` 会读到空装备 ⇒ 角色**一辈子徒手
@@ -1040,7 +1039,7 @@ namespace Diablo2.Module.View
             _entities.Clear();
             _groundItems.Clear();
             _npcs.Clear();
-            _prevTickWorld.Clear();      // ★ 片 2b：步频同步的辅助表一并丢弃
+            _prevTickWorld.Clear();      // 步频同步的辅助表一并丢弃
             _moveScaleLogged.Clear();
             _player = null;
             _root = null;
@@ -1056,7 +1055,7 @@ namespace Diablo2.Module.View
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 片「武器外观接线」：装备外观套（key 规则见 `Module/View/EquipVisual.cs` 文件头）
+        // 装备外观套（key 规则见 `Module/View/EquipVisual.cs` 文件头）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -1307,9 +1306,9 @@ namespace Diablo2.Module.View
         //    本项目相机是**正交 + rotation=identity + 机位 z 恒为 `-CameraRig.CameraDistance`**
         //    （`Module/Camera/CameraRig.cs` 的 `IsoLock`）⇒ 视图轴 = +Z ⇒ **排序距离之差 == 实体 z 之差**，
         //    与相机跟焦/抖动/插值**无关**（相机 x/y 在正交模式下根本不参与排序）。
-        // ② **主排序键每帧重排**这条假设也被排除：`sortingOrder` 只在**格变化**时重算
-        //    已登记回报）：`Module/Skill/ProjectileView.cs` 的 `Projectile.WorldOf(...)`（z=0，且与实体
-        //    同档 `EntitySortOrder`）⇒ 两个同 `gx+gy` 的投射物之间**仍然没有决胜键**。
+        // ② **主排序键每帧重排**这条假设不成立：`sortingOrder` 只在**格变化**时重算；
+        //    剩下无决胜键的情形 = `Module/Skill/ProjectileView.cs` 的 `Projectile.WorldOf(...)`
+        //    （z=0，且与实体同档 `EntitySortOrder`）⇒ 由 `ProjectileView` 的第三键口径补上。
 
         /// <summary>实体次级排序**类型档**（越大越靠前）：玩家 4 &gt; 城镇 NPC 3 &gt; 怪物 2 &gt; 地面物品 1。</summary>
         internal static int SortTieRank(int entityId)
@@ -1408,8 +1407,7 @@ namespace Diablo2.Module.View
         /// <summary>
         /// 切换动作（**只在动作变化时**调用 ⇒ 不会每帧把帧号打回 0）。
         /// <para>顺带把**整组帧键**一次性发起异步加载（<see cref="SpriteFrames.Prefetch"/>）：
-        /// 逐帧首次访问的话每一帧都要各等一次异步回调 ⇒ 首圈动画逐帧闪占位色块
-        /// （2026-09-19 用户投诉「移动会闪一个黄色方块」；根因与修法见 `ApplyFrame` 的注释）。</para>
+        /// 逐帧首次访问的话每一帧都要各等一次异步回调 ⇒ 首圈动画逐帧闪占位色块。</para>
         /// </summary>
         private static void PlayAnim(EntityView v, ViewAnim anim, bool loop)
         {
@@ -1433,7 +1431,7 @@ namespace Diablo2.Module.View
             var keys = v.IsGroundItem
                 ? null
                 : v.IsPlayer
-                    // 片「武器外观接线」：玩家按**装备外观套**取帧（`EquipKey` 为 null = 徒手，
+                    // 玩家按**装备外观套**取帧（`EquipKey` 为 null = 徒手，
                     //   与改动前的行为逐字节一致）。帧数由 `EquipFrameCounts` 给（换套会换帧数）。
                     ? SpriteFrames.Keys(v.Cls, v.EquipKey, anim, v.Dir)
                     : SpriteFrames.Keys(v.SpriteCode, anim, v.Dir);

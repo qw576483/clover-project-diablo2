@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
 //   ① 「NPC 对话选项按钮**一个字都没有**」（主 agent 读图
-//      `.ai-tmp/screenshots/btnlabel_recap_g1_dialog_options.png` 的结论）。
+//      实机截图的结论）。
 //        按钮**有字**（第一项「離開」在实机图上清晰可读）；被糊住的是**鼠标悬停那一颗** ——
 //        底板花斑把文案盖住。⇒「没字」与「被盖住」在画面上长得一样、且都不报错，
 //        所以这里把**两类判据都钉住**：文案侧（Ⓐ-1/Ⓐ-2/Ⓐ-4c）+ 底图侧（Ⓐ-5）。
@@ -180,10 +180,10 @@ namespace Uicheck
         //
         //  （= 原版 `FrontEnd/MediumSelButtonBlank.dc6` 帧 0 按 **ACT1** 调色板解出）是**麻点图**
         //  —— 与 `tools/d2codec` 解码器输出**逐像素全等**（maxdiff=0）⇒ 不是写坏，是**调色板错**；
-        //  实机后果 = 悬停时底板花斑糊住按钮文案（`.ai-tmp/screenshots/btnlabel_recap_g1_dialog_options.png`）。
+        //  实机后果 = 悬停时底板花斑糊住按钮文案（实机截图）。
         //  ⇒ 那一片把悬停帧**降级为常态帧**，并钉「坏图**没有**被任何 UI 代码接线」——
         //
-        //    · 资产：`btn_med_sel` 按 **`fechar`** 调色板重出（`regen_med_sel_fechar.py`；
+        //    · 资产：`btn_med_sel` 按 **`fechar`** 调色板重出（重出脚本是一次性件、已不在盘；口径见下；
         //      15 套 palette 逐套量同一麻点判据，只有 `fechar` 落进干净带）⇒ **0.424 → 0.054**；
         //    · 接线：`UI/UiArt.cs` 的 `ButtonSpritesFor` 中等分支 `highlight` **已接回** `ResPaths.BtnMedSel`。
         //  ⇒ 本节三条判据极性**翻转**（fail-to-pass 的正向形式，不是放宽、不是删掉、更不是永真）：
@@ -194,7 +194,7 @@ namespace Uicheck
         //
         //    ① 把 `UiArt` 的 highlight 临时改回常态帧 ⇒ Ⓐ-5a / Ⓐ-5c 变红，还原后回绿；
         //    ② 把 PNG 临时换回 HEAD 旧图（麻点 0.424）⇒ Ⓐ-5d 变红，还原后回绿（`git diff` 干净）。
-        //  独立交叉核对（宿主外，PIL）：`.ai-tmp/test/finalclose_speckle.py`
+        //  独立交叉核对（宿主外，PIL；该脚本是一次性件、已不在盘）
         //    `btn_med_normal 0.040 / btn_med_pressed 0.066 / btn_med_sel 0.054 / sel_pressed 0.055`；
         //    HEAD 旧图 `btn_med_sel 0.424 (128/302)` / `sel_pressed 0.410 (120/293)`。
         //  残留资产 `btn_med_sel_pressed.png`（同族干净，0.055）**无消费方** ⇒ 仍钉「未接线」。
@@ -268,7 +268,7 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 麻点度量（口径 = `tools/probes/measure/probe_med_sel_palette.py::speckle`，逐行对齐）
+        // 麻点度量（口径 = 该量法的 `speckle`，逐行对齐；量法脚本本身已按设计退役、不在仓库里）
         //   ch = 非透明像素的 max(R,G,B) − min(R,G,B)；hot = ch > 60；
         //   iso = hot 且 **4 邻域 ch 均值 < 30**（越界回卷，对齐 numpy 的 `np.roll`）；
         //   比值 = iso / hot。孤立高饱和像素 / 高饱和像素 = 0.424（旧 ACT1 麻点图）vs 0.054（fechar 干净图）。

@@ -132,17 +132,38 @@ namespace CombatCheck
         public void CloseAll() { Opened.Clear(); }
         public T Get<T>() where T : class, CloverEngine.IUIPanel => null;
         public bool IsOpen<T>() where T : class, CloverEngine.IUIPanel => false;
+
+        /// <summary>面板打开/关闭事件（`IUIManager` 契约成员；本宿主不派发，只保证签名齐备）。</summary>
+        public void OnPanelOpened(Action<string> handler) { }
+        public void OnPanelClosed(Action<string> handler) { }
+
         public void Toast(string text, float duration = 2f) { ToastCount++; }
-        public void FloatText(Vector3 worldPos, string text, Color? color = null, float duration = 1.2f)
+
+        /// <summary>签名逐字对齐引擎 `IUIManager.FloatText`（`riseWorld` / `fade` 是引擎侧的可选参）。</summary>
+        public void FloatText(Vector3 worldPos, string text, Color? color = null, float duration = 1.2f,
+            float riseWorld = 0f, bool fade = true)
         {
             Floats.Add(text);
         }
+
         public void ShowLoading(string text = null) { }
+        public void ShowLoading(string text, float progress01) { }
+        public void SetLoadingProgress(float progress01) { }
         public void HideLoading() { }
         public bool IsLoading => false;
         public void Confirm(string title, string message, Action onConfirm, Action onCancel = null,
             string confirmText = null, string cancelText = null) { }
+
+        // 红点 / 引导（引擎 `IUIManager` 契约成员）：本宿主不跑面板，只做最小记账。
+        private readonly Dictionary<string, bool> _redDots = new Dictionary<string, bool>();
+        public void SetRedDot(string key, bool on) { _redDots[key] = on; }
+        public bool GetRedDot(string key) => _redDots.TryGetValue(key, out var on) && on;
+        public void OnRedDotChanged(Action<string, bool> handler) { }
+        public void ShowGuide(RectTransform target, string tip = null, Action onClick = null, bool blockTarget = true) { }
+        public void HideGuide() { }
+
         public void Tick(float dt) { }
+        public void Dispose() { }
     }
 
     internal sealed class SimpleFsm : CloverEngine.IFsm
@@ -157,6 +178,9 @@ namespace CombatCheck
         public void Tick(float dt) { }
         public void OnChange(Action<string, string> handler) { }
         public void OffChange(Action<string, string> handler) { }
+
+        /// <summary>引擎 `Fsm.Reset()` 同口径：只清内容、不触发任何 OnExit/OnEnter/OnChange，可重复调用。</summary>
+        public void Reset() { _trans.Clear(); Current = null; }
     }
 
     internal sealed class MemSetting : CloverEngine.ISetting
@@ -184,12 +208,23 @@ namespace CombatCheck
 
     internal sealed class FakeSound : CloverEngine.ISoundManager
     {
+        private readonly Dictionary<CloverEngine.SoundGroup, bool> _muted = new Dictionary<CloverEngine.SoundGroup, bool>();
         public void PlayBGM(string clipName, float fadeTime = 0.5f) { }
         public void PlaySFX(string clipName) { }
+        public void PlaySFXAt(string clipName, Vector3 position) { }
+        public void PlayVoice(string clipName) { }
+        public void StopBGM(float fadeTime = 0.5f) { }
+
+        // 播放闸门（引擎 `ISoundManager` 契约：0 = 不限，默认 0）
+        public int MaxPlaysPerFrame { get; set; }
+        public int MaxConcurrentPerClip { get; set; }
+
         public void StopAll() { }
         public void SetVolume(CloverEngine.SoundGroup group, float volume) { }
         public float GetVolume(CloverEngine.SoundGroup group) => 1f;
-        public void SetMute(CloverEngine.SoundGroup group, bool mute) { }
+        public void SetMute(CloverEngine.SoundGroup group, bool mute) { _muted[group] = mute; }
+        public bool IsMuted(CloverEngine.SoundGroup group) => _muted.TryGetValue(group, out var m) && m;
+        public void Dispose() { }
     }
 
     internal sealed class FakeEntities : CloverEngine.IEntityManager
@@ -227,10 +262,45 @@ namespace CombatCheck
             LoadCount++;
             cb?.Invoke(null);
         }
+
+        /// <summary>带进度的那条重载：无素材 ⇒ 直接报"完成 + null"（与无进度重载同口径）。</summary>
+        public void LoadAsset<T>(string path, Action<float> progress, Action<T> cb) where T : UnityEngine.Object
+        {
+            LoadCount++;
+            progress?.Invoke(1f);
+            cb?.Invoke(null);
+        }
+
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
+
+        public void Release(string path) { }
+        public void UnloadAll() { }
+
+        /// <summary>预加载：无素材 ⇒ 立刻报"全部完成"（引擎契约：空列表也必定回调）。</summary>
+        public void Preload(List<string> paths, Action onDone, Action<float> progress = null)
+        {
+            progress?.Invoke(1f);
+            onDone?.Invoke();
+        }
 
         public bool Exists(string path) => false;
         public T[] LoadAll<T>(string path) where T : UnityEngine.Object => Array.Empty<T>();
+
+        // 缓存水位 / 热更（引擎 `IResourceManager` 的其余契约成员）。
+        // 本宿主无资源后端 ⇒ 与引擎"未启用热更时为空操作"同口径：不驻留、不下载、不回调。
+        // ⚠️ 业务源码里没有这几条的调用点（它们没被 shim 的子集接口提供过），列出只为满足契约。
+        public long CachedBytes => 0;
+        public long CacheWatermark { get; set; }
+        public void Tick(float dt) { }
+        public string Version => "0";
+        public string ContentDir => null;
+        public bool IsBundleMode => false;
+        public CloverEngine.ResourceUpdateState UpdateState => CloverEngine.ResourceUpdateState.Idle;
+        public void CheckUpdate(Action<CloverEngine.ResourceUpdateInfo> onResult) { }
+        public void DownloadUpdate(CloverEngine.ResourceUpdateInfo info,
+            Action<CloverEngine.ResourceUpdateProgress> onProgress, Action<bool, string> onDone) { }
+        public void ClearDownloaded() { }
+        public void CancelUpdate() { }
     }
 
     // ═════════════════════════════════════════════════════════════════════════

@@ -2,10 +2,10 @@
 // Diablo2 · Core/Log.cs
 // 轻量日志门面：**全项目唯一的打日志入口**。
 //
-// 为什么还要一层：
-//      **禁止裸 `Debug.Log`**。这一层把「转发 + tag 规范化 + 防刷屏」收敛到一处；
-//   ② 高频回调（每帧碰撞/寻路失败/素材缺失）里裸打日志会**刷屏把日志文件打爆**，
-//      本层提供 <see cref="WarnThrottled"/> / <see cref="ErrorOnce"/> 两个降频入口。
+// 为什么还要一层：本项目**禁止裸 `Debug.Log`**，日志一律经本层 ——
+//   它把「转发 + tag 规范化 + 防刷屏」收敛到一处：
+//   · 高频回调（每帧碰撞/寻路失败/素材缺失）里裸打日志会**刷屏把日志文件打爆**，
+//     本层提供 <see cref="WarnThrottled"/> / <see cref="ErrorOnce"/> 两个降频入口。
 //
 // tag 约定：**用模块名**（`Map` / `Flow` / `Player` / `Combat` / …），
 //   与验收要抄的日志格式一致：`[时间] [级别] [Flow] → MainMenu`。
@@ -14,10 +14,9 @@
 //   降频入口（`WarnThrottled` / `ErrorThrottled` / `WarnOnce` / `ErrorOnce` / `ShouldLog`）需要一个
 //   「单调秒」。默认取 Unity 的 `Time.realtimeSinceStartup`；但那是**原生 ECall**，在非 Unity 进程
 //   （`tools/*check` 这类离线自检宿主）里调用会抛 `SecurityException`
-//   （`ECall methods must be packaged into a system module`）—— 曾经迫使 4 个 agent 各自手写一套降频。
-//   ⇒ 本文件现在：**① 可注入时钟** `Log.Clock`（`Func<float>`，返回单调秒）；
-//                    **② 首次发现 Unity 时钟不可用就自动降级到进程单调时钟（`Stopwatch`）并报一次**；
-//                    **③ 两种降频入口的签名一字未改**（向后兼容既有 7 个宿主与 13 个模块）。
+//   （`ECall methods must be packaged into a system module`）。
+//   ⇒ 本文件：**① 可注入时钟** `Log.Clock`（`Func<float>`，返回单调秒）；
+//              **② 首次发现 Unity 时钟不可用就自动降级到进程单调时钟（`Stopwatch`）并报一次**。
 //   **离线宿主请注入时钟**（`Log.Clock = () => mySeconds;`）—— 注入后限频行为完全可复现（确定性），
 //   不注入也不会抛异常（走自动降级，只是时间原点不可控）。排障看 `Log.ClockSource`。
 //
@@ -28,11 +27,7 @@
 //       不做 tag 校验（它不认识本项目的模块名）。所以降频入口一律走本层 `Warn`/`Error` 输出。
 //     · **转发给引擎**（一行语义都不加）：限频窗口 /「只报一次」/ 三级时钟 / 注入时钟 / 清表
 //       ⇒ `LogThrottle.ShouldLog` / `Clock` / `ClockSource` / `Reset`。
-//   ⇒ **公开签名一个都没改**（`FallbackTag` / `Suppress` / `IsKnownTag` / `Clock` /
-//     `UnityClockUnavailable` / `ClockSource` / `Info` / `Warn` / `Error` / `Debug` /
-//     `WarnThrottled` / `ErrorThrottled` / `WarnOnce` / `ErrorOnce` / `ShouldLog` / `ResetThrottle`），
-//     13 个模块 + 7 个离线宿主的调用点**零改动**；`Log.Clock` / `Log.ClockSource` 仍是注入与排障入口
-//     （读写都转发到 `LogThrottle`）。
+//   `Log.Clock` / `Log.ClockSource` 是注入与排障入口（读写都转发到 `LogThrottle`）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -53,17 +48,18 @@ namespace Diablo2.Core
             "App", "Flow", "Map", "Player", "Monster", "Combat", "Skill", "Item", "Quest",
             "Npc", "Input", "Camera", "View", "Audio", "Save", "Ui", "Table", "Cfg",
             "AStar", "Iso", "Rng", "D2",
-            //   的 Info，内容写清生效口径」并按 tag 检索；混进 Map/Player 会与模块常规日志无法区分。
-            //   不加这一行不会报错，但首条 R1-B 日志会附带一条「tag 不在白名单」的 Warn（本文件 :201）。
+            // 把"生效口径"类 Info 单独挂一个 tag 便于按 tag 检索（混进 Map/Player
+            //   会与模块常规日志无法区分）。不加这一行不会报错，但首条该 tag 的日志会附带
+            //   一条「tag 不在白名单」的 Warn。
             "R1-B",
-            //   同一理由（按 tag 检索"只报一次"的生效口径行）；三条日志分别在
+            // 同一理由（按 tag 检索"只报一次"的生效口径行）；三条日志分别在
             //   `UI/CharCreatePanel.OnOpen`（过渡逐帧矩形 / 名字输入由面板驱动）与 `UI/UiArt.SetSprite`（请求守卫）。
             "R1-C",
-            //   `Module/Audio/AudioModule`（静音开关落盘 / 冷启动读回）、
+            // `T0FIX`：`Module/Audio/AudioModule`（静音开关落盘 / 冷启动读回）、
             //   `Module/Flow/AppFlow.OnSaveDone`（`D2.Save.Done` 的消费账目）。
-            //   不加这一行不会报错，但首条 T0FIX 日志会附带一条「tag 不在白名单」的 Warn（本文件 :210）。
+            //   不加这一行不会报错，但首条 T0FIX 日志会附带一条「tag 不在白名单」的 Warn。
             "T0FIX",
-            //   不加这一行不会报错，但首条 T0GAP 日志会附带一条「tag 不在白名单」的 Warn（本文件 :216）。
+            // 不加这一行不会报错，但首条该 tag 的日志会附带一条「tag 不在白名单」的 Warn。
             "T0GAP",
         };
 
@@ -76,7 +72,7 @@ namespace Diablo2.Core
         /// <summary>tag 相关告警（缺 tag / tag 不在白名单）是否已说过一次 —— 避免自刷屏。</summary>
         private static bool _tagWarned;
 
-        // ── 时钟（单调秒；**实现已下沉**，这里只转发；见文件头「实现位置」）────
+        // ── 时钟（单调秒；实现 = 引擎 `LogThrottle`，这里只转发）──────────────
         /// <summary>
         /// 可注入时钟：返回**单调递增的秒**，语义与 `UnityEngine.Time.realtimeSinceStartup` 一致
         /// （与帧率/`timeScale` 无关，用于限频计时）。
@@ -93,7 +89,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// Unity 时钟是否已被探测为不可用（= 已降级到进程单调时钟）。
-        /// <para>探测与降级本身已下沉（<see cref="LogThrottle"/> 内部持有该状态，不再重复实现）——
+        /// <para>探测与降级的状态由 <see cref="LogThrottle"/> 内部持有 ——
         /// 这里按引擎的时钟来源判定：`"Process"` ⇔ 已探测到 Unity 原生时钟不可用并降级。</para>
         /// </summary>
         public static bool UnityClockUnavailable => LogThrottle.ClockSource == "Process";

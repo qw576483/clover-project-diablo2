@@ -21,12 +21,12 @@
 //   本文件里**每一处** `Emit(Events.MapGenerated, …)` 都必须走 `EmitMapEcho()`，不许裸 Emit。
 // ─────────────────────────────────────────────────────────────────────────────
 
-using System.Collections.Generic;      // ★ 片 save-progress：已探索集合快照的载荷类型
+using System.Collections.Generic;      // 已探索集合快照的载荷类型
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;      // `MinimapArgs`（`EmitMapEcho` 的入参类型）
 using Diablo2.UI;
-using UnityEngine;      // ★ 片 save-progress：`Vector2Int`（已探索格）
+using UnityEngine;      // `Vector2Int`（已探索格）
 
 namespace Diablo2.App
 {

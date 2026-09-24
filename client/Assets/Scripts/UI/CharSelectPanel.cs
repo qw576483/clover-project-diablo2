@@ -15,7 +15,7 @@
 //   经 `UiLayoutFlow.ClassText.Description`；无高亮项时留空 = 原版 `UpdateUi` 给 `string.Empty`）。
 //   · 角色数据**只能**由 Flow 通过 `OnOpen(param)` 传入（`Args.entries`）——
 //     面板不持有存档模块、不读文件（`constraints.md` #7）。
-//     与本屏的原版石雕按钮**两种风格**（实机图 `.ai-tmp/screenshots/x_b3_delete_confirm.png`）。
+//     与本屏的原版石雕按钮**两种风格**。
 // 入口：MainMenu 的「单人游戏 / 继续」；出口：进入 → Loading（Flow 驱动）、
 //       新建 → CharCreate、返回 → 主菜单。
 // 不引用任何业务模块。

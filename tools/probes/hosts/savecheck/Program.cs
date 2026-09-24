@@ -21,7 +21,7 @@
 //
 //   · 对项目真实存档目录**只调 `Get`、从不 `Save()`** ⇒ 不重写玩家存档
 //     （shell 侧另比 `settings.json` 的 SHA256 作为外部证据）；
-//   · 本宿主**不在** `.ai-tmp/hosts/run_all_hosts.ps1` 的 10 个名额里（`TOTAL_HOSTS=10` 保持不变）：
+//   · 本宿主由 `run_all_hosts.ps1` 与其它宿主一起跑（它的汇总行 = `SAVECHECK_SUMMARY FAIL=0`）：
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;

@@ -76,8 +76,7 @@ namespace Diablo2.Core
         /// `SizeX`（`原版资源/d2raw/data/global/excel/Levels.txt`）；生成物
         /// `Module/Map/MapGenTownLayout.Width` 由 `tools/d2codec/export_town_layout.py`
         /// 直接读那一行得出 ⇒ 两者**必须相等**（`MapGenTown` 不一致时直接报错，见该文件）。</para>
-        /// <para>历史上这里曾是 32（= 只取 4 块里的 `TownW1` 营地本体再裁成 32×32），
-        /// 那会把营地外的河裁掉；agent-41 改成整关、agent-42 按主 agent 裁决同步本常量。</para>
+        /// <para>取值必须覆盖整关：只取营地本体再裁小会把营地外的河切掉。</para>
         /// </summary>
         public const int TownWidth = 56;
 
@@ -170,7 +169,8 @@ namespace Diablo2.Core
         ///
         /// <para><b>为什么需要它</b>（2026-09-22 用户实测「营地出门的桥，还是从桥下走」）：
         /// 罗格营地出城那座桥的桥面格，**正南一格恒是桥栏杆**（`moor_bridge` 物件，
-        /// `tools/probes/measure/measure_bridge_deck.py` 实测：栏杆内容自本格底边**向上溢出 ≈2 格**）
+        /// 实测：栏杆内容自本格底边**向上溢出 ≈2 格** —— 量法 = 取该物件瓦片的不透明像素逐行量其
+        /// 相对格底边的像素跨度，再除以一格高）
         /// ⇒ 桥面上的实体按普通档 `4D+102` 排，必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
         ///
         /// <para><b>数值推导</b>（不写裸数字；D = gx+gy）：
@@ -180,7 +180,7 @@ namespace Diablo2.Core
         ///   又必须 **&lt; 物件(D+2)**（否则会盖住正南第二格那些更靠前的物件/栏杆）。
         ///   ⇒ `LayerOffsetObject + SortOrderStep &lt; X &lt; LayerOffsetObject + 2*SortOrderStep`
         ///   ⇒ `5 &lt; X &lt; 9` ⇒ 取**满足约束的最小值** `LayerOffsetObject + SortOrderStep + 1`
-        ///   （改动量最小；= 6，桥面实体 = `4D+106` > 物件(D+1)=4D+105 且 &lt; 物件(D+2)=4D+109）。</para>
+        ///   （= 6，桥面实体 = `4D+106` > 物件(D+1)=4D+105 且 &lt; 物件(D+2)=4D+109）。</para>
         /// <para>`4D+106` 与 `实体(D+1)` 同值：桥面格的正南恒为栏杆（**不可走** ⇒ 不会有实体）
         /// ⇒ 实际不会出现并列；`mapcheck` 有断言守着这条（逐桥面格都要求正南是栏杆）。</para>
         /// </summary>
@@ -202,22 +202,20 @@ namespace Diablo2.Core
         // ── 存档 ─────────────────────────────────────────────────────────────
         /// <summary>
         /// 存档格式版本（`CharacterSave.version` 应写本值；版本不一致时按需迁移）。
-        /// <para>**为什么必须 +1**：`charstat` 片把 1 级"生命/法力/耐力"的**起始量**口径改对了
-        /// （`PlayerStats.Max*` ← `class_c.hp_add` / `base_stamina` ← 官方 `charstats.txt`），
-        /// （活档实证 `client/setting/saves/S2203805.json`：`life=60 / mana=22 / stamina=20`）——
-        /// 与现在的上限**不同源**。磁盘上 **74/74** 个现存档都是 `version == 1`
-        /// （普查 = `.ai-tmp/test/u52block-save-census.txt`；其中 69 档是旧口径）
-        /// ⇒ **不 +1**，`PlayerModule.LoadFrom` 的 `save.version &lt; GameConst.SaveVersion` **永不成立**，
-        /// 那 69 档迁不动 ⇒ 实机残留「耐力 cur = 20 / max = 84」（用户报的"人物状态框数值不对"那格）。</para>
-        /// <para>**消费方**：`Module/Player/PlayerModule.LoadFrom`（更旧版本 ⇒ 三资源按当前口径补满 +
-        /// **旧客户端读新档**：走既有"降级处理"（`fileVersion != SaveVersion` ⇒ Warn + 尽力读）
-        /// —— 因为本变更**不动字段**，所以旧客户端读到的是完整数据（`itemcheck §11` 的 `version:99` 用例覆盖该路径）。</para>
+        /// <para>1 级"生命/法力/耐力"的**起始量**口径 = `PlayerStats.Max*` ← `class_c.hp_add` /
+        /// `base_stamina` ← 官方 `charstats.txt`（更早存的档 `life=60 / mana=22 / stamina=20` 与它不同源，
+        /// 例见 `client/setting/saves/S2203805.json`）。
+        /// **消费方**：`Module/Player/PlayerModule.LoadFrom` —— `save.version &lt; 本值` ⇒ 三资源按当前口径补满
+        /// （否则实机出现「耐力 cur = 20 / max = 84」）。</para>
+        /// <para>**旧客户端读新档**：走既有"降级处理"（`fileVersion != SaveVersion` ⇒ Warn + 尽力读）。
+        /// 版本号只影响三资源起始量的补齐，不增删字段 ⇒ 旧客户端读到的是完整数据
+        /// （`itemcheck §11` 的 `version:99` 用例覆盖该路径）。</para>
         /// </summary>
         public const int SaveVersion = 2;
 
         /// <summary>
         /// 存档的键前缀（`char/{角色名}`）。
-        /// <para>**A6 起角色档已改为「一角色一文件」**（`&lt;SettingDir&gt;/saves/&lt;角色名&gt;.json`，
+        /// <para>**角色档 = 「一角色一文件」**（`&lt;SettingDir&gt;/saves/&lt;角色名&gt;.json`，
         /// 走引擎 `CloverEngine.FileSlotStore`）⇒ 这个前缀现在**只用于旧档懒迁移与清理**
         /// （见 `SaveModule.ReadRaw`：读到老键才搬进槽位，**搬成功就删旧键**）。</para>
         /// </summary>
@@ -239,8 +237,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 设置项在 `Game.Setting` 里的键：**BGM 静音**（bool）。
-        /// <para>agent-11 的 `Module/Audio/AudioModule.cs:25` 把"静音持久化"列为未决项（当时缺这两个键）；
-        /// 语义 = 与 <see cref="SettingKeyBgmVolume"/> **两个维度、互不覆盖**：音量为 0 与静音是两回事，
+        /// <para>语义 = 与 <see cref="SettingKeyBgmVolume"/> **两个维度、互不覆盖**：音量为 0 与静音是两回事，
         /// 取消静音要能还原到静音前的音量（原版设置界面就是这么做的）。</para>
         /// <para>键名与既有口径同构（`audio/{项}`，对照 <see cref="SettingKeyBgmVolume"/> / <see cref="SettingKeySfxVolume"/>）。</para>
         /// </summary>

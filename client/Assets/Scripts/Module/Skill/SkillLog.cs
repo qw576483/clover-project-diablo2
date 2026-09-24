@@ -5,11 +5,11 @@
 //    全部交给 `CloverEngine.LogThrottle`，本文件**不再自持任何 `HashSet` / `Dictionary`**：
 //      · `WarnOnce` / `ErrorOnce` ⇒ `LogThrottle.ShouldLog(key, float.PositiveInfinity)`（只报一次）；
 //      · `WarnThrottled`          ⇒ `LogThrottle.ShouldLogEvery(key, ThrottleEveryN)`（计数口径降频）。
-//    `WarnOnce` 与 `ErrorOnce` 在引擎表里**共用同一个 key**（`Skill/` + key）—— 与原实现共用同一个
-//    `OnceDone` 集合的行为一致（同一个 key 先 Warn 过，之后的 Error 也不再出）。
+//    `WarnOnce` 与 `ErrorOnce` 在引擎表里**共用同一个 key**（`Skill/` + key）
+//    ⇒ 同一个 key 先 Warn 过，之后的 Error 也不再出。
 //    离线宿主安全性由引擎保证（`Runtime/Core/LogThrottle.cs`：三级时钟、永不抛异常、自动降级），
 //    故本文件可以直接委托；要确定性计时请注入 `Log.Clock`（本层不自行改全局时钟）。
-//    逐条理由 / 两处语义差异（计数间隔改为"第 1 次 + 之后每 100 次"、行尾不再补 `（第 N 次）`）见
+//    逐条理由 / 两处语义差异（计数间隔 = "第 1 次 + 之后每 100 次"、行尾不补 `（第 N 次）`）见
 //    `Module/Combat/CombatLog.cs` 文件头，不在此重复。
 // 禁止裸 `Debug.Log`。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,8 +28,7 @@ namespace Diablo2.Module.Skill
 
         /// <summary>
         /// 计数闸门（<see cref="LogThrottle.ShouldLogEvery"/>）的间隔：第 1 次 + 之后每 100 次一条
-        /// （原自实现 = 第 1 次、第 10 次、以及 100 的倍数；引擎只支持单一 `everyN` ⇒ 取 100，
-        /// 100 的倍数段逐点一致）。
+        /// （引擎只支持单一 `everyN` ⇒ 取 100）。
         /// </summary>
         private const int ThrottleEveryN = 100;
 

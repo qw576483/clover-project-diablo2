@@ -37,16 +37,37 @@
   <ItemGroup>
     <!-- 自检宿主自身 -->
     <Compile Include="Program.cs" />
+    <!-- 引擎门面最小替身（只为引擎 `LogThrottle` 提供 `Game.Logger`；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
     <!-- 被自检的 Editor 代码：与 Assets/Editor 是同一份文件（不复制） -->
     <Compile Include="..\..\..\..\client\Assets\Editor\*.cs" />
+    <!-- 被自检的 Editor 代码**转发到引擎**的那两份（口径与其它宿主链引擎下沉件一致）：
+         `D2PixelArtSlicer.cs` 用 `CloverEngine.Editor.{IPixelArtSlicer, PixelArtSliceRequest}`（→ PixelArtSlicing.cs），
+         而 `PixelArtSliceRequest.Rule` 的类型 `PixelArtSlicingRule` 在 PixelArtImportSettings.cs ⇒ 两份一起链。
+         不链它就 CS0246（`CloverEngine` 命名空间都找不到）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Editor\PixelArtSlicing.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Editor\PixelArtImportSettings.cs" />
+    <!-- `ProjectBuilder.cs` 的场景生成 / BuildSettings / Play 起始场景都改走引擎
+         `CloverEngine.Editor.SceneScaffold`（项目侧只剩「调它」）⇒ 同一口径链进来，否则 CS0234。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Editor\SceneScaffold.cs" />
+    <!-- SceneScaffold.cs 的告警走引擎 `LogThrottle`（Runtime/Core）⇒ 一并链 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- `D2PixelArtSlicer.cs` 调引擎的注册入口 `PixelArtImportPostprocessor.RegisterSlicer(...)`（定义在上面那份
+         PixelArtSlicing.cs 的消费者里）⇒ 也要链，否则 CS0103。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Editor\PixelArtImportPostprocessor.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Unity 托管模块（与 _syntaxcheck\Diablo2.SyntaxCheck.csproj 同一套路径口径）。
-         注意：该目录下的 UnityEditor.*Module.dll 已含编辑器类型（UnityEditor.CoreModule 里有
-         AssetPostprocessor / TextureImporter / MenuItem …）⇒ **不能再引用 Managed\UnityEditor.dll**，
-         否则每个类型都会 CS0433「同时存在于两个程序集」。 -->
-    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\*.dll" />
+    <!-- Unity 托管模块。真实布局（2026-09-25 实测 6000.6.0f1）：
+         `Data\Managed\UnityEngine\` 这一个目录里同时放着 `UnityEngine.*Module.dll`（86 个）、
+         `UnityEditor.*Module.dll`（68 个，编辑器类型在这里），**以及单块孪生体
+         `UnityEngine.dll` / `UnityEditor.dll`**；`Data\Managed\` 根下还各有一份同名单块件。
+         ⇒ 从这里一把抓 `*.dll` 会把单块孪生体一起引进来，与模块组同引正是 CS0433
+         「同时存在于两个程序集」的成因；故按模块族**精确列出**，不一把抓。
+         ⚠️ 另注：`Data\Managed\UnityEditor\` 这个**目录不存在**（写它只会静默匹配 0 个文件，
+         MSBuild 不会报错）—— 编辑器类型一律走下面第二行。 -->
+    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.*Module.dll" />
+    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEditor.*Module.dll" />
     <!-- U2D.Sprites（AssetImporter.cs 的 using UnityEditor.U2D.Sprites）由包程序集提供，
          不在 Managed 下 ⇒ 用 Unity 已编译出来的产物（同 uicheck 引用 UnityEngine.UI 的做法） -->
     <Reference Include="..\..\..\..\client\Library\ScriptAssemblies\Unity.2D.Sprite.Editor.dll" />

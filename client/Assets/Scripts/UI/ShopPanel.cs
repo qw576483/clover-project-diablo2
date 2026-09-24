@@ -2,15 +2,15 @@
 // 商店面板 = 原版买卖屏：底图 buysell_back.png（320×432 → ×1.8 居中），
 // 商品格 = 原版那 10×10 格，**格内贴原版物品图标**
 //
-// 数据（不变）：`Diablo2.Def.ShopOpenArgs`（npcId/npcName/canRepair/playerGold/
+// 数据：`Diablo2.Def.ShopOpenArgs`（npcId/npcName/canRepair/playerGold/
 //   stock(List<ShopEntry>)/playerItems(List<InventorySlot>)/repairAllCost）。
-// 请求（不变）：`Events.ShopBuyRequest` / `ShopSellRequest` / `ShopRepairRequest` / `ShopClose`。
+// 请求：`Events.ShopBuyRequest` / `ShopSellRequest` / `ShopRepairRequest` / `ShopClose`。
 // 零 `using Diablo2.Module`（分层自检 ③）。
 //
 //   商店上看不到"这是谁家的、现在哪一页"。现在两行由 `BuildTitleLines()` 建出并接线
-//   （落位 = 页签带与 10×10 格区之间的底图空白带，依据与核算见 `UI/UiLayoutGame.cs` §商店 的 S5 注释）。
-//   本面板的**层仍是 `Popup`**，这是 R1-E 的 S1 要的（对话条降到 Normal 让位给商店遮罩，
-//      商店必须在遮罩**之上**才点得动；依据见 `UI/NpcDialogPanel.cs` 文件头的 S1）。
+//   （落位 = 页签带与 10×10 格区之间的底图空白带，依据与核算见 `UI/UiLayoutGame.cs` §商店 的注释）。
+//   本面板的**层仍是 `Popup`**（对话条降到 Normal 让位给商店遮罩，
+//      商店必须在遮罩**之上**才点得动；依据见 `UI/NpcDialogPanel.cs` 文件头）。
 //
 //   ① **1 件 = 1 格 → 按物品自身占格**：商品/可卖物品用 `ShopEntry.gridW/gridH`
 //      （= 配表 `item_c.grid_w/grid_h`，与背包同源）铺成 w×h 的块，**行优先**摆进原版 10×10 格盘
@@ -83,7 +83,7 @@ namespace Diablo2.UI
         private bool _subscribed;
         private ShopOpenArgs _shop;
 
-        /// <summary>`[R1-E] S5` 的「只报一次」：标题/提示行接线口径（含实际文案，供实机对账）。</summary>
+        /// <summary>「只报一次」：标题/提示行接线口径（含实际文案，供实机对账）。</summary>
         private static bool _loggedS5;
 
         private D2Label _title;
@@ -137,7 +137,7 @@ namespace Diablo2.UI
         /// <summary>
         /// <para>
         /// 落位 = 页签带与 10×10 格区之间那段**底图空白带**（原版 y ≈ 29..62）；
-        /// 为什么只有这里能放、以及两行不相交的核算，见 `UI/UiLayoutGame.cs` §商店 的 S5 注释
+        /// 为什么只有这里能放、以及两行不相交的核算，见 `UI/UiLayoutGame.cs` §商店 的注释
         /// 与 `uicheck` 的 ④-2 断言。字模/字号口径与 `_gold` 完全一致（`D2Text.D2Font.Font16` +
         /// `UiLayoutGame.FontPx16`，与同面板的 `_gold` / 格内数量同一套，不在这里另立字号）。
         /// </para>
@@ -248,7 +248,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 相邻雕槽的中心距（= `ShopBottomSlotX[1] − ShopBottomSlotX[0]` = 原版实测 pitch **52** × K = 93.6 画布px）。
         /// <para>标签框宽取它 ⇒ **四个雕槽的标签两两不重叠**（`Rect.Overlaps` 为假），且"52"有底图实测出处
-        /// （`策划/验收表.md` E4 / B5：列 115-148 / 167-200 / 219-252 / 271-304，pitch 52）。</para>
+        /// （E4 / B5：列 115-148 / 167-200 / 219-252 / 271-304，pitch 52）。</para>
         /// </summary>
         public static float SlotPitch
             => UiLayoutGame.ShopBottomSlotX[1] - UiLayoutGame.ShopBottomSlotX[0];
@@ -266,16 +266,16 @@ namespace Diablo2.UI
         /// <summary>
         /// 方钮**标签**矩形 —— **按钮 local 空间**（同 <see cref="ButtonRect"/>，故两者可直接比）。
         /// <para>标签放**钮外正下方居中**，让原版图形（帧 2 的锤+铁砧 / 帧 10 的 ⊘）
-        /// **零遮挡**；这是本项目新增的表现（原版该处只有图形、没有文字）⇒ 已把"标签位置 = 钮外正下方"
-        /// 作为 **E4 增补**回报主 agent 落表。</para>
-        /// <para>几何出处（片 u53-shopart 量法，两路互证；报告 §R2-a）：
+        /// **零遮挡**；这是本项目新增的表现（原版该处只有图形、没有文字）⇒ 表现口径 = "标签位置 = 钮外正下方"
+        /// （E4 增补）。</para>
+        /// <para>几何出处（两路量法互证）：
         /// ① 钮**居中在内凹区**后，钮下沿 = 原版 y **413**（= <see cref="SlotInnerBottom"/>，钮边长 28 落在 385..413）；
         /// ② 钮下方可用带 = **414..429（16 原版px）**：越过雕槽下框线（414..417）与槽下阴影（418..420），
         ///    止于**面板下边框**（429..430）之上 ⇒ 这是"钮居中 + 标签在钮正下方"唯一还剩的带（恰好 = 标签高）；
         /// ③ 标签高 = `UiLayoutGame.FontPx16`（28.8 画布px = 16 原版px）、**gap = 0**（上沿紧贴钮下沿）；
         /// ④ 框宽 = <see cref="SlotPitch"/>（原版 52）⇒ 相邻标签恰好相接、不重叠。
-        /// 已知代价（登记）：标签带 414..429 会**压过雕槽下框线**（414..417）。
-        ///    要避开它只能把标签放到面板外或钮上方 —— 二者都偏离 E4 裁定"钮外正下方"，留主 agent 裁。</para>
+        /// 已知代价：标签带 414..429 会**压过雕槽下框线**（414..417）；
+        ///    要避开它只能把标签放到面板外或钮上方，二者都偏离 E4 的"钮外正下方"。</para>
         /// </summary>
         public static Rect ButtonLabelRect(int slot)
         {
@@ -421,13 +421,13 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 刷新商店的**标题行（NPC 名）+ 提示行（当前页）**（R1-E 的 S5）。
+        /// 刷新商店的**标题行（NPC 名）+ 提示行（当前页）**。
         /// <para>文案口径：NPC 名 = 模块给的 `ShopOpenArgs.npcName`（= 原版串表的 NPC 名，**不是自写**，
         /// 串 id 见 `Module/Npc/NpcModule.Names`）；页名 = 「买入」/「卖出」两个既有的本项目面板用词
-        /// （与同面板底部方钮的「修理 / 关闭」同一类：原版这两个词的**串表出处不在本批材料里**
+        /// （与同面板底部方钮的「修理 / 关闭」同一类：原版这两个词的**串表出处不在本机材料里**
         /// —— 原版 `buyselltabs` 8 帧实测是**纯大理石、没有烘字**，页名在原版也是运行时文字 ⇒
-        /// 本项目沿用既有简体用词，登记在回报的末节）。</para>
-        /// <para>不改 `_sellMode` 的判定、不新增页签、不改 `OnTab` 行为（S5 只补"从不创建"的那两行）。</para>
+        /// 本项目沿用既有简体用词）。</para>
+        /// <para>不改 `_sellMode` 的判定、不新增页签、不改 `OnTab` 行为（只补"从不创建"的那两行）。</para>
         /// </summary>
         private void ApplyTitle()
         {
@@ -449,7 +449,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 把原版物品图标贴到某一格 —— **走 `D2Icon.ApplyItemIcon` 这个唯一口径**（背包格/装备栏/腰带同款）。
         /// <para>
-        /// 原版图标不在本批素材里时（例：`ob1`「鹰眼宝珠」→ `invob1`，实测磁盘上**没有**这张）
+        /// 原版图标不在本机素材里时（例：`ob1`「鹰眼宝珠」→ `invob1`，实测磁盘上**没有**这张）
         /// 会落成 `sprite=null` + `color=品质色（普通品质=白）` ⇒ Image 画出**一块白方块**，
         /// 看起来就是「商店没商品图标」。`D2Icon.ApplyItemIcon` 有那一档：换 `MissingIconColor`
         /// （暗青灰、一眼看得出是占位）+ `WarnOnce` 点名，并已登记 `client/资源欠缺清单.md`。

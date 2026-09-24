@@ -36,9 +36,9 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// 跑（原版 **RN**）。
-        /// <para> 新增，**加在末尾**（取值 6）—— `SpriteFrameCounts.ByUnit` 的 `int[]`
+        /// <para>取值**加在末尾**（= 6）—— `SpriteFrameCounts.ByUnit` 的 `int[]`
         /// **下标 = 本枚举**（`SpriteFrameCounts.Of` 取 `(int)anim`）⇒ 插在中间会把整张帧数表错位。</para>
-        /// <para>单位覆盖（片 2a 的导出实测，= 磁盘上的 `run_*.png`）：5 个职业各 8 帧、`zm` 8 帧、
+        /// <para>单位覆盖（= 磁盘上的 `run_*.png`）：5 个职业各 8 帧、`zm` 8 帧、
         /// `cr` 10 帧；**其余单位原版没有 RN** ⇒ 帧数 0，请求 Run 时沿
         /// `SpriteFrames.FallbackChain` 回退（Run → Walk → Idle）。</para>
         /// </summary>

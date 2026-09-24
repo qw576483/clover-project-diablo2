@@ -13,10 +13,10 @@
 //   `world.x = (px - py) * Iso.HalfW`，`world.y = -(px + py + 1) * Iso.HalfH`。
 //   当 `pos == (gx+0.5, gy+0.5)` 时，其结果**逐位等于** `Iso.GridToWorld(gx, gy)`。
 //
-//   `CloverEngine.PathFollower`（`Runtime/Core/PathFollower.cs`）—— 本类只做**薄转发**：
+//   路径跟随本体在引擎件 `CloverEngine.PathFollower`（`Runtime/Core/PathFollower.cs`），本类只转发：
 //   · `Pos` / `Dir` / `Path` / `PathIndex` / `PathTarget` / `HasPathTarget` / `RepathTimer`
 //     与 `SnapTo` / `SetPath` / `ClearPath` / `HasRemainingPath` / `Advance` / `StepToward`
-//     **公开名字与签名一字未改**（调用点零改动），内部一律读写引擎件；
+//     公开名字与签名保持调用点可用，内部一律读写引擎件；
 //   · 两个项目数值（`MonsterTuning.MinMoveSpeed` / `RepathIntervalSeconds`）经构造参数注入。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ namespace Diablo2.Module.Monster
             return Resists[i];
         }
 
-        // ── 路径跟随（**实现已下沉引擎** `CloverEngine.PathFollower`；本类只做薄转发）──────
+        // ── 路径跟随（实现 = 引擎 `CloverEngine.PathFollower`）────────────────────────
         /// <summary>
         /// 引擎的等距布局（**只为取朝向**：`PathFollower` 只调它的 `DirectionTo`，
         /// 不读半格尺寸 —— 半格尺寸是项目语义，由 `Iso.HalfW/HalfH` 给）。
@@ -73,7 +73,7 @@ namespace Diablo2.Module.Monster
         /// <summary>
         /// 引擎路径跟随器：连续坐标 / 朝向 / 剩余路径 / 路径目标 / 重寻路计时**全在它里面**。
         /// <para>
-        /// `Advance` / `StepToward` / `SetPath` / `ClearPath` / 朝向更新的算法**一字未改**地搬到了
+        /// `Advance` / `StepToward` / `SetPath` / `ClearPath` / 朝向更新的算法在
         /// 引擎 `Runtime/Core/PathFollower.cs`（那边是唯一真相）；本类只保留同样的公开名字转发。
         /// 两个项目数值经构造参数注入（引擎不预设任何业务数值）。
         /// </para>

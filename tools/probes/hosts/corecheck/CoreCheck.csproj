@@ -81,6 +81,12 @@
       <HintPath>..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
       <Private>true</Private>
     </Reference>
+    <!-- `Runtime/Core/PresentationContracts.cs:337` 的 `IAnimationManager.CreateAnimator(GameObject,
+         RuntimeAnimatorController)` 需要该模块（`RuntimeAnimatorController` 定义在 AnimationModule）。 -->
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
 
@@ -88,5 +94,22 @@
   <ItemGroup>
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+  </ItemGroup>
+
+  <!-- ★ 共享替身（`..\fullcheck\shim\EngineShim.cs`）里的 `Game` 门面按引擎签名声明各子系统的**接口**类型
+       （`IFsm` / `IResourceManager` / `IUIManager` / `ISceneManager` / `ISoundManager` …）。这些接口的定义
+       现在由引擎真实源码提供（替身不再重复声明它们）⇒ 引用该替身的宿主必须把这几份引擎契约一起链进来，
+       否则 `Game` 的字段声明直接 CS0246。口径 = 「引擎源码是真源、替身只补引擎没有的那部分」。 -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LanContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dispatcher.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\DeviceId.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\PresentationContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Fsm.cs" />
   </ItemGroup>
 </Project>

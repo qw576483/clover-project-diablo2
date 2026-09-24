@@ -29,11 +29,11 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 层：<see cref="UILayer.Normal"/>（= 文件头「层：Normal」）。
-        /// <para> 本片**显式声明**：基类 `UIPanel.Layer` 的默认值**就是** Normal
+        /// <para>基类 `UIPanel.Layer` 的默认值**就是** Normal
         /// （`clover-client-unity-engine/Runtime/Core/PresentationContracts.cs:174`
-        /// `public virtual UILayer Layer => UILayer.Normal;`）⇒ 本行**行为零变化**。
-        /// 加它的唯一理由：把「本屏在 Normal 层」从文件头的一句**散文**变成 `uicheck` 的 `PanelSpec`
-        /// 「覆写了 Layer」这条都查不出来（它们根本不在 PanelSpec 表里，见 `uicheck` §⑲）。</para>
+        /// `public virtual UILayer Layer => UILayer.Normal;`）⇒ 本行**行为不变**。
+        /// 显式写出来的理由：`uicheck` 的 `PanelSpec` 只看**面板自己声明的层**，
+        /// 不写就查不到「本屏在 Normal 层」（见 `uicheck` §⑲）。</para>
         /// </summary>
         public override UILayer Layer => UILayer.Normal;
 

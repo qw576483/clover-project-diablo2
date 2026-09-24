@@ -149,7 +149,7 @@ namespace Diablo2.Module.Monster
                 return;
             }
 
-            // 注意：`AreaId` 是 0 基、`level_c.id` 是 1 基（契约不一致，已回报主 agent）
+            // 注意：`AreaId` 是 0 基、`level_c.id` 是 1 基（契约不一致）
             // ⇒ 一律经 `AreaLevelTable` 解析（两种口径都兼容，且用官方 LevelName 校验）
             var areaRow = AreaLevelTable.Resolve(area);
             if (areaRow == null)

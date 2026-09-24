@@ -13,8 +13,9 @@ agent-10 · 多帧条带「帧矩形实测」探针（只读图，不改任何�
   ⑤ 输出可直接抄进 AssetImporter.cs 的 C# 字面量
 
 用法：python tools/probes/hosts/buildcheck/frame_probe.py
-输出：控制台 + `<本脚本所在目录>/frame_probe_out.txt`（证据留档 = 判据资产，随宿主一起入仓；
-      buildcheck 的 E 组断言就是拿它跟 `AssetImporter.cs` 的 MultiFrameStrips 表逐条对账）
+输出：控制台 + `<仓库根>/.ai-tmp/test/frame_probe_out.txt`（一次性实测产物，⛔ 不进仓库树）
+      buildcheck 的 E 组断言拿它跟 `AssetImporter.cs` 的 MultiFrameStrips 表逐条对账；
+      取不到（未跑过本脚本 / `.ai-tmp` 被清）时，该组登记为「不适用」而不是判红
 """
 
 import io
@@ -46,6 +47,11 @@ def _find_root(start):
 
 ROOT = _find_root(HERE) or os.path.abspath(os.path.join(HERE, "..", ".."))
 UI = os.path.join(ROOT, "client", "Assets", "Resources", "Clover", "D2", "UI")
+
+# 一次性实测产物（= buildcheck 的 E 组对账基准）：落 gitignored 的 `<仓库根>/.ai-tmp/test/`。
+# 跑完在盘上留档供人工读；buildcheck 下次跑时从同一路径读（取不到 ⇒ 那一组登记为「不适用」）。
+OUT_DIR = os.path.join(ROOT, ".ai-tmp", "test")
+OUT_FILE = os.path.join(OUT_DIR, "frame_probe_out.txt")
 
 # (相对 UI/ 的路径, 期望帧数, 帧界判定方式)
 TARGETS = [
@@ -219,8 +225,12 @@ def main():
         out("自证通过：每一帧的窗口都完整包含本帧内容，且不与任何邻帧内容重叠。")
 
     txt = "\n".join(_buf)
-    with io.open(os.path.join(HERE, "frame_probe_out.txt"), "w", encoding="utf-8") as f:
+    #   输出落 `.ai-tmp/test/buildcheck/`（gitignored），⛔ 不落仓库树：
+    #   判据/探针的输出一旦写进被跟踪的路径，每跑一次工作区就脏一次。
+    os.makedirs(OUT_DIR, exist_ok=True)
+    with io.open(OUT_FILE, "w", encoding="utf-8") as f:
         f.write(txt + "\n")
+    print("(实测产物已写出：%s)" % OUT_FILE)
     try:
         print(txt)
     except UnicodeEncodeError:

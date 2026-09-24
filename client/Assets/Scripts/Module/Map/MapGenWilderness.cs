@@ -49,18 +49,13 @@ namespace Diablo2.Module.Map
         /// **出处（原版自己的规则表，不是本项目定的）**：`原版资源/d2raw/data/global/excel/Levels.txt`
         /// 「Act 1 - Wilderness 1」（LevelName = Blood Moor）的 `SizeX = 80` / `SizeY = 80`、
         /// `DrlgType = 3`（户外随机）；块边长 8 = `LvlPrest.txt`「Act 1 - Wild Border *」的 `SizeX`。
-        /// **复核入口（本行只记事实，不再指向已删脚本）**：早期那句 `python .ai-tmp/test/probe_levels.py`
-        /// 是**已删的一次性脚本、不可复跑**（全仓 `probe_levels*` = **0 命中**）—— 不要再把它当可复跑入口。
-        /// **现行在盘判据** = `.ai-tmp/screenshots/w1_host_mapcheck.txt`（= `tools/probes/hosts/mapcheck` 的完整
-        /// 输出，末行「MapCheck 结束：全部通过」）：上面两条出处（`原版资源/d2raw/data/global/excel/Levels.txt`
+        /// **复核入口 = `tools/probes/hosts/mapcheck`**：上面两条出处（`原版资源/d2raw/data/global/excel/Levels.txt`
         /// 「Act 1 - Wilderness 1」的 `SizeX/SizeY = 80/80`、`LvlPrest.txt`「Act 1 - Wild Border *」块边长 8）
-        /// 由它逐条复核；尺寸断言见 `tools/probes/hosts/mapcheck` 的 80×80 段。
+        /// 由它逐条复核；尺寸断言见该宿主输出的 80×80 段（末行「MapCheck 结束：全部通过」）。
         /// </para>
         /// <para>
-        /// —— 用户报「野外地图太小」。原版**没有**这个随机：Wilderness 1 恒 80×80
-        /// （`Levels.txt` 只给一组 SizeX/SizeY，没有尺寸范围列）。
-        /// </para>
-        /// <para>
+        /// 原版**没有**尺寸随机：Wilderness 1 恒 80×80（`Levels.txt` 只给一组 SizeX/SizeY，
+        /// 没有尺寸范围列）。
         /// </para>
         /// </summary>
         private const int CellsPerAxis = GameConst.WildernessMaxSize / MapGenWildLayout.BorderPitch;
@@ -69,10 +64,9 @@ namespace Diablo2.Module.Map
         private const int RoadHalfWidth = 1;
 
         /// <summary>
-        /// black-why2：**进区落点距地图边界的最小格数 = 8**。
-        /// <para>出处（**实测值**，不是拍脑袋定的）：
-        /// `.ai-tmp/test/bw_deep_bwy1.txt` 的 `corners=[-6,13..8,27]` 是在
-        /// 玩家格 = (1,20)、相机 `ortho=3.75`、`screen=1920x1080` 下**实测的可见格 AABB**
+        /// **进区落点距地图边界的最小格数 = 8**。
+        /// <para>出处（**实测值**，不是拍脑袋定的）：玩家格 = (1,20)、相机 `ortho=3.75`、
+        /// `screen=1920x1080` 下**实测的可见格 AABB** = `corners=[-6,13..8,27]`
         /// ⇒ 可见范围是玩家**左右各 7 格**（x∈[p−6, p+7]）、**上下各 7 格**。
         /// 落点距边界 ≥ 8 格 ⇒ 进区那一刻整屏（含等距投影后的屏幕四角）都落在地图内，
         /// **不会露出图外 Void**。</para>
@@ -132,7 +126,7 @@ namespace Diablo2.Module.Map
             }
 
             var pitch = MapGenWildLayout.BorderPitch;
-            //   —— 不再随机 6~10 块（旧口径会生成 48~80，用户报「野外地图太小」）。
+            //   每轴块数 = `CellsPerAxis`（固定值，不再随机 6~10 块 —— 那会生成 48~80 的小图）。
             var cells = CellsPerAxis;
             var w = cells * pitch;
             var h = cells * pitch;

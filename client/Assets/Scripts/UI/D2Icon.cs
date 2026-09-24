@@ -87,14 +87,14 @@ namespace Diablo2.UI
         /// 的 `Weapons.txt` / `Armor.txt` / `Misc.txt` 的 **`invfile` 列**）。
         /// <para>
         /// 图标名出自 `invfile` 列（例：`bax`=Broad Axe → `invbrx`；`qui`=Quilted Armor → `invqlt`；
-        /// `hpo`=Healing Potion → `invrps`）。旧代码一律按 `inv{code}` 拼路径
-        /// ⇒ 137 个物品里 **50 个拼错**（磁盘上没有那个文件）⇒
-        /// 商店/背包/腰带该格**贴图静默取不到、只剩白底方块**（用户投诉「商店没商品图标」）。
+        /// `hpo`=Healing Potion → `invrps`）。只按 `inv{code}` 拼路径会让 137 个物品里 **50 个拼错**
+        /// （磁盘上没有那个文件）⇒ 商店/背包/腰带该格**贴图静默取不到、只剩白底方块**
+        /// （用户投诉「商店没商品图标」）⇒ 本表列出这 50 条别名。
         /// 逐条核对结果：137 个 code 中 **123 个能对上磁盘文件**（其中 50 个要靠本表），
-        /// 另有 **14 个原版图标本身不在本批素材里**（刺客/德鲁伊/野蛮人/圣骑士/死灵的专属装备，
+        /// 另有 **14 个原版图标本身不在本机素材里**（刺客/德鲁伊/野蛮人/圣骑士/死灵的专属装备，
         /// 见 `client/资源欠缺清单.md`）。
         /// </para>
-        /// <para>旧表里的 `qui → quil` 是**错的**（`invquil` 不存在，`invqlt` 才是 Quilted Armor）。</para>
+        /// <para>`qui → quil` 是**错的**（`invquil` 不存在，`invqlt` 才是 Quilted Armor）。</para>
         /// </summary>
         private static readonly Dictionary<string, string> IconFileAlias = new Dictionary<string, string>
         {
@@ -114,7 +114,7 @@ namespace Diablo2.UI
         };
 
         /// <summary>
-        /// 图标层的「原版图标不在本批素材里」占位色（**不是白**）：
+        /// 图标层的「原版图标不在本机素材里」占位色（**不是白**）：
         /// 白底方块看起来像"图没加载"，这个暗青色一眼能认出是占位（并已逐条登记在资源欠缺清单）。
         /// </summary>
         public static readonly Color MissingIconColor = new Color(0.10f, 0.13f, 0.16f, 0.85f);
@@ -129,7 +129,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 原版图标**是否真的在可加载源里**（**同步**回答，走引擎 `Game.Res.Exists`：
         /// 它只回答"在不在"、不驻留；`ResourceManager` 按路径缓存 ⇒ 同一张图一辈子只探一次）。
-        /// <para>用途：把「配表里没有这个 code」与「有 code 但原版图不在本批素材里」分开处理 ——
+        /// <para>用途：把「配表里没有这个 code」与「有 code 但原版图不在本机素材里」分开处理 ——
         /// 后者要给一个**看得出来的占位**而不是让 Image 停在初始的白色（Play 实测：
         /// 商店第 10 格就是这么一个白方块）。</para>
         /// <para>为什么不用 `TryGet`：它只取**已驻留**的（没装进来就返回 null，会把"在"误答成"不在"）；
@@ -267,7 +267,7 @@ namespace Diablo2.UI
 
             if (cache[index] == path) return;           // 同一个图标，已经在（或正在）加载
 
-            // 非预期分支：**可加载源里没有这张原版图**（本批 348 张里确实缺这 14 个 code，
+            // 非预期分支：**可加载源里没有这张原版图**（348 张里确实缺这 14 个 code，
             //   见 `client/资源欠缺清单.md`）⇒ 给一个**看得出来的暗色占位**，
             //   而不是让 Image 停在初始白色（Play 实测：商店第 10 格就是一块白方块）。
             //   `Game.Res == null`（引擎没起来）时**不在这里断言"素材缺"**：那是启动顺序问题、

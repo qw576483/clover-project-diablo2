@@ -156,11 +156,12 @@ namespace Diablo2.Module.Combat
                 return;
             }
 
-            //   旧口径 = **纯半径**（圆）⇒ 背后的 / 正侧方的 / 隔着墙水的目标只要在 1.6 格内就能打到。
-            //   新口径 = **正面扇形（±60°）+ 以朝向为轴的矩形走廊 + 线段不得被地形阻断**，三关都过才结算。
+            //   判定 = **正面扇形（±60°）+ 以朝向为轴的矩形走廊 + 线段不得被地形阻断**，三关都过才结算
+            //   （不是纯半径：背后的 / 正侧方的 / 隔着墙水的目标即使在同一半径内也不结算）。
             //   形状函数唯一出处 = `Module/Combat/MeleeShape.cs`（纯函数，`combatcheck` 第 18 节逐例驱动）。
             //   不消耗冷却（不合格 = 没挥出去，与"超距"同一口径）：由 Player/Input 先转身/靠近。
-            //     （`Weapons.txt` rangeadder / `MonStats2.txt` MeleeRng），0 ≤ reach 恒真；而玩家沿
+            //   同格命中的出处 = 原版触及按距离比（`Weapons.txt` rangeadder / `MonStats2.txt` MeleeRng），
+            //   0 ≤ reach 恒真 ⇒ 零偏移必命中（见 `MeleeShape` 文件头）。
             var shape = ShapeGate(player.Dir, player.Grid, monsterGrid, GameConst.MeleeRange);
             if (shape != null)
             {

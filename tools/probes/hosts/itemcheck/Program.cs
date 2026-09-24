@@ -461,15 +461,16 @@ namespace ItemCheck
         }
 
         /// <summary>
-        /// 宿主槽位档的**沙盒目录** = `&lt;仓库根&gt;/.ai-tmp/test/host-setting/&lt;宿主名&gt;`（每次跑前清空）。
+        /// 宿主槽位档的**沙盒目录** = 仓库根下**一次性产物目录**里的 `test/host-setting/&lt;宿主名&gt;`
+        /// （每次跑前清空；落点见下面那行 `Path.Combine`）。
         /// <para>为什么必须显式给 `Game.Config.SettingDir`（2026-09-20 闸门/卫生对齐轮）：
         /// `Module/Save/SaveModule.cs:96-98` 在 `Game.Config` 为空时回落**相对目录** `"setting"`
         /// ⇒ 槽位档落在 `&lt;调用方 cwd&gt;/setting/saves/`。于是：① 从仓库根跑
         /// `dotnet run --project tools/probes/hosts/itemcheck` 就在**仓库根**留一份
-        /// 「一次性产物只许 `.ai-tmp/test/`」）；② `run_all_hosts.ps1`（`Push-Location`）则写进
+        /// 「一次性产物只许落一次性产物目录」）；② `run_all_hosts.ps1`（`Push-Location`）则写进
         /// **宿主目录**下那份**已入仓**的 `setting/saves/` ⇒ **验证器每次跑都改脏它验证的检出**；
         /// ③ 上一次跑剩下的槽位文件会让"旧键懒迁移"这条断言**假通过**（先读到存在的槽位档就不再迁移）。
-        /// 指向 `.ai-tmp/` 沙盒并每次清空 ⇒ 不依赖 cwd、不留仓库残留、断言真正从零开始。
+        /// 指向一次性产物沙盒并每次清空 ⇒ 不依赖 cwd、不留仓库残留、断言真正从零开始。
         /// 业务断言一字未改。</para>
         /// </summary>
         private static string HostSandboxSettingDir(string host)
@@ -1445,7 +1446,7 @@ namespace ItemCheck
             //         真实发生过：`EntityHighlight.cs` 用了 Unity 6000.6 不存在的 `Shader.HasProperty(string)`）；
             //      ② 本节不编 View ⇒ 这组**存档语义**断言在这里有**独立的可跑副本**。
             //
-            //     `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`
+            //     （实机读数第 99 行）
             //     `[D2U3C] DTO name=S2203805 … life=50/50 mana=15/15 stamina=20/84`
             //     `version:1, cls:1, level:1, 四维 20/25/20/15, life:60, mana:22, stamina:20`
             //   出处（起始量 = 满值）：`charstats.txt:2..6` 的 `hpadd`(30)+起始体力(20)=50 / 起始精力(15) /

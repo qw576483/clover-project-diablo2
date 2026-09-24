@@ -24,15 +24,15 @@
 //   并 `Emit(HudDirty)`（HUD 侧只切贴图，见 `UI/HudPanel.cs` 的 runbutton）。
 //     （`Module/View/ViewModule` 据此选 `ViewAnim.Run` / `ViewAnim.Walk`）。
 //
-// ── R1-B：「点不可走处 ⇒ 走向最近合法点」（用户报「为什么不是从桥上走？」）──────
+// ── 「点不可走处 ⇒ 走向最近合法点」（用户报「为什么不是从桥上走？」）────────────
 //   "看着点的是桥、逻辑格其实是栏杆/水"的点击就表现为「点了没反应 / 不走桥」。
 //   现在：**图上有地形、只是阻挡** ⇒ 半径 `MoveFallbackRadius`（= 2 格，口径见该常量）内挑最近可走格
 //         并走过去；图外（越界）与 `TileKind.Void`（没地形、也不画 ⇒ 视觉=关卡外那片黑）⇒ 仍直接拒绝；
 //         半径内无可走格 / 走不到 ⇒ 仍按不可达拒绝。
-//   不放宽可走性、不改地形：`IMapModule.Walkable` 与 `GridMap` 一个字未动。
-//   生效口径由一条只报一次的 `R1-B` Info 日志给出（tag 便于 Play 期按数值取证，不必截图）。
+//   不放宽可走性、不改地形：`IMapModule.Walkable` 与 `GridMap` 的判定不放宽。
+//   生效口径由一条只报一次的 Info 日志给出（tag 便于 Play 期按数值取证，不必截图）。
 
-// ── 契约歧义（**已回报主 agent，未擅自改契约**）─────────────────────────────
+// ── 契约歧义（口径取 `ICombatModule` 那一侧）─────────────────────────────────
 //   `IPlayerModule.ApplyDamage` 注释写「走抗性/防御结算」，但 `ICombatModule` 又明确
 //   「命中/伤害/**抗性**结算只经本门面，禁止各自算一遍」⇒ 取后者：本方法把入参当作
 //   **已结算的最终扣血量**（只做钳制/死亡判定），否则抗性会被减两次。
@@ -40,7 +40,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
-using System.Collections.Generic;      // ★ R1-B：MoveTo 的最近可走格回退要用 List<Vector2Int>
+using System.Collections.Generic;      // MoveTo 的最近可走格回退要用 List<Vector2Int>
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
@@ -70,17 +70,17 @@ namespace Diablo2.Module.Player
         /// <summary>无效格（用于「还没发过」的标记，避免和 (0,0) 混淆）。</summary>
         private static readonly Vector2Int NoGrid = new Vector2Int(int.MinValue, int.MinValue);
 
-        /// <summary>R1-B 证据日志的 tag（`Core/Log.cs` 的 KnownTags 白名单内）。</summary>
+        /// <summary>证据日志的 tag（`Core/Log.cs` 的 KnownTags 白名单内）。</summary>
         private const string EvidenceTag = "R1-B";
 
         /// <summary>
-        /// T0GAP：软核死亡惩罚的证据 tag（`Core/Log.cs` 的 KnownTags 白名单内）。
+        /// 软核死亡惩罚的证据 tag（`Core/Log.cs` 的 KnownTags 白名单内）。
         /// 用途 = 一条只报一次的 Info，写清**生效口径**（扣多少 / 取整口径 / 为什么不会为负）。
         /// </summary>
         private const string DeathGoldTag = "T0GAP";
 
         /// <summary>
-        /// T0GAP：死亡时扣除**当前金币**的百分比。
+        /// 死亡时扣除**当前金币**的百分比。
         /// <para>
         /// **出处（不是本项目自创）**：`策划/验收表.md` 第 33 行 · 金币行的判据原文 =
         /// 「金币｜拾取 + **死亡掉 10%**｜死亡前后金币数变化」⇒ 10 是本项目的规格值。
@@ -94,13 +94,12 @@ namespace Diablo2.Module.Player
         /// 推论（**边界行为，断言里逐条验**）：金币 0 ⇒ 损失 0（不扣 + 留一条 Info）；
         /// 金币 1~9 ⇒ 损失 0（同理，因为 9/10 = 0）。
         /// </para>
-        /// <para>本常量只描述"扣多少"；**死因/复活语义**一字未改（`Events.PlayerDied` 是无参契约，
-        /// 未加参数，见本片回报）。</para>
+        /// <para>本常量只描述"扣多少"；**死因/复活语义**仍走 `Events.PlayerDied`（无参契约）。</para>
         /// </summary>
         private const int DeathGoldPercent = 10;
 
         /// <summary>
-        /// R1-B：点击落点**图内但不可走**时的「最近可走格」回退半径（Chebyshev，格）。
+        /// 点击落点**图内但不可走**时的「最近可走格」回退半径（Chebyshev，格）。
         /// <para>
         /// 用户原始投诉：「为什么不是从桥上走？」—— 原版 D2 点不可走处会**走向最近合法点**，
         /// 其实点到栏杆/水"的点击就表现为「点了没反应 / 不走桥」。
@@ -139,24 +138,21 @@ namespace Diablo2.Module.Player
         private bool _running = true;             // 跑/走切换（原版默认跑；R 键切换）
         private int _lastAttackTargetId = int.MinValue;   // 上一次打日志的攻击目标（防按住时刷屏）
         /// <summary>
-        /// 旧口径是"记住上一格"（`_lastExitGrid`）—— 停在出口格上确实只发一次，但**沿出口格逐格挪动**
-        /// 离开出口格后重新武装"；两种口径都不许让角色卡住（离开再进仍能真的触发切换区域）。
+        /// 出口触发闩锁（实现 = `Diablo2.Module.Map.ExitLatch`）：停在出口格上只发一次，
+        /// **沿出口格逐格挪动**同样只发一次；离开出口格后重新武装
+        /// ⇒ 不许让角色卡住（离开再进仍能真的触发切换区域）。
         /// </summary>
         private Diablo2.Module.Map.ExitLatch _exitLatch;
         private bool _unreachableLogged;
-        private bool _moveFallbackLogged;         // R1-B：最近可走格回退的生效口径只报一次
+        private bool _moveFallbackLogged;         // 最近可走格回退的生效口径只报一次
 
-        // impl-I-input（审计 R1）：右键施放的三个非预期分支各只报一次。
-        //   降频用**私有 bool 标志位**（不是 `WarnOnce`）：① `Module/Player/PlayerLog.cs` 这个项目侧薄封装
-        //   只暴露 `Info/Warn/Error/Move`（没有 `WarnOnce/WarnThrottled` 重载，加三参版本更是越层用
-        //   `Core/Log` 的底层实现）② 本模块既有约定就是私有标志位（见 `_unreachableLogged` /
-        //   `_moveFallbackLogged`）。
-        //   `Time.realtimeSinceStartup` ⇒ 离线宿主会抛 SecurityException"**已过期**：行号已随
-        //   `Core/Log.cs` 重写平移（真闸门现在在 `Core/Log.cs:195-204` = `ShouldLog(...)`），且时钟机制
-        //   **已下沉到引擎仓** `clover-client-unity-engine/Runtime/Core/LogThrottle.cs:278-308`（= `Now()`；
-        //   客户端**无**同名文件 ⇒ 引用基准必须含引擎仓），它对非 Unity 进程的 ECall 是 try/catch 接住 +
-        //   自动降级 `Stopwatch`（语义约束见该文件头 :30-31「永不抛异常」）。
-        //     按"路径 + 符号名"写法登记（行号会漂、裸行号会被"仓内查不到"误判为失效）。
+        // 右键施放的三个非预期分支各只报一次。
+        //   降频用**私有 bool 标志位**（不是 `WarnOnce`）：① `Module/Player/PlayerLog.cs` 这个项目侧封装
+        //   只暴露 `Info/Warn/Error/Move`（没有 `WarnOnce/WarnThrottled` 重载）② 本模块既有约定
+        //   就是私有标志位（见 `_unreachableLogged` / `_moveFallbackLogged`）。
+        //   时钟机制在引擎 `clover-client-unity-engine/Runtime/Core/LogThrottle.cs`：对非 Unity 进程的
+        //   ECall 是 try/catch 接住 + 自动降级 `Stopwatch`（见该文件头「永不抛异常」）
+        //   ⇒ 离线宿主不会抛 `SecurityException`。
         private bool _secNoCtxLogged;             // AppContext 未装配
         private bool _secNoSkillLogged;           // ISkillModule 未接入
         private bool _secUnboundLogged;           // 右键未绑技能且指针下没怪
@@ -167,7 +163,7 @@ namespace Diablo2.Module.Player
         private bool _deadMoveWarned;
         private bool _selfHealLogged;
         private bool _equipSubscribed;
-        private bool _deathGoldLogged;            // ★ T0GAP：死亡扣金币的生效口径只报一次
+        private bool _deathGoldLogged;            // 死亡扣金币的生效口径只报一次
         private bool _swapWeaponKeyOffLogged;     // ★ 双武器组：W 键按下但模块侧未响应时只报一次
 
         /// <summary>
@@ -311,7 +307,7 @@ namespace Diablo2.Module.Player
                 skillPoints = _skillPoints,
                 gold = _gold,
                 // 右键技能属 `ISkillModule`（Player 不持有技能状态）⇒ 默认 -1（普通攻击），
-                // HUD/技能面板由 Skill 模块补齐；腰带数量由 Item 模块补齐（见回报「未决」）。
+                // HUD/技能面板由 Skill 模块补齐；腰带数量由 Item 模块补齐。
                 selectedSkillId = -1,
             };
 
@@ -355,7 +351,7 @@ namespace Diablo2.Module.Player
             _holdTarget = null;
             _exitLatch.Reset();
             _selfHealLogged = false;
-            _deathGoldLogged = false;                 // ★ T0GAP：新角色 ⇒ 死亡口径行重新报一次
+            _deathGoldLogged = false;                 // 新角色 ⇒ 死亡口径行重新报一次
             _swapWeaponKeyOffLogged = false;
             _input.Reset();
 
@@ -399,7 +395,7 @@ namespace Diablo2.Module.Player
             _holdTarget = null;
             _exitLatch.Reset();
             _selfHealLogged = false;
-            _deathGoldLogged = false;                 // ★ T0GAP：换角色读档 ⇒ 死亡口径行重新报一次
+            _deathGoldLogged = false;                 // 换角色读档 ⇒ 死亡口径行重新报一次
             _swapWeaponKeyOffLogged = false;
 
             // 位置：存档格必须可走；不可走（或地图尚未生成）则退回出生点并 Warn。
@@ -410,15 +406,16 @@ namespace Diablo2.Module.Player
                 PlayerLog.Warn($"存档位置 ({saved.x},{saved.y}) 不可走 ⇒ 落在出生点 " +
                                $"({_motor.Grid.x},{_motor.Grid.y})（存档数据/地图 seed 不一致？）");
 
-            //   （`PlayerStats.Max*` ← `class_c.hp_add/base_stamina`，官方 `charstats` 起始量），
-            //   式子的产物 —— 两者**不同源**。实测活档 `client/setting/saves/S2203805.json`：
-            //   `life=60 / mana=22 / stamina=20`（＝旧公式），`version=1`，`cls=1, lvl=1, 四维 20/25/20/15`；
-            //   实机读数（`u52play` 11:38:35 那批，.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99）
-            //   `life=50/50 mana=15/15 stamina=**20/84**` ⇒ 与 `Min(60,50)/Min(22,15)/Min(20,84)` **逐值对得上**：
-            //   这就是用户看到的「人物状态框数值不对」那一格。
-            //   + **一次 Info**（不是每条资源一条）。
-            //   现行版本档**保持原语义**："存了就沿用（钳到上限），没存（0）则满" —— 实测活档 `SAArea1.json`
-            //   的 `life=34`（中局受伤时存的档）证明**沿用**是既定行为，不许把"沿用"改成"补满"。
+            //   三资源口径（版本不符才补满，见下面 if）：
+            //   · 更早版本的档存的是旧公式的产物：`life=60 / mana=22 / stamina=20`
+            //     （例见 `client/setting/saves/S2203805.json`，`version=1`，四维 20/25/20/15）——
+            //     与 `PlayerStats.Max*` **不同源**（后者 ← `class_c.hp_add` / `base_stamina`
+            //     ← 官方 `charstats.txt` 起始量）。
+            //   · 版本一致的档**保持原语义**："存了就沿用（钳到上限），没存（0）则满" ——
+            //     活档 `SAArea1.json` 的 `life=34`（中局受伤时存的档）证明"沿用"是既定行为。
+            //   · 钳制 = `Min(存档值, 当前上限)`（如 `stamina Min(20,84) = 20`）⇒ 会复现出
+            //     「耐力 cur = 20 / max = 84」这一态。
+            //   · 补满时只发**一次** Info（不是每条资源一条）。
             if (save.version < GameConst.SaveVersion)
             {
                 _life = _stats.MaxLife;
@@ -499,11 +496,11 @@ namespace Diablo2.Module.Player
             _motor.Reset();
             _input.Reset();
             _unreachableLogged = false;
-            _moveFallbackLogged = false;      // R1-B：回主菜单再进图要重新报一次生效口径
+            _moveFallbackLogged = false;      // 回主菜单再进图要重新报一次生效口径
             _notCreatedWarned = false;
             _deadMoveWarned = false;
             _selfHealLogged = false;
-            _deathGoldLogged = false;                 // ★ T0GAP：回主菜单再进图要重新报一次死亡口径
+            _deathGoldLogged = false;                 // 回主菜单再进图要重新报一次死亡口径
             _swapWeaponKeyOffLogged = false;
             PlayerLog.Info("复位：角色/数值/路径/输入缓存已清空（回主菜单）");
         }
@@ -554,7 +551,7 @@ namespace Diablo2.Module.Player
                 return;
             }
 
-            // 目标格不可走：R1-B 起改成「最近可走格回退」（原版 D2 点不可走处走向最近合法点），
+            // 目标格不可走：改成「最近可走格回退」（原版 D2 点不可走处走向最近合法点），
             //   而**不是**直接拒绝 —— 直接拒绝正是用户报的「为什么不是从桥上走？」
             //   图外（越界）仍直接拒绝：点关卡外本来就不该产生移动。
             var path = (List<Vector2Int>)null;
@@ -623,7 +620,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// R1-B：在 <paramref name="target"/> 的 Chebyshev 半径 <see cref="MoveFallbackRadius"/> 内，
+        /// 在 <paramref name="target"/> 的 Chebyshev 半径 <see cref="MoveFallbackRadius"/> 内，
         /// 找**最近的可走格**并算出从 <paramref name="from"/> 走到它的路径（原版 D2「点不可走处 →
         /// 走向最近合法点」的口径）。
         /// <para>挑格口径（**确定性**，同一输入永远同一结果，可离线复跑）：按
@@ -721,7 +718,7 @@ namespace Diablo2.Module.Player
             // ② 悬停 / 光标（每帧；目标变化才发事件）+ 走/跑切换（原版 R）+ 切换武器组（原版 W）
             _input.UpdateHover(!_dead);
 
-            // ②b impl-I-input（审计 R5）：地面物品名牌（原版：悬停单件显示名 / 按住 **Alt** 常显全部）。
+            // ②b 地面物品名牌（原版：悬停单件显示名 / 按住 **Alt** 常显全部）。
             //    `_input.ShowGroundItems` 是本属性的**唯一消费点**（改动前它全仓 0 消费 ⇒ Alt 永不生效；
             //    审计 B 的静态对账要求消费点在 `InputReader` 之外，故读键放在这一行）。
             if (!_dead) _input.PublishGroundItemLabels(_input.ShowGroundItems);
@@ -740,7 +737,7 @@ namespace Diablo2.Module.Player
             // ④ 输入 → 移动 / 攻击意图
             if (!_dead) HandleMoveIntent(map);
 
-            // ④b impl-I-input（审计 R1）：右键 → **右手技能**施放（原版「右键 = 使用右键技能」）。
+            // ④b 右键 → **右手技能**施放（原版「右键 = 使用右键技能」）。
             //   与左键**互不干扰**（两个键各自判 Down/held），故单列一步而不是插进 HandleMoveIntent。
             if (!_dead) HandleSecondaryIntent();
 
@@ -778,9 +775,8 @@ namespace Diablo2.Module.Player
                 if (InputReader.ShouldRetarget(_motor.Grid, _holdTarget, held))
                 {
                     _holdTarget = held;
-            //   那是 `InputReader.ShouldRetarget` 旧口径（差 1 格 / 点到脚下就忽略 ⇒ 用户报的「鼠标在人附近
-            //   目标格没变才节流；只要目标格变了就跟着光标重算（脚下格 / 相邻格同样算）**。
-            //   ⇒ 文案与代码不一致会误导下一棒（以为"近处忽略"是设计），故同步为实际行为。
+            //   节流口径 = `InputReader.ShouldRetarget`：目标格不变才节流；只要目标格变了就跟着光标重算
+            //   （脚下格 / 相邻格同样算）⇒ 玩家在角色附近微调光标也会更新目标。
             PlayerLog.Move($"按住左键改目标 held=({held.x},{held.y})（目标格变了就重算，含脚下格 / 相邻格）");
                     Emit(Events.MoveCommand, held);
                 }
@@ -816,7 +812,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// **右键意图**（原版 D2：右键 = 使用**右手技能**）。impl-I-input（审计 R1）。
+        /// **右键意图**（原版 D2：右键 = 使用**右手技能**）。
         /// <list type="bullet">
         /// <item>右键技能格绑了技能（`ISkillModule.GetButtonSkill(1) &gt;= 0`）⇒ 走**已有的施放入口**
         /// `ISkillModule.TryCast(skillId, 目标格)`：扣蓝 / 冷却 / 伤害 / 投射物全由 `Module/Skill` 结算，
@@ -835,7 +831,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// 以某格派发一次**右键意图**（impl-I-input）。**非契约入口**（自证 / 集成走它，与
+        /// 以某格派发一次**右键意图**。**非契约入口**（自证 / 集成走它，与
         /// <see cref="HandlePrimaryClick"/> 完全同一处置）—— 离线自检宿主拿不到相机，
         /// 无法经 `TryGetSecondaryClick` 反投影 ⇒ 由宿主直接给格坐标来驱动同一条链路。
         /// </summary>
@@ -1026,9 +1022,8 @@ namespace Diablo2.Module.Player
             var onExit = map.TileAt(g) == TileKind.Exit ||
                          Diablo2.Module.Map.MapSeam.IsTownEastSeam(map.Area, map.Width, g, map.IsDeckGrid(g));
 
-            //   `Module/Map/ExitLatch`（纯值类型）决定 —— 在出口区**只在进入时**发一次（同一格 / 沿出口列
+            //   判据 = `Module/Map/ExitLatch`（纯值类型）：在出口区**只在进入时**发一次（同一格 / 沿出口列
             //   逐格挪动都只算一次），离开出口格后重新武装（出口仍能真的触发切换，不会把角色卡住）。
-            //   旧口径 `_lastExitGrid`（记住上一格）在"沿出口格逐格走"时会每格各发一次。
             if (!_exitLatch.ShouldEmit(onExit, g)) return;
 
             var to = ExitTargetArea(map, g);
@@ -1207,7 +1202,7 @@ namespace Diablo2.Module.Player
             _dead = true;
             _motor.Stop();
             _holdTarget = null;
-            ApplyDeathGoldPenalty();          // ★ T0GAP：软核死亡惩罚（扣当前金币 10%）
+            ApplyDeathGoldPenalty();          // 软核死亡惩罚（扣当前金币 10%）
             PlayerLog.Info($"died {_name} 等级={_stats.Level}（发 {Events.PlayerDied}，" +
                            "死亡面板由 UI 侧监听；复活走 ICombatModule.RevivePlayer → Player.Revive）");
             Emit(Events.PlayerDied);
@@ -1215,7 +1210,7 @@ namespace Diablo2.Module.Player
         }
 
         /// <summary>
-        /// T0GAP：**死亡惩罚** —— 死亡时扣当前金币的 <see cref="DeathGoldPercent"/>%（软核规则）。
+        /// **死亡惩罚** —— 死亡时扣当前金币的 <see cref="DeathGoldPercent"/>%（软核规则）。
         /// <para>
         /// 为什么实现点在**这里**（而不是 UI / Combat）：`_gold` 的唯一归属是本模块
         /// （`Contracts.cs` 的 `IPlayerModule.Gold`；`ItemModule.Gold/AddGold` 在 Player 接入时全部转发过来），
@@ -1307,7 +1302,7 @@ namespace Diablo2.Module.Player
                 var need = ExpAt(_stats.Level);
                 // `experience_c` 的口径：`Get(L).exp` = **从 L 升到 L+1 的累计阈值**
                 // （官方 experience.txt 的 level 列 = 目标等级-1；实证：level 98 = 3,520,485,254
-                //  正是公认的「99 级所需累计经验」；见回报「未决」第 2 条）
+                //  正是公认的「99 级所需累计经验」）
                 if (need <= 0 || _exp < need) break;
 
                 var oldLevel = _stats.Level;

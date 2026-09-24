@@ -74,7 +74,7 @@ namespace Diablo2.Module.Player
         //    映射 `hp_add ← charstats.hpadd`、`base_stamina ← charstats.stamina`、
         //    `block_factor ← charstats.BlockFactor`；值逐条由脚本从官方原始表抽取，无手抄）
         //    ⇒ 本文件**不再有**这些数字的常量，起始截距与职业格挡系数一律读 `Row`。
-        //    收口判据：全仓 0 命中那两个旧常量名（防常量复活）；命令逐字写在 classcols 片报告里。
+        //    收口判据：全仓 0 命中那两个旧常量名（防常量复活）。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -287,8 +287,8 @@ namespace Diablo2.Module.Player
         ///       —— 出处：Arreat Summit「Blocking」（`classic.battle.net/diablo2exp/basics/characters.shtml`）：
         ///       `Total Blocking = (Blocking * (Dexterity - 15)) / (Character Level * 2)`，
         ///       `Blocking` = 职业固有值 + 所有装备上的格挡值，`capped at 75%`；
-        ///       职业项 = `class_c.block_factor`（官方 `charstats.BlockFactor`，列 32；classcols 片起读表）、
-        ///       **装备项 = 盾牌基材 `item_c.block` + 词缀 `block`**（u52block 片补齐基材那一环）。
+        ///       职业项 = `class_c.block_factor`（官方 `charstats.BlockFactor`，列 32；由打表产物给出）、
+        ///       **装备项 = 盾牌基材 `item_c.block` + 词缀 `block`**。
         ///       详见 <see cref="ComputeBlockChance"/>。</item>
         /// <item>抗性：装备词缀求和，夹在 [-100, 75]（原版普通难度上限 75）。</item>
         /// </list>
@@ -312,7 +312,7 @@ namespace Diablo2.Module.Player
             //   —— 它们本来就与官方一致，错的只有**截距**。
             var startVit = row != null ? row.Vit : 0;
             var startEng = row != null ? row.Eng : 0;
-            // classcols 片：起始截距与职业格挡系数一律**读表**（`class_c.hp_add` / `base_stamina`
+            // 起始截距与职业格挡系数一律**读表**（`class_c.hp_add` / `base_stamina`
             //   / `block_factor`），代码里不再有第二份真值。
             var hpAdd = row != null ? row.HpAdd : 0;
             var baseStamina = row != null ? row.BaseStamina : 0;
@@ -417,7 +417,7 @@ namespace Diablo2.Module.Player
                 }
 
                 // 护甲值：官方在**生成物品时**就把防御 roll 成定值，`Def.ItemStack` 只存区间
-                // ⇒ 取区间中点（回报「未决」已登记该近似）。
+                // ⇒ 取区间中点（近似口径）。
                 if (item.defMax > 0)
                 {
                     armorPieces++;
@@ -494,7 +494,7 @@ namespace Diablo2.Module.Player
         /// <summary>
         /// 官方**盾类**判定（`armor.txt` 的 `type` 列）：`shie` 盾 / `ashd` 圣骑士盾 / `head` 死灵头骨。
         /// <para>出处：`原版资源/d2lod1.10txt-1.10f/data/global/excel/Armor.txt` —— 全表 203 行里
-        /// `block`（第 11 列）非 0 的 53 行**全部**落在这三类（逐行核过，见本片报告的"盾牌逐行"表）。</para>
+        /// `block`（第 11 列）非 0 的 53 行**全部**落在这三类（逐行核过）。</para>
         /// </summary>
         private static bool IsShieldType(string type)
             => type == "shie" || type == "ashd" || type == "head";

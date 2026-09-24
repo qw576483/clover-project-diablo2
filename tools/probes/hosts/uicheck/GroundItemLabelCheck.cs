@@ -66,8 +66,12 @@ namespace Uicheck
                 // 人物属性面板：底图 = 面板矩形 ⇒ **改吃**（R8）
                 ["CharacterPanel.cs"] = new[] { "CharstatBg#t", "Plus#t", "CloseButton#t" },
 
-                // 游戏内光标：跟随鼠标 ⇒ 绝不能吃（吃了鼠标下方恒在 UI 上 ⇒ 点哪都不走）
-                ["CursorView.cs"] = new[] { "Cursor#f" },
+                // 游戏内光标：跟随鼠标 ⇒ 绝不能吃（吃了鼠标下方恒在 UI 上 ⇒ 点哪都不走）。
+                //   节点名是**形参**（`UiArt.Panel(canvasRoot, nodeName, …)`，名字由引擎
+                //   `SoftwareCursorLayer` 的 `spec.ImageNodeName` 给）⇒ 登记口径用 `?`（同 `UiLayoutFlow.cs` 的 `?#t`）；
+                //   `#f` 那一半（不吃射线）另外在引擎侧被判：`SoftwareCursorLayer.Create` 里 `image.raycastTarget = false;`
+                //   （见 W3GameCheck 的光标组）。
+                ["CursorView.cs"] = new[] { "?#f" },
 
                 // 确认框：满屏**模态**遮罩 ⇒ 吃；框体吃、框美术不吃（框体已覆盖）
                 ["D2ConfirmPanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },

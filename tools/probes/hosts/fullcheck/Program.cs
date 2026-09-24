@@ -149,7 +149,8 @@ namespace FullCheck
         }
     }
 
-    /// <summary>`Runtime/Core/Fsm.cs:9` 的替身（站点迁移即时生效，便于断言）。</summary>
+    /// <summary>`Runtime/Core/Fsm.cs` 的替身（站点迁移即时生效，便于断言）。
+    /// 接口成员表按引擎那份 `IFsm` 逐条对齐（差一条就 CS0535 ⇒ 本文件是覆盖率哨兵）。</summary>
     internal sealed class SimpleFsm : IFsm
     {
         private readonly Dictionary<string, (Action enter, Action<float> tick, Action exit)> _states
@@ -170,6 +171,9 @@ namespace FullCheck
         public void Tick(float dt) { if (Current != null && _states.TryGetValue(Current, out var s)) s.tick?.Invoke(dt); }
         public void OnChange(Action<string, string> handler) => _onChange += handler;
         public void OffChange(Action<string, string> handler) => _onChange -= handler;
+
+        /// <summary>引擎 `Fsm.Reset()` 同口径：只清内容、不触发任何 OnExit/OnEnter/OnChange，可重复调用。</summary>
+        public void Reset() { _states.Clear(); _trans.Clear(); Current = null; }
 
         private void Switch(string to)
         {
@@ -193,9 +197,20 @@ namespace FullCheck
         public void CloseAll() { CloseAllCount++; Opened.Clear(); }
         public T Get<T>() where T : class, IUIPanel => null;
         public bool IsOpen<T>() where T : class, IUIPanel => false;
+
+        /// <summary>面板打开/关闭事件（`IUIManager` 契约成员；本宿主不派发，只保证签名齐备）。</summary>
+        public void OnPanelOpened(Action<string> handler) { }
+        public void OnPanelClosed(Action<string> handler) { }
+
         public void Toast(string text, float duration = 2f) => Console.WriteLine("  [TOAST] " + text);
-        public void FloatText(Vector3 worldPos, string text, Color? color = null, float duration = 1.2f) { }
+
+        /// <summary>签名逐字对齐引擎 `IUIManager.FloatText`（`riseWorld` / `fade` 是引擎侧新增的可选参）。</summary>
+        public void FloatText(Vector3 worldPos, string text, Color? color = null, float duration = 1.2f,
+            float riseWorld = 0f, bool fade = true) { }
+
         public void ShowLoading(string text = null) { }
+        public void ShowLoading(string text, float progress01) { }
+        public void SetLoadingProgress(float progress01) { }
         public void HideLoading() { }
         public bool IsLoading => false;
         public void Confirm(string title, string message, Action onConfirm, Action onCancel = null,
@@ -204,7 +219,17 @@ namespace FullCheck
             Console.WriteLine("  [CONFIRM] " + title + ": " + message);
             onConfirm?.Invoke();
         }
+
+        // 红点 / 引导（引擎 `IUIManager` 契约成员）：本宿主不跑面板，只做最小记账。
+        private readonly Dictionary<string, bool> _redDots = new Dictionary<string, bool>();
+        public void SetRedDot(string key, bool on) { _redDots[key] = on; }
+        public bool GetRedDot(string key) => _redDots.TryGetValue(key, out var on) && on;
+        public void OnRedDotChanged(Action<string, bool> handler) { }
+        public void ShowGuide(RectTransform target, string tip = null, Action onClick = null, bool blockTarget = true) { }
+        public void HideGuide() { }
+
         public void Tick(float dt) { }
+        public void Dispose() { }
     }
 
     /// <summary>场景管理器替身（同步完成加载；`onDone` 一定会回调）。</summary>
@@ -269,14 +294,23 @@ namespace FullCheck
     internal sealed class FakeSound : ISoundManager
     {
         public int StopAllCount;
+        private readonly Dictionary<SoundGroup, bool> _muted = new Dictionary<SoundGroup, bool>();
         public void PlayBGM(string clipName, float fadeTime = 0.5f) { }
         public void PlaySFX(string clipName) { }
         public void PlaySFXAt(string clipName, Vector3 position) { }
+        public void PlayVoice(string clipName) { }
         public void StopBGM(float fadeTime = 0.5f) { }
+
+        // 播放闸门（引擎 `ISoundManager` 契约：0 = 不限，默认 0）
+        public int MaxPlaysPerFrame { get; set; }
+        public int MaxConcurrentPerClip { get; set; }
+
         public void StopAll() => StopAllCount++;
         public void SetVolume(SoundGroup group, float volume) { }
         public float GetVolume(SoundGroup group) => 1f;
-        public void SetMute(SoundGroup group, bool mute) { }
+        public void SetMute(SoundGroup group, bool mute) { _muted[group] = mute; }
+        public bool IsMuted(SoundGroup group) => _muted.TryGetValue(group, out var m) && m;
+        public void Dispose() { }
     }
 
     internal sealed class FakeEntities : IEntityManager
@@ -355,7 +389,26 @@ namespace FullCheck
         public string LastLoadAllPath;
 
         public void LoadAsset<T>(string path, Action<T> cb) where T : UnityEngine.Object { LoadCalls++; cb?.Invoke(null); }
+
+        /// <summary>带进度的那条重载：无素材 ⇒ 直接报"完成 + null"（与无进度重载同口径）。</summary>
+        public void LoadAsset<T>(string path, Action<float> progress, Action<T> cb) where T : UnityEngine.Object
+        {
+            LoadCalls++;
+            progress?.Invoke(1f);
+            cb?.Invoke(null);
+        }
+
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
+
+        public void Release(string path) { }
+        public void UnloadAll() { }
+
+        /// <summary>预加载：无素材 ⇒ 立刻报"全部完成"（引擎契约：空列表也必定回调）。</summary>
+        public void Preload(List<string> paths, Action onDone, Action<float> progress = null)
+        {
+            progress?.Invoke(1f);
+            onDone?.Invoke();
+        }
 
         public bool Exists(string path) { ExistsCalls++; return false; }
         public T[] LoadAll<T>(string path) where T : UnityEngine.Object
@@ -364,6 +417,22 @@ namespace FullCheck
             LastLoadAllPath = path;
             return Array.Empty<T>();
         }
+
+        // 缓存水位 / 热更（引擎 `IResourceManager` 的其余契约成员）。
+        // 本宿主无资源后端 ⇒ 与引擎"未启用热更时为空操作"同口径：不驻留、不下载、不回调。
+        // ⚠️ 业务源码里没有这几条的调用点（它们没被 shim 的子集接口提供过），列出只为满足契约。
+        public long CachedBytes => 0;
+        public long CacheWatermark { get; set; }
+        public void Tick(float dt) { }
+        public string Version => "0";
+        public string ContentDir => null;
+        public bool IsBundleMode => false;
+        public ResourceUpdateState UpdateState => ResourceUpdateState.Idle;
+        public void CheckUpdate(Action<ResourceUpdateInfo> onResult) { }
+        public void DownloadUpdate(ResourceUpdateInfo info, Action<ResourceUpdateProgress> onProgress,
+            Action<bool, string> onDone) { }
+        public void ClearDownloaded() { }
+        public void CancelUpdate() { }
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -413,13 +482,14 @@ namespace FullCheck
         }
 
         /// <summary>
-        /// 宿主槽位档的**沙盒目录** = `&lt;仓库根&gt;/.ai-tmp/test/host-setting/&lt;宿主名&gt;`（每次跑前清空）。
+        /// 宿主槽位档的**沙盒目录** = 仓库根下**一次性产物目录**里的 `test/host-setting/&lt;宿主名&gt;`
+        /// （每次跑前清空；落点见下面那行 `Path.Combine`）。
         /// <para>为什么必须显式给 `Game.Config.SettingDir`（2026-09-20 闸门/卫生对齐轮）：
         /// `Module/Save/SaveModule.cs:96-98` 在 `Game.Config` 为空时回落**相对目录** `"setting"`
         /// ⇒ 槽位档落在 `&lt;调用方 cwd&gt;/setting/saves/`。于是：① 从仓库根跑
         /// `dotnet run --project tools/probes/hosts/fullcheck` 就在**仓库根**留一份
         /// （`Push-Location`）则写进**宿主目录**下那份**已入仓**的 `setting/saves/` ⇒
-        /// **验证器每次跑都改脏它验证的检出**。指向 `.ai-tmp/` 沙盒并每次清空 ⇒
+        /// **验证器每次跑都改脏它验证的检出**。指向一次性产物沙盒并每次清空 ⇒
         /// 不依赖 cwd、不留仓库残留、断言真正从零开始。业务断言一字未改。</para>
         /// </summary>
         private static string HostSandboxSettingDir(string host)

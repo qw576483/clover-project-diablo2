@@ -7,8 +7,9 @@
 // 生成流程（`MapModule.Generate`）在成功后会**自动**打一份 stats + 字符画头部 + 哈希，
 // 所以「三处区域各生成一次」的证据**天然落在日志里**，不需要额外调用。
 //
-//   "先混宽高、再按 y 外层升序 / x 内层升序逐格"的顺序）已搬进引擎件 `CloverEngine.StableHash`；
-//   本文件只保留**本项目语义**（`CharOf`：一格画什么字符 —— S/E/C/N/M 与 '~' 水）。
+//   地形 + 尺寸的哈希本体在引擎件 `CloverEngine.StableHash`（"先混宽高、再按 y 外层升序 /
+//   x 内层升序逐格"的遍历顺序在那里）；本文件只保留**本项目语义**
+//   （`CharOf`：一格画什么字符 —— S/E/C/N/M 与 '~' 水）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Text;
@@ -66,7 +67,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 可走性字符画：`y` 从大到小逐行输出（地图「北」在顶部），行首带 y 坐标。
-        /// <para>下沉：行首 `D3 + '|'` / 首行图例 / "只输出顶部 maxRows 行"的口径全部在
+        /// <para>排版口径（行首 `D3 + '|'` / 首行图例 / "只输出顶部 maxRows 行"）在
         /// 引擎件 <see cref="StableHash.ToAscii"/>；本方法只给"一格画什么字符"（<see cref="CharOf"/>，
         /// 那才是本项目语义：`S`/`E`/`C`/`N`/`M` 与地形字符）。</para>
         /// </summary>
@@ -83,11 +84,11 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 地形 + 尺寸的 FNV-1a 64 位哈希（同 seed 两次生成必须一致）。
-        /// <para>下沉：哈希常量（`OffsetBasis` / `Prime`）、"先混宽高、再按 y 外层升序 / x 内层升序
+        /// <para>哈希常量（`OffsetBasis` / `Prime`）、"先混宽高、再按 y 外层升序 / x 内层升序
         /// 逐格混入 `byte` 地形码"、"`X16` 大写十六进制"三条口径全在引擎件
         /// <see cref="StableHash.HashGridHex"/>。不自留第二份 —— 常量写错或顺序不一致会让两条日志
         /// "看起来都对、却永远对不上"，且不报错。</para>
-        /// <para>注意：本哈希只混**地形码 + 尺寸**（与旧实现的 `Mix(h, (ulong)map.Width…)` 逐字节等价）；
+        /// <para>注意：本哈希只混**地形码 + 尺寸**；
         /// seed / 出生点等元数据不进哈希（要哈希复合结构请用 <see cref="StableHash.Combine(ulong,ulong)"/>
         /// 自行串联，**顺序即契约**）。</para>
         /// </summary>
@@ -138,7 +139,7 @@ namespace Diablo2.Module.Map
 
             var kind = map.Get(x, y);
             if (kind == TileKind.Void) return ' ';
-            //   "这条是河"还是"这条是石头"。只改显示字符，可走性仍走 `TileKindInfo`（水 = 阻挡）。
+            // 水与石头都不可走，但显示字符不同（'~' vs '#'）；可走性仍走 `TileKindInfo`（水 = 阻挡）。
             if (kind == TileKind.Water) return '~';
             return TileKindInfo.IsWalkable(kind) ? '.' : '#';
         }

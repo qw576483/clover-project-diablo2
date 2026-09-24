@@ -28,7 +28,7 @@ namespace Diablo2.Module.View
         public bool IsGroundItem;
 
         /// <summary>
-        /// <para>`null` / 空 = 这张原版图**在本批素材里拿不到**（或配表缺行）⇒ 该视图退回
+        /// <para>`null` / 空 = 这张原版图**在素材库里拿不到**（或配表缺行）⇒ 该视图退回
         /// **品质色块**（可见的缺失信号，登记在 `client/资源欠缺清单.md`）。
         /// 只对 <see cref="IsGroundItem"/> 为真的视图有值，其余（玩家/怪物/NPC）恒为 null。</para>
         /// </summary>
@@ -44,7 +44,7 @@ namespace Diablo2.Module.View
         public string SpriteCode;
 
         /// <summary>
-        /// 片「武器外观接线」：玩家当前的**装备外观套 key**（`jav` / `buc` / `jav_buc`…）。
+        /// 玩家当前的**装备外观套 key**（`jav` / `buc` / `jav_buc`…）。
         /// <para>`null` / 空 = **徒手**（走 `Chars/{class}/` 那套已验收素材）；非玩家视图恒为 null。</para>
         /// <para>key 的拼法与回退由 `EquipVisual`（纯函数）给；它决定 `SpriteFrames.Keys` 的
         /// 帧目录与帧数来源（`EquipFrameCounts`）⇒ **换 key = 换整套帧键**，不是只换贴图。</para>
@@ -52,7 +52,7 @@ namespace Diablo2.Module.View
         public string EquipKey;
 
         /// <summary>
-        /// 片「武器外观接线」：进图首帧是否已复核过 <see cref="EquipKey"/>（只做一次）。
+        /// 进图首帧是否已复核过 <see cref="EquipKey"/>（只做一次）。
         /// <para>为什么要复核：`CreatePlayer` 与"装备落进 `IItemModule`"是两条独立步骤
         /// （`AppFlow.RunBuildStep(1)` vs `SaveModule` 的读档），顺序若变，`CreatePlayer` 会读到
         /// 空装备 ⇒ 角色一辈子徒手且**不报任何错**。首帧补一次 + `Events.EquipChanged` 驱动，

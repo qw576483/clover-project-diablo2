@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""★ R1-C 判据资产：**创角屏转身过渡逐帧矩形表**的生成器（唯一来源 = 工程内导出 PNG）。
+"""判据资产：**创角屏转身过渡逐帧矩形表**的生成器（唯一来源 = 工程内导出 PNG）。
 
 为什么需要它（不是"顺手写的脚本"）：
   用户在 2026-09-20 报「创建人物时候，点击人物动画变形，很诡异」——
@@ -30,8 +30,8 @@ FLOW = os.path.join(PROJECT, "client", "Assets", "Scripts", "UI", "UiLayoutFlow.
 # 标记要**带缩进**（16 空格 = `Transition` 类成员缩进）：脚本是"就地替换标记之间"的写法，
 #    不带缩进会把标记行前面的 16 个空格一起吃掉。
 IND = " " * 16
-BEGIN = IND + "// >>> R1-C portrait transition frame table (generated) >>>"
-END = IND + "// <<< R1-C portrait transition frame table <<<"
+BEGIN = IND + "// >>> portrait transition frame table (generated) >>>"
+END = IND + "// <<< portrait transition frame table <<<"
 
 # 与 `tools/d2codec/export_d2ui.py` 的 FRONTEND_TRANSITIONS / FRONTEND_CLASSES 同序：
 #   class 目录名 / 序列码 / C# 数组名
@@ -120,7 +120,7 @@ def main():
     i = src.find(BEGIN)
     j = src.find(END)
     if i < 0 or j < 0 or j < i:
-        raise SystemExit("UILayoutFlow.cs 里找不到 R1-C 表的两个标记（先在 Transition 里放好骨架再跑本脚本）")
+        raise SystemExit("UILayoutFlow.cs 里找不到「转身过渡逐帧矩形表」的两个标记（先在 Transition 里放好骨架再跑本脚本）")
     j += len(END)
     new = src[:i] + block.rstrip(nl) + src[j:]
     if new != src:

@@ -2,12 +2,12 @@
 // 物品 tooltip：**名称按品质配色**（白/蓝/金/绿/暗金）+ 属性行 + 需求行 + 词缀行，跟随鼠标。
 //
 // 事实依据：
-//     颜色按品质（白/蓝/金/绿/暗金）」⇒ 颜色常量见 <see cref="ItemQualityColor"/>；
+//   · 名称颜色 = <see cref="ItemQualityColor"/>（白/蓝/金/绿/暗金）；
 //   · 品质枚举 = `Def.ItemQuality`（Normal/Magic/Rare/Set/Unique，`Def/Enums.cs`）；
 //   · 物品 DTO = `Def.ItemStack`（名称/词缀/伤害/防御/需求/耐久/售价**全在里面**，
 //     所以 tooltip **不需要任何模块门面**，UI 层零耦合）；
-//     禁止直连 `UnityEngine.Input`）；屏幕 → Canvas 局部换算 / 贴边翻转 / 显隐 / 复用**已下沉到引擎**
-//     `CloverEngine.PointerFloatLayer`（`CursorOffsetX/Y` = 22 / -18 与定位契约见
+//   · UI 层**禁止直连 `UnityEngine.Input`**；屏幕 → Canvas 局部换算 / 贴边翻转 / 显隐 / 复用由引擎件
+//     `CloverEngine.PointerFloatLayer` 提供（`CursorOffsetX/Y` = 22 / -18 与定位契约见
 //     `clover-client-unity-engine/Runtime/Presentation/PointerFloatLayer.cs`）——
 //     本文件只留 "D2 的物品文本怎么排版 / 怎么配色"（品质色、字模、行数测量）。
 //
@@ -134,7 +134,7 @@ namespace Diablo2.UI
         ///   ① 拥有它的面板还开着（面板 `OnClose` 会 `Destroy`，见 `InventoryPanel.OnClose`）；
         ///   ② 指针在面板矩形**内**（`InventoryPanel.UpdateHover` 的 `RectangleContainsScreenPoint`）；
         ///   ③ 指针下的格/装备槽**有物品**（悬空格 ⇒ 必须 `Hide`）。
-        /// 任一不成立 ⇒ 调用方必须 `Hide()`/`Destroy()` —— 这正是"离开背包后残留一块空框"
+        /// 任一不成立 ⇒ 调用方必须 `Hide()`/`Destroy()`（否则会在面板上留一块空气框）。
         /// </summary>
         internal static bool ShouldBeVisible(bool panelOpen, bool pointerInsidePanel, bool hasItem)
             => panelOpen && pointerInsidePanel && hasItem;
@@ -147,7 +147,7 @@ namespace Diablo2.UI
         /// 容器 / 定位 / 显隐 / 复用**全是引擎件** <see cref="PointerFloatLayer"/> 的事：
         /// 它建出"轴心 = 左上角"的空宿主、自己找画布与换算相机（Overlay ⇒ null）、
         /// 每帧按 `Game.Input.MousePosition` 摆位并做贴边翻转。
-        /// <para>节点名仍是 <c>ItemTooltip</c>：既有实机驱动按名字 Find 它（`.ai-tmp/drivers/uifix*_dump.cs`）。
+        /// <para>节点名仍是 <c>ItemTooltip</c>：既有实机驱动按名字 Find 它。
         /// 画布取不到的降频留痕也由引擎件负责（tag = <c>PointerFloat</c>）。</para>
         /// </remarks>
         public static ItemTooltip Create(Transform parent)
@@ -320,9 +320,8 @@ namespace Diablo2.UI
             return D2Text.CountLines(font, text, chi, availNative, true);
         }
 
-        // w3 审计删除：`CharAdvance(char)` / `IsWide(char)` 两个私有静态方法**已无调用方**
-        //   `D2Text.CountLines` / `MeasureNative`，口径 = 原版 `.tbl` 的 `width` + 原版 `breakLine`，
-        //   见 `UI/D2Text.cs` 文件头）。留着估算式的字宽函数只会让人以为排版还在用它。
+        // 字宽 / 断行一律走 `D2Text.CountLines` / `MeasureNative`（口径 = 原版 `.tbl` 的 `width` +
+        //   原版 `breakLine`，见 `UI/D2Text.cs` 文件头）；本文件不另留估算式的字宽函数。
 
         // ── 文本行（数值全部来自 `Def.ItemStack`，不查表、不硬编码）────────────
         private static List<string> BuildLines(ItemStack item)

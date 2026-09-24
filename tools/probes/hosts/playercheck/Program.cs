@@ -261,6 +261,10 @@ namespace PlayerCheck
         private static int _fail;
         private static int _ok;
 
+        /// <summary>「不适用」项：判据已按设计退役（或输入资产不在仓库里）。
+        /// **不计入**通过/失败 —— 它既不是绿灯也不是缺陷，写清楚是为了让"没判的看起来像没判的"。</summary>
+        private static int _na;
+
         public static int Main()
         {
             Console.WriteLine("================ PlayerCheck：主角/相机/输入 离线自检 ================");
@@ -324,7 +328,7 @@ namespace PlayerCheck
                 () => Step21_GroundItemNames(ctx, map, player, input, bus));
 
             Console.WriteLine();
-            Console.WriteLine($"================ 结束：{_ok} 项通过，{_fail} 项失败 ================");
+            Console.WriteLine($"================ 结束：{_ok} 项通过，{_fail} 项失败，{_na} 项不适用 ================");
             if (_fail != 0) return 1;
             Console.WriteLine();
             Console.WriteLine("未覆盖（需要 Unity 原生 API，留给主 agent 进 Play 后验）：");
@@ -1295,7 +1299,7 @@ namespace PlayerCheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        //       `.ai-tmp/screenshots/d2u3_charstat_evidence_u52run2.txt:99`
+        //       （实机读数第 99 行）
         //       `[D2U3C] DTO name=S2203805 cls=Amazon level=1 … life=50/50 mana=15/15 stamina=**20/84**`
         //     活档（**只读**）：`client/setting/saves/S2203805.json` =
         //       `{version:1, name:S2203805, cls:1, level:1, str:20, dex:25, vit:20, eng:15,
@@ -1392,7 +1396,8 @@ namespace PlayerCheck
         {
             Section("9d. ★ u52block 链路级一跳：真 SaveModule.Load（读盘）→ 真 PlayerModule.LoadFrom（老档耐力 20/84 断链点）");
 
-            // 槽位目录 = `<仓库根>/.ai-tmp/test/playercheck-u52hop/saves`（一次性产物只许放 .ai-tmp/test）
+            // 槽位目录 = 仓库根下**一次性产物目录**里的 `test/playercheck-u52hop/saves`
+            // （一次性产物只许落那里；落点见下面那行 `Path.Combine`）
             var dir = System.IO.Path.Combine(ResolveProjectRoot(), ".ai-tmp", "test", "playercheck-u52hop");
             try { if (System.IO.Directory.Exists(dir)) System.IO.Directory.Delete(dir, true); } catch { }
             var savesDir = System.IO.Path.Combine(dir, "saves");
@@ -1950,7 +1955,7 @@ namespace PlayerCheck
             // ═════════════════════════════════════════════════════════════════
             //   (a) 可见格范围 ⊆ 地图（地图外虚空 = 0）
             //   (b) 玩家（焦点）仍在视口内
-            //   11.10 只断言 (a)、11.11 只断言 (b)，各自都能"绿"；实机（`.ai-tmp/test/report-camverify.md`
+            //   11.10 只断言 (a)、11.11 只断言 (b)，各自都能"绿"；实机读数（
             //     · 血腥荒野 80×80：四边内缩 8 格（cv3 实测 outerGx=[8..71] outerGy=[8..71]，ringFromEdge=8）
             //     · 罗格营地 56×40：实测最外侧可走格 (8,20)(8,31)(55,25)(55,27)(27,17)(27,38)
             //       （桥面 `x=W-1` 与南边界行 `gy=38` 是 map-border2 明确保留的例外）
@@ -3213,20 +3218,20 @@ namespace PlayerCheck
             //  判据形态（team-lead 指定，机械可判）：
             //    **把 dt 序列置换成均匀值后重算位移序列** —— 抖动能被均匀 dt 消掉 ⇒ 抖源在**帧节奏**。
             //
-            //  dt 序列出处（不是自创数据）：`tools/probes/drivers/d2u27_real_dt.txt`
-            //    = 既有**真机** TSV `.ai-tmp/test/cam-jitter-cvkeep.tsv` 的 dt 列（1185 帧，
-            //      抽取，文件头带 n/mean/sd/min/p95/p99/max 与出处。取不到 ⇒ 非预期分支：
-            //      打 Warn 并**跳过本判据**（如实登记为未判，不假装绿）。
+            //  dt 序列出处：`tools/probes/drivers/d2u27_real_dt.txt`（真机逐帧 dt 列 + 文件头带统计）。
+            //  **该路径当前不在仓库里** —— 它随「闸门收敛（只留 3 条要求）+ 退役验收机器」一并移除，
+            //  属**按设计退役**的判据资产 ⇒ g0 登记为「不适用」，不是缺陷、也不去重建该文件。
+            //  量法本身留着：哪天再把一份真机 dt 序列按同一路径登记进仓库，把下面那行 `NotApplicable`
+            //  换回 `Check(...)` 即可恢复本判据（对照逻辑一字未动）。
             //
             //  量的空间 = **格空间**（`CellOf`）：格空间的单帧步长 = `speed×dt`，**与方向无关**
             //     ⇒ 它是"时间轴"的干净坐标；世界空间的步长还夹着 2:1 投影的方向因子（f2 已登记）。
             // ═════════════════════════════════════════════════════════════════
             {
                 var dtReal = LoadRealDtSeq("tools/probes/drivers/d2u27_real_dt.txt");
-                Check("g0 时间轴判据的输入（真机 dt 序列）可用",
-                    dtReal != null && dtReal.Count >= 60,
-                    "取不到 `tools/probes/drivers/d2u27_real_dt.txt`（被清？）⇒ **时间轴判据跳过**；" +
-                    "⛔ 不得据此说「无抖动」，如实登记为未判");
+                NotApplicable("g0 时间轴判据的输入（真机 dt 序列）",
+                    "判据资产 tools/probes/drivers/d2u27_real_dt.txt 已按设计退役（闸门收敛后不再保留）⇒ 本项不适用；" +
+                    "⛔ 不伪造 dt 文件、也不据此说「无抖动」");
 
                 if (dtReal != null && dtReal.Count >= 60)
                 {
@@ -3265,7 +3270,7 @@ namespace PlayerCheck
 
                         Check("g2 ★ **dt 置换成均匀值后抖动必须消失**（抖动可被均匀 dt 消掉 ⇒ 抖源 = 帧节奏，不是位置）",
                             jA > 1e-5f && jB <= 0.2f * jA,
-                            $"相机逐帧格空间步长的抖动 sd（局部均值 ±5 帧，与 `camjitter_who.py` 的 judge() 同口径）：" +
+                            $"相机逐帧格空间步长的抖动 sd（局部均值 ±5 帧，与 既有真机量法的 judge() 同口径）：" +
                             $"真机 dt ⇒ J_A={jA:0.######} 格；均匀 dt(={meanDt:0.######}s) ⇒ J_B={jB:0.######} 格；" +
                             $"J_B/J_A={(jA > 1e-9f ? jB / jA : float.NaN):0.####}（判据线 0.2；" +
                             "解析：步长 = speed×dt ⇒ 抖动 ∝ dt 的偏离，均匀 dt ⇒ 偏离 = 0 ⇒ J_B 只余换向帧噪声）");
@@ -3275,7 +3280,7 @@ namespace PlayerCheck
                             $"J_A={jA:0.######} vs J_B={jB:0.######}（比值 {(jA > 1e-9f ? jB / jA : float.NaN):0.####}）" +
                             " ⇒ 两条曲线在数值上确实不同（不是同一个数被打印两遍）");
 
-                        Check("g3 corr(相机纵向偏差, dt−均值) ≥ 0.7 ⇒ 不匀就是帧时间造成的（与 `camjitter_who.py` C3 同口径）",
+                        Check("g3 corr(相机纵向偏差, dt−均值) ≥ 0.7 ⇒ 不匀就是帧时间造成的（与既有真机量法的 C3 同口径）",
                             corrA >= 0.7f,
                             $"corr={corrA:0.####}（判据线 0.7：解析理想 = 1；既有真机双口径实测 0.729/0.765" +
                             "（有夹制）/ 0.923（无夹制），见 `.ai-tmp/test/report-camverify.md` §3）");
@@ -3704,9 +3709,8 @@ namespace PlayerCheck
             return best;
         }
 
-        //   口径逐条对齐 `tools/probes/drivers/camjitter_who.py`（既有真机量法），
-        //   不引新参数：J = 逐帧步长相对**局部均值**（±win 帧）的纵向偏差 sd；
-        //      corr = corr(纵向偏差, dt)。这两个量在真机 TSV 上就是那支 python 脚本算的同一把尺。
+        //   口径 = 既有真机量法（不引新参数）：J = 逐帧步长相对**局部均值**（±win 帧）的纵向偏差 sd；
+        //      corr = corr(纵向偏差, dt)。这两个量在真机 TSV 上就是同一把尺。
 
         /// <summary>真机逐帧 dt 序列（判据资产，文件头带出处；取不到返回 null，由调用方如实留痕）。</summary>
         private static List<float> LoadRealDtSeq(string path)
@@ -3762,7 +3766,7 @@ namespace PlayerCheck
         private static float Min(List<float> xs) { var m = float.MaxValue; for (var i = 0; i < xs.Count; i++) if (xs[i] < m) m = xs[i]; return m; }
         private static float Max(List<float> xs) { var m = float.MinValue; for (var i = 0; i < xs.Count; i++) if (xs[i] > m) m = xs[i]; return m; }
 
-        /// <summary>百分位（线性插值；与 `camjitter_who.py` 的 `pct()` 同算法）。</summary>
+        /// <summary>百分位（线性插值；与既有真机量法的 `pct()` 同算法）。</summary>
         private static float Pct(List<float> xs, float q)
         {
             if (xs.Count == 0) return float.NaN;
@@ -3777,7 +3781,7 @@ namespace PlayerCheck
         /// <summary>
         /// U27 g2：逐帧步长序列的**抖动 sd**（局部均值 ±<paramref name="win"/> 帧的纵向偏差 sd）。
         /// 序列是**一维标量**（格空间步长 = speed×dt，与方向无关）⇒ 纵向偏差 = 该帧步长 − 局部均值，
-        /// 与 `camjitter_who.py` 的两维版在同一把尺上（直线段上等价）。
+        /// 与既有真机量法的两维版在同一把尺上（直线段上等价）。
         /// </summary>
         private static float JudderSd(List<float> steps, int win)
         {
@@ -3799,7 +3803,7 @@ namespace PlayerCheck
         }
 
         /// <summary>
-        /// U27 g3：`corr(逐帧步长的纵向偏差, dt)` —— 与 `camjitter_who.py` 的 `corr_dt()` 同口径。
+        /// U27 g3：`corr(逐帧步长的纵向偏差, dt)` —— 与既有真机量法的 `corr_dt()` 同口径。
         /// 高相关 ⇒ 不匀就是帧时间造成的（位移 = v·dt ⇒ 理想相关 = 1）。
         /// </summary>
         private static float CorrDt(List<float> steps, List<float> dts, int win)
@@ -3880,7 +3884,7 @@ namespace PlayerCheck
             // 桶键 = **格增量的符号对**（8 个），不用 `Iso.DirectionTo`：
             //   实测（本判据第一版）：`DirectionTo` 判的是**屏幕**朝向 ⇒ 屏幕空间里
             //   `(1,-1)` 与 `(1,0)` 落在同一个 45° 扇区（投影角 0° 与 −26.6°）⇒ 两个不同的
-            //   格方向被并成一桶，桶内 spread 假红 1.581（实测读数见 `.ai-tmp/test/report-u27.md`）。
+            //   格方向被并成一桶，桶内 spread 假红 1.581（实测已复现）。
             //   而 世界/格 比值只取决于**格方向**（`Iso` 是线性映射）⇒ 必须按格方向分桶。
             var byDir = new Dictionary<int, List<float>>();
             var skippedTurn = 0;
@@ -4083,8 +4087,8 @@ namespace PlayerCheck
                 var c = CellOf(rig.Position);
                 var p = CellOf(player.World);
 
-                //   定义与离线量法 `tools/probes/drivers/camjitter_metrics.py` 的 lat_i 逐字一致
-                //   （r·perp(u)，u = 本帧玩家位移方向）⇒ 线上 Play 证据与离线断言同一把尺。
+                //   定义 = 离线量法的 lat_i（r·perp(u)，u = 本帧玩家位移方向）
+                //   ⇒ 线上 Play 证据与离线断言同一把尺。
                 if (latOffsets != null)
                 {
                     var pw = player.World;
@@ -4489,6 +4493,16 @@ namespace PlayerCheck
             if (ok) _ok++;
             else _fail++;
             Console.WriteLine($"    {(ok ? "[ OK ]" : "[FAIL]")} {what}   ({detail})");
+        }
+
+        /// <summary>
+        /// 登记一条**不适用**的判据（判据本身按设计退役 / 输入资产不在仓库里）：
+        /// 不占通过数、也不占失败数，只如实打一行 —— ⛔ 不用它把红项"变绿"。
+        /// </summary>
+        private static void NotApplicable(string what, string detail)
+        {
+            _na++;
+            Console.WriteLine($"    [ NA ] {what}   ({detail})");
         }
 
         /// <summary>单步隔离：任一步炸掉都不能吞掉后面的证据（与 mapcheck 同一做法）。</summary>

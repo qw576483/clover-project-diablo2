@@ -8,22 +8,23 @@
 //   ③ `Shaman`  —— 萨满：**优先复活已死的同伴**（有冷却、要吃尸体），其余时间与 `Range` 同。
 //   ④ `Coward`  —— 低血逃跑（原版堕落者）：血量 ≤ `CowardFleeHpRatio` 就背向玩家逃一段时间。
 //
-//   1. **寻路一律走 `IMapModule.FindPath`**（本文件不实现任何寻路），并做**路径节流**：
+//   1. **寻路一律走 `IMapModule.FindPath`**（本文件不实现任何寻路），并按
+//      `MonsterTuning.RepathIntervalSeconds` 做**重寻路节流**；
 //   2. **仇恨有时效**：一段时间没挨打/没看见玩家就遗忘（`MonsterTuning.AggroMemorySeconds`），
 //      玩家离图/死亡时立刻脱战。遗忘后**回原位**（`Home`），不原地卡住。
 //
 // 所有"没按预期走"的分支都留日志（找不到路 / 目标格非法 / 退无可退 / 未登记的 AI 类型）。
-// 高频分支用 `MonsterLog.WarnThrottled`（**自己想做的无时钟降频**，见该文件头）。
+// 高频分支用 `MonsterLog.WarnThrottled`（无时钟降频，见该文件头）。
 //
-//   1. **推进下沉**：`Advance` / `StepToward` / 路径状态已下沉引擎 `CloverEngine.PathFollower`
-//      （本文件经 `MonsterRuntime` 薄转发调用，**语义一行未改**）。
+//   1. **推进**：`Advance` / `StepToward` / 路径状态在引擎 `CloverEngine.PathFollower`
+//      （本文件经 `MonsterRuntime` 转发调用）。
 //   2. **状态骨架显式化**：每只怪一棵引擎状态机（`CloverEngine.Game.NewFsm()`；引擎全局那份是
 //      应用级流程，不能共用），骨架 = `Idle → Aggro → Chase → Attack → Return / Flee`。
 //      · **归位**：每 tick 由 `PhaseOf` 算一次（`Fsm` 忽略自环 ⇒ 不会重跑 OnEnter/OnExit）；
 //      · **事件点显式转移**：出手成功 ⇒ `Attack`（`TryAttack`）；进入逃跑 ⇒ `Flee`（`Coward`）；
 //        脱战 ⇒ `Return`（`Disengage`）。
 //   **行为与数值的唯一真相仍是本文件那 4 个 AI 函数**（Melee / Range / Shaman / Coward）：
-//      状态回调只做"骨架归位 + 转移留痕"，不许把射程 / 距离 / 冷却等数值搬进状态回调或
+//      状态回调只做"骨架归位 + 转移留痕"，不许把射程 / 距离 / 冷却等数值搬进状态回调或 FSM 定义。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Diablo2.Core;
@@ -183,7 +184,7 @@ namespace Diablo2.Module.Monster
         }
 
         /// <summary>
-        /// **4 种 AI 的行为分发**（自改动前 `Step` 尾部的 `switch` 一字未改地搬来 —— 仍是唯一真相）。
+        /// **4 种 AI 的行为分发**（行为与数值的**唯一真相**）。
         /// </summary>
         private static Action Dispatch(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
         {
@@ -379,11 +380,10 @@ namespace Diablo2.Module.Monster
                 return Action.None;
             }
 
-            //   与 `CombatModule.cs:418-420` 同式）。旧写法用 `GameConst.RangedRange`(8) ⇒ 怪在
-            //   5 < 格距 ≤ 8 时会"反复请求出手 → 每次被结算层以 `> 射程 5.00` 拒绝，又因为
-            //   自己那条不满足靠近条件而**永远不靠近**" ⇒ 站着不动、一枪不发的死区。
-            //   （隔墙/隔水）时，旧写法照常 `TryAttack` ⇒ 每次被结算层拒、又永不移动（站着放空枪）。
-            //   现在"够不着 **或** 看不见"一律走**靠近**那一支（挪到有视线的格子）。
+            //   与 `CombatModule.cs` 同一把尺子）。`RangedAttackDistanceCap` 必须与结算层的射程上限
+            //   同值：否则 5 < 格距 ≤ 8 会成为死区 —— 怪反复请求出手、每次被结算层以 `> 射程 5.00`
+            //   拒绝，又因为不满足靠近条件而**永远不靠近** ⇒ 站着不动、一枪不发。
+            //   "够不着 **或** 看不见"一律走**靠近**那一支（挪到有视线的格子）。
             if (AttackDistance(owner, m) > RangedAttackDistanceCap || !AttackLineClear(owner, m))
             {
                 if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;

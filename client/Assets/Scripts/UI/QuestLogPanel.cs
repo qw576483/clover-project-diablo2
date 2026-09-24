@@ -53,7 +53,7 @@ namespace Diablo2.UI
     /// 遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` → `:443-461` `ShowMask()`，
     /// `raycastTarget = true`），而本屏**一个关闭控件都没有**（全文只有 Act 页签）⇒ 遮罩把 `Normal`（HUD）
     /// 整个盖住 ⇒ **纯鼠标玩家打开任务日志后无任何出口**。原版没有模态遮罩（靠 Q 键 / 小面板按钮开合），
-    /// 故按同一口径**降层**——先例 = `UI/NpcDialogPanel.cs` 的 R1-E。
+    /// 故按同一口径取 `Normal` 层 —— 先例 = `UI/NpcDialogPanel.cs`。
     /// 引擎的 `CloseMutexPanels()` 只关 `Layer == Popup` 的面板 ⇒ 同族互斥改由 HUD 入口显式补
     /// （`UI/HudPanel.cs` 的 `CloseScreenFamily`，注释里有"为什么必须补"）。</para>
     /// </summary>
@@ -246,8 +246,8 @@ namespace Diablo2.UI
         private Text _text;
 
         /// <inheritdoc/>
-        /// <remarks>R8-close：`Popup` → `Normal`（**遮罩消失 ⇒ HUD 的「任務記錄 Q」入口可点 = 同一入口开合**；
-        /// 理由/出处见类头注释与 `UI/NpcDialogPanel.cs` 的 R1-E）。</remarks>
+        /// <remarks>层 = `Normal`（**无遮罩 ⇒ HUD 的「任務記錄 Q」入口可点 = 同一入口开合**；
+        /// 理由/出处见类头注释与 `UI/NpcDialogPanel.cs`）。</remarks>
         public override UILayer Layer => UILayer.Normal;
 
         /// <inheritdoc/>
@@ -375,7 +375,7 @@ namespace Diablo2.UI
         /// <para>
         /// 一个文本框画完整屏文案（**一行一条**）：行距 = 该字号下**原版字模行高**
         /// （`UI/D2Text` 按 `font{N}_chi_map.txt` 的 `advance/行距` 算），左对齐；
-        /// `UpperLeft` + 框顶沿 = 文本起点（上一版是 5 个手填魔数矩形，行距互相打架、还压过字）。
+        /// `UpperLeft` + 框顶沿 = 文本起点。
         /// </para>
         /// </summary>
         private void BuildTextBox()

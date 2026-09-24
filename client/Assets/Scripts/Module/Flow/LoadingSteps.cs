@@ -17,18 +17,18 @@
 //   档 8（第 9 帧）  相机就位 —— 与原版 `Show(0.9f)` 同档
 //   档 9（第 10 帧） **世界就绪**（`StageEntered` / HUD 已开 + 首帧已渲染）—— 与原版 `Show(1.0f)` 同档
 //
-//   ③ 进度不许假：档位**只能**由真实里程碑前移（`AppFlow.AdvanceReal`）；本表不做任何"随时间自增"。
+//   ① 进度不许假：档位**只能**由真实里程碑前移（`AppFlow.AdvanceReal`）；本表不做任何"随时间自增"。
 //      呈现档位 = min（真实档位, 节奏放行的档位, 已呈现档位 + 1）⇒ 门**永不超前**真实进度，只可能滞后。
 //   ② 动画要可见：`FrameCadenceSeconds` = 每档的**最短可见时间**（呈现节奏下限，不是进度来源）。
-//      本工程真实管线只有 ~0.3s，不加下限就是"一帧跳到底"；加上它，门 10 档铺开 ≈ 0.63s
+//      本工程真实管线只有 ~0.3s，不加下限就是"一帧跳到底"；加上它，门 10 档铺开 ≈ 0.63s。
 //
 //   本表**只**提供纯函数（档↔completeness、节奏放行、引擎进度→档），可在离线宿主里逐条断言
-//      （`.ai-tmp/hosts/uicheck` 的 `LoadingCheck.cs`）。
-//
-//      `CloverEngine.LoadingPacing`（`clover-client-unity-engine/Runtime/Presentation/LoadingPacing.cs`）
+//      （`tools/probes/hosts/uicheck` 的 `LoadingCheck.cs`）。
+//   算术本体在引擎件 `CloverEngine.LoadingPacing`
+//      （`clover-client-unity-engine/Runtime/Presentation/LoadingPacing.cs`）
 //      —— 档数 10 / 每档最短可见 0.07s / 各里程碑档号（档 4 = Stage 场景就位 …）**仍是本工程的取值**，
-//      本表只把它们喂给引擎的纯函数（公开成员签名一字未改）。
-//      离线宿主需把 `Runtime/Presentation/LoadingPacing.cs` 一并编入（与本工程其它下沉件同一做法）。
+//      本表只把它们喂给引擎的纯函数。
+//      离线宿主需把 `Runtime/Presentation/LoadingPacing.cs` 一并编入。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -44,9 +44,9 @@ namespace Diablo2.Module.Flow
 
         /// <summary>
         /// 每档的**最短可见时间**（秒）—— **呈现节奏下限**，不是进度来源。
-        /// <para>为什么需要它：本工程真实管线（场景加载 + 世界构建 + 首帧）实测只有 ~0.3s，
-        /// （`CreateAct` 建整个 act）撑到 ~1s 量级，我们按**原版同量级**给每档一个可见下限。
-        /// 10 档铺开 ≈ 0.63s（≥ 任务书要求的「第 1 帧 → 第 10 帧可见时长 ≥ 0.5s」）。</para>
+        /// <para>为什么需要它：本工程真实管线（场景加载 + 世界构建 + 首帧）只有 ~0.3s，
+        /// 不加下限就是"一帧跳到底"；原版 `CreateAct`（建整个 act）在 ~1s 量级，
+        /// 故按**原版同量级**给每档一个可见下限。10 档铺开 ≈ 0.63s。</para>
         /// <para>它**不会**让门提前：呈现档位仍受「真实档位」上限约束（见 `AppFlow.PresentDoor`）。</para>
         /// </summary>
         public const float FrameCadenceSeconds = 0.07f;
@@ -97,7 +97,7 @@ namespace Diablo2.Module.Flow
 
         /// <summary>
         /// 档号 → 交给 `LoadingPanel.SetProgress` 的 completeness（原版语义 [0,1]）。
-        /// <para>算术下沉到引擎件 `CloverEngine.LoadingPacing.CompletenessOf`
+        /// <para>算术在引擎件 `CloverEngine.LoadingPacing.CompletenessOf`
         /// （`clover-client-unity-engine/Runtime/Presentation/LoadingPacing.cs`）—— 本工程只给「档数 = 10」。
         /// 为什么取**区间中点**而不是 `index / (Count-1)`：`FrameIndex` 是 `(int)((Count-1) × c)`，
         /// 用端点值时浮点误差会把档 2（c=0.22222222 ×9 = 1.9999999）算成第 1 档。
@@ -109,7 +109,7 @@ namespace Diablo2.Module.Flow
         /// <summary>
         /// **原版节奏**：读条屏已显示 <paramref name="elapsedSeconds"/> 秒时，最多允许开到第几档。
         /// <para>纯函数（离线可断言）：`elapsed=0 → 0`；每 `FrameCadenceSeconds` 放行一档；上限 = `Count-1`。</para>
-        /// <para>算术下沉到引擎件 `CloverEngine.LoadingPacing.MaxIndexAt`
+        /// <para>算术在引擎件 `CloverEngine.LoadingPacing.MaxIndexAt`
         /// —— 节奏下限 `0.07s/档` 与档数 `10` 仍是**本工程**的参数。</para>
         /// </summary>
         public static int MaxIndexAt(double elapsedSeconds)
@@ -120,7 +120,7 @@ namespace Diablo2.Module.Flow
         /// <para>值域依据：引擎在 `allowSceneActivation = false` 期间回调，`op.progress` 上限 = 0.9
         /// （`Runtime/Presentation/Scene.cs:40` 的 `op.progress >= 0.9f` 门控）
         /// ⇒ 把 [0, 0.9] 线性映射到"门开到一半"（[0, 0.5] = 原版 `Show(0.5f)` 的位置）。</para>
-        /// <para>映射与取档的算术下沉到引擎件
+        /// <para>映射与取档的算术在引擎件
         /// `CloverEngine.LoadingPacing.SceneLoadFrameIndex`（上限 0.9 / 占比 0.5 / `FrameIndex` 都在那里）；
         /// 本工程只给「档数 10 + 档 4 = Stage 场景就位」这两个取值。</para>
         /// </summary>

@@ -309,7 +309,7 @@ namespace Diablo2.Module.Map
         {
             UnsubscribeExplore();
             if (_view != null) _view.Clear();
-            _exploredDirty = true;        // ★ S2：渲染层的已探索位图已清 ⇒ 投影必须跟着作废
+            _exploredDirty = true;        // 渲染层的已探索位图已清 ⇒ 投影必须跟着作废
             _hasLastPlayerGrid = false;   // ★ revive-chunk：退场 ⇒ "上一格"作废（下次进图第一格不算跳变）
             _grid.Clear();
             MapLog.Info("Clear: 地图数据 / 渲染 / 已探索记录全部清空（退出 Stage）");
@@ -351,7 +351,7 @@ namespace Diablo2.Module.Map
             }
             EnsureView();
             _view.ShowArea(area);
-            // S2：`MapView.ShowArea` 在换区（或尺寸不符）时会按新图重建已探索位图
+            // `MapView.ShowArea` 在换区（或尺寸不符）时会按新图重建已探索位图
             //   ⇒ 投影缓存必须作废，否则 `ExploredCells` 会把上一张图的格报给自动地图。
             _exploredDirty = true;
             // revive-chunk：换区后**第一格**不算"大跨度跳变"（那次整图重铺由 travel-black 的落点口径负责）
@@ -371,7 +371,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 标记某格已探索（**非契约方法**；正常情况下由 `Events.PlayerGridChanged` 自动驱动）。
-        /// <para>S2：与自动订阅那条路径**同一口径** —— 只有"首次"才发 `Events.MapExplored`
+        /// <para>与自动订阅那条路径**同一口径** —— 只有"首次"才发 `Events.MapExplored`
         /// 并作废投影缓存（两条入口都不许绕开这个判定，否则"每帧发事件"会从后门回来）。</para>
         /// </summary>
         public void MarkExplored(Vector2Int g)
@@ -426,7 +426,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 自证：本模块持有的 `GridMap`（**非契约方法**，`IMapModule` 上没有）。
-        /// <para>用途 = 离线自检宿主能拿**生产同一份**格数据去复算 `MapView.PlanCell`（T0FIX-H 的
+        /// <para>用途 = 离线自检宿主能拿**生产同一份**格数据去复算 `MapView.PlanCell`（
         /// "逐格判定同源 / 不露空"断言必须跑在真实地图上，而不是宿主自己再生成一张）；业务代码不要用它。</para>
         /// </summary>
         public GridMap Grid { get { return _grid; } }
@@ -511,7 +511,7 @@ namespace Diablo2.Module.Map
                         g = AutoMapCel.Cel((int)_grid.Area, false, gk);
                         //   `AutoMapCel` 的物件表里和石墙（`moor_stonewall/*`）映射到**同一个 Cel 60**
                         //   ⇒ 水格在小地图上看着就是石头，这正是 R12 报的"小地图分不出水与石头"。
-                        //   判据与主视图 R1-B **完全同一条**（`MapView.IsPaletteCycledFlatWallOverlay`）：
+                        //   判据与主视图 **完全同一条**（`MapView.IsPaletteCycledFlatWallOverlay`）：
                         //   它不是墙、是水面，水面已由 floor 层的水 Cel 呈现 ⇒ 物件层在这个 Cel 上**不叠**。
                         //   只影响小地图画不画这一张物件；`TileKind` / 可走性 / 逐格键一个字不动。
                         o = MapView.IsPaletteCycledFlatWallOverlay(gk, ok)
@@ -629,7 +629,7 @@ namespace Diablo2.Module.Map
                 return;
             }
 
-            _exploredDirty = true;      // ★ S2：投影缓存必须跟着作废（否则 `ExploredCells` 少报这批格）
+            _exploredDirty = true;      // 投影缓存必须跟着作废（否则 `ExploredCells` 少报这批格）
             MapLog.Info($"回灌已探索 {cells.Count} 格 ⇒ 新增 {fresh.Count} 格（读档带回的地图记忆，"
                 + $"区域={_grid.Area}，共发 1 条 {Events.MapExplored}）");
 
@@ -639,7 +639,7 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// `Events.PlayerGridChanged` 回调（**同一个方法引用**才能注销，见 `Core/Events.cs` 注释）。
-        /// <para>S2：**这里就是 `Events.MapExplored` 的发方**（`Events.cs` 的常量注释与本行一一对应）：
+        /// <para>**这里就是 `Events.MapExplored` 的发方**（`Events.cs` 的常量注释与本行一一对应）：
         /// 玩家每换一格 ⇒ 若该格是**第一次**被探索，`MapView.MarkExplored` 回 true ⇒ 发一次事件；
         /// 重复走过同一格回 false ⇒ **0 次**发出（不是每帧 / 不是每格无脑发）。</para>
         /// </summary>

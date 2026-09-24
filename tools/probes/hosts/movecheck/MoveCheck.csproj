@@ -106,7 +106,12 @@
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteSwapButton.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\HitShape.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\LoadingPacing.cs" />
-    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Game.cs" />
+    <!-- ⛔ 不链引擎 `Runtime/Core/Game.cs`：它的静态属性是 `{ get; private set; }`（宿主注入不了自己的
+         替身），`Launch` 还会构造 `Logger`/`EventBus`/`Timer`/`Fsm`/`Setting` 实体并 `EngineRunner.Ensure()`
+         （Unity 运行时）。离线宿主的门面必须**可注入** ⇒ `Game` / `GameConfig` 由 `shim/EngineShim.cs`
+         提供（两者同名，只能取其一；shim 那份即签名哨兵）。
+         `Module/Monster/MonsterAi.cs:150` 调的 `Game.NewFsm()` 见下面链入的 `Fsm.cs`。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Fsm.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\StableHash.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\JsonWriter.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\ChunkedTilePlanner.cs" />
@@ -151,6 +156,12 @@
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
       <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `Runtime/Core/PresentationContracts.cs:337` 的 `IAnimationManager.CreateAnimator(GameObject,
+         RuntimeAnimatorController)` 需要该模块（`RuntimeAnimatorController` 定义在 AnimationModule）。 -->
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AnimationModule.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

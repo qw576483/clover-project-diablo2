@@ -5,14 +5,14 @@
 // 数值全部来自配表：
 //   · 速度/射程/半径 ← `missile_c.speed/range/radius`（官方 `Missiles.txt` 的 `Vel/Range/Size`），
 //     经 `SkillTuning` 的**可校准系数**换算成"格/秒、格"；
-//   · 伤害 ← `skill_c.dmg_min/dmg_max`（官方 `Missiles.txt` 的伤害列几乎全是空的，
+//   · 伤害 ← `skill_c.dmg_min/dmg_max`（官方 `Missiles.txt` 的伤害列几乎全空 ⇒ 以 `skill_c` 为准），
 //   · 伤害类型 ← `skill_c.dmg_type`（官方 `EType`）。
 //
 // 本类**只有飞行数学**（无 MonoBehaviour、无 `new GameObject`）⇒ 可被离线自检宿主
 // `tools/combatcheck/` 完整驱动（打印轨迹采样与命中记录）。
 // 表现层是 `ProjectileView`（自绘，见该文件；`IViewModule` 契约里没有投射物入口，且不许改契约）。
 //
-//   全部转发到引擎件 `clover-client-unity-engine/Runtime/Core/ProjectileRuntime.cs`
+//   飞行数学在引擎件 `clover-client-unity-engine/Runtime/Core/ProjectileRuntime.cs`
 //   （`CloverEngine.ProjectileRuntime` + `ProjectileBody`）；本文件只留**表现节点**（`View` / `Renderer`）、
 //   题材字段（技能 / 伤害 / 地形命中记录）与 `ToBody` / `FromBody` 两行装卸。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ namespace Diablo2.Module.Skill
         /// <summary>
         /// 按 <paramref name="dt"/> 推进一步（不判命中——命中判定需要怪物列表，由 `SkillModule` 做）。
         /// <para>
-        /// **已下沉**：积分内核在引擎件 `CloverEngine.ProjectileRuntime`（`ProjectileBody.Step`，
+        /// 积分内核在引擎件 `CloverEngine.ProjectileRuntime`（`ProjectileBody.Step`，
         /// `clover-client-unity-engine/Runtime/Core/ProjectileRuntime.cs`）；本方法只做
         /// 「装状态 → 推进 → 卸状态 → 补轨迹点」。`dt &lt;= 0` / `speed &lt;= 0` 时**不推进也不补轨迹点**。
         /// </para>
@@ -118,13 +118,13 @@ namespace Diablo2.Module.Skill
             Trail.Add(pos);
         }
 
-        /// <summary>该点是否在命中范围内（与怪物身体半径一起放宽）。已下沉：转发引擎件。</summary>
+        /// <summary>该点是否在命中范围内（与怪物身体半径一起放宽）。转发引擎件。</summary>
         public bool Overlaps(Vector2 targetCenter)
         {
             return CloverEngine.ProjectileRuntime.Overlaps(pos, targetCenter, hitRadius);
         }
 
-        /// <summary>格坐标（Floor；用于排序与日志）。已下沉：转发引擎件（不用 `(int)` 强转）。</summary>
+        /// <summary>格坐标（Floor；用于排序与日志）。转发引擎件（不用 `(int)` 强转）。</summary>
         public Vector2Int Grid
         {
             get { return CloverEngine.ProjectileRuntime.GridOf(pos); }
@@ -134,7 +134,7 @@ namespace Diablo2.Module.Skill
         /// 连续格坐标 → 世界坐标。与 `Core/Iso.GridToWorld` 的正投影**同一口径**
         /// （`x=(px-py)*HalfW`、`y=-(px+py+1)*HalfH`），只是允许小数输入：
         /// 当 `pos == (gx+0.5, gy+0.5)` 时结果与 `Iso.GridToWorld(gx,gy)` 完全相同。
-        /// <para>已下沉：几何在 `CloverEngine.ProjectileRuntime.ContinuousGridToWorld`
+        /// <para>几何在 `CloverEngine.ProjectileRuntime.ContinuousGridToWorld`
         /// （`halfW` / `halfH` 由本侧传 `Iso.HalfW` / `Iso.HalfH` —— 半格尺寸是项目口径）。</para>
         /// </summary>
         public static Vector3 WorldOf(Vector2 p)
@@ -143,14 +143,14 @@ namespace Diablo2.Module.Skill
         }
 
         /// <summary>轨迹的可读形式（自证打印）：`(x1.0,y1.0) → (x2.0,y2.0) …`（最多取前 <paramref name="max"/> 个点）。
-        /// 已下沉：格式化在 `CloverEngine.ProjectileRuntime.FormatTrail`（输出文本逐字一致）。</summary>
+        /// 格式化在 `CloverEngine.ProjectileRuntime.FormatTrail`。</summary>
         public string TrailText(int max = 8)
         {
             return CloverEngine.ProjectileRuntime.FormatTrail(Trail, max);
         }
 
         /// <summary>
-        /// **公开字段 → 引擎件状态**（薄转发用；`SkillModule.TickProjectiles` 也用它取 `ProjectileBody`
+        /// **公开字段 → 引擎件状态**（`SkillModule.TickProjectiles` 也用它取 `ProjectileBody`
         /// 喂给 `ProjectileRuntime.Advance`）。别在别处再写一份字段清单：
         /// </summary>
         internal CloverEngine.ProjectileBody ToBody()

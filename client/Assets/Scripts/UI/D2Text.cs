@@ -823,7 +823,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 强制整条走 **chi（原版中文）字模**，即使文案全是 ASCII。
-        /// <para> 为什么需要这个开关（根因，2026 品牌署名轮实测）：
+        /// <para> 为什么需要这个开关（实测）：
         /// **原版拉丁字模 `font{16,24,30,42}.png` 是不分大小写的** —— 码位 97..122（a..z）的格子里
         /// 放的是**缩小号的同形大写**（实测 `font24_98`＝小号 B、`font24_121`＝小号 Y，
         /// 且 g/p/q/y 一律**没有降部**：底边与基线齐平）。于是 `by clover-engine` 经拉丁字模画出来
@@ -1050,8 +1050,8 @@ namespace Diablo2.UI
                 scale = BitmapFont.BestFitScale(need, scale, size.x, minScale);
             }
 
-            // 框宽（画布单位）→ 换行可用宽度（px）：原件口径 `Mathf.Max(1, Mathf.RoundToInt(size.x / scale))`，
-            // 已下沉到引擎件 `BitmapFont.WrapWidthPx`（框宽 ≤ 0 ⇒ 0 ⇒ 下方 WrapLines 不换行）。
+            // 框宽（画布单位）→ 换行可用宽度（px）：口径 `Mathf.Max(1, Mathf.RoundToInt(size.x / scale))`，
+            // 由引擎件 `BitmapFont.WrapWidthPx` 提供（框宽 ≤ 0 ⇒ 0 ⇒ 下方 WrapLines 不换行）。
             var availPx = _wrap ? BitmapFont.WrapWidthPx(size.x, scale) : 0;
             var lines = D2Text.WrapLines(_font, _text, chi, availPx, _wrap);
             _lineCount = lines.Count;
@@ -1320,7 +1320,7 @@ namespace Diablo2.UI
             if (all == null || all.Length == 0)
                 return false;
 
-            // 子 sprite 名 = `{图集**文件名**}_{序号}`（`font42_67`），**不含路径**（实测，见回报）。
+            // 子 sprite 名 = `{图集**文件名**}_{序号}`（`font42_67`），**不含路径**（实测）。
             var prefix = D2Text.AtlasPath(font);
             prefix = prefix.Substring(prefix.LastIndexOf('/') + 1) + "_";
             var taken = 0;

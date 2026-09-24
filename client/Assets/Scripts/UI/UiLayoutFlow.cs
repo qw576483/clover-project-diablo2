@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// **2026 主 agent 裁决：换算从 ×2.4 改为 ×1.8 + 水平居中**
+// **换算口径 = ×1.8 + 水平居中**
 //
 // 唯一职责：**流程面板（启动 / 主菜单 / 选角 / 创角 / 设置 / 读条 / 暂停）的布局常量表**。
 // 全部数值来自原版暗黑2 的 Unity prefab（社区复刻工程 `mofr/Diablerie`）里**真实的
@@ -12,18 +12,19 @@
 //   · 中等按钮    `Prefabs/Menu/MediumButton.prefab`    → 128×35
 //   · 场景        `Scenes/MainMenu.unity`               → 仅用于确认基准 = 800×600
 //
-//   ① **主菜单项回归原版 4 项**（删 `CONTINUE` / `SETTINGS`；设置 → ESC 暂停菜单的 `OPTIONS`）；
-//   ② **创角屏的 5 个职业改成原版半身像**（源 `data/global/ui/FrontEnd/{cls}/{CLS}{NU1,NU2,NU3}.DC6`，
+//   ① **主菜单项 = 原版 4 项**（`SINGLE PLAYER` / `MULTIPLAYER` / `CINEMATICS` / `EXIT`；
+//      设置 → ESC 暂停菜单的 `OPTIONS`）；
+//   ② **创角屏的 5 个职业用原版半身像**（源 `data/global/ui/FrontEnd/{cls}/{CLS}{NU1,NU2,NU3}.DC6`，
 //      三态 = 默认/悬停/选中；几何推导见 `ClassMenu.PortraitState` 的注释），
-//      并**删掉**「属性点分配 / 剩余点数 / 生命法力耐力预览」三项（原版创角没有）；
-//   ③ **选角屏删掉**自加的「存档角色 N 个（一屏最多 7 个）」说明行 —— 那一行改回原版
+//      面板上**没有**「属性点分配 / 剩余点数 / 生命法力耐力预览」三项（原版创角没有）；
+//   ③ **选角屏没有**自加的「存档角色 N 个（一屏最多 7 个）」说明行 —— 那一行取原版
 //      `ClassDescription` 的语义（显示高亮角色的**职业说明**，文案出处见 `ClassText`）。
 //
 // 换算口径（**逐元素，不"看着差不多"**）：
 //   原版基准 = **4:3（800×600）**；本工程画布 = **16:9（1920×1080）**（引擎 `UIFactory`/`UIManager`
 //   固定 `referenceResolution`，见 `Runtime/Presentation/UI.cs:52-56`）。
-//   旧口径用**宽度比** 1920/800 = **2.4** 等比缩放 —— 600×2.4 = **1440 > 1080**，纵向必然溢出。
-//   正确口径（**按高度等比 + 水平居中**）：
+//   不用**宽度比** 1920/800 = **2.4** 等比缩放 —— 600×2.4 = **1440 > 1080**，纵向必然溢出。
+//   本工程口径 = **按高度等比 + 水平居中**：
 //      `Scale = 1080/600 = 1.8`
 //      · 水平：原版 `x ∈ [0,800]` → 屏幕 `960 + (x − 400) × 1.8`。本表所有 x 都写成
 //        「相对屏幕中线的原版偏移 × 1.8」⇒ 乘出来天然水平居中（原版 ±400 → ±720，画布 ±960 之内，
@@ -58,7 +59,7 @@ namespace Diablo2.UI
     /// </summary>
     internal sealed class FlowLayoutEntry
     {
-        /// <summary>原版节点路径（prefab 名 / 节点名），回报与日志里的"依据节点名"就是它。</summary>
+        /// <summary>原版节点路径（prefab 名 / 节点名），日志里的"依据节点名"就是它。</summary>
         public readonly string Node;
 
         /// <summary>本工程的用途（哪一块 UI 元素）。</summary>
@@ -107,7 +108,7 @@ namespace Diablo2.UI
             get { return (Size - UiLayoutFlow.Px(OrigSize)).sqrMagnitude < 1e-6f; }
         }
 
-        /// <summary>`[布局] 节点 原版(…) → 本工程(…)`（回报要贴的那张对照表的原始行）。</summary>
+        /// <summary>`[布局] 节点 原版(…) → 本工程(…)`（对照表的原始行格式）。</summary>
         public string Line
         {
             get
@@ -141,7 +142,7 @@ namespace Diablo2.UI
         public const float RefHeight = 1080f;
 
         /// <summary>
-        /// 缩放系数 = 1080/600 = **1.8**（**按高度等比**；主 agent 2026 裁决）。
+        /// 缩放系数 = 1080/600 = **1.8**（**按高度等比**）。
         /// <para>**不再用宽度比 2.4**：800×2.4 = 1920 ✓ 但 600×2.4 = **1440 ≠ 1080**
         /// （原版是 4:3，本工程参考画布是 16:9）⇒ HUD 控制面板底边会被放大到出屏 51px。
         /// 按高度 1.8 后：原版 600 ×1.8 = **1080**（纵向正好铺满），原版 800 ×1.8 = 1440（横向居中、
@@ -157,8 +158,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 选角 / 创角 的**屏适配系数** = **1.0**（同样纯 ×1.8）。
-        /// <para>旧口径这里是 0.75 = 1080/1440 —— 那是为了把「×2.4 后 1440 高的原版整屏」压进 1080。
-        /// 改按高度 ×1.8 后原版整屏正好 1080 高，**不需要再压**：选角屏标题（原版 +267 → 480.6）、
+        /// <para>系数 1.0 的依据：按高度 ×1.8 后原版整屏正好 1080 高，**不需要再压**：选角屏标题（原版 +267 → 480.6）、
         /// 底部按钮（原版 −250 → −450）都在 ±540 内（见 <see cref="BoundsOf"/> 的离线断言）。</para>
         /// </summary>
         public const float FitClass = 1f;
@@ -233,8 +233,8 @@ namespace Diablo2.UI
         /// `Assets/Resources/Fonts/Diablo_light.TTF`（guid `eca957d2…`），
         /// 用 `PIL.ImageFont.truetype(该 TTF, 18)` 渲染 `SINGLE PLAYER` 实测**字面 143×13 原版px**（推进 145）；
         /// 本工程 font16 同串实测**字面 114×11**（推进 115）⇒ 按 1.125 放大后 **128×12.4**（字高差 0.6px）。
-        /// **残留（登记，不修）**：推进宽度 129.4 vs 145（−11%）—— 那是**字面差异**
-        /// （原版位图字模 vs Diablerie 用的 TTF 替代字体），**不许改字距**：推进宽度来自原版 `.tbl`
+        /// **已知差异（登记，不修）**：推进宽度 129.4 vs 145（−11%）—— 字面差异
+        /// （原版位图字模 vs Diablerie 用的 TTF 替代字体）。**不许改字距**：推进宽度来自原版 `.tbl`。
         /// </para>
         /// <para>
         /// **只用在按钮上**：`WideButton.prefab` / `MediumButton.prefab` 是**唯一**声明了 `m_FontSize`
@@ -249,12 +249,12 @@ namespace Diablo2.UI
         /// <para>**废掉**了这里原先照抄的 `#191919`
         /// （原值出处 = 参考工程 `Prefabs/Menu/WideButton.prefab` 的 `Text.m_Color = 0.098,0.098,0.098`）。
         /// 那个前提是"**浅灰**石牌"，而本工程实际用的原版按钮底图是**深板岩灰**：
-        /// `Menu/btn_med_normal.png` 内区实测 mean sRGB **0.376**（量法 `tools/probes/measure/btn_plate_luma.py`）
+        /// `Menu/btn_med_normal.png` 内区实测 mean sRGB **0.376**（量法：内区逐像素取均值）
         /// ⇒ `#191919` 只有 **2.79:1**（WCAG 2.1 AA 正文门槛 4.5:1），13px 中文密笔画直接糊成一块黑
-        /// （实机 before 图 `.ai-tmp/screenshots/uifix4_z_before_btn1.png`）；现值 **4.70:1** ✓。</para>
-        /// <para>不再两套字色：本常量直接派生自 <see cref="UiArt.ButtonText"/>
+        /// 现值 **4.70:1** ✓。</para>
+        /// <para>只有一套字色：本常量直接派生自 <see cref="UiArt.ButtonText"/>
         /// （"面板按钮"那条渲染路径 `UiArt.Button/SquareButton/OrigButton` 用的就是它）——
-        /// 之前两条路径各写一个数、只差一个量级，正是本次缺陷的温床。</para>
+        /// 两处同源，不各写一个数。</para>
         /// </summary>
         public static readonly Color ButtonText = UiArt.ButtonText;
 
@@ -266,10 +266,8 @@ namespace Diablo2.UI
         public static readonly Color ButtonTextDisabled
             = new Color(UiArt.ButtonText.r, UiArt.ButtonText.g, UiArt.ButtonText.b, 0.45f);
 
-        //   · `ArtDim`（"未选中压暗一档"）的唯一用处是旧的 `FlowButton.SetSelected`（职业按钮选中态的近似）
-        //     ⇒ 已被原版三态 `NU1/NU2/NU3` 取代；
-        //   · `ArtFullBright` 的用处同样只剩上面那一条。
-        //   两者在 `UiArt` 里的**本体保留不动**：`UiArt.ArtFullBright` 是**在用**的
+        //   · `ArtDim`（"未选中压暗一档"）无调用方（职业按钮选中态用原版三态 `NU1/NU2/NU3`）；
+        //   · `ArtFullBright` 在 `UiArt` 里的**本体保留不动**（它在用）。
 
         // ═════════════════════════════════════════════════════════════════════
         // 2. 主菜单（依据 `Prefabs/Menu/MainMenu.prefab`）
@@ -293,7 +291,7 @@ namespace Diablo2.UI
             /// `MultiPlayerButton` 中心 原版 (0,-62.5) → ×1.8 = **(0,-112.5)**。
             /// <para>**槽位坐标保留，按钮不再建** —— 用户原话「菜单中，中间那两个既然
             /// 没开发，就不要那个按钮了」⇒ `MainMenuPanel` 只建 `SINGLE PLAYER` / `EXIT`。
-            /// 本常量**不许删**：① `uicheck` 的「主菜单 4 个原版槽位」断言（Program.cs:1523-1528）
+            /// 本常量**不许删**：① `uicheck` 的「主菜单 4 个原版槽位」断言（按断言文案检索，不写行号）
             /// 就引用 `Menu.MultiPos`/`Menu.CinematicsPos`，删了宿主编译不过；
             /// ② 它是这条登记的**依据本身**（对照表里那一行还在）。</para>
             /// </summary>
@@ -301,9 +299,8 @@ namespace Diablo2.UI
 
             /// <summary>
             /// `CinematicsButton` 中心 原版 (0,-107.5) → ×1.8 = **(0,-193.5)**。
-            /// <para>本槽位上一版被占用来放「设置」（当时主菜单多一个 SETTINGS 项）——
-            /// **原版这一槽是 `CINEMATICS`**，已改回。字段名从 `SettingsPos` 改成 `CinematicsPos`
-            /// （旧名会让后来的人以为这槽是"设置"）。</para>
+            /// <para>**原版这一槽是 `CINEMATICS`**；字段名取 `CinematicsPos`（不叫 `SettingsPos`
+            /// —— 本槽位不是"设置"）。</para>
             /// <para>**槽位坐标保留，按钮不再建**（同 <see cref="MultiPos"/> 的理由）——
             /// 原版 4 段 CG 是 Bink `.bik`，本项目播不了，点它只能弹 Toast，用户点名删掉入口。</para>
             /// </summary>
@@ -320,12 +317,12 @@ namespace Diablo2.UI
         }
 
         // ═════════════════════════════════════════════════════════════════════
+        // 品牌署名 `by clover-engine` —— 判据 = **实机截图里可读**（不是 grep 源码）
         // ═════════════════════════════════════════════════════════════════════
-        //    `by clover-engine`，判据 = **实机截图里可读**（不是 grep 源码）。
-        //  · 启动屏其实**早就有**这一行（`BootPanel.cs` 的 `ByLine`），但 1080p 实机图
-        //    `Screenshots/p29_r2_01_boot.png` 里几乎看不见 —— 旧口径是 font16 档（29 画布px）+ 色
-        //    字号 → font24 档（43 画布px）、色 → (0.78,0.76,0.72)、框高 20→30 原版px（×1.8 = 54）。
-        //    并且**与启动屏共用下面这套常量**（同一张 1920×1080 画布：x=0 居中、y=-462）
+        //  启动屏（`BootPanel.cs` 的 `ByLine`）与暂停屏共用下面这套常量
+        //  （同一张 1920×1080 画布：x=0 居中、y=-462）：
+        //    字号 = font24 档（43 画布px）、色 = (0.78,0.76,0.72)、行框高 = 30 原版px（×1.8 = 54）；
+        //    判据 = 实机图 `Screenshots/p29_r2_01_boot.png` 里可读。
         //  · 位置口径（自 2026 起就是"底部最下一行"）：中心 y=-462 ⇒ 底边 -462-27 = **-489**
         //    （画布底 -540 ⇒ 留白 51 ≥ 18），顶边 -435 低于版权行底边 -336 / 版本行底边 -385.5
         //    ⇒ 与它们**都不重叠**（由 `uicheck` 的两两不重叠断言逐条核）。
@@ -349,7 +346,7 @@ namespace Diablo2.UI
 
             /// <summary>
             /// 署名行的原版口径尺寸 500×30：行框高 **30 原版px** = font24 档字面 + 上下留白
-            /// （旧口径 20 是配 font16 档的；字号提到 24 档后行框同步放大，避免文字顶到框外）。
+            /// （行框 30 是为 font24 档留出上下留白，避免文字顶到框外）。
             /// </summary>
             public static readonly Vector2 ByLineOrigSize = new Vector2(500f, 30f);
 
@@ -436,7 +433,7 @@ namespace Diablo2.UI
             /// <summary>热点矩形 100×210 → ×1.8 = **180×378**（Druid）。</summary>
             public static readonly Vector2 SpotSizeTall = new Vector2(180f, 378f);
 
-            //   素材就在 `data/global/ui/FrontEnd/{cls}/{CLS}{NU1,NU2,NU3}.DC6`（主 agent 亲手 dir 到），
+            //   素材 = `data/global/ui/FrontEnd/{cls}/{CLS}{NU1,NU2,NU3}.DC6`，
             /// <summary>
             /// 一个职业半身像**某一态**的几何：原版 px 的矩形中心/帧尺寸 + ×1.8 的画布值。
             /// <para>
@@ -614,11 +611,11 @@ namespace Diablo2.UI
             }
 
             // ═════════════════════════════════════════════════════════════════════
-            // R1-C · 转身过渡（原版 `{CLS}FW` / `{CLS}BW`）的**逐帧矩形**
+            // 转身过渡（原版 `{CLS}FW` / `{CLS}BW`）的**逐帧矩形**
             // ═════════════════════════════════════════════════════════════════════
             //
-            //   **全塞进"帧 0 那张画框"**（`CharCreatePanel.ShowTransitionFrame` 当时只换 sprite、
-            //   不动矩形）。而导出 PNG 的 IHDR 实测（可复跑，见生成器）：
+            //   每帧按**该帧的原生尺寸**摆（不是全塞进"帧 0 那张画框" —— 那会把 215×228 的帧压进
+            //   118×198）。导出 PNG 的 IHDR 实测（可复跑，见生成器）：
             //     Amazon  FW：`fw_0` = **118×198** → `fw_21` = **215×228** → `fw_53` = **121×234**
             //     Barbarian FW：`fw_0` = **86×183** → `fw_20` = **147×204** → `fw_63` = **95×201**
             //   ⇒ 215×228 的帧被压进 118×198 的画框 = **横向压掉 45%**、纵向再拉 13%
@@ -662,8 +659,8 @@ namespace Diablo2.UI
                 };
 
                 // 标记区（由 tools/probes/gen_portrait_frame_table.py 重写；别手改下面的数字）
-                // >>> R1-C portrait transition frame table (generated) >>>
-                // **本节由 `tools/probes/gen_portrait_frame_table.py` 生成，不许手改**：
+                // >>> portrait transition frame table (generated) >>>
+                // ⚠️ **本节由 `tools/probes/gen_portrait_frame_table.py` 生成，不许手改**：
                 //   数值 = 工程内导出 PNG（`D2/UI/FrontEnd/{cls}/{code}_{i}.png`）的 IHDR 实测宽高。
                 //   复算 = `python tools/probes/gen_portrait_frame_table.py`；
                 //   复核 = `uicheck`「每一过渡帧的原生宽高比 == 该帧矩形宽高比」那条断言（逐帧回读 PNG）。
@@ -717,7 +714,7 @@ namespace Diablo2.UI
                     90,178, 88,179, 90,179, 89,180, 85,181, 84,182,
                     85,183,
                 };
-                // <<< R1-C portrait transition frame table <<<
+                // <<< portrait transition frame table <<<
 
                 /// <summary>该槽位有没有过渡素材（= 尺寸表非空）。</summary>
                 public static bool Has(int slot) { return SizesOf(slot, ResPaths.Portrait.TransitionFront) != null; }
@@ -907,8 +904,8 @@ namespace Diablo2.UI
 
             /// <summary>
             /// 角色行高（画布单位）= 原版中等按钮高 **35** ×1.8 = **63**。
-            /// <para> 本片从 `CharSelectPanel.Rebuild` 里**搬进来**的唯一来源：
-            /// （数值相同，但"行高"这只在 UI 侧算、进不了对照表 ⇒ 拿不到离线断言的覆盖）。</para>
+            /// <para>`CharSelectPanel.Rebuild` 与 <see cref="UiLayoutFlow.Table"/> 的角色行登记都取它
+            /// （两处同源，不各算一套）。</para>
             /// </summary>
             public static readonly float RowH = Px(MediumButtonOrig.y);
 
@@ -924,8 +921,8 @@ namespace Diablo2.UI
             /// <para>推导（与原版节奏一致，逐项给出处）：首行**顶边 = 容器顶边内侧**
             /// ⇒ `首行中心 = (容器高 − 行高)/2`；行步进 = <see cref="UiLayoutFlow.RowStep"/>
             /// （= 原版 35 + spacing 10 = 45 原版px ×1.8 = 81）。</para>
-            /// <para> 本片把这条公式**收进常量表**：`CharSelectPanel` 与对照表（<see cref="UiLayoutFlow.Table"/>）
-            /// 的**角色行登记**都调它 ⇒ 面板画在哪、表里断言的就是哪，不可能各算一套（两张表漂移）。</para>
+            /// <para>`CharSelectPanel` 与对照表（<see cref="UiLayoutFlow.Table"/>）的**角色行登记**
+            /// 都调它 ⇒ 面板画在哪、表里断言的就是哪，不会各算一套。</para>
             /// </summary>
             public static float RowY(int row) => (ListSize.y - RowH) * 0.5f - row * RowStep;
 
@@ -955,7 +952,7 @@ namespace Diablo2.UI
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 5b. w5 新增：**原版 `MENU/boxpieces.DC6` 拼装窗框**的量法（选项 / 暂停底板）
+        // 5b. **原版 `MENU/boxpieces.DC6` 拼装窗框**的量法（选项 / 暂停底板）
         // ═════════════════════════════════════════════════════════════════════
         //    原版那套窗框素材（22 帧 14×15）一直躺在磁盘上却零引用，缺的只是「22 帧怎么摆」。
         //    DC6 本机不在（`原版资源/` 被 .gitignore 排除 ⇒ 帧 offset 表拿不到），
@@ -1048,7 +1045,7 @@ namespace Diablo2.UI
         public static class Pause
         {
             /// <summary>
-            /// w5：暂停菜单底板（原版 `boxpieces` 拼装窗框，**288×180 原版px**）。
+            /// 暂停菜单底板（原版 `boxpieces` 拼装窗框，**288×180 原版px**）。
             /// <para>推导（无裸魔数）：底板外沿 = **4 个菜单按钮**的外接框 + 窗框厚度，再吸附 12 网格：
             ///   按钮 = 原版 `WideButton` 272×35、行节奏 45（原版 35+10）⇒
             ///   外接框 x ±136、y **−170..0**（170 高）⇒ + 2×4 = 280×178
@@ -1149,7 +1146,7 @@ namespace Diablo2.UI
         }
 
         // 选项面板：原版无 prefab ⇒ 用一个本项目新增的框 + 原版行节奏 45。
-        //   w5：框**不再是纯色块** —— 底图换成原版 `boxpieces` 拼装的窗框
+        //   框 = 原版 `boxpieces` 拼装的窗框（不是纯色块）
         //     （`ResPaths.PanelBoxFrameSettings`），框的尺寸改为**从本屏元素的外接框派生**。
         public static class Settings
         {
@@ -1162,9 +1159,8 @@ namespace Diablo2.UI
             /// <item>y 上 = <c>TitlePos.y + TitleSize.y/2</c> = 110 + 15 = **+125**。</item>
             /// </list>
             /// ⇒ 420×335（中心 (−10,−42.5)）。
-            /// <para> w5 修掉一处**既有缺陷**：旧框是 420×335 中心 (0,−42.5) ⇒ 左沿 −210 而
-            /// 标签左沿 −220 ⇒ 标签**一直探出框外 10px**（离线断言没覆盖"框要包住子元素"这一条）。
-            /// 现在框由内容外接框派生 ⇒ 必然包住全部子元素。</para>
+            /// <para>中心取 (−10,−42.5) 而不是 (0,−42.5)：后者的左沿 −210 在标签左沿 −220 之内
+            /// ⇒ 标签会**探出框外 10px**。框由内容外接框派生 ⇒ 必然包住全部子元素。</para>
             /// </summary>
             public static readonly Vector2 ContentSizeOrig = new Vector2(420f, 335f);
 
@@ -1199,8 +1195,8 @@ namespace Diablo2.UI
             /// <summary>
             /// 第 4 行（画质 / 质量等级）y：原版 -75 → ×1.8 = **-135**。
             /// <para>推导：行节奏 = 原版 35（按钮高）+ 10（间距）= 45 ⇒ 第 4 行 = 第 3 行 -30 - 45 = -75。</para>
-            /// <para> 本行**原先是第 5 行**（原版 -120 = -216 画布px）——它上面那一行是「方向键移动开关」，
-            /// 原版没有该开关 ⇒ 那一行已删除（验收表 U-1），故画质行上移接在第 3 行之后，面板不留空行。</para>
+            /// <para>本行紧接第 3 行之后，面板不留空行 —— 原版没有「方向键移动开关」那一行（U-1），
+            /// 故不占位。</para>
             /// </summary>
             public const float Row4Y = -135f;
 
@@ -1229,8 +1225,8 @@ namespace Diablo2.UI
             public static readonly Vector2 BarSize = new Vector2(432f, 10.8f);
 
             /// <summary>开关按钮（全屏 / 画质」等开关行）中心 原版 60 → ×1.8 = **108**（用原版中等按钮）。
-            /// 原版 D2 只有**鼠标点地面移动** ⇒ 本工程**没有**方向键移动开关（该行连同它读的设置项
-            /// 已按验收表 U-1 删除）；此处只服务「全屏 / 画质」两行。</summary>
+            /// 原版 D2 只有**鼠标点地面移动** ⇒ 本工程**没有**方向键移动开关（该行连同它读的设置项，
+            /// U-1）；此处只服务「全屏 / 画质」两行。</summary>
             public static readonly Vector2 TogglePos = new Vector2(108f, 0f);
 
             /// <summary>「关闭」按钮 原版 (0,-170) → ×1.8 = **(0,-306)**（用原版中等按钮）。</summary>
@@ -1291,14 +1287,14 @@ namespace Diablo2.UI
 
             /// <summary>
             /// **选角屏专属**元素（适配系数 <see cref="FitClass"/>）。
-            /// <para> 本片新开这个组的原因：`Panel.Class` 是**选角 + 创角两屏共用**的一组，
+            /// <para> 另开这个组的原因：`Panel.Class` 是**选角 + 创角两屏共用**的一组，
             /// 而两屏的专属元素**从不同时出现在画面上**（例：创角屏的 5 个半身像 vs 选角屏的角色行）
             /// ⇒ 把它们放在同一组里做"两两不重叠"，**跨屏的那些元件对是毫无意义的比较**
             /// （既可能误报重叠、也会让真正同屏的重叠被淹没）。</para>
             /// <para>本组只收**选角屏有、创角屏没有**的元件（角色列表容器 + 角色行）。
             /// 两屏**共用**的骨架（标题 / 说明行 / 底部两钮 / 整屏贴图）与**创角屏专属**元件
-            /// （半身像 / 热点 / 名字行）仍在 <see cref="Class"/> 组 —— 一次性重切两屏归属会动到
-            /// 既有断言的字面量与计数，超出本片范围（已在回报的「未决」里点名）。</para>
+            /// （半身像 / 热点 / 名字行）仍在 <see cref="Class"/> 组 —— 重切两屏归属会动到
+            /// 既有断言的字面量与计数。</para>
             /// </summary>
             public const string CharSelect = "CharSelect";
 
@@ -1343,7 +1339,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 某屏所有元素的**包围盒**（Canvas 单位，**未乘**适配系数）——离线断言
-        /// 「乘适配系数后全部落在 1920×1080 参考画布内」用，也便于回报里贴范围。
+        /// 「乘适配系数后全部落在 1920×1080 参考画布内」用。
         /// </summary>
         public static Rect BoundsOf(string panel)
         {
@@ -1401,7 +1397,7 @@ namespace Diablo2.UI
             Add(Panel.Menu, "MainMenu/GameMenu/Buttons/ExitButton",
                 "退出游戏", new Vector2(0f, -152.5f), WideButtonOrig, Menu.ExitPos, WideButton, true);
             //   登记进本表 = 画布断言/重叠断言**真的会检查它**（规范：定义了但没人检查 = 必然漏）——
-            //   2026 启动屏那次漏登记的教训（署名行压在版权行上 48px 且没人发现）就在 `Brand` 的注释里。
+            //   署名行与版权行的间距判据在 `Brand` 的注释里。
             Add(Panel.Menu, "(新增署名行)", "by clover-engine 署名（主菜单居底居中）",
                 Brand.ByLineOrigPos, Brand.ByLineOrigSize,
                 Brand.ByLinePos, Brand.ByLineSize, false);
@@ -1458,7 +1454,7 @@ namespace Diablo2.UI
                 "NAME: 标签", new Vector2(-330f, 198f), new Vector2(140f, 35f),
                 New.NameLabelPos, New.NameLabelSize, false);
             //   `(新增属性行) 四维加减行`、`(新增预览行) 生命/法力/耐力预览`。
-            //   难度选择也**不在**本表里：原版控件坐标拿不出出处（见回报的 BLOCKED）。
+            //   难度选择也**不在**本表里：原版控件坐标拿不出出处。
 
             //   这些元件**只有选角屏有**（创角屏不建角色列表）⇒ 放进 `Class` 组会和创角屏的半身像/
             //   名字框做**毫无意义的跨屏重叠比较**。见 `Panel.CharSelect` 的注释。
@@ -1527,7 +1523,7 @@ namespace Diablo2.UI
             Add(Panel.Confirm, "(新增确认框·确认)", "确认框·确认（原版中等按钮 128×35，屏右）",
                 new Vector2(72f, -67.5f), MediumButtonOrig, Confirm.ConfirmPos, MediumButton, false);
 
-            // w5：选项底板由"420×335 纯色块"改为**原版 boxpieces 拼装窗框**。
+            // 选项底板 = **原版 boxpieces 拼装窗框**（不是 420×335 纯色块）。
             Add(Panel.Settings, "(原版 MENU/boxpieces.DC6 拼装窗框)", "选项面板底板（窗框）",
                 new Vector2(-10f, -42.5f), new Vector2(432f, 348f),
                 Settings.BoxPos, Settings.BoxSize, false);
@@ -1809,8 +1805,8 @@ namespace Diablo2.UI
             /// <param name="labelColor">
             /// 覆盖**常态文字色**（null = 用 <see cref="ButtonText"/>，即原版 `WideButton.prefab` 的 #191919）。
             /// <para> 加这个口子的原因（**量化过，不是口味**）：
-            /// 原版按钮**底图本身是深板岩灰**（`Menu/btn_med_normal.png` 内区实测平均 sRGB 亮度 **0.376**，
-            /// 量法 = `tools/probes/measure/btn_plate_luma.py`）⇒ #191919 压在它上面的对比度只有
+            /// 原版按钮**底图本身是深板岩灰**（`Menu/btn_med_normal.png` 内区逐像素取均值的平均 sRGB
+            /// 亮度 **0.376**）⇒ #191919 压在它上面的对比度只有
             /// **2.79:1**（WCAG 2.1 AA 正文要求 ≥ 4.5:1）——拉丁细笔画还能认，**13px 的中文密笔画就糊成一块黑**。
             /// 所以：中文按钮（如传送点目的地）由调用方传一个**既有可读色常量**；拉丁按钮保持原版 #191919 不变
             /// （不动 `ButtonText` 本身 —— 它被 `uicheck` 的「按钮文字色 = #191919」那条断言钉着）。</para>
@@ -1934,9 +1930,9 @@ namespace Diablo2.UI
         /// <summary>
         /// 原版整屏贴图（800×600）**按高度等比 ×1.8 = 1440×1080、水平居中**，后面垫一层铺满画布的纯色底。
         /// <para>
-        /// 主 agent 2026 裁决：「缩放系数 = 1080/600 = 1.8（按高度等比）；水平居中，左右多出的空间交给相机
-        /// （视野更宽，**不是把 UI 拉伸**）」⇒ 4:3 的原版整屏贴图**不许横向拉伸到 16:9**
-        /// 现按 1.8 定尺居中：宽 800×1.8 = **1440**（左右各留 240 画布单位），高 600×1.8 = **1080**（正好铺满）。
+        /// 「缩放系数 = 1080/600 = 1.8（按高度等比）；水平居中，左右多出的空间交给相机
+        /// （视野更宽，**不是把 UI 拉伸**）」⇒ 4:3 的原版整屏贴图**不许横向拉伸到 16:9**：
+        /// 宽 800×1.8 = **1440**（左右各留 240 画布单位），高 600×1.8 = **1080**（正好铺满）。
         /// 左右两条留白由 <paramref name="fallback"/> 纯色底承担（不是黑边噪声，是原版暗色底）。
         /// </para>
         /// <para>贴图到位后由 `UiArt.SetSprite` 套**原版亮度（白）**，绝不提亮/压暗。</para>

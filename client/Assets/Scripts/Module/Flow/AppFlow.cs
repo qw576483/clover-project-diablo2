@@ -111,7 +111,7 @@ namespace Diablo2.Module.Flow
         /// <summary>汇总报告间隔（每这么多次重复打一条 Warn；不是静默，是"记一次 + 汇总"）。</summary>
         private const int DupExitReportEvery = 1000;
 
-        /// <summary>T0FIX-D：最近一次存档的结果（`Events.SaveDone` 的参数）。</summary>
+        /// <summary>最近一次存档的结果（`Events.SaveDone` 的参数）。</summary>
         private bool _lastSaveOk;
 
         /// <summary>
@@ -120,13 +120,13 @@ namespace Diablo2.Module.Flow
         /// </summary>
         private readonly HashSet<string> _loadFailureNotified = new HashSet<string>();
 
-        /// <summary>T0FIX-D：本次会话已消费的存档事件次数（可观测账目）。</summary>
+        /// <summary>本次会话已消费的存档事件次数（可观测账目）。</summary>
         private int _savesObserved;
 
-        /// <summary>T0FIX-D：最近一次存档是否成功（`Events.SaveDone` 的消费者账目；自证/诊断用）。</summary>
+        /// <summary>最近一次存档是否成功（`Events.SaveDone` 的消费者账目；自证/诊断用）。</summary>
         public bool LastSaveOk { get { return _lastSaveOk; } }
 
-        /// <summary>T0FIX-D：已消费的存档事件次数（自证用）。</summary>
+        /// <summary>已消费的存档事件次数（自证用）。</summary>
         public int SavesObserved { get { return _savesObserved; } }
 
         /// <summary>
@@ -174,7 +174,7 @@ namespace Diablo2.Module.Flow
         /// <summary>
         /// load 可注入的墙钟（单调秒，`double`；与 `Core/Log.Clock` 同口径）。
         /// <para>默认 `null` = 用 `DateTime.UtcNow`。**刻意不用 Unity 的 `Time`**：那是原生 ECall，
-        /// 在非 Unity 进程（`.ai-tmp/hosts/*check` 离线宿主）里会抛 `SecurityException`
+        /// 在非 Unity 进程（`tools/probes/hosts/*check` 离线宿主）里会抛 `SecurityException`
         /// ⇒ 本文件与看门狗一样只走 BCL 时钟，离线宿主可注入假时钟让读条节奏**完全可复现**。</para>
         /// </summary>
         public static Func<double> Clock { get; set; }
@@ -994,7 +994,7 @@ namespace Diablo2.Module.Flow
         }
 
         /// <summary>
-        /// T0FIX-C：ESC 一律走**别名** `GameKeyAlias.KeyPause`（键位的单一来源），
+        /// ESC 一律走**别名** `GameKeyAlias.KeyPause`（键位的单一来源），
         /// 不再直连 `GameKey.Escape` —— 直连会让"改键位只改一处"失效（D11 的零消费别名）。
         /// 值不变（两者都是 `GameKey.Escape`）⇒ 行为逐字不变。
         /// </summary>
@@ -1250,7 +1250,7 @@ namespace Diablo2.Module.Flow
         }
 
         /// <summary>
-        /// T0FIX-D：`Events.SaveDone`（参数 = 是否成功）的**唯一消费者**。
+        /// `Events.SaveDone`（参数 = 是否成功）的**唯一消费者**。
         /// <para>为什么这样处置（而不是删事件）：`Events.SaveDone` 在 `Core/Events.cs:316` 已有明确的
         /// 参数语义（bool 是否成功），而 `Core/` 是冻结层（删它要改 Core）⇒ 按验收表**规则 7**
         /// 「定义了但没人用」的本意，补上**生产者**（`SaveModule.Save/Save(CharacterSave)` 的
@@ -1276,7 +1276,7 @@ namespace Diablo2.Module.Flow
         }
 
         /// <summary>
-        /// <para>**缺陷**（穷举审计片 `audit-C` 红行 R7，用户没报过）：`SaveModule.Load()` 的"档不存在"与
+        /// <para>**既有缺陷**（未报过）：`SaveModule.Load()` 的"档不存在"与
         /// "解析失败"**都返回 null**，而 `LastError` 的唯一消费者是**保存**失败分支
         /// ⇒ 玩家的读档失败**没有任何用户可见反馈**（损坏档在选角屏表现为"角色凭空消失"）。</para>
         /// </summary>
@@ -1294,7 +1294,7 @@ namespace Diablo2.Module.Flow
             var reason = save.LastError;
             if (string.IsNullOrEmpty(reason))
             {
-                // 档不存在 = **正常情形**（新玩家 / 空槽）⇒ 不报错、不弹提示（R7 情况 ①）
+                // 档不存在 = **正常情形**（新玩家 / 空槽）⇒ 不报错、不弹提示
                 Log.Info(FlowLog.Tag, $"收到 {Events.LoadDone}(null)：LastError 为空 ⇒ 判定为「档不存在」（正常），不提示");
                 return;
             }
@@ -1303,7 +1303,7 @@ namespace Diablo2.Module.Flow
         }
 
         /// <summary>
-        /// R7：读档失败的**用户可见反馈**（复用项目既有的 `UI/D2ConfirmPanel`：原版窗框 + 原版中等按钮）。
+        /// 读档失败的**用户可见反馈**（复用项目既有的 `UI/D2ConfirmPanel`：原版窗框 + 原版中等按钮）。
         /// <para>**不新造面板 / 不换皮**（`D2ConfirmPanel` 的文件头已论证过"引擎 `Game.UI.Confirm` 是引擎默认 uGUI，
         /// 与本项目的原版石雕按钮同屏两种风格"）。</para>
         /// <para>**不在此处替玩家删档** —— 损坏文件原样保留（引擎 `FileSlotStore` 另有 `.corrupt` 留档），
@@ -1337,12 +1337,11 @@ namespace Diablo2.Module.Flow
         }
 
         /// <summary>
-        /// R7：把 <see cref="ISaveModule.LastError"/> 压成能放进 `D2ConfirmPanel` 正文框的一句玩家话。
-        /// <para>为什么必须有这一步（**实机图给的教训**，不是想当然）：提示框正文框只有
+        /// 把 <see cref="ISaveModule.LastError"/> 压成能放进 `D2ConfirmPanel` 正文框的一句玩家话。
+        /// <para>为什么必须有这一步：提示框正文框只有
         /// **272×90 原版px**（`UiLayoutFlow.Confirm.MessageSizeOrig`）＝约 17 个汉字/行 × 2 行；
-        /// 第一版直接把 `LastError`（含引擎判定 + `.corrupt` 副本路径，80+ 字）塞进去，
-        /// 实机图 `.ai-tmp/screenshots/q3_corrupt_dialog.png` 上文字**冲出框外**。
-        /// 修法：框里只放一句话，**完整技术细节留在 `[Save]` 的 Error 行**（排障入口不变）。</para>
+        /// 直接塞 `LastError`（含引擎判定 + `.corrupt` 副本路径，80+ 字）会让文字**冲出框外**。
+        /// 口径：框里只放一句话，**完整技术细节留在 `[Save]` 的 Error 行**（排障入口不变）。</para>
         /// </summary>
         private static string ShortReason(string reason)
         {
@@ -1389,7 +1388,7 @@ namespace Diablo2.Module.Flow
             if (to == cur)
             {
                 // 不静默（不是把铃声拆掉）：第一次把数据异常完整说清；之后按 1000 次汇总，
-                //   防日志风暴 —— 实测 `.ai-tmp/test` 记的 12 分钟 39069 条就是这一行刷出来的。
+                //   防日志风暴 —— 实测 12 分钟刷出 39069 条就是这一行造成的。
                 if (_dupExitFrom != (int)cur || _dupExitTo != (int)to)
                 {
                     _dupExitFrom = (int)cur;

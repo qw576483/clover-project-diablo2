@@ -14,7 +14,7 @@
 //      **左上角与锚点格左上角重合**（2×4 的盔甲就跨 2 列 4 行）。见 `ItemIconRect`。
 //      格网本身 = 原版底图实测 pitch（29.2 / 29.25 原版px → ×1.8 = 52.56 / 52.65），
 //      与原版 `InventoryPanel.prefab` 的 10×4 一致（`GameConst.InventoryCols/Rows`）。
-//   ⑥ **w4：装备槽底图不再被拉变形**（用户报「装备格被拉变形」）。
+//   ⑥ **装备槽底图不被拉变形**（整幅贴图 1:1 摆，不塞进节点矩形）。
 //      （`inv_armor.png` 64×128 里不透明内容只占 54×81）⇒ 横竖压缩比不同（84.4% vs 64.8%）；
 //      双槽拼图（`inv_helm_glove` / `inv_ring_amulet`）按"半宽"裁又会带出隔壁槽的图案。
 //      现口径 = **裁剪框（素材外接框 ×K）+ 整幅贴图（IHDR ×K，1:1 不缩放）**，
@@ -45,7 +45,7 @@ using UnityEngine.UI;
 namespace Diablo2.UI
 {
     /// <summary>
-    /// 一次拖拽**落点判定**的结论（U4；由 <see cref="InventoryPanel.PlanDrop"/> 产出，纯函数、离线可断言）。
+    /// 一次拖拽**落点判定**的结论（由 <see cref="InventoryPanel.PlanDrop"/> 产出，纯函数、离线可断言）。
     /// </summary>
     internal enum DropKind
     {
@@ -152,7 +152,7 @@ namespace Diablo2.UI
         /// 10 个装备槽（**中心** = `InventoryPanel.prefab` 的节点实测值 → ×1.8 居中；节点名见注释）。
         /// 戒指两枚分别取 `rrin` / `lrin` 两个原版节点。
         /// <para>
-        /// w4：绘制几何（裁剪框 / 整幅贴图尺寸与偏移）**另有一张素材实测表**
+        /// 绘制几何（裁剪框 / 整幅贴图尺寸与偏移）**另有一张素材实测表**
         /// <see cref="UiLayoutGame.InvEquipArt"/>（逐像素列投影求出的本槽图形外接框）。
         /// 为什么必须分开：prefab 节点值 = **社区复刻工程**量的框（与素材实测相差 0～2 原版px），
         /// 而"贴图该怎么摆才不被拉变形/不带出隔壁槽的图案"只能由**素材自己**回答。
@@ -325,19 +325,19 @@ namespace Diablo2.UI
         private Image _ghost;
 
         /// <summary>
-        /// U4：拖拽时**目标格高亮**（原版手感 = 拖影跟随鼠标 + 目标格高亮；见 `DragAndDrop` 注释）。
+        /// 拖拽时**目标格高亮**（原版手感 = 拖影跟随鼠标 + 目标格高亮；见 `DragAndDrop` 注释）。
         /// <c>null</c> / 未拖拽时不显示。
         /// </summary>
         private Image _dropHighlight;
         private int _dragAnchor = -1;
 
         /// <summary>
-        /// （拖影取件/跟随指针 · 屏幕点 → 格坐标 · 目标格高亮回调 · 落点判定 + 可否放注入）。
+        /// 拖拽落点反馈：拖影取件 / 跟随指针 · 屏幕点 → 格坐标 · 目标格高亮回调 · 落点判定 + 可否放注入。
         /// <para>
-        /// **D2 语义全部留在本面板**，一个字都没下沉：
+        /// **D2 语义全部在本面板**：
         ///   · 「哪些格可放」= <see cref="CanPlaceInInventory"/>（本面板注入）；
         ///   · 「高亮怎么画」= <see cref="OnDropTargetChanged"/>（本面板回调里画 `DropHighlight`）；
-        ///   · 「落点该怎么处理（装备槽 / 背包内移动 / 丢地面）」= <see cref="PlanDrop"/>（未改一字）。
+        ///   · 「落点该怎么处理（装备槽 / 背包内移动 / 丢地面）」= <see cref="PlanDrop"/>。
         /// </para>
         /// <para>屏幕点换算（含"按画布模式取相机"）走引擎 `ScreenPointUtil`，本文件不再自写一份。</para>
         /// </summary>
@@ -512,7 +512,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 装备槽底图 = **裁剪框（素材外接框 ×K）+ 整幅贴图（IHDR ×K，1:1 不缩放）**。
         /// <para>
-        /// 为什么必须这样（w4 修「装备格被拉变形」）：
+        /// 为什么必须这样：
         ///   ① 原版 `inv_*.png` **四周有透明边**（`inv_armor.png` 64×128 里内容只占 54×81）；
         ///   ② 双槽拼图（`inv_helm_glove` 128×64 / `inv_ring_amulet` 64×32）的两个图形
         ///      **不在半宽处切开**（实测在 x 54/55 与 x 23/24 两列空列处分开）——
@@ -548,7 +548,7 @@ namespace Diablo2.UI
         /// 「甚至连他妈的关闭都没有」在本格上是字面正确）。</para>
         /// <para>用什么补（**取件结果 + 为什么不自画 + 为什么不套方钮族**）：
         /// ① 原版那张「X」图形（Diablerie `InventoryPanel.prefab` 的 `CloseButton.m_Sprite` guid
-        ///    `bd016b557dbd0934bbc9b79319d50729`，**32×31**）**不在盘**：片 `popupaudit` 按名 10 条 MISS；
+        ///    `bd016b557dbd0934bbc9b79319d50729`，**32×31**）**不在盘**：按名检索 10 条全 MISS；
         ///    （4 条对照项命中 ⇒ 链路可信）；DC6 全集按**图形内容**扫 448 个文件、647 个落在 20..54px
         ///    尺寸带的帧，X 相似度最高只有 0.481（物品图标 `inv1x1.DC6`）⇒ **全集内没有任何 X 形帧**。
         /// ② ⇒ 走「不自画 + 只用原版素材」：**按钮底图不另贴**（本槽的按钮位就是原版底图自己画好的
@@ -709,7 +709,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 物品 → 装备槽。`Def.ItemStack` 只有大类（武器/防具/杂项）与格数，没有细分类字段
-        /// ⇒ 这里用**格数**按原版口径推定（1×1 杂项不占槽）。缺字段记在回报「未接线」。
+        /// ⇒ 这里用**格数**按原版口径推定（1×1 杂项不占槽）。
         /// </summary>
         private static ItemSlot SlotOf(ItemStack item)
         {
@@ -742,7 +742,7 @@ namespace Diablo2.UI
             //   `IDragHandler` 实现在 **面板根**（`InventoryPanel` 组件挂在根节点）上，格子只是
             //   子 `Image`（`Cell{N}`）⇒ `pointerPress` **恒 = 面板根**，而
             //   `IndexOfCell(面板根)` 恒为 -1 ⇒ 左键装备 / 拖拽**永远进不去**（`OnBeginDrag`
-            //   打的是「从非背包格开始拖拽」那条 Info）。诊断见 `.ai-tmp/test/report-U4.md`。
+            //   打的是「从非背包格开始拖拽」那条 Info）。
             //   改为与 `UpdateHover` / `CellAt` 完全同一套**屏幕点矩形命中**（同一真源，
             //   离线宿主可逐格断言）⇒ 不再依赖 uGUI 的 `pointerPress` 语义。
             var screen = eventData.position;
@@ -785,7 +785,7 @@ namespace Diablo2.UI
             var cell = CellAt(eventData.position);
             if (cell < 0)
             {
-                // 只支持从背包格拖起（装备槽/腰带拖拽需要模块侧的移动接口，见回报「未接线」）
+                // 只支持从背包格拖起（装备槽/腰带拖拽需要模块侧的移动接口，未接线）
                 UiLog.Info($"从非背包格开始拖拽（屏幕点 {eventData.position}）⇒ 本次拖拽不生效"
                            + "（装备槽拖拽需要 `IItemModule` 的移动接口，未接线）");
                 return;
@@ -800,18 +800,15 @@ namespace Diablo2.UI
 
             _dragAnchor = anchor;
             var item = _data != null && anchor < _data.inventory.Count ? _data.inventory[anchor]?.item : null;
-            //   ui-fix3 修（实机「拖出后残灰块 / 拖影没图标」的 UI 侧那一半）：
-            //      （普通品质 = 纯白实心块，深色地皮上就是一块刺眼"灰白块"），图标到了才变成物品图
-            //      ⇒ 实机每一拖都先闪一块纯色。现在**一路保持本拖影既定的 0.65 半透明**
-            //      （该值 = 本文件 `_ghost` 建立时的既有常量，未新增数值），图标到位前后都
-            //      是"半透明物品副本"，不再有实心色块帧。
-            //   ② 「拖出面板后残留在地皮上的那块灰矩形」**不在本面板**：节点级取证
-            //      （`tools/probes/drivers/uifix3_dump.cs`，`.ai-tmp/test/uifix3_inv_dump.txt` /
-            //      play-log 23:08 会话）证明拖出后 `DragGhost`/`DropHighlight`/`ItemTooltip`
-            //      都已 `SetActive(false)`；那块灰 = 地面物品视图的**品质色占位四边形**
-            //      （`Module/View/ViewModule.CreateGroundItem` 只建了带品质色的占位节点、
-            //      没贴原版物品图，白色品质 × 场景光照 ≈ RGB(187,187,187)）—— 归 Module 片修，
-            //      本文件（UI 层）无残留节点（`uicheck` 新增断言见 `tools/probes/hosts/uicheck`）。
+            //   拖影用 `_ghost`：图标到位前 `sprite = null` ⇒ Image 只是**品质色半透明块**
+            //      （普通品质 = 纯白实心块，深色地皮上就是一块刺眼"灰白块"）⇒ 本文件一路保持
+            //      本拖影既定的 **0.65 半透明**（该值 = `_ghost` 建立时的既有常量），图标到位前后
+            //      都是"半透明物品副本"，不出现实心色块帧。
+            //   地面物品视图那块**品质色占位四边形**不在本文件负责范围内
+            //      （`Module/View/ViewModule.CreateGroundItem` 只建带品质色的占位节点、没贴原版物品图，
+            //      白色品质 × 场景光照 ≈ RGB(187,187,187)）；本文件（UI 层）拖出面板后
+            //      `DragGhost` / `DropHighlight` / `ItemTooltip` 都已 `SetActive(false)`
+            //      （节点级断言见 `uicheck` 宿主，按"拖影 / 隐藏"相关判据名检索）。
             var ghostTint = item != null ? D2Icon.QualityTint(item.quality) : Color.white;
             _ghost.color = new Color(ghostTint.r, ghostTint.g, ghostTint.b, 0.65f);
             _ghost.sprite = null;
@@ -887,8 +884,8 @@ namespace Diablo2.UI
             var mouse = Game.Input != null ? Game.Input.MousePosition : Vector3.zero;
             var screen = new Vector2(mouse.x, mouse.y);
 
-            // U4：落点判定收进**纯函数** `PlanDrop`（离线宿主可逐行断言"按下→移动→松手"
-            //   这一序列的判定结果；见 `tools/probes/hosts/uicheck`）。
+            // 落点判定收进**纯函数** `PlanDrop`（离线宿主可逐行断言"按下→移动→松手"
+            //   这一序列的判定结果；见 `uicheck` 宿主，按"落点 / Drop"相关判据名检索）。
             var plan = PlanDrop(_data, anchor, CellAt(screen), EquipAt(screen), InsidePanel(screen));
 
             switch (plan.kind)
@@ -920,7 +917,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// **落点判定**（U4）：纯函数，判"按下 → 移动 → 松手"里的**落点**该做什么。
+        /// **落点判定**：纯函数，判"按下 → 移动 → 松手"里的**落点**该做什么。
         /// 判据口径（与原版一致）：装备槽 → 装备；背包格 → 背包内移动/交换（被占用则与该物品的锚点格互换）；
         /// 面板外 → 丢地面；面板内空白 → 忽略。
         /// <para>抽成静态纯函数的理由：拖拽的手感只能进 Play 看，但"落点判对没有"必须**离线可断言**
@@ -964,8 +961,8 @@ namespace Diablo2.UI
 
             if (Game.Input == null || !Game.Input.Available)
             {
-                // 非预期分支（旧写法在这里**直接 return、不 Hide**）：输入不可用 ⇒ **指针位置不可知**，
-                //   按"指针不在面板内"处理 ⇒ 必须隐 —— 否则 tooltip 停在上一帧的位置不动，就是用户报的
+                // 非预期分支：输入不可用 ⇒ **指针位置不可知** ⇒ 按"指针不在面板内"处理 ⇒ 必须隐
+                //   —— 否则 tooltip 停在上一帧的位置不动。
                 if (!ItemTooltip.ShouldBeVisible(panelOpen, false, false)) _tooltip.Hide();
                 UiLog.WarnOnce("tooltip.hover.noinput",
                     "悬停判定时 `Game.Input` 不可用（未挂载 / 未就绪）⇒ tooltip 强制隐藏（指针位置不可知）");
@@ -1014,9 +1011,8 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 屏幕点命中的装备槽下标（未命中 = -1）。
-        /// <para>与 <see cref="CellAt"/> 同一套屏幕点矩形命中 —— 取代原先
-        /// 「比 `eventData.pointerPress` 是不是某个格节点」的做法（那个做法恒不命中，见
-        /// <see cref="OnPointerClick"/> 的根因注释）。</para>
+        /// <para>与 <see cref="CellAt"/> 同一套屏幕点矩形命中（比 `eventData.pointerPress` 是不是
+        /// 某个格节点的那种做法恒不命中）。</para>
         /// </summary>
         private int EquipAt(Vector2 screen)
         {

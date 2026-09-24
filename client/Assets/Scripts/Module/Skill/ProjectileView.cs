@@ -33,13 +33,12 @@ namespace Diablo2.Module.Skill
         private static Sprite _placeholder;
         private static bool _createFailedLogged;
 
-        // 为什么需要：`Projectile.WorldOf` 的 z **恒 0**（`Projectile.cs:141-144`；那是**逻辑层**的
-        //   返回值语义，按裁决不许改）⇒ 同 `gx+gy` 的两个投射物「主键（`EntitySortOrder`）相等
-        // 口径：给投射物一个**纯函数**第三键（沿用 `ViewModule.SortTieZ` 的「档底 + id × 步长」形状），
+        // 为什么需要：`Projectile.WorldOf` 的 z **恒 0**（那是**逻辑层**的返回值语义，不许改）
+        //   ⇒ 同 `gx+gy` 的两个投射物「主键（`EntitySortOrder`）相等」时无键可分 ⇒ 给投射物一个
+        //   **纯函数**第三键（沿用 `ViewModule.SortTieZ` 的「档底 + id × 步长」形状），
         //   不动 `Module/View/**`、不改 `Projectile.cs` 的返回值语义。
         // 取值带 = (0, 0.9]：实体档 `ViewModule.SortTieZ` 恒 ≥ 1.0001 ⇒ **投射物与实体的先后关系不变**
-        //   （仍画在实体之前），只把「投射物之间」这条**无键带**补上 —— 要改"投射物 vs 实体"的遮挡
-        //   关系是**表现类**，留给台账「待 Unity 窗口」总表 **W7**（看同格 / 相邻格两态各一图）。
+        //   （仍画在实体之前），只把「投射物之间」这条**无键带**补上。
         private const float SortZBase = 0.0001f;      // 档底：⛔ 不许为 0（z == 0 正是"无第三键"）
         private const int SortZModulo = 9000;         // 档内取模 ⇒ 上界 1e-4 + 8999×1e-4 = 0.9 < 1
 
@@ -48,9 +47,8 @@ namespace Diablo2.Module.Skill
         /// 本项目**只借它的 <see cref="SortingLayers.TiebreakOffset(int)"/>**：取模基数换成
         /// 投射物档的 <see cref="SortZModulo"/>，步长沿用引擎默认 `DefaultTiebreakStep`（= 1e-4，
         /// 与实体档 <c>ViewModule.SortTieZ</c> **同量级**：正交相机下距离差 ~1e-4 可分辨）。
-        /// <para>原先项目侧那段 `n = id % Mod; if (n &lt; 0) n += Mod; return n * step;`
-        /// 与引擎件 <c>TiebreakOffset</c> 的实现**逐字同源**（含负值折回）⇒ 本工程不再保留第二份，
-        /// 值**逐位不变**（数值等价证据：`.ai-tmp/test/d2view-sortkey/`）。</para>
+        /// <para>本工程只借引擎件 <c>TiebreakOffset</c> 的取模折回（含负值折回），
+        /// 不保留第二份实现（两处结果逐位相同）。</para>
         /// <para><c>fieldHeightTiles</c> 是引擎构造必填项、本处用不到（深度序是等距格口径，
         /// 见 `ViewModule.EntitySortOrder`）⇒ 填有出处的 `GameConst.MapMaxSize`。</para>
         /// </summary>

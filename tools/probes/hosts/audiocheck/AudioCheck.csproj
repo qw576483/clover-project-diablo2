@@ -86,6 +86,8 @@
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\Sound.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <!-- 引擎清单解析（`ResourceManifest` 等）用 `MiniJson`，它定义在 `Runtime/Core/Json.cs` ⇒ 一起链 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProjectileRuntime.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />

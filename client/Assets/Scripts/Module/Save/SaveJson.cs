@@ -2,13 +2,13 @@
 // Diablo2 · Module/Save/SaveJson.cs   **本项目新增**（不是引擎能力，也不是打表产物）
 //
 // 作用：把 `Def.CharacterSave` 与 JSON 字符串**双向**转换 —— 产出的文本落进引擎文件槽位
-//   （`<SettingDir>/saves/<角色名>.json`，写盘见 `SaveModule.Store`；A6 之前的旧键 `char/{角色名}`
+//   （`<SettingDir>/saves/<角色名>.json`，写盘见 `SaveModule.Store`；更早版本的旧键 `char/{角色名}`
 //   见 `GameConst.SaveKeyPrefix`、现仅用于懒迁移；创建先后索引见 `GameConst.SaveIndexKey`）。
 //
 // 为什么不用 `UnityEngine.JsonUtility`（契约注释里提到过它）：
 //   ① **离线不可验证**：`JsonUtility` 是 Unity 原生内部调用（`UnityEngine.JSONSerializeModule`），
 //      在 `tools/itemcheck/` 这种 .NET 宿主里没有 Unity 运行时 ⇒ 存档这条链路根本跑不起来；
-//      而"存档往返一致"是本任务的硬验收项，必须能离线断言。
+//      而"存档往返一致"是存档链路的硬验收项，必须能离线断言。
 //   ② **null 语义不确定**：`CharacterSave.inventory`（40 格，多数 `item == null`）与 `belt`（4 格带 null）
 //      依赖"null 元素能否原样往返"。JsonUtility 对列表里的 null 对象引用行为不明确（可能写成 `{}`），
 //      一旦丢 null 就会变成"空背包里冒出 40 个空物品"这类静默错。

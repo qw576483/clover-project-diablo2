@@ -4,7 +4,7 @@
 // **代码搭 UI 小工具**：铺满根节点 / 原版贴图背景 / 原版底图按钮 / 文本 / 输入框。
 //
 // 为什么需要它（而不是每个面板各写一份）：
-//   7 个面板都要「铺满父层 + 加载原版贴图 + 造按钮」；各写一份必然出现
+//   7 个面板都要「铺满父层 + 加载原版贴图 + 造按钮」，各写一份必然出现口径分叉；
 //   本文件只封装**引擎 `UIFactory` 之上的项目约定**（配色 / 字号 / 贴图加载兜底 / 原版亮度），
 //   锚点/铺满一律转发 `UIFactory`，**不自己再写一套锚点工具**。
 //   本文件在 UI 层，只允许引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def`，
@@ -25,12 +25,12 @@
 //       而整条 `Game.Res.LoadAll<Sprite>("D2/UI/Menu/button_wide")` = 3 个名字正确的子 sprite。
 //       ⇒ 逐帧按名为主、**整条 LoadAll 兜底**（`SpriteStripLoader` 的主路），与 `UI/D2Text.cs` 的字模加载同一套做法。
 //
-//   ① 异步贴图 + 请求序号守卫 + 占位保留 + 同路径去重 + unlit 材质校验 → `UiImageLoader`
+//   ① 异步贴图 + 请求序号守卫 + 占位保留 + 同路径去重 + unlit 材质校验 → 引擎件 `UiImageLoader`
 //      （`SetSprite` / `SetArtTint` / `EnsureUnlit` / `IsLitShader` 四个方法体转调）；
 //   ② sprite-swap 四态落地（`transition= SpriteSwap` + `SpriteState` 填充 + 缺态回落常态 + 色调 +
-//      `preserveAspect` + unlit）→ `SpriteSwapButton.Apply`（`Apply` / `ApplyButtonFrames` / `LoadOrig` 三条落点）；
-//   ③ 多帧条带取帧（整条 `LoadAll` 主路 + 逐帧按名兜底 + 就绪回调 + 同路径去重 + 缺帧留痕）
-//   未收敛的三处是**刻意如此**，不是遗漏：
+//      `preserveAspect` + unlit）→ 引擎件 `SpriteSwapButton.Apply`（`Apply` / `ApplyButtonFrames` / `LoadOrig` 三条落点）；
+//   ③ 多帧条带取帧（整条 `LoadAll` 主路 + 逐帧按名兜底 + 就绪回调 + 同路径去重 + 缺帧留痕）→ 引擎件 `SpriteStripLoader`。
+//   留在项目侧的三处是**刻意如此**，不是遗漏：
 //     · `ButtonSpritesFor` / `ButtonStripFor` / 全部尺寸·配色·字号常量 = **项目素材数据与项目约定**，
 //       引擎件按设计不含任何素材路径 / 配色（见 `SpriteSwapButton` 文件头「零项目取值」）；
 //     · 按钮骨架仍走 `UIFactory.CreateButton`（也是引擎件），**不**走 `SpriteSwapButton.Create`：后者的
@@ -54,7 +54,7 @@ namespace Diablo2.UI
         // 引擎 `UIManager` 构造时把 CanvasScaler 固定为 ScaleWithScreenSize +
         //    referenceResolution=(1920,1080) + match=0.5（`Runtime/Presentation/UI.cs:52-56`）。
         //    因此**面板坐标单位 = 1920×1080 参考像素**（`GameConst.UiReferenceWidth/Height`
-        //    = 1280×720 是策划口径，与引擎实现不同，见回报「未决」）。
+        //    另有一套 1280×720 的策划口径，与引擎实现不同）。
         public const float RefWidth = 1920f;
         public const float RefHeight = 1080f;
 
@@ -78,11 +78,9 @@ namespace Diablo2.UI
         /// <summary>
         /// 按钮底板色 —— **只是异步在途 / 素材缺失时的兜底**（<see cref="SetSprite"/> 成功后
         /// `color` 会被改成 <see cref="ArtFullBright"/>，故它不是"按钮的底图"）。
-        /// <para>读代码时最容易误判的一格（实测代价：片 `popupaudit` 只读到这里就判
-        /// 「商店修理/关闭按钮底板是纯色占位」，而 `<c>ShopPanel.BuildBottomBar</c>` 在其后
-        /// 三行就调 `ApplyBuySellButtonArt` 贴了原版 `buysellbtn_2/_10`；片 `u53-shopart`
-        /// 进 Play 读到 `Image.sprite.name = buysellbtn_2 / buysellbtn_10` 才把这条判成误报）。
-        /// ⇒ 判据 = 每个"自带占位色的按钮工厂"都必须有 art 绑定：
+        /// <para>读代码时最容易误判的一格：只读到这里会判「商店修理/关闭按钮底板是纯色占位」，
+        /// 而 `<c>ShopPanel.BuildBottomBar</c>` 在其后三行就调 `ApplyBuySellButtonArt` 贴了原版
+        /// `buysellbtn_2/_10` ⇒ 判据 = 每个"自带占位色的按钮工厂"都必须有 art 绑定：
         /// `UiArt.Button` ⇒ <see cref="ApplyButtonFrames"/>；`OrigButton` ⇒ <c>LoadOrig</c>；
         /// `SquareButton`（契约就是"底图由调用方贴"）⇒ 调用点必须紧跟 art 应用，
         /// 门禁 = `tools/probes/hosts/uicheck/ShopArtCheck.cs`（含退化样本必须变红）。</para>
@@ -103,7 +101,7 @@ namespace Diablo2.UI
         /// （= 与 <see cref="TitleColor"/> 同值）。为什么改（**量化，不是口味**）：
         /// 本工程用的原版按钮底图是**深板岩灰** —— `Resources/Clover/D2/UI/Menu/btn_med_normal.png`
         /// 内区（x 22..78% / y 25..75%，alpha>200，n=1278）实测平均 sRGB 亮度 **0.376**
-        /// （量法 `tools/probes/measure/btn_plate_luma.py`，落盘 `tools/probes/measure/btn_plate_luma.tsv`），
+        /// （量法：对该内区逐像素取均值），
         /// 按钮字按原版 18px **Bold** 渲染（`m_FontSize:18` / `m_FontStyle:1`），18px < WCAG「大号文本」
         /// 阈值 18.66px ⇒ 按**更严的正文**门槛 4.5:1 取。</para>
         /// <para>被谁用：`UiArt.Button` / `SquareButton` / `OrigButton` 三条按钮工厂（覆盖 NPC 对话 / 商店 /
@@ -168,9 +166,9 @@ namespace Diablo2.UI
         /// <summary>
         /// 设置某幅原版贴图的色调（选中/未选中、空球底 …）。
         /// 贴图**已在**则立即生效；**未到**则记下，等贴图到位的那一刻套用（不丢状态）。
-        /// <para>d2-uiart：设置逻辑转调引擎 `UiImageLoader.SetTint`（它就是把"贴图已在 ⇒ 立即写
-        /// <c>img.color</c>；未到 ⇒ 记下、由回调套用"这条语义下沉的那一件）；项目侧那份副本见
-        /// <see cref="ArtState"/> 的注释（供条带 / 单帧落图路径读回）。</para>
+        /// <para>设置逻辑由引擎件 `UiImageLoader.SetTint` 负责（贴图已在 ⇒ 立即写 <c>img.color</c>；
+        /// 未到 ⇒ 记下、由回调套用）；项目侧另存一份副本（见 <see cref="ArtState"/> 的注释），
+        /// 供条带 / 单帧落图路径读回。</para>
         /// </summary>
         public static void SetArtTint(Image img, Color tint)
         {
@@ -278,17 +276,17 @@ namespace Diablo2.UI
         ///   加载**失败** ⇒ 保留调用方设的占位底色并打 Warn（纯色占位可见，不静默变黑/变透明）。
         /// </para>
         /// <para>
-        /// **R1-C：请求守卫（同一 Image 只有"最新一次请求"的回调会落地）**。
+        /// **请求守卫：同一 Image 只有"最新一次请求"的回调会落地**。
         /// 连续发起 A、B 两次请求时，**A 的回调可能晚于 B 到达**，于是画面停在 A（旧图）。
         ///   过期的直接丢弃（连 Warn 都不打：那是设计内行为，不是异常）。
         /// </para>
-        /// <para>语义变化：**同一个 Image 上"后发起的请求"胜出**。所有调用点都是"贴当前该显示的那张图"，
-        /// 与旧行为在"回调恰好按序到达"时逐字相同；只在乱序时把"错态"修成"最新态"。</para>
+        /// <para>**同一个 Image 上"后发起的请求"胜出**。所有调用点都是"贴当前该显示的那张图"；
+        /// 回调按序到达时结果与发起顺序一致，乱序时把"错态"修成"最新态"。</para>
         /// </summary>
         /// <param name="onLoadedTint">可选的显式色调；不传 = 用记下的色调（默认原版亮度白）。</param>
         /// <remarks>
         /// 接口一对一同口径；引擎版**另加**"同一 Image 上同路径在途/已成功则不重复发起"的去重（失败过的
-        /// 路径不拦 ⇒ 再调一次就是重试）。这里不再自己调 `Game.Res.LoadAsset` —— 那正是被下沉掉的那份实现。
+        /// 路径不拦 ⇒ 再调一次就是重试）。贴图加载一律经引擎件，本文件不直接调 `Game.Res.LoadAsset`。
         /// </remarks>
         public static void SetSprite(Image img, string spritePath, Color? onLoadedTint = null)
         {
@@ -308,7 +306,7 @@ namespace Diablo2.UI
             UiImageLoader.SetSprite(img, spritePath, onLoadedTint);   // ★ 引擎件（唯一实现）
         }
 
-        /// <summary>R1-C 的"只报一次"标志（见 <see cref="SetSprite"/> 的请求守卫，现由引擎件落地）。</summary>
+        /// <summary>"只报一次"标志（见 <see cref="SetSprite"/> 的请求守卫，由引擎件落地）。</summary>
         private static bool _r1cGuardLogged;
 
         /// <summary>
@@ -377,10 +375,8 @@ namespace Diablo2.UI
                 //   该 DC6 属于 **FrontEnd 组 ⇒ 必须用 `fechar` 调色板解**（**不是** ACT1，**也不是**
                 //   曾被猜过的 `menu1`）。工程里那份曾是**按 ACT1 解的麻点图**：
                 //     孤立高饱和像素占比 **0.424**（同族干净图 0.017~0.075）⇒ 实机一悬停底板就花斑、
-                //     把按钮文案糊掉（图 `.ai-tmp/screenshots/btnlabel_recap_g1_dialog_options.png`，
-                //     NPC 对话第 2 项「交易」被糊住、第 1 项「離開」清晰）。
-                //   定案依据（**可复跑**；探针 `tools/probes/measure/probe_med_sel_palette.py` +
-                //   `regen_med_sel_fechar.py`）：把 MPQ 里能解的 **15 套** `data/global/palette/*/Pal.PL2`
+                //     把按钮文案糊掉（实机图中 NPC 对话第 2 项「交易」被糊住、第 1 项「離開」清晰）。
+                //   定案依据（**可复算**）：把 MPQ 里能解的 **15 套** `data/global/palette/*/Pal.PL2`
                 //   全解出来逐套量**同一麻点判据**：
                 //     · `fechar` sel 帧0 = **0.054**（帧1 = 0.055）← 唯一落进干净带；
                 //     · `menu1` 0.271（**前片的假设被证伪**）/ menu4 0.103 / sky 0.106 /
@@ -510,7 +506,7 @@ namespace Diablo2.UI
                 ? ResPaths.FrameCountMenuButtonWide
                 : ResPaths.FrameCountMenuButtonMedium;
 
-        // ── w3（游戏内 UI 审计）新增：原版**小图标帧**的唯一取法（DC6 直出那一套）────────
+        // ── 原版**小图标帧**的唯一取法（DC6 直出那一套）──────────────────────────
         //  为什么需要这一节：原版这三张图在工程里各有**两套导出**（同一画面、alpha 不同）——
         //    · `{name}_{i}.png`            = 本项目 `tools/d2codec/export_d2ui.py` 从原版
         //      `data/global/ui/PANEL/{name}.DC6` 直出 ⇒ **调色板索引 0 = 透明**（= D2 的口径，
@@ -521,10 +517,10 @@ namespace Diablo2.UI
     //      的同名副本 ⇒ 实测**逐像素 RGB 完全相同**，但把原版那些透明像素写成了
     //      **不透明黑 (0,0,0,255)**（menubutton 每帧 38 px、minipanelbtn 每帧 20 px）。
     //  ⇒ 用副本 = 画面上多出黑点/黑线（原版那里是透出底图大理石）。
-    //  w4：上列 20 个副本文件（`menubutton__0__*` / `minipanelbtn__00__*`）**已从磁盘删除**，
+    //  上列 20 个副本文件（`menubutton__0__*` / `minipanelbtn__00__*`）**不参与取帧**，
     //    `Core/ResPaths.cs` 的 4 个 `PanelArrow*` 也已改指本节的 `menubutton_{0..3}` ⇒
     //    本节的两个 helper 就是这些帧名的**唯一来源**。
-    //  判据（可复跑，留档在 `tools/probes/measure/scan_uigame.py --pairs`）：
+    //  判据（逐像素比对同族两套导出的 alpha 掩码）：
     //    20 对全部「同画面；alpha 差 N 像素（DC6=透明 / 副本=不透明黑）」；
     //    `runbutton` 的描述名 ↔ 帧号由**逐像素同画面**自动配对得到（不许靠猜名字）：
     //      walk_NotPressed→0、walk_Pressed→1、run_NotPressed→**2**、run_Pressed→3。
@@ -726,8 +722,8 @@ namespace Diablo2.UI
                     return;
                 }
 
-                // d2-uiart：四态落地转调引擎 `SpriteSwapButton.Apply`。原版**专用钮只有常态/按下两态**
-                //   ⇒ 悬停与选中都指常态帧（与下沉前的 `LoadOrig` 逐字同口径）。
+                // 四态落地转调引擎 `SpriteSwapButton.Apply`。原版**专用钮只有常态/按下两态**
+                //   ⇒ 悬停与选中都指常态帧。
                 SpriteSwapButton.Apply(btn, new SpriteSwapButton.Skin(
                     normal,                             // 常态
                     normal,                             // 悬停 = 常态（原版这两套素材没有高亮帧）
@@ -776,7 +772,7 @@ namespace Diablo2.UI
         public static InputField Input(Transform parent, string name, Vector2 size, Vector2 pos,
             string placeholder, string initial, int charLimit)
         {
-            // R1-C：**这个框在本工程里是"显示层"，不是交互控件** —— 因此：
+            // **这个框在本工程里是"显示层"，不是交互控件** —— 因此：
             //   ① `raycastTarget = false`（鼠标点不到它 ⇒ uGUI `InputField.OnPointerDown` 收不到事件，
             //      不会 `SetSelectedGameObject`）；
             //   ② `targetGraphic = null` + `navigation = None`（键盘/手柄导航也不会选中它）。
@@ -801,7 +797,7 @@ namespace Diablo2.UI
             //   ⇒ 这里保留 `UIFactory.DefaultFont()`。
             //   它渲染的是**玩家键入的角色名（ASCII 字母 + 下面的 `|` 光标标记）**，不是中文
             //   ⇒ 「中文 0 处走默认字体」仍成立。
-            //   R1-C：**光标不再由它画**（它的 caret 要 `caretPosition`，本配置下必抛）；
+            //   **光标不由它画**（它的 caret 要 `caretPosition`，本配置下必抛）；
             //     本节点现在由面板直接驱动（`CharCreatePanel.PushName` 写 `textComponent.text`），
             //     所以"可见文本/光标"这条判据不依赖 uGUI 的 TextGenerator 光标逻辑。
             var textRt = UIFactory.CreateNode("Text", bg.transform);
@@ -811,7 +807,7 @@ namespace Diablo2.UI
             text.alignment = TextAnchor.MiddleLeft;
             text.color = TextColor;
             text.supportRichText = false;
-            // R1-C：**子 Text 也不吃射线** —— uGUI 的点击是"命中 Graphic 后沿父链冒泡派发"，
+            // **子 Text 也不吃射线** —— uGUI 的点击是"命中 Graphic 后沿父链冒泡派发"，
             //   子 Text 若是 raycastTarget，点在字上仍会冒泡到 InputField（父上的 IPointerDownHandler）
             //   ⇒ 光把底图关掉不够（这正是"看起来改对了、其实还能点进焦点"的那类漏改）。
             text.raycastTarget = false;
@@ -835,7 +831,7 @@ namespace Diablo2.UI
             phRt.offsetMax = new Vector2(-10f, -2f);
 
             var input = bg.gameObject.AddComponent<InputField>();
-            // R1-C：**不设 `targetGraphic`**（= 不做任何状态着色，也不让它参与 Selectable 的选中/导航）
+            // **不设 `targetGraphic`**（= 不做任何状态着色，也不让它参与 Selectable 的选中/导航）
             input.targetGraphic = null;
             input.navigation = new Navigation { mode = Navigation.Mode.None };
             input.textComponent = text;
@@ -881,26 +877,24 @@ namespace Diablo2.UI
         /// `RenderMode.ScreenSpaceOverlay`，`Runtime/Presentation/UI.cs:49` ⇒ 默认材质 =
         /// Canvas 的 `UI/Default`，unlit）。本函数是**防御性校验**：只有发现 Image 被挂了
         /// 受光材质才动手（换回 Canvas 默认材质），并留下 Warn —— 不静默。
-        /// <para>实现体转调引擎 `UiImageLoader.EnsureUnlit`（照本条下沉，
-        /// 限频 Warn 由引擎 `LogThrottle` 负责）。</para>
+        /// <para>实现体转调引擎 `UiImageLoader.EnsureUnlit`（限频 Warn 由引擎 `LogThrottle` 负责）。</para>
         /// </summary>
         public static void EnsureUnlit(Image img) => UiImageLoader.EnsureUnlit(img);
 
-        //   `TryBulkLoad` / `ApplyButtonFrame`（"先整条 LoadAll、失败才回退逐帧按名 + 同路径去重 +
-        //   就绪回调 + 缺帧点名"）—— 它就是引擎 `Runtime/Presentation/SpriteStripLoader.cs` 的出处，
-        //   ⇒ 本文件**整段删除**、改为持有一个引擎加载器实例并转调（口径逐字一致，含"整条优先"的
-        //   次序、与"回调可能**同帧同步**"的约定）。
+        //   取帧实现见引擎 `Runtime/Presentation/SpriteStripLoader.cs`（含"整条优先"的次序、
+        //   与"回调可能**同帧同步**"的约定）；本文件持有一个引擎加载器实例并转调，
         //   项目侧只留"帧表 → 本项目的按钮语义"这一段（见 `ApplyButtonFrames` / `Apply`）。
 
-        /// <summary>项目侧共享的条带加载器（**进程内同路径只取一次图**，与下沉前的 `FrameSets` 同效）。</summary>
+        /// <summary>项目侧共享的条带加载器（**进程内同路径只取一次图**）。</summary>
         private static readonly SpriteStripLoader StripLoader = new SpriteStripLoader();
 
         /// <summary>
         /// 取一条**多帧条带**的全部帧（逐帧按名 + 「整条 LoadAll」兜底，与按钮底图同一套）；
         /// 就绪后回调（帧序 = 条带内顺序，缺帧为 null）。
         /// <para>
-        /// 为什么必须走这里而不是 `Game.Res.LoadAsset&lt;Sprite&gt;(ResPaths.Frame(...))`：
-        /// 逐帧按名（`Game.Res.LoadAsset&lt;Sprite&gt;("…/goldcoinbtn.dc6.0_0")`）返回 **null**，
+        /// 为什么不直接 `Game.Res.LoadAsset&lt;Sprite&gt;(ResPaths.Frame(...))`：
+        /// 逐帧按名（`Game.Res.LoadAsset&lt;Sprite&gt;("…/goldcoinbtn.dc6.0_0")`）在本工程的导入设置下返回 **null**，
+        /// 只有整条 `LoadAll` 拿得到帧 ⇒ 取帧一律走本条带加载器。
         /// </para>
         /// <remarks>
         /// 全部由引擎件负责；项目侧只留一个**进程内共享**的加载器实例（<see cref="StripLoader"/>），
@@ -912,8 +906,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 把一条**多帧条带**的帧表套到按钮上 —— 帧序 **0 = 常态 / 1 = 悬停 / 2 = 按下**
         /// （= `AssetImporter.MultiFrameStrips` 的实测帧矩形；禁用态沿用常态帧，只灰化文字，见 <see cref="SetInteractable"/>）。
-        /// <para>本方法取代了下沉前的 `ApplyButtonFrame(Image, FrameSet)` ——
-        /// 取帧 / 同路径去重 / 整条兜底已由引擎 `SpriteStripLoader` 负责（见 <see cref="RequestStrip"/>），
+        /// <para>取帧 / 同路径去重 / 整条兜底由引擎 `SpriteStripLoader` 负责（见 <see cref="RequestStrip"/>）；
         /// 这里只做"帧表 → 本项目的按钮语义"，四态落地转调引擎 `SpriteSwapButton.Apply`。</para>
         /// <para>缺帧**不静默**：整条缺失（`frames[0] == null`）⇒ 保留纯色占位 <see cref="ButtonBg"/> 并 Warn
         /// （条带加载器已点名路径与缺口数）；非法参数（空表）⇒ 加载器已 Warn，这里直接返回（不重复告警）。</para>

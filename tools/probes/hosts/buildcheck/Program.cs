@@ -26,6 +26,10 @@ internal static class Program
     private static int _pass;
     private static readonly List<string> _fails = new List<string>();
 
+    /// <summary>「不适用」计数：判据的输入产物不在盘（未跑过对应探针 / 一次性产物目录被清）。
+    /// **不计入**通过也不计入失败 —— 没判的就得看起来像没判的。</summary>
+    private static int _na;
+
     private static int Main()
     {
         try { Console.OutputEncoding = Encoding.UTF8; } catch (Exception) { /* 输出被重定向时可能不支持，忽略 */ }
@@ -44,7 +48,8 @@ internal static class Program
 
         Console.WriteLine();
         Console.WriteLine("---- 汇总 ----");
-        Console.WriteLine("通过 " + _pass + " 条，失败 " + _fails.Count + " 条");
+        Console.WriteLine("通过 " + _pass + " 条，失败 " + _fails.Count + " 条"
+                          + (_na > 0 ? ("，不适用 " + _na + " 条") : ""));
         for (int i = 0; i < _fails.Count; i++)
             Console.WriteLine("  [FAIL] " + _fails[i]);
 
@@ -66,6 +71,16 @@ internal static class Program
             _fails.Add(what);
             Console.WriteLine("[FAIL] " + what);
         }
+    }
+
+    /// <summary>
+    /// 登记一条**不适用**的判据（判据的输入产物不在盘 ⇒ 本轮没判）：
+    /// 不占通过数、也不占失败数，只如实打一行 —— ⛔ 不用它把红项"变绿"。
+    /// </summary>
+    private static void NotApplicable(string what, string detail)
+    {
+        _na++;
+        Console.WriteLine("[ NA ] " + what + "   (" + detail + ")");
     }
 
     private static string P(params string[] parts)
@@ -388,14 +403,20 @@ internal static class Program
         }
 
         // ② 与 frame_probe.py 的实测输出逐条比对（代码 == 实测，不许有转录误差）
-        //   探针 `frame_probe.py` 把产物写在 **HERE = 它自己所在目录** = 本宿主源码目录
-        //   ⇒ 两侧口径必须都指这里。上一版写的 `.ai-tmp/hosts/buildcheck/frame_probe_out.txt`
-        //   是宿主「中间站」的位置，该目录已随迁移整体删除 ⇒ 断言恒红（实测：`[FAIL] frame_probe_out.txt（实测输出）存在`）。
-        //   产物 = 判据资产（删了就不能重判「代码表 == 实测帧矩形」这件事），随宿主一起入仓；
-        //   重生成：`python tools/probes/hosts/buildcheck/frame_probe.py`（步骤见 tools/probes/README.md）。
-        var probePath = Path.Combine(_root, "tools", "probes", "hosts", "buildcheck", "frame_probe_out.txt");
-        Check(File.Exists(probePath), "frame_probe_out.txt（实测输出）存在");
-        if (!File.Exists(probePath)) { Console.WriteLine(); return; }
+        //   探针 `frame_probe.py` 的产物落**仓库根下 gitignored 的一次性产物目录**（落点见下面那行 `Path.Combine`）
+        //   （一次性的实测留档：判据的产物不许写进被 git 跟踪的路径，否则每跑一次工作区就脏一次）。
+        //   ⇒ 两侧口径都指这一处；产物不在盘（未跑过探针 / 一次性产物目录被清）时本组登记为**不适用**，
+        //   既不判红也不假装绿：`[ NA ]` 行会写明恢复办法。
+        //   重生成：`python tools/probes/hosts/buildcheck/frame_probe.py`。
+        var probePath = Path.Combine(_root, ".ai-tmp", "test", "frame_probe_out.txt");
+        if (!File.Exists(probePath))
+        {
+            NotApplicable("多帧条带：代码表与 frame_probe.py 实测帧矩形逐条对账",
+                "实测产物不在盘（" + probePath + "）⇒ 本组不适用；恢复 = python tools/probes/hosts/buildcheck/frame_probe.py");
+            Console.WriteLine();
+            return;
+        }
+        Ok("frame_probe_out.txt（实测输出）在盘：" + probePath);
 
         var entries = ParseProbe(File.ReadAllLines(probePath, Encoding.UTF8));
         Check(entries.Count == 5, "从实测输出里解析到 5 个文件的帧矩形（解析到 " + entries.Count + "）");

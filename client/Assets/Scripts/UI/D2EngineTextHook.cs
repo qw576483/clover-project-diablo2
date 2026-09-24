@@ -1,9 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Diablo2 · UI/D2EngineTextHook.cs  本项目新增（引擎下沉 A5「文字渲染后端挂钩」，消掉验收表 E19）
+// Diablo2 · UI/D2EngineTextHook.cs（引擎文字渲染后端挂钩；问题与判据 = E19）
 //
 // **问题（E19）**：引擎通用件（`ToastLayer` / `LoadingLayer` / `ConfirmLayer` / `FloatTextLayer` /
 // `GuideLayer`）自己建的 `Text` 一律 `UIFactory.DefaultFont()` ⇒ 引擎自己的提示
-// （「角色名已存在」「背包已满」「加载中...」「正在进入 Stage…」「确认 / 取消」）是画面上
+// （「角色名已存在」「背包已满」「加载中...」「正在进入 Stage…」「确认 / 取消」）在画面上
+// **显示不出来**（Unity 内置字体不含中文字模）。
 //
 // **本文件**：引擎新增挂钩 `CloverEngine.ITextHook` 的本项目实现。引擎在
 // `UIFactory.CreateText` 把 Text 建好（文案 / 字号 / 对齐 / 颜色 / 溢出策略就位）后通知一次，
@@ -62,7 +63,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 装配入口（`Bootstrap` 在 `Game.Launch` **之前**调用）：复位跨局静态残留
-        /// （工程若开了「Enter Play Mode Options（不重载域）」，静态会跨局残留 —— 同 `Bootstrap` 的 P-3 教训）
+        /// （工程若开了「Enter Play Mode Options（不重载域）」，静态会跨局保留 —— 装配见 `App/Bootstrap.cs` 的 P-3）
         /// 并注册挂钩。
         /// </summary>
         public static void Install()

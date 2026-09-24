@@ -2,18 +2,17 @@
 // Diablo2 · Module/Audio/AudioLog.cs
 // 音频模块的日志出口（tag 固定 = `Audio`，见 `Core/Log.cs` 的 tag 白名单）。
 //
-//    自己维护"每键一次 / 每事一次"；现在全部换成引擎的时间口径闸门
-//    `CloverEngine.LogThrottle.ShouldLog(key, float.PositiveInfinity)`（= 同一 key 整个进程只放行一次）。
-//    本文件**不再持有任何限频状态容器**；`MissingWarnCount` / `UnregisteredWarnCount` /
+//    "每键一次 / 每事一次"全部由引擎的时间口径闸门
+//    `CloverEngine.LogThrottle.ShouldLog(key, float.PositiveInfinity)` 给（= 同一 key 整个进程只放行一次）。
+//    本文件**不持有任何限频状态容器**；`MissingWarnCount` / `UnregisteredWarnCount` /
 //    `ThrottledWarnCount` 三个**计数**是给离线宿主断言用的业务账目，保留。
-//    （原生 ECall），在**纯 .NET 宿主**（`tools/probes/hosts/audiocheck`）里会抛 `SecurityException`
-//    ⇒「只报一次」变成「报一次就崩」。该性质现在由**引擎**保证（`Runtime/Core/LogThrottle.cs`
-//    §语义约束 ①：三级时钟、**永不抛异常**，非 Unity 进程首次探测失败即自动降级到进程单调时钟）
-//    ⇒ 本类可以直接委托；要确定性计时请注入 `Log.Clock`（本层不自行改全局时钟）。
+//    引擎 `LogThrottle` 的三级时钟**永不抛异常**（`Runtime/Core/LogThrottle.cs` 语义约束 ①；
+//    非 Unity 进程首次探测失败即自动降级到进程单调时钟）⇒ 纯 .NET 宿主
+//    （`tools/probes/hosts/audiocheck`）也跑得通；要确定性计时请注入 `Log.Clock`（本层不自行改全局时钟）。
 //
-// key 都加了 `Audio/` 前缀 + 用途段（引擎的限频表是**全局一张**，原实现是每类一张
+// key 都加了 `Audio/` 前缀 + 用途段（引擎的限频表是**全局一张**
 // ⇒ 必须防跨用途/跨模块撞 key；前缀对调用方不可见，key 从不进日志）。
-// 「只报一次」的粒度（**与原实现逐条一致**）：
+// 「只报一次」的粒度：
 //   · **文件缺失** —— 每个键各报一次（SFX / BGM 各占一个 key 段，互不影响）；
 //   · **基础设施缺失**（`Game.Sound` / `Game.Res` / `Game.Setting` / `Game.Event` 为 null）—— 各报一次；
 //   · 记录是**进程级**的（引擎静态表），与"素材到位前反复请求同一缺失键"这条路径对得上。
@@ -159,9 +158,9 @@ namespace Diablo2.Module.Audio
 
         /// <summary>
         /// "只报一次"的闸门 = 引擎时间口径 <see cref="LogThrottle.ShouldLog"/>（`+∞` ⇒ 同一 key 只放行一次）。
-        /// 与 <see cref="Log.ShouldLog"/> 的区别：这里**不**先短路项目静默开关（`Log.Suppress`）——
-        /// 原实现（`HashSet.Add`）在静默期同样会**推进**"已报"状态，换成先短路会让静默期后的首条告警
-        /// 与本类计数账目对不上。输出仍然走 `Log.Warn`（tag 规范化 + 静默开关在那一层）。
+        /// 这里**不**先短路项目静默开关（`Log.Suppress`）：静默期也要照常**推进**"已报"状态，
+        /// 否则静默期后的首条告警会与本类计数账目对不上。输出仍然走 `Log.Warn`
+        /// （tag 规范化 + 静默开关在那一层）。
         /// </summary>
         private static bool Once(string key) => LogThrottle.ShouldLog(key, float.PositiveInfinity);
 
@@ -170,7 +169,7 @@ namespace Diablo2.Module.Audio
         /// 生产流程**没有**调用点（素材到位后这些告警本来就不会再出现）。
         /// <para>引擎只提供**整体**清空（<see cref="LogThrottle.Reset"/>，时间口径 + 计数口径一起清），
         /// 没有"按 key 清"的入口 ⇒ 这里会把 `Log` / 其他模块的限频记录一并清掉。宿主用例本来就要求
-        /// 干净起点，故可接受；已在回报中登记。</para>
+        /// 干净起点，故可接受。</para>
         /// </summary>
         internal static void ResetForTest()
         {

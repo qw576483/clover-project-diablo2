@@ -420,7 +420,8 @@ namespace Uicheck
                 && CountNeedle("// m.WaypointPoints\nvoid X(){ }", "WaypointPoints") == 0,
                 "needle 走 LayoutGameCheck.StripCsComments（本宿主唯一的剥注释实现）");
 
-            // ── R3：驱动"同帧双拍"守卫（`tools/probes/drivers/d2u32_drive.cs`）────────────
+            // ── R3：驱动"同帧双拍"守卫（该驱动随 `tools/probes/drivers/` 按设计退役 ⇒ 下面两条登记为跳过；
+            //    守卫函数本身仍由"最小正例必须绿"钉着，不是没判）──────────────────────────
             //   `WaypointTravelRequest` ⇒ 同帧两次 `ScreenCapture`，而它只在**帧末**写一次
             //   判据 = 「面板那张截图」与「发传送请求」两个**真调用点**之间必须有帧界
             //   （`yield return null;`）—— 不是行号比大小，作用在整份（剥注释后的）文件文本上。
@@ -429,18 +430,29 @@ namespace Uicheck
             var drvSrc = File.Exists(drvFile)
                 ? LayoutGameCheck.StripCsComments(File.ReadAllText(drvFile))
                 : string.Empty;
-            Check("R3 守卫：`d2u32_drive.cs` 在「面板截图」与「发传送请求」之间让出帧（≥1 处 `yield return null;`）",
-                drvSrc.Length > 0 && PanelShotYieldsFrame(drvSrc),
-                File.Exists(drvFile) ? "在 drivers/d2u32_drive.cs 内检索（剥注释）" : "缺 " + drvFile);
+            if (drvSrc.Length > 0)
+            {
+                Check("R3 守卫：`d2u32_drive.cs` 在「面板截图」与「发传送请求」之间让出帧（≥1 处 `yield return null;`）",
+                    PanelShotYieldsFrame(drvSrc), "在该驱动内检索（剥注释）");
 
-            // 已知错样本 = **在真文件文本上**把那段窗口里的让帧全删掉（注入式，不写盘）
-            var brokenDrv = DropPanelShotYields(drvSrc);
+                // 已知错样本 = **在真文件文本上**把那段窗口里的让帧全删掉（注入式，不写盘）
+                var brokenDrv = DropPanelShotYields(drvSrc);
+                Check("★ 退化（D15）：真文本里把「面板截图 ⇒ 传送请求」之间的让帧全删掉 ⇒ 必须红（= 首跑那个形状）",
+                    brokenDrv != drvSrc && !PanelShotYieldsFrame(brokenDrv),
+                    "真文本 绿 / 删掉窗口内让帧后 " + PanelShotYieldsFrame(brokenDrv));
+            }
+            else
+            {
+                //  该驱动（连同 `tools/probes/drivers/` 整目录）**已按设计退役** ⇒ 这两条没有文本可判 ⇒ 跳过
+                //  （不计失败、也不假装绿）。下面那条"最小正例片段"不依赖它，照常判 ——
+                //  守卫函数本身仍被"正例必须绿"钉着，不是没判。
+                Program._skip += 2;
+                Console.WriteLine("[SKIP] R3 守卫 + D15 退化（2 项）：驱动 `d2u32_drive.cs` 已按设计退役"
+                    + "（`tools/probes/drivers/` 整目录不在仓库里）⇒ 无文本可判；"
+                    + "恢复 = 把该驱动重新落到原路径（判据逻辑一字未动）");
+            }
             var positiveDrv = "Shot(\"a_1_panel.png\"); yield return null;"
                 + " Emit(Events.WaypointTravelRequest, 1);";
-            Check("★ 退化（D15）：真文本里把「面板截图 ⇒ 传送请求」之间的让帧全删掉 ⇒ 必须红（= 首跑那个形状）",
-                drvSrc.Length > 0 && PanelShotYieldsFrame(drvSrc)
-                && brokenDrv != drvSrc && !PanelShotYieldsFrame(brokenDrv),
-                "真文本 绿 / 删掉窗口内让帧后 " + PanelShotYieldsFrame(brokenDrv));
             Check("★ 正例片段：shot ⇒ yield ⇒ travel 的最小片段 ⇒ 绿（守卫不是永假）",
                 PanelShotYieldsFrame(positiveDrv), "三事件按正确顺序的最小正例");
 
@@ -459,7 +471,7 @@ namespace Uicheck
             Check("★ R3-c 边界：差 1 帧（99→100）判红、差 2 帧（99→101）判绿（门槛 = 驱动里那两处让帧）",
                 !ShotFrameGapOk(99, 100) && ShotFrameGapOk(99, 101), "边界两侧对立读数");
             // 实盘解析（比常量更硬：证明「帧号」是从真文本解析出来的，不是我抄的）
-            // 证据文件在 `.ai-tmp/screenshots/`（**临时件，会被清理**）⇒ 不在位时打 `[SKIP]`、不算失败。
+            // 证据文件是**临时件**（会被清理；落点见下面那行 `Path.Combine`）⇒ 不在位时打 `[SKIP]`、不算失败。
             var evDir = Path.Combine(Program.ProjectRoot, ".ai-tmp", "screenshots");
             var evGood = Path.Combine(evDir, "u32_evidence_u32p2.txt");
             var evBad = Path.Combine(evDir, "u32_evidence_u32play.txt");

@@ -4,14 +4,14 @@
 //   现象：`[Warn] [App] [Assert] 本次过门已第 2 次收到 D2.Map.Generated（>1）⇒ 重复生成！`
 //   真相：**地图只生成了一次**（Play 日志里 `[Map] Generate 完成` 只有 1 条），
 //         第 2 次是 `AppSnapshots` 给 HUD/小地图**补发的同一张图的"回声"**。
-//   原实现为什么把它算成"又生成了一张"：
+//   它被算成"又生成了一张"的原因：
 //     ① `Game.Event` 同一优先级是「**后注册先执行**」（`Runtime/Core/Event.cs:141-143` 与 `:319-343`：
 //        存储是执行顺序的逆序、派发时倒序遍历）—— 老注释里"AppDoorGuard 必须先收到 StageEntered"
 //        的假设正好**是反的**：后注册的 `AppWiring.OnStageEntered`（里面 `AppSnapshots.Broadcast`）
 //        先跑，`AppDoorGuard.OnStageEntered`（先注册）后跑 ⇒ "关窗口"永远来不及；
 //     ② 窗口默认 `true`（`Reset()` 也置 `true`）⇒ 连"进图首次生成"都被算进过门窗口。
 //
-// ── 重写后的两条规则（都**不依赖订阅顺序**，因此不会再被顺序问题咬到）────────
+// ── 两条规则（都**不依赖订阅顺序**，因此不会被顺序问题咬到）──────────────────
 //   ① **只数"真的生成"**：`AppSnapshots` 自己发 `Events.MapGenerated`（快照回声）时会置
 //      `AppSnapshots.EchoInFlight`，本类见到就直接跳过（同步 Emit ⇒ 标志绝对可靠）。
 //   ② **边界上报**：计数窗口 = 相邻两个"边界事件"之间。边界有两种：

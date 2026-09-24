@@ -53,11 +53,11 @@ namespace Diablo2.UI
         /// <summary>
         /// 目的地按钮（含关闭钮）的**字色** = 既有配色常量 <see cref="UiArt.TitleColor"/>
         /// （0.95/0.87/0.60，与本屏标题同色）。
-        /// <para>本屏用的原版中等按钮底图是**深板岩灰**（内区实测 mean sRGB
-        /// 0.376，量法 `tools/probes/measure/btn_plate_luma.py`）⇒ 当时的默认字色
+        /// <para>本屏用的原版中等按钮底图是**深板岩灰**（内区逐像素取均值实测 mean sRGB
+        /// 0.376）⇒ 默认字色
         /// `UiLayoutFlow.ButtonText`（照抄 `WideButton.prefab` 的 #191919）只有 **2.79:1**
         /// （< WCAG 2.1 AA 正文门槛 4.5:1），中文密笔画糊成一块黑。本色 = **4.70:1** ✓。</para>
-        /// <para>主 agent 裁决 ① 之后，**全局默认字色也已改成同一个可读值**（本屏这两处 `Create`
+        /// <para>**全局默认字色也是同一个可读值**（本屏这两处 `Create`
         /// 仍**显式**传本色：面板自己声明自己的口径，便于本屏单独调整，也让"本屏 = 不可读色"这类
         /// 回归被 uicheck 的面板级断言单独钉住）。离线门禁 = `tools/probes/hosts/uicheck`
         /// （①-b 面板级字色对比度 + 流程屏"按钮 label 对比度 ≥ 4.5:1（逐屏列数）"）。</para>
@@ -219,10 +219,9 @@ namespace Diablo2.UI
 
             // ③ 底板两层：框内深色底（`UiArt.PanelBg`）+ 原版拼装窗框（后建 ⇒ 压在底色上，层序同 Pause/Confirm）
             //   而贴图走 `Game.Res.LoadAsset` **异步**回调 ⇒ 面板打开后的头几帧 BoxFrame 画成一整块
-            //   **纯白矩形**（实机证据：s2 巡游"开面板即截图"每次都是白块，`.ai-tmp/screenshots/pv_wp_1_panel*.png`、
-            //   `uifix3_wp_tour_panel.png`；节点转储 `.ai-tmp/test/uifix3_wp_dump.txt` 证明 sprite/贴图本身
-            //   都对 —— 432×348、边框不透明、内部 alpha=0，延迟一拍再截的 `uifix3_wp_panel.png` 就是
-            //   视觉上"框还没到"时就是深色底板，而不是刺眼的白块）；贴图到位后 `UiArt.SetSprite`
+            //   **纯白矩形**（实机巡游里"开面板即截图"每次都是白块；节点转储证明 sprite/贴图本身
+            //   都对 —— 432×348、边框不透明、内部 alpha=0，延迟一拍再截就是深色底板，
+            //   即"框还没到"的那几帧不该是刺眼白块）；贴图到位后 `UiArt.SetSprite`
             //   会把 color 覆写回原版亮度（白），缺图分支保留深色占位并 Warn —— 两条既有分支都不变。
             var boxSize = UiLayoutFlow.Px(Layout.BoxSizeOrig);
             var boxPos = UiLayoutFlow.Px(Layout.BoxPosOrig);
@@ -253,10 +252,9 @@ namespace Diablo2.UI
             //   字色**显式**传 `UiArt.TitleColor`（既有常量，0.95/0.87/0.60 —— 与本屏标题同一色）。
             //   为什么不走 `FlowButton` 的默认字色：默认 = `UiLayoutFlow.ButtonText` = 原版
             //   `WideButton.prefab` 的 #191919（0.098 近黑），那是给**浅色**石牌的；而本屏用的原版
-            //   中等按钮底图 `Menu/btn_med_normal.png` 是**深板岩灰**（内区实测平均 sRGB 亮度 0.376，
-            //   量法 `tools/probes/measure/btn_plate_luma.py`）⇒ 近黑压在它上面只有 **2.79:1**
-            //   （WCAG 2.1 AA 正文门槛 4.5:1）⇒ 13px 的中文密笔画糊成一块黑（实机 before 图
-            //   `.ai-tmp/screenshots/uifix4_z_before_btn1.png`）。换成 `UiArt.TitleColor` 后 = **4.70:1** ✓。
+            //   中等按钮底图 `Menu/btn_med_normal.png` 是**深板岩灰**（内区逐像素取均值的平均 sRGB 亮度 0.376）
+            //   ⇒ 近黑压在它上面只有 **2.79:1**
+            //   （WCAG 2.1 AA 正文门槛 4.5:1）⇒ 13px 的中文密笔画糊成一块黑。换 `UiArt.TitleColor` 后 = **4.70:1** ✓。
             //   不改 `UiLayoutFlow.ButtonText` 本身（它被 `uicheck` 的「= #191919」那条断言钉着，
             //   且拉丁按钮（Single/EXIT/OK…）细笔画压在上面仍可读）。
             //   不新造颜色：这一路只用了既有配色常量（门禁 = `uicheck` ①-b 的字色对比度断言）。

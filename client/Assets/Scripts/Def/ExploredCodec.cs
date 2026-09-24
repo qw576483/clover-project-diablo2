@@ -10,8 +10,9 @@
 // ── 表示选型（**为什么是位图 + base64**，而不是另外两种）──────────────────────
 //   候选：① 逐格写进 JSON（格坐标数组）；② RLE（行程编码）；③ **位图 + base64**（本实现）。
 //   ① **否**：一格一条 = 每格 4~6 字符（`{"x":12,"y":34}` 更贵），BloodMoor 80×80 走满约 3000 格
-//   ② **否（但不劣）**：RLE 对"成片探索"最省，但①语义脆（探索集是 BFS 半径 6 的形状，边界碎）
-//      ②解码要处理"行末跨行"的段，离线断言与旧档兼容都要额外一整套边界用例。
+//      ⇒ 单区域约 15 KB，且越界的坏坐标要逐个校验。
+//   ② **否（但不劣）**：RLE 对"成片探索"最省，但语义脆（探索集是 BFS 半径 6 的形状，边界碎），
+//      且解码要处理"行末跨行"的段，离线断言与旧档兼容都要额外一整套边界用例。
 //   ③ **是**：位图 = 宽×高 bit（80×80 = 6400 bit = **800 B** ⇒ base64 后 ≈1080 字符），
 //      与尺寸无关地恒定紧凑、编解码各 10 行、**逐格幂等**（同集合编码结果逐字节相同 ⇒ 可当断言用），
 //      且天然容错（越界位一律丢弃）⇒ 旧档/坏串读进来最坏退化成"少记几格"，不会崩。
@@ -26,10 +27,11 @@
 // 与 `Def.CharacterSave` 的字段一一对应：`ExploredAreaDto.area / w / h / cells`。
 // 无 Unity 依赖（只用 System / System.Collections.Generic / System.Text + 引擎件）⇒ `savecheck` 宿主可离线跑。
 //
-//   `CloverEngine.GridBitSet`（`clover-client-unity-engine/Runtime/Core/GridBitSet.cs`）；
+//   编解码本体在引擎件 `CloverEngine.GridBitSet`
+//   （`clover-client-unity-engine/Runtime/Core/GridBitSet.cs`）；
 //   本文件保留 DTO（`ExploredAreaDto` 的区域语义字段）与项目自己的命名（`ExploredCodec` / `MaxCells` /
 //   `Describe`），`Encode` / `Decode` / `IndexOf` / `ToCell` **逐参数逐语义**转调引擎件。
-//   离线宿主需把 `Runtime/Core/GridBitSet.cs` 一并编入（与本工程其它下沉件同一做法）。
+//   离线宿主需把 `Runtime/Core/GridBitSet.cs` 一并编入。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -63,10 +65,10 @@ namespace Diablo2.Def
     }
 
     /// <summary>`ExploredAreaDto` 的编解码（**纯函数**，离线可断言；见文件头）。
-    /// <para>机制已下沉到引擎件 `CloverEngine.GridBitSet`
+    /// <para>编解码本体在引擎件 `CloverEngine.GridBitSet`
     /// （`clover-client-unity-engine/Runtime/Core/GridBitSet.cs`）—— 本类只保留本项目自己的
     /// **语义命名与 DTO 边界**（`ExploredAreaDto` 的区域字段 / 上限常量 / 摘要串），
-    /// 编解码本身一字不差地转调引擎（幂等 / 越界 / 坏串容错语义见引擎件文件头）。</para></summary>
+    /// `Encode` / `Decode` / `IndexOf` / `ToCell` 转调引擎（幂等 / 越界 / 坏串容错语义见引擎件文件头）。</para></summary>
     public static class ExploredCodec
     {
         /// <summary>位图上限（格）：防御坏档里的超大 `w*h`（不设上限的话一个坏字段就能吃掉几百 MB）。

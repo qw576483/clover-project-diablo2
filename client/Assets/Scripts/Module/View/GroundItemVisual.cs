@@ -2,17 +2,15 @@
 //
 // 唯一职责：回答「**地面上的这件物品该画哪张图、什么色调**」（纯函数，离线宿主可断言）。
 //
-//   `ViewModule.CreateGroundItem`（改动前 :519-522）只按**品质色**建了一个 40×79 的
-//   占位四边形（`SpriteFrames.QualityColor(quality)`，而 `Normal` 品质 = `Color.white`
-//   ⇒ 一块浅灰方块），整条路径**没有任何**加载物品图标的调用（`ApplyFrame` 对
-//   `IsGroundItem` 直接 `return`）⇒ 地面上的东西永远看不出是什么物品。
-//   用户图 `uifix4_tour_drag_3.png` / `pv_drag_3_right_box_zoom.png` 右侧那块灰矩形就是它
-//   —— **不是拖拽残留，是地面物品从来没画过图标**。
+//   `ViewModule.CreateGroundItem` 只按**品质色**建了一个 40×79 的占位四边形
+//   （`SpriteFrames.QualityColor(quality)`，而 `Normal` 品质 = `Color.white` ⇒ 一块浅灰方块），
+//   `ApplyFrame` 对 `IsGroundItem` 直接 `return` ⇒ 地面上的东西看不出是什么物品。
+//   故本文件提供真正的图标路径 + 色调（下面两条口径）。
 //
 // ── 口径（咬死一条，不许各处自己拼路径）──────────────────────────────────────
 //   地面物品图 **= 背包 / 装备栏 / 腰带 / 商店 用的同一张原版物品图**。
 //   依据：原版 D2 地面物品用的就是物品的 `invfile`（背包图）——没有第二套"地面图"，
-//   掉落时那一下的翻飞动画（`flippyfile`）本项目未接（登记见回报）。
+//   掉落时那一下的翻飞动画（`flippyfile`）本项目未接。
 //   · **路径解析唯一来源 = `Diablo2.UI.D2Icon.ItemIconPath`** —— 它带 `code → invfile`
 //     别名表（50 条，出处见 `D2Icon.IconFileAlias` 的文件头：原版
 //     `Weapons/Armor/Misc.txt` 的 `invfile` 列）。本文件**只转发、不复制**那张表：

@@ -67,7 +67,7 @@ namespace Diablo2.Editor
         {
             "BootPanel", "MainMenuPanel", "SettingsPanel", "CharSelectPanel", "CharCreatePanel",
             "LoadingPanel", "PausePanel",
-            // 本轮新增：**原版风格的二次确认弹窗**（替掉引擎默认 uGUI 弹窗；见 `UI/D2ConfirmPanel.cs`）。
+            // **原版风格的二次确认弹窗**（不使用引擎默认 uGUI 弹窗；见 `UI/D2ConfirmPanel.cs`）。
             //   它是弹窗、不属任何 FSM 站点，但同样要一个 `Resources/UI/{类名}` 空壳预制体
             //   （`UIManager.Open<T>` 按类名加载，见 `Runtime/Presentation/UI.cs:131-140`）。
             "D2ConfirmPanel",

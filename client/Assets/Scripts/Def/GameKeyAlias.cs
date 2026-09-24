@@ -35,27 +35,25 @@ namespace Diablo2.Def
         public const GameKey KeyMinimap = GameKey.Tab;
 
         /// <summary>
-        /// 暂停菜单（原版 <c>Esc</c>）。T0FIX-C：**已接线** ——
+        /// 暂停菜单（原版 <c>Esc</c>）。**已接线** ——
         /// 消费方 = `Module/Flow/AppFlow.EscPressed()`（Stage 站点 ESC = 暂停 / Pause 站点 ESC = 继续）。
         /// 出处：`策划/策划案/暗黑破坏神2参考规格.md:140`（原版做法 = 「ESC 菜单（继续 / 选项 /
-        /// 保存并退出 / 退出）」）。旧写法定点改直连 `GameKey.Escape`（绕过别名）⇒ 键位不再是单一来源。
+        /// 保存并退出 / 退出）」）。定点直连 `GameKey.Escape` 会绕过别名 ⇒ 键位不再是单一来源。
         /// </summary>
         public const GameKey KeyPause = GameKey.Escape;
 
         /// <summary>
-        /// 关闭当前面板 / 返回上一级（原版 <c>Esc</c>）。T0FIX-C：**已接线** ——
+        /// 关闭当前面板 / 返回上一级（原版 <c>Esc</c>）。**已接线** ——
         /// 消费方 = `UI/SettingsPanel.OnUpdate`（ESC 关闭选项面板）。
         /// 其关闭键沿用原版 ESC 返回上一级的口径（同 `KeyPause` 的规格行）。
         /// </summary>
         public const GameKey KeyClosePanel = GameKey.Escape;
 
-        //   ① `KeyDialogAdvance`（Space）= 「对话/提示推进」：原版 D2 的 NPC 对话**靠点选项按钮推进**
+        //   ① Space（「对话/提示推进」）**不登记**：原版 D2 的 NPC 对话**靠点选项按钮推进**
         //      （`UI/NpcDialogPanel` 的选项列本来就是鼠标点击，原版亦无键盘推进键）；
-        //      全仓无任何出处支持"Space 推进对话" ⇒ 删。
-        //   ② `KeyConfirm`（Enter）= 「确认」：本项目所有确认交互都是**鼠标点按钮**
+        //   ② Enter（「确认」）**不登记**：本项目所有确认交互都是**鼠标点按钮**
         //      （`UI/D2ConfirmPanel` 的 Confirm/Cancel、`UI/CharCreatePanel` 的 OK）——
-        //      原版 D2 同样没有"Enter = 确认"的键盘口径（Enter 在原版是聊天输入），
-        //      全仓 0 处消费且无出处 ⇒ 删。
+        //      原版 D2 同样没有"Enter = 确认"的键盘口径（Enter 在原版是聊天输入）。
         //   两条都**不是**"接线能解决"的：接线等于**新造一个原版没有的键位行为**。
 
         // ── 战斗与操作（原版键位）──────────────────────────────────────────────
@@ -69,7 +67,7 @@ namespace Diablo2.Def
         public const GameKey KeyRunToggle = GameKey.R;
 
         /// <summary>
-        /// 切换武器组（原版 <c>W</c>）。T0FIX-C：**保留但不接线** ——
+        /// 切换武器组（原版 <c>W</c>）。**保留但不接线** ——
         /// 原版 D2 **确有**双武器组切换（`W` 在第一/第二套武器之间切），但本项目**没有**双武器组系统
         /// </summary>
         public const GameKey KeySwapWeapon = GameKey.W;
@@ -110,7 +108,7 @@ namespace Diablo2.Def
         /// <summary>
         /// 技能槽里**属于左键**的个数 = 4 ⇒ `F1`~`F4` 绑左键、`F5`~`F8` 绑右键
         /// （见 <see cref="SkillSlotIsLeftHand"/>）。
-        /// <para>出处/口径（impl-I-input 落地，改动前这 8 个键**全仓 0 消费**，见审计 R4）：
+        /// <para>出处/口径：
         /// 原版 D2 的技能栏格与 `F1`~`F8` 同源 —— 参考工程
         /// `Diablerie/Engine/PlayerController.cs` 的 `hotSkillsBindings = {F1..F6}` +
         /// `SkillPanel.SetHotKey(i, ...)`（本项目 HUD 文件头已逐字记下这条出处，技能栏 = 6 格）；

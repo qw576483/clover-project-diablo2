@@ -356,9 +356,17 @@ namespace Uicheck
             Check("LevelEntryTitle：一个文件里 0 个 MonoBehaviour（constraints.md #1）",
                 !titleSrc.Contains(": MonoBehaviour") && !titleSrc.Contains(": UIPanel"),
                 "非 MonoBehaviour，由 HudPanel 持有");
+            //  ★「CanvasGroup 渐隐 + 时间轴（淡入/停留/淡出）+ 走完自动隐藏」已下沉到引擎
+            //    `CenterAnnounceLayer`（`clover-client-unity-engine/Runtime/Presentation/WorldOverlayWidgets.cs`）；
+            //    项目侧 `LevelEntryTitle` 只剩取值 / 区域名表 / 去重 / 文字工厂（公开面 = `AlphaAt` 纯函数）
+            //    ⇒ 判据读**引擎真源**：CanvasGroup 真挂上、透明度真写进 `group.alpha`（不逐帧重排字模）。
+            var announSrc = File.ReadAllText(Path.Combine(Program.ProjectRoot, "..", "clover-client-unity-engine",
+                "Runtime", "Presentation", "WorldOverlayWidgets.cs"));
             Check("LevelEntryTitle：透明度走 CanvasGroup（不逐帧重建字模）",
-                titleSrc.Contains("AddComponent<CanvasGroup>()") && titleSrc.Contains("_group.alpha"),
-                "见 LevelEntryTitle.Create / SetAlpha");
+                titleSrc.Contains("CenterAnnounceLayer")
+                && announSrc.Contains("AddComponent<CanvasGroup>()")
+                && announSrc.Contains("_group.alpha = Mathf.Clamp01(a);"),
+                "见 LevelEntryTitle（转调）+ 引擎 CenterAnnounceLayer（WorldOverlayWidgets.cs）");
             Check("LevelEntryTitle：本局首次才弹（HashSet<AreaId> 去重，重复进入留一条 Info）",
                 titleSrc.Contains("HashSet<AreaId>") && titleSrc.Contains("_shown.Add(area)"),
                 "见 LevelEntryTitle.ShowForFirstEntry");

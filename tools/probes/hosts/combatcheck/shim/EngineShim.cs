@@ -80,19 +80,8 @@ namespace CloverEngine
     }
 
     // ── 状态机 ──────────────────────────────────────────────────────────────
-    /// <summary>`Runtime/Core/Fsm.cs:9`。</summary>
-    public interface IFsm
-    {
-        void RegisterState(string state, Action onEnter = null, Action<float> onTick = null, Action onExit = null);
-        void Transition(string toState);
-        void AddTransition(string trigger, string toState);
-        void Trigger(string trigger);
-        void Force(string state);
-        void Tick(float dt);
-        void OnChange(Action<string, string> handler);
-        void OffChange(Action<string, string> handler);
-        string Current { get; }
-    }
+    // `IFsm` / `Fsm` 由引擎真实源码 `Runtime/Core/Fsm.cs` 提供（纯 C#、无 Unity 依赖 ⇒ 本宿主直接链它，
+    // `Game.NewFsm()` 建出来的就是引擎那棵真状态机）。
 
     // ── 定时器 / 设置 ───────────────────────────────────────────────────────
     /// <summary>`Runtime/Core/Timer.cs:10`（子集）。</summary>
@@ -121,52 +110,14 @@ namespace CloverEngine
     }
 
     // ── UI ─────────────────────────────────────────────────────────────────
-    /// <summary>`Runtime/Core/PresentationContracts.cs:20`。</summary>
-    public enum UILayer { Background = 0, Normal = 1, Popup = 2, Top = 3, System = 4 }
+    // `UILayer` / `IUIPanel` / `UIPanel` / `IUIManager` 的定义在引擎真实源码
+    // `Runtime/Core/PresentationContracts.cs`（本宿主已把它链进编译集）⇒ shim 不再重复声明：
+    //   重复声明 = CS0101，且会让"引擎改了这几个契约"在宿主编译期**不可见**（哨兵失效）。
 
-    /// <summary>`Runtime/Core/PresentationContracts.cs:32`。</summary>
-    public interface IUIPanel
-    {
-        string PanelName { get; }
-        UILayer Layer { get; }
-        void OnOpen(object param);
-        void OnClose();
-        void OnUpdate(float dt);
-        GameObject Root { get; }
-    }
-
-    /// <summary>`Runtime/Core/PresentationContracts.cs:161`。</summary>
-    public abstract class UIPanel : MonoBehaviour, IUIPanel
-    {
-        public virtual string PanelName => GetType().Name;
-        public virtual UILayer Layer => UILayer.Normal;
-        public GameObject Root => gameObject;
-        public virtual void OnOpen(object param) { }
-        public virtual void OnClose() { }
-        public virtual void OnUpdate(float dt) { }
-    }
-
-    /// <summary>`Runtime/Core/PresentationContracts.cs:51`（子集）。</summary>
-    public interface IUIManager
-    {
-        void Open<T>(object param = null) where T : class, IUIPanel;
-        void Close<T>() where T : class, IUIPanel;
-        void Close(string panelName);
-        void CloseAll();
-        T Get<T>() where T : class, IUIPanel;
-        bool IsOpen<T>() where T : class, IUIPanel;
-        void Toast(string text, float duration = 2f);
-        void FloatText(Vector3 worldPos, string text, Color? color = null, float duration = 1.2f);
-        void ShowLoading(string text = null);
-        void HideLoading();
-        bool IsLoading { get; }
-        void Confirm(string title, string message, Action onConfirm, Action onCancel = null,
-            string confirmText = null, string cancelText = null);
-        void Tick(float dt);
-    }
-
-    /// <summary>`Runtime/Presentation/UIWidgets.cs:31`（UIFactory 公开面）。</summary>
-    public static class UIFactory
+    /// <summary>`Runtime/Presentation/UIWidgets.cs:34`（UIFactory 的**基础半**：默认字体 / 建件；
+    /// 布局与条状控件的扩展半在引擎 `Runtime/Presentation/UIWidgetControls.cs`，本宿主已链）。
+    /// 引擎两份都是 `partial` ⇒ 这里也必须声明 `partial` 才与它们合并为同一个类型。</summary>
+    public static partial class UIFactory
     {
         public static Font DefaultFont() => null;
         public static RectTransform CreateNode(string name, Transform parent) => null;
@@ -243,16 +194,8 @@ namespace CloverEngine
     }
 
     // ── 场景 / 实体 / 对象池 / 资源 / 声音 / 输入 ─────────────────────────
-    /// <summary>`Runtime/Core/PresentationContracts.cs:187`。</summary>
-    public interface ISceneManager
-    {
-        string CurrentScene { get; }
-        void Load(string sceneName, Action<float> progress = null, Action onDone = null);
-        void Unload(string sceneName, Action onDone = null);
-        void OnSceneLoaded(Action<string> handler);
-        /// <summary>`Runtime/Core/PresentationContracts.cs:198`。</summary>
-        void OnSceneUnloaded(Action<string> handler);
-    }
+    // `ISceneManager` / `SoundGroup` / `ISoundManager` / `IResourceManager` 同样由引擎真实源码提供
+    // （`Runtime/Core/PresentationContracts.cs` / `Runtime/Core/Contracts.cs`，两者都在本宿主编译集里）。
 
     /// <summary>`Runtime/Core/EntityPool.cs`。</summary>
     public class EntityInfo { }
@@ -268,31 +211,6 @@ namespace CloverEngine
     public interface IObjectPool
     {
         void ClearAll();
-    }
-
-    /// <summary>`Runtime/Core/ResourceContracts.cs`（子集）。</summary>
-    public interface IResourceManager
-    {
-        void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object;
-        T TryGet<T>(string path) where T : UnityEngine.Object;
-
-        //   （`Exists` 只回答"在不在"；`LoadAll` 会加载、批量取）。签名逐字对齐（覆盖率哨兵）。
-        bool Exists(string path);
-        T[] LoadAll<T>(string path) where T : UnityEngine.Object;
-    }
-
-    /// <summary>`Runtime/Core/PresentationContracts.cs:281`。</summary>
-    public enum SoundGroup { BGM = 0, SFX = 1, Voice = 2 }
-
-    /// <summary>`Runtime/Core/PresentationContracts.cs:291`（子集）。</summary>
-    public interface ISoundManager
-    {
-        void PlayBGM(string clipName, float fadeTime = 0.5f);
-        void PlaySFX(string clipName);
-        void StopAll();
-        void SetVolume(SoundGroup group, float volume);
-        float GetVolume(SoundGroup group);
-        void SetMute(SoundGroup group, bool mute);
     }
 
     /// <summary>`Runtime/Core/Input.cs:14`（**顺序与取值必须与引擎一致**）。</summary>
@@ -341,6 +259,10 @@ namespace CloverEngine
         public static ILogger Logger = new ConsoleLogger();
         public static IEventBus Event = new ConsoleEventBus();
         public static IFsm Fsm;
+
+        /// <summary>`Runtime/Core/Game.cs:193`（`Module/Monster/MonsterAi.cs:150` 用它给每只怪建一棵独立状态机）。</summary>
+        public static IFsm NewFsm() => new Fsm();
+
         public static ITimer Timer;
         public static ISetting Setting;
         public static IUIManager UI;

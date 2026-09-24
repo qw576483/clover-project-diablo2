@@ -97,8 +97,7 @@ namespace Diablo2.UI
         public override void OnUpdate(float dt)
         {
             // ESC 关闭（与 Flow 的 Stage 站点 ESC=暂停 约定：`AppFlow` 见到本面板已开就不抢 ESC）。
-            // T0FIX-C：走**别名** `GameKeyAlias.KeyClosePanel`（键位单一来源），不直连 `GameKey.Escape`；
-            //   值不变 ⇒ 行为逐字不变。
+            // 走**别名** `GameKeyAlias.KeyClosePanel`（键位单一来源），不直连 `GameKey.Escape`。
             if (Game.Input == null) return;
             if (!Game.Input.GetKeyDown(GameKeyAlias.KeyClosePanel)) return;
 
@@ -154,7 +153,7 @@ namespace Diablo2.UI
                 Log.Warn("Ui", $"[设置] 应用画质档位 {level} 失败：{e.Message}（设置值已保存，下次启动生效）");
             }
 
-            // R1-D：「人物移动抖动」候选①——`QualitySettings.SetQualityLevel` 会**按档位把
+            // 「人物移动抖动」候选①——`QualitySettings.SetQualityLevel` 会**按档位把
             //   `vSyncCount` 重置**（Very Low/Low = 0 不封顶、Medium/High = 1 垂直同步）⇒ 帧率上限会
             //   口径定义在 `Core/FramePacing.cs`（本面板只调它，不自己写 targetFrameRate/vSync 字面量，
             //   也不碰阴影/分辨率缩放/LOD 等画质内容）。
@@ -281,7 +280,7 @@ namespace Diablo2.UI
             UiArt.Panel(screen, "Box", UiLayoutFlow.Settings.BoxSize, UiLayoutFlow.Settings.BoxPos,
                 UiArt.PanelBg, true);
 
-            // ② w5：底板 = **原版 `MENU/boxpieces.DC6` 拼装的窗框**（整幅 432×348 原版px，
+            // ② 底板 = **原版 `MENU/boxpieces.DC6` 拼装的窗框**（整幅 432×348 原版px，
             //    出处/拼装口径见 `tools/d2codec/assemble_boxpieces.py` 文件头与
             //    `UiLayoutFlow.BoxFrame`；点不到它（raycastTarget=false）⇒ 点击仍落在 ① 上。
             UiArt.Art(screen, "BoxFrame", ResPaths.PanelBoxFrameSettings,

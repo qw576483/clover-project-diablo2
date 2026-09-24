@@ -9,22 +9,24 @@
 //     · 职业说明 = 原版 `ClassDescription` 文本框 (1,155) 300×50 → 本工程 (1.8,279) 540×90
 //     · 底部「返回」= 原版 `ExitButton`(-300,-250)、「确定」= 原版 `OkButton`(300,-250) 的精确矩形
 //
-//      **该理由已被证伪**：素材就在 `data/global/ui/FrontEnd/{cls}/{CLS}{NU1,NU2,NU3}.DC6`，
+//   半身像三态素材取自 `data/global/ui/FrontEnd/{cls}/{CLS}{NU1,NU2,NU3}.DC6`：
 //        · 默认 = `NU1`（背面待机）—— 原版 `ClassSelector.cs:258 ChangeState(BackIdle)`；
 //        · 悬停 = `NU2` —— `ClassSelector.cs:116-122 ToggleHover()`；
 //        · 选中 = `NU3`（转正面待机）—— `ClassSelector.cs:53-70` 转到 `FrontIdle`；
 //        · 再点同一职业 = 取消选中；**未选中时「确定」置灰**（`ClassSelectMenu.cs:110-111`）。
 //      几何 = 原版热点 `anchoredPosition` + 该态 DC6 帧 0 的 `offset`（推导与出处见
 //      `UiLayoutFlow.ClassMenu.PortraitState` 的注释），点击区 = 原版热点矩形本身（透明）。
-//      **注册差异**：原版点选后还有一段"转身过渡动画"（`{CLS}FW` 54 帧 / 背面 `{CLS}BW`）
-//   ② **删「属性点分配」**（4 组「标签 / − / 值 / +」+「剩余属性点」+「生命/法力/耐力预览行」）——
-//      原版创角屏**没有**属性分配：属性点是**升级后**在 `C`（人物属性）面板里加的
-//      ⇒ 本工程照此：`CharacterSave.statPoints = 0`，每级 +5 由 `Module/Player/PlayerStats.cs` 发放。
-//   ③ 说明行改回原版语义：显示**当前高亮/选中职业的原版说明**（英文，出处见 `UiLayoutFlow.ClassText`）。
+//      原版点选后还有一段"转身过渡动画"（`{CLS}FW` 54 帧 / 背面 `{CLS}BW`），逐帧尺寸不同
+//      ⇒ 本屏照播（尺寸表见下 ①）。
 //
-//      且 `Def.CharacterSave` 无难度字段（Core/Def 契约冻结，不许改）—— 更关键的是**没有坐标出处**：
-//      参考工程 `ClassSelectMenu.prefab` 上**没有难度控件**（UI 层 grep `difficulty|Nightmare|Hell`
-//   职业名文本行（原版 `ClassName` Text）**本屏没有**：那一行被本项目的**名字输入框**占用
+//   本屏**没有**的属性点分配与难度控件：
+//      · 属性点（4 组「标签 / − / 值 / +」+「剩余属性点」+「生命/法力/耐力预览行」）：
+//        原版创角屏**没有**属性分配，属性点是**升级后**在 `C`（人物属性）面板里加的
+//        ⇒ 本工程照此：`CharacterSave.statPoints = 0`，每级 +5 由 `Module/Player/PlayerStats.cs` 发放。
+//      · 难度：`Def.CharacterSave` 无难度字段（Core/Def 契约冻结，不许改），且**没有坐标出处**
+//        （参考工程 `ClassSelectMenu.prefab` 上**没有难度控件**，UI 层 grep `difficulty|Nightmare|Hell` 0 命中）。
+//   说明行 = 显示**当前高亮/选中职业的原版说明**（英文，出处见 `UiLayoutFlow.ClassText`）。
+//   职业名文本行（原版 `ClassName` Text）**本屏没有**：那一行被本项目的**名字输入框**占用。
 //   · 职业初始四维与成长系数**只来自配表 `class_c`**：由 Flow 查表后经 `OnOpen(param)` 传入
 //     （`ClassEntry`），面板不查表、不硬编码任何职业数值。
 //   · 「确定」把结果打包成 `Def.CharacterSave` 发 `Events.CharCreateRequest`（Flow 负责落盘/入列表）。
@@ -33,7 +35,7 @@
 //
 //   ① 「**创建人物时候，点击人物动画变形，很诡异**」
 //      原版过渡帧的尺寸**逐帧不同**（Amazon `fw_0` 118×198 → `fw_21` 215×228 → `fw_53` 121×234），
-//      把它塞进 118×198 的画框 = 横向压掉 45% ⇒ 人物被拍扁且忽胖忽瘦。
+//      每一帧按**该帧原生尺寸**摆放（不是塞进帧 0 的 118×198 画框，那会把 215×228 横向压掉 45%）。
 //      尺寸表 = `UiLayoutFlow.ClassMenu.Transition`（值 = 工程内导出 PNG 实测，与本屏三态同源；
 //      面板里不许再算/写任何尺寸魔数）。
 //
@@ -44,24 +46,25 @@
 //      而 `text` setter → `SetText` → `UpdateLabel` 在**该框是 EventSystem 选中项**时也会读同一处
 //      （`InputField.cs:2690`）⇒ 抛异常沿 `onTextInput → OnNameChar → PushName` 逃出，
 //      **这一次键入的字符/光标更新整段丢掉** ⇒ 表现为"字符粘连、丢字、光标不动"。
-//      成为选中项 ⇒ 上面两条抛点不可达）；② **可见文本 + 插入点光标完全由本面板驱动**
-//      （`_nameBuffer` + `_nameCaret` + 插入点上的光标标记，见 `DisplayName`）；
-//      ③ 面板关闭时置 `_nameEditing = false`（不再吃全局按键）。
+//      本屏据此：① **输入框退出交互**（不可射线命中 + 关键盘导航 ⇒ 永不成为选中项 ⇒ 上面两条抛点不可达）；
+//      ② **可见文本 + 插入点光标完全由本面板驱动**（`_nameBuffer` + `_nameCaret` + 插入点上的光标标记，
+//      见 `DisplayName`）；③ 面板关闭时置 `_nameEditing = false`（不再吃全局按键）。
 //
-//   R1-C 把"字符丢失/光标不动"修好了，但**默认名与用户输入仍然共用一个字符串**：
+//   ③ 默认名与用户输入**共用一个字符串**：
 //   名字框开屏即预填 `Cfg.DefaultPlayerName`（= `Hero`，出处 `client/Assets/Configs/config.json:3`
-//   → `Core/ClientConfig.cs:110-122` → `Module/Flow/AppFlow.cs:564` → `Args.defaultName`），
-//   而第一个键入的字符是**追加在插入点上**的 ⇒ 可见文本变成 `HeroAma65x`。
+//   → `Core/ClientConfig.cs:110-122` → `Module/Flow/AppFlow.cs:564` → `Args.defaultName`）。
+//   既有口径的观察值（日志与截图）：
 //     · `:325/:326` `CC-OPEN/CC-READY … nameBuffer="Hero" nameCaret=4 nameEditing=True`
 //     · `:752` `NAME where=after-typing typed="Ama65x" buffer="HeroAma65x" digitsInBuffer=1 visible_input="HeroAma65x|" caret=10`
-//     · 截图 `.ai-tmp/screenshots/a08_name_digits.png`：`NAME: HeroAma65x|`
+//     · 实机截图：`NAME: HeroAma65x|`
 //
+//      本屏的编辑语义（`EditNameDefault`）：
 //     ① 键入任一有效字符 ⇒ **整个缓冲被该字符替换**（`Hero` → `A`），之后才是追加；
 //     ② 未首次键入时退格/Delete **不生效**（语义 = 预填默认名当"空字段"：原版名字框初始为空、
 //        空字段上退格/Delete 无效果）⇒ 默认名永不会被删成残缺（不存在 `Hero`→`Her`）；
 //     ③ ←/→/Home/End 只移动插入点、**不触发**替换（它们不改文本）；
 //     ④ 一旦首次键入发生，之后全部走 `EditName` 的常规语义。
-//      不引入 `UnityEngine.Input` / `Keyboard.current` 直连（沿用 R1-C 的 `Keyboard.onTextInput`）。
+//      不引入 `UnityEngine.Input` / `Keyboard.current` 直连（只走 `Keyboard.onTextInput`）。
 //   离线断言在 `tools/probes/hosts/uicheck`（节 ⑱：默认态 / 首次键入 / 连续键入 / 删除键与方向键不触发替换）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -105,7 +108,7 @@ namespace Diablo2.UI
             /// <summary>
             /// 每级可分配属性点（`class_c.stat_per_lvl`）。
             /// <para>创角屏**不再用它**（原版创角没有属性分配）——
-            /// ⇒ 只作 Flow 侧的搬运字段存在，本面板读都不读（登记在回报的"遗留"一节）。</para>
+            /// ⇒ 只作 Flow 侧的搬运字段存在，本面板读都不读。</para>
             /// </summary>
             public int statPerLvl;
 
@@ -129,8 +132,7 @@ namespace Diablo2.UI
 
             /// <summary>
             /// 起始生命加成（`class_c.hp_add`，官方 `charstats.hpadd`）。
-            /// <para> 片 ：从配表读入 —— 取代原先写在
-            /// `LifeOf` 里的常量（真值只在表里；判据 = 全仓 0 命中那个旧常量名）。</para>
+            /// <para>从配表读入（真值只在表里，代码里不写常量）。</para>
             /// </summary>
             public int hpAdd;
 
@@ -148,8 +150,8 @@ namespace Diablo2.UI
 
             /// <summary>
             /// 名字输入框的默认值（来自 `Cfg.DefaultPlayerName`，本工程 = `Hero`）。
-            /// <para>R1-F：它是**整体单元** —— 首次键入任一有效字符时整个被替换，不是"前缀"
-            /// （见 `EditNameDefault` 与文件头 R1-F 一节）。</para>
+            /// <para>它是**整体单元** —— 首次键入任一有效字符时整个被替换，不是"前缀"
+            /// （见 `EditNameDefault` 与文件头 ③ 一节）。</para>
             /// </summary>
             public string defaultName;
         }
@@ -240,8 +242,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 名字框是否可输入。
-        /// <para>**关闭面板时必须置 false**（`OnClose`）—— 旧实现只在 `OnOpen` 置 true、
-        /// 从不置回 ⇒ 面板关了还继续吃全局 `onTextInput`（用户报的"字符到处粘"的第二个来源）。</para>
+        /// <para>**关闭面板时必须置 false**（`OnClose`）—— 否则面板关了还继续吃全局 `onTextInput`。</para>
         /// </summary>
         private bool _nameEditing = true;
 
@@ -252,9 +253,9 @@ namespace Diablo2.UI
         private int _nameCaret;
 
         /// <summary>
-        /// R1-F：「缓冲仍是**未被取代的默认名**」标记。
+        /// 「缓冲仍是**未被取代的默认名**」标记。
         /// <para>为 true ⇒ 下一次**键入有效字符**会把整个缓冲替换成那个字符（`Hero` → `A`），
-        /// 而不是追加（旧行为追加 ⇒ `HeroA` ⇒ `HeroAma65x`，即用户报的"粘连"）。</para>
+        /// 而不是追加（追加会得到 `HeroA` ⇒ `HeroAma65x`，即用户报的"粘连"）。</para>
         /// <para>只在 <see cref="OnOpen"/> 由"默认名非空"置位，之后由 <see cref="EditNameDefault"/> 维护：
         /// **只有"真的键入了一个字符"才置 false** ⇒ 退格/Delete/方向键/鼠标都不会消掉它。</para>
         /// </summary>
@@ -264,9 +265,9 @@ namespace Diablo2.UI
         private bool _nameDefaultWarned;
 
         /// <summary>
-        /// R1-C：可见光标标记（插在插入点上的字符）。
+        /// 可见光标标记（插在插入点上的字符）。
         /// <para>为什么用字符而不是 uGUI 自己的光标：那个光标要 `InputField.caretPosition` 才能移动，
-        /// 而该 setter 在本工程配置下**必然抛**（见文件头 R1-C ②），且它的光标 mesh 只在
+        /// 而该 setter 在本工程配置下**必然抛**（见文件头 ②），且它的光标 mesh 只在
         /// `m_AllowInput`（= 聚焦）时才画。把光标做成**显示串里插一个字符**⇒ 位置恒等于插入点、
         /// 离线就能断言（`DisplayName` 是纯函数），不依赖任何字体度量。</para>
         /// </summary>
@@ -286,7 +287,7 @@ namespace Diablo2.UI
         private static bool _r1cMorphLogged;
         private static bool _r1cInputLogged;
 
-        /// <summary>R1-F：默认名语义（首次键入整体替换 / 未首次键入时删除键不生效）只报一次。</summary>
+        /// <summary>默认名语义（首次键入整体替换 / 未首次键入时删除键不生效）只报一次。</summary>
         private static bool _r1fNameLogged;
 
         /// <summary>
@@ -317,13 +318,13 @@ namespace Diablo2.UI
                 Log.Error("Ui", "创角：职业数据为空（配表 class_c 未加载？）——「确定」保持禁用并置灰半身像");
             }
 
-            // R1-C：**缓冲是真值**（不再从输入框回读 —— 输入框只是显示层，见 PushName）
+            // **缓冲是真值**（不从输入框回读 —— 输入框只是显示层，见 PushName）
             _nameBuffer = args != null && !string.IsNullOrEmpty(args.defaultName)
                 ? args.defaultName
                 : string.Empty;
             _nameCaret = _nameBuffer.Length;
             _nameEditing = true;
-            // R1-F：缓冲 == 默认名 ⇒ 标记"默认名尚未被键入取代"（首个有效字符会**整体**替换它，
+            // 缓冲 == 默认名 ⇒ 标记"默认名尚未被键入取代"（首个有效字符会**整体**替换它，
             //   见 `EditNameDefault`）；默认名为空 ⇒ 无需标记（typed 与 append 结果相同）。
             _nameDefaultPending = _nameBuffer.Length > 0;
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
@@ -425,7 +426,7 @@ namespace Diablo2.UI
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
             PollNameKeys();
 #endif
-            TickTransition(dt);          // ★ 片 22：推进转身过渡（`FW`/`BW`，25fps，播完落终态）
+            TickTransition(dt);          // 推进转身过渡（`FW`/`BW`，25fps，播完落终态）
         }
 
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
@@ -569,13 +570,13 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// R1-F **纯函数**：带「默认名整体替换」语义的一次名字编辑
+        /// **纯函数**：带「默认名整体替换」语义的一次名字编辑
         /// （<see cref="EditName"/> 保持"只钳长度、只看操作的通用编辑"不变，本函数才是面板实际走的那条路）。
         /// <para>
         /// **为什么需要它**：`Args.defaultName`（本工程 = `Cfg.DefaultPlayerName` = `Hero`，
         /// 出处 `client/Assets/Configs/config.json:3`）会被预填进名字框（既有口径：开屏可见文本 == `Hero|`，
-        /// 日志也这么写）。旧行为下第一个键入的字符是**追加在插入点上**的 ⇒ 用户看到 `HeroAma65x`
-        /// `NAME where=after-typing typed="Ama65x" buffer="HeroAma65x" digitsInBuffer=1 visible_input="HeroAma65x|" caret=10`
+        /// 日志也这么写）。默认名预填后，第一个键入的字符若按"追加在插入点上"处理 ⇒ 用户看到 `HeroAma65x`
+        /// ⇒ 本函数把默认名当成一个整体单元（见下）。
         /// </para>
         /// <para>
         /// **本函数把默认名当成一个整体单元**（<paramref name="defaultPending"/> = true 表示它还没被取代）：
@@ -590,7 +591,7 @@ namespace Diablo2.UI
         ///       的常规语义（追加 / 删除 / 移动）。</item>
         /// </list>
         /// </para>
-        /// <para>不许把第 2 条改成"退格删掉默认名最后一个字符"：那正是本节要消灭的"半截默认名"。
+        /// <para>不许把第 2 条改成"退格删掉默认名最后一个字符"（会产生 `Hero` → `Her` 这种"半截默认名"）。
         /// 也不许把首次替换做成"清空后插入"以外的任何形态（例如只删 `Hero` 再追加）—— 那会多出中间态。</para>
         /// </summary>
         /// <param name="text">当前缓冲。</param>
@@ -641,12 +642,12 @@ namespace Diablo2.UI
             var before = _nameBuffer;
             var wasPending = _nameDefaultPending;
             int caret;
-            // R1-F：走带"默认名整体替换"语义的那条路（`EditName` 仍是它内部的通用编辑）
+            // 走带"默认名整体替换"语义的那条路（`EditName` 仍是它内部的通用编辑）
             _nameBuffer = EditNameDefault(_nameBuffer, _nameCaret, _nameDefaultPending, op, arg, NameMaxLength,
                 out caret, out _nameDefaultPending);
             _nameCaret = caret;
 
-            // ── R1-F：未首次键入时的删除键**不生效**（文本与插入点都没动）──
+            // ── 未首次键入时的删除键**不生效**（文本与插入点都没动）──
             //   这不是"达长度上限"，报一次把语义说清（不静默吞掉，也不刷屏）。
             if (wasPending && (op == "back" || op == "del"))
             {
@@ -685,11 +686,11 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// R1-C **纯函数**：名字框的**显示串** = 缓冲 + 插入点上的光标标记（<see cref="CaretMark"/>）。
+        /// **纯函数**：名字框的**显示串** = 缓冲 + 插入点上的光标标记（<see cref="CaretMark"/>）。
         /// <para>
         /// 为什么"光标"做成显示串里的一个字符（而不是 uGUI 那个光标）：
         /// ① 那个光标只能靠 `InputField.caretPosition` 移动，而该 setter 在本工程配置下**必抛**
-        ///    （见文件头 R1-C ②）⇒ 它永远停在 0 位（= 用户看到的"光标不动 / 粘连"）；
+        ///    （见文件头 ②）⇒ 它永远停在 0 位（= 用户看到的"光标不动 / 粘连"）；
         /// ② 它只在 `m_AllowInput`（聚焦）时才画，而本工程不让输入框获得焦点（无文本转发）；
         /// ③ 由面板把它当字符插进串里 ⇒ **位置恒等于插入点**、且是纯函数（离线宿主可逐例断言），
         ///    不需要任何字体度量/运行时 TextGenerator。
@@ -706,7 +707,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// R1-C：把缓冲（<see cref="_nameBuffer"/>，**真值**）刷到显示层（两段写，顺序有讲究）。
+        /// 把缓冲（<see cref="_nameBuffer"/>，**真值**）刷到显示层（两段写，顺序有讲究）。
         /// <para>
         /// ① **同步给 `InputField.text`**（= 显示串）：
         ///    它是这个框的**字符串持有者**（`m_Text`），也是**占位提示的判据来源**
@@ -875,7 +876,7 @@ namespace Diablo2.UI
                 return;
             }
 
-            // R1-C：**读缓冲（真值）**，不读输入框 —— 输入框装的是显示串「缓冲 + 插入点光标标记」
+            // **读缓冲（真值）**，不读输入框 —— 输入框装的是显示串「缓冲 + 插入点光标标记」
             //   （见 `DisplayName`），读它会把光标标记当成角色名的一部分。
             var name = _nameBuffer.Trim();
             if (string.IsNullOrEmpty(name))
@@ -949,7 +950,7 @@ namespace Diablo2.UI
         //   分层自检 ③ 禁止 UI 引用 `Diablo2.Module`，故这里复制一份；两处一致性由
         //
         //   `ClassEntry.hpAdd` / `ClassEntry.baseStamina` 读 —— 值由 `Module/Flow/ClassTable.Build()`
-        //   从配表 `class_c` 的 `hp_add` / `base_stamina` 列搬进 `ClassEntry` ⇒ **真值只在表里**。
+        //   取自配表 `class_c` 的 `hp_add` / `base_stamina` 列 ⇒ **真值只在表里**。
 
         private static int LifeOf(ClassEntry c, int vit, int level)
             => Mathf.Max(1, Mathf.RoundToInt(
@@ -997,7 +998,7 @@ namespace Diablo2.UI
             if (_descLabel != null) _descLabel.SetText(desc);
 
             // 「确定」：没选职业就置灰（原版 `ClassSelectMenu.cs:110-111 okButton.Disabled = true`）
-            // T0FIX-H 判据注记（**不是行为改动，只是把判定写清楚**）：
+            // 判据注记：
             //   未选职业时本按钮 `interactable = false` ⇒ uGUI 走 `Selectable.DoStateTransition` 的
             //   **禁用态**，套 `spriteState.disabledSprite`（`UiArt.Apply` 里 = `btn_med_normal` 常态帧）
             //   ⇒ 此时**悬停/按下都不换底图**（`OnPointerDown` 在 `!IsInteractable()` 时直接 return）
@@ -1070,7 +1071,7 @@ namespace Diablo2.UI
         /// 口径出处：`ClassSelector.cs:207-233`（`Loop = false`、`HideOnFinish = true`、**`Fps = 25`**）
         /// + `:53-76 MainAnimatorOnFinish`（过渡播完 ⇒ `FrontIdle`(NU3) / `BackIdle`(NU1)）。
         /// </para>
-        /// <para>R1-C：帧数改由 `UiLayoutFlow.ClassMenu.Transition` 给（= 逐帧尺寸表的长度，
+        /// <para>帧数取自 `UiLayoutFlow.ClassMenu.Transition`（= 逐帧尺寸表的长度，
         /// 出处 = 导出 PNG 张数）—— **面板里不再另存一张帧数表**（两张表必然漂移）。</para>
         /// </summary>
         private void BeginTransition(int slot, string code, int endState)
@@ -1138,7 +1139,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 给正在播过渡的槽贴第 <paramref name="frame"/> 帧 —— R1-C：**连同矩形一起换**。
+        /// 给正在播过渡的槽贴第 <paramref name="frame"/> 帧 —— **连同矩形一起换**。
         /// <para>
         /// （注释当时自认"矩形沿用帧 0 那一套"）。而原版过渡**逐帧换矩形**（导出 PNG 实测：
         /// Amazon `fw_0` = 118×198 → `fw_21` = 215×228 → `fw_53` = 121×234）⇒ 215 宽的帧被压进
@@ -1165,7 +1166,7 @@ namespace Diablo2.UI
             var ps = UiLayoutFlow.ClassMenu.Transition.Of(slot, _transitionCode, frame);
             if (ps != null)
             {
-                // R1-C：逐帧矩形（与三态同一套做法；这里不许出现任何尺寸/位置魔数）
+                // 逐帧矩形（与三态同一套做法；这里不许出现任何尺寸/位置魔数）
                 img.rectTransform.sizeDelta = ps.Size;
                 img.rectTransform.anchoredPosition = ps.Pos;
             }
@@ -1216,7 +1217,7 @@ namespace Diablo2.UI
                 if (_nameInput.placeholder is UnityEngine.UI.Text ph)
                     ph.fontSize = UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font16);
 
-                // R1-C：**限长由面板的缓冲管**（`EditName` 按 `NameMaxLength` 钳）⇒ 关掉输入框自带的截断：
+                // **限长由面板的缓冲管**（`EditName` 按 `NameMaxLength` 钳）⇒ 关掉输入框自带的截断：
                 //   显示串 = 缓冲 + 插入点光标标记（最多 16 个字符），开着 `characterLimit = 15`
                 //   会把光标标记裁掉（表现上就是"满 15 字后光标消失"）。
                 _nameInput.characterLimit = 0;
@@ -1318,7 +1319,7 @@ namespace Diablo2.UI
             // 措辞里的 {cls} 是**字面占位**（不是插值变量）：原版路径形如 FrontEnd/necromancer/NENU1.DC6
             Log.Info("Ui", $"创角：已预热 {n} 张职业半身像（有素材的槽 × 3 态 = 原版 FrontEnd/{{职业}}/NU1..NU3 的帧 0）");
 
-            // ④b R1-C：**过渡帧也预热**（与三态同口径）—— 用户点下去的第一帧必须**同步**贴出来，
+            // ④b **过渡帧也预热**（与三态同口径）—— 用户点下去的第一帧必须**同步**贴出来，
             //    否则第一次点击会先闪一下上一张图（异步回调晚到），而"闪一下"正是"点人物时画面跳"的来源之一。
             //    数量：Amazon 54+30 / Barbarian 64+19 = 167 张（都是 ≤215×255 的小 PNG）。
             var t = 0;

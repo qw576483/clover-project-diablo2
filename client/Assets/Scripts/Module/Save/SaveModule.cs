@@ -8,15 +8,15 @@
 //        其文件头「与 `Setting` 的差异」已明确裁决「要创建先后就自己维护索引键」；
 //        索引顺序 = 选角屏卡片顺序，改掉就是可见的行为变化。
 //
-// 旧档兼容（A6 迁移）：A6 之前的存档存在 `Game.Setting` 的 `char/{角色名}` 键里
-//    （`GameConst.SaveKeyPrefix`）。读取时**回退旧键**并在槽位里落一份（懒迁移，**写成功才删旧键**）；
+// 旧档兼容：更早的存档存在 `Game.Setting` 的 `char/{角色名}` 键里（`GameConst.SaveKeyPrefix`）。
+//    读取时**回退旧键**并在槽位里落一份（懒迁移，**写成功才删旧键**，见 `ReadRaw`）；
 //    删除角色时旧键与索引一并清掉，避免"槽位档删了之后旧档复活"。
 //
 // `Game.Setting.Set/Get` 按 key 存的是 `object` ⇒ **存字符串 JSON 而不是对象本身**
 //    （否则反序列化 `object` 会丢类型，见契约注释）。JSON 编解码见 `SaveJson.cs`（本项目新增）。
 //
-//   `HasAny` / `ListAll()` / `List(name)` / `Exists(name)` / `Save(CharacterSave)` / `Delete(name)`
-//   —— 见 `Module/Flow/CharRoster.cs:40-119`。
+//   选角屏要的清单入口（`HasAny` / `ListAll()` / `List(name)` / `Exists(name)` / `Save` / `Delete`）
+//   见 `Module/Flow/CharRoster.cs`。
 //
 // 读档时谁把数据灌回各模块：`AppFlow` 只在进 Stage 时自己调 `ctx.Player.LoadFrom(save)`
 //    （`AppFlow.cs:431`），**从不调用** `ApplyToModules`。所以本模块在 `Load(name)` 成功时
@@ -25,8 +25,7 @@
 //
 // 版本：`CharacterSave.version`；读档版本不符 ⇒ **降级处理 + Warn + Info**（缺字段取默认值，绝不让读档崩）。
 //
-//   （损坏档在选角屏表现为"角色没了"，无任何提示）。
-//   修后：三情况**可判别**，判别位 = 契约里已有的 `LastError`（不新增/不删除任何契约成员）——
+//   损坏档的判别（判别位 = 契约里已有的 `LastError`；不新增/不删除任何契约成员）——
 //     · 档不存在（正常：新玩家 / 空槽）⇒ 返回 null 且 **`LastError == ""`** ⇒ 调用方不报错、走新建流程；
 //     · 档存在但解析失败 / 损坏 ⇒ 返回 null 且 **`LastError != ""`**（含档名 + 原因）
 //       ⇒ `AppFlow.OnLoadDone` 复用 `UI/D2ConfirmPanel` 给出**用户可见**反馈；
@@ -34,8 +33,8 @@
 //   **不在读档失败路径上替玩家删档** —— 损坏文件原样留在槽位（引擎 `FileSlotStore` 另有 `.corrupt` 留档），
 //     删档只能由玩家在选角屏显式点 DELETE。
 //     引擎 `FileSlotStore.Read` 对**坏内容**也返回 `null`（`Runtime/Data/FileSlotStore.cs:250-255`：
-//     留档 `.corrupt` 后"本次按「没有这个槽」处理"）⇒ 项目侧**只看返回值**根本分不出
-//     "文件不在" 与 "内容坏了"，旧代码因此把损坏档一路当成"没有这个档"。
+//     留档 `.corrupt` 后"本次按「没有这个槽」处理"）⇒ 项目侧**只看返回值**分不出
+//     "文件不在" 与 "内容坏了"。
 //     ⇒ 判据必须用引擎暴露的 `LastCorruptPath`（**逐字比对本槽应有的留档路径**，
 //       非空即算会让批量读互相覆盖，见 `IsThisSlotCorruptArchive`）。
 //
@@ -67,7 +66,7 @@ namespace Diablo2.Module.Save
         private const string SaveDirName = "saves";
 
         /// <summary>
-        /// 槽位文件扩展名（显式写出来、不再靠引擎默认值）：R7 要**反推**引擎留档的坏档路径
+        /// 槽位文件扩展名（显式写出来、不再靠引擎默认值）：它要**反推**引擎留档的坏档路径
         /// （`Path.Combine(Dir, key + ext) + ".corrupt"`，见引擎 `FileSlotStore.cs:459-474`），
         /// 硬编码在别处会与构造参数脱节。值 = 引擎默认 `.json`（`FileSlotStore.cs:83`），行为零变化。
         /// </summary>
@@ -76,7 +75,7 @@ namespace Diablo2.Module.Save
         private string _lastError = "";
 
         /// <summary>
-        /// R7：最近一次 `ReadRaw` 是否命中**内容损坏**的槽位（而不是"文件不存在"）。
+        /// 最近一次 `ReadRaw` 是否命中**内容损坏**的槽位（而不是"文件不存在"）。
         /// <para>为什么必须单独记：引擎 `FileSlotStore.Read` 对坏内容**也返回 `null`**
         /// （`Runtime/Data/FileSlotStore.cs:250-255`：留档 `.corrupt` 后"按没有这个槽处理"）
         /// 引擎已经把事实暴露出来了：<see cref="FileSlotStore.LastCorruptPath"/> 指向刚留档的坏文件。</para>
@@ -191,7 +190,6 @@ namespace Diablo2.Module.Save
             //   **小地图已探索格**（渲染层 `MapView._explored` 经 `IMapModule.ExploredCells`）的持有者
             //   不在模块侧 ⇒ 与上面 `mapSeed`/`areaId` **同一个收集阶段**里，由 App 层往 `data` 里填
             //   （`Events.SaveCollect`，收方 = `App/AppProgress.cs`；不另开一条收集路径）。
-            //   （前片 `save-areaid` 的《同族穷举表》第 9/10 行登记的缺口）。
             CollectAppProgress(data);
 
             data.playedSeconds = _sessionBasePlayed + ElapsedSinceBase();
@@ -252,10 +250,9 @@ namespace Diablo2.Module.Save
             Log.Info("Save", $"[Save] 已落盘「{data.name}」：槽位={Store.Dir} 大小={json.Length} 字节 "
                 + $"版本={data.version} 等级={data.level} 任务={DescribeQuests(data)}");
 
-            // T0FIX-D：**存档成功**的唯一出口 —— 发 `Events.SaveDone(true)`。
-            //   为什么是"接线"而不是"删事件"：`Events.SaveDone`（`Core/Events.cs:316`，参数 = bool 是否成功）
-            //   的参数语义明确、且 `Core/` 是冻结层（删它要改 Core）⇒ 按验收表规则 7「定义了但没人用」
-            //   的本意补**生产者 + 消费者**。参数口径 = 「本次存档尝试是否成功」（失败也发，参数 false）。
+            // **存档成功**的唯一出口 —— 发 `Events.SaveDone(true)`。
+            //   `Events.SaveDone`（`Core/Events.cs`，参数 = bool 是否成功）的参数口径 =
+            //   「本次存档尝试是否成功」（失败也发，参数 false）。
             SignalSaveDone(true);
             return true;
         }
@@ -264,13 +261,13 @@ namespace Diablo2.Module.Save
 
         /// <summary>
         /// 读某个角色的存档。
-        /// <para>返回 null 时有**两种含义**，由 <see cref="LastError"/> 区分（R7，见文件头）：
+        /// <para>返回 null 时有**两种含义**，由 <see cref="LastError"/> 区分（见文件头）：
         /// <c>LastError == ""</c> ⇒ 档不存在（正常）；<c>LastError != ""</c> ⇒ 真的读失败（损坏 / 目录不可用 / 未接入）。
         /// 后者同时把 `Events.LoadDone` 以 **null** 发出（既定语义「null = 失败」）。</para>
         /// </summary>
         public CharacterSave Load(string name)
         {
-            // R7：入口先清 —— 否则"上一次失败"的 LastError 会残留到本次"档不存在"这条**正常**路径上，
+            // 入口先清 —— 否则"上一次失败"的 LastError 会残留到本次"档不存在"这条**正常**路径上，
             //   让调用方把一个空槽误判成"损坏档"并弹提示。
             _lastError = "";
 
@@ -298,7 +295,7 @@ namespace Diablo2.Module.Save
 
             if (string.IsNullOrEmpty(json))
             {
-                // R7 情况 ②（更深一层）：槽位**文件在、内容坏了** ⇒ 引擎 `FileSlotStore.Read` 也返回 null
+                // 情况 ②（更深一层）：槽位**文件在、内容坏了** ⇒ 引擎 `FileSlotStore.Read` 也返回 null
                 //   （它留档 `.corrupt` 后按"没有这个槽"处理，`FileSlotStore.cs:250-255`）⇒ 只看返回值会把
                 //   "损坏"误判成"档不存在"。判据 = 刚留档的那份坏文件**恰好是本槽**的。
                 if (_lastReadFoundCorrupt)
@@ -307,7 +304,7 @@ namespace Diablo2.Module.Save
                         $"—— 引擎 `FileSlotStore` 判定槽位内容不是合法 JSON，已留档副本 {Store.LastCorruptPath}");
                 }
 
-                // R7 情况 ①：档不存在 = **正常情形**（新玩家 / 空槽）⇒ 不报错、LastError 保持空串，
+                // 情况 ①：档不存在 = **正常情形**（新玩家 / 空槽）⇒ 不报错、LastError 保持空串，
                 //   调用方据此走"新建流程"，不起报错界面。
                 Log.Info("Save", $"读档：没有角色「{name}」的存档（槽位 {Store.Dir} 与旧键 {KeyOf(name)} 均为空）"
                     + "⇒ 正常情形（新玩家 / 空槽），不报错");
@@ -318,20 +315,18 @@ namespace Diablo2.Module.Save
             var data = SaveJson.TryParse(json, out err);
             if (data == null)
             {
-                // R7 情况 ②：档在、但解析失败 = **损坏**（例如从旧键 `char/{名}` 回退来的内容坏了）
+                // 情况 ②：档在、但解析失败 = **损坏**（例如从旧键 `char/{名}` 回退来的内容坏了）
                 //   ⇒ 必须与"档不存在"可区分（LastError 非空）并让用户可见。
                 return FailCorrupt(name, $"—— {err}");
             }
 
-            // R7 情况 ③：版本不符 ⇒ **降级处理**（缺字段已在 SaveJson 里取默认值），绝不抛异常。
+            // 情况 ③：版本不符 ⇒ **降级处理**（缺字段已在 SaveJson 里取默认值），绝不抛异常。
             //
             //   链路：`SaveModule.Load`（此处）→ 返回的 `data` → `AppFlow` 取到手 → `PlayerModule.LoadFrom(data)`。
-            //   `save.version` 已是**当前值** ⇒ 它的判据 `save.version < GameConst.SaveVersion`
-            //   **恒 false** ⇒ 迁移分支是**死代码**（单元级夹具直接构造 `CharacterSave`，跳过本模块，
-            //   所以当时是绿的 —— "单元级绿 / 链路级红"）。
-            //   ⇒ 本模块**只报不改**：保留档里的原版本号，让下游能判"这是旧口径档"。
-            //      `SaveModule.Save()` 的 `data.version = GameConst.SaveVersion`（本文件 `:236`）
-            //      与 `PlayerModule.WriteTo` 的同名赋值（`Module/Player/PlayerModule.cs:483`）两处都在。
+            //   版本判据在 `PlayerModule.LoadFrom`（`save.version < GameConst.SaveVersion`）。
+            //   ⇒ 本模块**只报不改**：保留档里的原版本号，让下游能判"这是更早版本的档"。
+            //      `SaveModule.Save()` 的 `data.version = GameConst.SaveVersion`
+            //      与 `PlayerModule.WriteTo` 的同名赋值两处都在。
             //   也**不**把"存了就沿用（钳上限）"改成"一律补满"（活档 `SAArea1.json` `life=34` 是中局
             var fileVersion = data.version;
             if (fileVersion != GameConst.SaveVersion)
@@ -456,7 +451,7 @@ namespace Diablo2.Module.Save
         }
 
         /// <summary>
-        /// ② 回退旧键 `char/{名}`（A6 迁移期；这里**不写盘**，懒迁移只在真正读取时发生）。
+        /// ② 回退旧键 `char/{名}`（迁移期；这里**不写盘**，懒迁移只在真正读取时发生）。
         /// </summary>
         public bool Exists(string name)
         {
@@ -500,7 +495,7 @@ namespace Diablo2.Module.Save
 
         // ── 内部 ───────────────────────────────────────────────────────────────
 
-        /// <summary>旧档键（A6 之前的存放位置）：`char/{角色名}`。**仅用于懒迁移与清理**，不再是权威存储。</summary>
+        /// <summary>旧档键（更早版本的存放位置）：`char/{角色名}`。**仅用于懒迁移与清理**，不再是权威存储。</summary>
         private static string KeyOf(string name)
         {
             return GameConst.SaveKeyPrefix + name;
@@ -522,11 +517,11 @@ namespace Diablo2.Module.Save
             var text = store.Read(name);
             if (!string.IsNullOrEmpty(text)) return text;
 
-            // R7：`Read` 返回 null 有**两种**成因 —— "文件不在" 与 "内容坏了（引擎已留档）"。
+            // `Read` 返回 null 有**两种**成因 —— "文件不在" 与 "内容坏了（引擎已留档）"。
             //   后者可从引擎的 `LastCorruptPath` 反查出来（见字段注释）。
             var slotCorrupt = IsThisSlotCorruptArchive(store, name);
 
-            // 槽位没有 ⇒ 看 A6 之前的老档（`char/{名}` 键）还在不在
+            // 槽位没有 ⇒ 看 更早版本的老档（`char/{名}` 键）还在不在
             var legacyKey = KeyOf(name);
             string legacy;
             try
@@ -541,14 +536,14 @@ namespace Diablo2.Module.Save
 
             if (string.IsNullOrEmpty(legacy))
             {
-                // R7：旧键也没有 ⇒ 若槽位是**坏了**（而非"不在"），把事实交给 `Load` 报「损坏」。
+                // 旧键也没有 ⇒ 若槽位是**坏了**（而非"不在"），把事实交给 `Load` 报「损坏」。
                 _lastReadFoundCorrupt = slotCorrupt;
                 return null;
             }
 
             if (slotCorrupt)
             {
-                // 槽位档坏了、但旧键里还有一份（A6 迁移期的老副本）：**照旧恢复**（玩家还能玩），
+                // 槽位档坏了、但旧键里还有一份（迁移期的老副本）：**照旧恢复**（玩家还能玩），
                 // 但必须点名说清"刚读到的不是槽位档"，不静默换源。
                 Log.Warn("Save", $"槽位档「{name}」内容损坏（已留档 {store.LastCorruptPath}）"
                     + $"⇒ 本次回退旧键 {legacyKey} 读取并重新迁入槽位（旧副本的价值在此体现）");
@@ -789,7 +784,7 @@ namespace Diablo2.Module.Save
         }
 
         /// <summary>
-        /// R7 情况 ②：**损坏档**的统一出口（除 `Load` 外无其它调用点）。
+        /// 情况 ②：**损坏档**的统一出口（除 `Load` 外无其它调用点）。
         /// ① 记 `LastError`（含档名 + 原因）⇒ 调用方据此把"损坏"与"档不存在"分开；
         /// ② Error 日志（不静默）；
         /// ③ `Events.LoadDone` 发 **null** —— 既定契约（`Core/Events.cs:368`「null = 失败」），
@@ -802,8 +797,7 @@ namespace Diablo2.Module.Save
             Log.Error("Save", $"读档失败：存档已损坏（槽位「{name}」）{detail}；文件仍在 {Store.Dir}（未被覆盖）");
             // ② `LastError` 保持**短的玩家口径**：它会被 `AppFlow` 拿去弹**用户可见的提示框**
             //    （`UI/D2ConfirmPanel` 的正文框只有 272×90 原版px = `UiLayoutFlow.Confirm.MessageSizeOrig`
-            //    ⇒ 长技术串会**溢出框外**；首版实机图 `.ai-tmp/screenshots/q3_corrupt_dialog.png` 就是这样，
-            //    本行按实机图改成短文案）。
+            //    ⇒ 长技术串会**溢出框外**，故本行用短文案）。
             _lastError = $"角色「{name}」的存档已损坏，无法读取";
             // ③ 既定契约（`Core/Events.cs:368`）：参数 null = 读档失败 ⇒ 唯一消费者 = `AppFlow.OnLoadDone`。
             Game.Event?.Emit(Events.LoadDone, (CharacterSave)null);
@@ -811,7 +805,7 @@ namespace Diablo2.Module.Save
         }
 
         /// <summary>
-        /// R7：`FileSlotStore.LastCorruptPath` 是否**恰好**指向**本槽**刚留档的坏文件。
+        /// `FileSlotStore.LastCorruptPath` 是否**恰好**指向**本槽**刚留档的坏文件。
         /// <para>为什么不能用"`LastCorruptPath` 非空"当判据：它是**存储级**的"最近一次留档"，
         /// 批量读（`ListAll()`）时会被别的槽覆盖 ⇒ 必须逐字比对本槽应有的留档路径。</para>
         /// <para>路径口径 = 引擎 `FileSlotStore.Archive`：`Path.Combine(Dir, key + ext) + ".corrupt"`
@@ -835,7 +829,7 @@ namespace Diablo2.Module.Save
         }
 
         /// <summary>
-        /// T0FIX-D：**存档尝试失败**的唯一出口 —— 记错误 + 发 `Events.SaveDone(false)`。
+        /// **存档尝试失败**的唯一出口 —— 记错误 + 发 `Events.SaveDone(false)`。
         /// <para>所有"保存"入口（`Save()` / `Save(CharacterSave)`）的失败分支一律改走本方法，
         /// 保证 `Events.SaveDone` 的语义 = 「**每一次**存档尝试的结果」，不是"只报成功"。</para>
         /// <para>`Fail` 仍被读档/删除路径使用（那些**不是**存档尝试 ⇒ 不发 `SaveDone`）。</para>
@@ -848,7 +842,7 @@ namespace Diablo2.Module.Save
         }
 
         /// <summary>
-        /// T0FIX-D：发 `Events.SaveDone`（参数 = 是否成功）。
+        /// 发 `Events.SaveDone`（参数 = 是否成功）。
         /// `Game.Event` 未挂载（纯逻辑宿主）⇒ 静默跳过（`?.`），由调用方自己的日志兜底。
         /// </summary>
         private static void SignalSaveDone(bool ok)

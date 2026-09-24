@@ -11,11 +11,9 @@
 //   实例则经组合根 `AppContext.I`（App 注入接口）取得 —— 与 `PlayerModule.MapOrNull` /
 //   `CameraRig.MapOrNull` 完全同一套做法（`tools/ai-skill/conventions.md`
 //   「跨模块协作只走事件或 App 注入的接口」）。
-//   ⇒ 因此本文件**没有任何跨模块的具体命名空间 import**（只有接口来自契约，实例走 AppContext），
-//     分层自检 ②（正则匹配「import 某个 `Diablo2` 子模块命名空间」）**仍无新增真命中**，
-//     且**不需要**改 `App/**`。
+//   ⇒ 因此本文件**没有任何跨模块的具体命名空间 import**（只有接口来自契约，实例走 AppContext）。
 //
-// 契约缺口（**已回报主 agent**）：`IItemModule.GroundItems` 只给 `(地面物品 id → ItemStack)`，
+// 契约缺口：`IItemModule.GroundItems` 只给 `(地面物品 id → ItemStack)`，
 //    **不含格坐标** ⇒ 无法只用契约接口判断「某格上是哪个地面物品」。
 //    故地面物品这一路走**可注入的查询委托** <see cref="GroundItemAt"/>：
 //    默认实现经 `IViewModule.GetView(id).transform.position`（= `Iso.GridToWorld(格)`）反推格，
@@ -61,7 +59,7 @@ namespace Diablo2.Module
         public Func<Vector2Int, HoverHit?> GroundItemAt { get; set; }
 
         /// <summary>
-        /// 「当前区域**全部**地面物品名牌」查询（impl-I-input 新增的非契约注入点；原版 `Alt` 常显用）。
+        /// 「当前区域**全部**地面物品名牌」查询（非契约注入点；原版 `Alt` 常显用）。
         /// <para>默认 = <see cref="AllLabelsViaView"/>（经 `IItemModule.GroundItems` + `IViewModule.GetView`
         /// 反推格，与 <see cref="GroundItemAtViaView"/> 同一套数据来源）；离线宿主可整体替换。</para>
         /// <para>永不抛异常由**调用方**兜（`InputReader.PublishGroundItemLabels` 有 try/catch）。</para>
@@ -69,7 +67,7 @@ namespace Diablo2.Module
         public Func<List<Diablo2.Def.GroundItemLabel>> AllLabels { get; set; }
 
         /// <summary>
-        /// 「地面物品 id → 品质」查询（impl-I-input 新增的非契约注入点；名牌配色用）。
+        /// 「地面物品 id → 品质」查询（非契约注入点；名牌配色用）。
         /// <para>为什么要它：`HoverTarget`（悬停载荷）里**没有**品质字段 ⇒ 悬停单件时靠它补配色；
         /// 默认 = <see cref="QualityOfViaItem"/>（查 `IItemModule.GroundItems`，O(1) 字典查找）。</para>
         /// </summary>
@@ -77,7 +75,7 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 「怪物 id → 该怪物**贴图在世界 xy 平面上的实际包围矩形**」查询
-        /// （S3 新增的非契约注入点；悬停怪物按**精灵矩形**命中用）。
+        /// （非契约注入点；悬停怪物按**精灵矩形**命中用）。
         /// <para>为什么要有它（实机实测依据）：`Resolve(grid)` 原来只接受「鼠标解出的格 == 怪物脚下格」，
         /// 而怪物精灵在屏幕上**向上覆盖 1.5~2 格**（实测：鼠标从怪 (15,53) 的脚下沿屏幕上移
         /// 0/24/48/72px 仍解出 (15,53) 命中；**96px 起**解出 (14,52) ⇒ 上半身完全无反馈）。
@@ -85,7 +83,7 @@ namespace Diablo2.Module
         /// <para>默认 = <see cref="MonsterSpriteRectViaView"/>（经 `IViewModule.GetView(id)` 的
         /// `SpriteRenderer.bounds`）；离线宿主可整体替换（注入假矩形 ⇒ 可离线断言）。
         /// 返回 <c>null</c> = 该怪当前没有可用贴图（未建节点/异步未加载/离线进程）⇒
-        /// **退回旧口径**（只认脚下格），不做任何"猜一个矩形"的兜底。</para>
+        /// **退回脚下格口径**（只认脚下格），不做任何"猜一个矩形"的兜底。</para>
         /// <para>这是**贴图实际矩形**，不是本项目自创的"命中半径/阈值" —— 见 <see cref="Resolve(Vector2Int, Vector2)"/>。</para>
         /// </summary>
         public Func<int, Rect?> MonsterSpriteRect { get; set; }
@@ -100,11 +98,11 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// 解析某格的悬停目标（**旧口径**：怪物只认脚下格 == 该格）。
+        /// 解析某格的悬停目标（**脚下格口径**：怪物只认脚下格 == 该格）。
         /// 优先级：怪物 → 地面物品 → NPC → 空地。空地上若不可走 ⇒ 光标 `NoWalk`；否则 `Default`。
         /// **永不抛异常**（接口缺失只降级）。
         /// <para>保留它 = 离线宿主（`tools/probes/hosts/*`）与任何"只有格、没有鼠标世界点"的调用方
-        /// **语义一字不变**（S3 的改动只在新增的两参重载里生效）。</para>
+        /// 用这一版（贴图矩形口径只在新增的两参重载里生效）。</para>
         /// </summary>
         public HoverTarget Resolve(Vector2Int grid)
         {
@@ -112,11 +110,11 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// 解析悬停目标（**新口径**：怪物除"脚下格相等"外，**贴图矩形覆盖到鼠标世界点**也算命中）。
+        /// 解析悬停目标（**贴图矩形口径**：怪物除"脚下格相等"外，**贴图矩形覆盖到鼠标世界点**也算命中）。
         /// <para>原版口径与出处：D2 的悬停/点击命中是**按精灵在屏幕上的实际矩形**做的（不是按格），
         /// 命中判定用 `MonsterSpriteRect(id).Contains(world)`，矩形来自 `SpriteRenderer.bounds` ——
         /// **没有任何自创常数**（不许写"命中半径 N 格/像素"）。</para>
-        /// <para>优先级与旧口径一致：**脚下格精确命中优先**，其次才是贴图矩形；矩形命中里取
+        /// <para>优先级：**脚下格精确命中优先**，其次才是贴图矩形；矩形命中里取
         /// 「离悬停格 Chebyshev 最近 → id 升序」的那只（确定性，不受 `All` 的遍历顺序影响）。</para>
         /// </summary>
         /// <param name="grid">鼠标解出的格（`Iso.ScreenToGrid`）。</param>
@@ -162,8 +160,8 @@ namespace Diablo2.Module
                 }
             }
 
-            // ①b 怪物贴图矩形（S3：原版命中语义 = 精灵覆盖到就算悬停到；只有拿到了鼠标世界点时才启用）
-            //     为什么放在 ① 之后：脚下格精确命中永远优先（不改旧口径的既有行为）。
+            // ①b 怪物贴图矩形（原版命中语义 = 精灵覆盖到就算悬停到；只有拿到了鼠标世界点时才启用）
+            //     为什么放在 ① 之后：脚下格精确命中永远优先。
             if (useSpriteRect)
             {
                 var rectOf = MonsterSpriteRect;
@@ -183,7 +181,7 @@ namespace Diablo2.Module
                         }
                         catch (Exception e)
                         {
-                            // 贴图查询（含 GetView / bounds 读取）出问题不该让输入层炸掉：只报一次并整体退回旧口径
+                            // 贴图查询（含 GetView / bounds 读取）出问题不该让输入层炸掉：只报一次并整体退回脚下格口径
                             if (!_noSpriteRectLogged)
                             {
                                 _noSpriteRectLogged = true;
@@ -330,7 +328,7 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// 默认的「全部地面物品名牌」实现（impl-I-input，原版 `Alt` 常显）：
+        /// 默认的「全部地面物品名牌」实现（原版 `Alt` 常显）：
         /// `IItemModule.GroundItems`（id → ItemStack，含名字/品质）+ `IViewModule.GetView(id)`
         /// 的世界坐标反推格（与 <see cref="GroundItemAtViaView"/> 同一口径）。
         /// <para>接口缺失 / 无渲染能力（离线进程）⇒ 返回空列表并只报一次 Info（不抛）。</para>
@@ -403,7 +401,7 @@ namespace Diablo2.Module
         /// （精灵是正对相机的平面片），而鼠标反投影得到的地面点 z 与精灵 z 不同 ⇒ `Contains` 恒假。
         /// 本项目相机固定正交 ⇒ 只比 xy 才是"精灵在屏幕上的实际覆盖"。</para>
         /// <para>拿不到（无 `IViewModule` / 无节点 / 无 sprite / 抛异常）⇒ 返回 <c>null</c>，
-        /// 悬停**退回旧口径**，不报错、不自创兜底矩形。只对**该 id** 降级，不影响别的怪。</para>
+        /// 悬停**退回脚下格口径**，不报错、不自创兜底矩形。只对**该 id** 降级，不影响别的怪。</para>
         /// </summary>
         private Rect? MonsterSpriteRectViaView(int monsterId)
         {
@@ -415,7 +413,7 @@ namespace Diablo2.Module
             if (go == null) return null;                      // 该怪尚无视图（离线进程 / 未建节点）
 
             var sr = go.GetComponent<SpriteRenderer>();
-            if (sr == null || sr.sprite == null) return null; // 贴图还没加载完（异步）⇒ 本帧退回旧口径
+            if (sr == null || sr.sprite == null) return null; // 贴图还没加载完（异步）⇒ 本帧退回脚下格口径
 
             var b = sr.bounds;
             return new Rect(b.min.x, b.min.y, b.size.x, b.size.y);

@@ -162,7 +162,7 @@ namespace Diablo2.Module.Combat
         /// `treasure_class_champ`/`treasure_class_unique`，即官方 `TreasureClass2/3` —— 见 R6）
         /// → `treasureclass_c` → `IItemModule.DropLoot(tcId, level, grid, rng)`。
         /// <para>
-        /// **跨模块约定（需主 agent 冻结）**：`IItemModule.DropLoot` 的第 1 个参数是 `int treasureClassId`，
+        /// **跨模块约定**：`IItemModule.DropLoot` 的第 1 个参数是 `int treasureClassId`，
         /// 而 `treasureclass_c` 的主键是 **string**（TC 名）⇒「int 从哪来」契约未定义。
         /// 本项目的口径（`TreasureClassIdOf`）：**行在 `Tables.Default.Treasureclass.All()` 里的 1 基序号**。
         /// </para>

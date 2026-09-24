@@ -19,8 +19,8 @@
 //   ⇒ App 装配（AppContext）：`using Diablo2.Module;`
 //
 // ── 冻结声明 ────────────────────────────────────────────────────────────────
-// 接口签名与 DTO 字段名**即契约**：后续 agent 照它实现，**写好后不许改**。
-//    发现契约有问题 → **停下来回报主 agent**，不许自己改。
+// 接口签名与 DTO 字段名**即契约**：后续实现照它做，**写好后不许改**。
+//    契约有问题时不许单方面改（改契约 = 改其它模块的编译前提）。
 //    不许改字段名与语义（事件名与参数类型见 `Core/Events.cs`）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -836,8 +836,8 @@ namespace Diablo2.Def
         /// <summary>标记点类型（与 <see cref="markerX"/> 对齐；取 `MinimapArgs.Tile*` 常量）。</summary>
         public List<byte> markerKind = new List<byte>();
 
-        // # contract: 增补字段（片 `automap-original-verdict`，主 agent 授权「`MinimapArgs` 允许新增
-        //   逐格 Cel 字段这类契约增补」）。口径 = 原版 `data/global/excel/AutoMap.txt` 的 `CelN`
+        // # contract: 增补字段（`MinimapArgs` 允许新增逐格 Cel 字段这类契约增补）。
+        //   口径 = 原版 `data/global/excel/AutoMap.txt` 的 `CelN`
         //   = `data/global/ui/AUTOMAP/MaxiMap.dc6` 的**帧序号**（实测 1260 帧 × 16×32）；
         //   索引方式 = (LevelName = `<act> <LevelType>`、Style = DS1 格 `prop3 & 0x0F`、
         //   Sequence = DS1 格 `prop2`) ⇒ 值由 `Core/AutoMapCel.generated.cs`（生成物）给。
@@ -908,7 +908,7 @@ namespace Diablo2.Def
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // impl-I-input 新增 DTO（**只增不改**：既有类型与字段逐字未动）
+    // DTO（**只增不改**：既有类型与字段逐字未动）
     //
     // 为什么加在 `Diablo2.Def` 而不是别的命名空间：分层自检 ③ 要求 `UI/**` 不许
     // `using Diablo2.Module`，而下面这两个载荷的收方就是 HUD（UI 层）⇒ 只能在 Def。

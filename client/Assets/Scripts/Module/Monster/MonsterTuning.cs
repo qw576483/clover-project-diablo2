@@ -79,7 +79,7 @@ namespace Diablo2.Module.Monster
         /// 【例外 **E28**】怪物两次出手之间的最小间隔（秒）。
         /// <para>
         /// 官方**出处是动画帧数**（`MonStats.Code` 对应的 `.cof` 动画里 A1 模式的帧数 ÷ 25），
-        /// 本批没有把 `.cof` 的逐怪 A1 帧数解析成表 ⇒ **本项目新增**近似值（登记 E28）。
+        /// `.cof` 的逐怪 A1 帧数未解析成表 ⇒ **本项目新增**近似值（登记 E28）。
         /// 注意 `AiParms.txt` 的 `P1`（如 Brute/Fallen 的 "Pct chance to strike - set this to affect
         /// attack speed"）是**出手概率**，不是间隔秒数 ⇒ 不能拿它当出处。
         /// </para>
@@ -100,7 +100,7 @@ namespace Diablo2.Module.Monster
 
         /// <summary>
         /// <para>为什么是 0.2：官方 `Velocity` 的单位是 **map 单位/秒**，而 **1 格 = 5 map 单位**
-        /// ⇒ 1 ÷ 5 = **0.2**（旧值 1.0 把"5 map 单位/秒"当成了"5 格/秒" ⇒ 怪物快 5 倍 = 用户说的"飘着走"）。</para>
+        /// ⇒ 1 ÷ 5 = **0.2**。（把"5 map 单位/秒"当成"5 格/秒"会让怪物快 5 倍。）</para>
         /// <para>出处（逐条可查）：
         /// ① `1 格 = 5 map 单位`：`原版资源/参考工程_Diablerie/Diablerie/Assets/Scripts/Diablerie/Engine/Iso.cs:9-12`
         /// 的 `SubTileCount = 5`（换算点 `Engine/World/LevelBuilder.cs:245/328/508` 的 `* Iso.SubTileCount`）；
@@ -129,7 +129,7 @@ namespace Diablo2.Module.Monster
         /// <summary>
         /// 【例外 **E28**（新增一条）】**远程 / 萨满出手距离的上限（格）** —— 不得在画面外攻击。
         /// <para>
-        /// 旧口径 = `GameConst.RangedRange`(8 格)：8 格 = **16 世界单位**，而**可见半宽**
+        /// `GameConst.RangedRange`(8 格) = **16 世界单位**，而**可见半宽**
         /// = 相机 ortho 尺寸 **6** ×(16/9 画幅) ÷ **2.0 世界单位/格**（`GameConst.IsoTilePxW` 128 ÷ `PixelsPerUnit` 64
         /// ⇒ 一格宽 2.0、高 1.0）= **5.33 格** ⇒ 8 格一定在画面外。
         /// </para>
@@ -187,8 +187,7 @@ namespace Diablo2.Module.Monster
         // ── 尸体 / 回收 ──────────────────────────────────────────────────────
         /// <summary>
         /// 尸体保留时长（秒）= 官方 `CORPSE_TTL` 500 帧 ÷ 25 fps = **20s**。
-        /// <para>出处：参考实现 `gameserver.zig:3604-3606`（`CORPSE_TTL = 500`，注释 "~20s at 25fps"）。
-        /// 与旧值 25s 的差异来自"旧值是本项目随手定的"，本片按官方改。</para>
+        /// <para>出处：参考实现 `gameserver.zig:3604-3606`（`CORPSE_TTL = 500`，注释 "~20s at 25fps"）。</para>
         /// </summary>
         public const float CorpseLifetimeSeconds = OfficialCorpseTtlFrames / LogicFps;   // = 20s
 

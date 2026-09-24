@@ -556,10 +556,11 @@ namespace Diablo2.Core
             return D2Monsters.Replace("{name}", monsterKey ?? string.Empty);
         }
 
-        // ── 片「武器外观接线」新增：角色**装备外观套**目录（**只增不改**，上面一个字都没动）──
+        // ── 角色**装备外观套**目录（只增不改）────────────────────────────────────────
         //  出处：`tools/d2codec/export_chars.py --equip-sets` 的产物 = 「身体层 + 武器/盾层合成一张」
         //        的整套 PNG（与徒手套同命名 `{动作}_{方向}_{帧号}.png`，每套带一份 `manifest.json`）；
-        //        落位口径见判据脚本 `tools/probes/measure/d2_equip_sets_check.py` 的文件头。
+        //        落位口径（每套目录带 `manifest.json` = `Chars/{class}/equip/{key}/`）见
+        //        `tools/probes/measure/gen_equip_frame_counts.py` 的文件头。
         //  本方法 = 该目录的**路径唯一来源**（不许在别的文件里拼 `"equip"` 这段字符串）。
 
         /// <summary>

@@ -27,7 +27,7 @@
 // ── 本屏的文案出处（不许自己写中文当原版）────────────────────────────────────
 //   原版死亡屏是「图形标题条 + 引擎渲染的金币数字 + 一个 Continue 按钮」：
 //     · 图形标题条正文 = 「你損失金錢數量為」（= 上面 ② 那张图里的字）
-//     · 原版串表（`data/d2text/{eng,chi}_string.txt` 同 id 对照，见回报）
+//     · 原版串表（`data/d2text/{eng,chi}_string.txt` 同 id 对照）
 //         id **5094** = `Death takes its toll of %d Gold` /「死亡取走了%d金幣」（软核）
 //         id **5096** = `Your deeds of valor will be remembered` /「你的英勇長存人心」（专家模式）
 //         id **3403** = `Continue` /「繼續」
@@ -113,9 +113,9 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 等待期提示（本项目文案，见文件头 E24）。
-        /// <para>**必须短到一行放得下**（实测踩过 B35）：原版位图字模的中文字形步进约
-        /// 24.6 画布px，本行框宽 = (320−48)×1.8 = **489.6** ⇒ 超过 ~18 个中文字就会**折成 2 行**，
-        /// `Screenshots/p5_1_death.png` 的放大图）。现改成单行短句 + `Overflow` 不换行。</para>
+        /// <para>**必须短到一行放得下**：原版位图字模的中文字形步进约
+        /// 24.6 画布px，本行框宽 = (320−48)×1.8 = **489.6** ⇒ 超过 ~18 个中文字就会**折成 2 行**
+        /// （展开图见 `Screenshots/p5_1_death.png`）。现行 = 单行短句 + `Overflow` 不换行。</para>
         /// </summary>
         private static string WaitingText()
             => $"你倒下了…… {ReviveDelaySeconds:0.#} 秒后可继续";
@@ -149,15 +149,15 @@ namespace Diablo2.UI
                 UiArt.TextColor,
                 UiLayoutGame.Size(UiLayoutGame.DeathHintW, UiLayoutGame.DeathHintH),
                 new Vector2(0f, UiLayoutGame.DeathRowCenterY(1)));
-            // B35：**绝不换行**（本行只有 1 行的高度；换行 = 两行互相压字 + 压住按钮）。
+            // **绝不换行**（本行只有 1 行的高度；换行 = 两行互相压字 + 压住按钮）。
             //   超长时左右对称溢出（居中锚点），仍然可读，不叠行。
             _hint.horizontalOverflow = HorizontalWrapMode.Overflow;
 
             // ── 按钮：原版 `MENU/endgameok.dc6`（96×32 ×2 帧），文字 = 原版串 id 3403「繼續」──
             //  传的是**不带结尾下划线**的路径前缀：`UiArt.OrigButton` 内部走
             //     `ResPaths.Frame(prefix, i)`（它会自己加 `_i`）。
-            //     实测踩过：前缀**自己再拼一个下划线** ⇒ 变成 `…/endgameok__0`（双下划线）
-            //     ⇒ `[Error] [Resource] 加载失败` + 按钮停在纯色块（本条实测见回报 B31）。
+            //     前缀**自己再拼一个下划线** ⇒ 变成 `…/endgameok__0`（双下划线）
+            //     ⇒ `[Error] [Resource] 加载失败` + 按钮停在纯色块。
             _reviveButton = UiArt.OrigButton(transform, "Continue", ContinueText,
                 ResPaths.MenuEndGameOK, UiLayoutGame.DeathButtonSize,
                 new Vector2(0f, UiLayoutGame.DeathRowCenterY(2)), OnRevive,

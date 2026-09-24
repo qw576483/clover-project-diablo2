@@ -225,8 +225,8 @@ namespace Diablo2.Module.Map
 
             // **不做任何"净空"/挖洞后处理** —— 出生点与洞口都是**在原版块已有可走格里挑的**
             //   （`PickSpawn` / `PickGate` 都要求 3×3 全可走），所以铺完就是原版那一格不动的样子。
-            //   这样整张图 = 原版块逐格 1:1（可直接与原版 ds1 合成图逐像素比对，见
-            //   `.ai-tmp/test/a_compose_map.py`）；一旦在这里 ClearAround，就会出现"游戏里比原版
+            //   这样整张图 = 原版块逐格 1:1（可直接与原版 ds1 合成图逐像素比对）；
+            //   一旦在这里 ClearAround，就会与"原版那一格"产生可见偏差。
 
             map.CaveEntrance = null;             // 契约：仅血腥荒野有效
 
@@ -277,7 +277,7 @@ namespace Diablo2.Module.Map
         /// <summary>
         /// 洞口格加一个**原版洞穴口**物件瓦片（`cave_door/000`，源 `CAVES/cavedr.dt1`）。
         /// 只改物件层、只改这一格 —— 地面层与其它格保持原版块原样（这样与原版 ds1 合成图
-        /// 的逐像素差异就只有这 1 格，见 `.ai-tmp/test/a_compose_map.py`）。
+        /// 的逐像素差异就只有这 1 格）。
         /// </summary>
         private static void ApplyExitDoor(GridMap map, Vector2Int exit)
         {

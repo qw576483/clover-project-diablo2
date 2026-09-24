@@ -306,7 +306,7 @@ namespace Diablo2.Module.Item
                 $"LootRoller：TC \"{tcName}\" 的 token \"{token}\" 既不是 TC 名也不是 item_c.code ⇒ 本次抽取落空"
                 + $"（该槽位权重 {prob}）。原因 = 本项目按**经典版**范围导入：官方 `version>0`（资料片专属，"
                 + "如 `jew` / `cm1` / `cm2` / `cm3`）与 `code != normcode`（资料片品质）的行不进 item_c；"
-                + "被过滤的 code 由 `tools/table-convert/convert.py` 打表日志逐条列出（片 O R4 已显式登记）"
+                + "被过滤的 code 由 `tools/table-convert/convert.py` 打表日志逐条列出"
                 + " ⇒ 该权重**永久落空**，属已登记的数据差异，不是随机性");
         }
 

@@ -12,16 +12,17 @@
 //    （`Game.Logger` 会变成 CS1061，见 skill `patterns/client/config.md` 常见问题）。
 //    取 game 段用 `Cfg.GameCfg`，或直接用下面的属性快捷方式。
 //
+// 加载顺序（引擎件 `ConfigSectionLoader<T>` 按序试，全坏则回内置默认值）：
+//   ① `Resources/Configs/config`                      —— 引擎资源模块（跨平台：WebGL / 移动端只能走这条）
 //   ② `Application.dataPath/Configs/config.json`      —— Editor 与桌面平台
 //   ③ 内置默认值 + 一条 Warn
 //
-// 本文件现在只负责「这个项目的 config.json 长什么样」：
+// 本文件只负责「这个项目的 config.json 长什么样」：
 //   · 逐来源怎么读（资源模块 / 磁盘文件） = 本文件的两个读取委托；
 //   · ①→②→③ 的顺序回退、读取/解析失败跳过、全坏回默认值、`Reload` 重跑链 = **引擎件**
 //     `CloverEngine.ConfigSectionLoader<T>`（`clover-client-unity-engine/Runtime/Core/ClientConfig.cs`）。
 //   · 公开 API（`Source` / `FilePath` / `Root` / `GameCfg` / `DefaultPlayerName` / `BgmVolume` /
-//     `SfxVolume` / `Fullscreen` / `Reload`）**一字未改**；日志文案仍由本文件产生（引擎只补
-//     "来源级跳过"与"总兜底"两类新日志，见引擎件文件头的等价性说明）。
+//     `SfxVolume` / `Fullscreen` / `Reload`）由本文件提供。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -75,7 +76,7 @@ namespace Diablo2.Core
                 if (_loader == null)
                 {
                     // 来源表在**首次访问时**求值（`FilePath` 会碰 `Application.dataPath`）：
-                    //    与改造前一致 —— 静态构造期不读盘、不碰 Unity API。
+                    //    静态构造期不读盘、不碰 Unity API。
                     _loader = new ConfigSectionLoader<ConfigRootSection>(
                         Tag,
                         new[]
@@ -223,8 +224,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 解析一段 json（**返回 null = 本来源不可用**，引擎改试下一个来源 / 回默认值）。
-        /// <para>片 eng-coreutil：签名与文案保持原样，只是改由引擎件按来源逐个调用
-        /// （`from` = 该来源的日志标签：`Resources/...` 或磁盘路径）。</para>
+        /// <para>由引擎件按来源逐个调用（`from` = 该来源的日志标签：`Resources/...` 或磁盘路径）。</para>
         /// </summary>
         private static ConfigRootSection Parse(string json, string from)
         {

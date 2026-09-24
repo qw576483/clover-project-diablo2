@@ -282,8 +282,10 @@ internal static class MapCheckProgram
     {
         Section("6. 不变量 + 全图 ASCII 转储（供人工读图核对）");
 
-        var dir = System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "_maps");
-        dir = System.IO.Path.GetFullPath(dir);
+        //  转储落**仓库根下 gitignored 的一次性产物目录**（落点见下面那行 `Path.Combine`）：`MapDebug.DumpStats()` 里带
+        //  `生成耗时: N ms` 这种非确定性读数 ⇒ 写进被跟踪的路径会让「每跑一次映射自检，工作区就脏一次」，
+        //  且脏的是与代码无关的一行。产物留在盘上，人工照样能读全图 ASCII。
+        var dir = System.IO.Path.Combine(ResolveProjectRoot(), ".ai-tmp", "test", "mapcheck", "_maps");
         System.IO.Directory.CreateDirectory(dir);
 
         var cases = new[]
@@ -991,7 +993,7 @@ internal static class MapCheckProgram
               && !MapView.IsPaletteCycledFlatWallOverlay("moor_river/025", ""),
             "反例全部为 false：空地面 / 异包（moor_bridge 地面 + moor_river 物件）/ 白名单外的物件键 / 空物件键");
 
-        // ④ 素材侧代理证据（像素权威在 `tools/probes/measure/r1b_water_tiles.py` 的逐像素采样）：
+        // ④ 素材侧代理证据（像素权威 = 逐像素采样量法；本宿主无解码器 ⇒ 这里只用文件级代理）：
         //    `Objects/moor_river/manifest.json` 只有 1 个瓦片（idx 28、orientation 1 ⇒ 不是地砖层）；
         //    同 dt1 的 `Tiles/moor_river/` 有 44 张地砖；且**平色瓦片的 PNG 大小 ≪ 带纹理的地砖**
         //    （单色 160×128 压到 < 1 KB，带纹理的 4~11 KB）。
@@ -1018,7 +1020,7 @@ internal static class MapCheckProgram
             Console.WriteLine($"  PNG 字节数：平色物件瓦片 028.png = {sw} B，带纹理地砖 025.png = {sf} B");
             Check(sw * 4 < sf,
                 $"平色物件瓦片 028.png（{sw} B）**远小于**带纹理地砖 025.png（{sf} B）" +
-                "（单色 160×128 的压缩率证据；逐像素权威见 tools/probes/measure/r1b_water_tiles.py）");
+                "（单色 160×128 的压缩率证据；逐像素权威 = 逐像素采样量法）");
         }
         Console.WriteLine();
     }
@@ -2799,7 +2801,7 @@ internal static class MapCheckProgram
     private static TsvTable ReadTsv(string projRel)
     {
         // 仓库根改为**运行期推导**（见 ResolveProjectRoot）。
-        //   旧写法是「AppContext.BaseDirectory 上数 6 层」——那是宿主还在 `.ai-tmp/hosts/<名>/bin/<cfg>/<tfm>/`
+        //   旧写法是「AppContext.BaseDirectory 上数 6 层」——那是宿主还在「中间站」目录（`<名>/bin/<cfg>/<tfm>/`）
         //   时的层数；宿主迁到 `tools/probes/hosts/<名>/bin/<cfg>/<tfm>/` 后**少了一层**，
         //   6 层落点变成 `<仓库根>\tools` ⇒ `策划/数值文档/*.txt` 读不到，Step13 那两条断言恒红
         var root = ResolveProjectRoot();
@@ -3124,7 +3126,7 @@ internal static class MapCheckProgram
 
     // ── 21. 桥面(deck)排序：站在桥上不被栏杆盖住 ────────────────────────────────
     /// <summary>
-    /// <para>根因（像素级 before 证据见 `tools/probes/measure/measure_bridge_deck.py`）：
+    /// <para>根因（像素级 before 已取证）：
     /// 排序值 = `(gx+gy)*4 + 100 + 层偏移`；桥面格的正南一格恒是桥栏杆物件（图形自本格底边
     /// 向上溢出 ≈2 格）⇒ 桥面实体 `4D+102` 必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
     /// <para>覆盖口径 = 影响域穷举：① 期望 deck 集合**从布局数据推**（不写坐标区间）
@@ -3817,7 +3819,7 @@ internal static class MapCheckProgram
     }
 
     /// <summary>
-    /// <para>实测现场（`tools/probes/drivers/s2_drive.cs` 的 CHUNK-ENTER 读数 + `.ai-tmp/test/chh_deep_chh2.txt`）：
+    /// <para>实测现场（Play 驱动采的 CHUNK-ENTER 读数）：
     /// `chunkMin/chunkMax=(0,0)-(2,3)`（12 块）而建块集是**另一个**矩形（(0,3)(1,3) 未建）、
     /// `PendingChunks=0` ⇒ 旧口径 `RefreshVisibleChunks` 只比范围就早退 ⇒ 洞永远没人补。
     /// 修复 = 早退前加「集合完整性」判定（`MapView.ChunkRangeCovered`）+ 登记路径不再被重铺 early-return 挡住。</para>
@@ -3862,7 +3864,7 @@ internal static class MapCheckProgram
 
     /// <summary>
     /// 而在**相机边界钳制的坐标系**。
-    /// <para>实测锚点（L2/L3，`.ai-tmp/test/bw_deep_bwy1.txt` 第 6/8 行 T1 读数）：
+    /// <para>实测锚点（L2/L3，实机读数第 6/8 行 T1）：
     /// `map=80x80 area=1 chunkMin/Max=(0,0)-(1,2) MISSING=0 job=null`（⇒ 不是缺块），
     /// `ground SR tot=1536 act=1536 en=1536 sprite=1536`（⇒ 不是失活 / 不是丢 sprite），
     /// `cam=(-19.0,-11.0,-10.0) ortho=3.75 screen=1920x1080 player=(1,20)`，
@@ -4126,7 +4128,7 @@ internal static class MapCheckProgram
     //   为什么要它：裁决 A 的前提是"城镇里玩家实际走不到的贴边格 / 走到了也不露虚空"，
     //   本步只打印 + 断言"清单非空"（清单本身是证据，不是判据）。
     /// <summary>
-    /// <para>缺陷（实机逐帧量到，`.ai-tmp/screenshots/travelblack_tb1.log`）：传送落地后整屏黑 ≈1.84 s。
+    /// <para>缺陷（实机逐帧量到）：传送落地后整屏黑 ≈1.84 s。
     /// **旧区**，按它算出来的块范围与落地画面无关（实测旧区 (32,27) 算出 (0,0)-(3,2) 共 12 块，落地后屏上要的是
     /// 另外 9 块 (0,2)-(2,4)），整图重铺建满一帧切换 ⇒ **交换本身**把屏上地砖撤光。</para>
     /// <para>本步判的是**修法**（生产纯函数 <see cref="MapView.LandingRange"/>）：换区那次重铺的块范围按
@@ -4137,7 +4139,7 @@ internal static class MapCheckProgram
     {
         Console.WriteLine("▶ 33. ★ travel-black：换区后**首个可玩帧**的已建块 ⊇ 屏上可见块（按落点算，⛔ 不按那台旧相机）");
 
-        // 实机那一局的真实数字（`.ai-tmp/screenshots/travelblack_tb1.log` 的 PRE 行 / 落地行）：
+        // 实机那一局的真实数字（实机日志的 PRE 行 / 落地行）：
         //   血腥荒野 80x80、出生点 (9,68)、视口四角格范围 [-6,61..24,75]（1920x1080，半跨 15x7 格）；
         //   旧口径（旧区罗格营地那台相机在 (32,27)）算出 (0,0)-(3,2) 共 12 块。
         const int mapW = 80, mapH = 80;
@@ -4211,7 +4213,7 @@ internal static class MapCheckProgram
         Check(MapView.PrimeJumpCells == MapView.ChunkSize * 2,
             $"触发阈值 = 2 块 = {MapView.PrimeJumpCells} 格（= ChunkSize({MapView.ChunkSize}) × 2，由生产常量现算）");
 
-        // 实机那两条链（`.ai-tmp/test/re_readings_re3.txt:289` / `:65`）：重生 = 同区域内一步跨几十格
+        // 实机那两条链（实机读数第 289 / 65 行）：重生 = 同区域内一步跨几十格
         var far = new Vector2Int(71, 8);
         var spawn = new Vector2Int(9, 60);
         Check(MapView.IsLargeShift(far, spawn),

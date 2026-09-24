@@ -1,15 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  Diablo2 · Table/TableLoader.cs
-//  配表运行时加载入口（**薄转发**；`App/Bootstrap` 是唯一加载调用点）。
+//  配表运行时加载入口（实现 = 引擎 `CloverEngine.CloverTable`；`App/Bootstrap` 是唯一加载调用点）。
 //
-//    按主键强类型取行 **已下沉到引擎** `CloverEngine.CloverTable`
+//    按主键强类型取行的实现在引擎 `CloverEngine.CloverTable`
 //    （`clover-client-unity-engine/Runtime/Data/CloverTable.cs`；与打表产物**逐条对齐**：
 //     表头 / 主键 = 第 1 列 / 列名→字段名（`hp_min` → `HpMin`）/ 单元格解析语义，
 //     每条约定在引擎那个文件的文件头都写着 `cs.go` / `ident.go` 的出处）。
 //    本文件只留三件事：
 //      ① `LoadAll` = 转发引擎加载 **+ 把打表产物自带的强类型壳 `Tables.Default` 灌上**；
 //      ② 10 个便捷访问器 = 转发 `CloverTable.Get<T>`；
-//      ③ 公开签名与公开常量**一字未改**（调用点遍布 `App/Bootstrap`、`Module/**`、`UI/**`
+//      ③ 公开签名与公开常量由本文件对外提供（调用点遍布 `App/Bootstrap`、`Module/**`、`UI/**`
 //         与 6 个链接了 `Table/**` 的离线宿主）。
 //
 //  为什么成功加载后还要 `Tables.Default.LoadAll(LastDir)`：
@@ -18,14 +18,14 @@
 //     都在用，其中 `All()` 的枚举能力**引擎契约里没有** ⇒ 必须照旧灌上。
 //     ⇒ 本项目有**两条读取路径**：引擎 `CloverTable.Get<T>`（本文件转发）与生成壳 `Tables.Default.*`
 //
-//  为什么不用引擎的 `CloverData.InitDataTable(dir)`？（不变）
+//  为什么不用引擎的 `CloverData.InitDataTable(dir)`：
 //     那是引擎自带的**通用** TSV 加载器（`Runtime/Data/DataTable.cs:33`），
 //     它要求数据行类型实现 `IDataRow`（`Runtime/Core/Contracts.cs:911`，`int Id { get; }`），
 //     而打表工具生成的行类（`Table.Base*Row`，见 `clover-tools/table/core/internal/gen/cs.go:259`）
 //     只是普通字段容器、**不实现 IDataRow** ⇒ 两者不是同一条链路。
 //     引擎已按「读打表产物 tsv + 强类型访问」补了配套能力 `CloverTable` —— 本文件转发的就是它。
 //
-//  为什么路径是“真实目录”而不是 Resources？（不变）
+//  为什么路径是“真实目录”而不是 Resources：
 //     生成的 `Load(string path)` 内部是 `File.ReadAllLines(path)`
 //     （`clover-tools/table/core/internal/gen/cs.go:279`）——它需要一个**文件系统真实路径**。
 //     `Resources.Load` 拿到的是内存里的 Object、没有真实路径，且 `.tsv` 不是 Unity 的
@@ -40,7 +40,7 @@
 //      else Game.Logger.Info("Table", "配表已加载：" + Table.TableLoader.LastDir);
 //
 //  本文件**只依赖 System.IO + CloverEngine**（不引用 UnityEngine），因此可被
-//  `dotnet build` 独立编译校验（见 `.ai-tmp/hosts/*`）。
+//  `dotnet build` 独立编译校验（见 `tools/probes/hosts/*`）。
 // ─────────────────────────────────────────────────────────────────────────────
 using System;
 using System.IO;
@@ -48,7 +48,7 @@ using CloverEngine;
 
 namespace Table
 {
-    /// <summary>配表运行时加载入口（**薄转发**，实现在 <see cref="CloverTable"/>）。</summary>
+    /// <summary>配表运行时加载入口（实现在 <see cref="CloverTable"/>）。</summary>
     public static class TableLoader
     {
         /// <summary>tsv 子目录名：`&lt;streamingAssetsPath&gt;/Table/*.tsv`（= 引擎约定，单一出处）。</summary>

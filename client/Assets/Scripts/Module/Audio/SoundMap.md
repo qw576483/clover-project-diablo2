@@ -80,12 +80,11 @@ AudioLog.MissingWarnCount=0        ← 与 Console 的「[Audio] 音效文件缺
 **拾取** `item_pickup`×2 + `gold_pickup`×1 / **升级** `level_up`×9 / **UI 点击** `ui_click`×3 / **进图** `area_enter`×2；
 BGM 三首也都切到过（`town` / `bloodmoor` / `denofevil`）。
 
-> **附：一处引擎侧静默失败（本轮未触发，但值得修）** ——
+> **附：一处引擎侧静默失败（未触发，但值得修）** ——
 > `Runtime/Resource/ResourceBackend.cs:125` 的 `ResourcesBackend.BeginLoad` 只靠 `req.completed += …` 交付结果；
 > 若该路径**同一帧内先被同步 `Resources.Load` 取过**，`Resources.LoadAsync` 的请求会"asset 已有、`isDone` 永不置真、`completed` 也不触发"
-> ⇒ `ResourceManager` 的 pending 永远留在 `_inflight`，**该路径此后一直加载不出来**（复现：`client/_dev/p_a11_probe2.cs` + `a11_probe2.txt`）。
+> ⇒ `ResourceManager` 的 pending 永远留在 `_inflight`，**该路径此后一直加载不出来**。
 > 修法建议（一行）：`BeginLoad` 订阅后补 `if (req.isDone) onDone?.Invoke(req.asset);`（或让 `ResourceManager` 每帧兜一次 `pending.Operation.isDone`）。
-> 本轮**没有改引擎**（任务书限定只许改 `Module/Audio/**`），交给主 agent 归口。
 
 ## 4. 复现方法（导出脚本 + 校验）
 

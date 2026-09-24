@@ -3,13 +3,12 @@
 // **音频资源存在性接缝**：`AudioModule` 判断「`Sound/{BGM,SFX}/{键}` 到底取不取得到音频」
 // 只经这一个接口。
 //
-//   `Game.Res.Exists`（见 `EngineAudioClipProbe`）—— 不再自建异步 `LoadAsset<AudioClip>` 探测
-//   `_missingSfx/_missingBgm/_probedSfx/_probedBgm` 四张表已随之删除。
+//   生产实现 = `EngineAudioClipProbe`（转发 `Game.Res.Exists`，见该文件头）。
 //
 // 为什么还留这个接缝（而不是在 `AudioModule` 里直接写 `Game.Res.Exists`）：
 //   · 离线自检宿主（`tools/probes/hosts/audiocheck`，非 Unity 进程）要能注入替身，断言两条路径
 //     ——「取不到 ⇒ 只 Warn 一次 + **不调引擎**」与「取得到 ⇒ 正常发播放请求」；
-//   · 生产实现只有 `EngineAudioClipProbe` 一个（薄转发，见该文件头）。
+//   · 生产实现只有 `EngineAudioClipProbe` 一个（见该文件头）。
 //
 // 契约：`Probe` **恰好回调一次**（可用 = `true` / 不可用 = `false`），**不抛异常**；
 //   `onResult` 的时机**允许同步**（生产实现 `EngineAudioClipProbe` 就是同步 —— `Game.Res.Exists`

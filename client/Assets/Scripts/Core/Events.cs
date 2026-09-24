@@ -162,7 +162,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 地面物品名牌变化（参数 <c>Def.GroundItemLabelsArgs</c>）。
-        /// <para>impl-I-input 新增。发送方 = `Module/Input/InputReader.UpdateHover`
+        /// <para>发送方 = `Module/Input/InputReader.UpdateHover`
         /// （消费 `InputReader.ShowGroundItems` = 原版 `Alt` 常显，以及当前悬停格）；
         /// 收方 = `UI/GroundItemLabelView`（HUD 持有的名牌层）。</para>
         /// <para>为什么需要它：原版 D2 悬停地面物品会显示该物品的名牌、按住 `Alt` 则常显全部
@@ -241,7 +241,7 @@ namespace Diablo2.Core
         /// <summary>
         /// 请求把某个技能槽键（原版 `F1`~`F8`）对应的已学技能绑到左/右键技能格
         /// （参数 <see cref="int"/> = 槽号 **1..8**：1~4 绑左键、5~8 绑右键）。
-        /// <para>impl-I-input 新增。发送方 = `Module/Input/InputReader.PollHotkeys`
+        /// <para>发送方 = `Module/Input/InputReader.PollHotkeys`
         /// （读键的唯一入口；键位单一来源 = `Def/GameKeyAlias.cs` 的 `SkillSlotKey(int)`）；
         /// 收方 = `Module/Skill/SkillModule`（把"第 N 个已学技能"解析出来并调契约的
         /// `ISkillModule.AssignToButton(button, skillId)`）。</para>
@@ -254,7 +254,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 左右键技能格的绑定发生变化（参数 <c>Def.SkillButtonsArgs</c>）。
-        /// <para>impl-I-input 新增。发送方 = `Module/Skill/SkillModule`
+        /// <para>发送方 = `Module/Skill/SkillModule`
         /// （`SelectSkill` / `AssignToButton` / `ResetForClass` 之后）；
         /// 收方 = `UI/HudPanel`（把 `LeftSkill` / `RightSkill` 两格的图标换成绑定技能的图标）。</para>
         /// <para>与既有的 <see cref="SkillSelected"/> 的区别：那个只带**右键**技能 id、只表达
@@ -351,8 +351,8 @@ namespace Diablo2.Core
         /// </para>
         /// <para>
         /// 为什么需要它：换区时玩家/相机要**等新区域的地砖建好**再落位 —— 否则相机已经跳到落点、
-        /// 而生效集还是**旧区**那张图（落点超出旧图范围 ⇒ 屏上零地砖 = 落地整屏黑；实机逐帧量到 ≈1.84 s，
-        /// 见 `.ai-tmp/screenshots/travelblack_tb1.log`）。所以 `AppFlow.EnterArea` 拆成两拍：
+        /// 而生效集还是**旧区**那张图（落点超出旧图范围 ⇒ 屏上零地砖 = 落地整屏黑；实机逐帧量到
+        /// ≈1.84 s）。所以 `AppFlow.EnterArea` 拆成两拍：
         /// ① 生成 + 登记重铺（相机**留在旧区**，旧图仍完整可见）→ ② 收到本事件才挪玩家/相机/怪 + 关读条屏。
         /// </para>
         /// </summary>

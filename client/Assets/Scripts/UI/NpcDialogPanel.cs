@@ -13,8 +13,8 @@
 //     · **金框长槽**：竖金线 x 29..30 与 196..197、横金线 y 67 与 91 ⇒ 净内 x 31..195 / y 68..90
 //       （= 全场唯一一条"正文位"形状的槽）；
 //     · **下带** y 93..155，里面有一对**雕出来的方槽 34×34**：左 x 34..67、右 x 139..172、y 115..148。
-//   **那两个 34×34 方槽原版放什么控件/什么文案，本批材料里查不到出处**（穷尽记录见
-//      `UI对照.md` §⑥ BLOCKED：libd2 0 命中、参考工程 0 命中、素材里没有随附配置，
+//   **那两个 34×34 方槽原版放什么控件/什么文案，现有材料里查不到出处**（穷尽记录见
+//      `UI对照.md` §⑥ 缺口：libd2 0 命中、参考工程 0 命中、素材里没有随附配置，
 //      `buysellbtn`(32×32)/`questlast`(30×30)/`okcancelbtn`(96×32) 都对不上 34×34）
 //      ⇒ 本项目**不往那两个方槽里塞控件**（保持底图原样），菜单项排在**下带**里。
 //
@@ -35,10 +35,10 @@
 // 零 `using Diablo2.Module`（分层自检 ③）。
 //
 // ═══════════════════════════════════════════════════════════════════════════
-// R1-E「人物对话时 UI 逻辑乱七八糟」本面板改的 5 处（S1 / S3 / S4 / S6 / S7）
+// 本面板的 5 条口径（层 / 关闭归零 / 唯一打开路径 / 菜单列 / 漏参数）
 //    每处都在实现处写了依据；日志里各有一条 `[R1-E] S<n>` 的**只报一次** Info 供实机对账。
 //
-//  S1 **层 Popup → Normal：商店与对话条共存**（原版行为：点「交易」商店打开、对话条仍在）
+//  · **层 = `Normal`：商店与对话条共存**（原版行为：点「交易」商店打开、对话条仍在）
 //     依据 = 引擎互斥/遮罩的语义（`clover-client-unity-engine/Runtime/Presentation/UI.cs`）：
 //       · `:155-159` `Open<T>` 里 `panel.Layer == UILayer.Popup` ⇒ 调 `CloseMutexPanels()`
 //         + `ShowMask()`；而 `:431-441` `CloseMutexPanels` 把**所有** `Layer == Popup` 的面板
@@ -50,22 +50,22 @@
 //       商店留在 `Popup`（它要在遮罩**之上**才点得动），对话条降到 `Normal`（它在遮罩**之下**：
 //       商店开着时被压暗/不可点，正是"模态商店"该有的样子；关掉商店（`HideMask`）后立刻恢复可点）。
 //       反过来（商店降级到 Normal）会让商店自己被遮罩挡住 ⇒ 整屏点不动（已排除）。
-// 副作用（登记在回报里）：商店开着时对话条被 0.5 黑遮罩压暗 —— 遮罩是引擎内建、无开关。
+// 副作用：商店开着时对话条被 0.5 黑遮罩压暗 —— 遮罩是引擎内建、无开关。
 //
-//  S3 **`OnClose` 补发 `Events.DialogClose`：面板被引擎销毁时模块侧状态必须归零**
-//     问题链：引擎 `Close` 只调 `OnClose`（见上），而 `NpcModule._currentNpcId` 只由
+//  · **`OnClose` 补发 `Events.DialogClose`：面板被引擎销毁时模块侧状态必须归零**
+//     问题链：引擎 `Close` 只调 `OnClose`（见上文），而 `NpcModule._currentNpcId` 只由
 //     `Events.DialogClose` 清（`Module/Npc/NpcModule.cs:746-749`）⇒ 面板被"互斥 / `CloseAll` /
-//     换站"销毁后 `_currentNpcId` 残留 ⇒ 之后任何 `Events.QuestChanged` 都会**凭空再弹一次对话**
+//     换站"销毁后 `_currentNpcId` 未清空 ⇒ 之后任何 `Events.QuestChanged` 都会**凭空再弹一次对话**
 //     （`NpcModule.OnQuestChanged` 的唯一门槛就是它），且 `ResolveNpcId` 会拿陈旧 NPC 兜底。
 //
-//  S4 **去掉重复订阅：一次 `Events.DialogOpen` 只 `Rebuild` 一次**
+//  · **一次 `Events.DialogOpen` 只 `Rebuild` 一次（本面板不订阅 `DialogOpen`）**
 //     `Events.DialogOpen` ⇒ 同一次刷新走两遍（`Open<T>` 已开 ⇒ 再 `OnOpen` 一次 + 本面板再
 //     `Rebuild` 一次）。面板**开不了自己**（它只有被 `Open<T>` 实例化之后才有实例）⇒
 //     权威路径唯一 = `HudPanel.OnDialogOpen` → `Game.UI.Open<NpcDialogPanel>(args)` → `OnOpen(param)`。
-//     ⇒ 删掉本面板对 `Events.DialogOpen` 的订阅与处理函数；保留 `Events.DialogClose` 订阅
+//     ⇒ 本面板**不订阅** `Events.DialogOpen`（也没有对应处理函数）；只订阅 `Events.DialogClose`
 //     （模块侧要关面板时的回程，唯一的）。
 //
-//  S6 **菜单项挪出那两个 34×34 雕花方槽**（几何重叠 = S6）
+//  · **菜单项排在两个 34×34 雕花方槽之间的中央列**（与雕槽矩形不相交）
 //     y ≈ 100.9 / 116.7 / 132.6 ⇒ 第 2、3 行落在雕槽 `y 115..148` 里（第 3 行整行在内）。
 //     下带（原版 y 93..155 = 62px 高）里，被雕槽占掉 `y 115..148` 后剩下的缝只有 22px（上）+ 7px（下）
 //     —— 放不下 3 行（每行 14.17 原版px、步进 15.83）。**唯一放得下的位置** = 两个雕槽**之间**的
@@ -76,8 +76,8 @@
 //     行宽变窄 ⇒ 文案必须放得下：最长的一条是原版串 3334「交易/修理」= 84.6 画布px
 //     （实量：`font16_chi_map.txt` 的 advance 求和 × 20/13，见 `uicheck` 的 ④-3 断言）≤ 118.8 ✓。
 //
-//  S7 **`OnOpen` 漏参数 ⇒ 明确 Warn + 不复用上一次数据**
-//     台词/选项（残留路径）。现在：param 为空 ⇒ `_dialog = null` + Warn（点名原因是"不复用"）。
+//  · **`OnOpen` 漏参数 ⇒ 明确 Warn + 不复用上一次数据**
+//     台词/选项（不清理就会留着上一次的）。param 为空 ⇒ `_dialog = null` + Warn（点名原因是"不复用"）。
 // ═══════════════════════════════════════════════════════════════════════════
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ namespace Diablo2.UI
         //   为什么合成一块：长槽净高只有 23 原版px（≈2 行），而原版串最长的一条
         //   （`A1Q1InitAkara`，键名见 Module/Npc/NpcDialog.cs）有 5 段硬换行、折行后 8~9 行；
         //   原版长台词是靠**分页**逐页显示的（串表里有 `NPCPreviousPage` 3340 / `NPCNextPage` 3339），
-        //   而"哪个控件触发翻页"在本批材料里同样没有出处 ⇒ 本项目**不分页、一屏画全**，
+        //   而"哪个控件触发翻页"在本机材料里同样没有出处 ⇒ 本项目**不分页、一屏画全**，
         //   于是把文本框从长槽向上扩到上带（两带同色：实测逐行亮度都是 ~24..31，中间只隔一条金线 67）。
         // ═════════════════════════════════════════════════════════════════════
 
@@ -218,15 +218,15 @@ namespace Diablo2.UI
         public static readonly float BodyY = Cy(TextTopOrigY) - NameH - BodyH * 0.5f;
 
         // ═════════════════════════════════════════════════════════════════════
-        // 菜单项（`NpcDialogArgs.options`，最多 3 项）—— 排在下带里、**两个雕花方槽之间的中央列**（S6），
+        // 菜单项（`NpcDialogArgs.options`，最多 3 项）—— 排在下带里、**两个雕花方槽之间的中央列**，
         //   逐行居中。顺序由模块给：0 = 关闭（原版串 `NPCMenuLeave`「離開」）→ 任务动作 → 商店入口。
         //   行宽/列心**不要**改回 `ContentW` / `ContentCx`：那样第 2、3 行会压进雕槽
-        //      （几何断言在 `tools/probes/hosts/uicheck` 的 ⑬ S6；依据见文件头 S6）。
+        //      （几何断言在 `tools/probes/hosts/uicheck` 的 ⑬；依据见文件头）。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// 菜单项**宽度**（原版px）= 两个雕花方槽之间的净宽 72 再各留 3 的呼吸位 ⇒ **66**
-        /// （×1.8 = 118.8 画布px）。见文件头 **S6**：行宽必须落在这条中央列里，否则会与雕槽几何重叠
+        /// （×1.8 = 118.8 画布px）。见文件头：行宽必须落在这条中央列里，否则会与雕槽几何重叠
         /// </summary>
         public const float OptionW = 66f;
 
@@ -256,19 +256,19 @@ namespace Diablo2.UI
         private bool _subscribed;
         private NpcDialogArgs _dialog;
 
-        /// <summary>`[R1-E] S1` 层语义（商店/对话共存）已说明过。</summary>
+        /// <summary>层语义（商店/对话共存）已说明过。</summary>
         private static bool _loggedS1;
 
-        /// <summary>`[R1-E] S3` 关闭即归零（补发 `DialogClose`）已说明过。</summary>
+        /// <summary>关闭即归零（补发 `DialogClose`）已说明过。</summary>
         private static bool _loggedS3;
 
-        /// <summary>`[R1-E] S4` 唯一打开路径（一次 DialogOpen 只 Rebuild 一次）已说明过。</summary>
+        /// <summary>唯一打开路径（一次 DialogOpen 只 Rebuild 一次）已说明过。</summary>
         private static bool _loggedS4;
 
-        /// <summary>`[R1-E] S6` 菜单项列口径（挪出雕槽）已说明过。</summary>
+        /// <summary>菜单项列口径（排在两个雕槽之间的中央列）已说明过。</summary>
         private static bool _loggedS6;
 
-        /// <summary>`[R1-E] S7` 漏参数不复用旧数据已说明过。</summary>
+        /// <summary>漏参数不复用旧数据已说明过。</summary>
         private static bool _loggedS7;
 
         private Text _speaker;
@@ -277,9 +277,9 @@ namespace Diablo2.UI
         private readonly List<Text> _optionLabels = new List<Text>();
 
         /// <summary>
-        /// **Normal**（不是 `Popup`）—— R1-E 的 **S1**：`Popup` 层是**互斥层**，引擎 `UIManager.Open`
+        /// **Normal**（不是 `Popup`）：`Popup` 层是**互斥层**，引擎 `UIManager.Open`
         /// 在打开任何 `Popup` 面板时会把同层其它面板全部 `Close`（= `Object.Destroy`，且不发
-        /// `Events.DialogClose`）⇒ 点「交易」会把对话条销毁。依据与取舍见文件头 **S1**（含为什么
+        /// `Events.DialogClose`）⇒ 点「交易」会把对话条销毁。依据与取舍见文件头（含为什么
         /// 商店必须留在 `Popup`、为什么遮罩之下的只能是对话条）。
         /// </summary>
         public override UILayer Layer => UILayer.Normal;
@@ -306,7 +306,7 @@ namespace Diablo2.UI
                     + " → `OnOpen(param)`（已开则重新 `OnOpen` + 置顶）");
             }
 
-            // S7 的「生效口径」**无条件**报一次（只报一次），不放进入 null 的那一支 ——
+            // 「生效口径」**无条件**报一次（只报一次），不放进入 null 的那一支 ——
             if (!_loggedS7)
             {
                 _loggedS7 = true;
@@ -318,7 +318,7 @@ namespace Diablo2.UI
             var dialog = UiLog.Require<NpcDialogArgs>(param, nameof(NpcDialogPanel));
             if (dialog == null)
             {
-                // S7：漏参数 ⇒ **明确空态**，绝不复用上一次的 _dialog（否则残留旧台词/旧选项）
+                // 漏参数 ⇒ **明确空态**，绝不复用上一次的 _dialog（否则会留着旧台词/旧选项）
                 UiLog.WarnOnce("dialog.open.param.null",
                     $"对话面板 `OnOpen(param)` 没拿到 `NpcDialogArgs` ⇒ 置空态（不复用上一次数据："
                     + $"上一次 NPC={_dialog?.npcName ?? "无"}）；请检查打开方是否漏传 DTO（constraints.md #7）");
@@ -338,7 +338,7 @@ namespace Diablo2.UI
         /// <inheritdoc/>
         public override void OnClose()
         {
-            // 顺序有讲究（见文件头 **S3**）：先退订 ⇒ 下面那条 Emit 不会回到自己身上（无回环）。
+            // 顺序有讲究（见文件头）：先退订 ⇒ 下面那条 Emit 不会回到自己身上（无回环）。
             Unsubscribe();
 
             if (!_loggedS3)
@@ -349,7 +349,7 @@ namespace Diablo2.UI
                     + "⇒ 之后 `Events.QuestChanged` 不会再凭空弹出对话；模块侧清理幂等，无回环");
             }
 
-            // S3：引擎 `UIManager.Close` **只**回调 `OnClose`、不补发任何事件（`UI.cs:199-229`）
+            // 引擎 `UIManager.Close` **只**回调 `OnClose`、不补发任何事件（`UI.cs:199-229`）
             //   ⇒ 模块侧的状态（`_currentNpcId`）只能由这里补一条 `DialogClose` 才清得掉。
             //   面板此刻已从 `_panels` 摘除（`Close` 先摘表再回调）⇒ 不会再被 `Game.UI.Close` 二次触发。
             Game.Event?.Emit(Events.DialogClose);
@@ -371,7 +371,7 @@ namespace Diablo2.UI
 
             // 标题条 = 原版**中文**位图（`data/local/ui/chi/npcspeech.dc6` 95×34，位图实测逐字「NPC 語音」）；
             // 外框 = 原版尺寸 ×1.8 = 171×61.2，整条落在石框**上方**（底沿贴 FrameTop）。
-            // 原版**没有这条的坐标出处**（石框里没有标题槽）⇒ 登记 `策划/验收表.md` 的 E17（BLOCKED 部分）。
+            // 原版**没有这条的坐标出处**（石框里没有标题槽）⇒ 登记 E17。
             // U3：标题条同样按 `DialogArtScale`（截图实测它也是 ~1.9×，与石框同倍 ⇒ 两者相对比例不变）。
             UiArt.Banner(transform, "SpeechBanner", ResPaths.Banner("npcspeech_0"),
                 new Vector2(L(95f), L(34f)), new Vector2(0f, FrameTop + L(34f) * 0.5f));
@@ -436,7 +436,8 @@ namespace Diablo2.UI
                 var button = EnsureOption(i);
                 var label = options[i] ?? string.Empty;
 
-                //   （主 agent 的读图报告正是把这种形状当成"选项按钮无文字"）。
+                //   空文案的选项按钮与"画了但没字"的按钮在肉眼上一样 ⇒ 这里显式判空并留痕，
+                //   否则会被误当成"选项按钮无文字"。
                 //   判据 = `uicheck` 的 Ⓐ-1/Ⓐ-2（纯函数退化对）+ 实机图。
                 if (!IsReadable(label, (int)UiLayoutGame.FontPx16, UiArt.ButtonText))
                 {
@@ -488,7 +489,7 @@ namespace Diablo2.UI
                         $"对话选项超过 {MaxOptions} 个 ⇒ 第 {MaxOptions + 1} 个起会越过石框底沿"
                         + "（本项目最多 3 项：关闭 / 任务动作 / 商店入口）");
                 }
-                // S6：列中心是 `OptionX`（两雕槽之间的中央列），**不是** `ContentCx`（内容行宽会压进雕槽）
+                // 列中心是 `OptionX`（两雕槽之间的中央列），**不是** `ContentCx`（内容行宽会压进雕槽）
                 //
                 // U3：`UiArt.Button(size, …)` 的 `size` 被用来**选底图帧**，而阈值是**原版px**
                 //   （`UiArt.WideButtonMinWidth = 200`；`UiLayoutFlow.FlowButton.Create` 也是这么用的：
@@ -530,7 +531,7 @@ namespace Diablo2.UI
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
         /// 打开/刷新对话的唯一权威路径 = `HudPanel.OnDialogOpen` → `Game.UI.Open<NpcDialogPanel>(args)`
-        /// （同一次 `DialogOpen` 会 `Rebuild` 两遍）。依据见文件头 **S4**。
+        /// （同一次 `DialogOpen` 会 `Rebuild` 两遍）。依据见文件头。
         /// </summary>
         private void Subscribe()
         {
@@ -548,7 +549,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 模块侧关闭对话 ⇒ 面板跟着关。
-        /// 本方法**不再** `Emit(DialogClose)`（那是 `OnClose` 的职责，见文件头 S3）：
+        /// 本方法**不** `Emit(DialogClose)`（那是 `OnClose` 的职责，见文件头）：
         /// 这里是被动的回程，模块已经清过状态 ⇒ 再发一条就是多余事件。
         /// </summary>
         private void OnDialogCloseEvent()

@@ -93,16 +93,9 @@ namespace CloverEngine
     }
 
     // ── 资源 ────────────────────────────────────────────────────────────────
-    /// <summary>`Runtime/Core/Contracts.cs:998`（子集）。</summary>
-    public interface IResourceManager
-    {
-        void LoadAsset<T>(string path, Action<T> callback) where T : UnityEngine.Object;
-        T TryGet<T>(string path) where T : UnityEngine.Object;
-
-        //   签名逐字对齐 `clover-client-unity-engine/Runtime/Core/Contracts.cs`（本文件是覆盖率哨兵）。
-        bool Exists(string path);
-        T[] LoadAll<T>(string path) where T : UnityEngine.Object;
-    }
+    // `IResourceManager` 的定义在引擎真实源码 `Runtime/Core/Contracts.cs:1206`（本宿主已链该文件）
+    // ⇒ shim 不再重复声明：重复声明 = CS0101，且会让"引擎给接口加成员"在宿主编译期**不可见**。
+    // 现在引擎加一个成员，本宿主的 `FakeRes`（`Program.cs`）会立刻 CS0535 —— 那正是覆盖率哨兵。
 
     // ── 声音 ────────────────────────────────────────────────────────────────
     /// <summary>`Runtime/Core/PresentationContracts.cs:281`。</summary>

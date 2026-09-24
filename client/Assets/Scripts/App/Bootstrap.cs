@@ -45,7 +45,7 @@ namespace Diablo2.App
             AppSnapshots.ResetStaticForNewPlaySession();
             AppDoorGuard.ResetStaticForNewPlaySession();
             AppFlow.ResetStaticForNewPlaySession();
-            FramePacing.ResetStaticsForNewPlaySession();   // ★ R1-D：帧节奏那条"只报一次"也要按局复位
+            FramePacing.ResetStaticsForNewPlaySession();   // 帧节奏那条"只报一次"也要按局复位
             Log.ResetThrottle();          // 上一局的"只报一次"记录不许压住本局该报的日志
 
             Game.Logger?.Info("App",
@@ -95,11 +95,11 @@ namespace Diablo2.App
                 Game.Shutdown();
             }
 
-            // ①b 引擎下沉 A5（消验收表 E19）：装配"文字渲染挂钩" —— 引擎通用件（Toast / Loading /
+            // ①b 装配"文字渲染挂钩" —— 引擎通用件（Toast / Loading /
             //    确认框 / 飘字 / 引导）建的 Text 从此与业务面板一样走**原版字模**。
             //    **必须在 Game.Launch 之前**：引擎的 LoadingLayer 在 `UIManager` 构造时
             //    （= Launch 内的 `CloverPresentation.Init` → `new UIManager()`）就把「加载中...」
-            //    那条 Text 建好并通知过了，晚于 Launch 装配会**永久漏掉它**（E19 取证里它正是其中一条）。
+            //    那条 Text 建好并通知过了，晚于 Launch 装配会**永久漏掉它**。
             //    未注册时引擎行为逐字不变（`TextHooks.NotifyCreated` 判空即返回）；实现见 `UI/D2EngineTextHook.cs`
             //    （此处按全名写，避免 App 层为此多引一个 `using Diablo2.UI`）。
             Diablo2.UI.D2EngineTextHook.Install();

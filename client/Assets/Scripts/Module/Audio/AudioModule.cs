@@ -5,21 +5,18 @@
 // 分工：
 //   · 本类  = 播放出口（Sfx / SfxAt / Bgm / StopBgm / 音量与静音）+ **缺文件降级**；
 //   · `SfxRegistry` = 音效键 → 期望文件名的唯一登记表；
-//   · `IAudioClipProbe` = 唯一的资源**存在性**接缝（生产 = `EngineAudioClipProbe`，薄转发到引擎
+//   · `IAudioClipProbe` = 唯一的资源**存在性**接缝（生产 = `EngineAudioClipProbe`，转发到引擎
 //     `Game.Res.Exists`）。
 //
-//   （`_missingSfx` / `_missingBgm`）＋配套的两张「已探测过」表（`_probedSfx` / `_probedBgm`），
-//   用来做「缺文件只 Warn 一次 + 之后不再调用引擎」。这两件事**各有现成口径**，四张表已全部删除：
-//     · **存在性**：不再自建异步探测（原 `LoadAsset<AudioClip>` ＋自己算缓存），改用引擎既有入口
-//       `Game.Res.Exists`（`IResourceManager.Exists` 声明于 `Runtime/Core/Contracts.cs:1287`，
-//       实现在 `Runtime/Resource/ResourceManager.cs:251`，**按路径缓存** —— 重复问 = 字典命中，
-//     · **只 Warn 一次**：交给日志层唯一那份静态集合（`AudioLog.cs:31-34` 的
-//       `MissingSfxWarned` / `MissingBgmWarned`），本类不再各存一份；
-//       引擎 `Sound.cs` 对「真的走到加载」的 `clip == null` 另有整进程一次的
+// 缺文件降级的实现口径：
+//     · **存在性**：问引擎既有入口 `Game.Res.Exists`（`IResourceManager.Exists` 声明于
+//       `Runtime/Core/Contracts.cs:1287`，实现在 `Runtime/Resource/ResourceManager.cs:251`，
+//       **按路径缓存** ⇒ 重复问 = 字典命中，不打盘、不加载）；
+//     · **只 Warn 一次**：由日志层 `AudioLog` 的每键一次闸门保证（见 `AudioLog.MissingSfx` /
+//       `MissingBgm`）；引擎 `Sound.cs` 对「真的走到加载」的 `clip == null` 另有整进程一次的
 //       `LogThrottle.WarnOnce`（`Sound.cs:272/336/361/387`）作第二道网（被存在性闸门拦住时走不到）；
-//     · **不再调用引擎**：存在性为假 ⇒ 本类**不调** `Game.Sound`（原行为逐字保留）。
-//   副作用（有意为之）：`_probed*` 消失后，同一缺失键的每次请求都会问一次存在性 ——
-//   生产里那是引擎 `_existsCache` 的一次字典命中（不打盘、不加载），**不是**恢复成"每次读盘"。
+//     · **不调用引擎**：存在性为假 ⇒ 本类**不调** `Game.Sound`。
+//   同一缺失键的每次请求都会问一次存在性 —— 生产里那是引擎 `_existsCache` 的一次字典命中。
 //
 // 触发点现状（**避免重复发声**，先读了一遍已有代码）：
 //   命中/未命中/玩家受击/玩家死亡/怪物死亡 → 已由 `Module/Combat/DamagePipeline.cs`
@@ -30,12 +27,12 @@
 //     **尚未覆盖**的那些：脚步 / 拾取 / 使用 / 升级 / 任务完成 / 复活 / UI / 对话 / 商店 / 进图 / 传送 / BGM。
 //
 // 缺文件降级（硬要求 ④）：存在性为假 ⇒ **每个键只 Warn 一次** + 之后**静默**，且**不再调用引擎**，
-//   **不抛异常**（「只 Warn 一次」的存放处 = `AudioLog` 的静态集合，见上方 段）。
+//   **不抛异常**（「只 Warn 一次」的存放处 = `AudioLog`）。
 //   素材到位后无需改代码，自动出声。
 //
 // 音量（硬要求 ①）：`Game.Sound.SetVolume(SoundGroup.BGM/SFX, v)` + `Game.Sound.SetMute(…)`，
 //   并持久化到 `Game.Setting`（键 `GameConst.SettingKeyBgmVolume/SfxVolume`，初值取 `Cfg`）。
-//   早已过期 —— 键在 `Core/GameConst.cs:217/220` 就有）：
+//   静音开关（键 = `Core/GameConst.cs` 的 `SettingKeyBgmMute` / `SettingKeySfxMute`）：
 //     · 冷启动读回：`LoadVolumeFromSettings` 读 `SettingKeyBgmMute/SfxMute`（缺项 ⇒ false）；
 //     · 生效：`ApplyVolumeToEngine` 把两个开关施加到 `Sound.SetMute(BGM/SFX, …)`；
 //     · 运行期修改：`SetMute` 落盘（`Setting.Set` + `Save()`）再施加 ⇒ 重启仍在。
@@ -58,7 +55,7 @@ namespace Diablo2.Module.Audio
         /// <summary>BGM 切歌淡入淡出时长（秒；引擎 `PlayBGM(clip, fade)` 的 fade 参数）。</summary>
         private const float BgmFadeSeconds = 0.6f;
 
-        //   `AudioLog` 的静态集合负责。见文件头 段。
+        // 缺文件「只 Warn 一次」的状态由 `AudioLog` 持有（本类不各存一份）。
 
         /// <summary>事件触发点接线器（与本类同属 Audio 模块，直接持有本类引用不违反跨模块约定）。</summary>
         private readonly AudioHook _hook;
@@ -186,7 +183,7 @@ namespace Diablo2.Module.Audio
             _bgmMute = bgmMute;
             _sfxMute = sfxMute;
             ApplyVolumeToEngine();
-            PersistMute();                                   // ★ T0FIX-B：落盘（旧口径只改内存字段）
+            PersistMute();                                   // 静音开关落盘（音量与静音两个维度，见文件头）
             AudioLog.Info($"[T0FIX] 静音已设置：bgm={_bgmMute} sfx={_sfxMute}" +
                           $"（已施加到 Sound.SetMute(BGM/SFX) 并写 Game.Setting" +
                           $"[\"{GameConst.SettingKeyBgmMute}\"/\"{GameConst.SettingKeySfxMute}\"] + Save() ⇒ 重启仍在）");
@@ -313,14 +310,14 @@ namespace Diablo2.Module.Audio
                 AudioLog.NoSetting();
                 _bgm = Mathf.Clamp01(Cfg.BgmVolume);
                 _sfx = Mathf.Clamp01(Cfg.SfxVolume);
-                _bgmMute = false;                            // ★ T0FIX-B：没设置后端 ⇒ 静音取默认 false
+                _bgmMute = false;                            // 没设置后端 ⇒ 静音取默认 false
                 _sfxMute = false;
                 return;
             }
 
             _bgm = Mathf.Clamp01(setting.Get<float>(GameConst.SettingKeyBgmVolume, Cfg.BgmVolume));
             _sfx = Mathf.Clamp01(setting.Get<float>(GameConst.SettingKeySfxVolume, Cfg.SfxVolume));
-            // T0FIX-B：静音开关的**冷启动读回**（缺项 = false = 原版默认不静音）
+            // 静音开关的**冷启动读回**（缺项 = false = 原版默认不静音）
             _bgmMute = setting.Get<bool>(GameConst.SettingKeyBgmMute, false);
             _sfxMute = setting.Get<bool>(GameConst.SettingKeySfxMute, false);
             AudioLog.Info($"音量初值：bgm={_bgm:0.00} sfx={_sfx:0.00}" +
@@ -362,7 +359,7 @@ namespace Diablo2.Module.Audio
         }
 
         /// <summary>
-        /// T0FIX-B：静音开关落盘（键 = `Core/GameConst.cs:217/220` 的
+        /// 静音开关落盘（键 = `Core/GameConst.cs` 的
         /// `SettingKeyBgmMute` / `SettingKeySfxMute`）。与 <see cref="PersistVolume"/> 分开：
         /// 音量行与静音开关是**两个维度**（`GameConst.SettingKeyBgmMute` 的注释定的口径），
         /// 谁改谁写、互不覆盖。

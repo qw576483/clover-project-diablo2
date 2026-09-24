@@ -301,7 +301,7 @@ namespace Uicheck
             Console.WriteLine($"      │ [登记·非失败] 磁盘上仍保留 {stillCopy.Count} 个 Diablerie 副本文件"
                 + "（已无代码引用）：" + (stillCopy.Count == 0 ? "0 个（w4 已删除 20 个副本）"
                     : string.Join(",", stillCopy.ToArray())));
-            Console.WriteLine("      │   实测事实（`python tools/probes/measure/scan_uigame.py --pairs`）："
+            Console.WriteLine("      │   实测事实（原版/副本逐对量法；该脚本已按设计退役、不在仓库里）："
                 + "20 对全部「同画面；alpha 差 N 像素（DC6=透明 / 副本=不透明黑）」，"
                 + "minipanelbtn 每帧 20 px、menubutton 每帧 38 px；"
                 + "w4 处置 = **删除 20 个副本 + `Core/ResPaths.cs` 的 4 个 `PanelArrow*` 改指 `menubutton_{0..3}`**"
@@ -745,22 +745,31 @@ namespace Uicheck
                 && cursorSrc.Contains("private void OnCursorChanged(CursorKind kind)"),
                 $"Scripts/**（去注释）出现 {consumers} 次（发送方 InputReader + 消费方 CursorView 的订阅/注销/处理方法）");
 
+            //  ★ 承载件已下沉到引擎 `WorldOverlayWidgets.SoftwareCursorLayer`（项目侧 `CursorView` 只订阅事件 +
+            //     把"该不该接管"交给引擎层）⇒ 判据读**引擎真源**那半 + 项目侧订阅那半，两部分都要在。
+            var cursorEngSrc = File.ReadAllText(Path.Combine(Program.ProjectRoot, "..", "clover-client-unity-engine",
+                "Runtime", "Presentation", "WorldOverlayWidgets.cs"));
             Program.Check("光标：消费方**真的改鼠标光标** —— 藏/恢复系统光标（`Cursor.visible`）"
                           + "+ 跟随鼠标的 Image（`Game.Input.MousePosition` → 画布局部坐标）",
-                cursorSrc.Contains("Cursor.visible")
-                && cursorSrc.Contains("Game.Input.MousePosition")
-                && cursorSrc.Contains("ScreenPointToLocalPointInRectangle")
-                && cursorSrc.Contains("_image.enabled")
-                && cursorSrc.Contains("raycastTarget = false"),
-                "见 UI/CursorView.cs（承载方式 = 独立 Top 画布 + Image：像素素材 isReadable=0 ⇒ Cursor.SetCursor 用不了）");
+                cursorSrc.Contains("Game.Input.MousePosition")
+                && cursorSrc.Contains("SetVisible(")
+                && cursorEngSrc.Contains("Cursor.visible = !hidden;")
+                && cursorEngSrc.Contains("ScreenPointUtil.TryScreenToLocalInRect(")
+                && cursorEngSrc.Contains("_image.rectTransform.anchoredPosition = local;")
+                && cursorEngSrc.Contains("image.raycastTarget = false;")
+                && cursorEngSrc.Contains("image.enabled = false;"),
+                "见 CursorView（订阅 + 从 Game.Input 取屏幕点）+ 引擎 SoftwareCursorLayer"
+                + "（藏系统光标 / 跟随鼠标 / 不吃射线；像素素材 isReadable=0 ⇒ Cursor.SetCursor 用不了）");
 
             Program.Check("光标：**菜单里不接管** —— 只在 StageEntered→StageLeft 之间显示，且贴图没到位时"
                           + "不隐藏系统光标（否则会出现\u201c看不见指针\u201d这种更糟的状态）",
                 cursorSrc.Contains("Events.StageEntered, OnStageEntered")
                 && cursorSrc.Contains("Events.StageLeft, OnStageLeft")
                 && cursorSrc.Contains("_stageActive && _spriteReady")
-                && cursorSrc.Contains("Cursor.visible = !hidden"),
-                "见 UI/CursorView.cs 的 ApplyVisibility / SetSystemCursorHidden");
+                && cursorEngSrc.Contains("Cursor.visible = !hidden;")
+                && cursorEngSrc.Contains("public void SetSystemCursorHidden(bool hidden)"),
+                "见 CursorView 的订阅 + ApplyVisibility（`_stageActive && _spriteReady`）"
+                + " + 引擎 SoftwareCursorLayer.SetSystemCursorHidden");
 
             TryPngSize(ResPaths.Cursor, out var cw, out var ch);
             Program.Check($"光标素材在位且 IHDR == 声明的原版尺寸 {UiLayoutGame.CursorArtPx.x:0}×{UiLayoutGame.CursorArtPx.y:0}",
