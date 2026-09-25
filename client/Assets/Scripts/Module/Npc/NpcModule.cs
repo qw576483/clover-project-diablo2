@@ -11,10 +11,14 @@
 //   · `IQuestModule.DenOfEvil / CanTurnInDen` —— 对话文本阶段 + 可否接/交任务；
 //   · `IItemModule` —— 金币结算 / 背包空间校验 / 修理 / 造货。
 //
+// 交互口径（原版）：**只有点在 NPC 身上**（`Module/Player` 用悬停命中判出 NPC 后发 `NpcInteractRequest`）
+//   才走过去、到位开对话；从 NPC 旁边路过的一次点击**不**触发对话。
+//
 // 事件：
 //   发 `DialogOpen(NpcDialogArgs)` / `DialogClose` / `ShopOpen(ShopOpenArgs)` / `ShopChanged(ShopOpenArgs)` /
-//      `QuestAcceptRequest(int)` / `QuestTurnInRequest(int)`
-//   收 `DialogOptionChosen(int)` / `DialogClose` / `ShopBuyRequest(ShopTradeArgs)` /
+//      `QuestAcceptRequest(int)` / `QuestTurnInRequest(int)` / `MoveCommand(Vector2Int)`（走向 NPC 的站位格）
+//   收 `NpcInteractRequest(int)`（点击意图）/ `MoveCommand(Vector2Int)`（意图作废判据）/ `DialogOptionChosen(int)` /
+//      `DialogClose` / `ShopBuyRequest(ShopTradeArgs)` /
 //      `ShopSellRequest(ShopTradeArgs)` / `ShopRepairRequest(ShopTradeArgs)` / `ShopClose`
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -64,7 +68,10 @@ namespace Diablo2.Module.Npc
         /// </summary>
         private int _currentNpcId = (int)NpcId.None;
 
-        /// <summary>「点了这个 NPC，走到就说话」的意图（-1 = 无）。见 <see cref="OnMoveCommand"/>。</summary>
+        /// <summary>
+        /// 「点了这个 NPC，走到就说话」的意图（-1 = 无）。来源 = `NpcInteractRequest`（见
+        /// <see cref="OnInteractRequest"/>），作废 = 移动目标改成别的格（见 <see cref="OnMoveCommand"/>）。
+        /// </summary>
         private int _pendingNpcId = (int)NpcId.None;
 
         public NpcModule()
@@ -84,9 +91,8 @@ namespace Diablo2.Module.Npc
             bus.On<ShopTradeArgs>(Events.ShopSellRequest, OnSellRequest);
             bus.On<ShopTradeArgs>(Events.ShopRepairRequest, OnRepairRequest);
             bus.On(Events.ShopClose, OnShopClose);
-            // 「点击 NPC → 走过去 → 自动对话」：当前**没有任何模块发 `Events.NpcInteractRequest`**
-            // （点击只落到 `Events.MoveCommand`）⇒ 本模块用落点识别"点了哪个 NPC"，到位后交互一次。
-            // 若将来 Input/UI 补上 `NpcInteractRequest`，两条路径并存且不冲突。
+            // 「点击 NPC → 走过去 → 开对话」：意图来自 `Module/Player`（左键命中 NPC 时发的契约请求），
+            // 本模块负责"走到位"与"到位后开一次对话"；`MoveCommand` 只用来判意图作废。
             bus.On<Vector2Int>(Events.MoveCommand, OnMoveCommand);
         }
 
@@ -490,31 +496,28 @@ namespace Diablo2.Module.Npc
         }
 
         /// <summary>
-        /// 点击落点靠近某个 NPC（`GameConst.TalkRange` 内）⇒ 记下"走过去跟他说话"的意图。
-        /// 点击只落到 `Events.MoveCommand`（没人发 `NpcInteractRequest`）⇒ 这是"点 NPC 说话"的兜底实现。
+        /// 「走过去跟谁说话」这个意图的作废判据：移动目标改成**别的格**（点了别处 / 按住拖开）
+        /// ⇒ 意图作废。本模块在 <see cref="OnInteractRequest"/> 里下发的那条走位目标就是 NPC 站位格
+        /// ⇒ 不会被自己顶掉。
+        /// <para>⛔ 这里**不**按"落点离哪个 NPC 近"来判定交互意图 —— 那会让只是从 NPC 旁边路过的
+        /// 一次点击也弹出对话窗（`GameConst.TalkRange` 是"到了这一步才能开口"的范围，不是"点这一片就算点他"）。</para>
         /// </summary>
         private void OnMoveCommand(Vector2Int target)
         {
-            var def = FindNearest(target);
-            if (def == null)
-            {
-                if (_pendingNpcId != (int)NpcId.None) _pendingNpcId = (int)NpcId.None;
-                return;
-            }
-            if (def.id == _currentNpcId || def.id == _pendingNpcId) return;
+            if (_pendingNpcId == (int)NpcId.None) return;
 
-            _pendingNpcId = def.id;
-            Log.Info("Npc", $"点击 ({target.x},{target.y}) 落在 {def.name} 的对话范围（{GameConst.TalkRange:0.00} 格）内"
-                + "⇒ 走过去后自动对话");
+            var def = Get(_pendingNpcId);
+            if (def != null && target.x == def.gridX && target.y == def.gridY) return;
+
+            Log.Info("Npc", $"移动目标改为 ({target.x},{target.y})、不再是正在走过去的那个 NPC"
+                + $"（id={_pendingNpcId}）⇒ 取消「走过去说话」意图");
+            _pendingNpcId = (int)NpcId.None;
         }
 
         /// <summary>走到待对话 NPC 的对话范围内就交互一次（已在对话中则不重复开）。</summary>
         private void TryAutoInteract()
         {
             if (_pendingNpcId == (int)NpcId.None) return;
-
-            var p = Player;
-            if (p == null) return;
 
             var def = Get(_pendingNpcId);
             if (def == null)
@@ -527,14 +530,22 @@ namespace Diablo2.Module.Npc
                 _pendingNpcId = (int)NpcId.None;          // 已经在跟他说话
                 return;
             }
-
-            var dx = p.Grid.x - def.gridX;
-            var dy = p.Grid.y - def.gridY;
-            if (Mathf.Sqrt(dx * dx + dy * dy) > GameConst.TalkRange) return;
+            if (!InTalkRange(def)) return;
 
             var id = _pendingNpcId;
             _pendingNpcId = (int)NpcId.None;
             Interact(id);
+        }
+
+        /// <summary>玩家是否已经在某个 NPC 的对话范围内（`GameConst.TalkRange`）。</summary>
+        private static bool InTalkRange(NpcDef def)
+        {
+            var p = Player;
+            if (p == null || def == null) return false;
+
+            var dx = p.Grid.x - def.gridX;
+            var dy = p.Grid.y - def.gridY;
+            return dx * dx + dy * dy <= GameConst.TalkRange * GameConst.TalkRange;
         }
 
         /// <summary>复位（回主菜单时调用）。</summary>
@@ -606,9 +617,8 @@ namespace Diablo2.Module.Npc
             _builtSeed = seed;
             _builtArea = area;
 
-            //   ① 旧兜底会在**非城镇区域**凭空造出 5 个站在原点的幽灵 NPC（原 `Log.Warn … 暂用 (0,0)`，
-            //      09-23 日志 115 条），而 `FindNearest` 只按**距离**判 ⇒ 进洞后靠近原点就弹出阿卡拉
-            //      对话（`NpcModule.FindNearest` 的 注释记录了那次实机复现，验收 #38）。
+            //   ① (0,0) 占位兜底会在**非城镇区域**凭空造出 5 个站在原点的幽灵 NPC；任何按**距离**
+            //      找 NPC 的判据都会让"进洞后靠近原点"命中他们（如 `FindNearest`）。
             //   ② 站位一律取自 `IMapModule.NpcPoints` —— 城镇生成器按原版数据摆放
             //      （实测 阿卡拉=(41,19)、恰西=(21,21)），本文件不许硬编码任何坐标。
             if (!generated || map.Area != AreaId.Town)
@@ -772,12 +782,40 @@ namespace Diablo2.Module.Npc
 
         // ── 内部：事件 ─────────────────────────────────────────────────────────
 
-        /// <summary>别的模块（Input/UI）若发 `NpcInteractRequest`：直接交互（与本模块的点击兜底互不干扰）。</summary>
+        /// <summary>
+        /// 玩家点了某个 NPC（`Module/Player` 左键命中 NPC 时发的请求）。
+        /// 原版语义 = **走到他身边才开口**：已经在他 `GameConst.TalkRange` 内 ⇒ 当场开对话；
+        /// 否则记下"走过去跟他说话"的意图并下发一条走到他站位格的 `MoveCommand`，
+        /// 由 <see cref="TryAutoInteract"/> 在到位后开一次。别处再点一下即作废（见 <see cref="OnMoveCommand"/>）。
+        /// </summary>
         private void OnInteractRequest(int npcId)
         {
-            if (npcId == _currentNpcId) return;
-            _pendingNpcId = (int)NpcId.None;
-            Interact(npcId);
+            var def = Get(npcId);
+            if (def == null)
+            {
+                Log.Warn("Npc", $"NpcInteractRequest(npcId={npcId})：取不到该 NPC 的定义 ⇒ 忽略"
+                    + "（非罗格营地 / 地图未生成 / 站位缺失，原因见上一行）");
+                return;
+            }
+            if (!InTownForNpc())
+            {
+                var m0 = Map;
+                Log.Warn("Npc", $"NpcInteractRequest(npcId={npcId})：当前区域 {(m0 != null ? m0.Area.ToString() : "无地图")} "
+                    + "不是罗格营地 ⇒ 拒绝交互（NPC 只存在于城镇）");
+                return;
+            }
+            if (npcId == _currentNpcId) return;          // 已经在跟他说话 ⇒ 不重开、不重走
+
+            if (InTalkRange(def))
+            {
+                Interact(npcId);
+                return;
+            }
+
+            _pendingNpcId = def.id;
+            Log.Info("Npc", $"点击 {def.name}：人还在对话范围（{GameConst.TalkRange:0.00} 格）外 ⇒ 先走到他的"
+                + $"站位格 ({def.gridX},{def.gridY})，到位后开对话");
+            Game.Event?.Emit(Events.MoveCommand, new Vector2Int(def.gridX, def.gridY));
         }
 
         private void OnDialogOptionChosen(int optionIndex)

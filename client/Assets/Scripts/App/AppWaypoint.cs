@@ -10,7 +10,8 @@
 //   不持有任何模块的**实现类型**：一律走 `AppWiring.Ctx` 的接口 + `Core/Events` 的事件。
 //
 // 事件口径（只增不改，都是**已有的**）：
-//   · 收 `Events.MoveCommand`(Vector2Int)  —— 判"点的是不是传送点那一格"（与 `NpcModule`
+//   · 收 `Events.MoveCommand`(Vector2Int)  —— 判点击落点是否落在**传送台的命中区**（= 锚点格的
+//     8 邻；传送台本体画出来会压住锚点周围两格，几何依据见 `OnMoveCommand` 的注释。与 `NpcModule`
 //     的"点 NPC 走过去说话"同一条兜底路径：本项目点击只落到 MoveCommand）；
 //   · 收 `Events.PlayerGridChanged`(Vector2Int) —— 判"走到了没有"（8 邻 = 可交互，同
 //     `ItemModule.Pickup` 的 `Iso.IsAdjacent` 口径）；
@@ -135,31 +136,56 @@ namespace Diablo2.App
 
         // ── 交互 ─────────────────────────────────────────────────────────────
 
-        /// <summary>点了传送点那一格 ⇒ 记下"走过去"；点别处 ⇒ 撤销。</summary>
+        /// <summary>
+        /// 点了传送台 ⇒ 记下"走到锚点旁"；点别处 ⇒ 撤销。
+        /// <para>
+        /// **命中区 = 锚点格的 8 邻（含锚点格本身）** —— 判据 `Iso.IsAdjacent`（= `Iso.GridDistance ≤ 1`），
+        /// 与"点物品走过去拾取"（`ItemModule` 的 `ClickPickupSlack = 1`）同一条容差口径。
+        /// 为什么不是"只有锚点那一格"：台子是**画出来的一大块**，屏幕上它压住的格不止一格，
+        /// 几何可复算（四处出处）：
+        /// <list type="bullet">
+        /// <item>帧图画布 **131×79 px**（8 张同尺寸）= `Resources/Clover/D2/Objects/waypoint/manifest.json`
+        ///   的 `canvas.w/h`，解包时由 `tools/d2codec/export_waypoint.py` 写入；</item>
+        /// <item>按 **80 px/世界单位** 解释（原版等距格是 160×80 px，见 `Module/Map/MapView.cs:2493`
+        ///   的 `D2TilePixelsPerUnit`，节点缩放 = 契约 PPU 64 / 80）；</item>
+        /// <item>轴心 = 图心（`Assets/Editor/AssetImporter.cs:283` 的 `spritePivot = (0.5, 0.5)`），
+        ///   物件摆放 = 图像**底边**贴格中心下方半格（`CloverEngine.TileRenderer.PlaceOfPx`，
+        ///   调用点 `Module/Map/MapView.cs:2505` 的 `PlaceOf`）；</item>
+        /// <item>⇒ 画出来的像素按等距逆投影只落在**三格**（相对锚点；取 8 帧并集的可见带
+        ///   `canvas.padBottom = 34` / `unionH = 45`）：(0,0) 56.4% / (0,-1) 23.8% / (-1,0) 19.9%
+        ///   —— 三格**都在**锚点 8 邻内 ⇒ 8 邻覆盖整块台子，且对"贴图定位差一格"这类非预期情形
+        ///   留了余量（`Iso.GridDistance ≤ 1`）。</item>
+        /// </list>
+        /// </para>
+        /// </summary>
         private static void OnMoveCommand(Vector2Int target)
         {
             var map = Map;
             if (map == null || !map.IsGenerated) return;
 
-            if (!IsWaypointCell(map, target))
+            Vector2Int anchor;
+            if (!TryResolveWaypoint(map, target, out anchor))
             {
                 if (_walking) _walking = false;
                 return;
             }
 
             var p = Player;
-            if (p != null && Iso.IsAdjacent(p.Grid, target))
+            if (p != null && Iso.IsAdjacent(p.Grid, anchor))
             {
-                // 已经站在旁边 ⇒ 不用走，直接开（否则不会有 PlayerGridChanged，面板永远不开）
-                Game.Logger.Info(Tag, $"点击传送点 ({target.x},{target.y})：玩家已在相邻格 "
-                    + $"({p.Grid.x},{p.Grid.y}) ⇒ 直接打开传送面板");
+                // 已经站在台子（锚点）旁 ⇒ 不用走，直接开（否则不会有 PlayerGridChanged，面板永远不开）
+                Game.Logger.Info(Tag, $"点击传送台 ({target.x},{target.y})：玩家已站在锚点 "
+                    + $"({anchor.x},{anchor.y}) 的相邻格 ({p.Grid.x},{p.Grid.y}) ⇒ 直接打开传送面板");
                 OpenPanel();
                 return;
             }
 
+            // 走的是**锚点格**而不是被点中的那一格：锚点由生成期校验过可走
+            //   （`MapGenTown` 的 `RequiredReachable`），而被点中的那一格可能只是台子边缘压到的墙/树。
             _walking = true;
-            _target = target;
-            Game.Logger.Info(Tag, $"点击传送点 ({target.x},{target.y}) ⇒ 走过去后打开传送面板");
+            _target = anchor;
+            Game.Logger.Info(Tag, $"点击传送台 ({target.x},{target.y}) ⇒ 走到锚点 ({anchor.x},{anchor.y}) "
+                + "旁后打开传送面板");
         }
 
         /// <summary>玩家换格：到达锚点 8 邻就开面板。</summary>
@@ -285,14 +311,21 @@ namespace Diablo2.App
 
         // ── 内部 ─────────────────────────────────────────────────────────────
 
-        /// <summary>本体是否是传送点锚点格。</summary>
-        private static bool IsWaypointCell(IMapModule map, Vector2Int g)
+        /// <summary>
+        /// 点击格是否在某个传送台的**命中区**内；在则输出该台的**锚点格**（= 要走过去的那一格）。
+        /// <para>命中区 = 锚点格的 8 邻（几何依据见 `OnMoveCommand`）；表里没有锚点（野外 / 洞穴）
+        /// ⇒ false。</para>
+        /// </summary>
+        private static bool TryResolveWaypoint(IMapModule map, Vector2Int click, out Vector2Int anchor)
         {
+            anchor = default(Vector2Int);
             var pts = map.WaypointPoints;
             if (pts == null) return false;
             for (var i = 0; i < pts.Count; i++)
             {
-                if (pts[i] == g) return true;
+                if (!Iso.IsAdjacent(pts[i], click)) continue;
+                anchor = pts[i];
+                return true;
             }
             return false;
         }

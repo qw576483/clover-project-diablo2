@@ -14,6 +14,11 @@
 // 非 MonoBehaviour：由 `InventoryPanel` / `ShopPanel` 持有，在 `OnUpdate(dt)` 里 `Tick()`
 //（`UIPanel.OnUpdate` 由引擎 `UIManager.Tick` 驱动，见 `Runtime/Presentation/UI.cs:293-318`）。
 //
+// 两个显示入口：`Show(ItemStack[, priceLine])`（真 `Def.ItemStack`：背包 / 装备 / 商店卖出页）、
+//   `ShowStock(ShopEntry)`（商店买入页 —— 载荷只带名称/品质/占格/价格/数量）。
+// 价格行：默认 = 物品自身 `ItemStack.price`（「售价」）；商店按该格的语义传 `priceLine`
+//   （商人的货 = 其价格 / 玩家的货 = `GameConst.SellPriceOf`），见 `UI/ShopPanel.UpdateHover`。
+//
 // 本文件在 UI 层：只引用 `CloverEngine` / `Diablo2.Core` / `Diablo2.Def` / UnityEngine(.UI)。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -205,8 +210,14 @@ namespace Diablo2.UI
             _body.verticalOverflow = VerticalWrapMode.Overflow;
         }
 
-        /// <summary>显示某件物品（名称配色见 <see cref="ItemQualityColor"/>）。</summary>
-        public void Show(ItemStack item)
+        /// <summary>显示某件物品（名称配色见 <see cref="ItemQualityColor"/>；价格行 = 物品自身的「售价」）。</summary>
+        public void Show(ItemStack item) => Show(item, null);
+
+        /// <summary>
+        /// 显示某件物品；<paramref name="priceLine"/> 非空时**取代**默认的「售价: `ItemStack.price`」行
+        /// —— 商店按该格的语义给这一行（商人的货 / 玩家的货，见 `UI/ShopPanel.UpdateHover`）。
+        /// </summary>
+        public void Show(ItemStack item, string priceLine)
         {
             if (item == null)
             {
@@ -218,14 +229,48 @@ namespace Diablo2.UI
             if (_root == null) return;
 
             var title = string.IsNullOrEmpty(item.name) ? $"物品 #{item.itemId}" : item.name;
-            _title.text = title;
-            _title.color = ItemQualityColor.Of(item.quality);
+            // 指纹带上价格行 ⇒ 同一件物品在买卖两页之间切换时会各留一行日志。
+            var key = item.itemId + "|" + (int)item.quality + "|" + item.name + "|" + item.count
+                      + "|" + AffixSummary(item) + "|" + priceLine;
+            Apply(title, item.quality, BuildLines(item, priceLine), key,
+                $"物品「{title}」 类型={item.type} 占格={item.gridW}x{item.gridH} 词缀={AffixSummary(item)}");
+        }
 
-            var lines = BuildLines(item);
+        /// <summary>
+        /// 显示商店「商人的货」（载荷 = `Def.ShopEntry`）。它只带 名称 / 品质 / 占格 / 价格 / 数量
+        /// （`Def.ShopEntry` 未透传类型 / 伤害 / 词缀 / 需求）⇒ 只列载荷里有的字段，⛔ 不猜物品大类。
+        /// </summary>
+        public void ShowStock(ShopEntry entry)
+        {
+            if (entry == null)
+            {
+                UiLog.Warn("ItemTooltip.ShowStock 收到 null 商品 ⇒ 不显示（调用方应先判空）");
+                Hide();
+                return;
+            }
+
+            if (_root == null) return;
+
+            var title = string.IsNullOrEmpty(entry.name) ? $"物品 #{entry.itemId}" : entry.name;
+            var lines = new List<string> { $"花费: {entry.price}" };
+
+            var key = "stock|" + entry.index + "|" + entry.itemId + "|" + (int)entry.quality + "|"
+                      + entry.name + "|" + entry.price + "|" + entry.count;
+            Apply(title, entry.quality, lines, key,
+                $"商店商品「{title}」 占格={entry.gridW}x{entry.gridH} 花费={entry.price}"
+                + $" 数量={(entry.count < 0 ? "无限" : entry.count.ToString())}");
+        }
+
+        /// <summary>把标题 / 品质色 / 正文行写进浮层并显示（两个悬停入口共用同一套排版与日志口径）。</summary>
+        private void Apply(string title, ItemQuality quality, List<string> lines, string logKey, string logDetail)
+        {
+            _title.text = title;
+            _title.color = ItemQualityColor.Of(quality);
+
             _body.text = string.Join("\n", lines.ToArray());
 
-            // 验收表 #34 的日志口径：**每件物品被悬停时一行**，含品质名 / 颜色 / 词缀。
-            LogHover(item);
+            // 验收表 #34 的日志口径：**每件物品被悬停时一行**，含品质名 / 颜色。
+            LogHover(logKey, quality, logDetail);
 
             //   原版 tooltip 是"名条折行后整块往下长"，故这里按实际行数给高度、并把正文整体下移。
             var titleLines = TitleLineCount(title);
@@ -265,22 +310,17 @@ namespace Diablo2.UI
 
         // ── 日志（验收表 #34 的证据行）──────────────────────────────────────────
         /// <summary>
-        /// 悬停一行日志：`[tooltip] 品质=<名>(<色>) 色=<#RRGGBB> 物品「…」 词缀=…`。
+        /// 悬停一行日志：`[tooltip] 悬停品质=&lt;名&gt;(&lt;色&gt;) 色=&lt;#RRGGBB&gt; &lt;detail&gt;`。
         /// <para>同一件物品只在**第一次**悬停时打一行（见 <see cref="_loggedKey"/>），
-        /// 因为 `Show` 被面板每帧调用。</para>
+        /// 因为悬停判定被面板每帧调用。</para>
         /// </summary>
-        private void LogHover(ItemStack item)
+        private void LogHover(string key, ItemQuality quality, string detail)
         {
-            var key = item.itemId + "|" + (int)item.quality + "|" + item.name + "|" + item.count
-                      + "|" + AffixSummary(item);
             if (string.Equals(key, _loggedKey, System.StringComparison.Ordinal)) return;
             _loggedKey = key;
 
-            UiLog.Info($"[tooltip] 悬停品质={ItemQualityColor.NameOf(item.quality)}"
-                + $" 色={ItemQualityColor.HexOf(item.quality)}"
-                + $" 物品「{(string.IsNullOrEmpty(item.name) ? "物品 #" + item.itemId : item.name)}」"
-                + $" 类型={item.type} 占格={item.gridW}x{item.gridH}"
-                + $" 词缀={AffixSummary(item)}");
+            UiLog.Info($"[tooltip] 悬停品质={ItemQualityColor.NameOf(quality)}"
+                + $" 色={ItemQualityColor.HexOf(quality)} {detail}");
         }
 
         /// <summary>词缀摘要（前缀名+值 / 后缀名+值；无词缀 ⇒ 「无」——原版普通物品就是无词缀）。</summary>
@@ -324,7 +364,11 @@ namespace Diablo2.UI
         //   原版 `breakLine`，见 `UI/D2Text.cs` 文件头）；本文件不另留估算式的字宽函数。
 
         // ── 文本行（数值全部来自 `Def.ItemStack`，不查表、不硬编码）────────────
-        private static List<string> BuildLines(ItemStack item)
+        /// <summary>
+        /// 正文行；<paramref name="priceLine"/> 非空 ⇒ 用它取代默认的价格行（商店按页语义给：
+        /// 商人的货「花费」= `ShopEntry.price`、玩家的货「售价」= `GameConst.SellPriceOf(item.price)`）。
+        /// </summary>
+        private static List<string> BuildLines(ItemStack item, string priceLine)
         {
             var lines = new List<string>();
 
@@ -357,7 +401,9 @@ namespace Diablo2.UI
             }
 
             if (item.isQuestItem) lines.Add("任务物品（不可丢弃 / 不可出售）");
-            if (item.price > 0) lines.Add($"售价: {item.price}");
+            // 价格行：「售价」文字出自原版串表 id 3331「出售價格：」（`原版资源/d2text/chi_string.txt`）。
+            if (!string.IsNullOrEmpty(priceLine)) lines.Add(priceLine);
+            else if (item.price > 0) lines.Add($"售价: {item.price}");
             if (lines.Count == 0) lines.Add("（无附加属性）");
 
             return lines;

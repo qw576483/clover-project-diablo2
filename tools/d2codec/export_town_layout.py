@@ -51,8 +51,11 @@
       `TownETrans` 的桥在它自己的第 0 列（`x=0`，y 同 15..18）—— 与 `TownE1` 的第 56 列
       （DS1 的 +1 共享边列）相接 ⇒ **过渡带是这座桥向东的延伸段**（见 `场景对照.md`）。
       本例的合并口径（"参考块第一 + 逐格补空"）会让参考块在那几格赢，桥就落不进来
-      ⇒ 这里**给桥单独一条规则**：**任何一块里有桥瓦片的格，一律用桥瓦片**
-      （桥面 = 可走 `'d'`、栏杆 = 阻挡 `'s'`），其余格仍按补空规则。
+      ⇒ 这里**给桥单独一条规则**：**任何一块里有桥瓦片的格，一律用桥瓦片**，其余格仍按补空规则。
+      **可走性不由栏杆决定**（原版的可走性来自地砖自己的 25 个子格标志）：
+      桥面 4 行地砖里，**中间 2 行**的中心子格不带阻挡标志 ⇒ 可走 `'d'`；
+      南北两条**压边行**（栏杆脚下）带阻挡标志 ⇒ 阻挡 `'s'`。口径 = `cell_passable`
+      （`export_wild_layout`），与野外/洞穴同一份。栏杆瓦片只落**物件层**。
 
 用法：
     python export_town_layout.py [--out <MapGenTownLayout.cs>] [--debug]
@@ -71,10 +74,12 @@ try:
     from . import ds1 as ds1mod
     from . import dt1 as dt1mod
     from . import export_tiles as exp
+    from . import export_wild_layout as wild
 except ImportError:
     import ds1 as ds1mod
     import dt1 as dt1mod
     import export_tiles as exp
+    import export_wild_layout as wild
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RAW = os.path.join(_REPO, '原版资源', 'd2raw')
@@ -338,6 +343,25 @@ def _key_of(fi, cell, pack_id):
     return '%03d%03d' % (pack_id[hit[0]], hit[1])
 
 
+def _floor_walkable(fi, cell):
+    """这一格地砖能不能站人 = **瓦片自己的碰撞标志**（口径 = `export_wild_layout.cell_passable`）。
+
+    只认**提供该瓦片的那些 dt1**（`fi.names_of`）⇒ 不同 dt1 共用一个 compositeIndex 时不会串味。
+    取不到瓦片（没导出 / 读不到 dt1）⇒ False（阻挡），与"拿不准就不让人站"一致。
+    """
+    names = fi.names_of(cell)
+    for rel in fi.ds1.dt1_files:
+        if os.path.basename(rel.replace('\\', '/')).lower() not in names:
+            continue
+        d = _load_dt1(rel)
+        if d is None:
+            continue
+        for t in d.tiles:
+            if t.composite_index == cell.tile_index:
+                return wild.cell_passable(t)
+    return False
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  ③ 对齐（锚点 = 围栏环左上角；独立复验 = warp 标记格）
 # ══════════════════════════════════════════════════════════════════════════════
@@ -498,9 +522,11 @@ def build(out_path, debug):
     # ── 木桥（文件头 ③-b）：任何一块里有桥瓦片的格 → **一律用桥** ────────────
     #   为什么单开一条规则：本例的合并口径是"参考块第一 + 逐格补空"，而参考块（TownW1）
     #   在河那几格**有** floor 瓦片 ⇒ 桥（只有 TownE1 有）本来落不进来。
-    #   桥的语义：有 floor 瓦片的行 = 桥面（可走）、有 wall 瓦片的行 = 栏杆（阻挡）。
+    #   可走性 = **地砖自己的子格标志**（`_floor_walkable`）：桥面 4 行里中间 2 行可走、
+    #   南北两条压边行（栏杆脚下）阻挡；栏杆瓦片只落物件层，不决定可走性。
     bridge_floor = [[None] * gw for _ in range(gh)]
     bridge_wall = [[None] * gw for _ in range(gh)]
+    bridge_deck = [[False] * gw for _ in range(gh)]
     for f in files:
         fox, foy = offs[f.rel]
         for y in range(gh):
@@ -514,10 +540,10 @@ def build(out_path, debug):
                 cf = f.ds1.floor_at(sx, sy)
                 if cf is not None and not cf.is_empty and BRIDGE_DT1 in f.names_of(cf):
                     bridge_floor[y][x] = (f, cf)
+                    bridge_deck[y][x] = _floor_walkable(f, cf)
     bridge_cells = [(x, y) for y in range(gh) for x in range(gw)
                     if bridge_floor[y][x] is not None or bridge_wall[y][x] is not None]
-    bridge_deck = [(x, y) for y in range(gh) for x in range(gw)
-                   if bridge_floor[y][x] is not None and bridge_wall[y][x] is None]
+    bridge_walk = [(x, y) for y in range(gh) for x in range(gw) if bridge_deck[y][x]]
     if not bridge_cells:
         raise SystemExit('合并结果里没有木桥（bridge.dt1）⇒ 桥丢了，检查 bridge 的 pick 规则')
 
@@ -537,15 +563,15 @@ def build(out_path, debug):
             bw = bridge_wall[y][x]
             bf = bridge_floor[y][x]
             if bw is not None or bf is not None:
-                if bw is not None:
-                    fi, cell = bw
-                    objects[y][x] = _key_of(fi, cell, pack_id) or EMPTY_CELL
-                    kinds[y][x] = 's'            # 栏杆（石） = 阻挡
-                else:
-                    kinds[y][x] = 'd'            # 桥面 = 可走
                 if bf is not None:
                     fi, cell = bf
                     ground[y][x] = _key_of(fi, cell, pack_id) or EMPTY_CELL
+                    kinds[y][x] = 'd' if bridge_deck[y][x] else 's'
+                else:
+                    kinds[y][x] = 's'            # 只有栏杆、没有地砖 = 阻挡
+                if bw is not None:
+                    fi, cell = bw
+                    objects[y][x] = _key_of(fi, cell, pack_id) or EMPTY_CELL
                 continue
 
             if fw is not None:
@@ -652,13 +678,18 @@ def build(out_path, debug):
     if bridge_cells:
         bxs = [c[0] for c in bridge_cells]
         bys = [c[1] for c in bridge_cells]
-        dw = [c[0] for c in bridge_deck]
+        dw = [c[0] for c in bridge_walk]
+        dy = [c[1] for c in bridge_walk]
         print('  ★ 木桥（bridge.dt1，来自 %s）：%d 格 x[%d..%d] y[%d..%d]'
               % (', '.join(sorted(set(os.path.basename(bridge_floor[c[1]][c[0]][0].rel)
                                       for c in bridge_cells if bridge_floor[c[1]][c[0]]))),
                  len(bridge_cells), min(bxs), max(bxs), min(bys), max(bys)))
-        print('     桥面（可走）= %d 格 x[%d..%d]、栏杆（阻挡）= %d 格'
-              % (len(bridge_deck), min(dw), max(dw), len(bridge_cells) - len(bridge_deck)))
+        print('     桥面（地砖中心子格可走）= %d 格 x[%d..%d] y[%d..%d]、沿栏压边（阻挡）= %d 格、'
+              '栏杆物件 = %d 格'
+              % (len(bridge_walk), min(dw) if dw else -1, max(dw) if dw else -1,
+                 min(dy) if dy else -1, max(dy) if dy else -1,
+                 len(bridge_cells) - len(bridge_walk),
+                 sum(1 for c in bridge_cells if bridge_wall[c[1]][c[0]] is not None)))
     print('  出生点 %s（8 邻全可走、在围栏环内）  NPC %s  可达格 %d' % (spawn, npcs, len(reach)))
 
     if not river_cells:
@@ -793,7 +824,7 @@ def _pick_points(kinds, gate_x, gate_y, ring):
 
 HEADER = '''// ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Map/MapGenTownLayout.cs
-// ⚠️ **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_town_layout.py`）。
+// **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_town_layout.py`）。
 //
 // 数据来源 = **原版** `data/global/tiles/ACT1/TOWN/*.ds1`（Blizzard North, 2000，
 //   取自 d2data.mpq；本项目非商用）。块清单与关卡尺寸**都读原版规则表**：
@@ -804,7 +835,6 @@ HEADER = '''// ─────────────────────�
 //   （对应原版 `FillBlanks=1` 的语义），得到的就是原版那一座营地。
 //   实测偏移（相对参考块 %s）：%s
 //
-// ★ 片 4（**关卡窗口原点修正**）：本表的格子坐标 = **关卡窗口**，不是参考块本地帧。
 //   窗口 = 合并帧 x∈[%d..%d] × y∈[%d..%d]（56×40，= `Levels.txt` 的 SizeX/SizeY）。
 //   为什么修：窗口取参考块本地 0 时，地图西边界正好压在**营地西侧围栏**那一列上
 //   ⇒ 出城口（西侧 3 格缺口）落在**地图边界**上，游戏里看过去出口外面什么都没有
@@ -825,11 +855,12 @@ HEADER = '''// ─────────────────────�
 //   packId → `Packs[packId]`，瓦片文件 = `Resources/Clover/D2/{Tiles,Objects}/<pack>/<idx>.png`
 //   Spawn / Npcs     出生点（**围栏环内**、8 邻全可走）；5 个 NPC = **原版坐标**
 //                    （`TownW1.ds1` 的 kind=1 预设单位 + `MonPreset.txt` Act 1 块）
-//   **桥**：`bridge.dt1` 的格一律用桥（只有 `TownE1.ds1` 有）—— 桥面 = `'d'`（可走）、
-//          栏杆 = `'s'`（阻挡）。见生成器 `export_town_layout.py` 文件头 ③-b。
+//   **桥**：`bridge.dt1` 的格一律用桥（只有 `TownE1.ds1` 有）。可走性 = **地砖自己的子格标志**
+//          ⇒ 桥面中间 2 行 `'d'`（可走）、南北两条沿栏压边行 `'s'`（阻挡）；栏杆瓦片只落物件层。
+//          见生成器 `export_town_layout.py` 文件头 ③-b。
 //
-// ⚠️ **尺寸**：本表宽高 = 原版关卡尺寸（%d×%d）；`GameConst.TownWidth/Height`
-//   **已同步为同值**（agent-42 按主 agent 裁决改），两者不一致时 `MapGenTown` 直接报错。
+// **尺寸**：本表宽高 = 原版关卡尺寸（%d×%d）；`GameConst.TownWidth/Height`
+//   两者不一致时 `MapGenTown` 直接报错。
 //   32×32 是更早一版"只取 TownW1 的营地本体"时的裁切值，会把营地外的河裁掉。
 // ─────────────────────────────────────────────────────────────────────────────
 '''

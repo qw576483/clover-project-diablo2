@@ -49,11 +49,11 @@ namespace Diablo2.UI
 {
     /// <summary>
     /// 任务日志面板。层：<see cref="UILayer.Normal"/>。
-    /// <para>原先声明 <see cref="UILayer.Popup"/> ⇒ 引擎在 Popup 层插**全屏模态
+    /// <para>本屏层 = <see cref="UILayer.Normal"/>：`Popup` 层会让引擎在 Popup 层插**全屏模态
     /// 遮罩**（`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` → `:443-461` `ShowMask()`，
-    /// `raycastTarget = true`），而本屏**一个关闭控件都没有**（全文只有 Act 页签）⇒ 遮罩把 `Normal`（HUD）
-    /// 整个盖住 ⇒ **纯鼠标玩家打开任务日志后无任何出口**。原版没有模态遮罩（靠 Q 键 / 小面板按钮开合），
-    /// 故按同一口径取 `Normal` 层 —— 先例 = `UI/NpcDialogPanel.cs`。
+    /// `raycastTarget = true`），遮罩把 `Normal`（HUD）整个盖住且吃射线 ⇒ 纯鼠标玩家点不到 HUD 的任何入口。
+    /// 本屏出口 = **右下角关闭钮**（见 `BuildCloseButton`）+ Q 键 / HUD「任務記錄」按钮。
+    /// 原版没有模态遮罩（靠 Q 键 / 小面板按钮开合）⇒ 按同一口径取 `Normal` 层 —— 先例 = `UI/NpcDialogPanel.cs`。
     /// 引擎的 `CloseMutexPanels()` 只关 `Layer == Popup` 的面板 ⇒ 同族互斥改由 HUD 入口显式补
     /// （`UI/HudPanel.cs` 的 `CloseScreenFamily`，注释里有"为什么必须补"）。</para>
     /// </summary>
@@ -245,6 +245,9 @@ namespace Diablo2.UI
 
         private Text _text;
 
+        /// <summary>关闭钮的悬停提示（`OnClose` 收起，对应参考实现的 `OnDisable`）。</summary>
+        private ControlTip _closeTip;
+
         /// <inheritdoc/>
         /// <remarks>层 = `Normal`（**无遮罩 ⇒ HUD 的「任務記錄 Q」入口可点 = 同一入口开合**；
         /// 理由/出处见类头注释与 `UI/NpcDialogPanel.cs`）。</remarks>
@@ -271,6 +274,7 @@ namespace Diablo2.UI
         public override void OnClose()
         {
             Unsubscribe();
+            _closeTip?.Hide();
             UiLog.Info("任务日志已关闭");
         }
 
@@ -296,6 +300,41 @@ namespace Diablo2.UI
             BuildActTabs();
             BuildSlots();
             BuildTextBox();
+            BuildCloseButton();
+        }
+
+        /// <summary>
+        /// 关闭钮（面板右下角）：命中区 = <see cref="UiLayoutGame.QuestClosePos"/>（= 底图右下角
+        /// 雕出的**靠右**那个方槽的内芯，口径与依据写在该常量上），尺寸 = <see cref="UiLayoutGame.CharCloseSize"/>
+        /// （与该槽内芯实测 32×31 原版px 同值）。
+        /// <para>图形 = 原版方钮的「关闭 / 取消」帧（`PANEL/buysellbtn.DC6` 帧 10 常态 / 11 按下，
+        /// 见 `Core/ResPaths.cs` 的 `BuySellButtonFrameClose`）；底板**透明** ⇒ 露出版图自带的凹槽，
+        /// 不另贴板（与背包关闭钮同一处置）。</para>
+        /// <para>点它走 `Events.PanelToggleRequest`（与按 Q / HUD 小面板的「任務記錄」同一入口）。</para>
+        /// </summary>
+        private void BuildCloseButton()
+        {
+            var close = UiArt.Panel(transform, "CloseButton", UiLayoutGame.CharCloseSize,
+                PanelPos + UiLayoutGame.QuestClosePos, new Color(1f, 1f, 1f, 0f), true);
+            close.preserveAspect = true;
+
+            var button = close.gameObject.AddComponent<Button>();
+            button.targetGraphic = close;
+            UiArt.ApplyCloseButtonArt(close, button);
+
+            _closeTip = ControlTip.Create(transform, close.rectTransform, WaypointPanel.CloseText);
+            var hover = close.gameObject.AddComponent<HoverTarget>();
+            if (_closeTip != null)
+            {
+                hover.OnEnter = _closeTip.Show;
+                hover.OnExit = _closeTip.Hide;
+            }
+
+            button.onClick.AddListener(() =>
+            {
+                UiLog.Info("点任务日志关闭按钮 ⇒ 走 `Events.PanelToggleRequest` 关闭（与按 Q 同一条路径）");
+                Game.Event.Emit(Events.PanelToggleRequest, nameof(QuestLogPanel));
+            });
         }
 
         /// <summary>

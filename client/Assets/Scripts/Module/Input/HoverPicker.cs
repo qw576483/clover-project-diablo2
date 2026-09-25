@@ -88,6 +88,20 @@ namespace Diablo2.Module
         /// </summary>
         public Func<int, Rect?> MonsterSpriteRect { get; set; }
 
+        /// <summary>
+        /// 「NPC id → 该 NPC **贴图在世界 xy 平面上的实际包围矩形**」查询
+        /// （非契约注入点；悬停/点击 NPC 按**精灵矩形**命中用）。
+        /// <para>口径与 <see cref="MonsterSpriteRect"/> **完全同一套**（原版 D2 的悬停/点击命中
+        /// 是按精灵在屏幕上的实际覆盖做的，不是按格）：NPC 精灵在屏幕上向上覆盖 1~2 格，
+        /// 只认脚下格会让点它上半身没反应；反过来，"点在 NPC 附近就算点到"（按距离判）
+        /// 会让只是路过 NPC 旁边的一次点击也弹对话窗。</para>
+        /// <para>默认 = <see cref="NpcSpriteRectViaView"/>（经 `IViewModule.GetView` 的
+        /// `SpriteRenderer.bounds`）；离线宿主可整体替换（注入假矩形 ⇒ 可离线断言）。
+        /// 返回 <c>null</c> = 该 NPC 当前没有可用贴图（非城镇未建节点/异步未加载/离线进程）
+        /// ⇒ **退回脚下格口径**（只认 NPC 所在格），不做任何"猜一个矩形"的兜底。</para>
+        /// </summary>
+        public Func<int, Rect?> NpcSpriteRect { get; set; }
+
         /// <summary>构造：装上默认的地面物品 / 贴图矩形查询实现。</summary>
         public HoverPicker()
         {
@@ -95,6 +109,7 @@ namespace Diablo2.Module
             AllLabels = AllLabelsViaView;
             ItemQualityOf = QualityOfViaItem;
             MonsterSpriteRect = MonsterSpriteRectViaView;
+            NpcSpriteRect = NpcSpriteRectViaView;
         }
 
         /// <summary>
@@ -110,10 +125,11 @@ namespace Diablo2.Module
         }
 
         /// <summary>
-        /// 解析悬停目标（**贴图矩形口径**：怪物除"脚下格相等"外，**贴图矩形覆盖到鼠标世界点**也算命中）。
+        /// 解析悬停目标（**贴图矩形口径**：怪物与 NPC 除"脚下格相等"外，
+        /// **贴图矩形覆盖到鼠标世界点**也算命中）。
         /// <para>原版口径与出处：D2 的悬停/点击命中是**按精灵在屏幕上的实际矩形**做的（不是按格），
-        /// 命中判定用 `MonsterSpriteRect(id).Contains(world)`，矩形来自 `SpriteRenderer.bounds` ——
-        /// **没有任何自创常数**（不许写"命中半径 N 格/像素"）。</para>
+        /// 命中判定用 `MonsterSpriteRect(id).Contains(world)` / `NpcSpriteRect(id).Contains(world)`，
+        /// 矩形来自 `SpriteRenderer.bounds` —— **没有任何自创常数**（不许写"命中半径 N 格/像素"）。</para>
         /// <para>优先级：**脚下格精确命中优先**，其次才是贴图矩形；矩形命中里取
         /// 「离悬停格 Chebyshev 最近 → id 升序」的那只（确定性，不受 `All` 的遍历顺序影响）。</para>
         /// </summary>
@@ -256,6 +272,58 @@ namespace Diablo2.Module
                     t.id = d.id;
                     t.name = d.name;
                     return t;
+                }
+
+                // ③b NPC 贴图矩形（同上 ①b：精灵覆盖到就算悬停到；只有拿到了鼠标世界点时才启用）
+                //     为什么放在 ③ 之后：脚下格精确命中永远优先。
+                if (useSpriteRect)
+                {
+                    var rectOf = NpcSpriteRect;
+                    var best = (NpcDef)null;
+                    var bestDist = int.MaxValue;
+                    if (rectOf != null)
+                    {
+                        for (var i = 0; i < allNpc.Count; i++)
+                        {
+                            var d = allNpc[i];
+                            if (d == null) continue;
+                            if (d.areaId != (int)map.Area) continue;   // 非同区域不算命中
+
+                            Rect? r;
+                            try
+                            {
+                                r = rectOf(d.id);
+                            }
+                            catch (Exception e)
+                            {
+                                // 贴图查询（含 GetView / bounds 读取）出问题不该让输入层炸掉：只报一次并整体退回脚下格口径
+                                if (!_noSpriteRectLogged)
+                                {
+                                    _noSpriteRectLogged = true;
+                                    Log.Warn(Tag, $"NPC 贴图矩形查询抛异常（{e.GetType().Name}: {e.Message}）⇒ 悬停退回「脚下格相等」口径（只报一次）");
+                                }
+                                break;
+                            }
+
+                            if (!r.HasValue || !r.Value.Contains(world)) continue;
+
+                            var d2 = Mathf.Max(Mathf.Abs(d.gridX - grid.x), Mathf.Abs(d.gridY - grid.y));
+                            if (d2 < bestDist || (d2 == bestDist && best != null && d.id < best.id))
+                            {
+                                best = d;
+                                bestDist = d2;
+                            }
+                        }
+                    }
+
+                    if (best != null)
+                    {
+                        t.hasTarget = true;
+                        t.cursor = CursorKind.Interact;
+                        t.id = best.id;
+                        t.name = best.name;
+                        return t;
+                    }
                 }
             }
 
@@ -412,6 +480,29 @@ namespace Diablo2.Module
             var go = view.GetView(monsterId);
             if (go == null) return null;                      // 该怪尚无视图（离线进程 / 未建节点）
 
+            var sr = go.GetComponent<SpriteRenderer>();
+            if (sr == null || sr.sprite == null) return null; // 贴图还没加载完（异步）⇒ 本帧退回脚下格口径
+
+            var b = sr.bounds;
+            return new Rect(b.min.x, b.min.y, b.size.x, b.size.y);
+        }
+
+        /// <summary>
+        /// 默认的「NPC 贴图矩形」实现：`IViewModule.GetView(NPC 实体 id)` → `SpriteRenderer.bounds`
+        /// → 取**世界 xy 平面**的包围矩形（与 <see cref="MonsterSpriteRectViaView"/> 逐字同一套做法）。
+        /// <para>NPC 视图 id 段 = `ViewModule.NpcEntityId`：`-1 - npcId`（与玩家 1 / 怪物 1000+ /
+        /// 地面物品 100000+ 都不冲突）—— 这里只按该 id 段取节点，不引用任何实现类型。</para>
+        /// <para>拿不到（无 `IViewModule` / 无节点 / 无 sprite / 抛异常）⇒ 返回 <c>null</c>，
+        /// 悬停**退回脚下格口径**，不报错、不自创兜底矩形。只对**该 id** 降级，不影响别的 NPC。</para>
+        /// </summary>
+        private Rect? NpcSpriteRectViaView(int npcId)
+        {
+            var ctx = AppContext.I;
+            var view = ctx != null ? ctx.View : null;
+            if (view == null) return null;
+
+            var go = view.GetView(-1 - npcId);
+            if (go == null) return null;                      // 该 NPC 尚无视图（非城镇 / 未建节点）
             var sr = go.GetComponent<SpriteRenderer>();
             if (sr == null || sr.sprite == null) return null; // 贴图还没加载完（异步）⇒ 本帧退回脚下格口径
 

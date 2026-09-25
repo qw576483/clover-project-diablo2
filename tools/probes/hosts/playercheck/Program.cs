@@ -2475,6 +2475,77 @@ namespace PlayerCheck
                 reader.Hover.MonsterSpriteRect = savedRect;
             }
 
+            // ── A2b. 同族：NPC 也按**贴图实际矩形**命中；左键点 NPC 走 `NpcInteractRequest` ──
+            //   ① NPC 贴图同样向上覆盖 1~2 格 ⇒ 点上半身要能命中（口径与怪物逐字同一套）；
+            //   ② 点 NPC = 发 `NpcInteractRequest`（**不**发 MoveCommand：走到哪个格由 Npc 模块按站位下发）；
+            //      点 NPC 旁边的空地 = 只发 MoveCommand ⇒ 这就是"只是路过 NPC 不弹对话"的根。
+            {
+                var savedNpcRect = reader.Hover.NpcSpriteRect;
+                var npcBodyCell = npcGrid;
+                var npcBodyOffs = new[]
+                {
+                    new Vector2Int(0, 1), new Vector2Int(0, 2), new Vector2Int(1, 1),
+                    new Vector2Int(-1, 2), new Vector2Int(2, 1), new Vector2Int(0, 3),
+                };
+                for (var k = 0; k < npcBodyOffs.Length; k++)
+                {
+                    var c = npcGrid + npcBodyOffs[k];
+                    if (c == monGrid || c == itemGrid || c == emptyGrid) continue;
+                    npcBodyCell = c; break;
+                }
+                var worldInNpcBody = (Vector2)Iso.GridToWorld(npcBodyCell) + new Vector2(0.1f, 0.1f);
+                reader.Hover.NpcSpriteRect = id => id == 1
+                    ? (Rect?)new Rect(worldInNpcBody.x - 0.5f, worldInNpcBody.y - 0.5f, 1f, 1f)
+                    : null;
+                Console.WriteLine($"    NPC 贴图矩形用例：NPC 脚下格 {npcGrid}、上半身格 {npcBodyCell}、世界点 {worldInNpcBody}");
+
+                var tNpcFoot = reader.Hover.Resolve(npcBodyCell);
+                Check("★ NPC 脚下格口径不变：只有格（无配对世界点）落在上半身格 ⇒ 不命中",
+                    !tNpcFoot.hasTarget, $"hasTarget={tNpcFoot.hasTarget} cursor={tNpcFoot.cursor}");
+
+                var tNpcRect = reader.Hover.Resolve(npcBodyCell, worldInNpcBody);
+                Check("★ NPC 新口径：贴图矩形覆盖到鼠标世界点 ⇒ 命中该 NPC（cursor=Interact / id 正确）",
+                    tNpcRect.hasTarget && tNpcRect.cursor == CursorKind.Interact && tNpcRect.id == 1,
+                    $"hasTarget={tNpcRect.hasTarget} cursor={tNpcRect.cursor} id={tNpcRect.id}");
+
+                var tNpcMiss = reader.Hover.Resolve(npcBodyCell, worldInNpcBody + new Vector2(9f, 9f));
+                Check("★ NPC 新口径：世界点在矩形之外 ⇒ 不命中（不是把命中范围放大）",
+                    !tNpcMiss.hasTarget, $"hasTarget={tNpcMiss.hasTarget} cursor={tNpcMiss.cursor}");
+
+                reader.Hover.NpcSpriteRect = id => null;
+                var tNpcNoRect = reader.Hover.Resolve(npcBodyCell, worldInNpcBody);
+                Check("★ NPC 无贴图矩形（未建节点 / 异步未加载）⇒ 退回脚下格口径，不命中",
+                    !tNpcNoRect.hasTarget, $"hasTarget={tNpcNoRect.hasTarget}");
+                reader.Hover.NpcSpriteRect = savedNpcRect;
+
+                // 点 NPC（脚下格悬停命中）⇒ 发 NpcInteractRequest，且不产生 MoveCommand
+                reader.OverrideHoverGrid(npcGrid);
+                reader.UpdateHover(true);
+                var npcReq0 = bus.CountOf(Events.NpcInteractRequest);
+                var npcMv0 = bus.CountOf(Events.MoveCommand);
+                player.HandlePrimaryClick(npcGrid);
+                Check("★ 左键点 NPC ⇒ 发 `NpcInteractRequest(npcId=1)`，且**不**发 MoveCommand（走位交给 Npc 模块）",
+                    bus.CountOf(Events.NpcInteractRequest) == npcReq0 + 1
+                    && bus.LastArgOf(Events.NpcInteractRequest) == "1"
+                    && bus.CountOf(Events.MoveCommand) == npcMv0,
+                    $"Interact +{bus.CountOf(Events.NpcInteractRequest) - npcReq0}"
+                    + $" 载荷 {bus.LastArgOf(Events.NpcInteractRequest)} / Move +{bus.CountOf(Events.MoveCommand) - npcMv0}");
+                Check("留下了 [Npc] 左键点中 NPC 的日志", CaptureLogger.Has("[Npc] 左键点中 NPC"),
+                    CaptureLogger.Last("[Npc]"));
+
+                // 点 NPC 旁边的空地 ⇒ 只发 MoveCommand（旧的距离判据正是在这里误判成"点 NPC 说话"）
+                reader.OverrideHoverGrid(emptyGrid);
+                reader.UpdateHover(true);
+                var npcReq1 = bus.CountOf(Events.NpcInteractRequest);
+                var npcMv1 = bus.CountOf(Events.MoveCommand);
+                player.HandlePrimaryClick(emptyGrid);
+                Check("★ 点 NPC 旁边的空地 ⇒ 只发 MoveCommand、**不**发 NpcInteractRequest（路过不弹对话）",
+                    bus.CountOf(Events.NpcInteractRequest) == npcReq1
+                    && bus.CountOf(Events.MoveCommand) == npcMv1 + 1,
+                    $"Interact +{bus.CountOf(Events.NpcInteractRequest) - npcReq1}"
+                    + $" / Move +{bus.CountOf(Events.MoveCommand) - npcMv1}");
+            }
+
             Check("留下了悬停命中日志（验收 #14 取证）", CaptureLogger.Has("[Hover] 首个悬停命中"),
                 CaptureLogger.Last("[Hover]"));
 

@@ -48,8 +48,9 @@ namespace Diablo2.UI
     /// <para>本屏层 = <see cref="UILayer.Normal"/>：`Popup` 层会让引擎插一块**全屏模态遮罩**
     /// （`clover-client-unity-engine/Runtime/Presentation/UI.cs:155-159` 的
     /// `Open&lt;T&gt;` ⇒ `:443-461` `ShowMask()`，`img.raycastTarget = true`，插在 `_layers[Popup]` 首位）
-    /// —— 遮罩画在 `Normal`（= HUD）之上、且吃射线 ⇒ **纯鼠标玩家打开技能树后点不到 HUD 的任何入口
-    /// （本屏自己也没有关闭控件）= 关不掉**。原版**没有**全屏模态遮罩（面板是叠在世界上的半透明页，
+    /// —— 遮罩画在 `Normal`（= HUD）之上、且吃射线 ⇒ **纯鼠标玩家打开技能树后点不到 HUD 的任何入口**；
+    /// 本屏出口 = **右下角关闭钮**（见 `BuildCloseButton`，与 `CharacterPanel` / `InventoryPanel` 同一套图形帧）
+    /// + T 键 / HUD「技能樹」按钮。原版**没有**全屏模态遮罩（面板是叠在世界上的半透明页，
     /// 鼠标仍能点地面与 HUD）⇒ 本屏取 `Normal`；同层先例 = `UI/NpcDialogPanel.cs`（对话条同为 `Normal`，
     /// 理由同为"引擎的 Popup 语义与原版不符"）。
     /// `Normal` 层不由引擎的 `CloseMutexPanels()`（`UI.cs:431-441`，只关 `Layer == Popup` 的面板）管理
@@ -101,6 +102,9 @@ namespace Diablo2.UI
         private string _bgTreePath;
         private PlayerClass _bgCls;
 
+        /// <summary>关闭钮的悬停提示（`OnClose` 收起，对应参考实现的 `OnDisable`）。</summary>
+        private ControlTip _closeTip;
+
         private Text _points;           // 剩余技能点（说明区可见区内）
         private Text _desc;             // 所点/所悬停技能的 名+等级+说明（同区）
 
@@ -133,6 +137,7 @@ namespace Diablo2.UI
         public override void OnClose()
         {
             Unsubscribe();
+            _closeTip?.Hide();
             UiLog.Info("技能树面板已关闭");
         }
 
@@ -153,6 +158,39 @@ namespace Diablo2.UI
 
             BuildSkillInfoText();
             BuildTabHit();
+            BuildCloseButton();
+        }
+
+        /// <summary>
+        /// 关闭钮（面板右下角）：命中区 = <see cref="UiLayoutGame.SkillClosePos"/>（口径与依据写在
+        /// 那个常量上），图形 = 原版方钮的「关闭 / 取消」帧（`PANEL/buysellbtn.DC6` 帧 10 常态 / 11 按下，
+        /// 见 `Core/ResPaths.cs` 的 `BuySellButtonFrameClose`），底板**透明**（露出底图的大理石；
+        /// 与背包关闭钮同一处置）。
+        /// <para>点它走 `Events.PanelToggleRequest`（与按 T / HUD 小面板的「技能樹」同一入口）。</para>
+        /// </summary>
+        private void BuildCloseButton()
+        {
+            var close = UiArt.Panel(transform, "CloseButton", UiLayoutGame.CharCloseSize,
+                PanelPos + UiLayoutGame.SkillClosePos, new Color(1f, 1f, 1f, 0f), true);
+            close.preserveAspect = true;
+
+            var button = close.gameObject.AddComponent<Button>();
+            button.targetGraphic = close;
+            UiArt.ApplyCloseButtonArt(close, button);
+
+            _closeTip = ControlTip.Create(transform, close.rectTransform, WaypointPanel.CloseText);
+            var hover = close.gameObject.AddComponent<HoverTarget>();
+            if (_closeTip != null)
+            {
+                hover.OnEnter = _closeTip.Show;
+                hover.OnExit = _closeTip.Hide;
+            }
+
+            button.onClick.AddListener(() =>
+            {
+                UiLog.Info("点技能树关闭按钮 ⇒ 走 `Events.PanelToggleRequest` 关闭（与按 T 同一条路径）");
+                Game.Event.Emit(Events.PanelToggleRequest, nameof(SkillTreePanel));
+            });
         }
 
         /// <summary>

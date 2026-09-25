@@ -31,10 +31,12 @@
 //   packId → `Packs[packId]`，瓦片文件 = `Resources/Clover/D2/{Tiles,Objects}/<pack>/<idx>.png`
 //   Spawn / Npcs     出生点（**围栏环内**、8 邻全可走）；5 个 NPC = **原版坐标**
 //                    （`TownW1.ds1` 的 kind=1 预设单位 + `MonPreset.txt` Act 1 块）
-//   **桥**：`bridge.dt1` 的格一律用桥（只有 `TownE1.ds1` 有）—— 桥面 = `'d'`（可走）、
-//          栏杆 = `'s'`（阻挡）。见生成器 `export_town_layout.py` 文件头 ③-b。
+//   **桥**：`bridge.dt1` 的格一律用桥（只有 `TownE1.ds1` 有）。可走性 = **地砖自己的子格标志**
+//          ⇒ 桥面中间 2 行 `'d'`（可走）、南北两条沿栏压边行 `'s'`（阻挡）；栏杆瓦片只落物件层。
+//          见生成器 `export_town_layout.py` 文件头 ③-b。
 //
 // **尺寸**：本表宽高 = 原版关卡尺寸（56×40）；`GameConst.TownWidth/Height`
+//   两者不一致时 `MapGenTown` 直接报错。
 //   32×32 是更早一版"只取 TownW1 的营地本体"时的裁切值，会把营地外的河裁掉。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -91,10 +93,10 @@ namespace Diablo2.Module.Map
             ".............t...fdddddd..sss.....d...ssssss..drrrrrrrr.",
             "............t....f.dddd...soo............d...ddrrrrrrrr.",
             "................tfffff....s...d..d..d..dooo..ddrrrrrrrr.",
-            "...............t.fddddddd.....ddd...d..dooo...dddddddddd",
-            "..............t.txd.fdddddddddddd...d..dooo..dssssssssss",
+            "...............t.fddddddd.....ddd...d..dooo...dssssssssd",
+            "..............t.txd.fdddddddddddd...d..dooo..ddddddddddd",
             "...............t.xd.f...dddddddd.......oooo.dddddddddddd",
-            "..............t..xddf.d.......o........oooo...ssssssssss",
+            "..............t..xddf.d.......o........oooo...dssssssssd",
             "................tfddddd.d..dd....d..d...dd...ddrrrrrrrr.",
             ".............t.t.fddddd.d..ooo..d..sd..d......drrrrrrrr.",
             "............t.t..ffssss....ooo.....s..........drrrrrrrr.",

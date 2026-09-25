@@ -1126,21 +1126,31 @@ namespace ItemCheck
             Check("★同族穷举：5 NPC × 4 任务阶段 = 20 格台词全部非空（无静默空格）",
                 textGaps == 0, "空格=" + textGaps + gapWhere);
 
-            // 9b) 「点击 NPC → 走过去 → 自动对话」（当前无人发 `NpcInteractRequest`，本模块用 `MoveCommand` 兜底）
+            // 9b) 「点击命中 NPC → 走过去 → 开对话」（原版：**必须点在 NPC 身上**；
+            //     `Module/Player` 判出"指针下是 NPC"后发 `NpcInteractRequest`，走位与开对话由本模块编排）
             //
             //   （`InTownForNpc()`：只有 `IMapModule.Area == AreaId.Town` 才允许交互/自动对话 —— 修的是
             //   而本宿主在上面第 7~8 节把 `_map.Area` 推到了 BloodMoor / DenOfEvil 就没再复位 ⇒
-            //   到这里区域仍是洞穴 ⇒ `FindNearest/Interact` 全部被门禁拦掉、下面两条断言必然失败。
+            //   到这里区域仍是洞穴 ⇒ `Interact` 全被门禁拦掉、下面几条断言必然失败。
             //   NPC 站位（阿卡拉 (10,10) / 瓦瑞夫 (18,10)）本来就是**城镇**坐标 ⇒ 这里复位回 Town 才是对场景。
             _map.Area = AreaId.Town;
             Game.Event.On<NpcDialogArgs>(Events.DialogOpen, OnDialogOpenRecorder);
 
+            // ① 只是从阿卡拉旁边路过（移动目标点到她旁边的邻格，没有任何"点 NPC"的意图）⇒ 不得弹对话
             _player.TeleportTo(new Vector2Int(30, 30));
-            Game.Event.Emit(Events.MoveCommand, new Vector2Int(10, 10));      // 阿卡拉站位
+            Game.Event.Emit(Events.MoveCommand, new Vector2Int(11, 10));      // 阿卡拉 (10,10) 的邻格（1 格）
+            _player.TeleportTo(new Vector2Int(11, 10));                       // 走到落点（在 TalkRange 内）
+            npc.Tick(0.1f);
+            Check("★只点 NPC 旁边的空地（路过）⇒ 不弹对话", _dialogOpens == 0, "DialogOpen=" + _dialogOpens);
+
+            // ② 点在阿卡拉身上（Input 层按贴图/格命中后发 `NpcInteractRequest`）但人还在远处 ⇒ 先走过去，尚未弹
+            _player.TeleportTo(new Vector2Int(30, 30));
+            Game.Event.Emit(Events.NpcInteractRequest, 0);
             npc.Tick(0.1f);
             Check("点了 NPC 但人还在远处 ⇒ 尚未弹对话", _dialogOpens == 0, "DialogOpen=" + _dialogOpens);
 
-            _player.TeleportTo(new Vector2Int(10, 9));                        // 走到阿卡拉旁（距离 1 ≤ TalkRange）
+            // ③ 走到阿卡拉旁 ⇒ 自动弹对话（DialogOpen，npcId=0）
+            _player.TeleportTo(new Vector2Int(10, 9));                        // 距离 1 ≤ TalkRange
             npc.Tick(0.1f);
             Check("走到 NPC 旁 ⇒ 自动弹对话（DialogOpen，npcId=0）", _dialogOpens == 1 && _lastDialogNpc == 0,
                 $"DialogOpen={_dialogOpens} npcId={_lastDialogNpc}");
@@ -1149,8 +1159,21 @@ namespace ItemCheck
             npc.Tick(0.1f);
             Check("已在对话中 ⇒ 不重复弹（幂等，不刷面板）", _dialogOpens == openings, "DialogOpen=" + _dialogOpens);
 
-            Game.Event.Emit(Events.NpcInteractRequest, 4);                    // 别人若发契约事件，也走同一条路
-            Check("NpcInteractRequest(瓦瑞夫) ⇒ 弹对话（契约入口可用）", _dialogOpens == 2 && _lastDialogNpc == 4,
+            // ④ 点了 NPC 之后又点了别处 ⇒ 意图作废（走到他旁边也不再弹）
+            npc.ChooseOption(0, 0);                                           // 选项 0 = 关闭对话
+            _player.TeleportTo(new Vector2Int(30, 30));
+            Game.Event.Emit(Events.NpcInteractRequest, 0);                    // 点阿卡拉（远处）
+            Game.Event.Emit(Events.MoveCommand, new Vector2Int(33, 33));      // 紧接着把移动目标点到别处
+            _player.TeleportTo(new Vector2Int(11, 10));                       // 走到阿卡拉旁边
+            npc.Tick(0.1f);
+            Check("★点了 NPC 又点别处 ⇒ 「走过去说话」意图作废，走到旁边也不弹",
+                _dialogOpens == openings, "DialogOpen=" + _dialogOpens);
+
+            // ⑤ 契约入口：已在对话范围内点 NPC ⇒ 当场开（瓦瑞夫 (18,10)，人站在 (18,9)）
+            _player.TeleportTo(new Vector2Int(18, 9));
+            Game.Event.Emit(Events.NpcInteractRequest, 4);
+            Check("NpcInteractRequest(瓦瑞夫) 且已在范围内 ⇒ 当场弹对话（契约入口可用）",
+                _dialogOpens == openings + 1 && _lastDialogNpc == 4,
                 $"DialogOpen={_dialogOpens} npcId={_lastDialogNpc}");
 
             // ── 10. 商店：买 / 钱不够 / 卖 / 修理 ────────────────────────────────

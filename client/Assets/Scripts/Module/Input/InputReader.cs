@@ -13,8 +13,8 @@
 //   解析细节（怪物/地面物品/NPC、分层与契约缺口）见 `Module/Input/HoverPicker.cs` 头注释。
 //
 // ── 点 UI 的鼠标左键不再被读成"点地面"（指针压在 UI 上就整体拦截）────────────────
-//   既被 uGUI 吃掉、又被这里当成"点地面"⇒ 角色乱走；落点若在 NPC 的 `TalkRange` 内
-//   还会触发 `NpcModule.TryAutoInteract` **自动开对话顶掉商店面板**。
+//   既被 uGUI 吃掉、又被这里当成"点地面"⇒ 角色乱走；指针正压在 NPC 上时还会把这次点击
+//   当成"点 NPC"⇒ 走过去开对话、顶掉商店面板。
 //   先过 `UiEatsIntent(按下/按住, 指针是否在 UI 上)`（纯函数，离线宿主逐行断言）。
 //   判定源**不读裸 `UnityEngine.Input`**：转调**引擎探针** `Game.Input.PointerOverUi`
 //      （内部走 uGUI `UnityEngine.EventSystems` 的指针命中；离线宿主 / 无 EventSystem ⇒ 恒 false；
@@ -290,11 +290,19 @@ namespace Diablo2.Module
         public HoverTarget UpdateHover(bool canInteract)
         {
             if (!canInteract) return _hover;
-            // 拿到了与 HoverGrid 同帧配对的世界点 ⇒ 走新口径（怪物按贴图实际矩形命中，
-            //   原版语义）；否则（含 `OverrideHoverGrid` 的离线/自证路径）走脚下格口径。
-            Publish(_hoverWorldValid ? _picker.Resolve(HoverGrid, _hoverWorld) : _picker.Resolve(HoverGrid));
+            Publish(HoverAtPointer());
             return _hover;
         }
+
+        /// <summary>
+        /// 指针**当前位置**下的悬停目标 —— 与 <see cref="UpdateHover"/> 同一口径：
+        /// 拿到了与 <see cref="HoverGrid"/> 同帧配对的世界点就走"贴图实际矩形"命中（原版语义），
+        /// 否则（含 `OverrideHoverGrid` 的离线/自证路径）退回脚下格口径。
+        /// <para>点击派发用它而不是 <see cref="HoverAt"/>：点击发生在指针处，
+        /// 而 `HoverAt(格)` 只有脚下格口径（怪物/NPC 的贴图在屏幕上向上覆盖 1~2 格，只有格判不到上半身）。</para>
+        /// </summary>
+        public HoverTarget HoverAtPointer()
+            => _hoverWorldValid ? _picker.Resolve(HoverGrid, _hoverWorld) : _picker.Resolve(HoverGrid);
 
         /// <summary>
         /// 发布**地面物品名牌**（事件 <see cref="Events.GroundItemLabelsChanged"/>）。

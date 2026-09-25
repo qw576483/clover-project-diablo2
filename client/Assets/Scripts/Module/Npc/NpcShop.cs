@@ -4,7 +4,8 @@
 //
 // 数值来源（**取配表，不硬编码价格**）：
 //   · 买入价 = `item_c.price`（`Def.ItemStack.price` 原样带过来）；
-//   · 卖出价 = 买入价 × `SellPriceRatio`（**本项目新增折算**：原版卖价为买价的 1/4 量级）；
+//   · 卖出价 = 买入价 × `GameConst.SellPriceRatio`（折算系数在 `Core/GameConst.cs`，
+//     商店面板的悬停价格显示与这里共用同一份）；
 //   · 商品清单：铁匠的装备由 `IItemModule.CreateRandom` 生成（尺寸/耐久/词缀全由 Item 模块负责，
 //     本模块**不重复**物品生成逻辑）；杂货铺的消耗品由 `item_c` 行直接落成（无词缀、无耐久，
 //     只用配表列，见 MakeConsumable 注释）。
@@ -26,9 +27,6 @@ namespace Diablo2.Module.Npc
     /// <summary>一家店的货物（纯数据；买卖结算是 NpcModule 的事）。</summary>
     internal sealed class NpcShop
     {
-        /// <summary>卖出价 = 买入价 × 本系数（**本项目新增折算**）。</summary>
-        public const float SellPriceRatio = 0.25f;
-
         /// <summary>铁匠店的装备件数。</summary>
         private const int BlacksmithItemCount = 8;
 
@@ -124,12 +122,9 @@ namespace Diablo2.Module.Npc
             }
         }
 
-        /// <summary>卖出价（**本项目新增折算**：买价 × <see cref="SellPriceRatio"/>，至少 1）。</summary>
+        /// <summary>卖出价（= `GameConst.SellPriceOf(item.price)`，至少 1；`item == null` ⇒ 0）。</summary>
         public static int SellPriceOf(ItemStack item)
-        {
-            if (item == null) return 0;
-            return Mathf.Max(1, Mathf.RoundToInt(item.price * SellPriceRatio));
-        }
+            => item == null ? 0 : GameConst.SellPriceOf(item.price);
 
         // ── 内部：两类货架 ─────────────────────────────────────────────────────
 

@@ -13,17 +13,18 @@
 //     · `Hotkey`   —— 该屏出现在 `HudPanel.cs` 的 `PollHotkey(..., nameof(屏))`（同一入口键 = 开合同一颗键）。
 //   即「**要么屏自己有可见关闭控件，要么同一个入口（HUD 按钮/热键）还能再点一次关掉它**」。
 //
-// 覆盖口径 = 影响域（R8-close 只动了这几屏的层与关闭控件）：
-//   `InventoryPanel`（关闭控件可见化）· `SkillTreePanel` / `QuestLogPanel`（Popup → Normal）
-//   · `MiniMapPanel`（本来就 Normal，登记"无控件"为允许差异）。
+// 覆盖口径 = 影响域：
+//   `InventoryPanel`（关闭控件可见化）· `SkillTreePanel` / `QuestLogPanel`（Popup → Normal
+//   **+ 右下角关闭钮**）· `MiniMapPanel`（本来就 Normal；原版 automap 是满屏叠加层、没有窗口框
+//   也没有关闭钮 ⇒ 出口 = Tab / HUD「自動地圖」按钮，见该屏类头注释）。
 //   `CharacterPanel` 归片 `charstat`、`ShopPanel` 归片 `shopart` ⇒ **只打印读数，不参与判定**
 //   （避免跨片把别人的进行中改动算成红）。
 //
-// 退化样本（**同一 `Judge` 判，同进程对立读数，不是文字声明**）：
-//   ① 修前 `InventoryPanel` 的关闭按钮形状（`new Color(1f,1f,1f,0f)` 命中区 + 不贴任何图形帧）
-//      ⇒ `CloseVisible=false` 且 `Layer=Popup` ⇒ 必须**不合格**；
-//   ② 修前 `SkillTreePanel` 形状（`Layer => UILayer.Popup` + 全文无关闭控件）⇒ 必须**不合格**；
-//   ③ 修前 `QuestLogPanel` 形状（同上）⇒ 必须**不合格**。
+// 退化样本（**同一 `Judge` 判，同进程对立读数，不是文字声明**）：把「修前形状」重建出来
+// （层改回 `Popup` + 去掉关闭钮的建节点与贴图形两步）再喂进同一判据 ⇒ 必须**不合格**：
+//   ① `InventoryPanel`：透明命中区 + 不贴任何图形帧；
+//   ② `SkillTreePanel`：`Layer => UILayer.Popup` + 无可见关闭控件；
+//   ③ `QuestLogPanel`：同上。
 //   三条退化样本若有一条"合格"，说明本判据没有在判该判的东西 ⇒ 直接报错。
 //
 // 判据的**自认边界**（不夸大）：`CloseVisible` 是**源码结构**判据（节点底色 alpha / 后续贴原版贴图 /
@@ -45,9 +46,9 @@ namespace Uicheck
         private static readonly (string Panel, string Why)[] Scope =
         {
             ("InventoryPanel", "关闭按钮从 alpha=0 命中区改成可见的原版「关闭 / 取消」图形帧"),
-            ("SkillTreePanel", "Popup → Normal（遮罩消失 ⇒ HUD「技能樹 T」入口可点 = 同一入口开合）"),
-            ("QuestLogPanel", "Popup → Normal（同上；本屏无关闭控件，出口 = HUD「任務記錄 Q」/Q 键）"),
-            ("MiniMapPanel", "本来就 Normal ⇒ 只需登记'无控件'为允许差异；出口 = Tab / HUD「自動地圖」"),
+            ("SkillTreePanel", "Popup → Normal（遮罩消失 ⇒ HUD「技能樹 T」入口可点）+ 右下角关闭钮"),
+            ("QuestLogPanel", "Popup → Normal（同上）+ 右下角关闭钮（底图右下角方槽）"),
+            ("MiniMapPanel", "本来就 Normal；原版 automap 无窗口框/无关闭钮 ⇒ 出口 = Tab / HUD「自動地圖」"),
         };
 
         /// <summary>只打印读数、不参与判定的屏（归别的片）。</summary>
@@ -144,6 +145,21 @@ namespace Uicheck
                    || call.Contains("Color.white") || Regex.IsMatch(call, @",\s*1f\s*\)");
         }
 
+        /// <summary>
+        /// 把「修前形状」重建出来（喂给同一条 <see cref="Judge"/> 的退化样本）：层改回 `Popup`
+        /// + 去掉关闭钮的**建节点**（`var close = UiArt.Panel(… "CloseButton" …)`）与**贴图形**
+        /// （`UiArt.ApplyCloseButtonArt(close, …)`）两步 ⇒ 该屏回到"遮罩锁死 + 没有可见出口"。
+        /// <para>只做文本替换、不编译 —— 判据读的就是这份源码结构（见 <see cref="Judge"/>）。</para>
+        /// </summary>
+        private static string PreFixShape(string src, string nodeVar)
+        {
+            var s = Regex.Replace(src, @"UILayer\.Normal", "UILayer.Popup");
+            s = Regex.Replace(s,
+                @"\s*var\s+" + nodeVar + @"\s*=\s*UiArt\.Panel\([^;]*?""CloseButton""[^;]*?\);", "");
+            s = Regex.Replace(s, @"\s*UiArt\.ApplyCloseButtonArt\(" + nodeVar + @",\s*\w+\);", "");
+            return s;
+        }
+
         public static void Run()
         {
             Console.WriteLine("── (R8-close) 弹框关闭出口：层/遮罩 + 关闭控件可见 + 同一入口（离线源码判据）──");
@@ -209,7 +225,7 @@ namespace Uicheck
 
             // 退化 B：修前技能树（Popup + 无关闭控件）
             var degB = File.Exists(afterSkill)
-                ? Regex.Replace(File.ReadAllText(afterSkill), @"UILayer\.Normal", "UILayer.Popup")
+                ? PreFixShape(File.ReadAllText(afterSkill), "close")
                 : "";
             var rb = Judge("SkillTreePanel", degB, hudSrc);
             Check("R8-close 退化 B（技能树 Popup 层 + 无关闭控件）必须不合格",
@@ -218,7 +234,7 @@ namespace Uicheck
 
             // 退化 C：修前任务日志（Popup + 无关闭控件）
             var degC = File.Exists(afterQuest)
-                ? Regex.Replace(File.ReadAllText(afterQuest), @"UILayer\.Normal", "UILayer.Popup")
+                ? PreFixShape(File.ReadAllText(afterQuest), "close")
                 : "";
             var rc = Judge("QuestLogPanel", degC, hudSrc);
             Check("R8-close 退化 C（任务日志 Popup 层 + 无关闭控件）必须不合格",

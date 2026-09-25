@@ -23,6 +23,8 @@
 //   ④ 几何**未动**：10×10 格线是原版底图 `buysell_back.png` 自己画的（实测竖线 14+29k ×11、
 //      横线 62+29k ×11，与 `UiLayoutGame` 的 `ShopGridOrigin/ShopCell/ShopCols/Rows` 逐值相等），
 //      `BuildGrid` 仍只建"命中区 + 图标层 + 数量"。
+//   ⑤ 悬停提示 = `UI/ItemTooltip`（与背包同一套，含品质色与价格行）：指针在格上且该格有货
+//      ⇒ `Show*`，否则 `Hide()`；价格按页语义取（口径见 `UpdateHover` 的注释）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;
@@ -90,6 +92,9 @@ namespace Diablo2.UI
         private D2Label _gold;
         private D2Label _hint;
         private Image _repairButton;
+
+        /// <summary>格子的悬停提示（与背包同款：`UI/ItemTooltip` + 引擎 `PointerFloatLayer`）。</summary>
+        private ItemTooltip _tooltip;
         private Image[] _tabHit = new Image[4];
         private readonly List<Cell> _cells = new List<Cell>();
 
@@ -116,7 +121,16 @@ namespace Diablo2.UI
         public override void OnClose()
         {
             Unsubscribe();
+            _tooltip?.Destroy();
+            _tooltip = null;
             UiLog.Info("商店面板已关闭");
+        }
+
+        /// <inheritdoc/>
+        public override void OnUpdate(float dt)
+        {
+            UpdateHover();
+            _tooltip?.Tick();
         }
 
         private void Build()
@@ -132,6 +146,9 @@ namespace Diablo2.UI
             BuildTitleLines();
             BuildGrid();
             BuildBottomBar();
+
+            // 悬停提示（与 `UI/InventoryPanel` 同款：非 MonoBehaviour，由 `OnUpdate` 驱动）
+            _tooltip = ItemTooltip.Create(transform);
         }
 
         /// <summary>
@@ -397,6 +414,9 @@ namespace Diablo2.UI
 
         private void ClearCells()
         {
+            // 格子即将重排（换页 / 换 NPC / 收到新快照）⇒ 先收掉悬停提示：它的内容与格位都随这次重排失效。
+            _tooltip?.Hide();
+
             for (var i = 0; i < _cells.Count; i++)
             {
                 var c = _cells[i];
@@ -697,6 +717,96 @@ namespace Diablo2.UI
                     item, item.count > 1 ? item.count.ToString() : string.Empty);
             }
             LogLayout("卖出", items?.Count ?? 0, layout);
+        }
+
+        /// <summary>
+        /// 悬停显示 tooltip（与 `UI/InventoryPanel.UpdateHover` 同一套**屏幕点矩形命中**，
+        /// 不依赖子节点事件冒泡；`ItemTooltip.ShouldBeVisible` 的三条件逐条照用）。
+        /// <para>
+        /// 价格行的口径（= 商店这一刻的语义，随该格属于谁而定）：
+        ///   · 买入页（该格是商人的货）= 物品标价 `ShopEntry.price`
+        ///     （= 配表 `item_c.price`；赋值点 `Module/Npc/NpcShop.cs` 的 `AddEntry`）；
+        ///   · 卖出页（该格是玩家的货）= `GameConst.SellPriceOf(item.price)`
+        ///     （收价系数 = `Core/GameConst.cs` 的 `SellPriceRatio`，与结算点
+        ///     `Module/Npc/NpcModule.cs` 的 `Sell` 共用同一份）。
+        /// </para>
+        /// <para>
+        /// 文案出处（`原版资源/d2text/chi_string.txt`）：买入页「花费」= 串 id 3329「花費：」；
+        /// 卖出页「售价」= 串 id 3331「出售價格：」（也是 `UI/ItemTooltip` 的既有写法）。
+        /// </para>
+        /// </summary>
+        private void UpdateHover()
+        {
+            if (_tooltip == null) return;
+
+            // 第 ① 条恒成立：本方法只由存活面板的 `OnUpdate` 驱动（面板销毁走 `OnClose` 的 `Destroy`）。
+            const bool panelOpen = true;
+
+            if (Game.Input == null || !Game.Input.Available)
+            {
+                // 非预期分支：输入不可用 ⇒ 指针位置不可知 ⇒ 必隐（否则 tooltip 停在上一帧的位置）
+                if (!ItemTooltip.ShouldBeVisible(panelOpen, false, false)) _tooltip.Hide();
+                UiLog.WarnOnce("shop.hover.noinput",
+                    "商店悬停判定时 `Game.Input` 不可用（未挂载 / 未就绪）⇒ tooltip 强制隐藏（指针位置不可知）");
+                return;
+            }
+
+            var mouse = Game.Input.MousePosition;
+            var screen = new Vector2(mouse.x, mouse.y);
+            var inside = RectTransformUtility.RectangleContainsScreenPoint((RectTransform)transform, screen, null);
+            if (!inside)
+            {
+                // 第 ② 条（指针在面板内）不成立 ⇒ 必隐（原版 tooltip 也不在面板外停留）
+                if (!ItemTooltip.ShouldBeVisible(panelOpen, inside, false)) _tooltip.Hide();
+                return;
+            }
+
+            for (var i = 0; i < _cells.Count; i++)
+            {
+                var c = _cells[i];
+                if (c?.Hit == null) continue;
+                if (!RectTransformUtility.RectangleContainsScreenPoint(c.Hit.rectTransform, screen, null)) continue;
+
+                var itemIndex = _owner[i];
+                if (itemIndex < 0)
+                {
+                    // 第 ③ 条（指针下这一格有货）不成立：空格（或大件没占到的格）⇒ 必隐
+                    if (!ItemTooltip.ShouldBeVisible(panelOpen, inside, false)) _tooltip.Hide();
+                    return;
+                }
+
+                if (_sellMode)
+                {
+                    var item = SellableItem(itemIndex);
+                    if (ItemTooltip.ShouldBeVisible(panelOpen, inside, item != null))
+                        _tooltip.Show(item, $"售价: {GameConst.SellPriceOf(item.price)}");
+                    else _tooltip.Hide();
+                    return;
+                }
+
+                var entry = StockEntry(itemIndex);
+                if (ItemTooltip.ShouldBeVisible(panelOpen, inside, entry != null)) _tooltip.ShowStock(entry);
+                else _tooltip.Hide();
+                return;
+            }
+
+            // 指针在面板内、但不在任何商品格上 ⇒ 第 ③ 条不成立
+            if (!ItemTooltip.ShouldBeVisible(panelOpen, inside, false)) _tooltip.Hide();
+        }
+
+        /// <summary>买入页第 <paramref name="index"/> 件商品（越界 / 无数据 ⇒ null）。</summary>
+        private ShopEntry StockEntry(int index)
+        {
+            var stock = _shop?.stock;
+            return stock != null && index >= 0 && index < stock.Count ? stock[index] : null;
+        }
+
+        /// <summary>卖出页第 <paramref name="index"/> 件可卖物品（越界 / 该格无物品 ⇒ null）。</summary>
+        private ItemStack SellableItem(int index)
+        {
+            var items = _shop?.playerItems;
+            if (items == null || index < 0 || index >= items.Count) return null;
+            return items[index]?.item;
         }
 
         private void OnCellClick(int cellIndex)

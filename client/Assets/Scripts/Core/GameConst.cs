@@ -252,6 +252,20 @@ namespace Diablo2.Core
         /// <summary>自动存档间隔（秒）。</summary>
         public const float AutoSaveIntervalSeconds = 120f;
 
+        // ── 商店 ─────────────────────────────────────────────────────────────
+        /// <summary>
+        /// **卖出价系数**：卖出价 = 物品标价（配表 `item_c.price`）× 本系数，至少 1。
+        /// <para>结算（`NpcModule.Sell`）与商店面板悬停时的价格显示**共用这一份**
+        /// （`GameConst.SellPriceOf`），⛔ 两边不许各写一份字面量。</para>
+        /// </summary>
+        public const float SellPriceRatio = 0.25f;
+
+        /// <summary>
+        /// 卖出价 = <paramref name="basePrice"/> × <see cref="SellPriceRatio"/>（至少 1；`basePrice ≤ 0` ⇒ 0）。
+        /// </summary>
+        public static int SellPriceOf(int basePrice)
+            => basePrice <= 0 ? 0 : UnityEngine.Mathf.Max(1, UnityEngine.Mathf.RoundToInt(basePrice * SellPriceRatio));
+
         // ── UI ───────────────────────────────────────────────────────────────
         /// <summary>
         /// UI 参考分辨率宽 = **1920**（`CanvasScaler` ScaleWithScreenSize, match 0.5）。

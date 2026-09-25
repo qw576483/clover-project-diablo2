@@ -69,7 +69,15 @@ using UnityEngine.UI;
 
 namespace Diablo2.UI
 {
-    /// <summary>自动地图面板。层：<see cref="UILayer.Normal"/>。</summary>
+    /// <summary>
+    /// 自动地图面板。层：<see cref="UILayer.Normal"/>。
+    /// <para>
+    /// 本屏**没有关闭控件**：原版 automap 是满屏叠加层、没有窗口框，也没有关闭钮（原版 `D2/UI/Banner/`
+    /// 那一族只有 `automap*` / `AutoMapCenter` / `AutoMapParty` / `AutoMapOptions`；原版串表里与它相关的
+    /// 只有 `CfgAutoMap*` 选项与 `minipanelautomap`「自動地圖」，没有关闭串）⇒ 开合入口 = `Tab`
+    /// 与 HUD 小面板的「自動地圖」按钮（`UI/HudPanel.cs` 的 `MiniBtn4`，那一排开着地图时仍在画面上）。
+    /// </para>
+    /// </summary>
     public class MiniMapPanel : UIPanel
     {
         /// <summary>

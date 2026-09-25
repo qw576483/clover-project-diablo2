@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // 游戏内 HUD：底部控制面板 = 左右两颗球（左红生命 / 右蓝法力）+ 经验条 + 左右技能格 +
-// 腰带 4 格 + 小面板 7 按钮 + 跑/走按钮。
+// 腰带 4 格 + 小面板 8 按钮 + 跑/走按钮。
 //
 // 布局口径 = **按高度等比 ×1.8 + 水平居中**（见 `UI/UiLayoutGame.cs` 的口径说明）：
 //   常量集中在 `UI/UiLayoutGame.cs`（每个值都注明「原版值 → ×1.8 居中」与来源 prefab 节点），
@@ -25,7 +25,7 @@
 //   · HUD 右上那行「快捷键提示」：原版没有这条，原版的做法是**技能格上的热键标签**
 //     （`UiLayoutGame` 右上那格另有用途 —— `CharacterPanel` 已按原版右上空框补上等级/经验）。
 //
-//   `Events.StageLeft` 关闭；它同时是**游戏内面板的总入口**（小面板 7 按钮 = 各面板入口）。
+//   `Events.StageLeft` 关闭；它同时是**游戏内面板的总入口**（小面板 8 按钮 = 各面板入口）。
 // 零 `using Diablo2.Module`（分层自检 ③）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -133,11 +133,39 @@ namespace Diablo2.UI
         /// <summary>小面板底图中心 y（原版 pos(0,60) → 贴底抬升后 y = −393.66）。</summary>
         public const float MiniPanelY = UiLayoutGame.MiniPanelY;
 
-        /// <summary>小面板 7 个按钮的 x（原版 -63..63 步进 21 → ×1.8 = 37.8）。</summary>
+        /// <summary>小面板 8 个按钮的 x（原版底条 173×26 上 8 钮按 pitch 21 居中 → ×1.8）。</summary>
         public static readonly float[] MiniButtonX = UiLayoutGame.MiniButtonX;
 
         /// <summary>小面板按钮边长（原版 20 → ×1.8 = 36）。</summary>
         public const float MiniButtonSize = UiLayoutGame.MiniButtonSize;
+
+        // ── 8 个按钮的 hover 文案（**全部来自原版中文串表**，`原版资源/d2text/chi_string.txt`，
+        //    格式 `id<TAB>文案`；复跑：`Select-String '^4169\t' 原版资源\d2text\chi_string.txt`）
+        //    热键后缀取自本工程 `Def/GameKeyAlias.cs` 的实际键位（未登记键位的两屏 = 无后缀）──
+
+        /// <summary>原版串 **4169**「人物」；热键 = `GameKeyAlias.KeyCharSheet`。</summary>
+        public const string MiniTipChar = "人物（C）";
+
+        /// <summary>原版串 **4171**「技能樹」；热键 = `GameKeyAlias.KeySkillTree`。</summary>
+        public const string MiniTipSkillTree = "技能樹（T）";
+
+        /// <summary>原版串 **4170**「物品」；热键 = `GameKeyAlias.KeyInventory`。</summary>
+        public const string MiniTipInventory = "物品（I）";
+
+        /// <summary>原版串 **4172**「隊伍畫面」；本工程未登记该屏键位 ⇒ 无热键后缀。</summary>
+        public const string MiniTipParty = "隊伍畫面";
+
+        /// <summary>原版串 **4173**「自動地圖」；热键 = `GameKeyAlias.KeyMinimap`。</summary>
+        public const string MiniTipAutomap = "自動地圖（Tab）";
+
+        /// <summary>原版串 **4174**「訊息記錄」；本工程未登记该屏键位 ⇒ 无热键后缀。</summary>
+        public const string MiniTipMessageLog = "訊息記錄";
+
+        /// <summary>原版串 **4175**「任務記錄」；热键 = `GameKeyAlias.KeyQuestLog`。</summary>
+        public const string MiniTipQuestLog = "任務記錄（Q）";
+
+        /// <summary>原版串 **4176**「遊戲選單（Esc）」（原文自带热键后缀）；键位 = `GameKeyAlias.KeyPause`。</summary>
+        public const string MiniTipMenu = "遊戲選單（Esc）";
 
         public const float BeltCellSize = UiLayoutGame.BeltCellSize;
 
@@ -211,8 +239,11 @@ namespace Diablo2.UI
         /// <summary>小面板底图（原版 `ImageMinipanel`）。</summary>
         private Image _miniPanelBg;
 
-        /// <summary>小面板 7 个按钮（展开/收起时一起显隐）。</summary>
+        /// <summary>小面板 8 个按钮（展开/收起时一起显隐）。</summary>
         private readonly Transform[] _miniButtons = new Transform[UiLayoutGame.MiniButtonCount];
+
+        /// <summary>小面板 8 个按钮的悬停提示（文案 = <see cref="MiniTipChar"/> 那一族原版串）。</summary>
+        private readonly ControlTip[] _miniTips = new ControlTip[UiLayoutGame.MiniButtonCount];
 
         /// <summary>小面板是否展开（原版靠箭头按钮 `ShowNavigationalBar` 切换；原版默认**收起**）。</summary>
         private bool _miniOpen;
@@ -297,6 +328,7 @@ namespace Diablo2.UI
             UiBar.Forget(_expFill);
             _groundLabels?.Destroy();       // ★ 名牌层随 HUD 一起拆（节点不跨局保留）
             _groundLabels = null;
+            HideMiniTips();
             UiLog.Info("HUD 已关闭");
         }
 
@@ -346,7 +378,7 @@ namespace Diablo2.UI
         /// 构件（顺序 = **原版 `ControlPanel.prefab` 的兄弟顺序**；uGUI 里后者画在越上层）。
         /// <para>
         /// 原版顺序：Background → LeftSkill/RightSkill → Lifebulb/Manabulb → ImageExpBarLeft(跑/走)
-        /// → ImageExpBarRight(小面板开关) → ImageBeltRight(腰带) → ImageMinipanel(7 键)
+        /// → ImageExpBarRight(小面板开关) → ImageBeltRight(腰带) → ImageMinipanel(8 键)
         /// → ExperienceBar → **ExpBarOverlay（最后一个 ⇒ 覆盖在上层）**。
         /// `SkillPanel`（6 格技能栏）在原版是独立 prefab、prefab 里没挂到 ControlPanel 下，
         /// 本项目把它插在球之后、跑/走按钮之前（与底图格子同层，且被小面板底图盖住 —— 见 `BuildMiniPanel`）。
@@ -364,7 +396,7 @@ namespace Diablo2.UI
             BuildRunButton();           // 5  ImageExpBarLeft 的子 Button（跑/走）
             BuildMiniPanelToggle();     // 6  ImageExpBarRight 的子 Button（小面板开关）
             BuildBelt();                // 7  ImageBeltRight 框住的 4 格
-            BuildMiniPanel();           // 8  ImageMinipanel + 7 键
+            BuildMiniPanel();           // 8  ImageMinipanel + 8 键
             BuildExpBar();              // 9  ExperienceBar + ExpBarOverlay（最后 = 最上层）
             BuildLevelEntryTitle();     // 10 ★ agent-a3 区域名（原版 LevelEntryTitle；建在最后 ⇒ 盖在 HUD 之上）
         }
@@ -638,29 +670,33 @@ namespace Diablo2.UI
                 Color.white, false);
             UiArt.SetSprite(_miniPanelBg, ResPaths.D2UiPanel + "minipanel");
 
-            //   ① **按钮数 7 → 8**（依据见 `UiLayoutGame.MiniButtonCount`：`minipanelbtn.DC6` 16 帧
-            //      = 8 对 + `string.tbl` 的 8 条 `minipanel*` tooltip）。原版那一排（按原版 tooltip 名）
-            //      = 人物 / 物品 / 技能樹 / 隊伍畫面 / 自動地圖 / 訊息記錄 / 任務記錄 / 遊戲選單。
-            //      默认收起，并且把唯一的开合箭头也 `SetActive(false)` ⇒ **鼠标入口 0 个**（只剩键盘），
-            //      用户报的「找不到入口」即此。原版控制面板上这一排**就在画面里**（`string.tbl` 的
-            //      `StrHelp17迷你面板（開啟人物的物品欄，以及其他畫面）` 是它的 tooltip）⇒ 默认展开。
-            //   帧对（每钮 = 常态 `2i` / 按下 `2i+1`，见 `AddMiniButton` 下的 `ApplyMiniButtonPressFrame`）：
-            //      i=0 人物 2/3 · i=1 物品 4/5 · i=2 技能樹 6/7 · i=3 隊伍畫面 8/9 ·
-            //      i=4 自動地圖 10/11 · i=5 訊息記錄 12/13 · i=6 任務記錄 14/15 · i=7 遊戲選單 16/17
-            //      `ControlPanel.prefab` 记的是 0/2/4/8/10/12/14（跳过 6）—— 那是"漏了第 4 个按钮"
-            //      之后**把后面的整体前移一档**得到的错序；本表按 DC6 帧对的自然顺序重排。
-            AddMiniButton(0, 0, nameof(CharacterPanel), "人物（C）");
-            AddMiniButton(1, 2, nameof(InventoryPanel), "物品（I）");
-            AddMiniButton(2, 4, nameof(SkillTreePanel), "技能樹（T）");
-            AddMiniButton(3, 6, null, "隊伍畫面（原版有此屏，本项目未实装）");
-            AddMiniButton(4, 8, nameof(MiniMapPanel), "自動地圖（Tab）");
-            AddMiniButton(5, 10, null, "訊息記錄（原版有此屏，本项目未实装）");
-            AddMiniButton(6, 12, nameof(QuestLogPanel), "任務記錄（Q）");
-            AddMiniButton(7, 14, PanelNamePause, "遊戲選單（Esc）");
+            //   ① **8 个按钮**（依据见 `UiLayoutGame.MiniButtonCount`：`minipanelbtn.DC6` 16 帧 = 8 对
+            //      + `string.tbl` 的 8 条 `minipanel*` tooltip）。默认**展开**（原版控制面板上这一排
+            //      就在画面里，`string.tbl` 的 `StrHelp17迷你面板（開啟人物的物品欄，以及其他畫面）`
+            //      是它的 tooltip）；唯一的开合箭头按钮按原版 `ImageExpBarRight` 的 `m_IsActive=0`
+            //      `SetActive(false)` ⇒ 打开状态由这一排本身承担。
+            //   ② **帧对 = 常态 `2i` / 按下 `2i+1`**（`ApplyMiniButtonPressFrame` 贴 `frame+1`），
+            //      即每钮占连续两帧；帧号唯一来源 = `D2/UI/Panel/minipanelbtn_{0..15}.png`。
+            //      逐帧图形：0/1 人像 · 2/3 剑 · 4/5 背袋人形 · 6/7 三人 · 8/9 星盘 ·
+            //                 10/11 对话气泡 · 12/13 书 · 14/15 齿轮。
+            //   ③ 每钮的归属（按钮语义按**图标形态**定，与 ② 的帧序一一对应）：
+            //      `MiniBtn0` 人像 = 人物 · `MiniBtn1` 剑 = 技能樹 · `MiniBtn2` 背袋人形 = 物品 ·
+            //      `MiniBtn3` 三人 = 隊伍畫面（本项目未实装）· `MiniBtn4` 星盘 = 自動地圖 ·
+            //      `MiniBtn5` 对话气泡 = 訊息記錄（未实装）· `MiniBtn6` 书 = 任務記錄 ·
+            //      `MiniBtn7` 齿轮 = 遊戲選單。
+            //   ④ hover 文案 = 原版串 4169..4176（见 `MiniTipChar` 那一族常量），8 条与 8 个按钮一一对应。
+            AddMiniButton(0, 0, nameof(CharacterPanel), MiniTipChar);
+            AddMiniButton(1, 2, nameof(SkillTreePanel), MiniTipSkillTree);
+            AddMiniButton(2, 4, nameof(InventoryPanel), MiniTipInventory);
+            AddMiniButton(3, 6, null, MiniTipParty);
+            AddMiniButton(4, 8, nameof(MiniMapPanel), MiniTipAutomap);
+            AddMiniButton(5, 10, null, MiniTipMessageLog);
+            AddMiniButton(6, 12, nameof(QuestLogPanel), MiniTipQuestLog);
+            AddMiniButton(7, 14, PanelNamePause, MiniTipMenu);
 
             SetMiniPanelOpen(true);
-            UiLog.Info($"迷你面板：默认**展开**（8 键，原版 `minipanelbtn.DC6` 的 8 对帧对齐）；"
-                       + $"键盘 I/C/T/Q/Tab/Esc 同样可达（本次修复：此前 7 键且默认隐藏 ⇒ 鼠标无入口）");
+            UiLog.Info($"迷你面板：展开（8 键，原版 `minipanelbtn.DC6` 的 8 对帧按 2i/2i+1 对齐）；"
+                       + "键盘 C/I/T/Q/Tab/Esc 同样可达（键位见 `Def/GameKeyAlias.cs`）");
         }
 
         /// <summary>小面板「菜单」按钮的目标：暂停请求（不是面板名，走 `Events.PauseRequest`）。</summary>
@@ -676,7 +712,15 @@ namespace Diablo2.UI
             if (_miniPanelBg != null) _miniPanelBg.gameObject.SetActive(open);
             for (var i = 0; i < _miniButtons.Length; i++)
                 if (_miniButtons[i] != null) _miniButtons[i].gameObject.SetActive(open);
+            if (!open) HideMiniTips();      // 按钮一起收 ⇒ 悬停提示不许留在画面上
             ApplyMiniToggleSprite();
+        }
+
+        /// <summary>收起 8 个按钮的悬停提示（面板收起 / HUD 关闭时调用）。</summary>
+        private void HideMiniTips()
+        {
+            for (var i = 0; i < _miniTips.Length; i++)
+                if (_miniTips[i] != null) _miniTips[i].Hide();
         }
 
         /// <summary>
@@ -745,6 +789,17 @@ namespace Diablo2.UI
             var button = img.gameObject.AddComponent<Button>();
             button.targetGraphic = img;
             ApplyMiniButtonPressFrame(img, frame);
+
+            // 悬停提示（原版这一排按钮各挂一条 `minipanel*` tooltip 串，出处见 `UI/ControlTip.cs`）：
+            //   指针进 / 出各一次显隐；面板收起与 HUD 关闭各再收一次。
+            _miniTips[slot] = ControlTip.Create(transform, img.rectTransform, tip);
+            var hover = img.gameObject.AddComponent<HoverTarget>();
+            if (_miniTips[slot] != null)
+            {
+                hover.OnEnter = _miniTips[slot].Show;
+                hover.OnExit = _miniTips[slot].Hide;
+            }
+
             var target = panelName;
             button.onClick.AddListener(() =>
             {
@@ -764,7 +819,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 按下帧：原版 7 个按钮的 `m_SpriteState.m_PressedSprite` 就是同一张图的**下一帧**
+        /// 按下帧：原版 8 个按钮的 `m_SpriteState.m_PressedSprite` 就是同一张图的**下一帧**
         /// （0→按下 1、2→3、…、14→15，见 `ControlPanel.prefab`）。
         /// </summary>
         private static void ApplyMiniButtonPressFrame(Image img, int frame)

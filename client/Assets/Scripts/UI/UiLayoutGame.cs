@@ -974,6 +974,21 @@ namespace Diablo2.UI
         /// <summary>原版 px 尺寸 → 画布尺寸。</summary>
         public static Vector2 SkillArtSize(float artW, float artH) => S(artW, artH);
 
+        /// <summary>
+        /// 技能树面板关闭钮中心（面板局部坐标；尺寸 = <see cref="CharCloseSize"/> 32×31 原版px）。
+        /// <para>
+        /// 位置口径 = `CharacterPanel` 关闭钮的**同一相对偏移**（<see cref="CharClosePos"/> =
+        /// art (−15.4,−188.3)）—— 即面板右下角、距底沿 27.7、距中线 15.4 的那条大理石空档
+        /// （该处底图没有金框、也没有凹槽）。
+        /// </para>
+        /// <para>
+        /// **不占用底图右下角那个雕出的方槽**（逐像素实测内芯 art x 170..203 / y 384..417）：
+        /// 树 2 / 树 3 页的第 10 个技能节点框（`Def/SkillTreeLayout.cs` 的 `(150,356,45,50)`）
+        /// 与它同位 ⇒ 关闭钮放那里会压住该节点的图标与命中区（方槽只在无节点的那几页露得出来）。
+        /// </para>
+        /// </summary>
+        public static readonly Vector2 SkillClosePos = CharClosePos;
+
         /// <summary>技能树「共用右列（顶部木框说明区 + 3 个系页签）」的页码。</summary>
         public const int SkillTabPage = 0;
 
@@ -1181,6 +1196,22 @@ namespace Diablo2.UI
         /// (80−72)/2 = 4、(95−86)/2 = **4.5** ⇒ **居中**（偏移 0）。
         /// </summary>
         public static readonly Vector2 QuestArtPos = Vector2.zero;
+
+        /// <summary>
+        /// 任务日志面板关闭钮中心（面板局部坐标；原点 = 面板中心）。
+        /// <para>
+        /// 位置口径 = 底图右下角**雕出的方槽**（逐像素实测：内芯 x 226..257 / 278..309、y 391..421，
+        /// 金饰边外沿 x 225..259 / 277..311 / y 390..423 ⇒ 内芯 32×31 原版px = <see cref="CharCloseSize"/>）。
+        /// 同排两个同形方槽，取**靠右**那个（离面板右下角最近）⇒ 内芯中心 art (293.5,406)
+        /// − 面板中心 (160,216) = (133.5,−190)；左边那个保持底图原样（原版这两个槽位放哪个控件
+        /// 在素材与参考工程里无载体，登记见 `UI对照.md`）。
+        /// </para>
+        /// <para>
+        /// 行高与既有两处关闭钮同排：<see cref="CharClosePos"/>.y = −188.3、
+        /// <see cref="InvCloseButtonPos"/>.y = −184.1。
+        /// </para>
+        /// </summary>
+        public static readonly Vector2 QuestClosePos = S(133.5f, -190f);
 
         /// <summary>
         /// 第 <paramref name="col"/>（0..2）列石龛中心 x。

@@ -113,16 +113,22 @@ namespace Uicheck
                 // 暂停：满屏模态 ⇒ 吃
                 ["PausePanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },
 
-                // 任务日志：底图 = 面板矩形 ⇒ **改吃**（R8）；页签吃；石龛/任务图不吃（底图已覆盖）
-                ["QuestLogPanel.cs"] = new[] { "QuestBg#t", "QuestBanner#n", "ActTab#t", "Slot#f", "Art#f" },
+                // 任务日志：底图 = 面板矩形 ⇒ **改吃**（R8）；页签/关闭钮吃；石龛/任务图不吃（底图已覆盖）
+                ["QuestLogPanel.cs"] = new[]
+                {
+                    "QuestBg#t", "QuestBanner#n", "ActTab#t", "Slot#f", "Art#f", "CloseButton#t",
+                },
 
                 // 设置：满屏模态 ⇒ 吃
                 ["SettingsPanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },
 
                 ["ShopPanel.cs"] = new[] { "BuySellBg#t", "Tab#t", "Cell#t", "Icon#f" },
 
-                // 技能树：两张底图 = 面板矩形（互斥显示）⇒ **都改吃**（R8）
-                ["SkillTreePanel.cs"] = new[] { "TreeBackPage0#t", "TreeBackPageK#t", "TabHit#t", "Node#t", "Icon#f" },
+                // 技能树：两张底图 = 面板矩形（互斥显示）⇒ **都改吃**（R8）；页签/节点/关闭钮吃
+                ["SkillTreePanel.cs"] = new[]
+                {
+                    "TreeBackPage0#t", "TreeBackPageK#t", "TabHit#t", "Node#t", "Icon#f", "CloseButton#t",
+                },
 
                 // 流程屏（菜单/选角/…）：满屏屏体与满屏底 ⇒ 不吃（无游戏内移动；按钮各自吃）
                 ["UiLayoutFlow.cs"] = new[] { "?#t", "Backdrop#f", "BackdropFill#f", "Backdrop#f" },

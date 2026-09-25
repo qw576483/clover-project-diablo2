@@ -657,6 +657,15 @@ namespace Diablo2.Module.View
             if (_entities.TryGetValue(entityId, out var v) && v.Root != null) return v.Root;
             if (_groundItems.TryGetValue(entityId, out var g) && g.Root != null) return g.Root;
 
+            // NPC 视图单列一张表（不进 `_entities`，见文件头 ②）⇒ 这里按同一套实体 id 口径也认它，
+            //   供 `Module/Input/HoverPicker` 取"贴图实际矩形"（NPC 的命中口径与怪物一致：精灵覆盖到即命中）。
+            //   id 段 = 负号区（`NpcEntityId`）；该段"还没有视图"是正常路径（非城镇 / Stage 未进入）⇒ 不打日志。
+            if (entityId < 0)
+            {
+                if (_npcs.TryGetValue(-1 - entityId, out var n) && n != null && n.Root != null) return n.Root;
+                return null;
+            }
+
             ViewLog.WarnThrottled("getview.miss", $"GetView({entityId})：没有该实体的视图（或节点已随场景卸载）⇒ 返回 null");
             return null;
         }

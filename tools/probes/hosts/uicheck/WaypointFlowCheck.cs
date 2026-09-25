@@ -210,7 +210,8 @@ namespace Uicheck
             ui.Reset();
             Game.Event.Emit(Events.MoveCommand, new Vector2Int(1, 1));     // 非锚点格
             Game.Event.Emit(Events.PlayerGridChanged, new Vector2Int(1, 1));  // 距离 0
-            Check("★ 退化（D5）：点非锚点格（距离 0）⇒ 面板 0 次打开（证明 D3/D4 依赖的是**锚点格**判定）",
+            Check("★ 退化（D5）：点**命中区外**的格（距离 0）⇒ 面板 0 次打开"
+                + "（证明 D3/D4 依赖的是**命中区**判定，不是「点哪有反应」）",
                 ui.OpenCount == 0, $"open={ui.OpenCount}");
 
             // ── 退化（D6）：地图未生成 ⇒ 交互整体不启动 ──────────────────────
@@ -241,6 +242,48 @@ namespace Uicheck
             Game.Event.Emit(Events.PlayerGridChanged, WpStub);   // 距离 0
             Check("点锚点 ⇒ 走到锚点格**本身**（距离 0）⇒ 同样打开面板（8 邻含同格）",
                 ui.OpenCount == 1, $"open={ui.OpenCount}");
+
+            // ── 命中区：点台子的**边缘格**也要开（台子画出来会压住锚点周围两格）──────────────
+            //   几何（四条出处见 `App/AppWaypoint.cs` 的 `OnMoveCommand` 注释）：帧图 131×79 px
+            //   按 80 px/世界单位解释 + 中心轴心 + 物件底边贴格中心下方半格 ⇒ 8 帧的可见像素按
+            //   等距逆投影只落在相对锚点的 (0,0) / (0,-1) / (-1,0) 三格 ⇒ 命中区取 8 邻即覆盖整块台子。
+            //   本组判**行为**：三格里的任一格被点中都要开，且**走位目标必须是锚点格**。
+            var sideEdge = new Vector2Int(WpStub.x, WpStub.y - 1);      // (0,-1)
+            var diagEdge = new Vector2Int(WpStub.x - 1, WpStub.y - 1);  // (-1,-1)（8 邻的对角，台子外沿）
+            var cornerEdge = new Vector2Int(WpStub.x - 1, WpStub.y);    // (-1,0)
+
+            AppWaypoint.ResetStaticForNewPlaySession();
+            ui.Reset();
+            Program._logger.Clear();
+            Game.Event.Emit(Events.MoveCommand, sideEdge);
+            var walkLogged = Program._logger.Has("INFO", "App", "走到锚点");
+            Check("点台子边缘格 (0,-1) ⇒ 记下「走到**锚点**」并留痕（不是静默、也不是「只有锚点那一格才算」）",
+                walkLogged, "日志命中 `走到锚点` = " + walkLogged);
+            // 到达判据只认锚点：发一条"离锚点 1 格、离被点中的那格 2 格"的换格事件 ⇒ 必须开
+            Game.Event.Emit(Events.PlayerGridChanged, new Vector2Int(WpStub.x, WpStub.y + 1));
+            Check("★ 点边缘格 (0,-1) ⇒ 走到**锚点**旁（离被点格 2 格）⇒ 面板开 1 次"
+                + "（证明走位目标是锚点格，不是被点中的那格）",
+                ui.OpenCount == 1, $"open={ui.OpenCount}");
+
+            foreach (var edge in new[] { diagEdge, cornerEdge })
+            {
+                AppWaypoint.ResetStaticForNewPlaySession();
+                ui.Reset();
+                Game.Event.Emit(Events.MoveCommand, edge);
+                Game.Event.Emit(Events.PlayerGridChanged, WpStub);   // 走到锚点格本身
+                Check($"点台子边缘格 ({edge.x - WpStub.x},{edge.y - WpStub.y})（相对锚点）⇒ 面板开 1 次",
+                    ui.OpenCount == 1, $"open={ui.OpenCount}");
+            }
+
+            // ── 退化（D17）：命中区**外**（距锚点 2 格）⇒ 就算玩家正站在锚点格上也不开 ──────
+            AppWaypoint.ResetStaticForNewPlaySession();
+            ui.Reset();
+            Game.Event.Emit(Events.MoveCommand, new Vector2Int(WpStub.x + 2, WpStub.y));
+            Game.Event.Emit(Events.PlayerGridChanged, WpStub);
+            Check("★ 退化（D17）：点距锚点 2 格的格（玩家就站在锚点上）⇒ 面板 0 次打开"
+                + "（命中区不是「点一片都算」，上面那几条不是恒真）",
+                ui.OpenCount == 0, $"open={ui.OpenCount}");
+            AppWaypoint.ResetStaticForNewPlaySession();
         }
 
         // ═════════════════════════════════════════════════════════════════════

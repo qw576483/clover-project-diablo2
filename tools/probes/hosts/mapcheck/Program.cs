@@ -1027,10 +1027,11 @@ internal static class MapCheckProgram
         var riverBlocked = 0;
         var campInterior = 0;
         var bridgeGround = 0;   // floor 层 = moor_bridge（原版 OUTDOORS/bridge.dt1，TownE1 独有）
-        var bridgeDeck = 0;     // 桥面：有桥地砖、没有桥栏杆 ⇒ 必须**可走**
-        var bridgeRail = 0;     // 栏杆：wall 层 = moor_bridge      ⇒ 必须**阻挡**
-        var badDeck = 0;
-        var badRail = 0;
+        var bridgeWalk = 0;     // 桥面可走 = **原版地砖自己的 25 个子格标志**判定
+        var bridgeBlocked = 0;  // 沿栏压边行：地砖带阻挡标志 ⇒ 阻挡
+        var bridgeRail = 0;     // 栏杆物件：wall 层 = moor_bridge（只落物件层，**不决定**可走性）
+        var deckRowsFull = 0;   // 整行桥面全可走的行数（横向不断口）
+        var deckRowsPartial = 0;// 沿栏压边行（每行只有东西两端可走）
         for (var y = 0; y < town.Height; y++)
         {
             for (var x = 0; x < town.Width; x++)
@@ -1046,16 +1047,11 @@ internal static class MapCheckProgram
                 if (!string.IsNullOrEmpty(g) && g.StartsWith("moor_bridge/"))
                 {
                     bridgeGround++;
-                    if (!string.IsNullOrEmpty(o) && o.StartsWith("moor_bridge/"))
-                    {
-                        bridgeRail++;
-                        if (town.Walkable(new Vector2Int(x, y))) badRail++;
-                    }
-                    else
-                    {
-                        bridgeDeck++;
-                        if (!town.Walkable(new Vector2Int(x, y))) badDeck++;
-                    }
+                    if (town.Walkable(new Vector2Int(x, y))) bridgeWalk++;
+                    else bridgeBlocked++;
+                    //   栏杆只统计物件层；它**不决定**可走性（原版桥的北侧栏杆正压在
+                    //   中间那一行桥面上，那一行是原版标了可走的）。
+                    if (!string.IsNullOrEmpty(o) && o.StartsWith("moor_bridge/")) bridgeRail++;
                 }
                 if (x > 17 && x < 47 && y > 16 && y < 39) campInterior++;
             }
@@ -1066,15 +1062,39 @@ internal static class MapCheckProgram
         Check(riverBlocked == riverGround,
             $"河/水**全部阻挡**（可走的水 = {riverGround - riverBlocked} 格，必须为 0）");
 
-        //   （floor x∈[47,56] y∈[15,18]、wall x∈[47,56] y∈{16,18}），换算到关卡坐标 =
-        //   `x∈[29,38] y∈[20,23]`，正好横跨河带 `x∈[30,36]`。桥面可走、栏杆阻挡 ⇒ 河**能过去**。
-        Check(bridgeGround >= 20,
-            $"跨河木桥地砖（floor 层 moor_bridge）= {bridgeGround} 格（原版 TownE1.ds1 的桥）+ " +
-            $"栏杆 {bridgeRail} 格");
-        Check(bridgeDeck >= 10 && badDeck == 0,
-            $"桥面**可走**：{bridgeDeck} 格全可走（不可走的桥面 = {badDeck}）");
-        Check(bridgeRail >= 10 && badRail == 0,
-            $"桥栏杆**阻挡**：{bridgeRail} 格全阻挡（可走的栏杆 = {badRail}）");
+        //   桥（原版 `TownE1.ds1`：floor x∈[47,56] y∈[15,18]、wall x∈[47,56] y∈{16,18}）
+        //   = 关卡坐标 **10 列 × 4 行**。可走性口径 = **地砖自己的 25 个子格标志**
+        //   （`OUTDOORS/bridge.dt1`）⇒ 中间 2 行 20 格 + 东西两端各 2 格（压边行上的岸格）可走。
+        //   行统计：每行"可走格数 == 桥面格数" ⇒ 整行可走（横向不断口）。
+        var rowGround = new Dictionary<int, int>();
+        var rowWalk = new Dictionary<int, int>();
+        for (var y = 0; y < town.Height; y++)
+        {
+            for (var x = 0; x < town.Width; x++)
+            {
+                town.TryGetTileKeys(x, y, out var rg, out _);
+                if (string.IsNullOrEmpty(rg) || !rg.StartsWith("moor_bridge/")) continue;
+                rowGround[y] = rowGround.TryGetValue(y, out var cg) ? cg + 1 : 1;
+                if (town.Walkable(new Vector2Int(x, y)))
+                    rowWalk[y] = rowWalk.TryGetValue(y, out var cw) ? cw + 1 : 1;
+            }
+        }
+        foreach (var row in rowGround)
+        {
+            var walked = rowWalk.TryGetValue(row.Key, out var cw) ? cw : 0;
+            if (walked == row.Value) deckRowsFull++;
+            else deckRowsPartial++;
+        }
+        Check(bridgeGround == 40 && bridgeWalk == 24 && bridgeBlocked == 16,
+            $"跨河木桥地砖（floor 层 moor_bridge）= {bridgeGround} 格（原版 10 列 × 4 行），" +
+            $"可走 {bridgeWalk} / 阻挡 {bridgeBlocked}（原版口径 = 中间 2 行 20 格 + 东西两端各 2 格 = 24）");
+        Check(bridgeRail == 20,
+            $"桥栏杆物件（wall 层 = moor_bridge）= {bridgeRail} 格（原版 10 列 × 2 条栏杆 = 20）");
+        Check(deckRowsFull >= 2,
+            $"桥面有 {deckRowsFull} 行**整行可走**（≥2 ⇒ 桥上横向能走通、且能换行 = 连续空间；" +
+            "这是「桥上不能横向移动」那条缺陷的判据）");
+        Check(deckRowsPartial == 2,
+            $"沿栏压边行 = {deckRowsPartial} 行（栏杆脚下：每行只有东西两端 2 格可走）");
         //   它只可能有桥地砖（无栏杆）⇒ 必须可走，且出生点能沿桥走到。
         var eastBank = new Vector2Int(54, 27);
         Check(town.Walkable(eastBank) && town.FindPath(town.SpawnPoint, eastBank) != null,

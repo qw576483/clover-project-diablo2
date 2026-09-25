@@ -12,7 +12,8 @@
 //   不发：`PlayerDamaged` / `DamageDealt`（属 `ICombatModule` 的结算产物）、
 //         `ReviveRequest`（`ICombatModule.RevivePlayer()` 的入口，Player 不重复订阅）
 //
-//   原版左键语义：点怪 → `Emit(AttackRequest, id)`（并走过去）；点空地/物品/NPC → `MoveCommand` 意图。
+//   原版左键语义：点怪 → `Emit(AttackRequest, id)`（并走过去）；点 NPC → `Emit(NpcInteractRequest, id)`
+//   （由 `Module/Npc` 下发走位、到位后开对话）；点空地/地面物品 → `MoveCommand` 意图。
 //   `Shift` 按住 = **站立攻击**（只发 `AttackRequest`，不产生移动目标）。
 //   走位说明：`ICombatModule.RequestAttack` 超距时**不结算也不走位**（只 Warn「先靠近」）⇒
 //   由本模块在发 `AttackRequest` 的**同一帧**补发一条 `MoveCommand`（走向怪物相邻可走格）。
@@ -791,13 +792,17 @@ namespace Diablo2.Module.Player
         /// <summary>
         /// 以某格为左键点击目标派发一次（单击语义）。**非契约入口**（自证 / 集成 / 世界坐标拾取走它）。
         /// 规则：命中怪物 → `Emit(AttackRequest, id)`（Shift 时只攻击不移动，否则补发走位 `MoveCommand`）；
-        /// 其余 → 保持既有 `MoveCommand` 意图（地面物品/NPC 的兜底自动拾取/对话在 `Module/Item`/`Npc`）。
+        /// 命中 NPC → `Emit(NpcInteractRequest, id)`（"走过去开对话"由 `Module/Npc` 自己编排）；
+        /// 其余 → `MoveCommand` 移动意图（地面物品的兜底自动拾取在 `Module/Item`）。
+        /// <para>命中判定取**指针当前悬停目标**（<see cref="InputReader.HoverAtPointer"/>）而不是
+        /// `HoverAt(格)`：后者只有脚下格口径，怪物/NPC 的贴图向上覆盖 1~2 格 ⇒ 点上半身会判不到。
+        /// 传入的 <paramref name="grid"/> 与当前悬停格不同（自证/集成路径）时才退回脚下格口径。</para>
         /// </summary>
         public void HandlePrimaryClick(Vector2Int grid)
         {
             var map = MapOrNull();
             var standStill = _input.StandStill;
-            var hov = _input.HoverAt(grid);
+            var hov = grid == _input.HoverGrid ? _input.HoverAtPointer() : _input.HoverAt(grid);
 
             if (IsAttackable(hov))
             {
@@ -805,7 +810,22 @@ namespace Diablo2.Module.Player
                 return;
             }
 
-            if (standStill) return;                    // 原版 Shift：普通点击不移动
+            // 原版 Shift = 站立不动：本次点击不产生任何移动意图（下面点 NPC 的那一支同样要"走过去"，故一并跳过）
+            if (standStill) return;
+
+            // 原版左键语义：点在 NPC 身上 ⇒ 走过去跟他说话（不是"路过 NPC 旁边"）。
+            //   这一次点击**不发** `MoveCommand`：走位目标由 `INpcModule` 按 NPC 站位自己下发
+            //   （它才是"站到哪个格"的权威）；`_holdTarget = grid` 保证按住不动时不会补发一条
+            //   别的落点把这次交互意图顶掉。
+            if (IsNpcTarget(hov))
+            {
+                _holdTarget = grid;
+                _lastAttackTargetId = int.MinValue;
+                PlayerLog.Info($"[Npc] 左键点中 NPC n#{hov.id}「{hov.name}」格=({hov.gridX},{hov.gridY})"
+                    + $" ⇒ 发 {Events.NpcInteractRequest}（走过去后由 Npc 模块开对话）");
+                Emit(Events.NpcInteractRequest, hov.id);
+                return;
+            }
 
             _holdTarget = grid;
             Emit(Events.MoveCommand, grid);            // 契约事件（本类的 OnMoveCommand 会执行 MoveTo）
@@ -894,6 +914,14 @@ namespace Diablo2.Module.Player
         /// <summary>该悬停目标是否"可攻击"（怪物）。</summary>
         private static bool IsAttackable(HoverTarget hov) =>
             hov != null && hov.hasTarget && hov.cursor == CursorKind.Attack;
+
+        /// <summary>
+        /// 该悬停目标是否"可交互的 NPC"。
+        /// <para>`CursorKind.Interact` 在本工程**只有一个产出方** = `HoverPicker` 的 NPC 分支
+        /// （脚下格命中 / 贴图矩形命中），故这个判据就是"指针点在 NPC 身上"。</para>
+        /// </summary>
+        private static bool IsNpcTarget(HoverTarget hov) =>
+            hov != null && hov.hasTarget && hov.cursor == CursorKind.Interact && hov.id >= 0;
 
         /// <summary>
         /// 一帧的攻击语义：发 `AttackRequest`（`ICombatModule` 结算；冷却/超距由它自己判）。
