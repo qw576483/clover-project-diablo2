@@ -93,6 +93,13 @@ namespace Diablo2.UI
         private D2Label _hint;
         private Image _repairButton;
 
+        /// <summary>关闭钮（同一排雕槽的第 4 个）。</summary>
+        private Image _closeButton;
+
+        /// <summary>两颗动作钮的悬停提示（`OnClose` 收起；这两颗钮没有常显文字）。</summary>
+        private ControlTip _repairTip;
+        private ControlTip _closeTip;
+
         /// <summary>格子的悬停提示（与背包同款：`UI/ItemTooltip` + 引擎 `PointerFloatLayer`）。</summary>
         private ItemTooltip _tooltip;
         private Image[] _tabHit = new Image[4];
@@ -123,6 +130,8 @@ namespace Diablo2.UI
             Unsubscribe();
             _tooltip?.Destroy();
             _tooltip = null;
+            _repairTip?.Hide();
+            _closeTip?.Hide();
             UiLog.Info("商店面板已关闭");
         }
 
@@ -241,6 +250,12 @@ namespace Diablo2.UI
         /// 本项目没有玩家间交易（单机），故只放 2 个动作按钮（修理 / 关闭）到**最右两个雕槽**，
         /// 位置直接用底图反推出来的 `UiLayoutGame.ShopBottomSlotX/Y/Size`。
         /// </para>
+        /// <para>
+        /// **这两颗钮没有常显文字**：原版这两个槽是"纯图形自明"（帧 2 = 锤+铁砧、帧 10 = ⊘）⇒
+        /// 文案只作**悬停提示**（`ControlTip` + `HoverTarget`，见 <see cref="BuildActionTips"/>）。
+        /// 方钮工厂 `UiArt.SquareButton` ⇒ 引擎 `UIFactory.CreateButton` 的契约是"顺手建一个 `Label` 子节点"
+        /// ⇒ 本屏建完即摘掉它（<see cref="DropVisibleLabel"/>）：留着就会压住图形并越过面板下沿。
+        /// </para>
         /// </summary>
         private void BuildBottomBar()
         {
@@ -251,56 +266,69 @@ namespace Diablo2.UI
                 (int)UiLayoutGame.FontPx16);
 
             var btnSize = new Vector2(UiLayoutGame.ShopBottomSlotSize, UiLayoutGame.ShopBottomSlotSize);
-            //   原版这两颗钮是"纯图形自明"（帧 2 = 锤+铁砧、帧 10 = ⊘），标签铺满时**正好压住图形**。
-            _repairButton = UiArt.SquareButton(transform, "RepairAll", "修理", btnSize,
-                SlotCenter(2), OnRepairAll, ButtonLabelRect(2));
+            _repairButton = UiArt.SquareButton(transform, "RepairAll", string.Empty, btnSize,
+                SlotCenter(2), OnRepairAll);
             // 常态帧 2（= 锤子 + 铁砧），见 ApplyBuySellButtonArt 的逐帧读图表
             ApplyBuySellButtonArt(_repairButton, 2);
-            var close = UiArt.SquareButton(transform, "Close", "关闭", btnSize, SlotCenter(3), OnCloseShop,
-                ButtonLabelRect(3));
+            DropVisibleLabel(_repairButton);
+
+            var close = UiArt.SquareButton(transform, "Close", string.Empty, btnSize, SlotCenter(3), OnCloseShop);
             // 常态帧 10（= 禁止符 ⊘）
             ApplyBuySellButtonArt(close, 10);
+            DropVisibleLabel(close);
+            _closeButton = close;
+
+            BuildActionTips();
+        }
+
+        /// <summary>修理钮的文案：原版该槽只有图形 ⇒ 只作**悬停提示**，不作常显标签。</summary>
+        public const string RepairTipText = "修理";
+
+        /// <summary>关闭钮的文案：同上（与本工程关闭钮同源的「关闭」口径）。</summary>
+        public const string CloseTipText = "关闭";
+
+        /// <summary>
+        /// 摘掉方钮的常显文字节点（`Label`）：工厂会顺手建一个（引擎 `UIFactory.CreateButton` 的契约），
+        /// 本屏这两颗钮不要它 —— 原版那两个槽只有图形，文字只走悬停提示。
+        /// </summary>
+        private static void DropVisibleLabel(Image btn)
+        {
+            if (btn == null) return;
+            var label = btn.transform.Find("Label");
+            if (label != null) Destroy(label.gameObject);
         }
 
         /// <summary>
-        /// 相邻雕槽的中心距（= `ShopBottomSlotX[1] − ShopBottomSlotX[0]` = 原版实测 pitch **52** × K = 93.6 画布px）。
-        /// <para>标签框宽取它 ⇒ **四个雕槽的标签两两不重叠**（`Rect.Overlaps` 为假），且"52"有底图实测出处
-        /// （E4 / B5：列 115-148 / 167-200 / 219-252 / 271-304，pitch 52）。</para>
+        /// 两颗动作钮的悬停提示（与 `CharacterPanel` 的关闭钮 / `HudPanel.AddMiniButton` 同一套接线）：
+        /// 指针进 / 出各一次显隐，`OnClose` 再收一次。
         /// </summary>
-        public static float SlotPitch
-            => UiLayoutGame.ShopBottomSlotX[1] - UiLayoutGame.ShopBottomSlotX[0];
+        private void BuildActionTips()
+        {
+            _repairTip = ControlTip.Create(transform, _repairButton.rectTransform, RepairTipText);
+            var hoverRepair = _repairButton.gameObject.AddComponent<HoverTarget>();
+            if (_repairTip != null)
+            {
+                hoverRepair.OnEnter = _repairTip.Show;
+                hoverRepair.OnExit = _repairTip.Hide;
+            }
+
+            _closeTip = ControlTip.Create(transform, _closeButton.rectTransform, CloseTipText);
+            var hoverClose = _closeButton.gameObject.AddComponent<HoverTarget>();
+            if (_closeTip != null)
+            {
+                hoverClose.OnEnter = _closeTip.Show;
+                hoverClose.OnExit = _closeTip.Hide;
+            }
+        }
 
         /// <summary>
         /// 第 <paramref name="slot"/> 个雕槽里那颗方钮的矩形 —— **按钮 local 空间**（以按钮中心为原点）。
-        /// 判据用（`tools/probes/hosts/uicheck/ShopArtCheck.cs` ⑤）：标签矩形必须与它**不相交**。
+        /// 判据用（`tools/probes/hosts/uicheck/ShopArtCheck.cs` ⑥）：钮矩形 ⊆ 槽内凹区。
         /// </summary>
         public static Rect ButtonRect(int slot)
         {
             var s = UiLayoutGame.ShopBottomSlotSize;
             return new Rect(-s * 0.5f, -s * 0.5f, s, s);
-        }
-
-        /// <summary>
-        /// 方钮**标签**矩形 —— **按钮 local 空间**（同 <see cref="ButtonRect"/>，故两者可直接比）。
-        /// <para>标签放**钮外正下方居中**，让原版图形（帧 2 的锤+铁砧 / 帧 10 的 ⊘）
-        /// **零遮挡**；这是本项目新增的表现（原版该处只有图形、没有文字）⇒ 表现口径 = "标签位置 = 钮外正下方"
-        /// （E4 增补）。</para>
-        /// <para>几何出处（两路量法互证）：
-        /// ① 钮**居中在内凹区**后，钮下沿 = 原版 y **413**（= <see cref="SlotInnerBottom"/>，钮边长 28 落在 385..413）；
-        /// ② 钮下方可用带 = **414..429（16 原版px）**：越过雕槽下框线（414..417）与槽下阴影（418..420），
-        ///    止于**面板下边框**（429..430）之上 ⇒ 这是"钮居中 + 标签在钮正下方"唯一还剩的带（恰好 = 标签高）；
-        /// ③ 标签高 = `UiLayoutGame.FontPx16`（28.8 画布px = 16 原版px）、**gap = 0**（上沿紧贴钮下沿）；
-        /// ④ 框宽 = <see cref="SlotPitch"/>（原版 52）⇒ 相邻标签恰好相接、不重叠。
-        /// 已知代价：标签带 414..429 会**压过雕槽下框线**（414..417）；
-        ///    要避开它只能把标签放到面板外或钮上方，二者都偏离 E4 的"钮外正下方"。</para>
-        /// </summary>
-        public static Rect ButtonLabelRect(int slot)
-        {
-            var s = UiLayoutGame.ShopBottomSlotSize;
-            var h = UiLayoutGame.FontPx16;
-            var w = SlotPitch;
-            var cy = -(s + h) * 0.5f;              // gap = 0：标签上沿 == 钮下沿
-            return new Rect(-w * 0.5f, cy - h * 0.5f, w, h);
         }
 
         // ═════════════════════════════════════════════════════════════════════

@@ -10,9 +10,9 @@
 //   不持有任何模块的**实现类型**：一律走 `AppWiring.Ctx` 的接口 + `Core/Events` 的事件。
 //
 // 事件口径（只增不改，都是**已有的**）：
-//   · 收 `Events.MoveCommand`(Vector2Int)  —— 判点击落点是否落在**传送台的命中区**（= 锚点格的
-//     8 邻；传送台本体画出来会压住锚点周围两格，几何依据见 `OnMoveCommand` 的注释。与 `NpcModule`
-//     的"点 NPC 走过去说话"同一条兜底路径：本项目点击只落到 MoveCommand）；
+//   · 收 `Events.MoveCommand`(Vector2Int)  —— 判点击落点是否落在**传送台的命中区**（= 台面画出来的
+//     像素压到的那几格，表见 `WaypointArtCells`。与 `NpcModule` 的"点 NPC 走过去说话"同一条兜底
+//     路径：本项目点击只落到 MoveCommand）；
 //   · 收 `Events.PlayerGridChanged`(Vector2Int) —— 判"走到了没有"（8 邻 = 可交互，同
 //     `ItemModule.Pickup` 的 `Iso.IsAdjacent` 口径）；
 //   · 收 `Events.StageEntered` / `Events.AreaChanged`(AreaId) —— 记"已去过区域"（目的地集合来源）；
@@ -139,23 +139,10 @@ namespace Diablo2.App
         /// <summary>
         /// 点了传送台 ⇒ 记下"走到锚点旁"；点别处 ⇒ 撤销。
         /// <para>
-        /// **命中区 = 锚点格的 8 邻（含锚点格本身）** —— 判据 `Iso.IsAdjacent`（= `Iso.GridDistance ≤ 1`），
-        /// 与"点物品走过去拾取"（`ItemModule` 的 `ClickPickupSlack = 1`）同一条容差口径。
-        /// 为什么不是"只有锚点那一格"：台子是**画出来的一大块**，屏幕上它压住的格不止一格，
-        /// 几何可复算（四处出处）：
-        /// <list type="bullet">
-        /// <item>帧图画布 **131×79 px**（8 张同尺寸）= `Resources/Clover/D2/Objects/waypoint/manifest.json`
-        ///   的 `canvas.w/h`，解包时由 `tools/d2codec/export_waypoint.py` 写入；</item>
-        /// <item>按 **80 px/世界单位** 解释（原版等距格是 160×80 px，见 `Module/Map/MapView.cs:2493`
-        ///   的 `D2TilePixelsPerUnit`，节点缩放 = 契约 PPU 64 / 80）；</item>
-        /// <item>轴心 = 图心（`Assets/Editor/AssetImporter.cs:283` 的 `spritePivot = (0.5, 0.5)`），
-        ///   物件摆放 = 图像**底边**贴格中心下方半格（`CloverEngine.TileRenderer.PlaceOfPx`，
-        ///   调用点 `Module/Map/MapView.cs:2505` 的 `PlaceOf`）；</item>
-        /// <item>⇒ 画出来的像素按等距逆投影只落在**三格**（相对锚点；取 8 帧并集的可见带
-        ///   `canvas.padBottom = 34` / `unionH = 45`）：(0,0) 56.4% / (0,-1) 23.8% / (-1,0) 19.9%
-        ///   —— 三格**都在**锚点 8 邻内 ⇒ 8 邻覆盖整块台子，且对"贴图定位差一格"这类非预期情形
-        ///   留了余量（`Iso.GridDistance ≤ 1`）。</item>
-        /// </list>
+        /// **命中区 = 台面画出来的像素压到的那几格**（<see cref="WaypointArtCells"/>，含锚点格本身），
+        /// ⛔ **不是**锚点的 8 邻 —— 台子周围 6 个空地格上点一下就该是"走过去"，不该开面板
+        /// （与 `NpcModule` 的"点 NPC 才算点他"同一条原则：判定贴着图形，不贴着邻域）。
+        /// 判据是格集合成员关系（不是距离阈值）：`click == 锚点 + WaypointArtCells[i]`。
         /// </para>
         /// </summary>
         private static void OnMoveCommand(Vector2Int target)
@@ -166,6 +153,7 @@ namespace Diablo2.App
             Vector2Int anchor;
             if (!TryResolveWaypoint(map, target, out anchor))
             {
+                WarnNearMiss(map, target);
                 if (_walking) _walking = false;
                 return;
             }
@@ -312,9 +300,58 @@ namespace Diablo2.App
         // ── 内部 ─────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// 点击格是否在某个传送台的**命中区**内；在则输出该台的**锚点格**（= 要走过去的那一格）。
-        /// <para>命中区 = 锚点格的 8 邻（几何依据见 `OnMoveCommand`）；表里没有锚点（野外 / 洞穴）
-        /// ⇒ false。</para>
+        /// 台面**画出来的像素压到哪几格**（相对锚点格的格偏移）—— 命中区就是这张表（判定见
+        /// <see cref="TryResolveWaypoint"/>）。三项输入全部来自资产 / 生产摆放口径，⛔ 不是手填的"意思一下"：
+        /// <list type="number">
+        /// <item>帧图画布 **131×79 px**（8 帧同尺寸）与**可见像素并集** = 画布局部 y **[34, 79)**
+        ///   （= `canvas.padBottom 34 + unionH 45`）—— 出处
+        ///   `Resources/Clover/D2/Objects/waypoint/manifest.json`（解包器 `tools/d2codec/export_waypoint.py` 写入）；</item>
+        /// <item>按 **80 px/世界单位** 解释（原版等距格 160×80 px，见 `Module/Map/MapView.cs` 的
+        ///   `D2TilePixelsPerUnit`）+ 轴心 = 图心（`Assets/Editor/AssetImporter.cs` 的 `spritePivot`）+
+        ///   物件摆放 = 图像底边贴格中心下方半格（`CloverEngine.TileRenderer.PlaceOfPx`，调用点
+        ///   `MapView.PlaceOf`）；</item>
+        /// <item>把①②算出的那块可见矩形逐像素走生产逆投影 `Iso.WorldToGrid` 统计 ⇒ 只落三格：
+        ///   (0,0) 557 px / (-1,0) 157 px / (0,-1) 207 px（= `WAYFIX-GEOM` 运行期读数，第 0 帧；
+        ///   8 帧并集口径的复算入口 = `.ai-tmp/test/waypoint_pixel_cells.py`）。
+        ///   顺序与上面三个计数同序。</item>
+        /// </list>
+        /// <para>判据链（可复算）：改画布 / 改可见带 / 改摆放口径 ⇒ 这三格要跟着重算；
+        /// `tools/probes/hosts/uicheck/WaypointFlowCheck.cs` 有一条**按资产现算再比对本表**的守卫。</para>
+        /// </summary>
+        internal static readonly Vector2Int[] WaypointArtCells =
+        {
+            new Vector2Int(0, 0), new Vector2Int(-1, 0), new Vector2Int(0, -1),
+        };
+
+        /// <summary>
+        /// 「点击差一点就落在传送台上」的**诊断带**（Chebyshev 格数，命中区外一档）：不是判定条件，
+        /// 只把这种点击留痕（点名落点格与锚点格），免得"差一格就没反应"再变成一个查不出原因的静默现象。
+        /// </summary>
+        private const int NearMissRing = 2;
+
+        /// <summary>
+        /// 落点不在任何传送台的命中区、但离某个锚点 ≤ <see cref="NearMissRing"/> 格 ⇒ Warn
+        /// （点名落点格、锚点格、距离）。离得远的普通点击（大多数地面点击）**不打**日志。
+        /// </summary>
+        private static void WarnNearMiss(IMapModule map, Vector2Int click)
+        {
+            var pts = map.WaypointPoints;
+            if (pts == null) return;
+            for (var i = 0; i < pts.Count; i++)
+            {
+                var d = Iso.GridDistance(pts[i], click);
+                if (d > NearMissRing) continue;
+                Game.Logger.Warn(Tag, $"点击落在传送台命中区**之外**：落点格 ({click.x},{click.y})、"
+                    + $"锚点格 ({pts[i].x},{pts[i].y})、Chebyshev 距离 {d} ⇒ 本次不触发"
+                    + "（命中区 = 台面像素压到的格，见 `WaypointArtCells`）");
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 点击格是否落在某个传送台的**命中区**内；在则输出该台的**锚点格**（= 要走过去的那一格）。
+        /// <para>命中区 = 锚点格 + <see cref="WaypointArtCells"/> 里任一偏移（台面像素压到的格）。
+        /// 表里没有锚点（野外 / 洞穴）⇒ false。</para>
         /// </summary>
         private static bool TryResolveWaypoint(IMapModule map, Vector2Int click, out Vector2Int anchor)
         {
@@ -323,9 +360,13 @@ namespace Diablo2.App
             if (pts == null) return false;
             for (var i = 0; i < pts.Count; i++)
             {
-                if (!Iso.IsAdjacent(pts[i], click)) continue;
-                anchor = pts[i];
-                return true;
+                for (var k = 0; k < WaypointArtCells.Length; k++)
+                {
+                    if (click.x != pts[i].x + WaypointArtCells[k].x) continue;
+                    if (click.y != pts[i].y + WaypointArtCells[k].y) continue;
+                    anchor = pts[i];
+                    return true;
+                }
             }
             return false;
         }

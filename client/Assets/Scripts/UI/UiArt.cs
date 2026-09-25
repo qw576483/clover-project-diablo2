@@ -605,11 +605,10 @@ namespace Diablo2.UI
         //   贴底图，而那两套是**前端菜单**的按钮，跟买卖屏右下那 4 个雕槽（底图实测 34×27）不是一回事。
         /// <param name="labelRect">
         /// **可选**：标签矩形，**相对按钮自身中心**（按钮 local 空间，按钮 rect = 以 (0,0) 为中心、
-        /// 边长 <paramref name="sz"/> 的正方形）。给 `null` ⇒ 保持历史行为（标签铺满整钮）。
-        /// <para> 为什么加这个口子：原版这两颗钮是**纯图形自明**（：修理 = 锤+铁砧、
-        /// 关闭 = ⊘），标签铺满整钮时**正好压住图形**（实机 8× 放大图里只剩两个汉字）⇒
-        /// 商店把标签放到**钮外正下方**（`ShopPanel.ButtonLabelRect`，纯函数 + 离线判据）。
-        /// 默认值 `null` 保证既有的"铺满"语义不被悄悄改掉（改行为必须由调用方**显式**给矩形）。</para>
+        /// 边长 <paramref name="sz"/> 的正方形）。给 `null` ⇒ 保持"标签铺满整钮"的形状。
+        /// <para>它在买卖屏那两颗动作钮上不用：那里是**纯图形自明**（修理 = 锤+铁砧、关闭 = ⊘）⇒
+        /// 调用方（`UI/ShopPanel.BuildBottomBar`）传 `null` 并随即摘掉 `Label` 子节点
+        /// （该工厂的 `Label` 是引擎契约的产物），文字只留在悬停提示里。</para>
         /// </param>
         public static Image SquareButton(Transform p, string n, string lb, Vector2 sz, Vector2 ps, Action cb,
             Rect? labelRect = null)

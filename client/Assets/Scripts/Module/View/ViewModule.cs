@@ -1252,26 +1252,24 @@ namespace Diablo2.Module.View
             }
         }
 
-        /// <summary>是否已打过「桥面(deck)抬档生效」的一次性日志（数值证据；只报一次，不刷屏）。</summary>
+        /// <summary>是否已打过「桥面(deck)格排序」的一次性日志（数值证据；只报一次，不刷屏）。</summary>
         private static bool _deckSortLogged;
 
         /// <summary>
         /// **实体节点排序值的唯一出处**（玩家 / 怪物 / 地面物品 / NPC 全走这里）：
-        /// 转 <see cref="Iso.EntitySortOrder"/>（纯函数 = 该格基准 + 实体层偏移；deck ⇒ 抬一档），
+        /// 转 <see cref="Iso.EntitySortOrder"/>（纯函数 = 该格基准 + 实体层偏移；桥面格与普通格同档），
         /// deck 与否由契约 `IMapModule.IsDeckGrid` 给。
         ///
-        /// <para><b>为什么</b>：桥面格的正南一格恒是桥栏杆物件，而栏杆图形向上长 ≈2 格
-        /// ⇒ 普通实体档会被它盖住（用户实测：「营地出门的桥，还是从桥下走」）。
-        /// 数值推导见 <see cref="GameConst.LayerOffsetDeckEntity"/>。</para>
+        /// <para><b>遮挡口径</b>（原版 = 格 y 越大越靠前）：桥面南行（y=27）的实体被正南一格（y=28）
+        /// 的栏杆 `4(D+1)+101 = 4D+105` 盖住腿脚；北行（y=26）的栏杆压在本格 `4D+101`（先画）
+        /// ⇒ 实体画在栏杆之前。数值见 <see cref="GameConst.LayerOffsetDeckEntity"/>。</para>
         ///
-        /// <para>deck 判定走**契约** `IMapModule.IsDeckGrid`（数据由 `Module/Map` 按"地砖取自
-        /// deck 类包"登记，视图层不猜几何）。拿不到 Map（未接入 / 场景卸载中）⇒ 用普通实体档
-        /// 并**留一次 Warn**（不静默）；地图未生成时 `IsDeckGrid` 本身返回 false，不必另判。</para>
+        /// <para>deck 判定走**契约** `IMapModule.IsDeckGrid`（数据由 `Module/Map` 按"地面键取自
+        /// deck 类包 + 该格可走"登记，视图层不猜几何）。拿不到 Map（未接入 / 场景卸载中）⇒ 用普通
+        /// 实体档并**留一次 Warn**（不静默）；地图未生成时 `IsDeckGrid` 本身返回 false，不必另判。</para>
         ///
-        /// <para> **`internal` 而不是 `private`**：投射物表现
-        /// （`Module/Skill/ProjectileView`）过去自己写 `Iso.SortOrder(g, LayerOffsetEntity)`，
-        /// 抬档口径改到本方法时**漏了它** ⇒ 桥上射出的投射物仍被栏杆盖住。改成让投射物也调本方法，
-        /// 使「实体排序」**全局只有一份实现**，避免再出现"改了口径没扫全路径"。</para>
+        /// <para> **`internal` 而不是 `private`**：投射物表现（`Module/Skill/ProjectileView`）
+        /// 也调本方法 ⇒「实体排序」**全局只有一份实现**，不会出现"改了口径没扫全路径"。</para>
         /// </summary>
         internal static int EntitySortOrder(Vector2Int g)
         {
@@ -1279,8 +1277,8 @@ namespace Diablo2.Module.View
             if (map == null)
             {
                 ViewLog.WarnOnce("sort.nomap",
-                    "EntitySortOrder: IMapModule 未接入（AppContext.Map == null）⇒ 一律用普通实体档，" +
-                    "桥面抬档不生效（桥上的角色可能被栏杆盖住）");
+                    "EntitySortOrder: IMapModule 未接入（AppContext.Map == null）⇒ 一律用普通实体档" +
+                    "（桥面格与普通格同口径，遮挡仍由正南一格物件层决定）");
                 return Iso.SortOrder(g, GameConst.LayerOffsetEntity);
             }
 
@@ -1291,10 +1289,10 @@ namespace Diablo2.Module.View
             if (!_deckSortLogged)
             {
                 _deckSortLogged = true;
-                ViewLog.Info($"桥面(deck)抬档生效：格 ({g.x},{g.y}) 的实体排序 = {order}" +
+                ViewLog.Info($"桥面(deck)格 ({g.x},{g.y}) 实体排序 = {order}" +
                              $"（普通实体档 = {Iso.EntitySortOrder(g, false)}，" +
                              $"正南一格物件层 = {Iso.SortOrder(new Vector2Int(g.x, g.y + 1), GameConst.LayerOffsetObject)}" +
-                             " ⇒ 不再被栏杆盖住）");
+                             " ⇒ 站南行的实体腿脚被栏杆盖住 = 原版口径）");
             }
             return order;
         }

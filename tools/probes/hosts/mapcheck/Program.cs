@@ -1030,8 +1030,8 @@ internal static class MapCheckProgram
         var bridgeWalk = 0;     // 桥面可走 = **原版地砖自己的 25 个子格标志**判定
         var bridgeBlocked = 0;  // 沿栏压边行：地砖带阻挡标志 ⇒ 阻挡
         var bridgeRail = 0;     // 栏杆物件：wall 层 = moor_bridge（只落物件层，**不决定**可走性）
-        var deckRowsFull = 0;   // 整行桥面全可走的行数（横向不断口）
-        var deckRowsPartial = 0;// 沿栏压边行（每行只有东西两端可走）
+        var deckRowsFull = new List<int>();  // 整行桥面全可走的行（横向不断口）
+        var deckRowsPartial = 0;             // 沿栏压边行（每行只有东西两端可走）
         for (var y = 0; y < town.Height; y++)
         {
             for (var x = 0; x < town.Width; x++)
@@ -1082,17 +1082,22 @@ internal static class MapCheckProgram
         foreach (var row in rowGround)
         {
             var walked = rowWalk.TryGetValue(row.Key, out var cw) ? cw : 0;
-            if (walked == row.Value) deckRowsFull++;
+            if (walked == row.Value) deckRowsFull.Add(row.Key);
             else deckRowsPartial++;
         }
+        deckRowsFull.Sort();
         Check(bridgeGround == 40 && bridgeWalk == 24 && bridgeBlocked == 16,
             $"跨河木桥地砖（floor 层 moor_bridge）= {bridgeGround} 格（原版 10 列 × 4 行），" +
             $"可走 {bridgeWalk} / 阻挡 {bridgeBlocked}（原版口径 = 中间 2 行 20 格 + 东西两端各 2 格 = 24）");
         Check(bridgeRail == 20,
             $"桥栏杆物件（wall 层 = moor_bridge）= {bridgeRail} 格（原版 10 列 × 2 条栏杆 = 20）");
-        Check(deckRowsFull >= 2,
-            $"桥面有 {deckRowsFull} 行**整行可走**（≥2 ⇒ 桥上横向能走通、且能换行 = 连续空间；" +
-            "这是「桥上不能横向移动」那条缺陷的判据）");
+        //   ★ 连通成片判据（不是只判总格数）：整行可走的行必须 **≥2 且 y 连续** ⇒ 相邻两行互达。
+        //   两条互不相邻的 1 格宽带（y=25/y=27 那种）会让这条判红。
+        var deckRowsContiguous = deckRowsFull.Count >= 2
+            && deckRowsFull[deckRowsFull.Count - 1] - deckRowsFull[0] + 1 == deckRowsFull.Count;
+        Check(deckRowsContiguous,
+            $"桥的**可走区连续成片**：整行可走的行 y = [{string.Join(",", deckRowsFull)}]" +
+            $"（{deckRowsFull.Count} 行；判据 = 行数 ≥2 且 y 连续 ⇒ 横向能走通 + 相邻行互达 = 连续空间）");
         Check(deckRowsPartial == 2,
             $"沿栏压边行 = {deckRowsPartial} 行（栏杆脚下：每行只有东西两端 2 格可走）");
         //   它只可能有桥地砖（无栏杆）⇒ 必须可走，且出生点能沿桥走到。
@@ -3581,18 +3586,20 @@ internal static class MapCheckProgram
         return new MapModule();
     }
 
-    // ── 21. 桥面(deck)排序：站在桥上不被栏杆盖住 ────────────────────────────────
+    // ── 21. 桥面(deck)排序：与普通实体格同档，遮挡 = 原版逐 y 排序 ──────────────
     /// <summary>
-    /// <para>根因（像素级 before 已取证）：
-    /// 排序值 = `(gx+gy)*4 + 100 + 层偏移`；桥面格的正南一格恒是桥栏杆物件（图形自本格底边
-    /// 向上溢出 ≈2 格）⇒ 桥面实体 `4D+102` 必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
+    /// <para>排序值 = `(gx+gy)*4 + 100 + 层偏移`；桥面格与普通实体格**同档**
+    /// （`GameConst.LayerOffsetDeckEntity` = 普通实体档）⇒ 遮挡由"格 y 越大越靠前"决定：
+    /// 站桥面南行（y=27）的实体腿脚被正南一格（y=28）的栏杆 `4(D+1)+101 = 4D+105` 盖住
+    /// （正常遮挡，栏杆不透明像素自本格底边向上 79 px）；站北行（y=26）时栏杆在本格
+    /// `4D+101`（先画）⇒ 实体画在栏杆之前。</para>
     /// <para>覆盖口径 = 影响域穷举：① 期望 deck 集合**从布局数据推**（不写坐标区间）
     /// ② 逐格双向核对（漏/多）③ 栏杆行地面（同图集但不可走）必须不算桥面
-    /// ⑦ 换图 / Clear 后标记不残留。</para>
+    /// ④ 逐格"本格有栏杆 / 正南一格是栏杆"两种遮挡位形全覆盖 ⑦ 换图 / Clear 后标记不残留。</para>
     /// </summary>
     private static void Step21_BridgeDeckOrdering()
     {
-        Section("21. 桥面(deck)排序：站桥上不被栏杆盖住（用户「营地出门的桥，还是桥下走」）");
+        Section("21. 桥面(deck)排序：同档 + 原版逐 y 遮挡（南行腿脚被南侧栏杆盖住）");
         var m = NewMap();
         m.Generate(AreaId.Town, 0);
 
@@ -3638,9 +3645,10 @@ internal static class MapCheckProgram
         foreach (var c in railGround) if (m.IsDeckGrid(c)) railTrue++;
         Check(railTrue == 0, $"栏杆行地面（同图集、不可走）不算桥面：{railGround.Count} 格全 false（实测 true = {railTrue}）");
 
-        var badLow = 0;
+        var notPlain = 0;        // deck 档必须 == 普通实体档（桥面格不抬档）
+        var coveredBySouth = 0;  // deck 实体必须 **低于** 正南一格物件层（栏杆正常盖住腿脚）
         var badHigh = 0;
-        var beforeCovered = 0;
+        var northRailOnCell = 0; // 北侧栏杆压在桥面北行**本格**上（那格实体画在栏杆之前）
         var southIsRail = 0;
         foreach (var g in expected)
         {
@@ -3648,28 +3656,34 @@ internal static class MapCheckProgram
             var plainOrder = Iso.EntitySortOrder(g, false);
             var southObj = Iso.SortOrder(new Vector2Int(g.x, g.y + 1), GameConst.LayerOffsetObject);
             var south2Obj = Iso.SortOrder(new Vector2Int(g.x, g.y + 2), GameConst.LayerOffsetObject);
-            if (deckOrder <= southObj) badLow++;
+            if (deckOrder != plainOrder) notPlain++;
+            if (deckOrder < southObj) coveredBySouth++;
             if (deckOrder >= south2Obj) badHigh++;
-            if (plainOrder <= southObj) beforeCovered++;
+
+            m.TryGetTileKeys(g.x, g.y, out _, out var own);
+            var ownSlash = own != null ? own.IndexOf('/') : -1;
+            if (ownSlash > 0 && own.Substring(0, ownSlash) == pack) northRailOnCell++;
 
             m.TryGetTileKeys(g.x, g.y + 1, out _, out var so);
             var slash = so != null ? so.IndexOf('/') : -1;
             if (slash > 0 && so.Substring(0, slash) == pack) southIsRail++;
         }
         Console.WriteLine($"  deck 档 = {GameConst.LayerOffsetDeckEntity}（普通实体档 = {GameConst.LayerOffsetEntity}）；" +
-                          $"例：格 (46,25) deck 档 = {Iso.EntitySortOrder(new Vector2Int(46, 25), true)}" +
-                          $" > 正南(46,26) 物件层 = {Iso.SortOrder(new Vector2Int(46, 26), GameConst.LayerOffsetObject)}" +
-                          $" 且 < 正南两格(46,27) 物件层 = {Iso.SortOrder(new Vector2Int(46, 27), GameConst.LayerOffsetObject)}");
-        Check(badLow == 0, $"全部 {expected.Count} 格：deck 实体的排序值 > 正南一格物件层（不被栏杆盖住）；违例 {badLow}");
+                          $"例：格 (46,26) deck 档 = {Iso.EntitySortOrder(new Vector2Int(46, 26), true)}" +
+                          $" < 正南(46,27) 物件层 = {Iso.SortOrder(new Vector2Int(46, 27), GameConst.LayerOffsetObject)}" +
+                          $" 且 < 正南两格(46,28) 物件层 = {Iso.SortOrder(new Vector2Int(46, 28), GameConst.LayerOffsetObject)}");
+        Check(notPlain == 0,
+            $"桥面格与普通实体格**同档**（不抬档）：{expected.Count} 格里越档 {notPlain} 格" +
+            $"（`GameConst.LayerOffsetDeckEntity` = {GameConst.LayerOffsetDeckEntity} = 普通实体档）");
         Check(badHigh == 0, $"全部 {expected.Count} 格：deck 实体的排序值 < 正南两格物件层（不越档）；违例 {badHigh}");
-        //   口径：原版桥的**南侧**栏杆压在"桥面南行"的下一格上 ⇒ 桥面南行 10 格 + 东西两端岸格
-        //   2 格 = 12 格满足；**北侧**栏杆压在桥面北行**本格**上，它的"正南一格"是同为桥面的
-        //   中间行（无栏杆）⇒ 不计入。所以这里只要求"非空跑"（多数格满足即可），不要求全满足。
+        //   原版口径 = 格 y 越大越靠前：桥面南行（y=27）的实体被正南一格（y=28）的栏杆盖住腿脚；
+        //   北侧栏杆压在桥面北行（y=26）**本格**上，该格实体画在栏杆之前（本格物件先画）。
+        Check(northRailOnCell == 12 && southIsRail == 12,
+            $"桥面遮挡 = 原版逐 y 排序：本格有栏杆（先画）{northRailOnCell} 格 + 正南一格是栏杆（盖住腿脚）" +
+            $"{southIsRail} 格 = {northRailOnCell + southIsRail} 格（= 全部 {expected.Count} 格桥面，两种位形各 12）");
         Check(southIsRail == 12,
-            $"正南一格确实是栏杆物件的桥面格 = {southIsRail}/{expected.Count}（原版口径 = 12 格：" +
-            "桥面南行 10 + 东/西岸格 2；北侧栏杆压在桥面北行本格上）⇒ 排序断言不是空跑");
-        Check(beforeCovered == expected.Count,
-            $"反证根因：改前普通实体档**确实**被南侧栏杆盖住：{beforeCovered}/{expected.Count} 格成立");
+            $"正南一格确实是栏杆物件的桥面格 = {southIsRail}/{expected.Count}（桥面南行 10 + 东/西岸格 2；" +
+            "北侧栏杆压在桥面北行本格上）⇒ 遮挡断言不是空跑");
 
         // ⑦ 换图 / Clear 不残留（否则一个断言会"假通过"）
         var m2 = NewMap();
@@ -3696,11 +3710,10 @@ internal static class MapCheckProgram
     {
         Section("22. ★ 审计 B：跨渲染路径的 deck 排序口径 + 地图边界格 + 八邻域距离阈值");
 
-        // ── ① 谁还在用「普通实体档」？（出处 = 生产代码 grep；宿主只做数值断言）──────
-        //   走 IsDeckGrid 抬档的路径 = Module/View/ViewModule.cs:1191 `EntitySortOrder(g)`
-        //     ⇒ 玩家(731) / 怪物(355) / 地面物品(492) / NPC(199) 全走它；
-        //     `sr.sortingOrder = Iso.SortOrder(p.Grid, GameConst.LayerOffsetEntity);`（投射物 =
-        //     裸实体档路径**（`grep LayerOffsetEntity` 只剩 Iso 定义与"无地图"兜底分支）。
+        // ── ① deck（桥面）格的排序口径（出处 = 生产代码；宿主只做数值断言）──────────────
+        //   实体路径（玩家 / 怪物 / 地面物品 / NPC / 投射物）全走 `ViewModule.EntitySortOrder`，
+        //   它对 deck 格用 `GameConst.LayerOffsetDeckEntity` —— **与普通实体档同值**（不抬档）
+        //   ⇒ 遮挡 = 原版逐 y 排序：站桥面南行（y=27）的实体腿脚被正南一格（y=28）的栏杆盖住。
         var tm = NewMap();
         tm.Generate(AreaId.Town, 0);
         var deck = new List<Vector2Int>();
@@ -3708,26 +3721,24 @@ internal static class MapCheckProgram
             for (var x = 0; x < tm.Width; x++)
                 if (tm.IsDeckGrid(new Vector2Int(x, y))) deck.Add(new Vector2Int(x, y));
 
-        var plainCovered = 0;
-        var deckOk = 0;
+        var covered = 0;
+        var deckSame = 0;
         foreach (var g in deck)
         {
             var southObj = Iso.SortOrder(new Vector2Int(g.x, g.y + 1), GameConst.LayerOffsetObject);
-            if (Iso.SortOrder(g, GameConst.LayerOffsetEntity) < southObj) plainCovered++;
-            if (Iso.EntitySortOrder(g, true) > southObj) deckOk++;
+            if (Iso.SortOrder(g, GameConst.LayerOffsetEntity) < southObj) covered++;
+            if (Iso.EntitySortOrder(g, true) == Iso.SortOrder(g, GameConst.LayerOffsetEntity)) deckSame++;
         }
-        Console.WriteLine($"  deck 格 = {deck.Count}；例（格(46,25)）：普通实体档 = " +
-                          $"{Iso.SortOrder(new Vector2Int(46, 25), GameConst.LayerOffsetEntity)}" +
-                          $" ｜ deck 档 = {Iso.EntitySortOrder(new Vector2Int(46, 25), true)}" +
-                          $" ｜ 正南(46,26) 物件层 = {Iso.SortOrder(new Vector2Int(46, 26), GameConst.LayerOffsetObject)}");
+        Console.WriteLine($"  deck 格 = {deck.Count}；例（格(46,26)）：普通实体档 = " +
+                          $"{Iso.SortOrder(new Vector2Int(46, 26), GameConst.LayerOffsetEntity)}" +
+                          $" ｜ deck 档 = {Iso.EntitySortOrder(new Vector2Int(46, 26), true)}" +
+                          $" ｜ 正南(46,27) 物件层 = {Iso.SortOrder(new Vector2Int(46, 27), GameConst.LayerOffsetObject)}");
         Check(deck.Count > 0, $"城镇存在 deck 格（{deck.Count} 格）⇒ 下面的口径断言不是空跑");
-        Check(deckOk == deck.Count,
-            $"ViewModule 口径（IsDeckGrid ⇒ 实体抬档）逐格 > 正南一格物件层：{deckOk}/{deck.Count}");
-        Check(plainCovered == deck.Count,
-            $"【红行证据·D9×D2】凡用**普通实体档**的渲染路径，在全部 {deck.Count} 格桥面上 100% 被正南栏杆盖住" +
-            $"（实测 {plainCovered}/{deck.Count}）——这正是审计 B 红行 R2 的根因数值（投射物原先走的就是这个档，" +
-            "现已改走 ViewModule.EntitySortOrder；生产路径断言见 combatcheck §15.4）" +
-            "（同类缺陷族：改了排序口径却没扫全渲染路径）");
+        Check(deckSame == deck.Count,
+            $"ViewModule 口径（IsDeckGrid ⇒ 与普通实体档同值，桥面格不抬档）：{deckSame}/{deck.Count}");
+        Check(covered == deck.Count,
+            $"【红行证据·D9×D2】桥面实体低于正南一格物件层 ⇒ 站南行的腿脚被栏杆盖住（原版逐 y 排序）：" +
+            $"{covered}/{deck.Count}（生产路径断言见 combatcheck §15.4）");
 
         // ── ② 地图边界 / 图外一格 / 边缘格 / 出口可达（逐区域）───────────────────
         var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };

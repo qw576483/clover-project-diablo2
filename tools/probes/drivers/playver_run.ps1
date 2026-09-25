@@ -1,9 +1,15 @@
 # =============================================================================
-# d2tour_run.ps1 -- ONE Play session that walks the whole game once and captures
-#   the contact-sheet set (18 panels + 3 areas + close-ups) plus the leftover
-#   "needs a window" readings (W1 / W4 / W9 / N1 / U32 / N2 / N4).
+# playver_run.ps1 -- ONE Play session that collects the three live readings the
+#   offline hosts cannot produce:
+#     (1) bridge deck: stand on the north row y=26, on the south row y=27, walk
+#         along the deck (row change + lateral movement) -> shots + walk log;
+#     (2) NPC: a click on empty ground next to Akara must open no dialog, a
+#         click pinned on her sprite rectangle must walk to her cell then talk;
+#     (3) the SkillTree / QuestLog close buttons: node + art frame + on-screen
+#         rect + EventSystem raycast chain at the graphic centre + the hover tip
+#         (ControlTip) turning active + one click closing the panel.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools/probes/drivers/d2tour_run.ps1 -Tag tour1
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools/probes/drivers/playver_run.ps1 -Tag pv1
 #
 #   Play-lock protocol (tools/probes/README.md 5 / 5.1):
 #     * lock body = "<owner> <ISO8601> <PID>" written with -Encoding ASCII
@@ -15,7 +21,7 @@
 #   ASCII only (self-checked below); no obj/ or bin/ is produced here.
 # =============================================================================
 param(
-    [string]$Tag = 'tour1',
+    [string]$Tag = 'pv1',
     [string]$CharName = 'S2203805',
     [switch]$SelfCheckOnly
 )
@@ -23,25 +29,25 @@ $ErrorActionPreference = 'Continue'
 
 $root   = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
 $proj   = $root + '/client'
-$cs     = $PSScriptRoot + '/shoptip_evidence.cs'
+$cs     = $PSScriptRoot + '/playver_evidence.cs'
 $test   = $root + '/.ai-tmp/test'
 $shots  = $root + '/.ai-tmp/test'
-$done   = $test + '/shoptip_done_' + $Tag + '.txt'
-$trace  = $test + '/shoptip_steps_' + $Tag + '.txt'
-$frozen = $test + '/shoptip_readings_' + $Tag + '.txt'
-$outPath= $test + '/shoptip_out_' + $Tag + '.txt'
+$done   = $test + '/playver_done_' + $Tag + '.txt'
+$trace  = $test + '/playver_steps_' + $Tag + '.txt'
+$frozen = $test + '/playver_readings_' + $Tag + '.txt'
+$outPath= $test + '/playver_out_' + $Tag + '.txt'
 $logPath= $proj + '/Logs/Editor.log'
 $playLog= $test + '/play-log.tsv'
 $lockReal = $test + '/play-running.lock'
 $lockMirror = $test + '/play.lock'
-$owner  = 'shoptip'
+$owner  = 'playver'
 
 $script:offset = 0
 $script:lines = New-Object System.Collections.ArrayList
 $script:cli = 0
 $script:out = New-Object System.Collections.ArrayList
 $script:mine = $false
-$keepRe = '\[TOUR\]|\[EnemyBarView\]|\[Hover\]|\[Ui\]|\[Load\]|\[App\]|\[Map\]|\[Player\]|\[View\]|\[Input\]|\[Monitor\]'
+$keepRe = '\[TOUR\]|\[Npc\]|\[Ui\]|\[Input\]|\[Player\]|\[View\]|\[Map\]|\[Hover\]|\[Load\]|\[App\]|\[Monitor\]|\[EnemyBarView\]'
 
 function Say([string]$s) {
     $stamp = (Get-Date).ToString('HH:mm:ss.fff')
@@ -215,7 +221,7 @@ if ($SelfCheckOnly) {
 }
 
 foreach ($d in @($shots, $test)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d | Out-Null } }
-Set-Content -Path $trace -Value ('# d2tour steps tag=' + $Tag) -Encoding UTF8
+Set-Content -Path $trace -Value ('# playver steps tag=' + $Tag) -Encoding UTF8
 $sessionStart = Get-Date
 Say ('BEGIN tag=' + $Tag + ' root=' + $root)
 
@@ -240,9 +246,9 @@ try {
     # ---- compile sentinel: the driver must compile AND run before we play ---
     $sentOk = $false
     for ($i = 0; $i -lt 6; $i++) {
-        $r = Unity-Cmd @('run_script', '--file', $cs, '--entry', 'P2.Api.Ping')
+        $r = Unity-Cmd @('run_script', '--file', $cs, '--entry', 'P2PV.Probe.Ping')
         if ($r -match 'PONG frame=') { $sentOk = $true; Say ('CSC-EXIT=0 SENTINEL ' + (Clip $r 200)); break }
-        if ($r -match 'diagnostics') { Say ('SENTINEL-DIAG ' + (Clip $r 900)) }
+        if ($r -match 'diagnostics') { Say ('SENTINEL-DIAG ' + (Clip $r 1200)) }
         else { Say ('SENTINEL-RETRY ' + (Clip $r 200)) }
         Start-Sleep -Seconds 4
     }
@@ -250,7 +256,7 @@ try {
 
     foreach ($f in @($done)) { if (Test-Path $f) { Remove-Item $f -Force; Say ('CLEARED ' + (Split-Path $f -Leaf)) } }
 
-    Add-Content -Path $playLog -Value ((Get-Date).ToString('yyyy-MM-dd HH:mm') + "`tshoptip`t" + $Tag + "`tthe shop grid hover state is read from Game.Input.MousePosition, so no offline host can produce it: the tooltip only exists while a live pointer sits inside a shop cell") -Encoding UTF8
+    Add-Content -Path $playLog -Value ((Get-Date).ToString('yyyy-MM-dd HH:mm') + "`tplayver`t" + $Tag + "`tthe bridge deck occlusion, the NPC click-vs-pass-by split and the close-button hover/click are live render + live input readings: only a running session resolves a screen pixel through the real camera and can prove that no dialog opens on empty ground") -Encoding UTF8
     Say ('PLAYLOG-APPENDED ' + $playLog + ' tag=' + $Tag)
 
     Unity-Cmd @('clear_console') -Quiet | Out-Null
@@ -261,7 +267,7 @@ try {
 
     $spec = $CharName + '|' + ($done -replace '\\', '/') + '|' + ($shots -replace '\\', '/')
     Say ('SPEC ' + $spec)
-    $inst = Unity-Cmd @('run_script', '--file', $cs, '--entry', 'P2Shop.ShopTip.Install', '--args', ('[\"' + $spec + '\"]'))
+    $inst = Unity-Cmd @('run_script', '--file', $cs, '--entry', 'P2PV.PlayVer.Install', '--args', ('[\"' + $spec + '\"]'))
     Say ('INSTALL ' + (Clip $inst 300))
 
     $t0 = Get-Date
@@ -278,7 +284,9 @@ try {
         Read-New
     }
     Say ('TOUR-LINES n=' + $script:lines.Count)
-    Say ('READINGS-TOUR n=' + (Lines-With '\[TOUR\]').Count)
+    Say ('READINGS-PV n=' + (Lines-With '\[TOUR\]').Count)
+    Say ('READINGS-NPC n=' + (Lines-With '\[Npc\]').Count)
+    Say ('READINGS-UI n=' + (Lines-With '\[Ui\]').Count)
 
     $consoleJson = Unity-Cmd @('console_status') -Quiet
     $consoleErrors = -1
@@ -295,9 +303,9 @@ try {
     $script:mine = $false
 
     $hdr = New-Object System.Collections.ArrayList
-    [void]$hdr.Add('# d2tour readings tag=' + $Tag)
+    [void]$hdr.Add('# playver readings tag=' + $Tag)
     [void]$hdr.Add('# session: ' + $sessionStart.ToString('yyyy-MM-dd HH:mm:ss') + '..' + (Get-Date).ToString('HH:mm:ss'))
-    [void]$hdr.Add('# run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/probes/drivers/d2tour_run.ps1 -Tag ' + $Tag)
+    [void]$hdr.Add('# run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/probes/drivers/playver_run.ps1 -Tag ' + $Tag)
     [void]$hdr.Add('# console errors = ' + $consoleErrors + '   playMode-stopped-confirmed = ' + $ok)
     [void]$hdr.Add('# ---------------------------------------------------------------------------')
     foreach ($l in $script:lines) { [void]$hdr.Add($l) }

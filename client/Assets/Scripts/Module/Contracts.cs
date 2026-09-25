@@ -1108,11 +1108,11 @@ namespace Diablo2.Module
 
         /// <summary>
         /// 该格是否是**"可走上方的结构"**（桥面 / 平台 / 甲板；本项目目前只有罗格营地出城那座桥）。
-        /// <para><b>为什么需要它</b>：等距排序值 = `(gx+gy)*4 + 层偏移`（`Core/GameConst.cs` 的
-        /// `LayerOffsetGround/Object/Entity/Overlay`）。桥面格**正南那一行恰好是桥的栏杆物件**
-        /// （`moor_bridge` 物件，图形自本格底边向上长 2 格）⇒ 站在桥面上的实体 `4D+102`
-        /// **必然**被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住 ⇒ 画面上人物"从桥下走"（确定性必然，非偶发）。
-        /// 视图层据此对"站在 deck 上的实体"再抬一档（见 `Iso.SortOrder` 与 `Module/View/ViewModule`）。</para>
+        /// <para><b>谁在用</b>：① 桥上的传送接缝判定 —— 关卡**东边界列**上的桥面格 =
+        /// 城镇与野外的共享边列（`Module/Map/MapSeam`，`Module/Player` 据此触发换区）；
+        /// ② 实体排序 —— 桥面格与普通实体格**同档**（`Iso.EntitySortOrder`，见
+        /// `GameConst.LayerOffsetDeckEntity`），遮挡由"格 y 越大越靠前"决定：站桥面南行
+        /// （y=27）的实体腿脚被正南一格（y=28）的栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
         /// <para><b>数据来源</b>：由 `Module/Map` 在生成/铺图时登记（桥面 = 地砖取自 deck 类包，
         /// 见 `MapGenTownLayout` 的桥面行与 `Packs` 表）—— 视图层不许自己去猜几何。</para>
         /// <para>图外 / 未生成 ⇒ 返回 false（与 <see cref="Walkable"/> 的越界口径一致）。</para>

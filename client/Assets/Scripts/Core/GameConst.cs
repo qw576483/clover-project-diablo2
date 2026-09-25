@@ -163,28 +163,22 @@ namespace Diablo2.Core
         public const int LayerOffsetOverlay = 3;
 
         /// <summary>
-        /// **deck（桥面 / 平台 / 甲板）上实体的排序档位** —— 只对"站在 deck 格上的实体"生效
-        /// （判定 = `IMapModule.IsDeckGrid`，登记见 `Module/Map/DeckTiles` + `GridMap.SetTiles`），
-        /// 其余实体仍用 <see cref="LayerOffsetEntity"/>。
+        /// **deck（桥面 / 平台 / 甲板）格上实体的排序档位** —— 与普通实体档
+        /// <see cref="LayerOffsetEntity"/> **同值**（桥面格不单独抬档）；判定走
+        /// `IMapModule.IsDeckGrid`（登记见 `Module/Map/DeckTiles` + `GridMap.SetTiles`）。
         ///
-        /// <para><b>为什么需要它</b>（2026-09-22 用户实测「营地出门的桥，还是从桥下走」）：
-        /// 罗格营地出城那座桥的桥面格，**正南一格恒是桥栏杆**（`moor_bridge` 物件，
-        /// 实测：栏杆内容自本格底边**向上溢出 ≈2 格** —— 量法 = 取该物件瓦片的不透明像素逐行量其
-        /// 相对格底边的像素跨度，再除以一格高）
-        /// ⇒ 桥面上的实体按普通档 `4D+102` 排，必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
+        /// <para><b>为什么不抬档</b>（原版口径 = 逐 y 排序：格 y 越大越靠前）：罗格营地出城那座桥的
+        /// 桥面**南行**（y=27）在 `bridge.dt1` 里是阻挡压边行的北邻，它正南一格（y=28）就压着桥栏杆；
+        /// 栏杆的不透明像素自本格底边向上 79 px（量法 = 取该物件瓦片逐像素量其相对格底边的跨度，
+        /// 见 `moor_bridge/012` 那类 160×192 瓦片）⇒ 站南行的实体腿脚被 `4(D+1)+101 = 4D+105`
+        /// 盖住 = 正常遮挡；站北行（y=26）时栏杆在本格（`4D+101`，先画）⇒ 实体在栏杆之前。
+        /// 抬档会把这条正常遮挡反过来画成"人物压在石头栏杆上"。</para>
         ///
-        /// <para><b>数值推导</b>（不写裸数字；D = gx+gy）：
-        ///   `物件(D+1) = (D+1)*SortOrderStep + SortOrderBase + LayerOffsetObject = 4D+105`；
-        ///   `物件(D+2) = (D+2)*SortOrderStep + SortOrderBase + LayerOffsetObject = 4D+109`。
-        ///   桥面实体必须 **&gt; 物件(D+1)**（才不被正南栏杆盖住）、
-        ///   又必须 **&lt; 物件(D+2)**（否则会盖住正南第二格那些更靠前的物件/栏杆）。
-        ///   ⇒ `LayerOffsetObject + SortOrderStep &lt; X &lt; LayerOffsetObject + 2*SortOrderStep`
-        ///   ⇒ `5 &lt; X &lt; 9` ⇒ 取**满足约束的最小值** `LayerOffsetObject + SortOrderStep + 1`
-        ///   （= 6，桥面实体 = `4D+106` > 物件(D+1)=4D+105 且 &lt; 物件(D+2)=4D+109）。</para>
-        /// <para>`4D+106` 与 `实体(D+1)` 同值：桥面格的正南恒为栏杆（**不可走** ⇒ 不会有实体）
-        /// ⇒ 实际不会出现并列；`mapcheck` 有断言守着这条（逐桥面格都要求正南是栏杆）。</para>
+        /// <para><b>数值</b>（D = gx+gy）：本档 = <see cref="LayerOffsetEntity"/> = 2 ⇒ 桥面实体
+        /// `4D+102`；正南一格物件层 `4(D+1)+101 = 4D+105`；正南两格物件层 `4(D+2)+101 = 4D+109`。
+        /// `mapcheck` §21 逐桥面格守着这条。</para>
         /// </summary>
-        public const int LayerOffsetDeckEntity = LayerOffsetObject + SortOrderStep + 1;
+        public const int LayerOffsetDeckEntity = LayerOffsetEntity;
 
         // ── 实体 id 约定（**全项目唯一**）────────────────────────────────────
         /// <summary>玩家实体 id（`DamageArgs.targetId` 用它表示玩家）。</summary>

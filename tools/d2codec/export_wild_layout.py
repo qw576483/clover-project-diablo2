@@ -286,6 +286,11 @@ def _load_tiles(ds1, pack_of, pack_id):
     return best, providers
 
 
+# 桥的提供者 dt1 短名：桥栏杆的物件瓦片**允许与地砖一起过**（它压在桥面上、中心子格不带
+# 阻挡标志）；其它物件层瓦片一律按阻挡处理（见 build() 里的注释）。
+BRIDGE_DT1 = 'bridge.dt1'
+
+
 def cell_passable(tile):
     """**格级可走** = 该瓦片 5×5 subtile 的**中心**那一个不带阻挡标志。
 
@@ -367,11 +372,22 @@ def build(out_path, debug):
                 if not has_floor:
                     kinds[y][x] = ' '                  # 原版这格没有 floor = 图外
                 else:
+                    # 可走性 = **该格实际存在的瓦片自己的碰撞标志**（口径 = `cell_passable`，
+                    # 出处 `Diablerie/.../Engine/World/WorldGrid.cs:78-84`
+                    # `passable = (flags[12] & (Walk|PlayerWalk)) == 0`，置位 = 阻挡）：
+                    #   地砖必须过；物件层瓦片**只有桥栏杆**（`bridge.dt1` 的 wall 层，压在桥面上、
+                    #   中心子格不带阻挡标志）才允许一起过 —— 树/石墙/栅栏/崖壁/岩石/废墟的中心子格
+                    #   可空可满（实测 `town_floor.dt1` 也会被当作废墟墙的提供者），一律按阻挡处理，
+                    #   否则会凿出"能穿墙"的格。
                     walk[y][x] = cell_passable(ft[3]) if ft else False
-                    # 有 wall 层物件（树 / 石墙 / 栅栏 / 崖壁 / 岩石）即阻挡；依据
-                    # `Diablerie/.../Engine/World/WorldGrid.cs:78-84`
-                    # `passable = (flags[12] & (Walk|PlayerWalk)) == 0`（置位 = 阻挡）。
-                    kinds[y][x] = '.' if (walk[y][x] and not ok) else '#'
+                    wall_ok = True
+                    if ok:
+                        if BRIDGE_DT1 in providers.get(wc.tile_index, set()):
+                            wt = tiles.get(wc.tile_index)
+                            wall_ok = wt is not None and cell_passable(wt[3])
+                        else:
+                            wall_ok = False
+                    kinds[y][x] = '.' if (walk[y][x] and wall_ok) else '#'
                 ground[y][x] = key_of(f) if has_floor else ''
                 obj[y][x] = ok
                 # 种类码：有物件层瓦片就按物件判，否则按地砖判（水在 floor 层）

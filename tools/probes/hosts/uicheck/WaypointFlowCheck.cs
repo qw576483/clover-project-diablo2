@@ -243,13 +243,11 @@ namespace Uicheck
             Check("点锚点 ⇒ 走到锚点格**本身**（距离 0）⇒ 同样打开面板（8 邻含同格）",
                 ui.OpenCount == 1, $"open={ui.OpenCount}");
 
-            // ── 命中区：点台子的**边缘格**也要开（台子画出来会压住锚点周围两格）──────────────
-            //   几何（四条出处见 `App/AppWaypoint.cs` 的 `OnMoveCommand` 注释）：帧图 131×79 px
-            //   按 80 px/世界单位解释 + 中心轴心 + 物件底边贴格中心下方半格 ⇒ 8 帧的可见像素按
-            //   等距逆投影只落在相对锚点的 (0,0) / (0,-1) / (-1,0) 三格 ⇒ 命中区取 8 邻即覆盖整块台子。
-            //   本组判**行为**：三格里的任一格被点中都要开，且**走位目标必须是锚点格**。
+            // ── 命中区 = **台面像素压到的那几格**（`AppWaypoint.WaypointArtCells`），不是锚点的 8 邻 ────
+            //   几何见 `App/AppWaypoint.cs` 那段表注释：帧图 131×79 px、可见像素并集 = 画布局部 y[34,79)、
+            //   按 80 px/世界单位 + 中心轴心 + 物件底边贴格中心下方半格 ⇒ 逐像素落 (0,0)/(0,-1)/(-1,0) 三格。
+            //   本组判**行为**：这三格被点中都要开且**走位目标必须是锚点格**；**非覆盖**的 8 邻格要点不着。
             var sideEdge = new Vector2Int(WpStub.x, WpStub.y - 1);      // (0,-1)
-            var diagEdge = new Vector2Int(WpStub.x - 1, WpStub.y - 1);  // (-1,-1)（8 邻的对角，台子外沿）
             var cornerEdge = new Vector2Int(WpStub.x - 1, WpStub.y);    // (-1,0)
 
             AppWaypoint.ResetStaticForNewPlaySession();
@@ -257,32 +255,91 @@ namespace Uicheck
             Program._logger.Clear();
             Game.Event.Emit(Events.MoveCommand, sideEdge);
             var walkLogged = Program._logger.Has("INFO", "App", "走到锚点");
-            Check("点台子边缘格 (0,-1) ⇒ 记下「走到**锚点**」并留痕（不是静默、也不是「只有锚点那一格才算」）",
+            Check("点台面覆盖格 (0,-1) ⇒ 记下「走到**锚点**」并留痕（不是静默、也不是「只有锚点那一格才算」）",
                 walkLogged, "日志命中 `走到锚点` = " + walkLogged);
             // 到达判据只认锚点：发一条"离锚点 1 格、离被点中的那格 2 格"的换格事件 ⇒ 必须开
             Game.Event.Emit(Events.PlayerGridChanged, new Vector2Int(WpStub.x, WpStub.y + 1));
-            Check("★ 点边缘格 (0,-1) ⇒ 走到**锚点**旁（离被点格 2 格）⇒ 面板开 1 次"
+            Check("★ 点覆盖格 (0,-1) ⇒ 走到**锚点**旁（离被点格 2 格）⇒ 面板开 1 次"
                 + "（证明走位目标是锚点格，不是被点中的那格）",
                 ui.OpenCount == 1, $"open={ui.OpenCount}");
 
-            foreach (var edge in new[] { diagEdge, cornerEdge })
+            AppWaypoint.ResetStaticForNewPlaySession();
+            ui.Reset();
+            Game.Event.Emit(Events.MoveCommand, cornerEdge);
+            Game.Event.Emit(Events.PlayerGridChanged, WpStub);   // 走到锚点格本身
+            Check("点台面覆盖格 (-1,0)（相对锚点）⇒ 面板开 1 次",
+                ui.OpenCount == 1, $"open={ui.OpenCount}");
+
+            //   退化（D18）：8 邻里**没被台面像素压到**的两格 ⇒ 点它们必须一点反应都没有
+            //   （否则"点台子旁边的空地就开传送面板"会换来下一条投诉 —— 原版点台外空地就是走路）
+            foreach (var outside in new[]
+                     {
+                         new Vector2Int(WpStub.x + 1, WpStub.y),      // (1,0)
+                         new Vector2Int(WpStub.x, WpStub.y + 1),      // (0,1)
+                     })
             {
                 AppWaypoint.ResetStaticForNewPlaySession();
                 ui.Reset();
-                Game.Event.Emit(Events.MoveCommand, edge);
-                Game.Event.Emit(Events.PlayerGridChanged, WpStub);   // 走到锚点格本身
-                Check($"点台子边缘格 ({edge.x - WpStub.x},{edge.y - WpStub.y})（相对锚点）⇒ 面板开 1 次",
-                    ui.OpenCount == 1, $"open={ui.OpenCount}");
+                Game.Event.Emit(Events.MoveCommand, outside);
+                Game.Event.Emit(Events.PlayerGridChanged, WpStub);   // 玩家就站在锚点格上
+                Check($"★ 退化（D18）：点锚点 8 邻里**非覆盖格** ({outside.x - WpStub.x},{outside.y - WpStub.y})"
+                    + "（玩家就站在锚点上）⇒ 面板 0 次打开（命中区贴着台面像素，不贴着邻域）",
+                    ui.OpenCount == 0, $"open={ui.OpenCount}");
             }
+
+            // ── 命中区表**按资产现算**守卫：从 manifest + 真 PNG 尺寸 + 生产摆放口径重算那几格，
+            //    必须与 `AppWaypoint.WaypointArtCells` 逐项相等（改画布 / 改可见带 / 改摆放 ⇒ 这里变红）。
+            //    ⛔ 不把表当"手填常量"信：本守卫独立重算一遍（与 `WaypointFrameFps == 25*200/256` 同形）。
+            var manifestPath = Path.Combine(WpArtDir, "manifest.json");
+            var manifest = File.Exists(manifestPath) ? File.ReadAllText(manifestPath) : string.Empty;
+            var cvW = JsonIntAfter(manifest, "\"canvas\"", "\"w\"");
+            var cvH = JsonIntAfter(manifest, "\"canvas\"", "\"h\"");
+            var pad = JsonIntAfter(manifest, "\"canvas\"", "\"padBottom\"");
+            var unionH = JsonIntAfter(manifest, "\"canvas\"", "\"unionH\"");
+            //   `D2TilePixelsPerUnit` 是 `MapView` 的私有常量 ⇒ 从**生产源码文本**里读（⛔ 不在宿主里另写一份 80）
+            var mapViewSrc = File.ReadAllText(Path.Combine(Program.ProjectRoot,
+                "client", "Assets", "Scripts", "Module", "Map", "MapView.cs"));
+            var tilePpu = SrcFloatAfter(mapViewSrc, "D2TilePixelsPerUnit");
+            var artAnchor = new Vector2Int(31, 26);       // 原版锚点（四块 DS1 预设单位重合，见 MapGenTown）
+            var recomputed = BandCells(cvW, cvH, pad, unionH, tilePpu, artAnchor);
+            var declared = new List<string>();
+            for (var k = 0; k < AppWaypoint.WaypointArtCells.Length; k++)
+                declared.Add(AppWaypoint.WaypointArtCells[k].x + "," + AppWaypoint.WaypointArtCells[k].y);
+            recomputed.Sort(StringComparer.Ordinal);
+            declared.Sort(StringComparer.Ordinal);
+            Check("★ 命中区表按资产现算：manifest(canvas " + cvW + "x" + cvH + ", padBottom " + pad
+                + ", unionH " + unionH + ") + 摆放口径（tilePpu " + tilePpu.ToString("0.#")
+                + "）+ 生产 `Iso` ⇒ 重算的覆盖格集合 == `AppWaypoint.WaypointArtCells`",
+                recomputed.Count > 0 && string.Join("|", recomputed) == string.Join("|", declared),
+                "重算 [" + string.Join(" ", recomputed) + "] vs 表 [" + string.Join(" ", declared) + "]");
+            Check("★ 守卫自证（合成夹具）：把可见带换成**整幅画布**（padBottom 0 / unionH = 画布高）⇒ 同一算式必给**更大**的集合（说明它真的随资产动）",
+                BandCells(cvW, cvH, 0, cvH, tilePpu, artAnchor).Count > recomputed.Count,
+                "整幅 = " + BandCells(cvW, cvH, 0, cvH, tilePpu, artAnchor).Count + " 格 vs 可见带 = "
+                + recomputed.Count + " 格");
 
             // ── 退化（D17）：命中区**外**（距锚点 2 格）⇒ 就算玩家正站在锚点格上也不开 ──────
             AppWaypoint.ResetStaticForNewPlaySession();
             ui.Reset();
+            Program._logger.Clear();
             Game.Event.Emit(Events.MoveCommand, new Vector2Int(WpStub.x + 2, WpStub.y));
             Game.Event.Emit(Events.PlayerGridChanged, WpStub);
             Check("★ 退化（D17）：点距锚点 2 格的格（玩家就站在锚点上）⇒ 面板 0 次打开"
                 + "（命中区不是「点一片都算」，上面那几条不是恒真）",
                 ui.OpenCount == 0, $"open={ui.OpenCount}");
+            //   且**不许静默**：这一档要点名落点格与锚点格（否则「差一点就没反应」查不出原因）
+            Check("★ 命中区外**差一点**的点击被点名 Warn（落点格 + 锚点格 + 距离），不是静默 return",
+                Program._logger.Has("WARN", "App", "命中区**之外**")
+                && Program._logger.Has("WARN", "App", $"({WpStub.x + 2},{WpStub.y})")
+                && Program._logger.Has("WARN", "App", $"({WpStub.x},{WpStub.y})"),
+                "日志里同时出现落点格与锚点格 = " + Program._logger.Has("WARN", "App", $"({WpStub.x + 2},{WpStub.y})"));
+            //   反向：离得远的普通地面点击**不许**刷这条 Warn（诊断带只到锚点 2 格）
+            AppWaypoint.ResetStaticForNewPlaySession();
+            ui.Reset();
+            Program._logger.Clear();
+            Game.Event.Emit(Events.MoveCommand, new Vector2Int(WpStub.x + 6, WpStub.y));
+            Check("★ 诊断带边界：离锚点 6 格的普通点击 ⇒ 0 次打开且**不刷**这条 Warn（不静默 ≠ 刷屏）",
+                ui.OpenCount == 0 && !Program._logger.Has("WARN", "App", "命中区**之外**"),
+                "open=" + ui.OpenCount + " warn=" + Program._logger.Has("WARN", "App", "命中区**之外**"));
             AppWaypoint.ResetStaticForNewPlaySession();
         }
 
@@ -779,6 +836,67 @@ namespace Uicheck
             if (b.Length < 24) return;
             w = (b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19];
             h = (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23];
+        }
+
+        /// <summary>JSON 文本里 `section` 之后第一个 `key` 的整数值（读不到 ⇒ int.MinValue）。</summary>
+        private static int JsonIntAfter(string json, string section, string key)
+        {
+            if (string.IsNullOrEmpty(json)) return int.MinValue;
+            var s = json.IndexOf(section, StringComparison.Ordinal);
+            if (s < 0) return int.MinValue;
+            var i = json.IndexOf(key, s, StringComparison.Ordinal);
+            if (i < 0) return int.MinValue;
+            i += key.Length;
+            while (i < json.Length && !char.IsDigit(json[i]) && json[i] != '-') i++;
+            var j = i;
+            while (j < json.Length && (char.IsDigit(json[j]) || json[j] == '-')) j++;
+            int v;
+            return j > i && int.TryParse(json.Substring(i, j - i), out v) ? v : int.MinValue;
+        }
+
+        /// <summary>C# 源码文本里 `名字***= &lt;数&gt;` 的那个数（读不到 ⇒ NaN）—— 读**生产常量**用。</summary>
+        private static float SrcFloatAfter(string src, string name)
+        {
+            if (string.IsNullOrEmpty(src)) return float.NaN;
+            var i = src.IndexOf(name, StringComparison.Ordinal);
+            if (i < 0) return float.NaN;
+            i += name.Length;
+            while (i < src.Length && !char.IsDigit(src[i])) i++;
+            var j = i;
+            while (j < src.Length && (char.IsDigit(src[j]) || src[j] == '.')) j++;
+            float v;
+            return j > i && float.TryParse(src.Substring(i, j - i), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out v) ? v : float.NaN;
+        }
+
+        /// <summary>
+        /// 台面那一块**矩形**（宽 = 画布宽、高 = `unionH`、下沿 = 画布底 + `padBottom`）按生产摆放口径
+        /// 落到哪几格（纯函数：只吃像素数 + `Iso`）。守卫与它的自证夹具共用同一算式。
+        /// </summary>
+        private static List<string> BandCells(int cvW, int cvH, int padBottom, int bandH, float tilePpu, Vector2Int anchor)
+        {
+            var res = new List<string>();
+            if (cvW <= 0 || cvH <= 0 || bandH <= 0 || tilePpu <= 0f) return res;
+            var cc0 = Iso.GridToWorld(anchor);
+            var hWorld = cvH / tilePpu;
+            var nodeY = cc0.y + hWorld * 0.5f - Iso.HalfH;
+            var hw = cvW / tilePpu * 0.5f;
+            var bLo = nodeY - hWorld * 0.5f + padBottom / tilePpu;
+            var bHi = bLo + bandH / tilePpu;
+            var by = (bLo + bHi) * 0.5f;
+            var bh = (bHi - bLo) * 0.5f;
+            for (var dx = -4; dx <= 4; dx++)
+            {
+                for (var dy = -4; dy <= 4; dy++)
+                {
+                    var cc = Iso.GridToWorld(anchor.x + dx, anchor.y + dy);
+                    var d = Math.Max(0f, Math.Abs(cc.x - cc0.x) - hw) / Iso.HalfW
+                          + Math.Max(0f, Math.Abs(cc.y - by) - bh) / Iso.HalfH;
+                    if (d <= 1f) res.Add(dx + "," + dy);
+                }
+            }
+            res.Sort(StringComparer.Ordinal);
+            return res;
         }
 
         /// <summary>

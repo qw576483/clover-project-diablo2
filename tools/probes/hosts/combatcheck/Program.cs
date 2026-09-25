@@ -1614,10 +1614,11 @@ namespace CombatCheck
                               $"{Iso.SortOrder(sample, GameConst.LayerOffsetEntity)}，正南一格物件层 = " +
                               $"{Iso.SortOrder(new Vector2Int(sample.x, sample.y + 1), GameConst.LayerOffsetObject)}，" +
                               $"正南两格物件层 = {Iso.SortOrder(new Vector2Int(sample.x, sample.y + 2), GameConst.LayerOffsetObject)}）");
-            Check("【R2】投射物排序逐格 > 正南一格物件层（桥上射出的投射物不被栏杆盖住）",
-                okLow == deck.Count, $"{okLow}/{deck.Count}");
+            Check("【R2】投射物排序 == 普通实体档（桥面格不抬档）⇒ 逐格低于正南一格物件层" +
+                  "（站南行时腿脚被栏杆盖住 = 原版逐 y 排序）",
+                okLow == 0, $"逐格 > 正南一格物件层 = {okLow}/{deck.Count}（0 = 全部低于 ⟹ 遮挡由 y 排序决定）");
             Check("【R2】投射物排序逐格 < 正南两格物件层（不越档）", okHigh == deck.Count, $"{okHigh}/{deck.Count}");
-            Check("【R2】反证根因：普通实体档确实逐格被正南栏杆盖住（= 改前的值）",
+            Check("【R2】桥面格排序值与普通实体档**逐格相等**（排序口径只有一份）",
                 plainCovered == deck.Count, $"{plainCovered}/{deck.Count}");
             Console.WriteLine();
         }

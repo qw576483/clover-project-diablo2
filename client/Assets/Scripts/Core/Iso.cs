@@ -109,15 +109,13 @@ namespace Diablo2.Core
 
         /// <summary>
         /// **实体（角色 / 怪物 / 地面物品 / 飞行物）节点的排序值** = 该格基准 + 实体层偏移；
-        /// <paramref name="isDeck"/>（该格是「可走上方的结构」= 桥面/平台/甲板，
-        /// 判定 = `IMapModule.IsDeckGrid`；登记表 = `Module/Map/DeckTiles`）为 true 时改用
-        /// <see cref="GameConst.LayerOffsetDeckEntity"/> 抬一档。
-        /// <para><b>为什么要有这层</b>（2026-09-22 用户实测「营地出门的桥，还是从桥下走」）：
-        /// 桥面格的正南一格恒是桥栏杆物件，而栏杆图形自本格底边向上长 ≈2 格 ⇒ 普通实体档
-        /// `4D+102` 必然被南侧栏杆 `4(D+1)+101 = 4D+105` 盖住。数值推导见
-        /// <see cref="GameConst.LayerOffsetDeckEntity"/>。</para>
-        /// <para>本方法是**纯函数**（不查地图、不碰渲染）⇒ 离线宿主（`mapcheck`）可逐格断言
-        /// "桥面实体 &gt; 正南一格物件层 且 &lt; 正南两格物件层"。</para>
+        /// <paramref name="isDeck"/>（该格是桥面/平台，判定 = `IMapModule.IsDeckGrid`，
+        /// 登记表 = `Module/Map/DeckTiles`）**不再单独抬档** ⇒ 与普通实体格同值，
+        /// 桥面格的遮挡关系由原版口径（格 y 越大越靠前）决定：站桥面南行（y=27）的实体被
+        /// 正南一格（y=28）的栏杆 `4(D+1)+101 = 4D+105` 盖住腿脚；站北行（y=26）时栏杆在本格。
+        ///
+        /// <para>本方法是**纯函数**（不查地图、不碰渲染）⇒ 离线宿主（`mapcheck` §21 /
+        /// `movecheck` §11）可逐格断言"桥面实体 == 普通实体档 且 &lt; 正南一格物件层"。</para>
         /// </summary>
         public static int EntitySortOrder(Vector2Int g, bool isDeck)
             => SortOrder(g, isDeck ? GameConst.LayerOffsetDeckEntity : GameConst.LayerOffsetEntity);

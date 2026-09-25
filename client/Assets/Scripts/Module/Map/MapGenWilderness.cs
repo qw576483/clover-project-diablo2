@@ -714,7 +714,23 @@ namespace Diablo2.Module.Map
                     if (!Decode(piece, py, px, out var kindChar, out var classChar,
                                 out var ground, out var obj)) continue;
 
-                    if (kindChar == '.') continue;                       // 纯可走：保持基底草地
+                    if (kindChar == '.')
+                    {
+                        //   纯可走格：**不动 TileKind**（可走性来自基底草地 / 土路）。
+                        //   例外 = **桥面格**（瓦片键取自 deck 类包，判据 = `DeckTiles`）：原版压在那
+                        //   几格的桥面与栏杆必须落下来，否则过桥那几格会被抹成草地 ⇒ 接缝处桥面断开。
+                        if (!DeckTiles.IsDeckGroundKey(ground) && !DeckTiles.IsDeckGroundKey(obj)) continue;
+                        if (string.IsNullOrEmpty(ground))
+                        {
+                            map.TryGetTiles(gx, gy, out var keepGround, out _);
+                            map.SetTiles(gx, gy, keepGround, obj);
+                        }
+                        else
+                        {
+                            map.SetTiles(gx, gy, ground, obj);
+                        }
+                        continue;
+                    }
                     if (kindChar == ' ' && string.IsNullOrEmpty(ground)
                         && string.IsNullOrEmpty(obj)) continue;          // 原版这格什么都没有
 

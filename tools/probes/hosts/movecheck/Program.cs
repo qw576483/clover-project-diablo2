@@ -847,17 +847,24 @@ namespace MoveCheck
                     $"不一致 {perspDisagree} / {perspChecks} 例（⇒ 结论不依赖 Unity 把 Default 解析成哪种模式）");
             }
 
-            //    `GameConst.LayerOffsetDeckEntity` 的常量注释写着「4D+106 与 实体(D+1) 同值，但正南恒是栏杆
-            //    ⇒ 实际不会并列」——本项把这个"假设"变成**可判**：真并列时，唯一决胜键就是第三键。
-            var deckGrid = new Vector2Int(46, 25);                          // 城镇桥面样例格（mapcheck §22 同格）
-            var southItemGrid = new Vector2Int(46, 26);                     // gx+gy = D+1 的一格
+            //    桥面格**不抬档**（`GameConst.LayerOffsetDeckEntity` = 普通实体档）⇒ 并列只出现在
+            //    **同 gx+gy** 的格之间（第三键决胜，与其它格同规则）；正南一格（gx+gy = D+1）
+            //    的实体档恒高 `SortOrderStep` ⇒ 前后由原版逐 y 排序决定。
+            var deckGrid = new Vector2Int(46, 26);                          // 城镇桥面样例格
+            var sameSumGrid = new Vector2Int(47, 25);                       // gx+gy = D 的普通格
+            var southItemGrid = new Vector2Int(46, 27);                     // gx+gy = D+1 的一格
             var deckOrder = Iso.EntitySortOrder(deckGrid, true);
+            var sameSumOrder = Iso.EntitySortOrder(sameSumGrid, false);
             var southOrder = Iso.EntitySortOrder(southItemGrid, false);
             var deckZ = ViewModule.SortTieZ(GameConst.PlayerEntityId);
             var itemZ = ViewModule.SortTieZ(GameConst.GroundItemIdBase + 1);
-            Check("桥面档 4D+106 与「gx+gy=D+1 的普通实体档」数值并列 ⇒ 一旦同屏，第三键是唯一决胜键（旧口径必闪）",
-                deckOrder == southOrder && deckZ < itemZ,
-                $"deck({deckGrid.x},{deckGrid.y})档={deckOrder} == 普通({southItemGrid.x},{southItemGrid.y})档={southOrder}；" +
+            Check("桥面档 == 同 gx+gy 的普通实体档（不抬档 ⇒ 并列只出现在同主键格之间，第三键决胜）；" +
+                  "正南一格恒高一档（逐 y 排序生效）",
+                deckOrder == sameSumOrder
+                && southOrder == deckOrder + GameConst.SortOrderStep
+                && deckZ < itemZ,
+                $"deck({deckGrid.x},{deckGrid.y})档={deckOrder} == 同主键普通({sameSumGrid.x},{sameSumGrid.y})档={sameSumOrder}；" +
+                $"正南({southItemGrid.x},{southItemGrid.y})档={southOrder}（= deck+{GameConst.SortOrderStep}）；" +
                 $"z(玩家)={deckZ:0.0000} < z(地面物品#{GameConst.GroundItemIdBase + 1})={itemZ:0.0000}");
 
             // ── ⑤ 「唯一入口」不变式（**源码级**，防回归）：`Module/View/**` 里所有对

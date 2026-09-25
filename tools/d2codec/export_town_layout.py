@@ -83,7 +83,16 @@ except ImportError:
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RAW = os.path.join(_REPO, '原版资源', 'd2raw')
-EXCEL = os.path.join(RAW, 'data', 'global', 'excel')
+
+# ── 原版规则表从哪读（按顺序找，第一个命中即用）────────────────────────────────
+#   两处都在 `原版资源/`（该目录不进仓库，见 `.gitignore` 的 `原版资源/`）：
+#     ① 从 `d2data.mpq` 解出来的 `d2raw/data/global/excel/`（`storm.py extract … .txt`）
+#     ② 1.10f 的 txt 包 `d2lod1.10txt-1.10f/data/global/excel/`（两张表齐全）
+#   两处都没有 ⇒ `SystemExit` 点名缺哪张、去哪取（见 `_table_path`）。
+EXCEL_ROOTS = (
+    os.path.join(RAW, 'data', 'global', 'excel'),
+    os.path.join(_REPO, '原版资源', 'd2lod1.10txt-1.10f', 'data', 'global', 'excel'),
+)
 DEFAULT_OUT = os.path.join(_REPO, 'client', 'Assets', 'Scripts', 'Module', 'Map',
                            'MapGenTownLayout.cs')
 
@@ -120,10 +129,14 @@ WIN_Y0 = -5
 EMPTY_CELL = '------'
 
 # ── NPC 站位（③-a）──────────────────────────────────────────────────────────
-# `MonPreset.txt` 的 Act 1 块 → DS1 kind=1 单位的 id。本批 d2data 的 excel 里没有这张表
-# （`原版资源/d2raw/data/global/excel/` 只有 43 张），取自参考工程的副本（出处见文件头）。
-MONPRESET_SRC = os.path.join(_REPO, '原版资源', '参考工程_Diablerie', 'libd2', 'packages',
-                             'data', 'src', 'excel', 'MonPreset.txt')
+# `MonPreset.txt` 的 Act 1 块 → DS1 kind=1 单位的 id（出处见文件头 ③-a）。按顺序找：
+#   d2data 解包那份（没有这张表）→ 1.10f txt 包 → 参考工程副本。
+MONPRESET_CANDIDATES = (
+    os.path.join(EXCEL_ROOTS[0], 'MonPreset.txt'),
+    os.path.join(EXCEL_ROOTS[1], 'monpreset.txt'),
+    os.path.join(_REPO, '原版资源', '参考工程_Diablerie', 'libd2', 'packages',
+                 'data', 'src', 'excel', 'MonPreset.txt'),
+)
 
 # 本项目 5 个 NPC（`Def/Enums.cs::NpcId` 的顺序）→ `MonPreset.txt` 的 Place 名。
 # 顺序 = (int)NpcId：0 阿卡拉 / 1 卡夏 / 2 恰西 / 3 基德 / 4 瓦瑞夫。
@@ -140,12 +153,22 @@ SUBTILES_PER_TILE = 5
 #  ① 原版规则表（Levels / LvlPrest）—— 尺寸与块清单都从表里读
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _table_path(name):
+    """原版 excel 表在盘上的位置（按 `EXCEL_ROOTS` 顺序找；都找不到就点名缺什么、去哪取）。"""
+    for root in EXCEL_ROOTS:
+        path = os.path.join(root, name)
+        if os.path.exists(path):
+            return path
+    raise SystemExit('缺原版规则表 %s（找过：%s）⇒ 二选一：\n'
+                     '   ① 从 mpq 解出来：python 原版资源/storm.py extract '
+                     '原版资源/d2mpq/d2data.mpq 原版资源/d2raw .txt\n'
+                     '   ② 把 1.10f txt 包放到 %s（含 Levels.txt / LvlPrest.txt）'
+                     % (name, ' ｜ '.join(EXCEL_ROOTS), EXCEL_ROOTS[1]))
+
+
 def _read_table(name):
     """读一张原版 excel txt（制表符分隔，第一行是列名）。"""
-    path = os.path.join(EXCEL, name)
-    if not os.path.exists(path):
-        raise SystemExit('缺原版规则表 %s（先跑 `python 原版资源/storm.py extract '
-                         '原版资源/d2mpq/d2data.mpq 原版资源/d2raw .txt`）' % path)
+    path = _table_path(name)
     with open(path, 'r', encoding='latin-1') as fh:
         rows = [ln.rstrip('\r\n').split('\t') for ln in fh if ln.strip()]
     head = rows[0]
@@ -179,9 +202,11 @@ def monpreset_act1():
     依据（文件头 ③-a）：DS1 的怪物单位 id 索引的是**该 act 的 MonPreset 块**，
     见参考实现 `libd2/packages/drlg/src/drlg/presettables.zig:11-20`。
     """
-    if not os.path.exists(MONPRESET_SRC):
-        raise SystemExit('缺 %s（DS1 的 NPC 站位就靠它解释；见本文件文件头 ③-a）' % MONPRESET_SRC)
-    with open(MONPRESET_SRC, 'r', encoding='latin-1') as fh:
+    src = next((p for p in MONPRESET_CANDIDATES if os.path.exists(p)), None)
+    if src is None:
+        raise SystemExit('缺 MonPreset.txt（DS1 的 NPC 站位就靠它解释；见本文件文件头 ③-a）。'
+                         '找过：%s' % ' ｜ '.join(MONPRESET_CANDIDATES))
+    with open(src, 'r', encoding='latin-1') as fh:
         rows = [ln.rstrip('\r\n').split('\t') for ln in fh if ln.strip()]
     head = rows[0]
     iact = head.index('Act')

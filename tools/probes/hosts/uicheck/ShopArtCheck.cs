@@ -64,7 +64,7 @@ namespace Uicheck
             CheckPolarity(src);
             CheckFrameAssets();
             CheckConsumerScan();
-            CheckLabelOutside();
+            CheckNoVisibleLabel();
             CheckSlotGeometry();
             Console.WriteLine();
         }
@@ -426,17 +426,45 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        //   判据本体 = 纯函数 `JudgeLabelOutside(button, label, panel)`；退化样本喂同一函数必须变红。
-        //   坐标口径：`button` / `label` 都在**按钮 local 空间**（以按钮中心为原点），
-        //   `panel` 在**面板 local 空间**（以面板中心为原点）—— 故比较前把 label 平移到面板空间。
+        //   判据本体 = 纯函数 `LabelPolicyBad(src)`（源码级：两颗动作钮不许有常显文字节点、
+        //   工厂不再收 `ButtonLabelRect`、悬停提示条数 == 动作钮颗数）；退化样本喂同一函数必须变红。
+        //   几何那半 = 钮矩形（按钮 local 空间）平移到面板 local 空间后比 `panel` / 金币名牌。
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// **判据本体（纯函数）**：标签矩形既要**与按钮矩形不相交**，又要**整块落在面板矩形内**。
-        /// 同一函数必须对"现在的几何"绿、对"修前形状（标签 = 铺满按钮）"与"标签上移压住钮"红。
+        /// **判据本体（源码级纯函数）**：商店底部两颗动作钮**不许有常显文字节点** —— 原版那两个槽
+        /// 只有图形（帧 2 = 锤+铁砧、帧 10 = ⊘），文字只该出现在悬停提示里。
+        /// <para>读三件事：① 每个 `UiArt.SquareButton(` 调用点之后必须摘掉工厂建的 `Label`
+        /// （`DropVisibleLabel(<接收者>)`）；② 不许再给工厂传 `ButtonLabelRect(...)`；
+        /// ③ `ControlTip.Create(` 的条数 == 动作钮颗数。返回"不合规"清单（空 = 合格）。</para>
         /// </summary>
-        private static bool JudgeLabelOutside(Rect button, Rect label, Rect panel)
-            => !label.Overlaps(button) && ContainsAll(panel, label);
+        private static List<string> LabelPolicyBad(string src)
+        {
+            var s = Strip(src);
+            var bad = new List<string>();
+            var lines = s.Split('\n');
+            var want = 0;
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].IndexOf("UiArt.SquareButton(", StringComparison.Ordinal) < 0) continue;
+                var m = Regex.Match(lines[i], @"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:UiArt\.)?SquareButton\(");
+                if (!m.Success) { bad.Add("第 " + (i + 1) + " 行调用点认不出接收者"); continue; }
+                var recv = m.Groups[1].Value;
+                want++;
+                var dropped = false;
+                for (var k = i + 1; k <= i + 8 && k < lines.Length; k++)
+                {
+                    if (lines[k].IndexOf("DropVisibleLabel(" + recv + ")", StringComparison.Ordinal) >= 0)
+                    { dropped = true; break; }
+                }
+                if (!dropped) bad.Add(recv + " 的常显文字没摘（缺 `DropVisibleLabel(" + recv + ")`）");
+            }
+            if (want == 0) bad.Add("没有读到任何 `UiArt.SquareButton(` 调用点（判据空转 ⇒ 不许绿）");
+            if (Regex.IsMatch(s, @"ButtonLabelRect\(")) bad.Add("仍在给工厂传 `ButtonLabelRect(...)`");
+            var tips = Regex.Matches(s, @"ControlTip\.Create\(").Count;
+            if (tips != want) bad.Add("悬停提示 " + tips + " 条 ≠ 动作钮 " + want + " 颗");
+            return bad;
+        }
 
         /// <summary>
         /// 矩形包含（`outer` 完整包住 `inner`）。为什么不用 `Rect.Contains(Rect)`：
@@ -452,8 +480,10 @@ namespace Uicheck
             => new Rect(center.x + inButtonSpace.xMin, center.y + inButtonSpace.yMin,
                         inButtonSpace.width, inButtonSpace.height);
 
-        private static void CheckLabelOutside()
+        private static void CheckNoVisibleLabel()
         {
+            Console.WriteLine("── (u53-shopart ⑤) 商店底部两颗动作钮：无常显文字节点 + 各挂一条悬停提示 ──");
+
             var panel = new Rect(-ShopPanel.PanelSize.x * 0.5f, -ShopPanel.PanelSize.y * 0.5f,
                                  ShopPanel.PanelSize.x, ShopPanel.PanelSize.y);
             var info = new Rect(UiLayoutGame.ShopInfoBarPos.x - UiLayoutGame.ShopInfoBarSize.x * 0.5f,
@@ -461,85 +491,50 @@ namespace Uicheck
                                 UiLayoutGame.ShopInfoBarSize.x, UiLayoutGame.ShopInfoBarSize.y);
             var slots = UiLayoutGame.ShopBottomSlotX;
 
-            // ① 逐槽：标签与钮不相交 + 落在面板内 + 不压金币名牌
+            // ① 几何（纯函数）：四个雕槽的**钮矩形**都在面板内 + 不压金币名牌
             var bad = new List<string>();
             var det = new StringBuilder();
             for (var i = 0; i < slots.Length; i++)
             {
-                var center = new Vector2(slots[i], UiLayoutGame.ShopBottomSlotY);
-                var b = ShopPanel.ButtonRect(i);
-                var l = ShopPanel.ButtonLabelRect(i);
-                var lp = ToPanelSpace(l, center);
+                var center = ShopPanel.SlotCenter(i);       // 钮中心（⛔ 不用陈旧的 `ShopBottomSlotY` = 槽顶沿）
+                var b = ToPanelSpace(ShopPanel.ButtonRect(i), center);
                 det.Append("槽").Append(i).Append("[钮(").Append(b.xMin.ToString("0.#")).Append(',')
                    .Append(b.yMin.ToString("0.#")).Append(") ").Append(b.width.ToString("0.#")).Append('×')
-                   .Append(b.height.ToString("0.#")).Append(" 标签(").Append(lp.xMin.ToString("0.#")).Append(',')
-                   .Append(lp.yMin.ToString("0.#")).Append(") ").Append(lp.width.ToString("0.#")).Append('×')
-                   .Append(lp.height.ToString("0.#")).Append("] ");
-                if (!JudgeLabelOutside(b, l, panel)) bad.Add("槽" + i + "(与钮相交/越面板)");
-                if (lp.Overlaps(info)) bad.Add("槽" + i + "(压金币名牌)");
+                   .Append(b.height.ToString("0.#")).Append("] ");
+                if (!ContainsAll(panel, b)) bad.Add("槽" + i + "(越面板)");
+                if (b.Overlaps(info)) bad.Add("槽" + i + "(压金币名牌)");
             }
-            Check($"⑤ 四个雕槽：标签矩形与按钮矩形**不相交**、且整块落在面板内（判据 `JudgeLabelOutside`，"
-                + $"面板 = {panel.width:0.#}×{panel.height:0.#}）",
+            Check($"⑤ 四个雕槽：钮矩形整块落在面板内、且不压金币名牌（面板 = {panel.width:0.#}×{panel.height:0.#}）",
                 bad.Count == 0, bad.Count == 0 ? det.ToString().Trim() : "不合规：" + string.Join(",", bad.ToArray()));
 
-            // ② 标签两两不相交（框宽 = 相邻雕槽 pitch ⇒ 恰好相接）
-            var pairBad = new List<string>();
-            for (var i = 0; i < slots.Length; i++)
-            {
-                for (var j = i + 1; j < slots.Length; j++)
-                {
-                    var a = ToPanelSpace(ShopPanel.ButtonLabelRect(i),
-                        new Vector2(slots[i], UiLayoutGame.ShopBottomSlotY));
-                    var b2 = ToPanelSpace(ShopPanel.ButtonLabelRect(j),
-                        new Vector2(slots[j], UiLayoutGame.ShopBottomSlotY));
-                    if (a.Overlaps(b2)) pairBad.Add($"槽{i}×槽{j}");
-                }
-            }
-            Check($"⑤ 四个槽的标签两两不重叠（框宽 = 相邻雕槽 pitch = {ShopPanel.SlotPitch:0.#}）",
-                pairBad.Count == 0, pairBad.Count == 0 ? "6 对全不重叠" : "重叠：" + string.Join(",", pairBad.ToArray()));
+            // ② 口径（源码级）：两颗钮**不许有常显文字节点** + 各挂一条悬停提示（判据 `LabelPolicyBad`）
+            var shopSrc = File.ReadAllText(Path.Combine(Program.UiDir, "ShopPanel.cs"));
+            var polBad = LabelPolicyBad(shopSrc);
+            var flat = Strip(shopSrc);
+            // `DropVisibleLabel(` 的**方法定义**占 1 次 ⇒ 读数减 1；另外两项是纯计数。
+            Console.WriteLine("   [read] ShopPanel：`DropVisibleLabel(` 调用 "
+                + (Regex.Matches(flat, @"DropVisibleLabel\(").Count - 1) + " 次、`ControlTip.Create(` "
+                + Regex.Matches(flat, @"ControlTip\.Create\(").Count + " 次、`ButtonLabelRect(` "
+                + Regex.Matches(flat, @"ButtonLabelRect\(").Count + " 次（应 2 / 2 / 0）");
+            Check("⑤ 两颗动作钮的常显文字都被摘掉、工厂不再收 `ButtonLabelRect(...)`、两颗各挂一条 `ControlTip.Create`",
+                polBad.Count == 0,
+                polBad.Count == 0 ? "2 颗钮 = 0 个常显文字节点、2 条悬停提示" : string.Join("；", polBad.ToArray()));
 
-            // ③ 字号/框尺寸的**唯一真源**：标签高 == UiLayoutGame.FontPx16（不许写死数字）
-            var lh = ShopPanel.ButtonLabelRect(2).height;
-            var lw = ShopPanel.ButtonLabelRect(2).width;
-            Check("⑤ 标签高 == `UiLayoutGame.FontPx16`（字号单一真源）、框宽 == 相邻雕槽 pitch"
-                + "（⛔ 面板内不许出现写死的字号/框宽）",
-                Math.Abs(lh - UiLayoutGame.FontPx16) < 0.01f && Math.Abs(lw - ShopPanel.SlotPitch) < 0.01f,
-                $"标签 {lw:0.#}×{lh:0.#}；FontPx16={UiLayoutGame.FontPx16:0.#} SlotPitch={ShopPanel.SlotPitch:0.#}");
+            // ③ 判据自检：三个退化样本喂进**同一判据**必须变红
+            var degA = Regex.Replace(shopSrc, @"\s*DropVisibleLabel\(close\);", ";");                  // 漏摘第二颗
+            var degB = shopSrc.Replace("SlotCenter(2), OnRepairAll)",
+                                      "SlotCenter(2), OnRepairAll, ButtonLabelRect(2))");              // 修前形状：文字交给工厂
+            var degC = Regex.Replace(shopSrc, @"\s*_closeTip = ControlTip\.Create\([^;]*\);", "");     // 少一条悬停提示
+            var ra = LabelPolicyBad(degA);
+            var rb2 = LabelPolicyBad(degB);
+            var rc = LabelPolicyBad(degC);
+            Check("⑤ 判据自检：真源码 ⇒ 合格；**退化 A（漏摘一颗钮的 Label）**、"
+                + "退化 B（仍把文字交给工厂 = 修前形状）、退化 C（少一条悬停提示）⇒ 三条必须全变红",
+                polBad.Count == 0 && degA != shopSrc && degB != shopSrc && degC != shopSrc
+                && ra.Count > 0 && rb2.Count > 0 && rc.Count > 0,
+                $"真={polBad.Count} 条；退化A={ra.Count} 条、退化B={rb2.Count} 条、退化C={rc.Count} 条"
+                + "（真必须 0，后三个必须 > 0）");
 
-            // ④ 判据自检：三个退化样本喂进**同一判据**必须变红
-            var btn2 = ShopPanel.ButtonRect(2);
-            var lbl2 = ShopPanel.ButtonLabelRect(2);
-            var ok0 = JudgeLabelOutside(btn2, lbl2, panel);
-            var degA = JudgeLabelOutside(btn2, btn2, panel);                       // 修前形状：标签铺满整钮
-            var degB = JudgeLabelOutside(btn2, new Rect(lbl2.x, btn2.yMin - btn2.height * 0.2f,
-                                                        lbl2.width, lbl2.height), panel);  // 标签上移压住钮
-            var degC = JudgeLabelOutside(btn2, new Rect(lbl2.x, -ShopPanel.PanelSize.y * 0.5f - 60f,
-                                                        lbl2.width, lbl2.height), panel);  // 标签跑出面板
-            Check("⑤ 判据自检：现在几何 ⇒ 合格；**退化 A（标签 = 铺满按钮，修前形状）**、"
-                + "退化 B（标签上移压住钮）、退化 C（标签跑出面板）⇒ 三条必须全变红",
-                ok0 && !degA && !degB && !degC,
-                $"ok={ok0} 退化A={degA} 退化B={degB} 退化C={degC}（后三个都必须 False）");
-
-            // ⑤ 源码绑定：两颗钮**真的**把 `ButtonLabelRect` 传给了 `UiArt.SquareButton`
-            //    （否则纯函数再对也没接上 —— 判"过程"）
-            var src = Strip(File.ReadAllText(Path.Combine(Program.UiDir, "ShopPanel.cs")));
-            var passed = Regex.Matches(src, @"ButtonLabelRect\(\s*[0-9]+\s*\)").Count;
-            // 口径：实参链**跨行**（`SquareButton(\n …, ButtonLabelRect(2));`），故用"后随 4 行内"找，
-            //   不用 `SquareButton\([^)]*ButtonLabelRect\(` —— `[^)]*` 会在第一个内层 `)` 处截断（实测假红）。
-            var srcLines = src.Split('\n');
-            var wired = 0;
-            for (var i = 0; i < srcLines.Length; i++)
-            {
-                if (srcLines[i].IndexOf("SquareButton(", StringComparison.Ordinal) < 0) continue;
-                for (var k = i; k <= i + 4 && k < srcLines.Length; k++)
-                {
-                    if (Regex.IsMatch(srcLines[k], @"ButtonLabelRect\(\s*[0-9]+\s*\)")) { wired++; break; }
-                }
-            }
-            Check("⑤ 两颗钮真的把 `ButtonLabelRect(slot)` 传给了 `UiArt.SquareButton`（接线断言，"
-                + "⛔ 防「纯函数对但没人调」）",
-                passed >= 2 && wired == 2,
-                $"ButtonLabelRect 出现 {passed} 次；SquareButton 调用点已接线 {wired}/2");
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -631,13 +626,14 @@ namespace Uicheck
                 stale == 0 && used >= 2,
                 $"ShopBottomSlotY 命中={stale}（应 0）；SlotCenter(…) 出现 {used} 次（应 ≥2）");
 
-            // ⑤ 与 Label 的组合：钮居中后，标签仍在钮外且仍在面板内（⑤ 已判；这里给"带"的读数）
-            var lb = ShopPanel.ButtonLabelRect(2);
-            var lbPanel = ToPanelSpace(lb, ShopPanel.SlotCenter(2));
-            Check("⑥ 钮居中后标签仍整块在面板内（标签带 = 钮下沿..面板下边框）",
-                ContainsAll(panel, lbPanel) && !lbPanel.Overlaps(ButtonPanelRect(2)),
-                $"标签(面板空间) y {lbPanel.yMin:0.#}..{lbPanel.yMax:0.#}，面板 yMin={panel.yMin:0.#}；"
-                + $"钮下沿={ButtonPanelRect(2).yMin:0.#}");
+            // ⑤ 与几何的组合：钮居中后，钮矩形整块在面板内且不越出槽内凹区（`JudgeSlotFit` 已在 ① 判过；
+            //   这里给"钮下沿 / 面板下沿"的读数，供实机对账）
+            var bp = ButtonPanelRect(2);
+            var inner2 = ShopPanel.SlotInnerRect(2);
+            Check("⑥ 钮居中后钮矩形整块在面板内、且不越出槽内凹区",
+                ContainsAll(panel, bp) && ContainsAll(inner2, bp),
+                $"钮(面板空间) y {bp.yMin:0.#}..{bp.yMax:0.#}，面板 yMin={panel.yMin:0.#}；"
+                + $"槽内凹区 y {inner2.yMin:0.#}..{inner2.yMax:0.#}");
         }
 
         // ── PNG 解码（8bit / 非隔行 / 色彩类型 2·6）与 ShopGridCheck 同口径 ──────
