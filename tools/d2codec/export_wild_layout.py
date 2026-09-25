@@ -293,7 +293,7 @@ def cell_passable(tile):
       · `原版资源/参考工程_Diablerie/.../Engine/World/WorldGrid.cs:78-84`
         `ApplyTileCollisions`：`flagIndex` 从 0 递增遍历 25 个 subtile，
         `passable = (flags[flagIndex] & (Walk|PlayerWalk)) == 0` ⇒ **标志置位 = 不可走**。
-      · 自洽检验（⛔ 原一次性脚本 `.ai-tmp/test/flagtest.py` **已删**、无在盘同物；**在盘替代** = `tools/d2codec/verify_walk_flags.py` 判据①「开口方向自洽」，
+      · 自洽检验（⛔ 原一次性脚本 **已删**、无在盘同物；**在盘替代** = `tools/d2codec/verify_walk_flags.py` 判据①「开口方向自洽」，
         **现状 = 需原版包，本机 `BLOCKED（缺 原版资源/d2dc6 + 原版资源/d2raw）`** ⇒ 本机跑不了）：对 `CAVES/cave{方向}.ds1` 15 个块，
         用本口径算出的可走掩码碰到的边与**文件名声明的开口方向**逐一吻合；换成「任一 subtile 可走」则 `caveN` 会多出 W 边（错）。
       · 语义：本项目一格 = 一个寻路节点 = 角色站在格子中心 ⇒ 中心 subtile 决定该节点能不能站。

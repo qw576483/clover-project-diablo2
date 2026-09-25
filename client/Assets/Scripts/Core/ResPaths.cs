@@ -108,10 +108,29 @@ namespace Diablo2.Core
         /// 原版买卖按钮（**多帧条带，22 帧** —— 见 <see cref="FrameCountBuySellButton"/> 与 <see cref="Frame"/>）。
         /// <para>文件名是磁盘上的真实拼写 `buysellbtn.DC6.0.png`（**DC6 大写 + `.0`**）：
         /// `Resources.Load` 的路径要去掉扩展名 ⇒ 常量值 = `D2/UI/Panel/buysellbtn.DC6.0`。
-        /// 出处：`client/_dev/assetreport.txt` 实测 + `Assets/Editor/AssetImporter.cs` 的
+        /// 出处：`Assets/Editor/AssetImporter.cs` 的
         /// `MultiFrameStrips[0].FileName`（agent-10 实测表）。写成 `buysellbtn` 会**静默取不到图**。</para>
         /// </summary>
         public const string PanelBuySellButton = D2UiPanel + "buysellbtn.DC6.0";
+
+        /// <summary>
+        /// 原版方钮（`PANEL/buysellbtn.DC6`）的**单帧文件路径前缀**：`D2/UI/Panel/buysellbtn_{帧号}`
+        /// （帧号从 0 起；帧语义见 <see cref="BuySellButtonFrameClose"/>）。
+        /// </summary>
+        public const string PanelBuySellButtonFramePrefix = D2UiPanel + "buysellbtn_";
+
+        /// <summary>
+        /// 原版方钮的**「关闭 / 取消」图形帧号**（`PANEL/buysellbtn.DC6`）：常态 = **10**、按下 = **11**
+        /// （同一个图形两态；逐帧读图表见 `UI/ShopPanel.cs` 的 `ApplyBuySellButtonArt`）。
+        /// <para>语义与帧号的绑定出处（参考工程一手 prefab，两处互证）：Diablerie
+        /// `Assets/Prefabs/InventoryPanel.prefab` 与 `CharstatPanel.prefab` 的 `CloseButton` 节点
+        /// `m_Sprite` = `Assets/Images/Panels/buysellbtn.DC6.0.png` 的子 sprite **internalID 21300020**
+        /// （= 该 DC6 帧 10），`m_PressedSprite` = 21300022（= 帧 11）；两个 prefab 的该节点都各挂一个
+        /// `Tooltip` 组件（guid `371dd4dd5595a3b46bc35996b3c6be92` =
+        /// `Assets/Scripts/Diablerie/Engine/UI/Tooltip.cs`）且其 `text` 字段 = `Close`
+        /// ⇒ 该节点就是「关闭」钮（`text` 是 **hover 文案**：`OnPointerEnter` 才显示，⛔ 不是常显标签）。</para>
+        /// </summary>
+        public const int BuySellButtonFrameClose = 10;
 
         /// <summary>
         /// 原版金币按钮（**多帧条带，2 帧** —— 见 <see cref="FrameCountGoldCoinButton"/> 与 <see cref="Frame"/>）。
@@ -142,7 +161,6 @@ namespace Diablo2.Core
         //     实测**同画面**但把原版"调色板索引 0 = 透明"写成了**不透明黑 (0,0,0,255)**
         //     从原版 `data/global/ui/PANEL/menubutton.DC6` 直接解出的 `menubutton_{0..3}.png`
         //     （尺寸/帧序/内容**一个都没动**），并把 20 个副本文件从磁盘删除。
-        //     复跑对账：`python tools/probes/measure/scan_uigame.py --pairs`。
         //     运行时实际取图走 `UI/UiArt.ArrowFrame(i)`（= 同一个拼法），本 4 个常量供
         //        "路径唯一来源"与自检宿主使用；两处**必须同值**（`uicheck` ㉑ 节断言磁盘存在）。
         /// <summary>原版上箭头·常态（= `PANEL/menubutton_0.png`，DC6 直出）。</summary>
@@ -176,8 +194,8 @@ namespace Diablo2.Core
         //       `name = spec.FileName + "_" + i`，与字体图集的 `AtlasPath + "_" + i` 同口径）；
         //    ③ 取第 i 帧 = `Resources.Load<Sprite>(ResPaths.Frame(path, i))`，i ∈ [0, 下面的帧数)。
         //  也可以一次取全部：`Resources.LoadAll<Sprite>(path)`（顺序 = 帧号序）。
-        //  帧数是**实测值**（`tools/buildcheck/frame_probe.py` 读真实像素得出，输出留档
-        //     `tools/buildcheck/frame_probe_out.txt`）。**改这里 = 改契约**：必须重跑那个脚本并同步
+        //  帧数是**实测值**（`tools/probes/hosts/buildcheck/frame_probe.py` 读真实像素得出，输出留档
+        //     `.ai-tmp/test/frame_probe_out.txt`）。**改这里 = 改契约**：必须重跑那个脚本并同步
         //     `AssetImporter.cs` 的 `MultiFrameStrips`，否则 UI 会取到空图且**不报错**。
         /// <summary>`buysellbtn.DC6.0` 的帧数 = **22**（实测；`AssetImporter.cs` 的 `MultiFrameStrips[0]`）。</summary>
         public const int FrameCountBuySellButton = 22;
@@ -288,6 +306,25 @@ namespace Diablo2.Core
         /// <summary>中文标题条路径，例：`Banner("inventory")` → `D2/UI/Banner/inventory`。</summary>
         public static string Banner(string name) => D2UiBanner + name;
 
+        /// <summary>
+        /// 原版**死亡屏横幅**（`data/LOCAL/UI/chi/youdiedsoftcore.dc6`）文件名主体
+        /// （正文 = 「你損失金錢數量為」，即原版软核死亡屏的金币损失提示；专家模式的
+        /// 「你的英勇長存人心」是另一句话，本机 `LOCAL/UI/chi/` 下**没有**对应横幅文件）。
+        /// </summary>
+        public const string BannerYouDiedSoftCore = "youdiedsoftcore";
+
+        /// <summary>
+        /// `youdiedsoftcore.dc6` 的**块数 = 2**（实测 `dc6.py info`：`256x54 40x54`；
+        /// 两帧 offX/offY 都是 0 ⇒ 按读序横向拼接成整幅 **296×54**：`你損失金錢數量` + `為`）。
+        /// </summary>
+        public const int FrameCountBannerYouDiedSoftCore = 2;
+
+        /// <summary>
+        /// 死亡屏横幅**第 i 块**的帧路径（`D2/UI/Banner/youdiedsoftcore_{0,1}`）。
+        /// 整幅 296×54 由这两块拼出，见 <see cref="FrameCountBannerYouDiedSoftCore"/>。
+        /// </summary>
+        public static string BannerYouDiedSoftCoreTile(int i) => Banner(BannerYouDiedSoftCore) + "_" + i;
+
         /// <summary>小地图标记路径，例：`MiniMapIcon(3)` → `D2/UI/MiniMap/mapicon_3`。</summary>
         public static string MiniMapIcon(int index) => D2UiMiniMap + "mapicon_" + index;
 
@@ -295,12 +332,27 @@ namespace Diablo2.Core
         public const int FrameCountMiniMapIcon = 8;
 
         /// <summary>
+        /// 标记图标**统一使用的帧号** = 0。
         /// <para>
-        /// 语义映射**（没有 txt 表、参考工程 `Diablerie/Assets/**` 与 `libd2/**` **都不引用**
-        /// 这个 DC6 —— 全仓 grep `mapicons|MINIMAP` 只在 `原版 d2dc6` 里命中），
-        /// 而 8 帧是**白色模板**（实测 8 帧只用调色板索引 32 = `#F4F4F4`，原版在运行期用色表
-        /// shift 给它们上色）⇒ **光看形状不能断定"哪一帧 = 出入口 / NPC / 玩家"**，
-        /// 拿到语义后**只改这一个常量**即可（面板代码不用动）。
+        /// 8 帧的**权威语义映射在本机拿不到**，故仍统一用帧 0（⛔ 不自指定一套）。已穷举的三条候选
+        /// 与各自原始读数：
+        /// ① 参考工程 Diablerie：整仓 1097 个文件全 grep `mapicon|minimap|automap` ⇒ **23 命中、全部无关**
+        ///    （`ControlPanel.prefab` 的按钮名 `ButtonMinipanelAutomap`、datasheet 字段 `autoMap` /
+        ///    `automapCel`、`string.txt` 的 `CfgAutoMap` / `minipanelautomap` 等）；
+        ///    **0 处引用 `MINIMAP/mapicons.DC6`**，且该仓没有 automap 渲染实现（只有 `automap_loader` 一类读表代码）。
+        /// ② 官方 1.10f 92 张表：列名含 `map|icon|marker` 的只有 4 张 —— `LvlPrest.AutoMap` /
+        ///    `objects.AutoMap`（值域 0、223、304..319、339、427、693/694、1467/1468）/ `MonStats2.automapCel`
+        ///    （全表仅 1 处有值 = 1258）、`PetType.automap`（布尔 0/1）与 `icontype/baseicon/micon1..4`
+        ///    （值 = UI 图标名与别的 cel 号，如 `valkarieicon` / 290 / 338 / 561）；**没有任何一列**被表头
+        ///    或注释声明为「`mapicons.DC6` 的帧号」。
+        /// ③ 官方 `AutoMap.txt`：13 列（`LevelName/TileName/Style/StartSequence/EndSequence/Type1..4/Cel1..4`）,
+        ///    2603 行，逐列语义全部指向 **`MaxiMap.dc6`** 的 Cel（社区数据文档同口径），与 `mapicons.DC6` 无关。
+        /// </para>
+        /// <para>
+        /// 另有一条**为什么不能靠形状反推**的实测：8 帧是 8 张**互不相同**的白色剪影（逐对 alpha 掩码
+        /// 差异 100..166 像素 / 256），形如「栅栏 / 双顶门楼 / 拱门 / 树 / 柱廊 / 树丛 / 带十字的建筑 / 骷髅脸」
+        /// —— 即**地物剪影**，既不支持此前猜的「哪一帧 = 出入口 / NPC / 玩家」那套类别，也不能由形状唯一
+        /// 决定语义。拿到权威映射后只改这一个常量（面板按语义取帧的入口已经在 `UI/MiniMapPanel.BuildMarkers`）。
         /// </para>
         /// </summary>
         public const int MiniMapMarkerFrame = 0;
@@ -596,6 +648,41 @@ namespace Diablo2.Core
 
         /// <summary>场景物件路径，例：`ObjectSprite("tree1")` → `D2/Objects/tree1`。</summary>
         public static string ObjectSprite(string name) => D2Objects + name;
+
+        /// <summary>
+        /// 传送台本体（`Objects.txt` Id=119 / `Token=wp` 的 `TR`+`S1` 层）所在目录 —— **相对 `D2/Objects/`**。
+        /// <para>与 <see cref="D2Tiles"/> 之外的瓦片键同域：键是 `Objects/` 下的**相对路径**
+        /// （例 `cave_door/000`），资源路径由 <see cref="ObjectSprite"/> 补目录前缀。</para>
+        /// </summary>
+        public const string D2ObjectsWaypoint = "waypoint/";
+
+        /// <summary>
+        /// 传送台本体**已激活态**（`ON` 模式）的帧数 —— 出处 = 官方 `Objects.txt` 该行的
+        /// `FrameCnt2` = 8（`CycleAnim2` = 1 ⇒ 原版循环播放这 8 帧）。
+        /// 帧文件由 `tools/d2codec/export_waypoint.py` 从 `D2data.mpq` 解出。
+        /// </summary>
+        public const int WaypointFrameCount = 8;
+
+        /// <summary>
+        /// 传送台本体某一帧的**物件键**，例：`WaypointFrame(0)` → `waypoint/000`。
+        /// <para>`MapView.PlanCell` 把它填进 `CellPlan.ObjectKey`，资源路径 = `ObjectSprite(WaypointFrame(i))`
+        /// （= `D2/Objects/waypoint/000`）。⛔ 直接当资源路径用、或再套一层 `ObjectSprite`
+        /// 都会拼出 `D2/Objects/D2/Objects/...` ⇒ `Resources.Load` **静默**返回 null。</para>
+        /// </summary>
+        public static string WaypointFrame(int index) => D2ObjectsWaypoint + index.ToString("000");
+
+        /// <summary>
+        /// 传送台本体 `ON` 模式的播放帧率 = **19.53125 fps**（= `25 × 200 / 256`；每帧 0.0512 s）。
+        /// <para>出处两条（缺一条就不用这个值）：① 官方 `Objects.txt` 该行（`Id=119 / Token=wp`）的
+        /// `FrameDelta2 = 200` —— 下标 2 就是 `ON`（该行 `FrameCnt2 = 8`、`CycleAnim2 = 1`，
+        /// 与 `ON` 的 `.COF` 帧数吻合，"列序自证"见落盘 `manifest.json`）；
+        /// ② 换算 = `帧率 = 25 × FrameDelta / 256`（即每帧秒数 `256/25/FrameDelta` 的倒数）。</para>
+        /// <para>这两条的原始读数 + 一键复算入口 = `tools/d2codec/export_waypoint.py`：它把
+        /// `frameDelta` / `frameSeconds` / `fps` / 列序自证 一起写进
+        /// `Resources/Clover/D2/Objects/waypoint/manifest.json`。⛔ 手改这里等于改画面节奏，
+        /// 必须同时改 exporter 的读数。</para>
+        /// </summary>
+        public const float WaypointFrameFps = 19.53125f;
 
         /// <summary>
         /// **帧名助手**（多帧条带取单帧用）：`Frame(path, i)` → `"{path}_{i}"`，帧号 **i 从 0 起**。

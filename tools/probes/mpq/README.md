@@ -29,7 +29,6 @@ python tools/probes/mpq/build_wanted.py
 python tools/probes/mpq/extract_wanted.py --tag unpack-g1
 
 # ③ 落地核对（只读；缺名逐条打印）
-python tools/probes/mpq/landed_audit.py --out .ai-tmp/test/landed-audit-g1.tsv
 ```
 
 产物默认落 `<仓库根>/.ai-tmp/test/`（一次性目录；⛔ 不进 `原版资源/` 之外的任何工程目录）。

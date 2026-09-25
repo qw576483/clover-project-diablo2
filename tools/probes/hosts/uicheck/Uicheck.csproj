@@ -3,7 +3,7 @@
   <!-- ───────────────────────────────────────────────────────────────────────
        UI 层自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
 
-       为什么需要它（同 `tools/mapcheck` / `tools/flowcheck` 的理由）：
+       为什么需要它（同 `tools/probes/hosts/mapcheck` / `tools/probes/hosts/flowcheck` 的理由）：
          `client/client.slnx` 里没有 `Diablo2.csproj`（用户尚未打开编辑器）⇒
          `dotnet build client.slnx` **覆盖不到** `Assets/Scripts/**`，
          那条命令在本机是"零信息"的。本工程把「Unity 托管 DLL + Diablo2 源码」直接编到 .NET 上，
@@ -51,6 +51,7 @@
          Program.cs / W3GameCheck.cs 的并发改动冲突 -->
     <Compile Include="ShopGridCheck.cs" />
     <Compile Include="ShopArtCheck.cs" />
+    <Compile Include="Fix4Check.cs" />
     <!-- ★ 片 u53-closefix：弹框关闭出口（层/遮罩 + 关闭控件可见 + 同一入口）+ 3 条退化样本 -->
     <Compile Include="CloseExitCheck.cs" />
     <!-- 引擎门面替身：**复用 flowcheck 那一份**（同一份文件，两个宿主共用，改一处即同步） -->
@@ -127,6 +128,11 @@
          already listed). Do NOT link the Module/View/*.cs glob - it drags in ViewModule.cs deps. -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\EntityHighlight.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewLog.cs" />
+    <!-- 链接原因：R1 判据要**离线驱动真的** `SpriteAnimator`（传送台本体 8 帧循环）⇒ 链它与其
+         `ViewAnim` 枚举（`ViewLog` 上面已链）。
+         ⛔ 不链 `Module/View/*.cs` 整目录（会拖进 ViewModule 的依赖）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\SpriteAnimator.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewAnim.cs" />
   </ItemGroup>
 
   <ItemGroup>

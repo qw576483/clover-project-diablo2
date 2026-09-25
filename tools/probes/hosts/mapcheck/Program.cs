@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// 运行：dotnet run --project <项目根>/tools/mapcheck/MapCheck.csproj -c Release
+// 运行：dotnet run --project <项目根>/tools/probes/hosts/mapcheck/MapCheck.csproj -c Release
 //
 // 覆盖的验收项：
 //   ① 三处区域各生成一次 → DumpStats 输出
@@ -76,11 +76,440 @@ internal static class MapCheckProgram
         Run(Step33_LandingRangeCoversViewport);
         Run(Step34_PrimeLandingTrigger);
         Run(Step35_LargeShiftPrimeCoversViewport);
+        //    只加断言，不动既有步骤、不放宽任何既有断言 ──────────────────────────────
+        Run(Step36_AssetKeysAllAreasAndPaths);
+        Run(Step37_LandingChunkWindow);
+        Run(Step38_CaveLayoutFailureStats);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
         Console.WriteLine($"================ 待修缺陷复现项（DEFECT-REPRO，**不计入 FAIL**）：{_defects} ================");
         if (_failures != 0) Environment.ExitCode = 1;
+    }
+
+    /// <summary>
+    /// **逐区域 × 逐层**把生产布局文件里真正被引用的瓦片键全量枚举出来，并逐个判"能不能取到文件"；
+    /// 再把 automap（`MiniMapPanel` 的图元来源）逐区域判一遍 cel 合法性。
+    /// <para>键集合必须从**生产文件**解析：那几张布局表（生成物，禁止手改）正是 `MapView` 取键的来源；
+    /// 手写清单会与磁盘/生成器漂移，那样的绿是假的。键 → 文件的唯一拼法 =
+    /// `ResPaths.Tile` / `ResPaths.ObjectSprite`（`D2/Tiles/&lt;键&gt;` / `D2/Objects/&lt;键&gt;`）。</para>
+    /// <para>像素层属性（空图 / 平色）由 `tools/probes/measure/asset_key_map_audit.py` 读本步落盘的键表复判
+    /// —— 本步只判"取不到文件"这一半（离线、秒级、不依赖 Pillow）。</para>
+    /// </summary>
+    private static void Step36_AssetKeysAllAreasAndPaths()
+    {
+        Section("36. ★ 逐区域 × 逐路径素材键：生产布局引用的每个键都能取到文件（+ automap cel 合法）");
+
+        var root = ResolveProjectRoot();
+        var mapDir = System.IO.Path.Combine(root, "client", "Assets", "Scripts", "Module", "Map");
+        var d2 = System.IO.Path.Combine(root, "client", "Assets", "Resources", "Clover", "D2");
+
+        var sets = new List<(string Area, string Layer, HashSet<string> Keys, string Src)>();
+
+        // ── ① 罗格营地（固定布局）：`GroundRows` = 地面层、`ObjectRows` = 物件层
+        //      每格 6 字符 = 3 位 packId + 3 位 idx（口径同 `ReferencedTileKeys`）
+        var town = System.IO.File.ReadAllText(System.IO.Path.Combine(mapDir, "MapGenTownLayout.cs"));
+        var townPacks = QuotedStrings(SectionBody(town, "Packs"));
+        foreach (var rowName in new[] { "GroundRows", "ObjectRows" })
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var s in QuotedStrings(SectionBody(town, rowName)))
+            {
+                for (var i = 0; i + 6 <= s.Length; i += 6)
+                {
+                    var cell = s.Substring(i, 6);
+                    AddKey(townPacks, cell.Substring(0, 3), cell.Substring(3, 3), set);
+                }
+            }
+            sets.Add(("Town", rowName == "GroundRows" ? "floor" : "object", set, "MapGenTownLayout." + rowName));
+        }
+
+        // ── ② 血腥荒野（随机布局）：每条 14 字符码 = `<kind><class><ground6><object6>`
+        var wild = System.IO.File.ReadAllText(System.IO.Path.Combine(mapDir, "MapGenWildLayout.cs"));
+        var wildPacks = QuotedStrings(SectionBody(wild, "Packs"));
+        var wildGround = new HashSet<string>(StringComparer.Ordinal);
+        var wildObject = new HashSet<string>(StringComparer.Ordinal);
+        var wildCodes = 0;
+        foreach (var lit in QuotedStrings(wild))
+        {
+            if (lit.Length != 14) continue;
+            if (!IsDigits(lit.Substring(2, 6)) || !IsDigits(lit.Substring(8, 6))) continue;
+            wildCodes++;
+            AddKey(wildPacks, lit.Substring(2, 3), lit.Substring(5, 3), wildGround);
+            AddKey(wildPacks, lit.Substring(8, 3), lit.Substring(11, 3), wildObject);
+        }
+        sets.Add(("BloodMoor", "floor", wildGround, "MapGenWildLayout 14 字码的 <ground6>"));
+        sets.Add(("BloodMoor", "object", wildObject, "MapGenWildLayout 14 字码的 <object6>"));
+
+        // ── ③ 邪恶洞穴（随机布局）：符号表条目 = `<kind><ground6><object6>`（13 字符；`------` = 该层没瓦片）
+        var cave = System.IO.File.ReadAllText(System.IO.Path.Combine(mapDir, "MapGenCaveLayout.cs"));
+        var cavePacks = QuotedStrings(SectionBody(cave, "Packs"));
+        var caveGround = new HashSet<string>(StringComparer.Ordinal);
+        var caveObject = new HashSet<string>(StringComparer.Ordinal);
+        var caveCodes = 0;
+        foreach (var lit in QuotedStrings(cave))
+        {
+            if (lit.Length != 13) continue;
+            if (!IsDigits(lit.Substring(1, 6)) && !IsDigits(lit.Substring(7, 6))) continue;
+            caveCodes++;
+            AddKey(cavePacks, lit.Substring(1, 3), lit.Substring(4, 3), caveGround);
+            AddKey(cavePacks, lit.Substring(7, 3), lit.Substring(10, 3), caveObject);
+        }
+        sets.Add(("DenOfEvil", "floor", caveGround, "MapGenCaveLayout 13 字符号表的 <ground6>"));
+        sets.Add(("DenOfEvil", "object", caveObject, "MapGenCaveLayout 13 字符号表的 <object6>"));
+
+        Check(wildCodes > 0 && caveCodes > 0,
+            $"布局字码解析自证：荒野 14 字码 {wildCodes} 条、洞穴 13 字符号 {caveCodes} 条（都 > 0 ⇒ 解析口径在跑，不是空集假绿）");
+
+        // 自证：营地两层并集 = 既有 §18 口径的 295（拆分不许丢键）
+        var townAll = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var s in sets)
+        {
+            if (s.Area != "Town") continue;
+            foreach (var k in s.Keys) townAll.Add(k);
+        }
+        Check(townAll.Count == 295,
+            $"营地两层并集 = {townAll.Count} 个键（与 `MapView.cs` 文件头「真正引用到的 295 个瓦片键」逐字对账）");
+
+        // ── ④ 逐键判"能不能取到文件"（唯一拼法 = ResPaths.Tile / ResPaths.ObjectSprite）
+        var tsv = new List<string> { "区域\t层\t素材键\t路径\t出处" };
+        var missing = new List<string>();
+        var total = 0;
+        foreach (var s in sets)
+        {
+            var keys = new List<string>(s.Keys);
+            keys.Sort(StringComparer.Ordinal);
+            var missHere = 0;
+            foreach (var key in keys)
+            {
+                total++;
+                var rel = s.Layer == "floor" ? ResPaths.Tile(key) : ResPaths.ObjectSprite(key);
+                var abs = System.IO.Path.Combine(d2,
+                    rel.Substring("D2/".Length).Replace('/', System.IO.Path.DirectorySeparatorChar) + ".png");
+                var ok = System.IO.File.Exists(abs) && new System.IO.FileInfo(abs).Length > 0;
+                if (!ok)
+                {
+                    missing.Add(s.Area + "/" + s.Layer + "/" + key);
+                    missHere++;
+                }
+                tsv.Add(s.Area + "\t" + s.Layer + "\t" + key + "\t" + rel + "\t" + s.Src);
+            }
+            Console.WriteLine($"    {s.Area,-10} {s.Layer,-6} 被引用键 {keys.Count,4} 个 ⇒ 取不到文件 {missHere} 个（出处 {s.Src}）");
+        }
+        Check(total > 0, $"三个区域 × 两层共枚举出 {total} 个被引用键（营地/荒野/洞穴的布局生成物；⛔ 不含 UI 素材）");
+        Check(missing.Count == 0,
+            $"**每一个被引用的地形/物件键都能取到文件**（{total} 个键，缺 {missing.Count} 个"
+            + (missing.Count > 0 ? "：" + string.Join(",", missing.GetRange(0, Math.Min(8, missing.Count))) : "）"));
+
+        // ── ⑤ automap 图元逐区域判：每格 cel 要么 = None（原版这格不画），要么 ∈ [0, FrameCount) 且有像素数据
+        var mmBad = new List<string>();
+        var mmCells = 0;
+        var mmDrawn = 0;
+        foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil })
+        {
+            IMapModule map = NewMap();
+            map.Generate(area, 333);
+            var mm = map.BuildMinimap();
+            if (mm == null || mm.cels == null || mm.cels.Count == 0)
+            {
+                mmBad.Add(area + "：cels 为空");
+                continue;
+            }
+            if (mm.cels.Count < mm.width * mm.height)
+                mmBad.Add(area + $"：cels {mm.cels.Count} < 格数 {mm.width * mm.height}");
+
+            var drawn = 0;
+            for (var i = 0; i < mm.cels.Count; i++)
+            {
+                mmCells++;
+                var cel = (int)mm.cels[i];
+                if (cel == (int)AutoMapCel.None) continue;
+                drawn++;
+                if (cel < 0 || cel >= AutoMapCel.FrameCount) { mmBad.Add(area + "#" + i + "：cel=" + cel + " 越界"); continue; }
+                byte[] px;
+                if (!AutoMapCel.CelPixels.TryGetValue(cel, out px) || px == null || px.Length == 0)
+                    mmBad.Add(area + "#" + i + "：cel=" + cel + " 无像素数据");
+            }
+            mmDrawn += drawn;
+            Console.WriteLine($"    {area,-10} automap：格 {mm.width}×{mm.height}={mm.width * mm.height}、" +
+                              $"cels {mm.cels.Count}，其中**画** {drawn} 格 / 不画 {mm.cels.Count - drawn} 格");
+        }
+        Check(mmBad.Count == 0,
+            "automap 逐格 cel 合法（None 或 [0," + AutoMapCel.FrameCount + ") 且有像素数据）"
+            + (mmBad.Count > 0 ? "；越界/缺像素 " + mmBad.Count + " 个：" + string.Join(",", mmBad.GetRange(0, Math.Min(5, mmBad.Count))) : ""));
+        Check(mmDrawn > 0, $"automap **不是空图**：三个区域合计画出 {mmDrawn} 格（cels 总数 {mmCells}）");
+
+        var tsvPath = System.IO.Path.Combine(root, "tools", "probes", "refs", "asset-keys-map-keys.tsv");
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(tsvPath));
+        System.IO.File.WriteAllLines(tsvPath, tsv.ToArray(), new System.Text.UTF8Encoding(false));
+        Console.WriteLine($"    键表落盘：{tsvPath}（{tsv.Count - 1} 行；供 asset_key_map_audit.py 复判像素层属性）");
+    }
+
+    /// <summary>
+    /// 换区落地「缺块窗口」的**机械归因**：把实机一手读数拆成两个可离线复算的量并逐值对齐。
+    /// <para>实机一手读数（`.ai-tmp/screenshots/u32_evidence_u32play.txt` 第 31 / 42 / 155 行，与地图日志同一局）：
+    /// 落地帧 `exp=(0,0)-(3,3) total=16 actCov=12 missAct=4`；
+    /// 落地 +0.431s（帧 201，玩家/相机落到出生点那一帧）`exp=(0,0)-(2,3) total=12 actCov=12 missAct=0`；
+    /// `BLACKWINDOW missAct>0 持续=0.428s`；同一局地图日志 `整图重铺完成并一帧切换：7 帧 / 块 12 / 建节点 3291`。</para>
+    /// <para>本步判两件事：① 「缺块数」= 按**旧区相机**算出的可见块范围 \ 重铺清单（= 4，与实机 `missAct` 逐值相同）；
+    /// ② 「窗口时长」= 重铺建块帧数 = ⌈建节点 ÷ `MaxTileNodesPerFrame`⌉（= 7，与实机「7 帧」逐值相同）。</para>
+    /// <para>结论（机械）：窗口由**建块帧数**决定 ⇒ 它是首铺节奏参数（`MaxTileNodesPerFrame`）的函数，
+    /// ⛔ 不是"登记缺口"（重铺清单覆盖落点视口，§33 已判；`pending` 全程 0 —— 重铺走 `job.Chunks`）。
+    /// 且换区那条格跳变**不构成**大跨度（`IsLargeShift((32,27),(9,36))` = false）⇒ `PrimeLanding` 在换区无从下手，
+    /// 落地覆盖由 `ShowArea` 的落点口径整图重铺负责（与重生走的是同一份纯函数 `LandingRange`/`PlannedChunks`）。</para>
+    /// </summary>
+    /// <summary>
+    /// 洞穴块级拓扑的**多种子失败率 / 连击分布 / 逐形状归因** —— 判
+    /// `MapGenCave: 连续 16 次都没拼出一条可走的洞穴（slots=3x3 seed=…）⇒ 交由 MapModule 换 seed 重生成`
+    /// 是「生成可走性回归」还是「偶发种子 + 日志级别偏高」。
+    /// <para>口径：直接调**生产** `MapGenCave.Generate`（⛔ 不镜像它的抽签 / 挑块 / 判定逻辑 ——
+    /// 本步只喂种子、只读返回值与它自己打的日志文本）。逐形状归因走日志里的 `slots=` / `块网格=`
+    /// 读数，因此也不需要在本文件复算 `slotsX/slotsY`。</para>
+    /// <para>失败上限出处 = `MapGenCave.LayoutRetry`(=16，生产常量)；
+    /// 「16 连击」若落在本分布内 ⇒ 偶发；若对某形状**恒发生** ⇒ 结构性缺陷。</para>
+    /// <para>基准读数（4000 种子，`seed = 12345 + i×1000003`；与 `MapGenCave.Generate` 失败分支的
+    /// Warn 注释、`TryLayout` ⑤ 的注释同源）：失败 **492 次 = 12.3%**；跨种子最长连击 = **4**
+    /// （1:412 / 2:68 / 3:11 / 4:1）；逐形状 2x2 6.82% / 2x3 6.18% / 3x2 19.96% / 3x3 16.23%；
+    /// 作废原因**只有** `连通性自检失败`（其余四类 = 0）—— 故日志里"连续 16 次"= **内层循环用尽**，
+    /// ⛔ 不是 16 个连续种子都失败。</para>
+    /// </summary>
+    private static void Step38_CaveLayoutFailureStats()
+    {
+        Section("38. ★ 洞穴块级拓扑：多种子失败率 / 连击分布 / 逐形状归因（判「连续 16 次」是回归还是偶发）");
+        const int Seeds = 4000;
+        const int SeedBase = 12345;
+        const int SeedStep = 1000003;
+        const int ReportedSeed = 209530593;   // 实机那一条报错里的 seed（原样引，用于复现核对）
+
+        // ── 块库四边开通掩码覆盖（读生产生成物的公开数据）：某掩码 0 块 ⇒ 该 `need` 任何 seed 都挑不到块 ──
+        var pieces = MapGenCaveLayout.Pieces;
+        var maskCount = new int[16];
+        for (var i = 0; i < pieces.Length; i++) maskCount[pieces[i].DirMask & 15]++;
+        var maskParts = new List<string>();
+        var maskMissing = new List<string>();
+        for (var m = 0; m < 16; m++)
+        {
+            maskParts.Add(m.ToString("X") + "=" + maskCount[m]);
+            if (maskCount[m] == 0) maskMissing.Add(m.ToString("X"));
+        }
+        Console.WriteLine("  块库 " + pieces.Length + " 块，四边开通掩码分布：" + string.Join(" ", maskParts));
+        Console.WriteLine("  无块可用的掩码值：" + (maskMissing.Count == 0 ? "无" : string.Join(",", maskMissing))
+            + "（注：掩码 0 = 四边都不开；`PickPiece` 判的是「块掩码 ⊇ need」，need=0 时任何块都满足 ⇒ 0 缺失不构成不可满足）");
+
+        var prev = Game.Logger;
+        var cap = new CaptureLogger();
+        Game.Logger = cap;
+
+        var fail = 0;
+        var curRun = 0;
+        var maxRun = 0;
+        var runHist = new int[64];
+        var attHist = new Dictionary<int, int>();
+        var shapeAll = new Dictionary<string, int>();
+        var shapeFail = new Dictionary<string, int>();
+        // 作废原因逐条计数（口径 = `TryLayout` 自己打的告警/错误原文里那几个固定短语）
+        var reasons = new[]
+        {
+            "块库里没有能覆盖它的块", "边界环里仍有", "在西边界上没有可走格",
+            "找不到 3×3 净空", "连通性自检失败",
+        };
+        var reasonHits = new int[reasons.Length];
+        var firstFailSeed = 0;
+        var firstFailText = "(无失败)";
+        try
+        {
+            for (var i = 0; i < Seeds; i++)
+            {
+                var seed = unchecked(SeedBase + i * SeedStep);
+                cap.Clear();
+                var ok = MapGenCave.Generate(new GridMap(), new Rng(seed));
+                var log = cap.Text;
+
+                var shape = CaveShapeOf(log);
+                if (shape != null)
+                {
+                    shapeAll[shape] = shapeAll.TryGetValue(shape, out var a) ? a + 1 : 1;
+                    if (!ok) shapeFail[shape] = shapeFail.TryGetValue(shape, out var b) ? b + 1 : 1;
+                }
+
+                var att = CountSub(log, "次块级拓扑不可用");
+                attHist[att] = attHist.TryGetValue(att, out var c) ? c + 1 : 1;
+                for (var r = 0; r < reasons.Length; r++) reasonHits[r] += CountSub(log, reasons[r]);
+
+                if (ok) { curRun = 0; continue; }
+                fail++;
+                curRun++;
+                if (curRun > maxRun) maxRun = curRun;
+                if (curRun < runHist.Length) runHist[curRun]++;
+                if (firstFailSeed == 0)
+                {
+                    firstFailSeed = seed;
+                    var k = log.IndexOf("连续 16 次", StringComparison.Ordinal);
+                    firstFailText = (k >= 0 ? log.Substring(k, Math.Min(180, log.Length - k)) : log)
+                        .Replace("\r", " ").Replace("\n", " | ");
+                }
+            }
+        }
+        finally { Game.Logger = prev; }
+
+        Console.WriteLine($"  {Seeds} 个种子（seed = {SeedBase} + i×{SeedStep}）："
+            + $"`MapGenCave.Generate` 失败 {fail} 次 = {100.0 * fail / Seeds:0.####}%");
+        Console.WriteLine($"  最长**连击** = {maxRun}；连击长度分布（只列出现过的）：");
+        for (var k = 1; k < runHist.Length; k++)
+            if (runHist[k] > 0) Console.WriteLine($"    连击 {k} 次：出现 {runHist[k]} 回");
+        var attParts = new List<string>();
+        foreach (var kv in attHist) attParts.Add("耗尽 " + kv.Key + " 次=" + kv.Value);
+        attParts.Sort();
+        Console.WriteLine("  每次调用内「拓扑作废」计数分布（16 = 真的连击 16 次才放弃）：" + string.Join(" ", attParts));
+        var shapeParts = new List<string>();
+        foreach (var kv in shapeAll)
+        {
+            var f = shapeFail.TryGetValue(kv.Key, out var v) ? v : 0;
+            shapeParts.Add(kv.Key + "=" + f + "/" + kv.Value
+                + (kv.Value > 0 ? "（" + (100.0 * f / kv.Value).ToString("0.##") + "%）" : ""));
+        }
+        shapeParts.Sort();
+        Console.WriteLine("  逐形状失败率（slots）：" + string.Join("  ", shapeParts));
+        var reasonParts = new List<string>();
+        for (var r = 0; r < reasons.Length; r++) reasonParts.Add(reasons[r] + "=" + reasonHits[r]);
+        Console.WriteLine("  作废原因计数（全部调用累计）：" + string.Join("  ", reasonParts));
+        if (fail > 0)
+            Console.WriteLine($"  首例失败 seed={firstFailSeed}：{firstFailText}");
+
+        // ── 实机那条 seed 的复现核对（同 seed ⇒ 同结果，可复现）──
+        cap.Clear();
+        Game.Logger = cap;
+        var reportedOk = false;
+        try { reportedOk = MapGenCave.Generate(new GridMap(), new Rng(ReportedSeed)); }
+        finally { Game.Logger = prev; }
+        var reportedErr = CountSub(cap.Text, "连续 16 次都没拼出一条可走的洞穴");
+        Console.WriteLine($"  实机报错那条 seed={ReportedSeed}：本次 Generate = {(reportedOk ? "成功" : "失败")}，"
+            + $"日志里「连续 16 次…」出现 {reportedErr} 次");
+
+        // ── 断言：只钉"可复现 + 有归因数据"，不给任何概率下界（下界会随块库变化而误红）──
+        Check(maskCount.Length == 16 && pieces.Length >= 30,
+            $"块库掩码覆盖可读（{pieces.Length} 块，掩码 {maskMissing.Count} 个为空）");
+        Check(shapeAll.Count >= 1 && (fail == 0 || shapeFail.Count >= 1),
+            $"{Seeds} 个种子的形状归因齐全（读到 {shapeAll.Count} 种 slots 形状，失败 {fail} 次）");
+        Check(attHist.Count >= 1, $"每次调用的「拓扑作废」计数分布可读（{attHist.Count} 档）");
+        Check(reportedErr == (reportedOk ? 0 : 1),
+            $"实机 seed={ReportedSeed} 可复现（Generate={(reportedOk ? "成功" : "失败")}，"
+            + $"日志计数 {reportedErr} = {(reportedOk ? 0 : 1)}）");
+    }
+
+    /// <summary>从一次 `MapGenCave.Generate` 的日志文本里取 slots 形状（先找报错/警告的 `slots=`，再找成功行的 `块网格=`）。</summary>
+    private static string CaveShapeOf(string log)
+    {
+        if (string.IsNullOrEmpty(log)) return null;
+        var k = log.IndexOf("slots=", StringComparison.Ordinal);
+        var skip = 6;
+        if (k < 0) { k = log.IndexOf("块网格=", StringComparison.Ordinal); skip = 4; }
+        if (k < 0) return null;
+        var e = k + skip;
+        var j = e;
+        while (j < log.Length && (char.IsDigit(log[j]) || log[j] == 'x')) j++;
+        return j > e ? log.Substring(e, j - e) : null;
+    }
+
+    /// <summary>子串出现次数（本步自用；不依赖别处的同名工具）。</summary>
+    private static int CountSub(string s, string needle)
+    {
+        if (string.IsNullOrEmpty(s) || string.IsNullOrEmpty(needle)) return 0;
+        var n = 0;
+        var i = 0;
+        while ((i = s.IndexOf(needle, i, StringComparison.Ordinal)) >= 0) { n++; i += needle.Length; }
+        return n;
+    }
+
+    /// <summary>把日志收进内存（本步要"按调用归因"，所以不能让它直接刷屏）。</summary>
+    private sealed class CaptureLogger : CloverEngine.ILogger
+    {
+        private readonly System.Text.StringBuilder _sb = new System.Text.StringBuilder();
+        public string Text { get { return _sb.ToString(); } }
+        public void Clear() { _sb.Length = 0; }
+        public void Info(string tag, string msg) { _sb.Append("[I][").Append(tag).Append("] ").Append(msg).Append('\n'); }
+        public void Warn(string tag, string msg) { _sb.Append("[W][").Append(tag).Append("] ").Append(msg).Append('\n'); }
+        public void Error(string tag, string msg, Exception ex = null) { _sb.Append("[E][").Append(tag).Append("] ").Append(msg).Append('\n'); }
+        public void Debug(string tag, string msg) { }
+        public void Fatal(string tag, string msg, Exception ex = null) { _sb.Append("[F][").Append(tag).Append("] ").Append(msg).Append('\n'); }
+    }
+
+    private static void Step37_LandingChunkWindow()
+    {
+        Section("37. ★ 换区落地「缺块窗口」机械归因：缺块数 = 旧区相机范围 \\ 落点清单；窗口 = 建块帧数");
+
+        // 实机那一局的数字（逐项来自上引读数，⛔ 不写猜的）
+        const int mapW = 80, mapH = 80;
+        var spawn = new Vector2Int(9, 36);
+        const int halfX = 7, halfY = 8;                 // 实机日志「视口半跨 7×8 格」
+        const int nodesBuilt = 3291;                    // 实机日志「建节点 3291」
+        const int framesMeasured = 7;                   // 实机日志「7 帧 / 块 12」
+        const int missActMeasured = 4;                  // 实机 RED 行 missAct=4
+
+        Vector2Int min, max;
+        MapView.LandingRange(spawn.x, spawn.y, halfX, halfY, mapW, mapH, out min, out max);
+        var plan = new List<Vector2Int>();
+        MapView.PlannedChunks(true, min.x, min.y, max.x, max.y, 5, 5, plan);
+        Check(min.x == 0 && min.y == 0 && max.x == 2 && max.y == 3,
+            $"按落点 ({spawn.x},{spawn.y}) 算出的重铺范围 = ({min.x},{min.y})-({max.x},{max.y})（实机日志逐字相同）");
+        Check(plan.Count == 12, $"重铺清单 {plan.Count} 块（实机日志「块 12 个」）");
+
+        // ① 「缺块数」= 旧区相机算出的范围 \ 重铺清单
+        var oldRange = new List<Vector2Int>();
+        MapView.PlannedChunks(true, 0, 0, 3, 3, 5, 5, oldRange);
+        var missAct = 0;
+        foreach (var c in oldRange) if (!plan.Contains(c)) missAct++;
+        Check(oldRange.Count == 16, $"旧区相机范围 (0,0)-(3,3) = {oldRange.Count} 块（实机 `total=16`）");
+        Check(missAct == missActMeasured,
+            $"缺块读数 = |旧区相机范围 \\ 落点清单| = {missAct}（实机 `actCov=12 missAct=4`）⇒ 「缺块窗口」的读数来源是**旧相机口径**，不是落点视口有洞");
+
+        // ② 「窗口时长」= 建块帧数
+        var frames = (nodesBuilt + MapView.MaxTileNodesPerFrame - 1) / MapView.MaxTileNodesPerFrame;
+        Check(frames == framesMeasured,
+            $"窗口 = ⌈建节点 {nodesBuilt} ÷ MaxTileNodesPerFrame {MapView.MaxTileNodesPerFrame}⌉ = {frames} 帧" +
+            $"（实机日志「7 帧」）⇒ 0.428s 是这个帧数 × 当时 ~16fps 的帧周期");
+
+        // 判据有分辨力（能失败）：同一算式在三个预算上给出三个不同的帧数（⛔ 不是恒真）
+        var f1 = (nodesBuilt + MapView.MaxTileNodesPerFrame - 1) / MapView.MaxTileNodesPerFrame;
+        var f2 = (nodesBuilt + MapView.MaxTileNodesPerFrame * 2 - 1) / (MapView.MaxTileNodesPerFrame * 2);
+        var fFull = (nodesBuilt + nodesBuilt - 1) / nodesBuilt;
+        Check(f1 == 7 && f2 == 4 && fFull == 1,
+            $"同一算式随预算变化：{MapView.MaxTileNodesPerFrame}→{f1} 帧、{MapView.MaxTileNodesPerFrame * 2}→{f2} 帧、一帧铺满→{fFull} 帧" +
+            "⇒ 「窗口」是首铺节奏参数的函数（⛔ 节奏数字属另一件事，本片不动）");
+
+        // 退化样本（能失败）：把口径换回「按旧区相机算」⇒ 清单变大 ⇒ 帧数真的会变（判据不是恒真）
+        var nodesPerChunk = (double)nodesBuilt / plan.Count;                 // 实机 3291 ÷ 12 = 274 节点/块
+        var framesOldFocus = (int)Math.Ceiling(nodesPerChunk * oldRange.Count / MapView.MaxTileNodesPerFrame);
+        Check(Math.Abs(nodesPerChunk - 274.25) < 0.01 && framesOldFocus == 9 && framesOldFocus > frames,
+            $"退化样本：按实机均值 {nodesPerChunk:0.##} 节点/块外推，旧区相机那份 {oldRange.Count} 块 ≈ {nodesPerChunk * oldRange.Count:0} 节点" +
+            $" ⇒ {framesOldFocus} 帧 > 落点口径的 {frames} 帧（窗口 +{100 * (framesOldFocus - frames) / frames}%）⇒ 判据对口径敏感");
+
+        // ③ 换区那条格跳变不构成大跨度 ⇒ `PrimeLanding` 在换区无从下手（不是漏了）
+        var preGrid = new Vector2Int(32, 27);           // 实机：传送前玩家格（旧区罗格营地）
+        Check(!MapView.IsLargeShift(preGrid, spawn),
+            $"`IsLargeShift(({preGrid.x},{preGrid.y}),({spawn.x},{spawn.y}))` = false（Chebyshev {Math.Max(Math.Abs(spawn.x - preGrid.x), Math.Abs(spawn.y - preGrid.y))} < PrimeJumpCells {MapView.PrimeJumpCells}）" +
+            "⇒ 换区后的第一格**不触发** `PrimeLanding`；落地覆盖由 `ShowArea` 的落点口径整图重铺负责（同一份 `LandingRange`/`PlannedChunks`）");
+
+        // ④ 落地视口 ⊇ 判据仍在（防"因为缺块读数来自旧相机就把落地覆盖放宽"）
+        var landView = new List<Vector2Int>();
+        for (var cx = 0; cx < 5; cx++)
+        {
+            for (var cy = 0; cy < 5; cy++)
+            {
+                if (BlockTouches(cx, cy, spawn.x - halfX, spawn.y - halfY, spawn.x + halfX, spawn.y + halfY))
+                    landView.Add(new Vector2Int(cx, cy));
+            }
+        }
+        var notInPlan = 0;
+        foreach (var c in landView) if (!plan.Contains(c)) notInPlan++;
+        Check(landView.Count > 0 && notInPlan == 0,
+            $"落地视口（落点 ({spawn.x},{spawn.y}) ± 半跨 {halfX}×{halfY} 格）涉及的 {landView.Count} 块全部在重铺清单里（缺 {notInPlan}）");
+        var notInOld = 0;
+        foreach (var c in landView) if (!oldRange.Contains(c)) notInOld++;
+        Check(oldRange.Count > plan.Count && notInOld == 0,
+            $"**本局**旧区相机那份范围 ({oldRange.Count} 块) 恰好 ⊇ 落地视口（落地 {landView.Count} 块全在其中），" +
+            $"但它比落点清单**多 {oldRange.Count - plan.Count} 块** ⇒ 多花约 {100 * (oldRange.Count - plan.Count) / plan.Count}% 的建块节点/帧（窗口更长）" +
+            "；真正因「按旧相机算」而缺块的局是 §33 的实机另一局（出生点 (9,68) ⇒ 旧口径缺 4 块）⇒ ⛔ 本判据不靠本局的偶合");
     }
 
     // ── 0. 确认 UnityEngine 托管类型在非 Unity 进程里可用（验证手段自身要自证）──────

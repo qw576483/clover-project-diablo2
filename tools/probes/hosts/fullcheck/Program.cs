@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
 //   ① **一条命令**证明 `client/Assets/Scripts/**` 的**全部** .cs 能编到一起
-//      （`dotnet build tools/fullcheck/FullCheck.csproj`，文件集见 csproj，**不排除任何业务文件**）；
+//      （`dotnet build tools/probes/hosts/fullcheck/FullCheck.csproj`，文件集见 csproj，**不排除任何业务文件**）；
 //   ② 真跑一遍核心链路：**装配 → 配表 → 存档往返 → 生成地图 → 刷怪 → 战斗 → 任务链 → 存档复位**，
 //      并且走的是**真实装配路径**（`AppContext.AutoWire()` + `AppWiring.Install`，不是手工 new）。
 //
 // 为什么不能用 `unity run` / Play：用户尚未打开 Unity 编辑器（skill 闸门 2）
-// ⇒ 只能用「Unity 托管 DLL + 业务源码编到 .NET」的离线宿主（照 `tools/mapcheck` /
-// `tools/flowcheck` / `tools/combatcheck` 同一套做法，见 skill `reference/fast-compile-loop.md`）。
+// ⇒ 只能用「Unity 托管 DLL + 业务源码编到 .NET」的离线宿主（照 `tools/probes/hosts/mapcheck` /
+// `tools/probes/hosts/flowcheck` / `tools/probes/hosts/combatcheck` 同一套做法，见 skill `reference/fast-compile-loop.md`）。
 //
 //   · `new GameObject()` / `new Texture2D()` 在非 Unity 进程里抛 `SecurityException`
 //     （`ECall methods must be packaged into a system module`）⇒ **渲染层无法离线驱动**：
@@ -16,7 +16,7 @@
 //   · `Core/Log.cs` 的降频入口（`WarnOnce/WarnThrottled`）内部读 `Time.realtimeSinceStartup`
 //     ⇒ 各模块都刻意自实现降频（见 `Module/**/*Log.cs` 的文件头）；本宿主沿用它们的做法，
 //     并在启动时用 `Log.Suppress` 包一次 `Cfg` 预热（ClientConfig 的失败路径会踩到那个入口）。
-//   · `AppFlow` 的菜单链路（Boot→MainMenu→选角→创角→Loading→Stage）由 `tools/flowcheck` 覆盖
+//   · `AppFlow` 的菜单链路（Boot→MainMenu→选角→创角→Loading→Stage）由 `tools/probes/hosts/flowcheck` 覆盖
 //     （它已通过）；本宿主覆盖的是**模块级全链路 + App 层接线**，两者互补。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1382,7 +1382,7 @@ namespace FullCheck
         /// <summary>
         /// 过门（区域切换）：**按 `AppFlow.EnterArea` 的模块级动作顺序**（渲染层除外）走一遍。
         /// 之所以由宿主代做：`MapModule.ShowArea` 要 `new GameObject`（Unity 原生），离线进程必抛。
-        /// `Flow` 自身的站点/清场逻辑由 `tools/flowcheck` 覆盖（已通过）。
+        /// `Flow` 自身的站点/清场逻辑由 `tools/probes/hosts/flowcheck` 覆盖（已通过）。
         /// <para>★ 两个"忠于生产"的要点（agent-05 按 agent-14 §B 现象 3 改）：
         /// ① **地图重生成必须发生在 `ExitEntered` 的派发之内** —— 生产链路就是
         ///    `ExitEntered → AppFlow.EnterArea → Map.Generate`。若在派发之外生成，
@@ -1611,7 +1611,7 @@ namespace FullCheck
             Console.WriteLine($"{(ok ? "[ OK ]" : "[FAIL]")} {what}" + (string.IsNullOrEmpty(detail) ? "" : "   （" + detail + "）"));
         }
 
-        /// <summary>单步隔离：任一步炸掉都不能吞掉后面的证据（照 `tools/mapcheck/Program.cs` 的做法）。</summary>
+        /// <summary>单步隔离：任一步炸掉都不能吞掉后面的证据（照 `tools/probes/hosts/mapcheck/Program.cs` 的做法）。</summary>
         private static void Run(Action step)
         {
             try

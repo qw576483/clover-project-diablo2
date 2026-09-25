@@ -7,7 +7,7 @@
   - 全局：`~/.codebuddy/skills/ai-skill/SKILL.md`（**规则层 §0~§7 不可被项目级覆盖**）、`~/.codebuddy/skills/unity-cli/SKILL.md`
   - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
 - **必读**：`clover-engine` 的 §1.13（四拍 / **编译必须先成功** / 采样器先自检三条 / 读日志 `FileShare.ReadWrite`）、§2（`数值类` vs `表现类` 的证据口径）、`reference/visual-loop.md` **第八节·联络图**、§1.8（临时文件）、`reference/pipeline-and-unity-cli.md`（跑 Play / 截图 / 输入注入的坑）。
-- **项目内必读**：`docs/agents/_common.md`；`client/_dev/p_runbg.cs`（`runInBackground` 配方，**已被验收表白名单，不许删改**）；`client/_dev/p_key3.cs`（已白名单的输入注入配方）。
+- **项目内必读**：`docs/agents/_common.md`；`tools/probes/interact/p_runbg.cs`（`runInBackground` 配方，**已被验收表白名单，不许删改**）。
 
 ## 1. 目标（一句话）
 
@@ -30,7 +30,7 @@ Boot 屏 → 主菜单 → SINGLE PLAYER → 创角（点 Amazon，`fw` 54 帧�
 - ⛔ 不许改 `client/Assets/Scripts/**`、`clover-client-unity-engine/Runtime/**`、`Editor/**`（发现真缺陷 ⇒ 写进回报，由主 agent 决定）
 - ⛔ 不许改 `策划/验收表.md`、`docs/**`、`tools/**`、任何 skill（E 编号登记由主 agent 写）
 - ⛔ 不许读工作区里其它 `clover-project-*`；不许再派子 agent
-- ⛔ 不许删改 `client/_dev/p_runbg.cs` / `p_key3.cs`
+- ⛔ 不许删改 `tools/probes/interact/p_runbg.cs`
 - ⛔ 不许写 `docs/交接-*.md` / 进度类文档
 
 ## 3. 前置依赖（已就绪，主 agent 实测）

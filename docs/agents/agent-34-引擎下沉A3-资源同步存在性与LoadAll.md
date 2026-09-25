@@ -60,7 +60,7 @@ T[] LoadAll<T>(string path) where T : UnityEngine.Object;
 
 - [ ] 引擎编译绿：`recompile_status` ⇒ `completed / failed=false / errors=[]`
 - [ ] **既有签名零变化**：`IResourceManager` 改前/改后的成员列表**字符级对照**：旧成员一字未动、只多出 2 个新成员（贴两串）
-- [ ] `.ai-tmp/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
+- [ ] `tools/probes/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
 - [ ] 项目侧 `grep -rn "Resources\.LoadAll\|Resources\.Load<" client/Assets/Scripts` = **0 命中**（E1 例外消失的证据）
 - [ ] **UI 表现类证据（本片必须进 Play）**：一轮实机里至少覆盖 —— 面板背景（原版贴图）/ 物品图标（原版 `inv*`）/ 位图字模中文（`font30` 之类）三类都**正常显示**（不是纯色占位、不是默认字体）；把图存 `Screenshots/p34_ui_res.png` 并**自己读一遍**（读不到内容 ⇒ `BLOCKED`）
 - [ ] **进 Play 记账**：`.ai-tmp/test/play-log.tsv` 追加本片每一行（含理由）；本片预算 **≤ 2 次**（若超 ⇒ 停下回报，⛔ 不许自己加）

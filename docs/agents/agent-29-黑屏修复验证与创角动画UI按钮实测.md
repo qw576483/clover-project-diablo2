@@ -29,8 +29,8 @@
 - ⛔ **不许改引擎** `clover-client-unity-engine/**`（Timer / Scene 已由主 agent 修好；发现引擎问题 ⇒ 写进回报）
 - ⛔ 不许改 `策划/**`、`docs/**`、`tools/**`、任何 skill
 - ⛔ 不许读工作区里其它 `clover-project-*`；⛔ 不许再派子 agent；⛔ 不许写交接/进度类文档
-- ⛔ **不许跑 `client/_dev/p_runbg.cs`**（原因见 §3 —— 它会掩盖本片要验的缺陷）；`runInBackground` / `vSyncCount` 在**你自己的探针里**设
-- ⛔ 不许删改 `client/_dev/p_runbg.cs` / `p_key3.cs`
+- ⛔ **不许跑 `tools/probes/interact/p_runbg.cs`**（原因见 §3 —— 它会掩盖本片要验的缺陷）；`runInBackground` / `vSyncCount` 在**你自己的探针里**设
+- ⛔ 不许删改 `tools/probes/interact/p_runbg.cs`
 
 ## 3. 前置依赖（已就绪；主 agent 已实测/已改）
 

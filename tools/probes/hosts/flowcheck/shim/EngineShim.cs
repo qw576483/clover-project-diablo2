@@ -3,7 +3,7 @@
 //
 // 只提供 `Diablo2/Assets/Scripts/{Module/Flow,UI,App}` 及其依赖实际引用到的引擎成员，
 // 签名逐条对齐真实引擎（出处见每条注释）。**一旦真实引擎改签名，本文件会编译报错**
-// —— 这就是它存在的意义（覆盖率哨兵）。做法与 `tools/mapcheck/shim/EngineShim.cs` 一致。
+// —— 这就是它存在的意义（覆盖率哨兵）。做法与 `tools/probes/hosts/mapcheck/shim/EngineShim.cs` 一致。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -261,7 +261,7 @@ namespace CloverEngine
     /// `Runtime/Presentation/TextHooks.cs`（E-core-12）：引擎侧唯一入口（真实实现由 `UIFactory.CreateText`
     /// 末尾调用）。宿主里 `UIFactory.CreateText` 是**空壳**（返回 null：非 Unity 进程建不了节点）⇒
     /// 本入口不会被调到；这两个类型只为**编译期签名校验**存在（`UI/D2EngineTextHook.cs` 实现 `ITextHook`，
-    /// 且 `App/Bootstrap.cs` 注册它）。本文件被 `tools/uicheck` 复用 ⇒ 两处一起生效。
+    /// 且 `App/Bootstrap.cs` 注册它）。本文件被 `tools/probes/hosts/uicheck` 复用 ⇒ 两处一起生效。
     /// </summary>
     public static class TextHooks
     {

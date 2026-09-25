@@ -20,7 +20,7 @@
 //     非连续区间）。未做强行合并（会退化），如需体验引擎件请用在**已同步拿到 Sprite** 的场景。
 //
 // 设计：**只做时间 → 帧号的纯逻辑**（帧用"键"表示，贴图解析交给 `SpriteFrames`），
-//   这样它不依赖任何 Unity 对象 ⇒ 可被离线自检宿主直接驱动与断言（`tools/combatcheck/`）。
+//   这样它不依赖任何 Unity 对象 ⇒ 可被离线自检宿主直接驱动与断言（`tools/probes/hosts/combatcheck`）。
 //
 // 用法：
 //   anim.Play(ViewAnim.Walk, keys, fps: 12f, loop: true);
@@ -118,9 +118,8 @@ namespace Diablo2.Module.View
         /// <para>之后也**永不自愈**：`ViewModule` 只在"动作发生变化"时才再调 `Play`，
         /// 而 `Playing` 已被记成 `Idle` ⇒ 站着不动的玩家、面向正南的 NPC、原地不动的怪物
         /// 一直到退出 Play 都是色块（只有走动过 / 换过朝向的才会偶然显示出真图）。
-        /// 实测证据：`client/_dev/p_a21_char.cs` 读到 `[1:Idle#0/0(占位)]` 且
-        /// `SpriteFrames.Cache.Count = 0`（说明连一次 `Resources.Load` 都没发起）；
-        /// 单元级复现见 `client/_dev/p_a21_anim.cs`。</para>
+        /// 实测证据（运行期读到）：`[1:Idle#0/0(占位)]` 且
+        /// `SpriteFrames.Cache.Count = 0`（说明连一次 `Resources.Load` 都没发起）。</para>
         /// </remarks>
         public void Play(ViewAnim anim, string[] keys, float fps, bool loop)
         {

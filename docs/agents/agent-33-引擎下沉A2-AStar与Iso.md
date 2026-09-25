@@ -100,7 +100,7 @@ public static class Iso
 
 - [ ] 编译绿：`unity command recompile_status` ⇒ `completed / failed=false / errors=[]`
 - [ ] **公开签名零变化**：`AStar` 5 个成员、`Iso` 的全部公开成员，改前/改后**字符级对照 0 差异**（把两串贴进回报）
-- [ ] `.ai-tmp/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
+- [ ] `tools/probes/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
 - [ ] **行为等价（本片最关键）**：`mapcheck` / `playercheck` / `combatcheck` / `flowcheck` 等涉及**寻路、等距投影、排序**的宿主输出，改前/改后**逐行比对 0 差异**（时钟/耗时类行按 B1b 的做法剔除，并**同时跑一次"同构建重跑"作抖动基线**）；地图转储 `_maps/*.txt` 逐行 0 差异
 - [ ] `git diff --stat -- clover-client-unity-engine` 只多出**新增**（无既有文件修改行）
 - [ ] `.ai-tmp/test/` 清空到只剩 `dispatch-log.tsv` / `play-log.tsv`；**本片 0 次 Play**（全部离线可判）

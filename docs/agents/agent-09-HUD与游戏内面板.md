@@ -21,7 +21,7 @@
 ## 3. 前置依赖（已就绪）
 
 - `UI/UiArt.cs`（agent-05）：铺满根 / 原版贴图背景 / 按钮 / 文本 / 输入框 / **锚点宽度进度条** —— **先看它有没有现成的再用**，不要重复写。
-- 原版素材（agent-03，实测尺寸见 `client/_dev/assetreport.txt`）：
+- 原版素材（agent-03，实测尺寸见 `Assets/Editor/AssetImporter.cs` 的导入参数表）：
   `ResPaths.D2Ui + "Panel/healthbar"`(80×80) / `"Panel/manabar"`(80×80) / `"Panel/ExperienceBar"`(50×5) /
   `"Panel/ExperienceBarOverlay"`(948×160) / `"Panel/ControlPanel"`(948×160) / `"Panel/inventory"`(320×432) /
   `"Panel/charstat"`(320×432) / `"Panel/minipanel"`(173×26) / `"Panel/menubutton__0__{0..3}"`(15×24) /
@@ -62,7 +62,7 @@
 
 ## 5. 验收标准（**离线宿主 + 编辑器由主 agent 后补**）
 
-- [ ] 离线宿主 `dotnet build` 0 错 0 警告（照 `.ai-tmp/hosts/flowcheck/` 的做法建 `.ai-tmp/hosts/uicheck/`）
+- [ ] 离线宿主 `dotnet build` 0 错 0 警告（照 `tools/probes/hosts/flowcheck` 的做法建 `tools/probes/hosts/uicheck`）
 - [ ] `OnOpen` 参数缺失时**打 Warn 且面板不崩**（断言）
 - [ ] 血球/经验条：断言填充值是**通过 `RectTransform.anchorMax.x` 或带 sprite 的 `fillAmount`** 实现的（贴代码位置）
 - [ ] 背包格子：`GameConst.InventoryCols/Rows` 与面板格子数一致（断言 40）

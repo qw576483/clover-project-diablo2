@@ -4,7 +4,7 @@
 // 复用同目录族的 `itemcheck/shim/EngineShim.cs`（签名逐条对齐真实引擎、出处见各条注释；
 // **一旦真实引擎改签名，本文件会编译报错** —— 这就是它存在的意义：覆盖率哨兵）。
 //     它按 `LogLevel` 分流 Warn/Error（`Setting.cs:440-461`）。
-// 做法与 `tools/mapcheck/shim/EngineShim.cs` 一致。
+// 做法与 `tools/probes/hosts/mapcheck/shim/EngineShim.cs` 一致。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;

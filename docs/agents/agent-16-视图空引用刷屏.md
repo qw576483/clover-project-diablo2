@@ -38,8 +38,8 @@ Diablo2.App.Bootstrap.Update ()                                ← Bootstrap.cs:
 
 ## 验收（**必须进 Play 实测**）
 
-- [ ] 离线宿主：`tools/run_all_hosts.ps1` 全绿（`.ai-tmp/hosts/fullcheck` 全量编译 0 错）
-- [ ] **Play 链路**：进 Play → 到 Stage（`client/_dev/p_autostage.cs` 可一键到 Stage）→ **回主菜单**
+- [ ] 离线宿主：`tools/run_all_hosts.ps1` 全绿（`tools/probes/hosts/fullcheck` 全量编译 0 错）
+- [ ] **Play 链路**：进 Play → 到 Stage（用探针一键到 Stage）→ **回主菜单**
       （`Emit(Diablo2.Core.Events.ToMainMenuRequest)`）→ 再进 Stage → 回主菜单，
       **Console 里 `MissingReferenceException` 计数 = 0**（贴 `console_status` 的 error 计数）
 - [ ] **连续两次进 Play** 都要 0 异常（skill 要求）
@@ -47,6 +47,6 @@ Diablo2.App.Bootstrap.Update ()                                ← Bootstrap.cs:
 
 ## 驱动编辑器（已连上）
 
-先跑 `client/_dev/p_runbg.cs`（**失焦不 tick**，见 `tools/ai-skill/constraints.md` #11）；
+先跑 `tools/probes/interact/p_runbg.cs`（**失焦不 tick**，见 `tools/ai-skill/constraints.md` #11）；
 截图前等 ≥6 秒否则拿过期帧；面板真值用 `Game.UI.IsOpen<T>()`（不要用 `FindObjectsByType`）。
 ⛔ 不许读工作区里其它 `clover-project-*`；不许改 `UI/**`（那是别人的）。

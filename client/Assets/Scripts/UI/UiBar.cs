@@ -67,7 +67,7 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 决定填充方式：**有 sprite 才允许 `Filled`**。
-        /// 这是 `constraints.md` #3 的可断言形式（`tools/uicheck` 会断言 `hasSprite=false ⇒ Anchor`）。
+        /// 这是 `constraints.md` #3 的可断言形式（`tools/probes/hosts/uicheck` 会断言 `hasSprite=false ⇒ Anchor`）。
         /// </summary>
         public static FillMode Decide(bool hasSprite) => hasSprite ? FillMode.FilledSprite : FillMode.Anchor;
 

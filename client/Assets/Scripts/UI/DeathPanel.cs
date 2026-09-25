@@ -13,8 +13,12 @@
 //      页 1 = 金甲天使）。本项目**只有软核、没有专家（hardcore）模式**（见验收表「范围边界」），
 //      而 **页 1 对应的是专家模式的「你的英勇長存人心」**（原版串表 id 5096，见下）
 //      ⇒ 软核死亡用页 0。
-//   ② 标题条 = 原版 `data/LOCAL/UI/chi/youdiedsoftcore.dc6` **帧 0 = 256×54**（实测）
-//      ⇒ 工程内 `D2/UI/Banner/youdiedsoftcore_0.png`（`ResPaths.Banner`）。
+//   ② 标题条 = 原版 `data/LOCAL/UI/chi/youdiedsoftcore.dc6` 的**两块**（实测
+//      `python tools/d2codec/dc6.py info` ⇒ `dir=1 fpd=2 frames=2  256x54 40x54`；两帧
+//      帧头 offX/offY 都是 0 ⇒ 按读序横向拼接成整幅 **296×54**）
+//      ⇒ 工程内 `D2/UI/Banner/youdiedsoftcore_{0,1}.png`（`ResPaths.BannerYouDiedSoftCoreTile`），
+//      整幅正文 = 「你損失金錢數量」+「為」。专家模式的「你的英勇長存人心」（原版串表 id 5096）
+//      在本机 `data/LOCAL/UI/chi/` 下**没有**对应的横幅文件 ⇒ 本屏只用软核这张。
 //   ③ 按钮 = 原版 `data/global/ui/MENU/endgameok.dc6` **96×32 ×2 帧（常态/按下，实测）**
 //      ⇒ `D2/UI/Menu/endgameok_{0,1}.png`（`ResPaths.MenuEndGameOK`）。
 //      麻点度量 ACT1 **84.5** vs EndGame **28.8**（2.9 倍）+ 肉眼复核
@@ -75,7 +79,8 @@ namespace Diablo2.UI
         private bool _built;
         private bool _subscribed;
         private Image _shade;
-        private Image _banner;
+        private Image _banner;          // 标题条第 0 块（「你損失金錢數量」，256×54 原版px）
+        private Image _bannerTail;      // 标题条第 1 块（「為」，40×54 原版px）
         private Image _reviveButton;
         private Text _hint;
         private long _timerId;
@@ -139,10 +144,16 @@ namespace Diablo2.UI
                     UiLayoutGame.DeathTileSize(i), UiLayoutGame.DeathTilePos(i));
             }
 
-            // ── 标题条：原版 `chi/youdiedsoftcore.dc6` 帧 0（图形，正文「你損失金錢數量為」）──
-            //    `preserveAspect` ⇒ 原版 256×54 的像素不会被外框拉变形。
-            _banner = UiArt.Banner(transform, "Banner", ResPaths.Banner("youdiedsoftcore_0"),
-                UiLayoutGame.DeathBannerSize, new Vector2(0f, UiLayoutGame.DeathRowCenterY(0)));
+            // ── 标题条：原版 `chi/youdiedsoftcore.dc6` 的**两块**拼成整幅 296×54 ──
+            //    帧 0 = 256×54（「你損失金錢數量」）+ 帧 1 = 40×54（「為」），两帧 offX/offY 都是 0
+            //    ⇒ 按读序横向拼接（同 `EndGame.dc6` 的 4 块拼法）；逐块按原版像素 ×1.8，`preserveAspect`
+            //    保证字块不被外框拉变形。整幅居中于横幅行（两块位置见 `UiLayoutGame.DeathBannerTilePos`）。
+            _banner = UiArt.Banner(transform, "Banner", ResPaths.BannerYouDiedSoftCoreTile(0),
+                UiLayoutGame.DeathBannerTileSize(0),
+                new Vector2(UiLayoutGame.DeathBannerTilePos(0).x, UiLayoutGame.DeathRowCenterY(0)));
+            _bannerTail = UiArt.Banner(transform, "BannerTail", ResPaths.BannerYouDiedSoftCoreTile(1),
+                UiLayoutGame.DeathBannerTileSize(1),
+                new Vector2(UiLayoutGame.DeathBannerTilePos(1).x, UiLayoutGame.DeathRowCenterY(0)));
 
             // ── 提示行（本项目新增，原版无此行；见文件头 E24）──
             _hint = UiArt.Label(transform, "Hint", string.Empty, 20, TextAnchor.MiddleCenter,

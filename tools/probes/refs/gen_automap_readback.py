@@ -6,7 +6,7 @@ gen_automap_readback.py -- durable re-production of the automap Play readback th
 
 WHY THIS FILE EXISTS
 --------------------
-Row 11 used to cite `.ai-tmp/test/automap/automap_log_b1.txt`, a one-off Play log
+Row 11 used to cite a one-off Play log
 that was swept away with the rest of .ai-tmp/test.  The SAME session's `[AUTOMAP]`
 log lines survive verbatim inside a durable, on-disk artifact that row 11 already
 cites -- `.ai-tmp/screenshots/automap_contact_b1.index.tsv` (the contact-sheet
@@ -91,12 +91,12 @@ def main():
     out.append('来源sha256        : ' + sha256_of(SRC))
     out.append('来源列            : log_evidence(verbatim) —— 原始 [AUTOMAP] 行，非转述')
     out.append('生成器            : tools/probes/refs/gen_automap_readback.py（本文件即其输出）')
-    out.append('原件              : .ai-tmp/test/automap/automap_log_b1.txt 已随 .ai-tmp/test')
+    out.append('原件              : （已随临时区清理）')
     out.append('                    清空消失（本片 2026-09-24 实测该目录为空）')
     out.append('等价性            : 同一次 Play 会话的同一批 [AUTOMAP] 行，逐字搬移；')
     out.append('                    本文件的行 = 上表 log_evidence(verbatim) 单元格内容本身。')
     out.append('已知缺口          : 索引表里没有 `GEOM=` 前缀行（该前缀只出现在')
-    out.append('                    tools/probes/automap_sheet.py / drivers 源码里）；')
+    out.append('                     / drivers 源码里）；')
     out.append('                    逐格节点树 dump（PANELROOT / BACKDROP / OVERLAY / CANVAS）')
     out.append('                    以 ` || ` 续行形式保留在对应 GRID= 行末尾。')
     out.append('⛔ 本文件未新造任何文本：全部逐字取自上述在盘索引表。')

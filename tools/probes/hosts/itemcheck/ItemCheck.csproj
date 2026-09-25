@@ -6,8 +6,8 @@
        为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`
        （用户尚未打开编辑器 ⇒ Unity 未重新生成工程文件 ⇒ `dotnet build client.slnx`
         **覆盖不到** `Assets/Scripts/**`）。本工程把「引擎托管 DLL + Diablo2 源码」直接编到 .NET 上，
-       得到**秒级**的类型校验 + **可运行**的断言（做法照 `tools/mapcheck/`(agent-04)、
-       `tools/flowcheck/`(agent-05)，见 skill `reference/fast-compile-loop.md`）。
+       得到**秒级**的类型校验 + **可运行**的断言（做法照 `tools/probes/hosts/mapcheck`(agent-04)、
+       `tools/probes/hosts/flowcheck`(agent-05)，见 skill `reference/fast-compile-loop.md`）。
 
        覆盖：掉落/品质/词缀、背包格子、拾取（距离+满包）、腰带喝药、装备生效（EquipChanged 载荷）、
              任务链「邪恶洞穴」全流程 + 只认洞穴、NPC 对话随阶段、商店买卖/修理、存档往返。
@@ -89,6 +89,13 @@
          ⇒ 把 `Module/Map/**` 链进来（本片没改这些文件，只是让宿主恢复可编译）。
          本宿主已有 `StubMap : IMapModule`（不重名，无冲突）。 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <!-- 链接原因：`Module/Map/MapView.cs` 的**传送台本体动画**复用 `Module/View/SpriteAnimator`
+         （纯逻辑：帧键 + `Tick(dt)`，可离线驱动）⇒ 本白名单宿主必须能编到它与其依赖：
+           SpriteAnimator.cs（本体）/ ViewAnim.cs（`ViewAnim` 枚举）/ ViewLog.cs（空帧键那一条 Warn）。
+         ⛔ 不链 `Module/View/*.cs` 整目录（会拖进 ViewModule 的依赖）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\SpriteAnimator.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewAnim.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewLog.cs" />
     <!-- ★ eng-tile 片（2026-09-24）：`Module/Map/TileNodePool.cs` + `TileRenderState.cs` 已下沉到引擎
          （项目侧只剩薄转发）⇒ 不链引擎那两份就 CS0246（`Module/Map/MapView.cs` 用它们）。 -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileNodePool.cs" />

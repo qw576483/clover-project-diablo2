@@ -29,8 +29,7 @@
 //  字体切分参数出处（**实测，不是估的**）：素材来自社区复刻工程 mofr/Diablerie，其 Resources/Fonts/
 //    font{N}.png 是由 DC6 打包出的图集（打包器 Assets/Scripts/Editor/EditorTools.cs:124-195
 //    "Create font from DC6"），逐字形矩形存在同目录的 Unity Font 资产 font{N}.fontsettings 的
-//    m_CharacterRects（256 条 uv 矩形）里。本文件把这些 uv 反算成像素格子，结果见 FontGrids 表与
-//    client/_dev/assetreport.txt（含每个字形的原始矩形与行距）。
+//    m_CharacterRects（256 条 uv 矩形）里。本文件把这些 uv 反算成像素格子，结果见 FontGrids 表（含每个字形的原始矩形与行距）。
 //
 //    Panel/buysellbtn.DC6.0.png  1024x64  22 帧
 //    Panel/goldcoinbtn.dc6.0.png   64x32   2 帧
@@ -39,11 +38,11 @@
 //    Menu/button_wide.png         816x35    3 帧（normal / pressed / disabled）
 //
 //  帧矩形的**实测依据**（不是估的、也不是"不透明外接矩形"直接冒充）：
-//    · 脚本 `tools/buildcheck/frame_probe.py`（读真实像素）：
+//    · 脚本 `tools/probes/hosts/buildcheck/frame_probe.py`（读真实像素）：
 //        - 帧界 = 「非全透明列」的内容块边界（整幅不透明时改用 **RGB 竖缝**定帧界）；
 //        - 帧矩形 = 内容块外接矩形；同文件内尺寸不齐时统一取**最大内容宽高**（UI 现取现用要稳定尺寸）；
 //        - 脚本自带自证：逐帧断言「窗口含本帧内容」且「窗口不含任何邻帧内容」，失败即非零退出。
-//    · 输出留档：`tools/buildcheck/frame_probe_out.txt`（含每帧的 x/y/w/h 与 C# 字面量）。
+//    · 输出留档：`.ai-tmp/test/frame_probe_out.txt`（含每帧的 x/y/w/h 与 C# 字面量）。
 //    · 交叉核对：素材源工程（mofr/Diablerie）自带 `.meta` 的 spriteSheet 登记值
 //      （帧数、x 起点、y 与实测**完全一致**；宽度差 ≤1px，来源是 alpha 阈值取舍）。
 //  改这张表 = 改契约：重跑 frame_probe.py，把新的 C# 字面量抄进 MultiFrameStrips，并更新上面的注释。
@@ -145,7 +144,7 @@ namespace Diablo2.Editor
             new NineSliceSpec("ExperienceBar.png", Vector4.zero),
         };
 
-        //  帧矩形全部**实测**（见文件头「实测依据」）；改表必须重跑 tools/buildcheck/frame_probe.py。
+        //  帧矩形全部**实测**（见文件头「实测依据」）；改表必须重跑 tools/probes/hosts/buildcheck/frame_probe.py。
         //  取帧方式（UI 侧）：`Resources.LoadAll<Sprite>("Clover/D2/UI/Panel/buysellbtn.DC6.0")`
         //  拿到全部帧；或按子资源名 `{文件名}_{帧号}` 逐帧取（与字体图集同口径，
         //  见 `UI/D2Text.cs` 的 `AtlasPath + "_" + i` 取法）。帧号从 0 起。

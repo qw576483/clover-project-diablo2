@@ -20,7 +20,7 @@
 //   （避免跨片把别人的进行中改动算成红）。
 //
 // 退化样本（**同一 `Judge` 判，同进程对立读数，不是文字声明**）：
-//   ① 修前 `InventoryPanel` 的关闭按钮形状（`new Color(1f,1f,1f,0f)` 命中区 + 无任何可见标记）
+//   ① 修前 `InventoryPanel` 的关闭按钮形状（`new Color(1f,1f,1f,0f)` 命中区 + 不贴任何图形帧）
 //      ⇒ `CloseVisible=false` 且 `Layer=Popup` ⇒ 必须**不合格**；
 //   ② 修前 `SkillTreePanel` 形状（`Layer => UILayer.Popup` + 全文无关闭控件）⇒ 必须**不合格**；
 //   ③ 修前 `QuestLogPanel` 形状（同上）⇒ 必须**不合格**。
@@ -28,7 +28,7 @@
 //
 // 判据的**自认边界**（不夸大）：`CloseVisible` 是**源码结构**判据（节点底色 alpha / 后续贴原版贴图 /
 //   其下有没有一条 alpha=1 的位图字模标记），**不是像素判据**；"点下去到底关不关"属实机表现类，
-//   由 Play 驱动采 `CLOSE-RESULT before/after`（驱动随 `tools/probes/drivers/` 整目录按设计退役）。
+//   由 Play 驱动采 `CLOSE-RESULT before/after`（驱动随  整目录按设计退役）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -44,7 +44,7 @@ namespace Uicheck
 
         private static readonly (string Panel, string Why)[] Scope =
         {
-            ("InventoryPanel", "关闭按钮从 alpha=0 命中区改成可见的原版字模「X」"),
+            ("InventoryPanel", "关闭按钮从 alpha=0 命中区改成可见的原版「关闭 / 取消」图形帧"),
             ("SkillTreePanel", "Popup → Normal（遮罩消失 ⇒ HUD「技能樹 T」入口可点 = 同一入口开合）"),
             ("QuestLogPanel", "Popup → Normal（同上；本屏无关闭控件，出口 = HUD「任務記錄 Q」/Q 键）"),
             ("MiniMapPanel", "本来就 Normal ⇒ 只需登记'无控件'为允许差异；出口 = Tab / HUD「自動地圖」"),
@@ -115,8 +115,8 @@ namespace Uicheck
             var dm = Regex.Match(src, @"var\s+" + v + @"\s*=\s*UiArt\.Panel\([^;]*?\);");
             if (dm.Success && !AlphaZero(dm.Value)) return true;
 
-            // ② 之后贴过原版贴图 / 显式置成原版亮度白
-            if (Regex.IsMatch(src, @"UiArt\.SetSprite\(\s*" + v + @"\s*,")) return true;
+            // ② 之后贴过原版贴图（单张 / 项目自带的「关闭 / 取消」帧助手）/ 显式置成原版亮度白
+            if (Regex.IsMatch(src, @"UiArt\.(?:SetSprite|ApplyCloseButtonArt)\(\s*" + v + @"\s*[,)]")) return true;
             if (Regex.IsMatch(src, v + @"\.color\s*=\s*Color\.white")) return true;
 
             // ③ 在它下面画了一条**不透明**的标记（位图字模标签 / uGUI Text）
@@ -196,14 +196,14 @@ namespace Uicheck
             var afterSkill = Path.Combine(Program.UiDir, "SkillTreePanel.cs");
             var afterQuest = Path.Combine(Program.UiDir, "QuestLogPanel.cs");
 
-            // 退化 A：修前背包关闭按钮（透明命中区 + 无可见标记）
+            // 退化 A：修前背包关闭按钮（透明命中区 + 不贴任何图形帧）
             var degA = File.Exists(afterInv)
                 ? Regex.Replace(File.ReadAllText(afterInv),
-                    @"\s*D2Label\.Create\(close\.transform,\s*""CloseMark""[\s\S]*?\);", "",
+                    @"\s*UiArt\.ApplyCloseButtonArt\(close,\s*closeBtn\);", "",
                     RegexOptions.Singleline)
                 : "";
             var ra = Judge("InventoryPanel", degA, hudSrc);
-            Check("R8-close 退化 A（背包关闭钮 alpha=0 且无可见标记）必须不合格",
+            Check("R8-close 退化 A（背包关闭钮 alpha=0 且不贴图形帧）必须不合格",
                 degA.Length > 0 && !ra.Ok && ra.Layer == "Popup",
                 $"层={ra.Layer} 可见={ra.CloseVisible} ⇒ Ok={ra.Ok}");
 

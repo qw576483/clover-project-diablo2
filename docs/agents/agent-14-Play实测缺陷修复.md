@@ -1,7 +1,7 @@
 # agent-14 修复轮：Play 实测缺陷（**三个任务包，按 section 分派**）
 
 > 来源：2026-09-17 首次进 Play 的实测（截图 + 日志）。
-> 通用前置仍按 `docs/agents/_common.md`（**尤其 §3.5**；自检必须用 `tools/*check` 离线宿主，改完回归全部 10 个宿主 + `.ai-tmp/hosts/fullcheck`）。
+> 通用前置仍按 `docs/agents/_common.md`（**尤其 §3.5**；自检必须用 `tools/*check` 离线宿主，改完回归全部 10 个宿主 + `tools/probes/hosts/fullcheck`）。
 > ⛔ 边界同前：不许改别人的文件；发现要改别人文件 → 写进回报交给主 agent。
 
 ---
@@ -30,7 +30,7 @@
 **只许改**：`client/Assets/Scripts/Module/Camera/**`（必要时 `Module/Input/**` 里反投影部分）。
 
 **要做**：
-1. **先量后改**：写探针（`client/_dev/`）打印——实际参与渲染的相机（`Camera.main` 与场景里所有 Camera 的 name/enabled/depth/orthographicSize/position）、
+1. **先量后改**：写探针（放 `.ai-tmp/test/`）打印——实际参与渲染的相机（`Camera.main` 与场景里所有 Camera 的 name/enabled/depth/orthographicSize/position）、
    地图世界包围盒（`Iso.GridToWorld` 对四角）、焦点世界坐标、`Screen.width/height`。**把数字贴进回报**。
 2. 修正后要求：**玩家恒在屏幕中心附近**；城镇地图尽量铺满视野；屏幕不出现大片黑（除地图边界外）。
 3. 相机仍必须**固定等距、不旋转**；缩放默认关。
@@ -84,7 +84,7 @@
 
 | 项 | 说明 |
 | --- | --- |
-| **P-2「失焦不 tick」** | 已确认：编辑器失焦时 `unscaledDeltaTime=13.75`、`deltaTime=0.02` ⇒ 引擎 `Timer`（用 `Time.deltaTime`）几乎不推进，**读条门控永不满足**。对策：驱动编辑器前先 `UnityEngine.Application.runInBackground = true`（探针 `client/_dev/p_runbg.cs`）。**要写进 `tools/ai-skill/constraints.md`** |
+| **P-2「失焦不 tick」** | 已确认：编辑器失焦时 `unscaledDeltaTime=13.75`、`deltaTime=0.02` ⇒ 引擎 `Timer`（用 `Time.deltaTime`）几乎不推进，**读条门控永不满足**。对策：驱动编辑器前先 `UnityEngine.Application.runInBackground = true`（探针 `tools/probes/interact/p_runbg.cs`）。**要写进 `tools/ai-skill/constraints.md`** |
 | `Def.AreaId` 0 基 vs `level_c.id` 1 基 | 已有 `AreaLevelTable.Resolve` 兼容 + Warn；**修正 `Def/Enums.cs` 注释**与 `docs/步骤文档.md` 口径（属契约，主 agent 裁决） |
 | `StageRoots` 未挂到 Stage 场景 | agent-12 建了 `App/StageRoots.cs`、agent-10 建了 `MapRoot`/`EntityRoot` 节点，但两者没接上 ⇒ 由 agent-10 补（写进后续轮） |
 | 官方素材（角色/怪物/地形/音效） | 后台下载**中断**：`_assets_src/d2_d2es_zh-tw.zip.part` 2241641414 字节（超出预期 2145506049，因分块重试时未回滚已写字节而损坏）⇒ 需修 `d2fetch.ps1`（每次重试前 `SetLength(offset)` 截断）后重下 |

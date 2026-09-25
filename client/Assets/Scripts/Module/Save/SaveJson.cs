@@ -7,13 +7,13 @@
 //
 // 为什么不用 `UnityEngine.JsonUtility`（契约注释里提到过它）：
 //   ① **离线不可验证**：`JsonUtility` 是 Unity 原生内部调用（`UnityEngine.JSONSerializeModule`），
-//      在 `tools/itemcheck/` 这种 .NET 宿主里没有 Unity 运行时 ⇒ 存档这条链路根本跑不起来；
+//      在 `tools/probes/hosts/itemcheck` 这种 .NET 宿主里没有 Unity 运行时 ⇒ 存档这条链路根本跑不起来；
 //      而"存档往返一致"是存档链路的硬验收项，必须能离线断言。
 //   ② **null 语义不确定**：`CharacterSave.inventory`（40 格，多数 `item == null`）与 `belt`（4 格带 null）
 //      依赖"null 元素能否原样往返"。JsonUtility 对列表里的 null 对象引用行为不明确（可能写成 `{}`），
 //      一旦丢 null 就会变成"空背包里冒出 40 个空物品"这类静默错。
 //   ③ 本实现是**确定性**的：字段顺序固定、浮点用 R 格式 ⇒ `Write(Parse(json)) == json`（逐字节），
-//      这条恒等式直接当自检断言用（见 `tools/itemcheck/Program.cs`）。
+//      这条恒等式直接当自检断言用（见 `tools/probes/hosts/itemcheck/Program.cs`）。
 //
 // 无 Unity 依赖（只用 System / System.Collections.Generic / System.Text）⇒ 可离线编译运行。
 // ─────────────────────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@
 拼装口径（**全部从 PNG 实测得出，不是估的**；判据 = 「拼出来逐像素接缝连续 + 外沿是矩形」）
 ────────────────────────────────────────────────────────────────────────────
 每帧实测 14×15，且每帧的**内容**是内部 12×12、四周页边 = 左 1 / 上 1 / 右 1 / 下 2
-（x=0、x=13、y=0、y=13、y=14 全透明 —— 逐像素实测；⛔ 原一次性脚本 `.ai-tmp/test/an_box2.py` **已删、在盘无替代** ⇒ 那张逐像素表不可复跑；**现行复检** = 本文件 `self_check()`（退出码 0 = 自证通过）+ `tools/probes/hosts/uicheck` 的 `BoxFrameSide()`（`tools/probes/hosts/uicheck/W3GameCheck.cs:430`，**重新解像素**核偏移/接缝；跑法 `powershell -File tools/probes/hosts/run_all_hosts.ps1`）+ 证据图 `.ai-tmp/screenshots/w5_boxframes.png`）。
+（x=0、x=13、y=0、y=13、y=14 全透明 —— 逐像素实测；⛔ 原一次性脚本 **已删、在盘无替代** ⇒ 那张逐像素表不可复跑；**现行复检** = 本文件 `self_check()`（退出码 0 = 自证通过）+ `tools/probes/hosts/uicheck` 的 `BoxFrameSide()`（`tools/probes/hosts/uicheck/W3GameCheck.cs:430`，**重新解像素**核偏移/接缝；跑法 `powershell -File tools/probes/hosts/run_all_hosts.ps1`）+ 证据图 `.ai-tmp/screenshots/w5_boxframes.png`）。
 ⇒ **单元格 pitch = 12**（横竖同值）。
 
 四族（按内容形状 + 边带朝向分类，逐帧实测）：

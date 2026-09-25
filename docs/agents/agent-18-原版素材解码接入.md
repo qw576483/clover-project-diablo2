@@ -46,7 +46,7 @@
 - [ ] 解码脚本 + 生成的 PNG 数量与来源 dt1 对得上（贴统计）
 - [ ] 截图 `Assets/Screenshots/v3_town_tiles.png` —— **自己读图**确认"是暗黑2 的地形，不是色块"
 - [ ] 与**原版罗格营地截图**并排比对，逐项写 `一致`/`不一致（差在哪）`
-- [ ] 10 宿主全绿（`tools/run_all_hosts.ps1`）
+- [ ] 10 宿主全绿（`tools/probes/hosts/run_all_hosts.ps1`）
 
 ---
 
@@ -85,5 +85,5 @@
 - ⛔ **产出必须是原版像素**（不许重绘、不许改色、不许 AI 生成补图）。缺什么就登记 `client/资源欠缺清单.md`。
 - ⛔ **调色板必须用对**（Act1 的 pl2 / DC6 自带的 palette）；颜色不对 = 1:1 失败。
 - 大文件导出用 `storm.py extract`（**不要**一次性导出 `d2video.mpq` 这类无关包）。
-- 驱动编辑器前先跑 `client/_dev/p_runbg.cs`；截图前等 ≥6 秒。
+- 驱动编辑器前先跑 `tools/probes/interact/p_runbg.cs`；截图前等 ≥6 秒。
 - ⛔ 不许读工作区里其它 `clover-project-*`。

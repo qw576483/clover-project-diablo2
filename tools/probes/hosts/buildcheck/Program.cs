@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
-//  跑法：dotnet run --project tools/buildcheck/BuildCheck.csproj
+//  跑法：dotnet run --project tools/probes/hosts/buildcheck/BuildCheck.csproj
 //  退出码：0 = 全部断言通过；1 = 有断言失败（明细逐条打印）
 //
 //  断言分五组：
@@ -35,7 +35,7 @@ internal static class Program
         try { Console.OutputEncoding = Encoding.UTF8; } catch (Exception) { /* 输出被重定向时可能不支持，忽略 */ }
 
         _root = FindRepoRoot();
-        Console.WriteLine("== agent-10 离线自检（tools/buildcheck）==");
+        Console.WriteLine("== agent-10 离线自检（tools/probes/hosts/buildcheck）==");
         Console.WriteLine("项目根：" + _root);
         Console.WriteLine();
 

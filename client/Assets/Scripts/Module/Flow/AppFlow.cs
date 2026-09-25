@@ -92,7 +92,7 @@ namespace Diablo2.Module.Flow
         /// <summary>
         /// 进图看门狗截止时刻（**纯 .NET 墙钟 ticks**，不依赖 Unity 原生 `Time`）：
         /// 读条期间的 `Time.timeScale` 恒为 1，用墙钟与游戏时间等价；好处是这一路径
-        /// 不碰引擎原生 API，可被 `tools/flowcheck` 的离线自检宿主完整跑一遍。
+        /// 不碰引擎原生 API，可被 `tools/probes/hosts/flowcheck` 的离线自检宿主完整跑一遍。
         /// </summary>
         private long _loadDeadlineTicks;
 

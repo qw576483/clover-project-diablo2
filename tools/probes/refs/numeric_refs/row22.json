@@ -2,14 +2,14 @@
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 22,
   "spec_md_line": 118,
-  "spec_sha256": "6cbfafe61d445b2bdaddf082b8a5639f1dc605b7c8170def51bc1edb2fcb46be",
+  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
   "category": "数值类",
   "system": "区域等级 / 怪物数值（**片 6 逐条对官方公式复算**）",
   "method": "官方 `MONSTER_CalculateLevelScaledStats @006538a0`：`AC/AR/伤害/经验/HP = MonLvl.行 × MonStats.列 / 100`（**截断**）",
   "criterion": "用官方表**逐值复算** 8 只怪 × 8 列 = 64 项；再与实机 `[Monster] spawn` 行比",
   "conclusion": "通过（**行内判据 = 数值类 ⇒ 给复算表 + 运行时日志**；13 项取整差 **未改**，登记 **E30 + BL-7**）  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row22.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）\\",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 09:29:21",
+  "generated": "2026-09-25 02:35:47",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [

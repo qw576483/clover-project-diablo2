@@ -47,7 +47,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 限频警告（同一 key 在 interval 秒内只输出一条）。
         /// 内部会读 `Time.realtimeSinceStartup`（引擎原生 API）⇒ **离线自检宿主不要走这条路径**
-        /// （`Core/Log.cs:133`，与 `tools/flowcheck` 的说明同一原因）。
+        /// （`Core/Log.cs:133`，与 `tools/probes/hosts/flowcheck` 的说明同一原因）。
         /// </summary>
         public static bool WarnThrottled(string key, string msg, float intervalSeconds = 5f)
             => Log.WarnThrottled(Tag, key, msg, intervalSeconds);

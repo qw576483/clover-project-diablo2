@@ -27,7 +27,7 @@ namespace Diablo2.Module.Item
         // ── 品质权重（本项目新增；配表无品质列）────────────────────────────────
         // 基准权重：普通 1000；魔法 = 上限 240 × (TC.magic / 1024)，TC.magic 缺省时按 1024 处理；
         // 稀有/套装/暗金 = 魔法权重 × 比例 × 等级系数 hi（hi = clamp((itemLevel-1)/12, 0, 1)）。
-        // 实测分布（1000 次，见 tools/itemcheck）：普通 ≈ 74%、魔法 ≈ 18%、稀有 ≈ 4%、套装 ≈ 3%、暗金 ≈ 1%。
+        // 实测分布（1000 次，见 tools/probes/hosts/itemcheck）：普通 ≈ 74%、魔法 ≈ 18%、稀有 ≈ 4%、套装 ≈ 3%、暗金 ≈ 1%。
         private const int WNormal = 1000;
 
         /// <summary>魔法品质权重上限（TC.magic == 1024 时取本值）。</summary>
@@ -56,7 +56,7 @@ namespace Diablo2.Module.Item
 
         // ── 限频告警 ──────────────────────────────────────────────────────────
         // 这里**不用** `Log.WarnThrottled`：它内部读 `UnityEngine.Time.realtimeSinceStartup`（原生 API），
-        //    在 `tools/itemcheck/` 这种离线宿主里会抛 SecurityException ⇒ 掉落/生成这类核心路径没法离线自检。
+        //    在 `tools/probes/hosts/itemcheck` 这种离线宿主里会抛 SecurityException ⇒ 掉落/生成这类核心路径没法离线自检。
         //    改用本类自带的"同 key 只报一次"（同样的防刷屏目的，且不依赖 Unity 原生）。
         private static readonly HashSet<string> Warned = new HashSet<string>();
         private const int WarnedCap = 64;

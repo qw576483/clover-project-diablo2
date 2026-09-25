@@ -23,7 +23,7 @@
 
 ### 必须用探针**逐层验证**（不许靠读代码推断）
 
-写 `client/_dev/p_a21_char.cs`，依次打印并回报**原始值**：
+写探针，依次打印并回报**原始值**：
 
 1. `Diablo2.Module.View.SpriteFrameCounts.Of("amazon", ViewAnim.Walk)` = ？（**0 就说明单位键名不匹配**）
 2. `SpriteFrameCounts.Of("fa", ViewAnim.Walk)`（怪物侧） = ？
@@ -44,7 +44,7 @@
       `--source screen` 在编辑器失焦时**返回缓存帧**（实测三次字节数完全相同、画面没变），会给出假的"没修好"
 - [ ] 截图里**能看到原版亚马逊的像素小人**（不是黄色方块）；`v8_monster.png` 能看到原版怪物
 - [ ] 走一步能看到行走帧变化（贴两张不同帧的截图）
-- [ ] 10 宿主全绿（`tools/run_all_hosts.ps1`）
+- [ ] 10 宿主全绿（`tools/probes/hosts/run_all_hosts.ps1`）
 
 ### 驱动编辑器（**照抄，别自己发明**）
 

@@ -1,6 +1,6 @@
 # clover-project-diablo2 打表配置（由 agent-02 维护）
 #
-# 所有相对路径均相对于**本文件所在目录**（clover-tools/table/core 之外，见下方用法）。
+# 所有相对路径均相对于**本文件所在目录**（clover- 之外，见下方用法）。
 #
 # ⚠️ 与 `docs/agents/agent-02-配表.md` §4.3 的差异说明（已回报主 agent）：
 #    文档给的 `planning_dir: "../策划/数值文档"` 与 `client_dir: "../../client/..."` 深度不自洽

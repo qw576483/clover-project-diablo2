@@ -257,7 +257,7 @@ def main():
     if not args.no_mpq:
         if not os.path.exists(mpq):
             log("FAIL ② 需要 D2music.mpq 才能做逐字节比对，但不在盘：", mpq)
-            log("     ⇒ 取回方式见 `原版资源/清单.md`（下载 state = .ai-tmp/test/bgm-fetch.state.txt）")
+            log("     ⇒ 取回方式见 `原版资源/清单.md`（按下载 state 文件续传）")
             return 2
         if not os.path.exists(os.path.join(storm_dir, "storm.dll")):
             log("FAIL ② 缺 storm.dll：", os.path.join(storm_dir, "storm.dll"))

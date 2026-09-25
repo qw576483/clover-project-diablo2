@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// 运行：dotnet run --project <项目根>/tools/corecheck/CoreCheck.csproj -c Release
+// 运行：dotnet run --project <项目根>/tools/probes/hosts/corecheck/CoreCheck.csproj -c Release
 //
 //   ① 5 个多帧条带常量 → **真实磁盘文件**（逐个存在性断言 = `Test-Path` 的等价物）；
 //      帧数与本项目 `Assets/Editor/AssetImporter.cs` 的 `MultiFrameStrips` 表**逐条交叉核对**

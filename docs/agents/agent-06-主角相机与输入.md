@@ -54,7 +54,7 @@
    发 `Events.LevelUp` 与 `Events.HudDirty`；**日志带等级前后**。
 7. **属性点分配**：`AllocateStat` 改四维后**必须重算派生值**并 `Emit(Events.HudDirty)`。
 
-## 5. 验收标准（**必须用离线宿主**，照 `.ai-tmp/hosts/mapcheck/` 或 `.ai-tmp/hosts/flowcheck/` 建 `.ai-tmp/hosts/playercheck/`）
+## 5. 验收标准（**必须用离线宿主**，照 `tools/probes/hosts/mapcheck` 或 `tools/probes/hosts/flowcheck` 建 `tools/probes/hosts/playercheck`）
 
 - [ ] 离线宿主：`dotnet build` 0 错 0 警告；`dotnet run` 断言全过
 - [ ] **点击移动**：给 `IMapModule`（用 agent-04 的 `MapModule`）在罗格营地生成 → 设目标格 → 逐帧 `Tick(0.02f)` →

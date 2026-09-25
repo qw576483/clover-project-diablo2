@@ -87,7 +87,7 @@
 ---
 
 ## 共用
-- 驱动编辑器前先跑 `client/_dev/p_runbg.cs`（失焦不 tick）；截图前等 ≥6 秒否则拿过期帧。
+- 驱动编辑器前先跑 `tools/probes/interact/p_runbg.cs`（失焦不 tick）；截图前等 ≥6 秒否则拿过期帧。
 - 面板真值用 `Game.UI.IsOpen<T>()`；截图自己读图核对。
 - ⛔ 不许读工作区里其它 `clover-project-*`。
 - ⛔ 产出必须是**原版像素**，缺什么登记 `client/资源欠缺清单.md`，**不许重绘/AI 补图/用色块顶替**。

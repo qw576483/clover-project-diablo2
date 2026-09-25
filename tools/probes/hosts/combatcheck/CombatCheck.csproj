@@ -7,8 +7,8 @@
        （用户尚未打开编辑器 ⇒ Unity 不会生成工程文件），所以 `dotnet build client.slnx`
        **覆盖不到** `Assets/Scripts/**`。本工程把「引擎托管 DLL + Diablo2 源码」直接编到 .NET 上，
        得到**秒级**的类型/语法校验 + 可运行的断言环路
-       （依据 skill `reference/fast-compile-loop.md`，与 `tools/mapcheck/`（agent-04）、
-        `tools/flowcheck/`（agent-05）**同一套做法**）。
+       （依据 skill `reference/fast-compile-loop.md`，与 `tools/probes/hosts/mapcheck`（agent-04）、
+        `tools/probes/hosts/flowcheck`（agent-05）**同一套做法**）。
 
        本宿主覆盖（`docs/agents/agent-07-怪物战斗技能与视图.md` §5 的验收项逐条）：
          ① 官方伤害/命中公式的**确定性单测**（固定输入 → 固定输出）

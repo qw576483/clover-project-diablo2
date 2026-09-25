@@ -505,7 +505,7 @@ namespace Diablo2.UI
         /// 引擎 `CloverEngine.FileSlotStore` 的 key 校验：不许 `/` `\` 与非法文件名字符）⇒ 这里挡掉
         /// 文件系统不接受的字符（`:` `*` `?` `"` `<` `>` `|` 等），中文等 Unicode 字母照常放行。</para>
         /// <para>校验刻意放在**键入这一处**（`OnNameChar`）而不是 `EditName` 纯函数里：`EditName`
-        /// 保持"只钳长度、不看字符集"，免得动到 `tools/uicheck` 已有的纯函数断言。</para>
+        /// 保持"只钳长度、不看字符集"，免得动到 `tools/probes/hosts/uicheck` 已有的纯函数断言。</para>
         /// </summary>
         public static bool IsNameCharAllowed(char c)
         {
@@ -527,7 +527,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// **纯函数**：名字的一次编辑（离线自检宿主可直接断言，见 `tools/uicheck`；边界钳制只写在这一处）。
+        /// **纯函数**：名字的一次编辑（离线自检宿主可直接断言，见 `tools/probes/hosts/uicheck`；边界钳制只写在这一处）。
         /// </summary>
         /// <param name="text">当前文本。</param>
         /// <param name="caret">当前光标（0..text.Length）。</param>

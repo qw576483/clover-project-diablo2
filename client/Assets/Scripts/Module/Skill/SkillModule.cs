@@ -834,7 +834,7 @@ namespace Diablo2.Module.Skill
         private const float TerrainSampleStep = 0.25f;
 
         /// <summary>
-        /// **该地形是否阻挡投射物** —— 逐类裁决的**唯一出处**（`internal` 供 `tools/combatcheck` 逐类断言）。
+        /// **该地形是否阻挡投射物** —— 逐类裁决的**唯一出处**（`internal` 供 `tools/probes/hosts/combatcheck` 逐类断言）。
         ///
         /// <para><b>裁决表</b>（判据 = 该地形在本项目的**几何/占格语义**，见 `MapGenTown` /
         /// `MapGenWilderness` / `MapGenCave` 的铺图点；不是"随手把 Walkable 抄一遍"）：</para>
@@ -1500,7 +1500,7 @@ namespace Diablo2.Module.Skill
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 自证用小工具（不在契约里；供 `tools/combatcheck` 打印）
+        // 自证用小工具（不在契约里；供 `tools/probes/hosts/combatcheck` 打印）
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>在飞投射物数量。</summary>

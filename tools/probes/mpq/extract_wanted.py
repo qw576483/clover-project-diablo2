@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """按名解包 mpq（照 `wanted.txt` 逐条 `SFileHasFile` + `SFileExtractFile`）。
 
-来历：2026-09-22 `mpq-unpack2` 片的一次性脚本 `.ai-tmp/test/extract_wanted.py`；
+来历：2026-09-22 `mpq-unpack2` 片的一次性脚本；
 2026-09-22 `g1-naming-and-mpq-asset` 片提升为**仓内判据资产**（skill §3.5），
 并把写死的 `c:\\Work\\Server\\f-v2\\…` 换成「从脚本位置向上找仓库根 / 命令行参数」。
 

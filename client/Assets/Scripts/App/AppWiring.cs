@@ -87,7 +87,7 @@ namespace Diablo2.App
         /// 把 `Stage` 场景的「地图根 / 实体根」交给两个模块（**幂等**：`StageRoots` 注入后再调一次即可）。
         /// 用**反射**找 `AttachRoot(Transform)` 而不是 `is MapModule`：它是**非契约**入口，
         /// 直接写具体类型会让 App 层编译期依赖 `Module/Map` 与 `Module/View`，
-        /// 而 `tools/flowcheck` / `tools/uicheck` 刻意只编子集 ⇒ 会把别人的半成品算成它们的编译失败。
+        /// 而 `tools/probes/hosts/flowcheck` / `tools/probes/hosts/uicheck` 刻意只编子集 ⇒ 会把别人的半成品算成它们的编译失败。
         /// </summary>
         public static void AttachRoots(AppContext ctx)
         {

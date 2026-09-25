@@ -64,6 +64,13 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <!-- 链接原因：`Module/Map/MapView.cs` 的**传送台本体动画**复用 `Module/View/SpriteAnimator`
+         （纯逻辑：帧键 + `Tick(dt)`，可离线驱动）⇒ 本白名单宿主必须能编到它与其依赖：
+           SpriteAnimator.cs（本体）/ ViewAnim.cs（`ViewAnim` 枚举）/ ViewLog.cs（空帧键那一条 Warn）。
+         ⛔ 不链 `Module/View/*.cs` 整目录（会拖进 ViewModule 的依赖）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\SpriteAnimator.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewAnim.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewLog.cs" />
     <!-- ★ eng-tile 片（2026-09-24）：`Module/Map/TileNodePool.cs` 与 `TileRenderState.cs` 已**下沉到引擎**
          （项目侧只剩薄转发）⇒ 宿主必须把引擎那两份编进来，否则 CS0246。
          ⚠️ 随之 §17①/§20 的结构断言（"瓦片节点的唯一创建点"）改读**引擎那份**的源码文本

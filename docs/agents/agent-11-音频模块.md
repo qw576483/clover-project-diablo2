@@ -45,7 +45,7 @@
 4. **缺文件降级**：`ResPaths` 里取不到 `Sound/SFX/{name}` 时 → **只报一次 Warn** + 不重复调用引擎（避免刷屏），**不抛异常**。
 5. **一个 `.cs` 一个类**；**禁止**裸 `Debug.Log`、`GameObject.Find`。
 
-## 5. 验收标准（用离线宿主，照 `.ai-tmp/hosts/flowcheck/` 建 `.ai-tmp/hosts/audiocheck/`）
+## 5. 验收标准（用离线宿主，照 `tools/probes/hosts/flowcheck` 建 `tools/probes/hosts/audiocheck`）
 
 - [ ] `dotnet build` 0 错 0 警告；`dotnet run` 断言全过
 - [ ] **触发点覆盖**：逐个 `Emit` 上面列出的事件，断言 `SfxRegistry` 里对应键被请求（贴每个事件 → 音效键的映射表）

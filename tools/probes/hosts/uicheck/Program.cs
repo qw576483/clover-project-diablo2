@@ -17,7 +17,7 @@
 //
 // 不覆盖（需要 Unity 原生 / 由主 agent 进 Play 后验）：
 //   · 面板实例化、构件层级与像素布局；· 贴图异步加载完成后的观感；· 球/条真的在动（看图）
-//   · `Time.timeScale` 与 `*Unscaled` 定时器的实际触发（`tools/flowcheck` 同样标注）。 
+//   · `Time.timeScale` 与 `*Unscaled` 定时器的实际触发（`tools/probes/hosts/flowcheck` 同样标注）。 
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -166,6 +166,7 @@ namespace Uicheck
             HoverSelectCheck.Run();     // ★ 片 u44：悬停选择表现（C1 着色器逐字节 / C2 变亮 3.0·1.01 /
                                         //   C3 顶部条逐值 / C4 头顶那份已删 / C5 NPC 名字牌偏移；5 条退化样本）
             AutomapCarrierCheck.Run();  // ★ 片 automap-panel：automap 绘制**载体**有效性（尺寸 / 墨量 ink / alpha / 接线）
+            Fix4Check.Run();            // ★ 片 uifix：四条实机画面缺陷的离线判据（启动屏白块 / 商品图标白方块 / 任务日志正文 / 死亡屏横幅取帧）
                                         //   把「面板开着却什么都没画」变成可离线判的数：真实导出帧逐帧各铺一格已探索
                                         //   ⇒ 必须每格写出 ≥1 图元且 opaque>0；任何空帧 / 全透明索引 / 尺寸为 0 立刻红
             FontScaleCheck.Run();       // ★ 片 font-scale：全仓 `D2Label.Create` 零处漏字号 + 字号唯一出处（FontPx*）
@@ -951,7 +952,7 @@ namespace Uicheck
             // 未知品质的分支必须留下日志。
             // 这里**不能真调** `Of((ItemQuality)99)`：它会走 `Log.WarnOnce` → `Log.ShouldLog`
             //    → `Time.realtimeSinceStartup`（Unity 原生 API），离线宿主调用会抛
-            //    SecurityException（与 `tools/flowcheck` 注释里那条同一个原因）。
+            //    SecurityException（与 `tools/probes/hosts/flowcheck` 注释里那条同一个原因）。
             //    故改为核对源码里的降级分支（`UiLog.Require` 的 Warn 那条已真跑，证明日志链可用）。
             var tooltipSrc = File.ReadAllText(Path.Combine(UiDir, "ItemTooltip.cs"));
             Check("未知品质有降级分支且打 WarnOnce（不静默）",

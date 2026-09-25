@@ -15,7 +15,7 @@
           （App / Core / Def / Module（含 Contracts.cs 与 13 个子目录）/ Table / UI）。
           shim 覆盖不全时**补 shim**，不许把文件排除出去（排除就等于没校验）。
 
-       引擎门面替身 = `shim/EngineShim.cs`（做法与 `tools/flowcheck/`、`tools/combatcheck/`
+       引擎门面替身 = `shim/EngineShim.cs`（做法与 `tools/probes/hosts/flowcheck`、`tools/probes/hosts/combatcheck`
        一致；内容取自 combatcheck 那份超集，因为它额外含 `WorldHpBar`）。
        覆盖率自证：编译产物 FullCheck.dll 存在 + 构建日志 0 error 0 warning。
        ⚠️ 它只证明「类型/语法/链路没问题」，**不替代进 Play 实测**。

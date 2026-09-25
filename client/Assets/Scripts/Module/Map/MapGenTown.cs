@@ -58,9 +58,9 @@ namespace Diablo2.Module.Map
     ///   —— 四块给出同一个关卡格 ⇒ 它是**关卡级的标记单位**（不是某一块的装饰）。</item>
     /// </list>
     /// <para>
-    /// `not used`（Id=110 / Token=n5）—— 这是原版美术在 DS1 里留的**占位单位**，引擎在运行时
-    /// 用 Id=119 的 Waypoint 替换它；而**世界里的传送点本体艺术**（`data/global/objects/wp/*.dc6`）
-    /// 本工程没有解包（`原版资源/d2dc6` 里只有物品图标 `invwpl/invwps.DC6`）。
+    /// `not used`（Id=110 / Token=n5）—— 这是原版美术在 DS1 里留的**占位单位**，原版运行期
+    /// 用 Id=119 的 Waypoint 顶掉它；本工程由锚点表（<see cref="Waypoint"/>）直接落锚点，
+    /// 本体艺术 = `data/global/objects/wp/{TR,S1}/*.dcc`（已解包，见 `ResPaths.D2ObjectsWaypoint`）。
     /// </para>
     /// </summary>
     public static readonly Vector2Int Waypoint = new Vector2Int(31, 26);
@@ -190,9 +190,10 @@ namespace Diablo2.Module.Map
             map.SpawnPoint = MapGenTownLayout.Spawn;
             for (var i = 0; i < MapGenTownLayout.Npcs.Length; i++) map.NpcPoints.Add(MapGenTownLayout.Npcs[i]);
 
-            // ③ 传送点锚点：不新增任何贴图 —— 原版世界里那座传送台的本体艺术本工程未解包
-            //   （见该常量的注释）。硬要求：锚点必须**可走且在围栏内**（否则玩家走不到 / 点不到）
-            //   —— 不合格就点名报错，而不是静默地登记一个点不到的位置。
+            // ③ 传送点锚点：这里**只落锚点**，本体贴图由视图层按锚点取（`MapView.PlanCell` 的
+            //   `IsWaypointAnchor` 分支，取 `ResPaths.WaypointFrame`）。硬要求：锚点必须
+            //   **可走且在围栏内**（否则玩家走不到 / 点不到）—— 不合格就点名报错，
+            //   而不是静默地登记一个点不到的位置。
             map.WaypointPoints.Add(Waypoint);
             if (!map.Walkable(Waypoint))
             {

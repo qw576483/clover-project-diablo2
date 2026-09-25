@@ -160,7 +160,7 @@ def read_file(handle, name):
     lib = load()
     dst = os.path.join(_work_dir(), _TMP_NAME)
     # 中转**目录**可能被外部清掉（实测：一个 228 s 的导出跑到第 7 套时
-    #    `.ai-tmp/test/storm-tmp/` 被别的片删了 ⇒ `FileNotFoundError` 直接中断整跑）
+    #    临时目录被别的片删掉过 ⇒ `FileNotFoundError` 直接中断整跑）
     #    ⇒ 打开失败就地重建再试一次。
     for attempt in (0, 1):
         try:

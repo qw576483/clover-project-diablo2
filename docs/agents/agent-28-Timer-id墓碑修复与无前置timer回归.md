@@ -37,7 +37,7 @@ DIAG_TIMER nextId=6 entries=0[]        ← 会话 6 个 timer 全不在，其中
 ```
 已排除失焦节流（`inBg=1 / vSync=0 / targetFps=60`，采样期 347 帧 / 5.78 s ≈ 60 fps）。
 
-**A/B 对照（同一份代码）**：驱动前若跑过白名单配方 `client/_dev/p_runbg.cs`（它注册 1 s 心跳 timer ⇒ **吃掉 id 0**、自己成为墓碑牺牲品），Scene 的进度 timer 拿到 id ≥ 1 而存活 ⇒ 两次 Menu 加载 **102 ms / 98 ms** 完成、Stage 加载"真进度 0.9 → 世界就绪"正常推进。
+**A/B 对照（同一份代码）**：驱动前若跑过白名单配方 `tools/probes/interact/p_runbg.cs`（它注册 1 s 心跳 timer ⇒ **吃掉 id 0**、自己成为墓碑牺牲品），Scene 的进度 timer 拿到 id ≥ 1 而存活 ⇒ 两次 Menu 加载 **102 ms / 98 ms** 完成、Stage 加载"真进度 0.9 → 世界就绪"正常推进。
 ⇒ **每个 Play 会话的第一条 `Game.Scene.Load` 是否成功，取决于此前有没有人建过 timer。正式包（无任何前置 timer）里就是"启动 → 主菜单永远打不开"。**
 
 ## 3. 任务边界
@@ -51,7 +51,7 @@ DIAG_TIMER nextId=6 entries=0[]        ← 会话 6 个 timer 全不在，其中
 - ⛔ 不许改任何公开签名（`ITimer` 的成员与语义不动）；⛔ 不许改第二个引擎文件
 - ⛔ 不许改 `client/Assets/Scripts/**`（本项目业务代码）
 - ⛔ 不许改 `策划/验收表.md` / `docs/**` / `tools/**` / 任何 skill（E 编号登记由主 agent 写）
-- ⛔ 不许删改 `client/_dev/p_runbg.cs` / `p_key3.cs`（白名单）
+- ⛔ 不许删改 `tools/probes/interact/p_runbg.cs`（白名单）
 - ⛔ 不许读工作区里其它 `clover-project-*`；不许再派子 agent；不许写交接/进度类文档
 
 ## 4. 契约（最小修复的形状）

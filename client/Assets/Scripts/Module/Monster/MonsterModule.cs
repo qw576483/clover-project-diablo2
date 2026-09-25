@@ -714,7 +714,7 @@ namespace Diablo2.Module.Monster
             return string.Join("、", parts);
         }
 
-        /// <summary>自证用：一行状态摘要（不在契约里，供 `tools/combatcheck` 打印）。</summary>
+        /// <summary>自证用：一行状态摘要（不在契约里，供 `tools/probes/hosts/combatcheck` 打印）。</summary>
         internal string DumpStats()
         {
             var alive = AliveCount;

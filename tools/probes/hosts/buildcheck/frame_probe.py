@@ -30,8 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 def _find_root(start):
     """从 start 逐级向上找「含 client/Assets 的那一层」= 仓库根。
 
-    为什么不用 `HERE/../..`：本脚本随宿主搬过两次（`tools/buildcheck/` → `.ai-tmp/hosts/buildcheck/`
-    → `tools/probes/hosts/buildcheck/`），按固定层数写死的根会在每次搬家后**静默指错**
+    为什么不用 `HERE/../..`：本脚本随宿主搬过两次（现落 `tools/probes/hosts/buildcheck/`），按固定层数写死的根会在每次搬家后**静默指错**
     （`UI` 目录不存在 ⇒ 直接 FileNotFoundError）。按特征向上找与宿主侧 C# 的
     `ResolveProjectRoot()` 同一套口径，此后怎么搬都自洽。
     """
@@ -225,7 +224,7 @@ def main():
         out("自证通过：每一帧的窗口都完整包含本帧内容，且不与任何邻帧内容重叠。")
 
     txt = "\n".join(_buf)
-    #   输出落 `.ai-tmp/test/buildcheck/`（gitignored），⛔ 不落仓库树：
+    #   输出落 gitignored 临时目录，⛔ 不落仓库树：
     #   判据/探针的输出一旦写进被跟踪的路径，每跑一次工作区就脏一次。
     os.makedirs(OUT_DIR, exist_ok=True)
     with io.open(OUT_FILE, "w", encoding="utf-8") as f:

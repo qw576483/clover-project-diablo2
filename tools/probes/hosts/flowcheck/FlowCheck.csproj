@@ -8,7 +8,7 @@
          **覆盖不到** `Assets/Scripts/**`，那条命令在本机是"零信息"的）。
        本工程把「Unity 托管模块 DLL + Diablo2 源码（Flow/UI/App + 其依赖）」直接编到 .NET 上，
        得到**秒级**的类型/语法校验（依据 skill `reference/fast-compile-loop.md`，
-       与 `tools/mapcheck/MapCheck.csproj`（agent-04）同一套做法）。
+       与 `tools/probes/hosts/mapcheck/MapCheck.csproj`（agent-04）同一套做法）。
 
        覆盖率自证：编译产物 FlowCheck.dll 存在 + 构建日志无 error。
        注意：它只证明"类型/语法没问题"，**不替代进 Play 实测**（那是主 agent 在用户打开编辑器后做）。

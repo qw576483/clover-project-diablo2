@@ -6,7 +6,7 @@
 //   埋在 `MonoBehaviour`/`ViewModule` 里的话，离线宿主**一行都测不到**（`ViewModule` 要
 //   `new GameObject` 才跑得到）。抽成纯函数后 `tools/probes/hosts/animcheck` 可直接逐条断言
 //
-// 素材契约（导出侧，见 `tools/probes/measure/d2_equip_sets_check.py` 文件头）：
+// 素材契约（导出侧）：
 //   目录 = `Chars/{class}/equip/{key}/`，`{key}` 的拼法就是本文件 `KeyOf` 的那三条：
 //     ① 主手武器 + 副手盾 都有 ⇒ `"{weapon}_{shield}"`（例 `jav_buc`）
 //     ② 只有武器            ⇒ `"{weapon}"`（例 `jav`）

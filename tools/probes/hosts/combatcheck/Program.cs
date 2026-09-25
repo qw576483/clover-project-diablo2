@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // 运行：
-//   dotnet run --project <项目根>/tools/combatcheck/CombatCheck.csproj -c Release
+//   dotnet run --project <项目根>/tools/probes/hosts/combatcheck/CombatCheck.csproj -c Release
 //
 // 这只是**类型层 + 逻辑层**的验证；画面（精灵/贴图/飘字/血条像素位置）必须在用户打开
 //    Unity 编辑器后进 Play 由主 agent 看图验收。

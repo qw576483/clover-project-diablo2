@@ -9,8 +9,8 @@
 > 其中 `_c_03/04/05` 同题的现存图是 `Screenshots/b25_03_dialog_after_accept_auto.png` /
 > `Screenshots/b25_04_questlog_inprogress_auto.png` / `Screenshots/b25_05_questlog_ready_auto.png`（**另一次进 Play** 的产物），
 > 其余**无同题现存图** ⇒ 已集中登记在 `策划/验收表.md` 的「旧证据名缺口」表。
-> ② `client/_dev/b25_act.cs` / `b25_plan.ps1` 属**一次性驱动**，按 §1.8 用完即删（本报告保留的是**日志与结论**）；
-> `client/_dev/` 现只留长期驱动 `p_runbg.cs`。
+> ② 本轮的一次性驱动与产物已按 §1.8 用完即删（本报告保留的是**日志与结论**）；
+> 长期驱动 `p_runbg.cs` 现位于 `tools/probes/interact/p_runbg.cs`。
 > ③ 这两个面板的**当前（a51 轮重做版面后）**证据以 `Screenshots/a50_Q1..Q4.png`（任务日志四态）/
 > `Screenshots/a50_D1_dialog.png` / `Screenshots/a50_D2_turnin.png`（阿卡拉对话）为准，见 `策划/自审对比/UI对照.md`。
 
@@ -21,8 +21,8 @@
 | 项 | 内容 |
 |---|---|
 | 工程 | `client`（Unity 6000.6.0f1，Play 模式） |
-| 进 Play | `unity command editor_stop` → `clear_console` → `editor_play`；随后 `eval_file client/_dev/p_runbg.cs`（失焦也 tick） |
-| 驱动 | **单动作执行器** `client/_dev/b25_act.cs`（每次 `eval_file` 只做一件事、做完就退出）+ 外壳 `client/_dev/b25_plan.ps1`（按状态判据重试、满足才截图） |
+| 进 Play | `unity command editor_stop` → `clear_console` → `editor_play`；随后 `eval_file tools/probes/interact/p_runbg.cs`（失焦也 tick） |
+| 驱动 | **单动作执行器**（每次 `eval_file` 只做一件事、做完就退出）+ 外壳（按状态判据重试、满足才截图） |
 | 动作入口 | 全部走**游戏自己的事件/门面 API**：走路 `Events.MoveCommand`（点击地面同一条通道）、区域切换 = 踩出入口（`PlayerModule.CheckExit` → `Events.ExitEntered`）、**点面板按钮 = 该按钮真实 `Button.onClick`**、清怪 `IMonsterModule.ApplyDamage`（死亡仍走 `Module/Monster.Die` → `Events.MonsterKilled`） |
 | 截图 | `unity command capture_game_view --source screen --save_path Screenshots/<名>.png`（**必须 screen**，理由见 §6） |
 | 读图 | 先 `_dev/shrink.ps1` 缩到 640 宽再读（避免大图打满上下文） |
@@ -134,11 +134,6 @@ source=screen captures the composited backbuffer incl. overlay canvases (Play Mo
 
 | 文件 | 内容 |
 |---|---|
-| `client/_dev/b25_act.cs` | 单动作执行器（15 个幂等动作；`_dev/b25_cmd.txt` 传动作名） |
-| `client/_dev/b25_plan.ps1` | 验收驱动：按状态判据重试 + 满足才截图（`-Tag b|c`） |
-| `client/_dev/b25_plan_b.txt` | **B 轮**全过程（含修前 16:49 段与修后 17:01 段） |
-| `client/_dev/b25_plan_c.txt` | **C 轮**全过程（重进 Play 的新会话，17:05） |
-| `client/_dev/b25_state.txt` | 每次动作后的完整状态（含面板控件里的真实字符串） |
 | `client/Assets/Screenshots/b25_{b,c}_0{1..8}_*.png` | 8 张 CLI 证据图 × 2 轮（`--source screen`） |
 | `client/Assets/Screenshots/b25_a_0{1..8}_*.png` | A 轮（**修前**）同流程 8 张，用于对照缺陷 B5 |
 | `client/Assets/Screenshots/b25_c_00_camera_source_noUI.png` | `--source camera` 的对照图（证明看不到 Overlay UI） |

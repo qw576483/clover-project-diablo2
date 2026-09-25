@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 53,
-  "spec_md_line": 1155,
-  "spec_sha256": "6cbfafe61d445b2bdaddf082b8a5639f1dc605b7c8170def51bc1edb2fcb46be",
+  "spec_md_line": 1078,
+  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
   "category": "数值类",
   "system": "掉落·TC 闭包",
   "method": "尖刺鼠（`Quill 1`）及 8 怪三槽位 TC 应可解析且抽样有掉落",
   "criterion": "itemcheck 断言：差集为空 + 逐怪 200 次抽样全有掉落",
   "conclusion": "通过（片 O 已修）  ｜类别：数值类",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 09:29:21",
+  "generated": "2026-09-25 02:35:47",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [],

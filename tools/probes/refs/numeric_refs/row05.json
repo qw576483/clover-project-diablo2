@@ -2,14 +2,14 @@
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 5,
   "spec_md_line": 101,
-  "spec_sha256": "6cbfafe61d445b2bdaddf082b8a5639f1dc605b7c8170def51bc1edb2fcb46be",
+  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
   "category": "数值类",
   "system": "5 个职业",
   "method": "初始属性取官方 `原版资源/d2lod1.10txt-1.10f/data/global/excel/`",
   "criterion": "读 5 职业初始四维与日志比对",
   "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row05.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）\\",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 09:29:21",
+  "generated": "2026-09-25 02:35:47",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/screenshots/w1_host_playercheck.txt": [

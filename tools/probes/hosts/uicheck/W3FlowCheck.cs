@@ -131,7 +131,10 @@ namespace Uicheck
                 Add("Death", $"底图第 {i + 1} 块", ResPaths.EndGameTile(0, i), t.w, t.h,
                     UiLayoutGame.DeathTileSize(i));
             }
-            Add("Death", "标题条", ResPaths.Banner("youdiedsoftcore_0"), 256f, 54f, UiLayoutGame.DeathBannerSize);
+            for (var i = 0; i < ResPaths.FrameCountBannerYouDiedSoftCore; i++)
+                Add("Death", $"标题条第 {i + 1} 块", ResPaths.BannerYouDiedSoftCoreTile(i),
+                    UiLayoutGame.DeathBannerTiles[i].w, UiLayoutGame.DeathBannerTiles[i].h,
+                    UiLayoutGame.DeathBannerTileSize(i));
             Add("Death", "按钮常态底图", ResPaths.Frame(ResPaths.MenuEndGameOK, 0), 96f, 32f,
                 UiLayoutGame.DeathButtonSize);
             Add("Death", "按钮按下底图", ResPaths.Frame(ResPaths.MenuEndGameOK, 1), 96f, 32f,
@@ -205,8 +208,10 @@ namespace Uicheck
             yield return ("Loading", "读条图", ResPaths.Frame(ResPaths.MenuLoadingScreen, 0),
                 UiLayoutFlow.Loading.ArtOrigSize.x, UiLayoutFlow.Loading.ArtOrigSize.y,
                 UiLayoutFlow.Loading.ArtSize.x, UiLayoutFlow.Loading.ArtSize.y);
-            yield return ("Death", "标题条", ResPaths.Banner("youdiedsoftcore_0"), 256f, 54f,
-                UiLayoutGame.DeathBannerSize.x, UiLayoutGame.DeathBannerSize.y);
+            for (var i = 0; i < ResPaths.FrameCountBannerYouDiedSoftCore; i++)
+                yield return ("Death", $"标题条第 {i + 1} 块", ResPaths.BannerYouDiedSoftCoreTile(i),
+                    UiLayoutGame.DeathBannerTiles[i].w, UiLayoutGame.DeathBannerTiles[i].h,
+                    UiLayoutGame.DeathBannerTileSize(i).x, UiLayoutGame.DeathBannerTileSize(i).y);
             yield return ("Death", "按钮", ResPaths.Frame(ResPaths.MenuEndGameOK, 0), 96f, 32f,
                 UiLayoutGame.DeathButtonSize.x, UiLayoutGame.DeathButtonSize.y);
             for (var i = 0; i < UiLayoutGame.DeathBackTiles.Length; i++)

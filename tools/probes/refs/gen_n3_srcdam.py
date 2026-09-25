@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Durable producer for `tools/probes/refs/n3_srcdam-out.txt` (acceptance row 52).
+"""Durable producer for  (acceptance row 52).
 
 WHY IT HAD TO BE REBUILT
-    The row-52 evidence used to cite `.ai-tmp/test/n3_srcdam-out.txt`, and
+    The row-52 evidence used to cite a now-deleted file, and
     `.ai-tmp/test/` is the skill's "one-off, delete when done" area -- that file is
     gone and the whole repo has no producer for it (see `.ai-tmp/test/report-gatefinal.md`:
     "n3_srcdam-out.txt (quan cang wu producer)").  This script is that producer, and it
@@ -25,7 +25,7 @@ SOURCES (both must be on disk; the official carrier is NOT in git, same as befor
     ours     : 策划/数值文档/skill_c.txt
 
 USAGE
-    python tools/probes/refs/gen_n3_srcdam.py          # writes tools/probes/refs/n3_srcdam-out.txt
+    python tools/probes/refs/gen_n3_srcdam.py          # writes 
     python tools/probes/refs/gen_n3_srcdam.py --check  # exits 1 if the artifact is out of sync
 """
 

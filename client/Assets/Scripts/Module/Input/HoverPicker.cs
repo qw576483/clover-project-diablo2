@@ -17,7 +17,7 @@
 //    **不含格坐标** ⇒ 无法只用契约接口判断「某格上是哪个地面物品」。
 //    故地面物品这一路走**可注入的查询委托** <see cref="GroundItemAt"/>：
 //    默认实现经 `IViewModule.GetView(id).transform.position`（= `Iso.GridToWorld(格)`）反推格，
-//    Play 下有效；离线自检宿主注入替身（见 `tools/playercheck`）。
+//    Play 下有效；离线自检宿主注入替身（见 `tools/probes/hosts/playercheck`）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;

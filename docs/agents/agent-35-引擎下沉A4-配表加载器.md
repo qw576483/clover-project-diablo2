@@ -58,7 +58,7 @@ namespace CloverEngine
 
 - [ ] 编译绿：`recompile_status` ⇒ `completed / failed=false / errors=[]`
 - [ ] **既有签名零变化**：`CloverData` 的成员列表改前/改后**字符级对照**（只许多出新增内容）
-- [ ] `.ai-tmp/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
+- [ ] `tools/probes/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
 - [ ] **行为等价（关键）**：本项目 10 张表的读取结果与改前**逐行 0 差异** —— 用现有宿主的表相关断言（`fullcheck` / `itemcheck` / `mapcheck` / `combatcheck` 里凡涉及 `Tables.Default.*.Get(...)` 的输出）做改前/改后逐行比对；**同时跑一次"同构建重跑"作抖动基线**
 - [ ] 失败路径有据：`LoadAll(不存在的目录)` ⇒ 返回**可定位错误串**（不是 null、不是异常），且**失败后 `Get` 不崩**（返回 null + 限频告警）
 - [ ] `.ai-tmp/test/` 清空到只剩 `dispatch-log.tsv` / `play-log.tsv`；**本片 0 次 Play**（全离线可判）

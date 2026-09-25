@@ -1,10 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//   任务来源：team-lead 派活 **P-2b**（`popupaudit` 的更正清单）。
+//   人物属性面板「等级 / 经验 / 技能点」三框的**单行判据**（含退化样本）。
 //
-// 先更正任务描述里的形状：原描述"右上框一行拼三段（270×46.8 画布px）"是**旧稿**。
-//   现行形状（`CharacterPanel.cs:390-396`，U3 已拆框）：
+//   现行形状（`CharacterPanel.Refresh` 里三处 `*Text.text` 赋值）：
 //     · `TopRight`   用 `UiLayoutGame.CharTopRightSize`   → 「等级 {level}」
-//     · `Band2Right` 用 `UiLayoutGame.CharBand2RightSize` → 「经验 {exp}/{expNext}」
+//     · `Band2Right` 用 `UiLayoutGame.CharBand2RightSize` → 「经验 {exp}」（只显示当前经验）
 //     · `Band2Mid`   用 `UiLayoutGame.CharBand2MidSize`   → 「技能点 {skillPoints}」
 //
 // ── 判据口径（与 ⑧ 同源，不另立一套）─────────────────────────────────────
@@ -27,14 +26,16 @@
 // ── 可达值域（穷举；不许只挑一个"看起来合理"的数）────────────────────────
 //   · 等级   1..99      ← 出处 `client/Assets/Scripts/Table/Tsv/Experience.tsv` 的 `level` 列（1..99）
 //   · 技能点  0..99     ← 与等级同域的保守上界（每级 1 点 + 任务奖励；99 级为最高等级）
-//   · 经验   `{exp}/{expNext}` 的最坏 = **表内最大 exp**（99 级 = 3837739017，10 位数字）
+//   · 经验   「经验 {exp}」的最坏 = **表内最大 exp**（99 级 = 3837739017，10 位数字）；
+//       并列「经验 {exp}/{expNext}」是退化样本 (c)、**不是**面板现行文本
 //       单调性论证：十进制串长随数值**单调不降** ⇒ 取最大值即最坏宽度
 //       ⇒ 无需 99×99 组合穷举（那是 9801 次无信息的重复）
 //
 // ── 退化样本（喂的是**同一个**判据，不是另写一套）────────────────────────
 //   (a) 框宽 = 「最小可放宽度 − 1 art」 ⇒ 必须判**折行**（确定性，由 `MinBoxArt` 定义保证）
 //   (b) 文案人为加长 40 字 ⇒ 必须判**折行**（不依赖表内容的确定性样本）
-//   两条都在**内存**里改数，不碰真常量、不碰真文件。
+//   (c) 并列「经验 {exp}/{expNext}」在 `Band2Right` 框内 ⇒ 必须判**折行**（钉死"本框只显示当前经验"）
+//   三条都在**内存**里改数（(c) 用表内真实最大值），不碰真常量、不碰真文件。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -155,18 +156,32 @@ namespace Uicheck
                       + $"{U52ResistCheck.AvailPx(bandMW * UiLayoutGame.K, scSp)}（框 {bandMW:0.#} art）"
                     : $"折行 {wrapSp.Count} 个，如 {Head(wrapSp, 5)}");
 
-            // ── ③ 经验（Band2Right）—— 最坏 = 表内最大值（10 位/10 位）──────────
-            var txtExp = $"经验 {maxExp}/{maxExp}";
+            // ── ③ 经验（Band2Right）—— 最坏 = 表内最大值（10 位）────────────────
+            //   本框只显示当前经验：原版 `CharstatPanel.prefab` 无等级/经验节点，并列「当前/下一等级」的载体
+            //   是底部经验条的悬停提示串（`原版资源/d2text/chi_string.txt` 串 4163 `經驗： %u / %u`）。
+            //   ⇒ 钉两条：① 「经验 cur」必须单行；② 退化样本「经验 cur/next」必须判**折行**（能失败）。
+            var txtExp = $"经验 {maxExp}";
             float scEx;
             string kEx;
             List<char> mEx, vEx;
             var needEx = U52ResistCheck.NeedNative(txtExp, out scEx, out kEx, out mEx, out vEx);
             var availEx = U52ResistCheck.AvailPx(bandRW * UiLayoutGame.K, scEx);
             var missNote = mEx.Count > 0 ? $" ⚠️ 缺字形 {new string(mEx.ToArray())}" : string.Empty;
-            Check("「经验 cur/next」**最坏组合**（表内最大值 10 位/10 位）在 `Band2Right` 框内单行",
+            Check("「经验 cur」最坏值（表内最大值，10 位）在 `Band2Right` 框内单行",
                 U52ResistCheck.SingleLine(needEx, availEx),
                 $"最坏「{txtExp}」need={needEx} art vs availPx {availEx}（框 {bandRW:0.#} art）"
                 + $"；余量 {availEx - needEx} art{missNote}");
+
+            // ── ③b 退化样本：「经验 cur/next」并列 ⇒ 必须判**折行**（同一判据，非另写一套）──
+            var txtExpPair = $"经验 {maxExp}/{maxExp}";
+            float scExpPair;
+            string kExpPair;
+            List<char> mExpPair, vExpPair;
+            var needExpPair = U52ResistCheck.NeedNative(txtExpPair, out scExpPair, out kExpPair, out mExpPair, out vExpPair);
+            var availExpPair = U52ResistCheck.AvailPx(bandRW * UiLayoutGame.K, scExpPair);
+            Check("退化样本：并列「经验 cur/next」在 `Band2Right` 框内必须判**折行**（⇒ 本框只显示当前经验）",
+                !U52ResistCheck.SingleLine(needExpPair, availExpPair),
+                $"并列样本「{txtExpPair}」need={needExpPair} art ≥ availPx {availExpPair}（框 {bandRW:0.#} art）⇒ 折行");
 
             // ── ④ 退化样本 (a)：框宽 =「最小可放宽度 − 1 art」⇒ 必须折行（能失败）──
             var minArt = U52ResistCheck.MinBoxArt(needLv, scLv);

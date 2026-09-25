@@ -1,0 +1,140 @@
+区域	路径	素材键	文件	进池	尺寸	不透明像素	唯一色	判决
+-	ViewModule.GroundItemVisual→D2/Items	invhax	在盘	-	28x84	665	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invaxe	在盘	-	56x84	887	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlax	在盘	-	56x84	769	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invbrx	在盘	-	56x84	751	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invwnd	在盘	-	28x56	234	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invywn	在盘	-	28x56	506	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invclb	在盘	-	28x84	771	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invscp	在盘	-	28x84	630	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invspc	在盘	-	28x84	946	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmac	在盘	-	28x84	501	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invssd	在盘	-	28x84	411	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invscm	在盘	-	28x84	496	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invsbr	在盘	-	28x84	436	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invflc	在盘	-	28x84	619	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invcrs	在盘	-	56x84	671	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	inv2hs	在盘	-	28x112	543	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invdgr	在盘	-	28x56	378	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invdir	在盘	-	28x56	354	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invtkn	在盘	-	28x56	896	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invtax	在盘	-	28x56	586	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invjav	在盘	-	28x84	841	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invpil	在盘	-	28x84	254	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invspr	在盘	-	56x112	450	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invtri	在盘	-	56x112	581	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invbar	在盘	-	56x112	776	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invvou	在盘	-	56x112	565	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invsst	在盘	-	28x84	408	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlst	在盘	-	28x112	447	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invcst	在盘	-	28x112	579	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invsbw	在盘	-	56x84	602	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhbw	在盘	-	56x84	549	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlbw	在盘	-	56x112	849	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invcbw	在盘	-	56x84	646	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlxb	在盘	-	56x84	1047	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgps	在盘	-	28x28	230	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invops	在盘	-	28x28	230	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invktr	缺文件	剔除(type=h2h)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invwrb	缺文件	剔除(type=h2h)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invaxf	缺文件	剔除(type=h2h)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invob1	缺文件	剔除(type=orb)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invob2	缺文件	剔除(type=orb)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invob3	缺文件	剔除(type=orb)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invcap	在盘	-	56x56	1128	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invskp	在盘	-	56x56	1036	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhlm	在盘	-	56x56	1423	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invqlt	在盘	-	56x84	2737	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlea	在盘	-	56x84	2229	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhla	在盘	-	56x84	2056	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invstu	在盘	-	56x84	2212	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invrng	在盘	-	56x84	2370	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invbuc	在盘	-	56x56	1739	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invsml	在盘	-	56x56	1826	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlrg	在盘	-	56x84	2740	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlgl	在盘	-	56x56	1561	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invvgl	在盘	-	56x56	1659	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmgl	在盘	-	56x56	1585	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlbt	在盘	-	56x56	1311	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invvbt	在盘	-	56x56	1512	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmbt	在盘	-	56x56	1701	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invlbl	在盘	-	56x28	1087	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invvbl	在盘	-	56x28	924	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmbl	在盘	-	56x28	1206	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invspk	在盘	-	56x84	2148	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invdr1	缺文件	剔除(type=pelt)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invdr2	缺文件	剔除(type=pelt)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invba1	缺文件	剔除(type=phlm)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invba2	缺文件	剔除(type=phlm)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invpa1	缺文件	剔除(type=ashd)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invpa2	缺文件	剔除(type=ashd)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invne1	缺文件	剔除(type=head)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invne2	缺文件	剔除(type=head)				MISSING
+-	ViewModule.GroundItemVisual→D2/Items	invrps	在盘	-	28x28	292	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invbps	在盘	-	28x28	297	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invrpl	在盘	-	28x28	519	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invbpl	在盘	-	28x28	520	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invwps	在盘	-	28x28	142	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invnps	在盘	-	28x28	242	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invvps	在盘	-	28x28	295	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invvpl	在盘	-	28x28	521	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invyps	在盘	-	28x28	142	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invbbk	在盘	-	28x56	1160	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invrbk	在盘	-	28x56	1125	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invamu	在盘	-	28x28	466	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invrin	在盘	-	28x28	450	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgld	在盘	-	28x28	269	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invqvr	在盘	-	28x84	1116	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invtrch	在盘	-	28x56	390	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invcqv	在盘	-	28x84	1115	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invbsc	在盘	-	28x28	258	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invrsc	在盘	-	28x28	258	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invkey	在盘	-	28x28	200	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invear	在盘	-	28x28	310	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsva	在盘	-	28x28	126	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsvb	在盘	-	28x28	162	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsvc	在盘	-	28x28	195	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsvd	在盘	-	28x28	273	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsve	在盘	-	28x28	311	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsya	在盘	-	28x28	126	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsyb	在盘	-	28x28	162	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsyc	在盘	-	28x28	195	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsyd	在盘	-	28x28	273	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsye	在盘	-	28x28	311	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsba	在盘	-	28x28	126	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsbb	在盘	-	28x28	162	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsbc	在盘	-	28x28	195	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsbd	在盘	-	28x28	273	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsbe	在盘	-	28x28	311	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsga	在盘	-	28x28	146	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsgb	在盘	-	28x28	165	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsgc	在盘	-	28x28	195	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsgd	在盘	-	28x28	312	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsge	在盘	-	28x28	267	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsra	在盘	-	28x28	146	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsrb	在盘	-	28x28	165	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsrc	在盘	-	28x28	195	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsrd	在盘	-	28x28	312	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgsre	在盘	-	28x28	267	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgswa	在盘	-	28x28	146	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgswb	在盘	-	28x28	165	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgswc	在盘	-	28x28	186	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgswd	在盘	-	28x28	312	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invgswe	在盘	-	28x28	267	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhp1	在盘	-	28x28	237	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhp2	在盘	-	28x28	293	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhp3	在盘	-	28x28	328	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhp4	在盘	-	28x28	344	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invhp5	在盘	-	28x28	360	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmp1	在盘	-	28x28	237	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmp2	在盘	-	28x28	293	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmp3	在盘	-	28x28	329	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmp4	在盘	-	28x28	344	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invmp5	在盘	-	28x28	355	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invskc	在盘	-	28x28	391	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invskf	在盘	-	28x28	406	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invsku	在盘	-	28x28	408	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invskl	在盘	-	28x28	372	2	ok
+-	ViewModule.GroundItemVisual→D2/Items	invskz	在盘	-	28x28	372	2	ok
+-	（金币另两档，当前无引用方）	invgldm	在盘	-				info
+-	（金币另两档，当前无引用方）	invgldh	在盘	-				info

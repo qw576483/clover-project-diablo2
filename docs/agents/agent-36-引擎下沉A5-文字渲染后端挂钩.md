@@ -70,7 +70,7 @@ namespace CloverEngine
 
 - [ ] 编译绿：`recompile_status` ⇒ `completed / failed=false / errors=[]`
 - [ ] **未注册时逐字等价（本片最关键）**：把注册那行注释掉（或让 `Current = null`）跑一次 —— 引擎通用件行为与改前**逐字一致**（可离线判：`uicheck` 等宿主的 Text 相关断言改前/改后逐行 0 差异；实机图可与改前对照）
-- [ ] `.ai-tmp/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
+- [ ] `tools/probes/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
 - [ ] **E19 消除的机检判据（复用项目已有探针，⛔ 不许新写一套）**：E19 的出处是片 3 的"启用 Text 含非 ASCII"扫描（探针里打印过 `[A54] … 其中含非ASCII=2 [Label=加载中...][Label=角色名已存在]`）。**找到并复用那个扫描**，本轮判据 = **含非 ASCII 的「仍在绘制」Text 数 = 0**（`D2TextMirror` 已把 `Text.enabled=false / font=null` ⇒ 它们不算"在绘制"）。把这个数字做成一行日志贴进回报。
 - [ ] **实机证据（1 轮，≤2 次 Play）**：驱动到"引擎 Toast 出现"+"LoadingLayer 出现"两个时刻，采 `p36_engine_text.png` 并**自己读图**确认两处都是原版字模（读不到 ⇒ `BLOCKED`，⛔ 不许硬写画面描述）
 - [ ] **进 Play 记账**：`.ai-tmp/test/play-log.tsv` 追加行（含理由）

@@ -1,0 +1,630 @@
+区域	层	素材键	路径	出处
+Town	floor	moor_bridge/020	D2/Tiles/moor_bridge/020	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/021	D2/Tiles/moor_bridge/021	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/022	D2/Tiles/moor_bridge/022	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/023	D2/Tiles/moor_bridge/023	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/024	D2/Tiles/moor_bridge/024	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/025	D2/Tiles/moor_bridge/025	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/026	D2/Tiles/moor_bridge/026	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/027	D2/Tiles/moor_bridge/027	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/028	D2/Tiles/moor_bridge/028	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/029	D2/Tiles/moor_bridge/029	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/030	D2/Tiles/moor_bridge/030	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/031	D2/Tiles/moor_bridge/031	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/032	D2/Tiles/moor_bridge/032	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/033	D2/Tiles/moor_bridge/033	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/034	D2/Tiles/moor_bridge/034	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/035	D2/Tiles/moor_bridge/035	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/036	D2/Tiles/moor_bridge/036	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/037	D2/Tiles/moor_bridge/037	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/038	D2/Tiles/moor_bridge/038	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/039	D2/Tiles/moor_bridge/039	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/040	D2/Tiles/moor_bridge/040	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/041	D2/Tiles/moor_bridge/041	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/042	D2/Tiles/moor_bridge/042	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/043	D2/Tiles/moor_bridge/043	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/044	D2/Tiles/moor_bridge/044	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/045	D2/Tiles/moor_bridge/045	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/046	D2/Tiles/moor_bridge/046	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/047	D2/Tiles/moor_bridge/047	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/048	D2/Tiles/moor_bridge/048	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/049	D2/Tiles/moor_bridge/049	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/050	D2/Tiles/moor_bridge/050	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/051	D2/Tiles/moor_bridge/051	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/052	D2/Tiles/moor_bridge/052	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/053	D2/Tiles/moor_bridge/053	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/054	D2/Tiles/moor_bridge/054	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/055	D2/Tiles/moor_bridge/055	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/056	D2/Tiles/moor_bridge/056	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/057	D2/Tiles/moor_bridge/057	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/058	D2/Tiles/moor_bridge/058	MapGenTownLayout.GroundRows
+Town	floor	moor_bridge/059	D2/Tiles/moor_bridge/059	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/003	D2/Tiles/moor_objects/003	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/004	D2/Tiles/moor_objects/004	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/005	D2/Tiles/moor_objects/005	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/006	D2/Tiles/moor_objects/006	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/007	D2/Tiles/moor_objects/007	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/025	D2/Tiles/moor_objects/025	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/026	D2/Tiles/moor_objects/026	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/027	D2/Tiles/moor_objects/027	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/028	D2/Tiles/moor_objects/028	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/029	D2/Tiles/moor_objects/029	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/030	D2/Tiles/moor_objects/030	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/031	D2/Tiles/moor_objects/031	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/032	D2/Tiles/moor_objects/032	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/033	D2/Tiles/moor_objects/033	MapGenTownLayout.GroundRows
+Town	floor	moor_objects/036	D2/Tiles/moor_objects/036	MapGenTownLayout.GroundRows
+Town	floor	moor_river/000	D2/Tiles/moor_river/000	MapGenTownLayout.GroundRows
+Town	floor	moor_river/001	D2/Tiles/moor_river/001	MapGenTownLayout.GroundRows
+Town	floor	moor_river/002	D2/Tiles/moor_river/002	MapGenTownLayout.GroundRows
+Town	floor	moor_river/003	D2/Tiles/moor_river/003	MapGenTownLayout.GroundRows
+Town	floor	moor_river/004	D2/Tiles/moor_river/004	MapGenTownLayout.GroundRows
+Town	floor	moor_river/005	D2/Tiles/moor_river/005	MapGenTownLayout.GroundRows
+Town	floor	moor_river/006	D2/Tiles/moor_river/006	MapGenTownLayout.GroundRows
+Town	floor	moor_river/007	D2/Tiles/moor_river/007	MapGenTownLayout.GroundRows
+Town	floor	moor_river/008	D2/Tiles/moor_river/008	MapGenTownLayout.GroundRows
+Town	floor	moor_river/009	D2/Tiles/moor_river/009	MapGenTownLayout.GroundRows
+Town	floor	moor_river/010	D2/Tiles/moor_river/010	MapGenTownLayout.GroundRows
+Town	floor	moor_river/011	D2/Tiles/moor_river/011	MapGenTownLayout.GroundRows
+Town	floor	moor_river/012	D2/Tiles/moor_river/012	MapGenTownLayout.GroundRows
+Town	floor	moor_river/013	D2/Tiles/moor_river/013	MapGenTownLayout.GroundRows
+Town	floor	moor_river/014	D2/Tiles/moor_river/014	MapGenTownLayout.GroundRows
+Town	floor	moor_river/015	D2/Tiles/moor_river/015	MapGenTownLayout.GroundRows
+Town	floor	moor_river/016	D2/Tiles/moor_river/016	MapGenTownLayout.GroundRows
+Town	floor	moor_river/017	D2/Tiles/moor_river/017	MapGenTownLayout.GroundRows
+Town	floor	moor_river/018	D2/Tiles/moor_river/018	MapGenTownLayout.GroundRows
+Town	floor	moor_river/019	D2/Tiles/moor_river/019	MapGenTownLayout.GroundRows
+Town	floor	moor_river/020	D2/Tiles/moor_river/020	MapGenTownLayout.GroundRows
+Town	floor	moor_river/021	D2/Tiles/moor_river/021	MapGenTownLayout.GroundRows
+Town	floor	moor_river/022	D2/Tiles/moor_river/022	MapGenTownLayout.GroundRows
+Town	floor	moor_river/023	D2/Tiles/moor_river/023	MapGenTownLayout.GroundRows
+Town	floor	moor_river/024	D2/Tiles/moor_river/024	MapGenTownLayout.GroundRows
+Town	floor	moor_river/025	D2/Tiles/moor_river/025	MapGenTownLayout.GroundRows
+Town	floor	moor_river/026	D2/Tiles/moor_river/026	MapGenTownLayout.GroundRows
+Town	floor	moor_river/027	D2/Tiles/moor_river/027	MapGenTownLayout.GroundRows
+Town	floor	moor_river/029	D2/Tiles/moor_river/029	MapGenTownLayout.GroundRows
+Town	floor	moor_river/033	D2/Tiles/moor_river/033	MapGenTownLayout.GroundRows
+Town	floor	moor_river/034	D2/Tiles/moor_river/034	MapGenTownLayout.GroundRows
+Town	floor	moor_river/035	D2/Tiles/moor_river/035	MapGenTownLayout.GroundRows
+Town	floor	moor_river/036	D2/Tiles/moor_river/036	MapGenTownLayout.GroundRows
+Town	floor	moor_river/037	D2/Tiles/moor_river/037	MapGenTownLayout.GroundRows
+Town	floor	moor_river/038	D2/Tiles/moor_river/038	MapGenTownLayout.GroundRows
+Town	floor	moor_river/039	D2/Tiles/moor_river/039	MapGenTownLayout.GroundRows
+Town	floor	moor_river/040	D2/Tiles/moor_river/040	MapGenTownLayout.GroundRows
+Town	floor	moor_river/041	D2/Tiles/moor_river/041	MapGenTownLayout.GroundRows
+Town	floor	moor_river/042	D2/Tiles/moor_river/042	MapGenTownLayout.GroundRows
+Town	floor	moor_river/043	D2/Tiles/moor_river/043	MapGenTownLayout.GroundRows
+Town	floor	moor_river/044	D2/Tiles/moor_river/044	MapGenTownLayout.GroundRows
+Town	floor	town_floor/000	D2/Tiles/town_floor/000	MapGenTownLayout.GroundRows
+Town	floor	town_floor/001	D2/Tiles/town_floor/001	MapGenTownLayout.GroundRows
+Town	floor	town_floor/002	D2/Tiles/town_floor/002	MapGenTownLayout.GroundRows
+Town	floor	town_floor/003	D2/Tiles/town_floor/003	MapGenTownLayout.GroundRows
+Town	floor	town_floor/004	D2/Tiles/town_floor/004	MapGenTownLayout.GroundRows
+Town	floor	town_floor/016	D2/Tiles/town_floor/016	MapGenTownLayout.GroundRows
+Town	floor	town_floor/018	D2/Tiles/town_floor/018	MapGenTownLayout.GroundRows
+Town	floor	town_floor/028	D2/Tiles/town_floor/028	MapGenTownLayout.GroundRows
+Town	floor	town_floor/035	D2/Tiles/town_floor/035	MapGenTownLayout.GroundRows
+Town	floor	town_floor/045	D2/Tiles/town_floor/045	MapGenTownLayout.GroundRows
+Town	floor	town_floor/046	D2/Tiles/town_floor/046	MapGenTownLayout.GroundRows
+Town	floor	town_floor/050	D2/Tiles/town_floor/050	MapGenTownLayout.GroundRows
+Town	floor	town_floor/051	D2/Tiles/town_floor/051	MapGenTownLayout.GroundRows
+Town	floor	town_floor/052	D2/Tiles/town_floor/052	MapGenTownLayout.GroundRows
+Town	floor	town_floor/053	D2/Tiles/town_floor/053	MapGenTownLayout.GroundRows
+Town	floor	town_floor/054	D2/Tiles/town_floor/054	MapGenTownLayout.GroundRows
+Town	floor	town_floor/055	D2/Tiles/town_floor/055	MapGenTownLayout.GroundRows
+Town	floor	town_floor/060	D2/Tiles/town_floor/060	MapGenTownLayout.GroundRows
+Town	floor	town_floor/061	D2/Tiles/town_floor/061	MapGenTownLayout.GroundRows
+Town	floor	town_floor/062	D2/Tiles/town_floor/062	MapGenTownLayout.GroundRows
+Town	floor	town_floor/063	D2/Tiles/town_floor/063	MapGenTownLayout.GroundRows
+Town	floor	town_floor/065	D2/Tiles/town_floor/065	MapGenTownLayout.GroundRows
+Town	floor	town_floor/068	D2/Tiles/town_floor/068	MapGenTownLayout.GroundRows
+Town	floor	town_floor/069	D2/Tiles/town_floor/069	MapGenTownLayout.GroundRows
+Town	floor	town_floor/070	D2/Tiles/town_floor/070	MapGenTownLayout.GroundRows
+Town	floor	town_floor/071	D2/Tiles/town_floor/071	MapGenTownLayout.GroundRows
+Town	floor	town_floor/072	D2/Tiles/town_floor/072	MapGenTownLayout.GroundRows
+Town	floor	town_floor/091	D2/Tiles/town_floor/091	MapGenTownLayout.GroundRows
+Town	floor	town_floor/104	D2/Tiles/town_floor/104	MapGenTownLayout.GroundRows
+Town	floor	town_floor/108	D2/Tiles/town_floor/108	MapGenTownLayout.GroundRows
+Town	floor	town_floor/109	D2/Tiles/town_floor/109	MapGenTownLayout.GroundRows
+Town	floor	town_floor/111	D2/Tiles/town_floor/111	MapGenTownLayout.GroundRows
+Town	floor	town_floor/119	D2/Tiles/town_floor/119	MapGenTownLayout.GroundRows
+Town	floor	town_floor/120	D2/Tiles/town_floor/120	MapGenTownLayout.GroundRows
+Town	floor	town_floor/124	D2/Tiles/town_floor/124	MapGenTownLayout.GroundRows
+Town	floor	town_floor/127	D2/Tiles/town_floor/127	MapGenTownLayout.GroundRows
+Town	floor	town_floor/128	D2/Tiles/town_floor/128	MapGenTownLayout.GroundRows
+Town	floor	town_floor/129	D2/Tiles/town_floor/129	MapGenTownLayout.GroundRows
+Town	floor	town_floor/130	D2/Tiles/town_floor/130	MapGenTownLayout.GroundRows
+Town	floor	town_floor/131	D2/Tiles/town_floor/131	MapGenTownLayout.GroundRows
+Town	floor	town_floor/139	D2/Tiles/town_floor/139	MapGenTownLayout.GroundRows
+Town	floor	town_objects/059	D2/Tiles/town_objects/059	MapGenTownLayout.GroundRows
+Town	floor	town_objects/060	D2/Tiles/town_objects/060	MapGenTownLayout.GroundRows
+Town	floor	town_objects/061	D2/Tiles/town_objects/061	MapGenTownLayout.GroundRows
+Town	floor	town_objects/062	D2/Tiles/town_objects/062	MapGenTownLayout.GroundRows
+Town	floor	town_objects/063	D2/Tiles/town_objects/063	MapGenTownLayout.GroundRows
+Town	floor	town_objects/064	D2/Tiles/town_objects/064	MapGenTownLayout.GroundRows
+Town	floor	town_objects/065	D2/Tiles/town_objects/065	MapGenTownLayout.GroundRows
+Town	floor	town_objects/066	D2/Tiles/town_objects/066	MapGenTownLayout.GroundRows
+Town	floor	town_objects/067	D2/Tiles/town_objects/067	MapGenTownLayout.GroundRows
+Town	floor	town_objects/070	D2/Tiles/town_objects/070	MapGenTownLayout.GroundRows
+Town	floor	town_objects/071	D2/Tiles/town_objects/071	MapGenTownLayout.GroundRows
+Town	floor	town_objects/072	D2/Tiles/town_objects/072	MapGenTownLayout.GroundRows
+Town	floor	town_objects/073	D2/Tiles/town_objects/073	MapGenTownLayout.GroundRows
+Town	floor	town_objects/074	D2/Tiles/town_objects/074	MapGenTownLayout.GroundRows
+Town	floor	town_objects/075	D2/Tiles/town_objects/075	MapGenTownLayout.GroundRows
+Town	floor	town_objects/076	D2/Tiles/town_objects/076	MapGenTownLayout.GroundRows
+Town	floor	town_objects/077	D2/Tiles/town_objects/077	MapGenTownLayout.GroundRows
+Town	floor	town_objects/078	D2/Tiles/town_objects/078	MapGenTownLayout.GroundRows
+Town	floor	town_objects/079	D2/Tiles/town_objects/079	MapGenTownLayout.GroundRows
+Town	object	moor_bridge/000	D2/Objects/moor_bridge/000	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/001	D2/Objects/moor_bridge/001	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/002	D2/Objects/moor_bridge/002	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/003	D2/Objects/moor_bridge/003	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/004	D2/Objects/moor_bridge/004	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/005	D2/Objects/moor_bridge/005	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/006	D2/Objects/moor_bridge/006	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/007	D2/Objects/moor_bridge/007	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/008	D2/Objects/moor_bridge/008	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/009	D2/Objects/moor_bridge/009	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/010	D2/Objects/moor_bridge/010	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/011	D2/Objects/moor_bridge/011	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/012	D2/Objects/moor_bridge/012	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/013	D2/Objects/moor_bridge/013	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/014	D2/Objects/moor_bridge/014	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/015	D2/Objects/moor_bridge/015	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/016	D2/Objects/moor_bridge/016	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/017	D2/Objects/moor_bridge/017	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/018	D2/Objects/moor_bridge/018	MapGenTownLayout.ObjectRows
+Town	object	moor_bridge/019	D2/Objects/moor_bridge/019	MapGenTownLayout.ObjectRows
+Town	object	moor_objects/039	D2/Objects/moor_objects/039	MapGenTownLayout.ObjectRows
+Town	object	moor_river/028	D2/Objects/moor_river/028	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/029	D2/Objects/moor_stonewall/029	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/031	D2/Objects/moor_stonewall/031	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/038	D2/Objects/moor_stonewall/038	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/041	D2/Objects/moor_stonewall/041	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/044	D2/Objects/moor_stonewall/044	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/046	D2/Objects/moor_stonewall/046	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/047	D2/Objects/moor_stonewall/047	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/048	D2/Objects/moor_stonewall/048	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/049	D2/Objects/moor_stonewall/049	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/050	D2/Objects/moor_stonewall/050	MapGenTownLayout.ObjectRows
+Town	object	moor_stonewall/051	D2/Objects/moor_stonewall/051	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/000	D2/Objects/moor_trees/000	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/001	D2/Objects/moor_trees/001	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/002	D2/Objects/moor_trees/002	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/003	D2/Objects/moor_trees/003	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/004	D2/Objects/moor_trees/004	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/005	D2/Objects/moor_trees/005	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/006	D2/Objects/moor_trees/006	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/007	D2/Objects/moor_trees/007	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/008	D2/Objects/moor_trees/008	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/009	D2/Objects/moor_trees/009	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/010	D2/Objects/moor_trees/010	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/011	D2/Objects/moor_trees/011	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/012	D2/Objects/moor_trees/012	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/013	D2/Objects/moor_trees/013	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/014	D2/Objects/moor_trees/014	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/015	D2/Objects/moor_trees/015	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/016	D2/Objects/moor_trees/016	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/017	D2/Objects/moor_trees/017	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/018	D2/Objects/moor_trees/018	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/019	D2/Objects/moor_trees/019	MapGenTownLayout.ObjectRows
+Town	object	moor_trees/020	D2/Objects/moor_trees/020	MapGenTownLayout.ObjectRows
+Town	object	town_fence/000	D2/Objects/town_fence/000	MapGenTownLayout.ObjectRows
+Town	object	town_fence/001	D2/Objects/town_fence/001	MapGenTownLayout.ObjectRows
+Town	object	town_fence/002	D2/Objects/town_fence/002	MapGenTownLayout.ObjectRows
+Town	object	town_fence/003	D2/Objects/town_fence/003	MapGenTownLayout.ObjectRows
+Town	object	town_fence/004	D2/Objects/town_fence/004	MapGenTownLayout.ObjectRows
+Town	object	town_fence/005	D2/Objects/town_fence/005	MapGenTownLayout.ObjectRows
+Town	object	town_fence/006	D2/Objects/town_fence/006	MapGenTownLayout.ObjectRows
+Town	object	town_fence/008	D2/Objects/town_fence/008	MapGenTownLayout.ObjectRows
+Town	object	town_fence/009	D2/Objects/town_fence/009	MapGenTownLayout.ObjectRows
+Town	object	town_fence/010	D2/Objects/town_fence/010	MapGenTownLayout.ObjectRows
+Town	object	town_fence/011	D2/Objects/town_fence/011	MapGenTownLayout.ObjectRows
+Town	object	town_fence/012	D2/Objects/town_fence/012	MapGenTownLayout.ObjectRows
+Town	object	town_fence/013	D2/Objects/town_fence/013	MapGenTownLayout.ObjectRows
+Town	object	town_fence/015	D2/Objects/town_fence/015	MapGenTownLayout.ObjectRows
+Town	object	town_fence/016	D2/Objects/town_fence/016	MapGenTownLayout.ObjectRows
+Town	object	town_fence/017	D2/Objects/town_fence/017	MapGenTownLayout.ObjectRows
+Town	object	town_fence/018	D2/Objects/town_fence/018	MapGenTownLayout.ObjectRows
+Town	object	town_fence/019	D2/Objects/town_fence/019	MapGenTownLayout.ObjectRows
+Town	object	town_fence/020	D2/Objects/town_fence/020	MapGenTownLayout.ObjectRows
+Town	object	town_fence/021	D2/Objects/town_fence/021	MapGenTownLayout.ObjectRows
+Town	object	town_fence/022	D2/Objects/town_fence/022	MapGenTownLayout.ObjectRows
+Town	object	town_fence/023	D2/Objects/town_fence/023	MapGenTownLayout.ObjectRows
+Town	object	town_fence/024	D2/Objects/town_fence/024	MapGenTownLayout.ObjectRows
+Town	object	town_fence/025	D2/Objects/town_fence/025	MapGenTownLayout.ObjectRows
+Town	object	town_fence/026	D2/Objects/town_fence/026	MapGenTownLayout.ObjectRows
+Town	object	town_fence/029	D2/Objects/town_fence/029	MapGenTownLayout.ObjectRows
+Town	object	town_fence/030	D2/Objects/town_fence/030	MapGenTownLayout.ObjectRows
+Town	object	town_objects/000	D2/Objects/town_objects/000	MapGenTownLayout.ObjectRows
+Town	object	town_objects/001	D2/Objects/town_objects/001	MapGenTownLayout.ObjectRows
+Town	object	town_objects/002	D2/Objects/town_objects/002	MapGenTownLayout.ObjectRows
+Town	object	town_objects/003	D2/Objects/town_objects/003	MapGenTownLayout.ObjectRows
+Town	object	town_objects/004	D2/Objects/town_objects/004	MapGenTownLayout.ObjectRows
+Town	object	town_objects/005	D2/Objects/town_objects/005	MapGenTownLayout.ObjectRows
+Town	object	town_objects/006	D2/Objects/town_objects/006	MapGenTownLayout.ObjectRows
+Town	object	town_objects/008	D2/Objects/town_objects/008	MapGenTownLayout.ObjectRows
+Town	object	town_objects/009	D2/Objects/town_objects/009	MapGenTownLayout.ObjectRows
+Town	object	town_objects/010	D2/Objects/town_objects/010	MapGenTownLayout.ObjectRows
+Town	object	town_objects/011	D2/Objects/town_objects/011	MapGenTownLayout.ObjectRows
+Town	object	town_objects/012	D2/Objects/town_objects/012	MapGenTownLayout.ObjectRows
+Town	object	town_objects/013	D2/Objects/town_objects/013	MapGenTownLayout.ObjectRows
+Town	object	town_objects/015	D2/Objects/town_objects/015	MapGenTownLayout.ObjectRows
+Town	object	town_objects/017	D2/Objects/town_objects/017	MapGenTownLayout.ObjectRows
+Town	object	town_objects/018	D2/Objects/town_objects/018	MapGenTownLayout.ObjectRows
+Town	object	town_objects/019	D2/Objects/town_objects/019	MapGenTownLayout.ObjectRows
+Town	object	town_objects/021	D2/Objects/town_objects/021	MapGenTownLayout.ObjectRows
+Town	object	town_objects/022	D2/Objects/town_objects/022	MapGenTownLayout.ObjectRows
+Town	object	town_objects/023	D2/Objects/town_objects/023	MapGenTownLayout.ObjectRows
+Town	object	town_objects/024	D2/Objects/town_objects/024	MapGenTownLayout.ObjectRows
+Town	object	town_objects/025	D2/Objects/town_objects/025	MapGenTownLayout.ObjectRows
+Town	object	town_objects/026	D2/Objects/town_objects/026	MapGenTownLayout.ObjectRows
+Town	object	town_objects/027	D2/Objects/town_objects/027	MapGenTownLayout.ObjectRows
+Town	object	town_objects/028	D2/Objects/town_objects/028	MapGenTownLayout.ObjectRows
+Town	object	town_objects/035	D2/Objects/town_objects/035	MapGenTownLayout.ObjectRows
+Town	object	town_objects/036	D2/Objects/town_objects/036	MapGenTownLayout.ObjectRows
+Town	object	town_objects/037	D2/Objects/town_objects/037	MapGenTownLayout.ObjectRows
+Town	object	town_objects/038	D2/Objects/town_objects/038	MapGenTownLayout.ObjectRows
+Town	object	town_objects/039	D2/Objects/town_objects/039	MapGenTownLayout.ObjectRows
+Town	object	town_objects/040	D2/Objects/town_objects/040	MapGenTownLayout.ObjectRows
+Town	object	town_objects/041	D2/Objects/town_objects/041	MapGenTownLayout.ObjectRows
+Town	object	town_objects/042	D2/Objects/town_objects/042	MapGenTownLayout.ObjectRows
+Town	object	town_objects/043	D2/Objects/town_objects/043	MapGenTownLayout.ObjectRows
+Town	object	town_objects/044	D2/Objects/town_objects/044	MapGenTownLayout.ObjectRows
+Town	object	town_objects/045	D2/Objects/town_objects/045	MapGenTownLayout.ObjectRows
+Town	object	town_objects/046	D2/Objects/town_objects/046	MapGenTownLayout.ObjectRows
+Town	object	town_objects/047	D2/Objects/town_objects/047	MapGenTownLayout.ObjectRows
+Town	object	town_objects/048	D2/Objects/town_objects/048	MapGenTownLayout.ObjectRows
+Town	object	town_objects/049	D2/Objects/town_objects/049	MapGenTownLayout.ObjectRows
+Town	object	town_objects/050	D2/Objects/town_objects/050	MapGenTownLayout.ObjectRows
+Town	object	town_objects/051	D2/Objects/town_objects/051	MapGenTownLayout.ObjectRows
+Town	object	town_objects/052	D2/Objects/town_objects/052	MapGenTownLayout.ObjectRows
+Town	object	town_objects/053	D2/Objects/town_objects/053	MapGenTownLayout.ObjectRows
+Town	object	town_objects/054	D2/Objects/town_objects/054	MapGenTownLayout.ObjectRows
+Town	object	town_objects/055	D2/Objects/town_objects/055	MapGenTownLayout.ObjectRows
+Town	object	town_objects/056	D2/Objects/town_objects/056	MapGenTownLayout.ObjectRows
+Town	object	town_objects/057	D2/Objects/town_objects/057	MapGenTownLayout.ObjectRows
+Town	object	town_objects/058	D2/Objects/town_objects/058	MapGenTownLayout.ObjectRows
+Town	object	town_objects/068	D2/Objects/town_objects/068	MapGenTownLayout.ObjectRows
+Town	object	town_objects/069	D2/Objects/town_objects/069	MapGenTownLayout.ObjectRows
+Town	object	town_objects/080	D2/Objects/town_objects/080	MapGenTownLayout.ObjectRows
+Town	object	town_objects/085	D2/Objects/town_objects/085	MapGenTownLayout.ObjectRows
+Town	object	town_objects/086	D2/Objects/town_objects/086	MapGenTownLayout.ObjectRows
+Town	object	town_objects/087	D2/Objects/town_objects/087	MapGenTownLayout.ObjectRows
+Town	object	town_objects/088	D2/Objects/town_objects/088	MapGenTownLayout.ObjectRows
+Town	object	town_objects/089	D2/Objects/town_objects/089	MapGenTownLayout.ObjectRows
+Town	object	town_objects/090	D2/Objects/town_objects/090	MapGenTownLayout.ObjectRows
+BloodMoor	floor	moor_bridge/033	D2/Tiles/moor_bridge/033	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	moor_bridge/035	D2/Tiles/moor_bridge/035	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	moor_stones/000	D2/Tiles/moor_stones/000	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	moor_stones/012	D2/Tiles/moor_stones/012	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	moor_stones/022	D2/Tiles/moor_stones/022	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/006	D2/Tiles/town_floor/006	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/007	D2/Tiles/town_floor/007	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/027	D2/Tiles/town_floor/027	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/028	D2/Tiles/town_floor/028	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/035	D2/Tiles/town_floor/035	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/051	D2/Tiles/town_floor/051	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/052	D2/Tiles/town_floor/052	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/053	D2/Tiles/town_floor/053	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/054	D2/Tiles/town_floor/054	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/060	D2/Tiles/town_floor/060	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/062	D2/Tiles/town_floor/062	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/063	D2/Tiles/town_floor/063	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/069	D2/Tiles/town_floor/069	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/072	D2/Tiles/town_floor/072	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/093	D2/Tiles/town_floor/093	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	floor	town_floor/130	D2/Tiles/town_floor/130	MapGenWildLayout 14 字码的 <ground6>
+BloodMoor	object	moor_bridge/000	D2/Objects/moor_bridge/000	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_bridge/004	D2/Objects/moor_bridge/004	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/002	D2/Objects/moor_cliff1/002	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/003	D2/Objects/moor_cliff1/003	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/004	D2/Objects/moor_cliff1/004	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/005	D2/Objects/moor_cliff1/005	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/006	D2/Objects/moor_cliff1/006	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/007	D2/Objects/moor_cliff1/007	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/008	D2/Objects/moor_cliff1/008	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/009	D2/Objects/moor_cliff1/009	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/010	D2/Objects/moor_cliff1/010	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/011	D2/Objects/moor_cliff1/011	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff1/012	D2/Objects/moor_cliff1/012	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/002	D2/Objects/moor_cliff2/002	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/003	D2/Objects/moor_cliff2/003	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/004	D2/Objects/moor_cliff2/004	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/005	D2/Objects/moor_cliff2/005	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/006	D2/Objects/moor_cliff2/006	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/007	D2/Objects/moor_cliff2/007	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/008	D2/Objects/moor_cliff2/008	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/009	D2/Objects/moor_cliff2/009	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/010	D2/Objects/moor_cliff2/010	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/011	D2/Objects/moor_cliff2/011	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_cliff2/012	D2/Objects/moor_cliff2/012	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_corner/000	D2/Objects/moor_corner/000	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_corner/002	D2/Objects/moor_corner/002	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/000	D2/Objects/moor_fence/000	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/001	D2/Objects/moor_fence/001	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/002	D2/Objects/moor_fence/002	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/003	D2/Objects/moor_fence/003	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/004	D2/Objects/moor_fence/004	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/006	D2/Objects/moor_fence/006	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/007	D2/Objects/moor_fence/007	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/008	D2/Objects/moor_fence/008	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/009	D2/Objects/moor_fence/009	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/010	D2/Objects/moor_fence/010	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/011	D2/Objects/moor_fence/011	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/012	D2/Objects/moor_fence/012	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/013	D2/Objects/moor_fence/013	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/014	D2/Objects/moor_fence/014	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/015	D2/Objects/moor_fence/015	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/016	D2/Objects/moor_fence/016	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/017	D2/Objects/moor_fence/017	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/018	D2/Objects/moor_fence/018	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/019	D2/Objects/moor_fence/019	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/020	D2/Objects/moor_fence/020	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/021	D2/Objects/moor_fence/021	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_fence/022	D2/Objects/moor_fence/022	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_objects/037	D2/Objects/moor_objects/037	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_objects/038	D2/Objects/moor_objects/038	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_objects/039	D2/Objects/moor_objects/039	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_objects/040	D2/Objects/moor_objects/040	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_objects/041	D2/Objects/moor_objects/041	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stones/024	D2/Objects/moor_stones/024	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stones/025	D2/Objects/moor_stones/025	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stones/026	D2/Objects/moor_stones/026	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stones/027	D2/Objects/moor_stones/027	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stones/028	D2/Objects/moor_stones/028	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/000	D2/Objects/moor_stonewall/000	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/001	D2/Objects/moor_stonewall/001	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/002	D2/Objects/moor_stonewall/002	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/003	D2/Objects/moor_stonewall/003	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/005	D2/Objects/moor_stonewall/005	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/007	D2/Objects/moor_stonewall/007	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/008	D2/Objects/moor_stonewall/008	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/009	D2/Objects/moor_stonewall/009	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/010	D2/Objects/moor_stonewall/010	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/011	D2/Objects/moor_stonewall/011	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/012	D2/Objects/moor_stonewall/012	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/014	D2/Objects/moor_stonewall/014	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/015	D2/Objects/moor_stonewall/015	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/016	D2/Objects/moor_stonewall/016	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/017	D2/Objects/moor_stonewall/017	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/018	D2/Objects/moor_stonewall/018	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/019	D2/Objects/moor_stonewall/019	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/022	D2/Objects/moor_stonewall/022	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/029	D2/Objects/moor_stonewall/029	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/031	D2/Objects/moor_stonewall/031	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/032	D2/Objects/moor_stonewall/032	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/038	D2/Objects/moor_stonewall/038	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/041	D2/Objects/moor_stonewall/041	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/044	D2/Objects/moor_stonewall/044	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/046	D2/Objects/moor_stonewall/046	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/047	D2/Objects/moor_stonewall/047	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/048	D2/Objects/moor_stonewall/048	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/049	D2/Objects/moor_stonewall/049	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/050	D2/Objects/moor_stonewall/050	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_stonewall/051	D2/Objects/moor_stonewall/051	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/000	D2/Objects/moor_trees/000	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/001	D2/Objects/moor_trees/001	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/002	D2/Objects/moor_trees/002	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/003	D2/Objects/moor_trees/003	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/004	D2/Objects/moor_trees/004	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/005	D2/Objects/moor_trees/005	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/006	D2/Objects/moor_trees/006	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/007	D2/Objects/moor_trees/007	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/008	D2/Objects/moor_trees/008	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/009	D2/Objects/moor_trees/009	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/010	D2/Objects/moor_trees/010	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/011	D2/Objects/moor_trees/011	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/012	D2/Objects/moor_trees/012	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/013	D2/Objects/moor_trees/013	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/014	D2/Objects/moor_trees/014	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/015	D2/Objects/moor_trees/015	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/016	D2/Objects/moor_trees/016	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/017	D2/Objects/moor_trees/017	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/018	D2/Objects/moor_trees/018	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/019	D2/Objects/moor_trees/019	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	moor_trees/020	D2/Objects/moor_trees/020	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/000	D2/Objects/town_trees/000	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/001	D2/Objects/town_trees/001	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/009	D2/Objects/town_trees/009	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/010	D2/Objects/town_trees/010	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/018	D2/Objects/town_trees/018	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/019	D2/Objects/town_trees/019	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/027	D2/Objects/town_trees/027	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/028	D2/Objects/town_trees/028	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/036	D2/Objects/town_trees/036	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/037	D2/Objects/town_trees/037	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/045	D2/Objects/town_trees/045	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/046	D2/Objects/town_trees/046	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/054	D2/Objects/town_trees/054	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/055	D2/Objects/town_trees/055	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/063	D2/Objects/town_trees/063	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/064	D2/Objects/town_trees/064	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/072	D2/Objects/town_trees/072	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/073	D2/Objects/town_trees/073	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/081	D2/Objects/town_trees/081	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/082	D2/Objects/town_trees/082	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/090	D2/Objects/town_trees/090	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/091	D2/Objects/town_trees/091	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/099	D2/Objects/town_trees/099	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/100	D2/Objects/town_trees/100	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/108	D2/Objects/town_trees/108	MapGenWildLayout 14 字码的 <object6>
+BloodMoor	object	town_trees/109	D2/Objects/town_trees/109	MapGenWildLayout 14 字码的 <object6>
+DenOfEvil	floor	cave/018	D2/Tiles/cave/018	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/019	D2/Tiles/cave/019	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/020	D2/Tiles/cave/020	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/021	D2/Tiles/cave/021	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/022	D2/Tiles/cave/022	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/023	D2/Tiles/cave/023	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/024	D2/Tiles/cave/024	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/025	D2/Tiles/cave/025	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/026	D2/Tiles/cave/026	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/027	D2/Tiles/cave/027	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/028	D2/Tiles/cave/028	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/029	D2/Tiles/cave/029	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/030	D2/Tiles/cave/030	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/031	D2/Tiles/cave/031	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/032	D2/Tiles/cave/032	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/033	D2/Tiles/cave/033	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/034	D2/Tiles/cave/034	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/035	D2/Tiles/cave/035	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/036	D2/Tiles/cave/036	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/037	D2/Tiles/cave/037	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/038	D2/Tiles/cave/038	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/039	D2/Tiles/cave/039	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/040	D2/Tiles/cave/040	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/041	D2/Tiles/cave/041	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/042	D2/Tiles/cave/042	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/043	D2/Tiles/cave/043	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/044	D2/Tiles/cave/044	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/045	D2/Tiles/cave/045	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/046	D2/Tiles/cave/046	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/047	D2/Tiles/cave/047	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/048	D2/Tiles/cave/048	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/049	D2/Tiles/cave/049	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/050	D2/Tiles/cave/050	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/051	D2/Tiles/cave/051	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/052	D2/Tiles/cave/052	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/053	D2/Tiles/cave/053	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/054	D2/Tiles/cave/054	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/055	D2/Tiles/cave/055	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/056	D2/Tiles/cave/056	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/057	D2/Tiles/cave/057	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/058	D2/Tiles/cave/058	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/059	D2/Tiles/cave/059	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/060	D2/Tiles/cave/060	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/061	D2/Tiles/cave/061	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/062	D2/Tiles/cave/062	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/063	D2/Tiles/cave/063	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/064	D2/Tiles/cave/064	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/065	D2/Tiles/cave/065	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/066	D2/Tiles/cave/066	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/067	D2/Tiles/cave/067	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/068	D2/Tiles/cave/068	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/069	D2/Tiles/cave/069	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/070	D2/Tiles/cave/070	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/071	D2/Tiles/cave/071	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/072	D2/Tiles/cave/072	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/073	D2/Tiles/cave/073	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/074	D2/Tiles/cave/074	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/075	D2/Tiles/cave/075	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/076	D2/Tiles/cave/076	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/077	D2/Tiles/cave/077	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/078	D2/Tiles/cave/078	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/079	D2/Tiles/cave/079	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/080	D2/Tiles/cave/080	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/081	D2/Tiles/cave/081	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/082	D2/Tiles/cave/082	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/083	D2/Tiles/cave/083	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/084	D2/Tiles/cave/084	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/085	D2/Tiles/cave/085	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/086	D2/Tiles/cave/086	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/087	D2/Tiles/cave/087	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/088	D2/Tiles/cave/088	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/089	D2/Tiles/cave/089	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/090	D2/Tiles/cave/090	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/101	D2/Tiles/cave/101	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/102	D2/Tiles/cave/102	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/103	D2/Tiles/cave/103	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/104	D2/Tiles/cave/104	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/113	D2/Tiles/cave/113	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/114	D2/Tiles/cave/114	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/115	D2/Tiles/cave/115	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/116	D2/Tiles/cave/116	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/117	D2/Tiles/cave/117	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/118	D2/Tiles/cave/118	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/119	D2/Tiles/cave/119	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/120	D2/Tiles/cave/120	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/121	D2/Tiles/cave/121	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/122	D2/Tiles/cave/122	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/123	D2/Tiles/cave/123	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/124	D2/Tiles/cave/124	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/125	D2/Tiles/cave/125	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/126	D2/Tiles/cave/126	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/127	D2/Tiles/cave/127	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/128	D2/Tiles/cave/128	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/129	D2/Tiles/cave/129	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/130	D2/Tiles/cave/130	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/131	D2/Tiles/cave/131	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/132	D2/Tiles/cave/132	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/133	D2/Tiles/cave/133	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/134	D2/Tiles/cave/134	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/135	D2/Tiles/cave/135	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/136	D2/Tiles/cave/136	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/137	D2/Tiles/cave/137	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/138	D2/Tiles/cave/138	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/139	D2/Tiles/cave/139	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/140	D2/Tiles/cave/140	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/141	D2/Tiles/cave/141	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/142	D2/Tiles/cave/142	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/143	D2/Tiles/cave/143	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/144	D2/Tiles/cave/144	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/145	D2/Tiles/cave/145	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/146	D2/Tiles/cave/146	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/147	D2/Tiles/cave/147	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/148	D2/Tiles/cave/148	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/149	D2/Tiles/cave/149	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/150	D2/Tiles/cave/150	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/151	D2/Tiles/cave/151	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/152	D2/Tiles/cave/152	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/153	D2/Tiles/cave/153	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/162	D2/Tiles/cave/162	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/163	D2/Tiles/cave/163	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/164	D2/Tiles/cave/164	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/165	D2/Tiles/cave/165	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/166	D2/Tiles/cave/166	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/167	D2/Tiles/cave/167	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/168	D2/Tiles/cave/168	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/169	D2/Tiles/cave/169	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/170	D2/Tiles/cave/170	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/171	D2/Tiles/cave/171	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/172	D2/Tiles/cave/172	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/173	D2/Tiles/cave/173	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/180	D2/Tiles/cave/180	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/181	D2/Tiles/cave/181	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/182	D2/Tiles/cave/182	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/183	D2/Tiles/cave/183	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/184	D2/Tiles/cave/184	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/185	D2/Tiles/cave/185	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/186	D2/Tiles/cave/186	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/187	D2/Tiles/cave/187	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/188	D2/Tiles/cave/188	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/189	D2/Tiles/cave/189	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/190	D2/Tiles/cave/190	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/191	D2/Tiles/cave/191	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/192	D2/Tiles/cave/192	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/193	D2/Tiles/cave/193	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/194	D2/Tiles/cave/194	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/195	D2/Tiles/cave/195	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/196	D2/Tiles/cave/196	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/197	D2/Tiles/cave/197	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/198	D2/Tiles/cave/198	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/199	D2/Tiles/cave/199	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/200	D2/Tiles/cave/200	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/201	D2/Tiles/cave/201	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/202	D2/Tiles/cave/202	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/203	D2/Tiles/cave/203	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/204	D2/Tiles/cave/204	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/205	D2/Tiles/cave/205	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/206	D2/Tiles/cave/206	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/207	D2/Tiles/cave/207	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/208	D2/Tiles/cave/208	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/209	D2/Tiles/cave/209	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/210	D2/Tiles/cave/210	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	floor	cave/211	D2/Tiles/cave/211	MapGenCaveLayout 13 字符号表的 <ground6>
+DenOfEvil	object	cave/091	D2/Objects/cave/091	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/092	D2/Objects/cave/092	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/093	D2/Objects/cave/093	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/094	D2/Objects/cave/094	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/095	D2/Objects/cave/095	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/096	D2/Objects/cave/096	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/097	D2/Objects/cave/097	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/098	D2/Objects/cave/098	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/099	D2/Objects/cave/099	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/100	D2/Objects/cave/100	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/174	D2/Objects/cave/174	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/175	D2/Objects/cave/175	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/176	D2/Objects/cave/176	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/177	D2/Objects/cave/177	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/178	D2/Objects/cave/178	MapGenCaveLayout 13 字符号表的 <object6>
+DenOfEvil	object	cave/179	D2/Objects/cave/179	MapGenCaveLayout 13 字符号表的 <object6>

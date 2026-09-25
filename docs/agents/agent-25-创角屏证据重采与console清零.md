@@ -8,7 +8,7 @@
   - 兜底：`<仓库根>/clover-ai-skill/SKILL.md`
   - 都找不到 → **回报调用方要路径**，⛔ 不许凭记忆写代码
 - **必读章节**：`clover-engine` 的 §1.13（四拍批次 / 编译必须先成功 / 采样器先自检）、§1.11（收尾自检）、§2（证据按类别）、§1.8（临时文件只放 `.ai-tmp/test/`、用完即删）、§1.12（验不了就 BLOCKED）；`unity-cli` 的「`--project-path` / 连接与 Safe Mode」。
-- **项目内必读**：`docs/agents/_common.md`、`client/Assets/Scripts/UI/CharCreatePanel.cs`（本轮观察对象）、`.ai-tmp/test/p23_run.ps1` + `p23_boot.cs` + `p23_go.cs`（驱动模板，**用后由你统一删除**）。
+- **项目内必读**：`docs/agents/_common.md`、`client/Assets/Scripts/UI/CharCreatePanel.cs`（本轮观察对象）、 + `p23_boot.cs` + `p23_go.cs`（驱动模板，**用后由你统一删除**）。
 
 ## 1. 目标（一句话）
 
@@ -18,7 +18,7 @@
 
 **只做**：
 - 在 `<项目根>/.ai-tmp/test/` 写一次性探针 / 驱动脚本，跑实机、采证据（**回报前删掉**）
-- 覆盖 `client/Assets/Screenshots/p22_1_charcreate.png`、`p22_2_transition.png`、`p22_3_after.png` 三张；**覆盖前**把旧文件另存到 `<项目根>/.ai-tmp/test/old_p22/` 并记录 SHA256（随清场删）
+- 覆盖 `client/Assets/Screenshots/p22_1_charcreate.png`、`p22_2_transition.png`、`p22_3_after.png` 三张；**覆盖前**把旧文件另存到 `<项目根>/` 并记录 SHA256（随清场删）
 - 回报里给「旧 hash → 新 hash」对照 + `console_status` 原始输出
 
 **绝不做的**：
@@ -26,7 +26,7 @@
 - ⛔ 不许改 `策划/验收表.md`、`docs/**`、`tools/**`、`tools/ai-skill/**`、任何 skill（含全局与宿主安装副本）
 - ⛔ 不许读工作区里**其它** `clover-project-*`（源码 / `tools/ai-skill/` / `策划/` / `docs/` / Editor 生成器 / 素材全算）；只许读**本项目**、引擎源码 `clover-client-unity-engine/Runtime/**`、`clover-doc/**`、skill 的 `patterns`/`scaffold`/`experience`
 - ⛔ 不许再派生任何子 agent
-- ⛔ 不许删 / 改 `client/_dev/p_runbg.cs`（长期驱动脚本，验收表白名单）
+- ⛔ 不许删 / 改 `tools/probes/interact/p_runbg.cs`（长期驱动脚本，验收表白名单）
 - ⛔ 不许写 `docs/交接-*.md` / `NEXT.md` / `docs/进度*.md`（未完成项只写在回报消息里）
 
 ## 3. 前置依赖（已就绪，主 agent 实测）
@@ -39,7 +39,7 @@
 | 已知 Error 之二 | 同文件 13:46:39 `[Error] [Logger] 日志写线程异常终止：ThreadAbortException` —— 编辑器停 Play 时的日志线程中断，**非游戏错误** |
 | 待重采三张 | `client/Assets/Screenshots/p22_1_charcreate.png`(13:45:49) / `p22_2_transition.png`(13:45:50) / `p22_3_after.png`(13:45:53) |
 | 观察对象 | `client/Assets/Scripts/UI/CharCreatePanel.cs`（mtime `13:46:15`）：片 22 决策 = 只做 **Amazon + Barbarian**、5 槽位几何保留、停用槽 = `NoClass(-1)`、过渡帧表 `amazon/fw=54, amazon/bw=30, barbarian/fw=64, barbarian/bw=19`、@25fps |
-| 驱动模板 | `.ai-tmp/test/p23_run.ps1`（`editor_stop → clear_console → editor_play → eval_file _dev/p_runbg.cs → p23_boot.cs → p23_go.cs → 截图 → console --level error`）；探针里 `Game.Event.Emit(Diablo2.Core.Events.BootDone)` / `Emit(Diablo2.Core.Events.Fsm.TriggerNewGame)` |
+| 驱动模板 | （`editor_stop → clear_console → editor_play → eval_file _dev/p_runbg.cs → p23_boot.cs → p23_go.cs → 截图 → console --level error`）；探针里 `Game.Event.Emit(Diablo2.Core.Events.BootDone)` / `Emit(Diablo2.Core.Events.Fsm.TriggerNewGame)` |
 
 > ⚠️ 驱动入口（点选某个职业槽）**自己去源码查真实入口**（`Core/Events.cs` + `UI/CharCreatePanel.cs` 的公开入口）——⛔ 不许编 API 名；片 22 的实机是"注入 A/C/C + 真鼠标点"那条路，用哪条由你按源码定，但**必须是生产入口**。
 

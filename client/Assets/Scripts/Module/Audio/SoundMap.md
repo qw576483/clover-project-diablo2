@@ -62,10 +62,10 @@
 
 ## 3.5 验证记录（素材到位后实测）
 
-**① 逐条 Test-Path（27/27 全真）**：见 `.ai-tmp/hosts/audiocheck` 的「素材到位自检」段（机器可复现版：逐键查存在 + 非空 + `RIFF/WAVE` 头 + 出处覆盖），
+**① 逐条 Test-Path（27/27 全真）**：见 `tools/probes/hosts/audiocheck` 的「素材到位自检」段（机器可复现版：逐键查存在 + 非空 + `RIFF/WAVE` 头 + 出处覆盖），
 输出 `[ OK ] 音效键 24 个：文件全部就位 / [ OK ] BGM 键 3 个：文件全部就位 / [ OK ] 27/27 合法 / [ OK ] 每个键都登记了原版出处`。
 
-**② Play 里真的出声（27/27 键实际播过）**：取证脚本 `client/_dev/p_a11_audio2.cs`，原始报告 `client/_dev/a11_report.txt`。
+**② Play 里真的出声（27/27 键实际播过）**。
 监听口径 = **扫 Unity 真实 `AudioSource` 的"开始播"跃迁**（不是"代码里调了 PlaySFX"）：
 
 ```

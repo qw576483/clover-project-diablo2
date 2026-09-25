@@ -25,7 +25,7 @@
 `Inventory.txt` `MagicPrefix.txt` `MagicSuffix.txt` `MonUMod.txt` `TreasureClassEx.txt` `Missiles.txt`）
 
 **打表工具**：`clover-tools\table\core`（`go run ./cmd/table -config <cfg> -batch`；
-`-pack` 反向出 xlsx）。**先读 `clover-tools/table/README.md` 与 `cmd/table/main.go` 确认参数与产物路径规则**。
+`-pack` 反向出 xlsx）。**先读 `clover-` 与 `cmd/table/main.go` 确认参数与产物路径规则**。
 
 ## 4. 产出物
 
@@ -74,13 +74,13 @@ mapping_file: "../_table_discard/mapping.tsv"
 
 ### 4.4 打表产物（**不许手改**）
 
-跑 `go run ./cmd/table -config ../table/config.yaml -batch`（在 `clover-tools/table/core` 下），产出
+跑 `go run ./cmd/table -config ../table/config.yaml -batch`（在 `clover-` 下），产出
 `client/Assets/Scripts/Table/**`（`Registry.cs` + `Base/*.cs` + 上层 `<Logical>.cs` + tsv）。
 
 **必须查清并把结论写进回报**：
 1. 生成的 C# 表**运行时怎么读数据**（tsv 要从哪里加载？是否要 `CloverData.InitDataTable(dir)`？
    tsv 要放到哪个目录、是否必须在 `Resources` 下？）—— **去读生成器的源码**
-   `clover-tools/table/core/internal/gen/cs.go` 与 `Runtime/Data/DataTable.cs` 得出结论，
+   `clover-` 与 `Runtime/Data/DataTable.cs` 得出结论，
    **不许猜**。若必须在 `Resources` 下，则把 tsv 目录也放到 `client/Assets/Resources/Table/` 并在回报里说明。
 2. `Tables.Default.X.Get(id)` 的确切命名空间与调用形态（贴一段真实可编译的示例）。
 3. 若打表工具因路径/配置报错，把**原始报错**贴进回报，不要自己改工具。

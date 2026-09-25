@@ -102,6 +102,7 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
+using Diablo2.Module.View;
 using UnityEngine;
 
 namespace Diablo2.Module.Map
@@ -578,6 +579,8 @@ namespace Diablo2.Module.Map
             _primeActive = false;                        // revive-chunk：落位预建窗口一并作废
             _primeUntil = float.NegativeInfinity;
             _primeQueued = 0;
+            _waypointNode = null;                        // 退场：本体动画的载体（池化节点）已随池销毁
+            _waypointAnim = null;
             _repaintRequested = false;
             _repaintFirstAt = -1f;                       // 清掉待重铺时刻（否则旧时刻会立刻触发）
             _lastRepaintAt = float.NegativeInfinity;     // （`_repaintCoalesceLogged` 不复位：口径日志一局只报一次）
@@ -1761,20 +1764,97 @@ namespace Diablo2.Module.Map
             //   这里刻意**不做** `TileKind` 兜底：兜底会画出一堆纯色占位方块（实测 170 个），
             //   比"没有物件"难看得多，而且掩盖了"原版这里本来就没东西"这个事实。
             // **其它区域（野外）**：按 `TileKind` 分类取默认瓦片；取不到才用纯色占位（便于发现问题）。
+            // ── 传送台锚点格 ──
+            //   锚点 = `GridMap.WaypointPoints`（`MapGenTown` 按原版 DS1 的预设单位落的关卡格）。
+            //   原版那一格在 DS1 里**没有** wall 层瓦片（原版运行期用 Id=119 的 Waypoint 顶掉
+            //   `not used` 的占位单位）⇒ 这一格的物件层由锚点决定，画传送台本体。
+            var isWaypoint = IsWaypointAnchor(map, g);
+
             var ds1HasObject = fromDs1 && !string.IsNullOrEmpty(ds1Object);
             // **平色水墙瓦片不叠**（该格 floor 层已经是同一 dt1 的水瓦片 ⇒ 河面由它呈现）。
             //   口径与出处见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay` 的注释；
             //   只影响本帧画不画这一张物件，**不动** `GridMap` 的键 / `TileKind` / 可走性。
             var skipFlatWallOverlay = ds1HasObject && IsPaletteCycledFlatWallOverlay(ds1Ground, ds1Object);
 
-            var drawObject = fromDs1 ? (ds1HasObject && !skipFlatWallOverlay) : IsObjectKind(kind);
+            var drawObject = isWaypoint
+                || (fromDs1 ? (ds1HasObject && !skipFlatWallOverlay) : IsObjectKind(kind));
             if (drawObject && IsHiddenSolidInterior(map, g, kind)) drawObject = false;
 
-            var objectKey = drawObject
-                ? (ds1HasObject ? ds1Object : (fromDs1 ? null : ObjectKeyOf(kind, area, g)))
-                : null;
+            var objectKey = isWaypoint
+                ? ResPaths.WaypointFrame(0)
+                : (drawObject
+                    ? (ds1HasObject ? ds1Object : (fromDs1 ? null : ObjectKeyOf(kind, area, g)))
+                    : null);
 
             return new CellPlan(true, groundKey, groundKind, kind, drawObject, objectKey, skipFlatWallOverlay);
+        }
+
+        /// <summary>
+        /// 这一格是不是**传送台锚点**（`GridMap.WaypointPoints`）。
+        /// <para>锚点是**关卡格级**的标记单位（`MapGenTown.Waypoint` 一处；四条营地块导出的位置重合），
+        /// 不是某一块的装饰 ⇒ 判据就是"格坐标在表里"。</para>
+        /// </summary>
+        internal static bool IsWaypointAnchor(GridMap map, Vector2Int g)
+        {
+            var anchors = map.WaypointPoints;
+            for (var i = 0; i < anchors.Count; i++)
+            {
+                if (anchors[i] == g) return true;
+            }
+            return false;
+        }
+
+        // ── 传送台本体动画 ───────────────────────────────────────────────────
+        //   载体 = **锚点格那个池化物件节点**（`ApplyCellPlan` 里 `NewTile` 建的那个），
+        //   ⛔ 不为它新立节点体系；帧推进复用 `Module/View` 的 `SpriteAnimator`（纯逻辑，可离线驱动）。
+        //   帧率 = `ResPaths.WaypointFrameFps`（= 25 × 官方 `Objects.txt` 该行 `FrameDelta2`(200) / 256
+        //   ≈ 19.53 fps；出处链与复算入口写在该常量的注释里）。
+
+        /// <summary>本体动画器（懒建；`Tick` 只推帧号，贴图由 `ApplyWaypointFrame` 换）。</summary>
+        private SpriteAnimator _waypointAnim;
+
+        /// <summary>当前登记的锚点节点；被回收时置空（见 `RecycleChunk`）⇒ 永不写到别的格子上。</summary>
+        private SpriteRenderer _waypointNode;
+
+        /// <summary>本体的帧键（`ResPaths.WaypointFrame(0..N-1)`，懒建一次）。</summary>
+        private string[] _waypointKeys;
+
+        /// <summary>
+        /// 登记锚点格的物件节点并开播本体动画（每次铺到锚点格都会调）。
+        /// <para>重复登记**不会**把进度打回第 0 帧（`SpriteAnimator.Play` 的同动作早退），
+        /// 但会把当前帧同步到新节点上 —— 重铺后节点是新的，不同步就会停在 build 那一帧。</para>
+        /// </summary>
+        private void BindWaypointNode(SpriteRenderer node)
+        {
+            _waypointNode = node;
+            if (_waypointAnim == null) _waypointAnim = new SpriteAnimator();
+            if (_waypointKeys == null)
+            {
+                _waypointKeys = new string[ResPaths.WaypointFrameCount];
+                for (var i = 0; i < _waypointKeys.Length; i++) _waypointKeys[i] = ResPaths.WaypointFrame(i);
+            }
+            _waypointAnim.Play(ViewAnim.Idle, _waypointKeys, ResPaths.WaypointFrameFps, true);
+            ApplyWaypointFrame();
+        }
+
+        /// <summary>每帧推进本体动画；`Tick` 的返回值就是"帧号变了没"。</summary>
+        private void TickWaypoint()
+        {
+            if (_waypointNode == null || _waypointAnim == null) return;
+            if (_waypointAnim.Tick(Time.deltaTime)) ApplyWaypointFrame();
+        }
+
+        /// <summary>
+        /// 把当前帧贴到登记节点上。贴图异步没到位时（`TrySprite` 返回 null）**保留原图不写成 null**
+        /// —— 写成 null 会让节点退化成"纯色占位菱形"。
+        /// </summary>
+        private void ApplyWaypointFrame()
+        {
+            if (_waypointNode == null || _waypointAnim == null) return;
+            var key = _waypointAnim.CurrentKey;
+            if (key == null) return;
+            var sprite = TrySprite(ResPaths.ObjectSprite(key));
+            if (sprite != null) _waypointNode.sprite = sprite;
         }
 
         /// <summary>
@@ -1801,7 +1881,9 @@ namespace Diablo2.Module.Map
             if (p.DrawObject)
             {
                 var objectSprite = p.ObjectKey != null ? TrySprite(ResPaths.ObjectSprite(p.ObjectKey)) : null;
-                NewTile(obj, ObjectState(objectSprite, p.ObjectKind, g));
+                var node = NewTile(obj, ObjectState(objectSprite, p.ObjectKind, g));
+                // 锚点格的那个节点同时是**本体动画的载体**（节点本身仍是池化瓦片节点）。
+                if (IsWaypointAnchor(_map, g)) BindWaypointNode(node);
                 n++;
             }
 
@@ -2539,6 +2621,9 @@ namespace Diablo2.Module.Map
                 var sr = child.GetComponent<SpriteRenderer>();
                 if (sr != null && _pool != null)
                 {
+                    // 送回池的节点**必须摘掉本体动画的登记**：它马上可能被别的格子取走，
+                    //   留着登记就会把那一格的瓦片每帧改写成传送台帧（静默错图）。
+                    if (sr == _waypointNode) _waypointNode = null;
                     _pool.Return(sr);
                     n++;
                 }
@@ -2554,6 +2639,11 @@ namespace Diablo2.Module.Map
 
             //   但**层根被单独销毁 / 销毁延时一帧**的窗口里仍可能进来 ⇒ 先过一道安全闸门。
             if (_groundRoot == null && _objectRoot == null && _overlayRoot == null) return;
+
+            // 传送台本体动画**先于本帧所有铺装**推一帧：这一帧里节点若被回收/复用，后续的
+            //   `RecycleChunk`（摘登记）与 `ApplyTileState`（无条件重写 sprite）都会覆盖它
+            //   ⇒ 本体帧永远只写在"当前登记的那个锚点节点"上。
+            TickWaypoint();
 
             if (_repaintRequested)
             {

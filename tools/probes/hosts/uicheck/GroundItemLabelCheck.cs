@@ -77,7 +77,7 @@ namespace Uicheck
                 ["D2ConfirmPanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },
 
                 // 死亡屏：满屏模态 ⇒ 吃；底图拼接块/标题条由 Shade 覆盖 ⇒ 不吃
-                ["DeathPanel.cs"] = new[] { "Shade#t", "EndGame#f", "Banner#n" },
+                ["DeathPanel.cs"] = new[] { "Shade#t", "EndGame#f", "Banner#n", "BannerTail#n" },
 
                 ["HudPanel.cs"] = new[]
                 {
@@ -97,6 +97,10 @@ namespace Uicheck
 
                 // 物品 tooltip：浮层跟随鼠标 ⇒ 绝不能吃
                 ["ItemTooltip.cs"] = new[] { "Bg#f" },
+
+                // 控件悬浮提示：浮层挂在锚控件**顶边之上** ⇒ 绝不能吃（吃了会把指针从控件上抢走 ⇒ enter/exit 抖）。
+                //   节点名是**类常量**（`ControlTip.NodeName`）⇒ 登记口径用 `?`；实参 = `UiArt.Panel(..., false)`。
+                ["ControlTip.cs"] = new[] { "?#f" },
 
                 // 读条屏：满屏**非模态过渡屏**（无游戏内移动）⇒ 不吃
                 ["LoadingPanel.cs"] = new[] { "Backdrop#f", "LoadingScreen#f" },

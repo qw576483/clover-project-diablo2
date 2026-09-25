@@ -61,7 +61,7 @@
 | **`UI/UiArt.cs` 已存在** | 7 个流程面板共用的「铺满根 / 原版贴图背景 / 按钮 / 文本 / 输入框 / 锚点宽度进度条」工具，**只封装 `CloverEngine.UIFactory`**。新面板**先看它有没有现成的**，不要重复写 |
 | **站点迁移日志唯一出口** | `Game.Fsm.OnChange` → `FlowLog.Station(to)` → `[Flow] → <站点>`。**验收 grep `[Flow] →`**。别在 `onEnter` 里各打一遍 |
 | **HUD 打开方式（约定）** | Flow **不引用** `HudPanel`。约定 **HUD 监听 `Events.StageEntered` 打开、`Events.StageLeft` 关闭** |
-| **离线快校验环路（重要）** | `client/client.slnx` 里**没有 `Diablo2.csproj`**（要等用户打开编辑器才生成）⇒ `dotnet build client.slnx` **覆盖不到本项目的业务代码**。已有两套可用宿主，**照抄它们的做法**：`.ai-tmp/hosts/mapcheck/`（agent-04）、`.ai-tmp/hosts/flowcheck/`（agent-05）—— 把 `Assets/Scripts/**` 源文件 + 引擎托管 DLL 编到 .NET 上跑断言。**你的自检必须用这种方式，不许"看起来 0 错误"就当通过** |
+| **离线快校验环路（重要）** | `client/client.slnx` 里**没有 `Diablo2.csproj`**（要等用户打开编辑器才生成）⇒ `dotnet build client.slnx` **覆盖不到本项目的业务代码**。已有两套可用宿主，**照抄它们的做法**：`tools/probes/hosts/mapcheck`（agent-04）、`tools/probes/hosts/flowcheck`（agent-05）—— 把 `Assets/Scripts/**` 源文件 + 引擎托管 DLL 编到 .NET 上跑断言。**你的自检必须用这种方式，不许"看起来 0 错误"就当通过** |
 
 ## 4. 分层与自检（硬指标）
 
@@ -90,7 +90,7 @@ Select-String -Path "<项目根>\client\Assets\Scripts\**\*.cs" -Pattern "Game\.
 
 > **用户尚未打开 Unity 编辑器**（skill 闸门 2）⇒ **禁止**跑 `unity run` / `unity test` / `Unity.exe -batchmode`。
 > `dotnet build client.slnx` **覆盖不到本项目业务代码**（没有 `Diablo2.csproj`）⇒
-> **必须用 `.ai-tmp/hosts/mapcheck/`、`.ai-tmp/hosts/flowcheck/` 那套离线宿主**（把 `Assets/Scripts/**` + 引擎 DLL 编到 .NET 并跑断言），
+> **必须用 `tools/probes/hosts/mapcheck`、`tools/probes/hosts/flowcheck` 那套离线宿主**（把 `Assets/Scripts/**` + 引擎 DLL 编到 .NET 并跑断言），
 > 或者自己照抄建一个 `tools/<你的模块>check/`。**"看起来 0 错误"不算自检通过。**
 
 ## 5. 回报格式（做完**一次性**回报，中途不播报）

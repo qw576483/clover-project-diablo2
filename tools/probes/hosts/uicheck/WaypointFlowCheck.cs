@@ -38,6 +38,7 @@ using Diablo2.App;
 using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.Module;
+using Diablo2.Module.View;
 using Diablo2.UI;
 using UnityEngine;
 
@@ -369,11 +370,10 @@ namespace Uicheck
                 viewReaders += CountNeedle(File.ReadAllText(viewFiles[i]), "WaypointPoints");
 
             // 素材"在位" = 目录里 ≥ 1 个**非 `.meta`** 文件（`.meta` 是 Unity 自己产的，不算素材）
-            var artDir = Path.Combine(Program.ResourceRoot, "Clover", "D2", "Objects", "waypoint");
             var artPresent = false;
-            if (Directory.Exists(artDir))
+            if (Directory.Exists(WpArtDir))
             {
-                var artFiles = Directory.GetFiles(artDir, "*", SearchOption.AllDirectories);
+                var artFiles = Directory.GetFiles(WpArtDir, "*", SearchOption.AllDirectories);
                 for (var i = 0; i < artFiles.Length; i++)
                 {
                     if (!artFiles[i].EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
@@ -381,10 +381,11 @@ namespace Uicheck
                 }
             }
 
-            // 登记：`client/资源欠缺清单.md` 里那条 `WP-ART-1` 行必须仍标 `BLOCKED`
+            // 登记：`client/资源欠缺清单.md` 里那条 `WP-ART-1` 行**还在**（行内写"已完成"也算在）
+            //   —— 失败形态是**缺口被忘掉**（整行删了、没人知道曾经缺过），不是"素材到手后改了状态"。
             var registryFile = Path.Combine(Program.ProjectRoot, "client", "资源欠缺清单.md");
             var registrySrc = File.Exists(registryFile) ? File.ReadAllText(registryFile) : string.Empty;
-            var registered = registrySrc.Contains("WP-ART-1") && registrySrc.Contains("BLOCKED");
+            var registered = WpGapRegistered(registrySrc);
 
             var readings = "素材在位=" + artPresent + " 视图层消费者=" + viewReaders
                 + " 登记=" + registered + "（扫了 " + viewFiles.Count + " 个视图层文件：Module/View/** + MapView.cs）";
@@ -393,14 +394,14 @@ namespace Uicheck
             //    · 素材到位却没人画 ⇒ 红（这就是"给了图却无处可画"，本残余最贵的形态，且它**静默**）；
             //    · 素材没到却接了渲染写入方 ⇒ 红（那画的一定不是原版图 = 自创贴图，铁律 1/3）；
             //    · 素材没到且没人画 ⇒ **只要登记还在**就自洽（= 现在的形状）。
-            Check("R1 自洽闸门（真输入：素材不在盘 + 视图层 0 写入方 + 登记在）⇒ 绿",
+            Check("R1 自洽闸门（真输入：素材在位 + 视图层有写入方 + 登记行还在）⇒ 绿",
                 WpArtResidualConsistent(artPresent, viewReaders, registered), readings);
             Check("★ 退化（D12）：素材到齐却没人画（true/0）⇒ 必须红（防「给了图但无处可画」）",
                 !WpArtResidualConsistent(true, 0, true), "这是本残余最贵的失败形态，而且它**静默**");
             Check("★ 退化（D13）：素材没到却接了渲染写入方（false/1）⇒ 必须红（那画的一定不是原版图）",
                 !WpArtResidualConsistent(false, 1, true), "铁律 1/3：写不出出处的图/量不许进工程");
             Check("★ 退化（D14）：素材没到、没人画、**登记被删**（false/0/false）⇒ 必须红（缺口不许被忘掉）",
-                !WpArtResidualConsistent(false, 0, false), "那条 `WP-ART-1`/BLOCKED 登记行就是这条的锚点");
+                !WpArtResidualConsistent(false, 0, false), "锚点 = 缺口台账里那条 `WP-ART-1` 行（判读见 ⑤）");
             Check("★ 正例：素材到位 + 有人画（true/1）⇒ 绿（闸门不是永假）",
                 WpArtResidualConsistent(true, 1, false), "闭合后的形状（将来素材到齐时走这条）");
 
@@ -411,16 +412,149 @@ namespace Uicheck
             var injectedHits = CountNeedle(mapViewReal
                 + "\ninternal static class Zz { static void Yy() { var w = Ctx.Map.WaypointPoints; } }\n",
                 "WaypointPoints");
-            Check("★ 扫描器直证：`MapView.cs` 真文本 0 处；同一文本追加一行读 `WaypointPoints` ⇒ 必须报 1 处",
-                mapViewReal.Length > 0 && realHits == 0 && injectedHits == 1,
+            Check("★ 扫描器直证：`MapView.cs` 真文本 1 处；同一文本再追加一行读 `WaypointPoints` ⇒ 必须报 2 处",
+                mapViewReal.Length > 0 && realHits == 1 && injectedHits == 2,
                 "真文本 " + realHits + " 处 ⇒ 注入后 " + injectedHits + " 处（证明扫描不是恒 0、也不是恒真）");
+
+            // ── ③ 素材在位 = 逐帧文件真的在盘 + **尺寸 == 原版数值**（不只是"目录非空"）──────
+            //   原版数值出处 = `tools/d2codec/export_waypoint.py` 的 manifest：
+            //     · 并集框 131x45（`wp/TR` 131x27 与 `wp/S1` 129x35 的并集，原版包围盒）
+            //     · 落位垫片 34 px（= 一格菱形半高 40 px − 原点距画布底边 6 px）⇒ 落盘 131x79
+            //   帧数 = 官方 `Objects.txt` 该行的 `FrameCnt2`（= `ResPaths.WaypointFrameCount`）。
+            var wpMissing = 0;
+            var wpWrongSize = 0;
+            var wpSize0 = "(缺失)";
+            for (var i = 0; i < ResPaths.WaypointFrameCount; i++)
+            {
+                int pw, ph;
+                PngSize(WpPng(i), out pw, out ph);
+                if (pw < 0) { wpMissing++; continue; }
+                if (pw != 131 || ph != 79) wpWrongSize++;
+                if (i == 0) wpSize0 = pw + "x" + ph;
+            }
+            Check("R1 素材在位：本体 " + ResPaths.WaypointFrameCount + " 帧 PNG 全在盘"
+                + "（`D2/Objects/waypoint/000..00" + (ResPaths.WaypointFrameCount - 1) + ".png`）",
+                wpMissing == 0, "缺 " + wpMissing + " 张（落盘器 `tools/d2codec/export_waypoint.py`）");
+            Check("★ 素材尺寸：并集框 131x45 + 落位垫片 34 ⇒ 每帧 131x79（8 帧全对）",
+                wpMissing == 0 && wpWrongSize == 0,
+                "第 0 帧实测 " + wpSize0 + "；尺寸不对的帧数 = " + wpWrongSize);
+
+            // ── ③-b 素材**可达**（存在性 ≠ 可达性）────────────────────────────────
+            //   ③ 只判了"文件在盘"；`Resources.Load<Sprite>()` 要成立还需**两条同时为真**，缺一即**静默** null：
+            //     Ⓐ 导入器把该 PNG 导成 Sprite（`.meta` 的 `textureType: 8` / `spriteMode: 1` /
+            //        `spritePixelsToUnits: 64` / `filterMode: 0` / `enableMipMap: 0`）；
+            //        口径 = 同族单帧图 `D2/UI/Panel/boxframe_pause.png.meta`（逐字段同值，⛔ 不另立一套参数）。
+            //     Ⓑ 运行期拼出的**资源路径**真的指到文件（`ObjectSprite(WaypointFrame(i))`）。
+            var importerFile = Path.Combine(Program.ProjectRoot,
+                "client", "Assets", "Editor", "AssetImporter.cs");
+            var importerSrc = File.Exists(importerFile) ? File.ReadAllText(importerFile) : string.Empty;
+            var peerMeta = Path.Combine(Program.ResourceRoot, "Clover",
+                "D2", "UI", "Panel", "boxframe_pause.png.meta");
+            var peerMetaOk = File.Exists(peerMeta) && MetaIsPixelArtSprite(File.ReadAllText(peerMeta));
+
+            var wpMetaBad = 0;
+            var wpPathBad = 0;
+            var wpOverWrapped = 0;
+            var wpMetaFirst = "(无)";
+            var wpPathFirst = WpRuntimePng(0);
+            for (var i = 0; i < ResPaths.WaypointFrameCount; i++)
+            {
+                // Ⓐ 走**盘上**路径（与运行期键无关）：这一个变量只考"导入口径"。
+                var meta = WpPng(i) + ".meta";
+                if (!File.Exists(meta) || !MetaIsPixelArtSprite(File.ReadAllText(meta))) wpMetaBad++;
+                if (i == 0 && File.Exists(meta)) wpMetaFirst = MetaRaw(File.ReadAllText(meta));
+
+                // Ⓑ 走**运行期**路径：这一个变量只考"键拼出来的资源路径能不能到文件"。
+                if (!File.Exists(WpRuntimePng(i))) wpPathBad++;
+
+                // ★ 退化样本（实机 `_waypointNode.sprite == null` 的那个形状）：键已带 `waypoint/`，
+                //   再套一层 `ObjectSprite` ⇒ `D2/Objects/D2/Objects/waypoint/…` ⇒ 这条路径**必须**指不到文件。
+                if (File.Exists(Path.Combine(Program.ResourceRoot, "Clover",
+                        ResPaths.ObjectSprite(ResPaths.ObjectSprite(ResPaths.WaypointFrame(i))) + ".png")))
+                    wpOverWrapped++;
+            }
+
+            Check("★ 素材可达Ⓐ 导入口径：8 张 PNG 的 `.meta` 都导成 Sprite"
+                + "（textureType=8 / spriteMode=1 / PPU=64 / Point / 无 mipmap），与同族 `D2/UI/Panel/*.png` 逐字段同值",
+                wpMetaBad == 0 && peerMetaOk,
+                "不合格 " + wpMetaBad + "/" + ResPaths.WaypointFrameCount + "；同族样本合格=" + peerMetaOk
+                + "；第 0 帧 " + wpMetaFirst);
+            Check("★ 素材可达Ⓑ 运行期路径：`ObjectSprite(WaypointFrame(i))` " + ResPaths.WaypointFrameCount
+                + " 条都指到真文件",
+                wpPathBad == 0, "指不到 " + wpPathBad + " 条；例 " + wpPathFirst);
+            Check("★ 退化（D16）：多套一层拼出来的 `D2/Objects/D2/Objects/waypoint/…` 在盘上**必须不存在**"
+                + "（⛔ 不许在错目录造一份副本把上一条变绿；实机 `sprite == null` 就是这条串取不到图）",
+                wpOverWrapped == 0, "误成立 " + wpOverWrapped + " 条");
+            Check("★ 导入器覆盖：`AssetImporter.cs` 的 `D2Root` 前缀分支覆盖 `D2/Objects/waypoint/**`"
+                + "（`D2/` 根下通用规则逐层生效，⛔ 只有新建 `D2/` **顶层**目录才需回文件加规则）；根外路径必须判不覆盖",
+                ImporterCovers(importerSrc, "Assets/Resources/Clover/D2/Objects/waypoint/000.png")
+                && !ImporterCovers(importerSrc, "Assets/Resources/Clover/Other/000.png"),
+                "AssetImporter.cs = " + importerSrc.Length + " 字符；覆盖 waypoint="
+                + ImporterCovers(importerSrc, "Assets/Resources/Clover/D2/Objects/waypoint/000.png")
+                + " 覆盖根外=" + ImporterCovers(importerSrc, "Assets/Resources/Clover/Other/000.png"));
+            Check("★ meta 判读器自证（合成夹具）：真文本 ⇒ true；空 / textureType=7 / spriteMode=2 / filterMode=1 ⇒ 各自 false",
+                peerMetaOk
+                && !MetaIsPixelArtSprite("")
+                && !MetaIsPixelArtSprite("  textureType: 7\n  spriteMode: 1\n  spritePixelsToUnits: 64\n    filterMode: 0\n    enableMipMap: 0\n")
+                && !MetaIsPixelArtSprite("  textureType: 8\n  spriteMode: 2\n  spritePixelsToUnits: 64\n    filterMode: 0\n    enableMipMap: 0\n")
+                && !MetaIsPixelArtSprite("  textureType: 8\n  spriteMode: 1\n  spritePixelsToUnits: 64\n    filterMode: 1\n    enableMipMap: 0\n"),
+                "四档合成输入（一绿三红）+ 真文本");
+
+            // ── ④ 锚点格确实有**渲染写入方**：`MapView.cs`（剥注释）里必须同时出现
+            //   「读锚点表」与「用 `ResPaths.WaypointFrame` 取图」——两个都是非注释行。──────
+            var mapViewPlain = LayoutGameCheck.StripCsComments(mapViewReal);
+            Check("R1 写入方：MapView.cs 读 `WaypointPoints` 且用 `WaypointFrame` 取图（剥注释后）",
+                mapViewPlain.Contains("WaypointPoints") && mapViewPlain.Contains("WaypointFrame"),
+                "命中：WaypointPoints=" + mapViewPlain.Contains("WaypointPoints")
+                + " WaypointFrame=" + mapViewPlain.Contains("WaypointFrame"));
+
+            // ── ⑤ 缺口台账的判读（合成夹具：内存里造假文本，不碰真文件）──────────────
+            //   行在 ⇒ 记着缺口；行删 / 空文本 ⇒ 忘掉了（那一支才是失败形态，D14 判的就是它）。
+            Check("★ 登记判读（合成夹具）：行在 ⇒ true；行删 ⇒ false；空文本 ⇒ false",
+                WpGapRegistered("| WP-ART-1 | 传送台本体动画 | 图 | … | 已完成 |")
+                && !WpGapRegistered("| WP-ART-2 | 别的缺口 | … |")
+                && !WpGapRegistered("")
+                && WpGapRegistered(registrySrc),
+                "三档合成输入 + 真台账当前的读数 " + registered);
+
+            // ── ⑥ 本体动画：用**真的** `SpriteAnimator` + 真帧键离线驱动 24 拍 ──────────
+            //   判三件事：① 帧率 = 官方表换算出来的真值（不是"复用默认值"）；② 0..N-1 每一帧都真的
+            //   会被播到（不是"只播第 0 帧"）；③ 播完回卷到 0（循环）。
+            //   帧率出处见 `ResPaths.WaypointFrameFps` 的注释（`25 × FrameDelta2 / 256`）。
+            Check("★ 帧率出处：`WaypointFrameFps` == 25 × 200 / 256（200 = 官方 `Objects.txt` 该行 FrameDelta2）",
+                Math.Abs(ResPaths.WaypointFrameFps - 25f * 200f / 256f) < 1e-6f,
+                "实测 " + ResPaths.WaypointFrameFps + " fps；整周期 = "
+                + (ResPaths.WaypointFrameCount / ResPaths.WaypointFrameFps).ToString("0.####") + " s");
+
+            var wpKeys = new string[ResPaths.WaypointFrameCount];
+            for (var i = 0; i < wpKeys.Length; i++) wpKeys[i] = ResPaths.WaypointFrame(i);
+            var anim = new SpriteAnimator();
+            anim.Play(ViewAnim.Idle, wpKeys, ResPaths.WaypointFrameFps, true);
+            var animSeen = new bool[wpKeys.Length];
+            animSeen[0] = true;                                  // 起始帧
+            var animVisited = 1;
+            var dt = 1f / ResPaths.WaypointFrameFps;
+            for (var step = 0; step < ResPaths.WaypointFrameCount * 3; step++)
+            {
+                anim.Tick(dt);
+                var f = anim.FrameIndex;
+                if (f >= 0 && f < animSeen.Length && !animSeen[f]) { animSeen[f] = true; animVisited++; }
+            }
+            Check("★ 动画：真 `SpriteAnimator` 驱 8 帧键 24 拍 ⇒ 0..7 全播到且回卷到 0（loop）",
+                animVisited == wpKeys.Length && anim.FrameIndex == 0 && anim.Loop,
+                "播到 " + animVisited + "/" + wpKeys.Length + " 帧；24 拍后帧号 = " + anim.FrameIndex
+                + "；loop = " + anim.Loop + "；fps = " + ResPaths.WaypointFrameFps);
+
+            //   载体安全：节点送回池时必须**摘掉登记**，否则它被别的格子取走后会被本动画每帧改写。
+            Check("★ 动画载体：`MapView.cs` 里有「送池即摘登记」的守卫（`sr == _waypointNode`）",
+                mapViewPlain.Contains("sr == _waypointNode"), "防「别的格子的瓦片被每帧写成传送台帧」");
 
             Check("★ 正例片段：最小片段 1 处 ⇒ 不是永 0；且**注释里的同串算 0**（剥注释后）",
                 CountNeedle("void X(){ var w = m.WaypointPoints; }", "WaypointPoints") == 1
                 && CountNeedle("// m.WaypointPoints\nvoid X(){ }", "WaypointPoints") == 0,
                 "needle 走 LayoutGameCheck.StripCsComments（本宿主唯一的剥注释实现）");
 
-            // ── R3：驱动"同帧双拍"守卫（该驱动随 `tools/probes/drivers/` 按设计退役 ⇒ 下面两条登记为跳过；
+            // ── R3：驱动"同帧双拍"守卫（该驱动随  按设计退役 ⇒ 下面两条登记为跳过；
             //    守卫函数本身仍由"最小正例必须绿"钉着，不是没判）──────────────────────────
             //   `WaypointTravelRequest` ⇒ 同帧两次 `ScreenCapture`，而它只在**帧末**写一次
             //   判据 = 「面板那张截图」与「发传送请求」两个**真调用点**之间必须有帧界
@@ -443,12 +577,12 @@ namespace Uicheck
             }
             else
             {
-                //  该驱动（连同 `tools/probes/drivers/` 整目录）**已按设计退役** ⇒ 这两条没有文本可判 ⇒ 跳过
+                //  该驱动（连同  整目录）**已按设计退役** ⇒ 这两条没有文本可判 ⇒ 跳过
                 //  （不计失败、也不假装绿）。下面那条"最小正例片段"不依赖它，照常判 ——
                 //  守卫函数本身仍被"正例必须绿"钉着，不是没判。
                 Program._skip += 2;
                 Console.WriteLine("[SKIP] R3 守卫 + D15 退化（2 项）：驱动 `d2u32_drive.cs` 已按设计退役"
-                    + "（`tools/probes/drivers/` 整目录不在仓库里）⇒ 无文本可判；"
+                    + "（ 整目录不在仓库里）⇒ 无文本可判；"
                     + "恢复 = 把该驱动重新落到原路径（判据逻辑一字未动）");
             }
             var positiveDrv = "Shot(\"a_1_panel.png\"); yield return null;"
@@ -513,6 +647,95 @@ namespace Uicheck
             if (artPresent) return viewReaders > 0;
             if (viewReaders > 0) return false;
             return registered;
+        }
+
+        /// <summary>
+        /// 缺口台账（`client/资源欠缺清单.md`）里 `WP-ART-1` 那一行**是否还在**。
+        /// <para>纯函数（只吃文本）⇒ 可喂合成夹具判"读"这一支：行还在 = 缺口被记着；
+        /// 整行被删 = 缺口被忘掉 = 失败形态（<see cref="WpArtResidualConsistent"/> 的 D14）。</para>
+        /// </summary>
+        internal static bool WpGapRegistered(string registrySrc)
+            => !string.IsNullOrEmpty(registrySrc) && registrySrc.Contains("WP-ART-1");
+
+        /// <summary>
+        /// 传送台素材的**盘上目录**（物理位置）。判「在盘 / 导入口径」用——与运行期键**无关**，
+        /// 这样一个变量的缺陷（口径 / 路径）只会红它自己那一条。
+        /// </summary>
+        private static readonly string WpArtDir =
+            Path.Combine(Program.ResourceRoot, "Clover", "D2", "Objects", "waypoint");
+
+        /// <summary>传送台某帧 PNG 的**盘上路径**（物理）。</summary>
+        private static string WpPng(int index)
+            => Path.Combine(WpArtDir, index.ToString("000") + ".png");
+
+        /// <summary>
+        /// 传送台某帧**运行期拼出来的资源路径** = `Resources/Clover/` + 物件键经
+        /// <see cref="ResPaths.ObjectSprite"/> 包装 —— 与 `MapView.TrySprite` 拼的是同一条串。
+        /// </summary>
+        private static string WpRuntimePng(int index)
+            => Path.Combine(Program.ResourceRoot, "Clover",
+                ResPaths.ObjectSprite(ResPaths.WaypointFrame(index)) + ".png");
+
+        /// <summary>
+        /// `.meta` 文本是否把该 PNG 导成**像素图 Sprite**（口径 = 同族单帧图，逐字段同值）。
+        /// <para>五个字段缺一，`Resources.Load&lt;Sprite&gt;()` 都会**静默**返回 null（本组判的就是这条）。</para>
+        /// <para>纯函数（只吃文本）⇒ 合成夹具可各自单独喂进来判红。</para>
+        /// </summary>
+        internal static bool MetaIsPixelArtSprite(string metaText)
+        {
+            if (string.IsNullOrEmpty(metaText)) return false;
+            var s = "\n" + metaText.Replace("\r", string.Empty) + "\n";
+            return s.Contains("\n  textureType: 8\n")            // Sprite（不是 Default/Cursor/…）
+                && s.Contains("\n  spriteMode: 1\n")             // Single（Multiple 下 `Resources.Load<Sprite>` 取的是整幅）
+                && s.Contains("\n  spritePixelsToUnits: 64\n")   // 与 `D2AssetImporter.PixelsPerUnit` 同值
+                && s.Contains("\n    filterMode: 0\n")           // Point（默认双线性会把点阵磨圆）
+                && s.Contains("\n    enableMipMap: 0\n");        // 无 mipmap
+        }
+
+        /// <summary>取上面那五个字段的**原文行**（回报直接给原始读数用；缺的字段不出现）。</summary>
+        private static string MetaRaw(string metaText)
+        {
+            var keys = new[] { "  textureType:", "  spriteMode:", "  spritePixelsToUnits:", "    filterMode:", "    enableMipMap:" };
+            var got = new List<string>();
+            foreach (var line in metaText.Replace("\r", string.Empty).Split('\n'))
+            {
+                for (var k = 0; k < keys.Length; k++)
+                {
+                    if (!line.StartsWith(keys[k], StringComparison.Ordinal)) continue;
+                    got.Add(line.Trim());
+                    break;
+                }
+            }
+            return got.Count == 0 ? "(字段缺失)" : string.Join(" | ", got);
+        }
+
+        /// <summary>
+        /// `AssetImporter.cs`（文本）是否覆盖某资源路径。规则形态 = 「`assetPath` 以 `D2Root` 开头
+        /// ⇒ 套通用像素图参数」⇒ `Assets/Resources/Clover/D2/` 下**任意深度**的子目录都被覆盖。
+        /// 纯函数 ⇒ 可喂根外路径判"不覆盖"。
+        /// </summary>
+        internal static bool ImporterCovers(string importerSrc, string assetRelPath)
+        {
+            if (string.IsNullOrEmpty(importerSrc)) return false;
+            var p = assetRelPath.Replace('\\', '/');
+            return importerSrc.Contains("D2Root = \"Assets/Resources/Clover/D2/\"")
+                && importerSrc.Contains("assetPath.StartsWith(D2Root")
+                && p.StartsWith("Assets/Resources/Clover/D2/", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// PNG 的 IHDR 宽高（PNG 前 24 字节：8 字节签名 + 4 长 + "IHDR" + 4 宽 + 4 高）。
+        /// 不在位 / 太短 ⇒ 宽高各给 -1（**不返回 0**：0 是非法尺寸，会与"读到了"混淆）。
+        /// </summary>
+        private static void PngSize(string path, out int w, out int h)
+        {
+            w = -1;
+            h = -1;
+            if (!File.Exists(path)) return;
+            var b = File.ReadAllBytes(path);
+            if (b.Length < 24) return;
+            w = (b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19];
+            h = (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23];
         }
 
         /// <summary>

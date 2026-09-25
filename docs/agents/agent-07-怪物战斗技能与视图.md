@@ -52,7 +52,7 @@ skill `patterns/client/entity-view.md`、`reference/engine-mental-model.md` §4�
 5. **`SkillTreeArgs` 必须给出真实的可学/锁定状态**（前端要按它渲染）。
 6. **确定性**：伤害/命中公式的随机走注入的 `Rng`，可复现（单测用固定 seed）。
 
-## 5. 验收标准（**必须用离线宿主**，照 `.ai-tmp/hosts/mapcheck/` 或 `.ai-tmp/hosts/flowcheck/` 建 `.ai-tmp/hosts/combatcheck/`）
+## 5. 验收标准（**必须用离线宿主**，照 `tools/probes/hosts/mapcheck` 或 `tools/probes/hosts/flowcheck` 建 `tools/probes/hosts/combatcheck`）
 
 - [ ] 离线宿主 `dotnet build` 0 错 0 警告；`dotnet run` 断言全过
 - [ ] **伤害公式单测**：固定输入 → 固定输出（贴数字）；换抗性目标伤害下降；等级差改变命中率且被夹在 5%~95%

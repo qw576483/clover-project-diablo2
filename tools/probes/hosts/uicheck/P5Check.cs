@@ -180,8 +180,9 @@ namespace Uicheck
             Program.Check("死亡屏源码：按钮走原版 MENU/endgameok 帧（ResPaths.MenuEndGameOK）",
                 src.Contains("ResPaths.MenuEndGameOK"), "见 Build()");
 
-            Program.Check("死亡屏源码：标题条走原版 chi/youdiedsoftcore 帧 0（ResPaths.Banner）",
-                src.Contains("ResPaths.Banner(\"youdiedsoftcore_0\")"), "见 Build()");
+            Program.Check("死亡屏源码：标题条走原版 chi/youdiedsoftcore 的**两块**（ResPaths.BannerYouDiedSoftCoreTile）",
+                src.Contains("ResPaths.BannerYouDiedSoftCoreTile(0)") && src.Contains("ResPaths.BannerYouDiedSoftCoreTile(1)"),
+                "见 Build()：256×54 + 40×54 拼成整幅 296×54");
 
             Program.Check("死亡屏源码：按钮文字 = 原版串表 id 3403「继续」（ContinueText）",
                 src.Contains("ContinueText") && src.Contains("3403"), "见 ContinueText 注释");

@@ -9,7 +9,7 @@
 //   · 伤害类型 ← `skill_c.dmg_type`（官方 `EType`）。
 //
 // 本类**只有飞行数学**（无 MonoBehaviour、无 `new GameObject`）⇒ 可被离线自检宿主
-// `tools/combatcheck/` 完整驱动（打印轨迹采样与命中记录）。
+// `tools/probes/hosts/combatcheck` 完整驱动（打印轨迹采样与命中记录）。
 // 表现层是 `ProjectileView`（自绘，见该文件；`IViewModule` 契约里没有投射物入口，且不许改契约）。
 //
 //   飞行数学在引擎件 `clover-client-unity-engine/Runtime/Core/ProjectileRuntime.cs`

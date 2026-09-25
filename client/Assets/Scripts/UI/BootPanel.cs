@@ -42,6 +42,10 @@ namespace Diablo2.UI
         //   由 `uicheck` 断言"×1.8 口径下全部落在 1920×1080 画布内"（|y| ≤ 540、|x| ≤ 960）。
         //   实测 319×177 = DIABLO II 火焰字标）—— 资源欠缺清单 #23（"启动屏 logo 不在手上"）已作废：
         //   尺寸**按原版像素 1:1**（319×177）再 ×1.8 放大 ⇒ 不拉伸、不变形。
+        /// <summary>启动屏底色（本项目新增，本工程 1920×1080 口径，无原版值）。
+        /// logo 贴图未到位时的占位色**同此值** ⇒ 启动头几帧不会闪出白矩形。</summary>
+        private static readonly Color BgColor = new Color(0.02f, 0.02f, 0.03f, 1f);
+
         private static readonly Vector2 LogoOrigSize = new Vector2(319f, 177f);
         private static readonly Vector2 LogoSize = UiLayoutFlow.Px(LogoOrigSize);  // = 574.2×318.6（换算走 UiLayoutFlow）
         private static readonly Vector2 GameSize = new Vector2(1260f, 36f);
@@ -107,22 +111,19 @@ namespace Diablo2.UI
 
             // 启动屏不切场景：Boot 场景只放 Bootstrap + Canvas，这里用纯色底 + 出品字
             // （原版 logo 图不在手上 ⇒ 登记在 `client/资源欠缺清单.md`，不拿通用素材顶替）。
-            UiArt.FullPanel(transform, "Bg", new Color(0.02f, 0.02f, 0.03f, 1f), true);
+            UiArt.FullPanel(transform, "Bg", BgColor, true);
 
             // 屏适配容器（启动屏内容都在画布 ±540/±960 内 ⇒ 系数 = 1，即纯 ×1.8）
             var screen = UiLayoutFlow.FitRoot(transform, UiLayoutFlow.FitMenu);
 
-            // 原版 logo（DIABLO II 火焰字标 319×177，1:1 原版像素 ×1.8）—— 替掉旧的纯文字"出品字"。
+            // 原版 logo（DIABLO II 火焰字标 319×177，1:1 原版像素 ×1.8）。
             //   位置 (0,180)：占屏上半、居中，与下面的标题/提示/版权/署名各行两两不重叠（见 uicheck 断言）。
-            //   贴图走 `UiArt.Art` ⇒ 加载成功即套**原版亮度（白）**，不提亮/压暗；缺失时保留白底 + Warn。
-            //
-            //     `ResPaths.MenuLogo` 是**帧名前缀**（= `D2/UI/Logo/logo`），它的注释（`ResPaths.cs`
-            //     （实测 `Assets/Resources/Clover/D2/UI/Logo/` 下只有 `logo_0.png`）。
-            //     直接请求 `D2/UI/Logo/logo` ⇒ 引擎资源模块打 Error
-            //     `[Error] [Resource] 加载失败：D2/UI/Logo/logo`（实测 16:21:23.122），启动屏 logo 不显示。
-            //   `QuestLogPanel` 取 `questsocket_{0,1}` 同一口径）：
-            //   `FrameCountMenuLogo = 1` 就是这条路径的帧数上界。**素材与常量值都没改**。
-            UiArt.Art(screen, "Logo", ResPaths.Frame(ResPaths.MenuLogo, 0), LogoSize, new Vector2(0f, 180f));
+            //   素材 = `D2/UI/Logo/logo_0.png`（`ResPaths.MenuLogo` 是**帧名前缀**，
+            //     `FrameCountMenuLogo = 1` 是帧数上界；磁盘上就是 `logo_0.png` 这一个文件）。
+            //   **占位色 = 启动屏底色**（不是 `UiArt.Art` 的白色兜底）：贴图是异步回来的，
+            //     白色占位会在启动头几帧画出一块白矩形（uGUI 的 `sprite == null` 就是纯白四边形）。
+            var logo = UiArt.Panel(screen, "Logo", LogoSize, new Vector2(0f, 180f), BgColor, false);
+            UiArt.SetSprite(logo, ResPaths.Frame(ResPaths.MenuLogo, 0));
 
             UiArt.Label(screen, "Game", "暗黑破坏神 II · 复刻（Act I 起始两图 + 主线任务 1）",
                 UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font16), TextAnchor.MiddleCenter, UiArt.TextColor,

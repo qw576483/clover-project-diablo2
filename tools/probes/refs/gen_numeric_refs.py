@@ -55,7 +55,7 @@ CITEDRE = re.compile(r"(\.ai-tmp/screenshots/w1_host_[A-Za-z0-9_]+\.txt)")
 # 老 CITEDRE 只认 `w1_host_*.txt` ⇒ 这 4 行抽不到任何 source。追加一个「本仓 `.ai-tmp/test/` 下的 .txt」模式，
 # 口径与老的完全一致（**只取该行已引用、且在盘的产物**），不新造数值、不把不在盘的引用当 source。
 CITEDRE_LOCAL = re.compile(r"(\.ai-tmp/test/[A-Za-z0-9_\-]+\.txt)")
-# 迁到**判据资产区** `tools/probes/refs/n3_srcdam-out.txt`（生产者 = `gen_n3_srcdam.py`）。
+# 迁到**判据资产区** （生产者 = `gen_n3_srcdam.py`）。
 # 老的两个模式都不认这个落点 ⇒ 第 52 行抽不到任何 source。口径完全一致（**只取该行已引用、
 # 且在盘的产物**），不新造数值、不把不在盘的引用当 source。
 CITEDRE_REFS = re.compile(r"(tools/probes/refs/[A-Za-z0-9_\-]+\.txt)")
@@ -81,7 +81,7 @@ def cmp_text(text):
 def read_text_any(path):
     """按 BOM 判编码读文本，返回 (text, encoding_name)。
 
-    2026-09-23 gate-close2：本工程的历史产物编码并不统一（实测：`.ai-tmp/test/O-itemcheck-run2.txt`
+    2026-09-23 gate-close2：本工程的历史产物编码并不统一（实测：有的
     以 `FF FE` 开头 = UTF-16LE；另一些是 UTF-8 无 BOM / 带 BOM）。老版本一律按 `utf-8-sig` 读，
     撞上 UTF-16LE 直接 `UnicodeDecodeError`。这里只按 BOM 选解码器，**解码后文本逐字保留**
     （不替换字符、不丢行），并把所用编码如实写进产物。

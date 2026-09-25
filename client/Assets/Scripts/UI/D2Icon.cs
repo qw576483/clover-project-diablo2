@@ -258,9 +258,11 @@ namespace Diablo2.UI
             var path = ItemIconPath(item.itemId);
             if (string.IsNullOrEmpty(path))
             {
-                // 非预期分支：配表里查不到 code ⇒ 退回品质色块（不假装有图）
+                // 非预期分支：itemId ≤ 0 或配表里查不到 code ⇒ 用**暗色**占位。
+                //   ⛔ 不用品质色：普通品质的品质色是纯白，画出来是一块白方块
+                //   （与「图没加载」的表现一模一样，正是商店格子被报「白方块」的来源）。
                 icon.sprite = null;
-                icon.color = ItemQualityColor.Of(item.quality);
+                icon.color = MissingIconColor;
                 cache[index] = null;
                 return;
             }

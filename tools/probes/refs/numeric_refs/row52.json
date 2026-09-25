@@ -1,52 +1,32 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 52,
-  "spec_md_line": 1154,
-  "spec_sha256": "6cbfafe61d445b2bdaddf082b8a5639f1dc605b7c8170def51bc1edb2fcb46be",
+  "spec_md_line": 1077,
+  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
   "category": "数值类",
   "system": "技能·武器伤害类",
   "method": "21 行攻击技能（含重击 #121）应按武器伤害结算",
   "criterion": "离线枚举官方 `SrcDam≠''` 的 21 行 + 断言 `TryCast` 真的扣血",
   "conclusion": "通过（21 行真的按武器伤害结算；枚举产物 + 列名冻结凭据 + 运行时断言三者都在盘）  ｜类别：数值类",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 09:29:21",
+  "generated": "2026-09-25 02:35:47",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [],
     "snippets": {
-      "tools/probes/refs/n3_srcdam-out.txt": [
+      "tools/probes/refs/skill_c_columns.txt": [
         "581C95DF2BFFE6F97FD111563CEA143BEA3449641656B279DEF788B09F21E2F3",
         "--check",
         "原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/skills.txt",
         "SrcDam",
         "dmg_max=0 ∧ missile=''",
-        "skill_c"
-      ],
-      "tools/probes/refs/skill_c_columns.txt": [
+        "skill_c",
         "c2b112e575cb76cf648973151e1981ca631f7cf5a3b801350b837b9c06583af5",
         "gen_skill_c_columns.py"
       ]
     }
   },
   "sources": [
-    {
-      "path": "tools/probes/refs/n3_srcdam-out.txt",
-      "state": "on-disk",
-      "encoding": "utf-8",
-      "bytes": 5817,
-      "sha256": "581c95df2bffe6f97fd111563cea143bea3449641656b279def788b09f21e2f3",
-      "mtime": "2026-09-24 07:41:16",
-      "lines": 47,
-      "ok_lines": 0,
-      "fail_lines": 0,
-      "pass_marks": 0,
-      "last_line": [
-        "cls=1 id= 10 毒标枪        official_id= 15 Poison Javelin         SrcDam= 128 range=rng   EType='pois' calc1desc='' calc1="
-      ],
-      "matched_lines_total": 15,
-      "checks_written": 14,
-      "checks_truncated": false
-    },
     {
       "path": "tools/probes/refs/skill_c_columns.txt",
       "state": "on-disk",
@@ -61,227 +41,33 @@
       "last_line": [
         "dmg_pct_parsed = present"
       ],
-      "matched_lines_total": 1,
-      "checks_written": 3,
+      "matched_lines_total": 3,
+      "checks_written": 5,
       "checks_truncated": false
     }
   ],
   "checks": [
     {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "source": "tools/probes/refs/skill_c_columns.txt",
       "line": 1,
       "selected_by": "file-summary-head",
       "text": "==============================================================================",
       "numbers": []
     },
     {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
+      "source": "tools/probes/refs/skill_c_columns.txt",
       "line": 2,
       "selected_by": "snippet",
-      "text": "N3 root cause (criterion = official skills.txt column 219 `SrcDam` non-empty = weapon-damage class; our column `skill_c.src_dam` is the same value)",
+      "text": "skill_c column-name baseline (frozen record for acceptance row 52)",
       "numbers": [
-        "3",
-        "219"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 3,
-      "selected_by": "snippet",
-      "text": "official = 原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/skills.txt (sha256 a82097efa82f585ee1189ba6366110c3dfd774154b329774e1cc831f4ec9d0c5)",
-      "numbers": [
-        "2",
-        "1.10",
-        "256",
-        "82097",
-        "82",
-        "585",
-        "1189",
-        "6366110",
-        "3",
-        "774154",
-        "329774",
-        "1",
-        "831",
-        "4",
-        "9",
-        "0",
-        "5"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 4,
-      "selected_by": "snippet",
-      "text": "ours     = 策划/数值文档/skill_c.txt (sha256 c2b112e575cb76cf648973151e1981ca631f7cf5a3b801350b837b9c06583af5)",
-      "numbers": [
-        "256",
-        "2",
-        "112",
-        "575",
-        "76",
-        "648973151",
-        "1981",
-        "631",
-        "7",
-        "5",
-        "3",
-        "801350",
-        "837",
-        "9",
-        "06583",
-        "5"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 6,
-      "selected_by": "snippet",
-      "text": "skill_c rows whose OFFICIAL SrcDam is non-empty      = 33 rows",
-      "numbers": [
-        "33"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 9,
-      "selected_by": "snippet",
-      "text": "per row (class / skill_c.id / ours name / official_id / official skill / SrcDam / range / EType / official calc1 desc / official calc1):",
-      "numbers": [
-        "1",
-        "1"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 10,
-      "selected_by": "snippet",
-      "text": "cls=1 id=  5 戳刺         official_id= 10 Jab                    SrcDam= 128 range=h2h   EType='' calc1desc='dmg%' calc1=ln34",
-      "numbers": [
-        "1",
-        "5",
-        "10",
-        "128",
-        "2",
-        "1",
-        "1",
-        "34"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 11,
-      "selected_by": "snippet",
-      "text": "cls=1 id=  7 多重箭        official_id= 12 Multiple Shot          SrcDam=  96 range=rng   EType='' calc1desc='# missiles' calc1=\"min(24,ln12)\"",
-      "numbers": [
-        "1",
-        "7",
-        "12",
-        "96",
-        "1",
-        "1",
-        "24",
-        "12"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 12,
-      "selected_by": "snippet",
-      "text": "cls=1 id= 14 刺穿         official_id= 19 Impale                 SrcDam= 128 range=h2h   EType='' calc1desc='dm%' calc1=ln12",
-      "numbers": [
-        "1",
-        "14",
-        "19",
-        "128",
-        "2",
-        "1",
-        "1",
-        "12"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 13,
-      "selected_by": "snippet",
-      "text": "cls=1 id= 17 导引箭        official_id= 22 Guided Arrow           SrcDam= 128 range=rng   EType='' calc1desc='+ dmg%' calc1=ln34",
-      "numbers": [
-        "1",
-        "17",
-        "22",
-        "128",
-        "1",
-        "1",
-        "34"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 14,
-      "selected_by": "snippet",
-      "text": "cls=1 id= 21 扫射         official_id= 26 Strafe                 SrcDam=  96 range=rng   EType='' calc1desc='#missiles' calc1=\"min(par3 + lvl - 1, par4)\"",
-      "numbers": [
-        "1",
-        "21",
-        "26",
-        "96",
-        "1",
-        "1",
-        "3",
-        "1",
-        "4"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 15,
-      "selected_by": "snippet",
-      "text": "cls=1 id= 25 连击         official_id= 30 Fend                   SrcDam= 128 range=h2h   EType='' calc1desc='max targets' calc1=12",
-      "numbers": [
-        "1",
-        "25",
-        "30",
-        "128",
-        "2",
-        "1",
-        "1",
-        "12"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 16,
-      "selected_by": "snippet",
-      "text": "cls=3 id= 68 淬毒匕首       official_id= 73 Poison Dagger          SrcDam= 128 range=h2h   EType='pois' calc1desc='' calc1=",
-      "numbers": [
-        "3",
-        "68",
-        "73",
-        "128",
-        "2",
-        "1",
-        "1"
-      ]
-    },
-    {
-      "source": "tools/probes/refs/n3_srcdam-out.txt",
-      "line": 46,
-      "selected_by": "file-summary-tail",
-      "text": "cls=1 id= 10 毒标枪        official_id= 15 Poison Javelin         SrcDam= 128 range=rng   EType='pois' calc1desc='' calc1=",
-      "numbers": [
-        "1",
-        "10",
-        "15",
-        "128",
-        "1",
-        "1"
+        "52"
       ]
     },
     {
       "source": "tools/probes/refs/skill_c_columns.txt",
-      "line": 1,
-      "selected_by": "file-summary-head",
-      "text": "==============================================================================",
+      "line": 3,
+      "selected_by": "snippet",
+      "text": "carrier   = 策划/数值文档/skill_c.txt",
       "numbers": []
     },
     {

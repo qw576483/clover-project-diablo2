@@ -6,7 +6,7 @@
   * 打表工具把 tsv 写到 `client/Assets/Scripts/Table/Tsv/`；
   * `Assets/Scripts/**` 下的裸文件**不会**进 Unity 构建；
   * 生成的 `Load(path)` 用的是 `File.ReadAllLines(path)`（真实文件系统路径，
-    出处 `clover-tools/table/core/internal/gen/cs.go:279`）；
+    出处 `clover-:279`）；
   * 所以运行时目录必须是 `Assets/StreamingAssets/Table/`
     —— 编辑器与 Windows 独立版下 `Application.streamingAssetsPath` 都是**真实目录**。
 

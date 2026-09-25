@@ -34,9 +34,9 @@
 
 ## 4. 产出物
 
-### 4.1 全量编译宿主 `.ai-tmp/hosts/fullcheck/`
+### 4.1 全量编译宿主 `tools/probes/hosts/fullcheck`
 
-- `FullCheck.csproj`：把 **`client/Assets/Scripts/**` 全部 .cs** + 引擎托管 DLL 一起编译（照 `.ai-tmp/hosts/flowcheck/` 的 `EngineShim.cs` 做法；
+- `FullCheck.csproj`：把 **`client/Assets/Scripts/**` 全部 .cs** + 引擎托管 DLL 一起编译（照 `tools/probes/hosts/flowcheck` 的 `EngineShim.cs` 做法；
   若 shim 覆盖不全，**优先补全 shim**，不许把文件排除出去——排除就等于没校验）；
 - `Program.cs`：装配 `AppContext`（走真实 `AutoWire` 路径）→ 生成三处地图 → 刷怪 → 模拟一段战斗 →
   跑一次任务链 → 存档往返 → 打印全链路日志；
@@ -52,7 +52,7 @@
 
 ## 5. 验收标准
 
-- [ ] `dotnet build .ai-tmp/hosts/fullcheck/FullCheck.csproj` **0 错 0 警告**（这是全工程业务代码的编译证据）
+- [ ] `dotnet build tools/probes/hosts/fullcheck/FullCheck.csproj` **0 错 0 警告**（这是全工程业务代码的编译证据）
 - [ ] `dotnet run` 断言全过，且**所有模块非 null**（贴 `AppContext.Describe()` 输出）
 - [ ] 三条链路在日志里可见：**配表已加载** / **地图已生成并刷怪** / **任务链可走通**
 - [ ] `App/*.cs` **每个文件 ≤ 200 行**（逐文件贴行数）

@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 54,
-  "spec_md_line": 1156,
-  "spec_sha256": "6cbfafe61d445b2bdaddf082b8a5639f1dc605b7c8170def51bc1edb2fcb46be",
+  "spec_md_line": 1079,
+  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
   "category": "数值类",
   "system": "存档·损坏档",
   "method": "损坏档与「档不存在」应可判别且失败有用户可见反馈",
   "criterion": "savecheck 三情况断言 + `AppFlow.OnLoadDone` 复用 `D2ConfirmPanel`",
   "conclusion": "通过（片 Q 已修）  ｜类别：数值类",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-24 09:29:21",
+  "generated": "2026-09-25 02:35:47",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [],

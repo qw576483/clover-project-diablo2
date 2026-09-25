@@ -20,7 +20,7 @@
 //     `EnsureUnlit()` 在**每一个**本工具造出来的 Image 上做一次显式校验，
 //     发现受光材质就换回 UI 默认材质并告警（`IsLitShader` 是纯函数，离线宿主可断言）。
 //
-//     取帧前的**帧数/帧名/条带导入模式**已由 `tools/uicheck` 逐条对磁盘核对（`.png.meta`）。
+//     取帧前的**帧数/帧名/条带导入模式**已由 `tools/probes/hosts/uicheck` 逐条对磁盘核对（`.png.meta`）。
 //       逐帧按名 `LoadAsset<Sprite>("D2/UI/Menu/button_wide_0")` = **null**（本工程这套导入设置下失效），
 //       而整条 `Game.Res.LoadAll<Sprite>("D2/UI/Menu/button_wide")` = 3 个名字正确的子 sprite。
 //       ⇒ 逐帧按名为主、**整条 LoadAll 兜底**（`SpriteStripLoader` 的主路），与 `UI/D2Text.cs` 的字模加载同一套做法。
@@ -560,7 +560,8 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 原版「买卖屏方钮」的**单帧文件**前缀：`D2/UI/Panel/buysellbtn_{帧号}`（帧 0 = 常态 / 帧 1 = 按下）。
+        /// 原版「买卖屏方钮」的**单帧文件**前缀：`D2/UI/Panel/buysellbtn_{帧号}`（帧号语义见
+        /// <see cref="ResPaths.BuySellButtonFrameClose"/>；常态 / 按下 = 连续两帧）。
         /// <para>为什么不用 `ResPaths.PanelBuySellButton`（那是整张 1024×64 条带的路径）：
         /// `D2/UI/Panel/buysellbtn.DC6.0_0` 直接
         /// `[Error] [Resource] 加载失败：D2/UI/Panel/buysellbtn.DC6.0_0`（本工程这套导入设置下
@@ -568,7 +569,36 @@ namespace Diablo2.UI
         /// 而这批素材**同时**存在单帧文件 `buysellbtn_0.png`（Sprite/Single/Point，与能正常加载的
         /// `buyselltabs_0.png` 导入参数逐项相同）⇒ 方钮走单帧文件，不做条带按名取帧。</para>
         /// </summary>
-        public const string BuySellButtonFramePrefix = ResPaths.D2UiPanel + "buysellbtn_";
+        public const string BuySellButtonFramePrefix = ResPaths.PanelBuySellButtonFramePrefix;
+
+        /// <summary>
+        /// 把原版「关闭 / 取消」方钮图形贴到按钮上（常态帧 = <see cref="ResPaths.BuySellButtonFrameClose"/>，
+        /// 按下 / 悬停帧 = 它 + 1；路径 = <see cref="BuySellButtonFramePrefix"/>）。
+        /// <para>与 `UI/ShopPanel.cs` 的方钮同一条取帧口径（单帧文件；条带子 sprite 按名加载在本工程失效）。
+        /// 常态帧走 <see cref="SetSprite"/>（它会把 Image 的 color 置成原版亮度白），按下帧后到即补
+        /// `SpriteSwap`。</para>
+        /// </summary>
+        public static void ApplyCloseButtonArt(Image img, Button btn)
+        {
+            if (img == null) return;
+
+            SetSprite(img, BuySellButtonFramePrefix + ResPaths.BuySellButtonFrameClose);
+
+            if (btn == null || Game.Res == null)
+            {
+                // 非预期分支：没有 Button 组件（悬停/按下不会变）或资源门面未起 ⇒ 点名原因，只留常态帧。
+                Log.Warn(Tag, $"关闭钮 {img.name} 只贴了常态帧（"
+                    + (btn == null ? "没有 Button 组件" : "Game.Res 未初始化") + "）");
+                return;
+            }
+
+            Game.Res.LoadAsset<Sprite>(BuySellButtonFramePrefix + (ResPaths.BuySellButtonFrameClose + 1), sp =>
+            {
+                if (img == null || sp == null) return;
+                btn.transition = Selectable.Transition.SpriteSwap;
+                btn.spriteState = new SpriteState { pressedSprite = sp, highlightedSprite = sp };
+            });
+        }
 
         //   底图由调用方贴（见 `BuySellButtonFramePrefix`），这里只保证"定尺 + 命中区 + 文字"。
         //   为什么单独一个（不直接用 `Button`）：`Button` 会按**原版宽/中按钮**（272×35 / 128×35）

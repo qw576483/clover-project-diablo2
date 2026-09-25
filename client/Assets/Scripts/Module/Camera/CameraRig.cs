@@ -18,7 +18,7 @@
 //
 // 不调用 `Game.Camera.Follow/Unfollow`（会锁 Z，语义不符）。
 // 屏幕/相机原生调用一律 try/catch 兜底并打日志：离线自检宿主（非 Unity 进程）里
-//    `Camera.main`/`Screen` 不可用，必须**优雅降级**而不是抛异常（`tools/playercheck` 会断言）。
+//    `Camera.main`/`Screen` 不可用，必须**优雅降级**而不是抛异常（`tools/probes/hosts/playercheck` 会断言）。
 //
 // 焦点来源（每帧 `RefreshFocus`，两条按优先级）：
 //     · `_target != null`（契约 `Follow(transform)` 设过）⇒ 读它的 `position`；
@@ -46,7 +46,7 @@ using UnityCamera = UnityEngine.Camera;
 // ═════════════════════════════════════════════════════════════════════════════
 // 命名空间**刻意**用 `Diablo2.Module`，**不是** `Diablo2.Module.Camera`（目录仍是 `Module/Camera/`）。
 //
-// 实测（本机 `dotnet build tools/playercheck` 的真实报错，不是猜的）：
+// 实测（本机 `dotnet build tools/probes/hosts/playercheck` 的真实报错，不是猜的）：
 //   只要**存在**命名空间 `Diablo2.Module.Camera`，整个程序集里所有裸写 `Camera` 的地方都会
 //   解析到这个**命名空间**而不是 `UnityEngine.Camera` ⇒
 //     `Module/Map/MapView.cs(47,16): error CS0118: “Camera”是 命名空间，但此处被当做 类型 来使用`
@@ -477,7 +477,7 @@ namespace Diablo2.Module
         /// <para>**世界 AABB 口径**：`MapWorldBounds` 取的是等距菱形的轴对齐包围盒，
         /// 菱形与 AABB 之间的四个三角区**不是地图** ⇒ 夹这个盒子会放行"看得见地图外虚空"的机位。
         /// 生产夹制走格空间 `CameraBounds.ClampFocusGrid`；本函数只作为
-        /// 「夹制的纯函数形状」保留（`tools/playercheck` §11 用它做边界钳制的对照组断言）。</para>
+        /// 「夹制的纯函数形状」保留（`tools/probes/hosts/playercheck` §11 用它做边界钳制的对照组断言）。</para>
         /// </summary>
         public static Vector2 ClampFocus(Vector2 focus, Vector2 min, Vector2 max, float halfW, float halfH)
         {
@@ -496,7 +496,7 @@ namespace Diablo2.Module
         /// 纯函数：机位（世界）→ **可见格**包围盒。
         /// <para>实现 = 引擎 <see cref="CameraMath.VisibleGridRect"/>
         /// （等距半格宽高按参数传入 = <see cref="Iso.HalfW"/> / <see cref="Iso.HalfH"/>）。</para>
-        /// <para>用途：`tools/playercheck` §11.10「贴边不露虚空」用它**直接量**生产机位的越界格数
+        /// <para>用途：`tools/probes/hosts/playercheck` §11.10「贴边不露虚空」用它**直接量**生产机位的越界格数
         /// （不在宿主里再镜像一份几何 —— 镜像 = 改了生产也不变红的假闸门）。</para>
         /// <para>`Iso` 是线性变换 ⇒ 矩形映射后的极值必在四个角上 ⇒ 只看四角即可（不必逐像素采样）。</para>
         /// </summary>
@@ -647,7 +647,7 @@ namespace Diablo2.Module
 
             // ② 跟主角：**只有站点 = Stage** 才跟。
             //    · 进过 Stage 才有人设过焦点（`_hasFocus`），菜单里焦点恒为假；
-            //    · 再加站点判定是因为「有人在 Stage 之外显式设过目标格」（离线自检宿主 `tools/playercheck`
+            //    · 再加站点判定是因为「有人在 Stage 之外显式设过目标格」（离线自检宿主 `tools/probes/hosts/playercheck`
             //      直接 `rig.SetTargetGrid(far)`）时，不该被主角坐标劫持 —— 那里主角是静止的出生点，
             //      一劫持就永远收敛不到 `far`（差 12.65 格）。站点判定让两种场景各归各位。
             if (!_hasFocus || !FlowReady()) return;
@@ -680,7 +680,7 @@ namespace Diablo2.Module
         /// <summary>
         /// 游戏流程编排（`IAppFlow`）是否就绪 —— 用它当「这一局真的在跑游戏流程（进过 Stage）」的判据。
         /// <para>
-        /// 为什么不判 `Game.Fsm.Current == "Stage"`：离线自检宿主（`tools/playercheck`）编的是
+        /// 为什么不判 `Game.Fsm.Current == "Stage"`：离线自检宿主（`tools/probes/hosts/playercheck`）编的是
         /// **引擎门面替身**（`shim/EngineShim.cs`，只列本项目用到的成员），里面**没有 `Game.Fsm`**
         /// ⇒ 一引用就编不过（实测 `CS0117: “Game”未包含“Fsm”的定义`）。
         /// </para>

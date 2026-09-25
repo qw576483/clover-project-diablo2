@@ -8,7 +8,7 @@
        那条命令在本机是"零信息"的（见 `docs/agents/_common.md` §4 的警告）。
        本工程把「Unity 托管 DLL + Diablo2 源码（Core/Def/Module/App/Table）」直接编到 .NET 上，
        得到**秒级**的类型校验 + 可运行断言（依据 skill `reference/fast-compile-loop.md`，
-       与 `tools/mapcheck/MapCheck.csproj`（agent-04）、`tools/flowcheck/FlowCheck.csproj`（agent-05）同一套做法）。
+       与 `tools/probes/hosts/mapcheck/MapCheck.csproj`（agent-04）、`tools/probes/hosts/flowcheck/FlowCheck.csproj`（agent-05）同一套做法）。
 
        覆盖率自证：编译产物 PlayerCheck.dll 存在 + 运行输出全部 `[ OK ]`。
        注意：它只证明"类型/逻辑没问题"，**不替代进 Play 实测**（那是主 agent 在用户打开编辑器后做）。

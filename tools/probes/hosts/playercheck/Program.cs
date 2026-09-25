@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// 运行：dotnet run --project <项目根>/tools/playercheck/PlayerCheck.csproj -c Release
+// 运行：dotnet run --project <项目根>/tools/probes/hosts/playercheck/PlayerCheck.csproj -c Release
 //
 // 覆盖的验收项：
 //   ① 离线宿主编译/运行：0 错 0 警告（编译期）+ 断言全过（运行期）

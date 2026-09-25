@@ -3,7 +3,7 @@
   <!-- ───────────────────────────────────────────────────────────────────────
        Editor 工程生成器 / 素材导入器 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
 
-       为什么需要它（同 `tools/mapcheck` / `tools/flowcheck` / `tools/uicheck` 的理由）：
+       为什么需要它（同 `tools/probes/hosts/mapcheck` / `tools/probes/hosts/flowcheck` / `tools/probes/hosts/uicheck` 的理由）：
          用户尚未打开 Unity 编辑器（skill 闸门 2）⇒ **禁止** `unity run` / `unity test` /
          `Unity.exe -batchmode`；而 `client/client.slnx` 里还没有 Unity 生成的工程文件
          ⇒ `dotnet build client.slnx` **覆盖不到** `Assets/Editor/**`。

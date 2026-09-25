@@ -3,7 +3,7 @@
 //
 // 只提供 `Diablo2/Assets/Scripts/{Module/Flow,UI,App}` 及其依赖实际引用到的引擎成员，
 // 签名逐条对齐真实引擎（出处见每条注释）。**一旦真实引擎改签名，本文件会编译报错**
-// —— 这就是它存在的意义（覆盖率哨兵）。做法与 `tools/mapcheck/shim/EngineShim.cs` 一致。
+// —— 这就是它存在的意义（覆盖率哨兵）。做法与 `tools/probes/hosts/mapcheck/shim/EngineShim.cs` 一致。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;

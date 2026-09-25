@@ -2,8 +2,8 @@
 
 > 来源：`docs/接线报告.md` 的未决 A~E + agent-10 未决 1 + agent-11 未决 1。
 > **每个 agent 只做自己那一段**；不许碰别人的文件；不许改契约签名（除本节明确写"允许"的）。
-> 通用前置仍按 `docs/agents/_common.md`（**尤其 §3.5**；自检必须用 `tools/*check` 离线宿主）。
-> **回归要求**：改完必须跑 `.ai-tmp/hosts/fullcheck`（全量编译 + 全链路）与受影响的既有宿主，**全绿才算完成**。
+> 通用前置仍按 `docs/agents/_common.md`（**尤其 §3.5**；自检必须用  离线宿主）。
+> **回归要求**：改完必须跑 `tools/probes/hosts/fullcheck`（全量编译 + 全链路）与受影响的既有宿主，**全绿才算完成**。
 
 ---
 
@@ -32,7 +32,7 @@
 - [ ] 离线宿主新增断言：三种悬停各产出正确的 `HoverTargetChanged` 载荷；`CursorChanged` 随之变化
 - [ ] 点击怪物 → `AttackRequest` 恰好 1 次（带正确 id）；`Shift+点击` → 只发攻击不产生移动目标
 - [ ] `R` 切换后 `PlayerWalkSpeed` 生效（断言实际速率减半）
-- [ ] `.ai-tmp/hosts/fullcheck` + `.ai-tmp/hosts/playercheck` 全绿；②③④⑤ 自检 0 命中（③ 用锚定版）
+- [ ] `tools/probes/hosts/fullcheck` + `tools/probes/hosts/playercheck` 全绿；②③④⑤ 自检 0 命中（③ 用锚定版）
 
 ---
 
@@ -52,7 +52,7 @@
 **验收**：
 - [ ] 离线宿主断言：4 条 Emit 路径各自产出正确事件与载荷（贴断言）
 - [ ] `MiniMapPanel` 打开时 `OnOpen` 收到非 null `MinimapArgs`（断言）
-- [ ] `.ai-tmp/hosts/fullcheck` + `.ai-tmp/hosts/uicheck` 全绿；②③④⑤ 0 命中（③ 锚定版）
+- [ ] `tools/probes/hosts/fullcheck` + `tools/probes/hosts/uicheck` 全绿；②③④⑤ 0 命中（③ 锚定版）
 
 ---
 
@@ -79,7 +79,7 @@
 - [ ] 5 个条带常量指向**真实存在的磁盘文件**（逐个 `Test-Path` 断言，贴输出）
 - [ ] `Log` 的新旧两种用法都能编过，且离线宿主下 `WarnOnce` 不再抛异常（新断言）
 - [ ] `GameConst` 四个新常量存在且被注释说明
-- [ ] `.ai-tmp/hosts/fullcheck` + 全部 7 个宿主全绿；②③④⑤ 0 命中
+- [ ] `tools/probes/hosts/fullcheck` + 全部 7 个宿主全绿；②③④⑤ 0 命中
 - [ ] 回报里列出 `ResPaths` 的**最终常量名与值**（UI agent 后续照它取帧）
 
 ---

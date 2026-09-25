@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """组装 mpq「按名清单」（`wanted.txt`）+ 逐条来源登记（`wanted-sources.tsv`）。
 
-来历：2026-09-22 `mpq-unpack2` 片的一次性脚本 `.ai-tmp/test/build_wanted.py`；
+来历：2026-09-22 `mpq-unpack2` 片的一次性脚本；
 2026-09-22 `g1-naming-and-mpq-asset` 片把它提升为**仓内判据资产**（skill §3.5）
 并**修掉 G-1**（清单侧命名错误）⇒ 见下面 R1/R2/R3 三条硬规则。
 

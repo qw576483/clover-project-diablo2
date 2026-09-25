@@ -1674,7 +1674,7 @@ namespace Diablo2.Module.View
 
         /// <summary>
         /// NPC 视图逐条状态（自证/排障用，**不在契约里**）。
-        /// <para>用途：`client/_dev/p_a21_npc.cs` 用它判定「NPC 是不是还停在纯色占位块上」，
+        /// <para>用途：排障时判定「NPC 是不是还停在纯色占位块上」，
         /// （旧版本的 `ViewModule` 没有这个方法）。</para>
         /// </summary>
         internal string DumpNpcDebug()

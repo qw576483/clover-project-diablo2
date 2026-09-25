@@ -46,7 +46,7 @@ namespace Diablo2.Module.View
         /// <para>值 = 亚马逊（默认职业）的**真实** `.cof` 帧数（`SpriteFrameCounts` 里同一行）：
         /// idle=8 / walk=8 / attack=13 / cast=20 / hit=6 / death=23 / **run=8**。
         /// 已登记的单位一律走 <see cref="SpriteFrameCounts.Of"/>（逐单位真实值）。</para>
-        /// <para>保留这个公开数组是**契约**：离线宿主 `tools/combatcheck/Program.cs` 会读它。</para>
+        /// <para>保留这个公开数组是**契约**：离线宿主 `tools/probes/hosts/combatcheck/Program.cs` 会读它。</para>
         /// </summary>
         public static readonly int[] FrameCounts =
         {

@@ -77,7 +77,7 @@ namespace Diablo2.UI
         private Text _topRightText;
         private Text _band2MidText;
         private Text _band2RightText;
-        private Text _closeText;
+        private ControlTip _closeTip;
         private readonly D2Label[] _statValues = new D2Label[4];
         private readonly Text[] _derivedNames = new Text[4];
         private readonly D2Label[] _derivedValues = new D2Label[4];
@@ -109,6 +109,7 @@ namespace Diablo2.UI
         public override void OnClose()
         {
             Unsubscribe();
+            _closeTip?.Hide();          // 鼠标仍停在关闭钮上时关面板 ⇒ 提示要跟着收（参考实现的 `OnDisable`）
             UiLog.Info("人物属性面板已关闭");
         }
 
@@ -294,41 +295,45 @@ namespace Diablo2.UI
             }
         }
 
-        /// <summary>关闭钮文案（与 `UI/WaypointPanel.cs` 的关闭钮同口径：原版按钮帧 + 原版字模文案）。</summary>
-        private const string CloseText = "关闭";
-
         /// <summary>
         /// 关闭钮三件事：
         /// ① 命中区**几何不动**（原版 prefab `CloseButton` (−15.4,−188.3) 32×31，与底图
         ///    art 128..159 × 389..420 的方形凹槽实测一致）；
-        /// ② 贴**原版按钮帧** `Resources/Clover/D2/UI/Menu/btn_cancel_0.png`（DC6 直出，
-        ///    与 `WaypointPanel` 的中按钮同源）+ 原版字模文案「关闭」；
+        /// ② 贴**原版方钮的「关闭 / 取消」图形帧**（`PANEL/buysellbtn.DC6` 帧 10 常态 / 帧 11 按下）——
+        ///    语义与帧号的绑定出处 = 参考工程 `CharstatPanel.prefab` 的同名 `CloseButton.m_Sprite`
+        ///    （见 `Core/ResPaths.cs` 的 `BuySellButtonFrameClose`）；
         /// ③ 兜底色 = 原版按钮底板色（**alpha 1**）⇒ 即使贴图加载失败，也**可见 + 可点**
         ///    （判据 `FindCloseNode != null &amp;&amp; alpha &gt; 0.9` 因此不依赖素材是否到位）。
-        /// <para>原版依据：原版 prefab 的 `CloseButton` 自带一个 `text: Close` 的标签组件
-        /// （原版 prefab 的 MonoBehaviour 114272374721566020）。
-        /// 原版那个 X 的独立图形不在本机素材里 ⇒ **只追加**登记到 `client/资源欠缺清单.md`，不自己画一个冒充原版。</para>
+        /// <para>钮面**只有图形、没有常显文字**。依据 = 原版 prefab 那个 `text: Close` 字段属于挂在该节点上的
+        /// `Tooltip` 组件（guid `371dd4dd5595a3b46bc35996b3c6be92` =
+        /// `Assets/Scripts/Diablerie/Engine/UI/Tooltip.cs`）：它是 **hover 文案**
+        /// （`OnPointerEnter` → `Ui.ShowScreenLabel(控件矩形顶边中点, text)`，
+        /// `OnPointerExit` / `OnDisable` → `Ui.HideScreenLabel()`）⇒ ⛔ `text` **不是标签**，
+        /// 不要照它给钮加常显文字（`Ui.ShowScreenLabel` 那套屏幕标签本项目没有载体）。</para>
         /// </summary>
         private void BuildCloseButton()
         {
             var close = UiArt.Panel(transform, "CloseButton", UiLayoutGame.CharCloseSize,
                 PanelPos + UiLayoutGame.CharClosePos, UiArt.ButtonBg, true);
-            //   路径走 `ResPaths` 的**具名常量**（`Core/ResPaths.cs:255`，= 原版
-            //   `MENU/MediumButtonBlank.dc6` 帧 0，与 `WaypointPanel` 的中按钮**同一张图**）——
-            //   不写字面量：`ResPaths.cs:21` 记着"未确认文件名的素材不要臆造常量"，
-            //   而写错路径的失败模式是**静默返回 null**（真值只在常量里）。
-            UiArt.SetSprite(close, ResPaths.BtnMedNormal);
+            //   图形帧的路径走 `ResPaths` 的**具名常量**（见 `UiArt.ApplyCloseButtonArt`）——
+            //   不写字面量：写错路径的失败模式是**静默返回 null**（真值只在常量里）。
             close.preserveAspect = true;
-
-            // 原版字模文案（`D2Label`，与面板其它文字同字号 = `UiLayoutGame.FontPx16`）
-            var text = UiArt.Label(transform, "CloseLabel", CloseText, (int)UiLayoutGame.FontPx16,
-                TextAnchor.MiddleCenter, UiArt.ButtonText, UiLayoutGame.CharCloseSize,
-                PanelPos + UiLayoutGame.CharClosePos);
-            text.raycastTarget = false;
-            _closeText = text;
 
             var button = close.gameObject.AddComponent<Button>();
             button.targetGraphic = close;
+            UiArt.ApplyCloseButtonArt(close, button);
+
+            //   悬停提示（原版该节点挂着 `Tooltip`、文案字段 = `Close`；出处与外观口径见 `UI/ControlTip.cs`）：
+            //   进 / 出各一次显隐；面板 `OnClose` 再收一次（对应参考实现的 `OnDisable`）。
+            //   文案走工程既有的「关闭」口径（与 `WaypointPanel` 的关闭钮同源）。
+            _closeTip = ControlTip.Create(transform, close.rectTransform, WaypointPanel.CloseText);
+            var hover = close.gameObject.AddComponent<HoverTarget>();
+            if (_closeTip != null)
+            {
+                hover.OnEnter = _closeTip.Show;
+                hover.OnExit = _closeTip.Hide;
+            }
+
             button.onClick.AddListener(() =>
             {
                 UiLog.Info("点属性面板关闭按钮 ⇒ 走 `Events.PanelToggleRequest` 关闭（与按 C/Esc 同一条路径）");
@@ -361,8 +366,13 @@ namespace Diablo2.UI
             // 三段分框显示（右上 = 等级 / 第二排右框 = 经验 / 第二排中框 = 技能点）。
             //   出处：底图三处凹槽的逐像素实测（`UiLayoutGame.CharTopRightPos` / `CharBand2RightPos` /
             //   `CharBand2MidPos`）。
+            //   本框只显示当前经验：原版 `CharstatPanel.prefab`（`原版资源/参考工程_Diablerie/`）无等级/经验节点，
+            //   原版把「当前经验 / 下一等级」并列的载体是底部经验条的悬停提示串
+            //   （`原版资源/d2text/chi_string.txt` 串 4163 `經驗： %u / %u`），不在人物面板。
+            //   容量（框 118 art ⇒ availPx 99；汉字 13 / 数字 6 / 斜杠 3 art）：「经验 {10 位}」need 89 ⇒ 单行；
+            //   「经验 {10 位}/{10 位}」need 152、「下一等级 {10 位}」need 115 ⇒ 都排不下。
             _topRightText.text = $"等级 {(stats != null ? stats.level : 0)}";
-            _band2RightText.text = $"经验 {(stats != null ? stats.exp : 0)}/{(stats != null ? stats.expNext : 0)}";
+            _band2RightText.text = $"经验 {(stats != null ? stats.exp : 0)}";
             _band2MidText.text = $"技能点 {skillPoints}";
 
             SetStat(0, stats?.str ?? 0);
@@ -370,7 +380,7 @@ namespace Diablo2.UI
             SetStat(2, stats?.vit ?? 0);
             SetStat(3, stats?.eng ?? 0);
 
-            // 加点按钮：没有剩余点数就置灰（原版也是灰的）
+            // 加点按钮：剩余点数决定能不能点（`Button.interactable`）；箭头贴图与颜色不在这里改
             for (var i = 0; i < _plusButtons.Length; i++)
                 SetPlusEnabled(_plusButtons[i], points > 0);
 
@@ -388,15 +398,17 @@ namespace Diablo2.UI
             _resistValues[3].SetText((stats?.poisonResist ?? 0) + "%");
         }
 
-        /// <summary>置灰 / 点亮加点箭头（`UiArt` 只封装了「带 Label 的按钮」，这里是贴图按钮，故本面板自理）。</summary>
+        /// <summary>
+        /// 加点箭头的可交互态：<paramref name="on"/> 写进 `Button.interactable`（`points == 0` ⇒ 不可点）。
+        /// <para>`UiArt` 只封装了「带 Label 的按钮」，这里是贴图按钮，故本面板自己拿 `Button`。
+        /// 箭头贴图与颜色由 `UiArt.SetSprite` 按原版帧决定（`UiArt.ArrowFrame(0)`），本方法不改色。</para>
+        /// </summary>
         private static void SetPlusEnabled(Image img, bool on)
         {
             if (img == null) return;
 
             var button = img.GetComponent<Button>();
             if (button != null) button.interactable = on;
-
-            img.color = on ? Color.white : new Color(1f, 1f, 1f, 0.40f);
         }
 
         private void SetStat(int index, int value) => _statValues[index].SetText(value.ToString());

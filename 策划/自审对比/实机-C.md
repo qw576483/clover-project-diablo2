@@ -3,24 +3,23 @@
 > 结论：**通过**。整条链（接取 → 找洞 → 清光 → 交任务 → 技能点 +1 → 日志完成）在**实机 Play** 里
 > 一轮跑完，9 个环节各有**实机截图 + 对应的状态迁移日志行**。
 >
-> ★ **连续 3 轮**在实机里整链跑通（不是单次侥幸；抽出的关键行见 `client/_dev/log_a26_tworuns.txt`）：
+> ★ **连续 3 轮**在实机里整链跑通（不是单次侥幸；关键行如下）：
 > ① `16:46:08 STEP24 … 技能点 1 → 2（Δ=1） 断言=PASS` + `16:46:14 CHAIN DONE 技能点=2 任务=Done 奖励已领=True 进度=11/11`（修 Npc 前）
 > ② `16:52:04 … 技能点 0 → 1（Δ=1） 断言=PASS` + `16:52:10 CHAIN DONE 技能点=1 任务=Done 奖励已领=True 进度=11/11`（修 Npc 后）
 > ③ `16:58:13 … 技能点 0 → 1（Δ=1） 断言=PASS` + `16:58:33 CHAIN DONE 技能点=1 任务=Done 奖励已领=True 进度=11/11`（**全部改动后**，本轮截图的来源）
 >
 > 证据时间窗：`2026-09-17 16:57:49 ~ 16:58:33`（本地时间）。
-> 原始日志：`client/_dev/log_a26_chain.txt`（本轮自落盘，带毫秒时间戳）+
-> `client/_dev/log_a26_editor.txt`（从 `client/Logs/Editor.log` 抽出的 `[A26C]/[Quest]/[Npc]/[Player]/[Flow]` 行）。
+> 原始日志 = 从 `client/Logs/Editor.log` 抽出的 `[A26C]/[Quest]/[Npc]/[Player]/[Flow]` 行（正文按行摘录）。
 > 截图目录：`client/Screenshots/a26_*.png`（1920×1080，`ScreenCapture.CaptureScreenshot` 由驱动脚本自拍）。
 
 ## 0. 本轮怎么跑的（可复现）
 
 | 文件 | 作用 |
 |---|---|
-| `client/_dev/p_a26_chain.cs` | **一体机驱动**：一次 `eval_file` 跑完整条链（内部 `Game.Timer` 推进 + 自己截图），含引导/断点续跑/打断重试 |
-| `client/_dev/p_a26_do.cs` | 手动单步驱动（`dump` / `click_npc` / `ui_click` / `key` / `move` / `travel` / `killall` …），调试用 |
-| `client/_dev/p_a26_setup.cs` | 进 Play 后第一件事：`runInBackground` + InputSystem 后台/编辑器注入设置 |
-| `client/_dev/a26_ensure.ps1` / `a26_step.ps1` / `a26_shot.ps1` / `a26_log.ps1` / `a26_crop.ps1` | 外部外壳（重启并进 Play / 单步 / 截图+缩图 / 拉日志 / 裁剪读图） |
+| 一体机驱动（一次性） | 一次 `eval_file` 跑完整条链（内部 `Game.Timer` 推进 + 自己截图），含引导/断点续跑/打断重试 |
+| 单步调试驱动（一次性） | 手动单步驱动（`dump` / `click_npc` / `ui_click` / `key` / `move` / `travel` / `killall` …），调试用 |
+| 进 Play 设置片段（一次性） | 进 Play 后第一件事：`runInBackground` + InputSystem 后台/编辑器注入设置 |
+| 外部外壳（5 个 ps1，一次性） | 外部外壳（重启并进 Play / 单步 / 截图+缩图 / 拉日志 / 裁剪读图） |
 
 跑法：`editor_stop → clear_console → editor_play → p_a26_setup.cs → p_a26_chain.cs`，然后看 `_dev/log_a26_chain.txt`。
 
@@ -51,7 +50,7 @@
 ### 读图清单（本轮自己读过，均先裁剪/缩小，未读 1.5MB 原图）
 
 `cr_05_questlog.png`、`cr_13_questlog_done.png`、`cr_10_dialog.png`、`cr_12_skilltree.png`、
-`cr_12_skillhead.png`、`cr_01_town.png`、`cr_08_cleared.png`（都在 `client/_dev/`，由 `a26_crop.ps1` 生成）。
+`cr_12_skillhead.png`、`cr_01_town.png`、`cr_08_cleared.png`（由外部外壳的裁剪步骤生成）。
 
 ## 2. 本轮改的代码（都落在任务书给的归口里）
 

@@ -696,20 +696,37 @@ namespace Uicheck
                        && code.Contains("UiArt.ButtonBg, true)")
                        && !code.Contains("new Color(1f, 1f, 1f, 0f), true)");
             };
-            Func<string, bool> closeHasOriginalFrameAndText = src =>
+            Func<string, bool> closeHasOriginalArt = src =>
             {
                 var code = StripCsComments(src);
-                return code.Contains("ResPaths.BtnMedNormal")
-                       && code.Contains("\"CloseLabel\"")
-                       && code.Contains("private const string CloseText = \"关闭\"");
+                return code.Contains("UiArt.ApplyCloseButtonArt(close, button)")
+                       && !code.Contains("ResPaths.BtnMedNormal")
+                       && !code.Contains("\"CloseLabel\"");
+            };
+
+            // 图形帧的来源单独判一遍（读 `UiArt.cs`）：必须是**原版方钮的具名常量**，
+            //   不是字面量路径、也不是别的屏的按钮底图。
+            var uiArtPath = System.IO.Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts",
+                "UI", "UiArt.cs");
+            var uiArtSrc = System.IO.File.Exists(uiArtPath) ? System.IO.File.ReadAllText(uiArtPath) : string.Empty;
+            Func<string, bool> closeArtFromOriginalFrames = src =>
+            {
+                var code = StripCsComments(src);
+                return code.Contains("ResPaths.PanelBuySellButtonFramePrefix")
+                       && code.Contains("BuySellButtonFramePrefix + ResPaths.BuySellButtonFrameClose");
             };
 
             Check("关闭钮：不再是 alpha 0 的隐形命中区（构建用可见兜底色 `UiArt.ButtonBg`）",
                 cpSrc.Length > 0 && closeVisible(cpSrc),
                 cpSrc.Length == 0 ? "读不到 CharacterPanel.cs" : "CloseButton 构建行已换为可见底色");
-            Check("关闭钮：原版按钮帧（`ResPaths.BtnMedNormal`）+ 原版字模文案「关闭」，⛔ 无自画 X",
-                cpSrc.Length > 0 && closeHasOriginalFrameAndText(cpSrc),
+            Check("关闭钮：走 `UiArt.ApplyCloseButtonArt`（原版「关闭 / 取消」图形帧）+ ⛔ 不再用前端中按钮帧、"
+                + "⛔ 无压住图形的文字标签",
+                cpSrc.Length > 0 && closeHasOriginalArt(cpSrc),
                 "命中区 32×31 几何不动（上一条已判），本判只判可见化与素材来源");
+            Check("关闭钮图形帧 = 原版方钮 `PANEL/buysellbtn.DC6` 帧 10（常态）/ 11（按下）："
+                + "`UiArt` 从 `ResPaths` 的具名常量取帧（⛔ 无字面量路径）",
+                uiArtSrc.Length > 0 && closeArtFromOriginalFrames(uiArtSrc),
+                uiArtSrc.Length == 0 ? "读不到 UiArt.cs" : "帧号与路径前缀都来自 `ResPaths` 常量");
 
             // ── 双向自检（三条缺一不可，任何一条恒真/恒假都说明判据坏了）──────────
             // A. 已知**错**样本：把旧写法作为**代码**注入 ⇒ 同一条判据必须变红
@@ -722,12 +739,73 @@ namespace Uicheck
             Check("自检 B（假红防护）：同一串只出现在注释里 ⇒ 判据必须仍然绿（剥注释生效）",
                 cpSrc.Length > 0 && closeVisible(commentSrc),
                 "上一版会把注释当代码 ⇒ 假红；本版先剥注释");
-            // C. 素材来源那条也要能红（把按钮帧那串注释掉 ⇒ 必须红）
-            var noFrameSrc = cpSrc.Replace("\"CloseLabel\"", "\"CloseLabelRenamed\"");
-            Check("自检 C：改掉 `CloseLabel` 节点名 ⇒ 素材/文案那条必须变红",
-                cpSrc.Length > 0 && closeHasOriginalFrameAndText(cpSrc) && !closeHasOriginalFrameAndText(noFrameSrc),
+            // C. 素材来源两条也要能红（三个方向：不绑图形帧 / 用文字标签压住图形 / 帧常量被改掉）
+            var noArtSrc = cpSrc.Replace("UiArt.ApplyCloseButtonArt(close, button)", "");
+            Check("自检 C-1：删掉 `UiArt.ApplyCloseButtonArt(close, button)`（不绑原版图形帧）⇒ 素材那条必须变红",
+                cpSrc.Length > 0 && noArtSrc != cpSrc
+                && closeHasOriginalArt(cpSrc) && !closeHasOriginalArt(noArtSrc),
                 "正确样本绿 / 错误样本红");
+            var withLabelSrc = cpSrc + "\n        var __old_label = UiArt.Label(transform, \"CloseLabel\", \"关闭\", "
+                + "28, TextAnchor.MiddleCenter, UiArt.ButtonText, UiLayoutGame.CharCloseSize, PanelPos);\n";
+            Check("自检 C-2：把旧写法（`CloseLabel` 文字压在关闭图形上）作为**代码**注入 ⇒ 素材那条必须变红",
+                cpSrc.Length > 0 && closeHasOriginalArt(cpSrc) && !closeHasOriginalArt(withLabelSrc),
+                "正确样本绿 / 错误样本红");
+            var renamedFrameSrc = uiArtSrc.Replace("ResPaths.BuySellButtonFrameClose",
+                "ResPaths.BuySellButtonFrameRenamed");
+            Check("自检 C-3：把 `UiArt` 里的帧常量名改掉 ⇒ 「帧来自 ResPaths 具名常量」那条必须变红",
+                uiArtSrc.Length > 0 && renamedFrameSrc != uiArtSrc
+                && closeArtFromOriginalFrames(uiArtSrc) && !closeArtFromOriginalFrames(renamedFrameSrc),
+                "正确样本绿 / 错误样本红");
+
+            // ═════════════════════════════════════════════════════════════════
+            //   控件级悬浮提示（**只覆盖这两个有原版 `CloseButton` 节点的面板**）
+            //   出处：prefab 的 `Tooltip` 组件（`text: Close`）/ 参考实现 `Tooltip.cs` 的落点口径
+            //   `(rect.center.x, rect.yMax)` / 官方中文串表 id 4167+4168 ⇒ 原版确有这件机制。
+            // ═════════════════════════════════════════════════════════════════
+            var invPath = System.IO.Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts", "UI",
+                "InventoryPanel.cs");
+            var invSrc = System.IO.File.Exists(invPath) ? System.IO.File.ReadAllText(invPath) : string.Empty;
+
+            Func<string, bool> hoverTipWired = src =>
+            {
+                var code = StripCsComments(src);
+                return code.Contains("ControlTip.Create(transform, close.rectTransform, WaypointPanel.CloseText)")
+                       && code.Contains("AddComponent<HoverTarget>()")
+                       && code.Contains("OnEnter = _closeTip.Show")
+                       && code.Contains("OnExit = _closeTip.Hide")
+                       && code.Contains("_closeTip?.Hide();");
+            };
+
+            Check("关闭钮 hover 提示：两个面板都接线（`ControlTip` + `HoverTarget`，文案 = 既有常量 "
+                + "`WaypointPanel.CloseText`，面板 `OnClose` 收一次）",
+                cpSrc.Length > 0 && invSrc.Length > 0 && hoverTipWired(cpSrc) && hoverTipWired(invSrc),
+                $"CharacterPanel={hoverTipWired(cpSrc)} InventoryPanel={hoverTipWired(invSrc)}");
+
+            var tipTop = ControlTip.TopCenterOf(new Vector2(10f, 20f), 30f);
+            var tipZero = ControlTip.TopCenterOf(new Vector2(10f, 20f), 0f);
+            var tipNeg = ControlTip.TopCenterOf(new Vector2(10f, 20f), -8f);
+            Check("hover 提示落点 = 锚控件**顶边中点**（口径 = 参考实现 `Tooltip.cs` 的 "
+                + "`new Vector2(rect.center.x, rect.yMax)`）；高度 0 / 负 ⇒ 不加偏移",
+                tipTop == new Vector2(10f, 35f) && tipZero == new Vector2(10f, 20f) && tipNeg == new Vector2(10f, 20f),
+                $"h=30 ⇒ {tipTop}（期望 (10.0, 35.0)）；h=0 ⇒ {tipZero}；h=-8 ⇒ {tipNeg}");
+
+            // 退化样本：删接线 / 文案换成自造字面量 / 去掉"非正高度不偏移"这条守卫
+            var noTipSrc = cpSrc.Replace("AddComponent<HoverTarget>()", "");
+            Check("自检 D-1：删掉关闭钮的 hover 接线 ⇒ 接线那条必须变红",
+                cdCheckDiff(cpSrc, noTipSrc) && hoverTipWired(cpSrc) && !hoverTipWired(noTipSrc),
+                "正确样本绿 / 错误样本红");
+            var literalTextSrc = cpSrc.Replace("WaypointPanel.CloseText", "\"关闭\"");
+            Check("自检 D-2：文案由既有常量换写成自造字面量 ⇒ 接线那条必须变红",
+                cdCheckDiff(cpSrc, literalTextSrc) && hoverTipWired(cpSrc) && !hoverTipWired(literalTextSrc),
+                "正确样本绿 / 错误样本红");
+            Func<Vector2, float, Vector2> noGuard = (c, h) => new Vector2(c.x, c.y + h * 0.5f);
+            Check("自检 D-3：去掉「非正高度不加偏移」的同口径实现喂进**同一量法** ⇒ 必须被认出（h=-8 时不等）",
+                noGuard(new Vector2(10f, 20f), -8f) != tipNeg,
+                $"无守卫实现 h=-8 ⇒ {noGuard(new Vector2(10f, 20f), -8f)}；真值 ⇒ {tipNeg}");
         }
+
+        /// <summary>退化样本是否真的改到了源码（防"变红来自别的原因"）。</summary>
+        private static bool cdCheckDiff(string a, string b) => !string.IsNullOrEmpty(a) && a != b;
 
         /// <summary>
         /// 剥掉 C# 的行注释（`//…`）与块注释（`/*…*/`）。

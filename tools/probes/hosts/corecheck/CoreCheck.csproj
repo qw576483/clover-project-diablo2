@@ -11,8 +11,8 @@
 
        编译范围 = `Def/**` + `Core/**`（+ 引擎门面替身），刻意**不编** Module/UI/App/Table：
          本宿主盯的是 Core 自身的契约与离线可用性，编得越少越快、越不会被别人的并行改动拖累。
-         引擎门面替身复用 `tools/fullcheck/shim/EngineShim.cs`（与 `tools/uicheck` 复用
-         `tools/flowcheck/shim/EngineShim.cs` 同一套做法），因为 `Core/Log.cs` 只用到 `Game.Logger`。
+         引擎门面替身复用 `tools/probes/hosts/fullcheck/shim/EngineShim.cs`（与 `tools/probes/hosts/uicheck` 复用
+         `tools/probes/hosts/flowcheck/shim/EngineShim.cs` 同一套做法），因为 `Core/Log.cs` 只用到 `Game.Logger`。
 
        覆盖率自证：编译产物 CoreCheck.dll 存在 + 运行输出全部 `[ OK ]`（0 失败）。
        ⚠️ 它只证明「类型 / 常量 / 离线可用性」，**不替代进 Play 实测**

@@ -47,7 +47,7 @@ public static string ClockSource => LogThrottle.ClockSource;
 - 删掉的内部实现（限频表 / `Now()` / 三级时钟 / `_unityClockUnavailable` / `_processClock` / `CreateProcessClock`）**语义由 `LogThrottle` 承接**；若项目侧还有引用 ⇒ 改为转发。
 
 **② 注释/文案同步清单**（`Core.Rng` → `CloverEngine.Rng`）：
-`Module/Combat/CombatModule.cs:17`、`Module/Combat/DamageFormula.cs:75`、`Module/Combat/DamagePipeline.cs:25`、`Module/Map/MapGenWilderness.cs:29`、`Module/Monster/MonsterModule.cs:20`、`Module/Skill/SkillModule.cs:22`、`Module/Map/MapModule.cs:13`、`Module/Map/GridMap.cs:406`（**打印文案**）、`.ai-tmp/hosts/mapcheck/Program.cs:205`（打印行）。
+`Module/Combat/CombatModule.cs:17`、`Module/Combat/DamageFormula.cs:75`、`Module/Combat/DamagePipeline.cs:25`、`Module/Map/MapGenWilderness.cs:29`、`Module/Monster/MonsterModule.cs:20`、`Module/Skill/SkillModule.cs:22`、`Module/Map/MapModule.cs:13`、`Module/Map/GridMap.cs:406`（**打印文案**）、`tools/probes/hosts/mapcheck/Program.cs:205`（打印行）。
 > ⚠️ 其中 2 处是**打印文案** ⇒ 改完必须重跑相应宿主确认仍 PASS（地图转储那一行文案会变，属预期）。
 
 **③ `corecheck` 脆弱断言**：`_log.Count("WARN ", "Unity 时钟不可用") == 1` —— 引擎 `LogThrottle` 的降级告警含同样字样 ⇒ 将来 corecheck 一旦真调用 `Rng`/`LogThrottle` 会误红。**收紧口径**（例如只认 `[D2]` tag 或只认项目 `Log` 自己那条），并在断言旁写一行注释说明为什么这么判。
@@ -62,7 +62,7 @@ public static string ClockSource => LogThrottle.ClockSource;
 
 - [ ] **公开签名零变化**（机检）：`git` 看不到项目（被 .gitignore 忽略）⇒ 用**字符级对照**：把改前 `Log.cs` 的所有 `public static` 行与 `IsKnownTag/Clock/ClockSource/Suppress` 提取出来，改后逐字比对**完全一致**，把两串贴进回报
 - [ ] 编译绿：`unity command recompile_status` ⇒ `completed / failed=false / errors=[]`
-- [ ] `.ai-tmp/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`（贴原始末行）
+- [ ] `tools/probes/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`（贴原始末行）
 - [ ] 行为等价证据（离线，秒级）：`corecheck` / `flowcheck` 等与日志/限频相关的宿主输出**与改前逐行比对 0 差异**（或差异项逐条解释清楚）
 - [ ] 9 处注释/文案全部同步（贴 `grep -n "Core\.Rng"` 结果 = **0 命中**）
 - [ ] `git diff --stat -- clover-client-unity-engine` 与本片开工前**逐字一致**（证明没碰引擎）

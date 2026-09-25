@@ -74,7 +74,7 @@ namespace CloverEngine
 
 - [ ] 编译绿：`recompile_status` ⇒ `completed / failed=false / errors=[]`
 - [ ] **公开签名零变化**：`SaveModule` / `SaveJson` 的公开成员列表改前/改后**字符级对照 0 差异**（贴两串）
-- [ ] `.ai-tmp/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
+- [ ] `tools/probes/hosts/run_all_hosts.ps1` ⇒ `TOTAL_HOSTS=10 FAILED=0`
 - [ ] **存档往返等价（本片最关键）**：改前/改后各跑一次"写一个存档 → 读回 → 打印全部字段"，逐字段 0 差异；并做**跨进程**对照（两个不同的 .NET 进程读写同一个槽目录，`List()` 顺序一致）。
       ⚠️ 已知抖动：`fullcheck` 里存档字节数会在 `4022/4021` 之间跳（`SaveModule.ElapsedSinceBase()` 的浮点时长）⇒ 比对时**剔除该字段**，并**同时跑一次"同构建重跑"作抖动基线**（证明剔除是必要的、不是掩盖）
 - [ ] **损坏留档有据**：往槽文件写一段坏 JSON ⇒ `Read` 返回 `null`、`LastCorruptPath` 非空、**原文件不丢**（留档可见）、且**不抛异常**、后续 `Write` 仍能正常工作

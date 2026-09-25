@@ -9,7 +9,7 @@
        且本阶段**禁止** `unity run/test/batchmode`（闸门 2）。
        本工程把「Unity 托管 DLL + Diablo2 源码（Core/Def/Contracts/Combat.SfxKeys/Audio）」编到 .NET 上，
        在无编辑器环境里把 `Module/Audio/**` 真跑一遍：登记表 / 触发点 / 脚步节流 / 缺文件降级 / 音量持久化 / BGM 切歌。
-       做法与 `tools/flowcheck/FlowCheck.csproj`（agent-05）、`tools/mapcheck/MapCheck.csproj`（agent-04）一致。
+       做法与 `tools/probes/hosts/flowcheck/FlowCheck.csproj`（agent-05）、`tools/probes/hosts/mapcheck/MapCheck.csproj`（agent-04）一致。
 
        覆盖率自证：编译产物 AudioCheck.dll 存在 + 构建日志 0 error 0 warning。
        注意：它只证明"类型/语法没问题 + 逻辑断言通过"，**不替代进 Play 实测听声**（那是用户在编辑器里能做的）。

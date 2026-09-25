@@ -77,9 +77,19 @@ namespace Diablo2.Module.Map
                             $"（slots={slotsX}x{slotsY} seed={r.Seed}）⇒ 换拓扑重来");
             }
 
-            // 本生成器自己搞不定 ⇒ 明确返回 false，让 MapModule 按既有机制换 seed 重试
-            MapLog.Error($"MapGenCave: 连续 {LayoutRetry} 次都没拼出一条可走的洞穴" +
-                         $"（slots={slotsX}x{slotsY} seed={rng.Seed}）⇒ 交由 MapModule 换 seed 重生成");
+            // 本生成器自己搞不定 ⇒ 明确返回 false，让 MapModule 按既有机制换 seed 重试。
+            //   级别 = **Warn，不是 Error**（依据四条，全部可复算）：
+            //     ① 频率固定：4000 个种子跑出 492 次 = **12.3%**（逐形状 2x2 6.82% / 2x3 6.18% /
+            //        3x2 19.96% / 3x3 16.23%；作废原因**只有** `VerifyConnectivity`，其余四类作废原因计数 = 0）。
+            //        复算入口 = `tools/probes/hosts/mapcheck` 的 `Step38_CaveLayoutFailureStats`（§38）。
+            //     ② 调用方有**确定性恢复**：`MapModule.Generate` 换 seed 重试 `GameConst.MapGenMaxRetry`(= 8) 次
+            //        （`Module/Map/MapModule.cs`），8 次全败才走保底布局 ⇒ 0.123^8 ≈ 3.4e-8；
+            //        且同类事（"换 seed 重生成"）在该处本来就打 Warn。
+            //     ③ 与 `Core/Log.cs` 的 Error 口径对照：「Error = 不该发生（空引用兜底 / 非法状态 / 加载失败）」；
+            //        "12.3% 固定发生 + 有恢复路径"不属于它。
+            //     ④ Warn 的语义 = 非预期但可恢复 —— 本条正是"本次拓扑作废、换 seed 即可恢复"。
+            MapLog.Warn($"MapGenCave: 连续 {LayoutRetry} 次都没拼出一条可走的洞穴" +
+                        $"（slots={slotsX}x{slotsY} seed={rng.Seed}）⇒ 交由 MapModule 换 seed 重生成");
             map.Clear();
             return false;
         }
@@ -245,8 +255,13 @@ namespace Diablo2.Module.Map
                 }
             }
 
-            // 洞穴按构造本就全连通（块内已凿通 + 块间双向开口）；真出现孤立口袋说明拼接出了
-            // 偏差，这里兜底填掉并留日志（否则刷怪点/掉落会落进走不到的死地）。
+            // 洞穴**不保证**按构造全连通 —— "块内已凿通 + 块间双向开口"并不蕴含整图连通：
+            //   · 逐次尝试的失败率 ≈ 89%（= 0.123^(1/16)），`LayoutRetry`(= 16) 次重试才把它压到 **12.3%**；
+            //   · 作废原因**只有**下面这条 `VerifyConnectivity`（其余四类作废原因计数 = 0）；
+            //   · 跨种子最长连击 = 4（1:412 / 2:68 / 3:11 / 4:1）⇒ 日志里那句"连续 16 次"是**内层循环用尽**，
+            //     ⛔ 不是"16 个连续种子都失败"。
+            //   复算入口 = `tools/probes/hosts/mapcheck` 的 `Step38_CaveLayoutFailureStats`（§38）。
+            //   先兜底填掉孤立口袋（否则刷怪点/掉落会落进走不到的死地），再由下面那条自检决定本次拓扑是否作废。
             map.FillUnreachablePockets(map.SpawnPoint, TileKind.CaveWall);
 
             if (!map.VerifyConnectivity(out var unreachable, out var first))

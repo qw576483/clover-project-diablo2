@@ -3,7 +3,7 @@
 //
 // 只提供 `Diablo2/Assets/Scripts/**` 实际引用到的引擎成员，**签名逐条对齐真实引擎**
 // （出处写在每条注释里）：一旦真实引擎改签名，本文件会**编译报错** —— 这就是它存在的意义
-// （覆盖率哨兵）。做法与 `tools/mapcheck/shim/EngineShim.cs`、`tools/flowcheck/shim/EngineShim.cs` 一致，
+// （覆盖率哨兵）。做法与 `tools/probes/hosts/mapcheck/shim/EngineShim.cs`、`tools/probes/hosts/flowcheck/shim/EngineShim.cs` 一致，
 // 本文件在其基础上增补 `WorldHpBar`（`Module/View/ViewModule.cs` 用它做头顶血条）。
 // ─────────────────────────────────────────────────────────────────────────────
 

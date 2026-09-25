@@ -444,10 +444,9 @@ namespace Uicheck
             Row("DerivedName0", UiLayoutGame.CharDefenseSize.x / UiLayoutGame.K * 0.55f, "防御", scaleChi);
             Row("DerivedName1..3", UiLayoutGame.CharDerivedSize.x / UiLayoutGame.K * 0.55f, "耐力", scaleChi);
             Row("ExtraName0..1", UiLayoutGame.CharBottomRightSize.x / UiLayoutGame.K * 0.55f, "命中", scaleChi);
-            Row("CloseLabel", UiLayoutGame.CharCloseSize.x / UiLayoutGame.K, "关闭", scaleChi);
             Row("TopRight", UiLayoutGame.CharTopRightSize.x / UiLayoutGame.K, "等级 99", scaleChi);
             Row("Band2Mid", UiLayoutGame.CharBand2MidSize.x / UiLayoutGame.K, "技能点 99", scaleChi);
-            Row("Band2Right", UiLayoutGame.CharBand2RightSize.x / UiLayoutGame.K, "经验 3837739017/3837739017", scaleChi);
+            Row("Band2Right", UiLayoutGame.CharBand2RightSize.x / UiLayoutGame.K, "经验 3837739017", scaleChi);
             Row("CharName", UiLayoutGame.CharNameSize.x / UiLayoutGame.K, "S2203805", scaleLat);
             Row("StatValue0..3", UiLayoutGame.CharStatValueW, "999", scaleLat);
             Row("DerivedValue0", UiLayoutGame.CharDefValueW, "9999", scaleLat);

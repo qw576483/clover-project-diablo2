@@ -20,7 +20,7 @@ namespace Diablo2.Module.Item
         private readonly List<ItemStack> _slots = new List<ItemStack>();
 
         // 限频告警：**不用** `Log.WarnThrottled`（它读 `UnityEngine.Time.realtimeSinceStartup`，
-        // 离线宿主 `tools/itemcheck/` 会抛 SecurityException）⇒ 本类自带"同 key 只报一次"。
+        // 离线宿主 `tools/probes/hosts/itemcheck` 会抛 SecurityException）⇒ 本类自带"同 key 只报一次"。
         private static readonly HashSet<string> Warned = new HashSet<string>();
         private const int WarnedCap = 64;
 

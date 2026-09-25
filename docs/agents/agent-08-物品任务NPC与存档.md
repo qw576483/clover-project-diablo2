@@ -58,7 +58,7 @@
 5. **存档往返一致**：`Save → Load → Save` 两次结果相同（自证断言）。
 6. 任务进度**只认洞穴区域的击杀**（`AreaId.DenOfEvil`），野外杀怪不计数。
 
-## 5. 验收标准（**必须用离线宿主**，照 `.ai-tmp/hosts/mapcheck/` 或 `.ai-tmp/hosts/flowcheck/` 建 `.ai-tmp/hosts/itemcheck/`）
+## 5. 验收标准（**必须用离线宿主**，照 `tools/probes/hosts/mapcheck` 或 `tools/probes/hosts/flowcheck` 建 `tools/probes/hosts/itemcheck`）
 
 - [ ] 离线宿主 `dotnet build` 0 错 0 警告；`dotnet run` 断言全过
 - [ ] **掉落**：跑 1000 次 `DropLoot`，统计品质分布与金币（贴数字）；所有掉落格 `Walkable == true`

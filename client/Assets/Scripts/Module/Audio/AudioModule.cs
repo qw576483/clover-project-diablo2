@@ -76,7 +76,7 @@ namespace Diablo2.Module.Audio
 
         /// <summary>
         /// 音频资源探测接缝（生产用 <see cref="EngineAudioClipProbe"/>）。
-        /// `internal set` **仅供离线自检宿主**（`tools/audiocheck`）注入替身。
+        /// `internal set` **仅供离线自检宿主**（`tools/probes/hosts/audiocheck`）注入替身。
         /// </summary>
         internal IAudioClipProbe ClipProbe { get; set; }
 

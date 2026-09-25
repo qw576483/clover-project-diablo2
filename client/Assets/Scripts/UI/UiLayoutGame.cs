@@ -1319,6 +1319,35 @@ namespace Diablo2.UI
         /// <summary>死亡屏标题条（原版 `chi/youdiedsoftcore.dc6` 帧 0）原版尺寸 256×54。</summary>
         public static readonly Vector2 DeathBannerSize = Size(256f, 54f);
 
+        /// <summary>
+        /// 原版死亡屏横幅**两块**的（原版 宽, 高, 左上 x）—— 逐值 = `dc6.py info` + 帧头实测：
+        /// `youdiedsoftcore.dc6` 的帧 0 = 256×54、帧 1 = 40×54，两帧 `offX/offY` 都是 0
+        /// ⇒ 按**读序横向拼接**成整幅 296×54（正文「你損失金錢數量為」）。
+        /// </summary>
+        public static readonly (float w, float h, float x)[] DeathBannerTiles =
+        {
+            (256f, 54f, 0f),      // 帧 0：「你損失金錢數量」
+            (40f, 54f, 256f),     // 帧 1：「為」
+        };
+
+        /// <summary>横幅**整幅**的原版宽 = 296（= 256 + 40）；高 = 54。</summary>
+        public static readonly Vector2 DeathBannerFullSize = Size(296f, 54f);
+
+        /// <summary>横幅第 <paramref name="i"/> 块的原版尺寸 → 画布。</summary>
+        public static Vector2 DeathBannerTileSize(int i)
+        {
+            var t = DeathBannerTiles[i];
+            return new Vector2(t.w * K, t.h * K);
+        }
+
+        /// <summary>横幅第 <paramref name="i"/> 块的中心（相对**整幅中心**；整幅垂直居中于横幅行）。</summary>
+        public static Vector2 DeathBannerTilePos(int i)
+        {
+            var t = DeathBannerTiles[i];
+            var cx = t.x + t.w * 0.5f - 296f * 0.5f;
+            return new Vector2(cx * K, 0f);
+        }
+
         /// <summary>死亡屏按钮（原版 `MENU/endgameok.dc6`）原版尺寸 96×32 ⇒ 画布 172.8×57.6。</summary>
         public static readonly Vector2 DeathButtonSize = Size(96f, 32f);
 

@@ -75,7 +75,7 @@ Point / Single / PPU=64 / 无压缩 / 无 mipmap / **轴心 = (0.5, 0.5)**）：
 
 本机可复跑的一条命令（包在 `原版资源/_mpq_incoming/`；`--mpq-dir` 不传也会自动认这个布局）：
     cd <仓库根>
-    python tools/d2codec/export_chars.py --only am --out .ai-tmp/test/out-chars --no-cs
+    python tools/d2codec/export_chars.py --only am --out .ai-tmp/test/ --no-cs
 
 读包用 `tools/d2codec/storm.py`（StormLib ctypes 封装；`storm.dll` **不入仓**，
 在 `<仓库根>/.ai-tmp/test/storm/storm.dll`，也可用环境变量 `D2_STORM_DLL` 指定）。
@@ -648,7 +648,7 @@ def export_unit(arch, unit, out_root, palette):
     half_h = max(abs(min_top), abs(min_bottom))
     # **共画布**（`--canvas`）：运行时每个实体只有**一个 `SpriteRenderer`**、pivot 是导入设置里的常量
     # （`(0.5,0.5)`），拿不到 manifest 去补偿 ⇒ 若"徒手套"与"装备套"的画布尺寸/origin 不同，
-    # 换套时角色**脚会跳**。实测（`.ai-tmp/test/canvas-recon.txt`）：各套自然画布彼此不同
+    # 换套时角色**脚会跳**。实测：各套自然画布彼此不同
     # （amazon hth 158x162 vs equip/jav 158x214；paladin hth 112x170 vs equip/ssd 158x190 …），
     # 且**没有一个职业的装备套装得进它自己的徒手画布** ⇒ 必须走"显式共画布"并**把徒手套一起重导**。
     # `FIXED_CANVAS` 为空 ⇒ 行为与改动前**逐字节一致**（默认路径不动）。

@@ -9,7 +9,7 @@
   · `client/Assets/Resources/Clover/D2/{Tiles,Objects}/*/manifest.json`
         已解出瓦片的 `compositeIndex (= ((main<<6)+sub)<<5+orientation)` → `<pack>/<idx>`
 
-**口径（逐条有出处；见 `.ai-tmp/test/automap-plan.md`）**
+**口径（逐条有出处）**
   1. `CelN` = `MaxiMap.dc6` 的**帧序号**（Cel 值域 −1..1254 ⊂ 0..1259）。
   2. 查询键 = `(LevelName, Style, Sequence)`；`LevelName` = `<act 号> <LevelType 名>`，
      `Style` = **DS1 格 `prop3 & 0x0F`**、`Sequence` = **DS1 格 `prop2`**（实测：`1 Wilderness`
@@ -147,7 +147,7 @@ def resolve_cel(rows_by_level, level_name, is_floor, style, seq):
     """返回 (cel, 命中行数, 该行可用变体数, 是否走了地面 seq 兜底)。命中 0 行 ⇒ (-1, 0, 0, False)。
 
     ★ 片 automap-redo2 第 3 轮（2026-09-23）新增**地面层 Sequence 兜底**，依据是机械实测
-    （`tools/probes/scan_automap_rows.py` 的 `[shift test]` / `[shift detail]`）：
+    （`[shift test]` / `[shift detail]`）：
 
       把 key 里的 Sequence 平移 −1 / 0 / +1 后重算"无命中格数占比"：
         · Town(1 Town)      floor 73.1% → **0.8%**（+1）    wall 0%（三个平移都是 0%）
@@ -277,11 +277,11 @@ def emit_cs(table, cels_used, palette_rgb, cel_pixels, report, out_cs=None):
     A('// 查询键 = (LevelName = `<act> <LevelType>`、Style = DS1 `prop3 & 0x0F`、Sequence = DS1 `prop2`)；')
     A('// 命中多行 ⇒ 取表里最先出现的一行、取该行第一个 `CelN >= 0`；无命中 ⇒ -1（该格不画）。')
     A('// ★ 地面层 Sequence 兜底（片 automap-redo2 第 3 轮，2026-09-23）：**仅当 `hits` 为空 且 该格属地面层**')
-    A('//   时，用 `Sequence + 1` 再查一次；仍无命中 ⇒ -1。依据是机械实测（`tools/probes/scan_automap_rows.py`）：')
+    A('//   时，用 `Sequence + 1` 再查一次；仍无命中 ⇒ -1。依据是机械实测：')
     A('//   Town 地面无命中格 73.1% → 0.8%、Wilderness 76.2% → 0.2%（+1），而 Cave 地面现状已只 12.9%')
     A('//   且它的 `fl` 行本就从 seq=0 起 ⇒ **全局平移会改坏 Cave**，所以只做兜底。墙层三个平移都是 0% 无命中 ⇒ 不受影响。')
     A('// ⛔ 原版「多行命中时挑哪一行 / 4 个变体挑哪一个」的规则**本机没有载体**（见')
-    A('//   `.ai-tmp/test/automap-plan.md` §2）⇒ 上一条是本项目**定死并登记**的可复跑规则。')
+    A('//   （定案登记 §2）⇒ 上一条是本项目**定死并登记**的可复跑规则。')
     A('//')
     A('// 几何（实测）：世界地砖 160×80 ⇒ automap 比例 **1/10**；一格 = 16×8 等距菱形、')
     A('//   cel 帧的**底部 8 行**（y=24..31）就是这格 ⇒ cel 左上角贴到 (posX, posY)。')

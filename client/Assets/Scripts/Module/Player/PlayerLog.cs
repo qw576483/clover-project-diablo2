@@ -11,7 +11,7 @@
 //
 // 本模块**故意不用** `Log.WarnThrottled/WarnOnce/ErrorOnce`：`Core/Log.cs:133` 的降频闸门
 //    依赖 Unity 原生 `Time.realtimeSinceStartup`，在离线自检宿主（非 Unity 进程）里会抛
-//    `SecurityException`（实测见 `tools/mapcheck/Program.cs:61-68`），而 playercheck 必须能
+//    `SecurityException`（实测见 `tools/probes/hosts/mapcheck/Program.cs:61-68`），而 playercheck 必须能
 //    把「受阻 / 不可达 / 装备词缀未映射 / 无相机」这些**非预期分支**真跑一遍。
 //    ⇒ 本模块的降频一律用**私有 bool 标志位**（同一事件只报一次），语义等价且宿主可跑。
 // ─────────────────────────────────────────────────────────────────────────────

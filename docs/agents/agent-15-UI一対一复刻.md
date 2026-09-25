@@ -4,7 +4,7 @@
 > 病根：之前只做到"能看/像"，没做**逐元素对齐**。本轮把它补齐。
 > 规则见 skill `SKILL.md::★★ 1:1 复刻硬标准`（布局/素材/字体/色调/交互/节奏六项，允许差异清单默认为**空**）。
 > 通用前置按 `docs/agents/_common.md`（**尤其 §3.5**）。
-> 改完必须回归：`tools/run_all_hosts.ps1`（10 宿主）+ `.ai-tmp/hosts/fullcheck`。
+> 改完必须回归：`tools/run_all_hosts.ps1`（10 宿主）+ `tools/probes/hosts/fullcheck`。
 
 ---
 
@@ -60,7 +60,7 @@
 - [ ] 对照表（面板 → 原版坐标 → 我们的坐标 → 依据节点名）贴进回报
 - [ ] 进 Play 截图（`Assets/Screenshots/fix_ui_layout_menu.png` / `_charcreate.png`）**与原版图并排逐项比对**，
       每项只写 `一致` / `不一致（差在哪）`
-- [ ] 离线断言（`.ai-tmp/hosts/uicheck`）：布局常量 = 原版值 × 2.4（逐条）
+- [ ] 离线断言（`tools/probes/hosts/uicheck`）：布局常量 = 原版值 × 2.4（逐条）
 - [ ] 10 宿主全绿
 
 ---
@@ -85,7 +85,7 @@
 **验收**：
 - [ ] 对照表（每个面板的每个元素）贴进回报
 - [ ] 进 Play 截图（`fix_ui_hud.png` / `_inventory.png` / `_charstat.png` / `_skill.png`）逐项比对
-- [ ] 离线断言（`.ai-tmp/hosts/uicheck`）：HUD 元素两两不重叠、格子总数 = 40、装备槽 = 10、与原版值 ×2.4 一致
+- [ ] 离线断言（`tools/probes/hosts/uicheck`）：HUD 元素两两不重叠、格子总数 = 40、装备槽 = 10、与原版值 ×2.4 一致
 - [ ] 10 宿主全绿
 
 ---
@@ -96,6 +96,6 @@
 - ⛔ **不许用占位色块顶替原版贴图**（原版 PNG 已在 `Resources/Clover/D2/UI/**`；
   若某个元素的原版贴图确实不在手上，**写进 `client/资源欠缺清单.md`** 并在回报里点名，**不许静默用色块**）。
 - ⛔ **不许提亮/压暗**原版图；色调 = 白。
-- 驱动编辑器前**必须先跑** `client/_dev/p_runbg.cs`（失焦不 tick，见 `constraints.md` #11）；
+- 驱动编辑器前**必须先跑** `tools/probes/interact/p_runbg.cs`（失焦不 tick，见 `constraints.md` #11）；
   截图前等 ≥6 秒否则拿过期帧；面板关闭判定用 `Game.UI.IsOpen<T>()`（不要用 `FindObjectsByType`）。
 - ⛔ 不许读工作区里其它 `clover-project-*`。

@@ -803,7 +803,7 @@ namespace SaveCheck
                   "失败有可定位原因、失败时 `Events.LoadDone(null)` 被发出（= 用户可见反馈的触发点）",
                 r7MissingDisc && r7BadDisc && r7SuccessDisc,
                 $"①档不存在={r7MissingDisc} ②损坏={r7BadDisc} ③成功={r7SuccessDisc}"
-                + "（修前：两情况同返 null 且无任何判别位 / 无事件 ⇒ 见 `.ai-tmp/test/audit-C-logic-num.md` §2 R7）");
+                + "（修前：两情况同返 null 且无任何判别位 / 无事件）");
             Console.WriteLine();
         }
 

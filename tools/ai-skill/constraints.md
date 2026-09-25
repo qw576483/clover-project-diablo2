@@ -73,7 +73,7 @@ C# 的 `(int)` 强转对**负数向零截断**，会导致"图外可走/格子�
 UnityEngine.Application.runInBackground = true;
 UnityEngine.QualitySettings.vSyncCount = 0;
 ```
-探针：`client/_dev/p_runbg.cs`。（**已登记例外**：全局 skill §8 禁 `client/_dev/`，但该文件必须能被 Unity 编译才生效；`tools/verify.ps1` 的 `stray-temp-files` 对它做**白名单登记**（当前白名单 = 1 个），白名单之外一律不许新增 —— 新驱动一律放 `.ai-tmp/drivers/`、一次性自检放 `.ai-tmp/test/`）
+探针一律放 `.ai-tmp/drivers/`、一次性自检放 `.ai-tmp/test/`；⛔ 不许在 `client/_dev/`、`_assets_src/`、`_assets_tmp/` 下新增文件 —— `tools/verify.ps1` 的 `stray-temp-files` 把这三处下的 `.cs` 判为散落产物（白名单里只有 1 个历史条目）。
 
 **附带两条同源经验（同样已成坑）**：
 
@@ -81,14 +81,14 @@ UnityEngine.QualitySettings.vSyncCount = 0;
   （实测两张截图字节数完全相同 = 完全没重绘）。
 - **判定"面板没关/对象还在"不许用 `FindObjectsByType` 列表**：
   `UIManager.Close` 走 `Object.Destroy`（帧末才 flush），失焦停帧时会给出**假的"面板叠加/残留"**。
-  真值用 `Game.UI.IsOpen<T>()`（立刻更新）。探针：`client/_dev/p_panels.cs`。
+  真值用 `Game.UI.IsOpen<T>()`（立刻更新）。
 - **输入注入**：见 engine skill `reference/pipeline-and-unity-cli.md`【P-4】。
-  本项目可用的配方已落在 `client/_dev/p_key3.cs`（只往**现有** `Keyboard.current` / `Mouse.current` 投事件，
-  **不增删设备、不手动 `Update()`**）；另注意 `RemoveDevice` + `AddDevice` 会让**同一 Play 会话里只有第一次注入有效**。
+  本项目可用的配方：只往**现有** `Keyboard.current` / `Mouse.current` 投事件，
+  **不增删设备、不手动 `Update()`**；另注意 `RemoveDevice` + `AddDevice` 会让**同一 Play 会话里只有第一次注入有效**。
 
 ## #12 素材下载器：分块重试必须**回滚**已写字节
 
-`_assets_src/d2fetch.ps1` 的 chunk 循环里，`$fs.Write` 写在 try 内、失败重试时**没有把文件截断回 `$offset`** ⇒
+素材下载器的 chunk 循环里，`$fs.Write` 写在 try 内、失败重试时**没有把文件截断回 `$offset`** ⇒
 重试会**重复追加**，产出比预期更大的损坏文件（实测：`.part` 2241641414 字节 > 预期 2145506049），
 最终 `SIZE_MISMATCH` 且 zip 不可读。
 **修法**：每次重试前 `$fs.SetLength($offset)` 并把 `Position` 复位；或改成"每块写独立临时文件再拼接"。

@@ -6,7 +6,7 @@
              **在盘上不存在**的入口 `_table_discard/verify/TableVerify.csproj`
              （全仓 `TableVerify.csproj` 0 命中；`_table_discard/` 只有 mapping.tsv）。
        作用：证明"打表产物是 **Unity 无关**的纯 C#，可独立 dotnet build"。
-             打表工具 `clover-tools/table/core/internal/gen/cs.go` 生成的 `Table/**` 里
+             打表工具 `clover-` 生成的 `Table/**` 里
              **只有 `TableLoader.cs` 引用引擎**（`using CloverEngine;`，走 CloverTable），
              其余（`Base/*.cs`、`Registry.cs`、各逻辑表壳）只依赖 BCL。
 

@@ -40,7 +40,7 @@ ThirdParty/Diablo2 —— 暗黑破坏神 II 原版素材「原样副本」（�
 --------------------------------------------------------------------------------
   Resources/Clover/D2/UI/{Cursor,Panel,Menu,EquipSlot,SkillIcon}/**   71 个文件中的 67 个
   Resources/Clover/D2/Fonts/font16|24|30|42.png                       71 个文件中的 4 个
-  逐目录对应关系与每张图实测尺寸：见 <项目根>/client/_dev/assetreport.txt
+  逐目录对应关系见 client/Assets/Resources/Clover/D2/；每张图实测尺寸见 `Assets/Editor/AssetImporter.cs` 的导入参数表
 
 一致性保证
 --------------------------------------------------------------------------------

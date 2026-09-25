@@ -6,7 +6,7 @@
 项目根 = `clover-project-diablo2`。
 另必读：skill `reference/unity-cli.md` §7（场景创建与脚本挂载由 AI 自己做，不许丢给用户）、
 `patterns/client/ui.md`（面板预制体 = `Resources/UI/{类名}`）、`patterns/client/app-flow.md` §4（场景划分）；
-`<项目根>/client/_dev/assetreport.txt`（素材实测尺寸，切分参数要看它）。
+`client/Assets/Editor/AssetImporter.cs` 的导入参数表（素材实测尺寸，切分参数要看它）。
 
 ## 1. 目标
 
@@ -65,7 +65,7 @@ App/：Bootstrap（唯一手动挂载的业务脚本）
 
 ### 4.3 `AssetImporter.cs` 的多帧条带修复（**只改这一处**）
 
-`client/_dev/assetreport.txt` 报告这三张是**多帧条带**、当前按 `Single` 导入导致取不到单帧：
+导入参数表报告这三张是**多帧条带**、当前按 `Single` 导入导致取不到单帧：
 - `UI/Panel/buysellbtn.DC6.0.png`（1024×64）
 - `UI/Panel/goldcoinbtn.dc6.0.png`（64×32）
 - `UI/Menu/button_medium.png`（384×35，**3 帧，帧宽 128**）与 `button_wide.png`（816×35，**3 帧，帧宽 272**）
@@ -77,7 +77,7 @@ App/：Bootstrap（唯一手动挂载的业务脚本）
 
 ## 5. 验收标准
 
-- [ ] `dotnet build`（用任意现有 `tools/*check` 宿主或 Unity 程序集）本 agent 新增文件**类型零错误**
+- [ ] `dotnet build`（用任意现有  宿主或 Unity 程序集）本 agent 新增文件**类型零错误**
 - [ ] `Assets/Scenes/{Boot,Menu,Stage}.unity` **真实存在**（贴文件大小）
 - [ ] `Assets/Resources/UI/*.prefab` **数量 = 16**（贴文件列表与数量）
 - [ ] 预制体根节点确实铺满（贴出具名证据：读回 `.prefab` 文本里的 `m_AnchorMin/m_AnchorMax/m_OffsetMin/m_OffsetMax`）
@@ -90,6 +90,6 @@ App/：Bootstrap（唯一手动挂载的业务脚本）
 ## 6. 约束
 
 - 用户尚未打开编辑器 ⇒ **禁止** `unity run` / `unity test` / `Unity.exe -batchmode`。
-  若必须验证 Unity API 类型，用**离线编译**方式（照 `tools/*check` 引用 Unity 托管 DLL 的做法）。
+  若必须验证 Unity API 类型，用**离线编译**方式（照  引用 Unity 托管 DLL 的做法）。
 - 生成器**不许**要求用户手动建物体/挂脚本。
 - 所有非预期分支必须打日志。
