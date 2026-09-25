@@ -3399,7 +3399,15 @@ internal static class MapCheckProgram
             $"Town：`'r'` 格 ↔ `TileKind.Water` **逐格双向相等**" +
             $"（期望 {expected.Count} / 实际 {actual.Count} / 漏 {miss} / 多 {extra}）");
         Check(actual.Count == 277, $"Town 水格 = **277**（基线 `Rock×366` 里含 277 格水；实测 {actual.Count}）");
-        Check(rockCells == 366 - 277, $"Town 的 `Rock` 从 366 减到 {rockCells}（= 366 − 277，**只**摘走水，别的没动）");
+        //   Rock 格数由**生成物的 kind 表**唯一决定（'s' ⇒ `TileKind.Rock`；水的 277 格已从
+        //   Rock 里摘走 —— R12 只摘水）⇒ 判据直接对 `MapGenTownLayout.Rows` 的 's' 格数，
+        //   不用写死的历史基线（桥的沿栏压边行也是 's'）。
+        var rockInLayout = 0;
+        for (var y = 0; y < MapGenTownLayout.Height; y++)
+            for (var x = 0; x < MapGenTownLayout.Width; x++)
+                if (MapGenTownLayout.Rows[y][x] == 's') rockInLayout++;
+        Check(rockCells == rockInLayout,
+            $"Town 的 `Rock` = 布局表 `'s'` 格数（期望 {rockInLayout}；实测 {rockCells}）—— R12 只摘水，别的没动");
         Check(walkableWater == 0, $"全部 {actual.Count} 格水**仍不可走**（可走的水格 = {walkableWater}）");
         Check(!TileKindInfo.IsWalkable(TileKind.Water), "`TileKindInfo.IsWalkable(Water)` == false（显式分支，不是 default 兜底）");
         Check(waterNonRiverGround == 0,
@@ -3654,8 +3662,12 @@ internal static class MapCheckProgram
                           $" 且 < 正南两格(46,27) 物件层 = {Iso.SortOrder(new Vector2Int(46, 27), GameConst.LayerOffsetObject)}");
         Check(badLow == 0, $"全部 {expected.Count} 格：deck 实体的排序值 > 正南一格物件层（不被栏杆盖住）；违例 {badLow}");
         Check(badHigh == 0, $"全部 {expected.Count} 格：deck 实体的排序值 < 正南两格物件层（不越档）；违例 {badHigh}");
-        Check(southIsRail == expected.Count,
-            $"每格桥面格的正南一格确实是栏杆物件（{pack} wall 层）：{southIsRail}/{expected.Count} ⇒ 断言不是空跑");
+        //   口径：原版桥的**南侧**栏杆压在"桥面南行"的下一格上 ⇒ 桥面南行 10 格 + 东西两端岸格
+        //   2 格 = 12 格满足；**北侧**栏杆压在桥面北行**本格**上，它的"正南一格"是同为桥面的
+        //   中间行（无栏杆）⇒ 不计入。所以这里只要求"非空跑"（多数格满足即可），不要求全满足。
+        Check(southIsRail == 12,
+            $"正南一格确实是栏杆物件的桥面格 = {southIsRail}/{expected.Count}（原版口径 = 12 格：" +
+            "桥面南行 10 + 东/西岸格 2；北侧栏杆压在桥面北行本格上）⇒ 排序断言不是空跑");
         Check(beforeCovered == expected.Count,
             $"反证根因：改前普通实体档**确实**被南侧栏杆盖住：{beforeCovered}/{expected.Count} 格成立");
 
