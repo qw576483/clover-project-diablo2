@@ -132,23 +132,8 @@
 //   · DenEnt2.ds1            尺寸 9x9 ≠ 25x25
 //   · clfcave.ds1            尺寸 9x9 ≠ 25x25
 //   · clfcave2.ds1           尺寸 9x9 ≠ 25x25
-// 未导出的装饰物件 id（判不出物件类，按 id 汇总；不导出也不猜）：
-//   · id=35   ×4
-//   · id=43   ×3
-//   · id=44   ×2
-//   · id=64   ×3
-//   · id=65   ×3
-//   · id=66   ×4
-//   · id=67   ×4
-//   · id=68   ×6
-//   · id=69   ×6
-//   · id=70   ×6
-//   · id=71   ×1
-//   · id=72   ×5
-//   · id=78   ×4
-//   · id=95   ×14
-//   · id=104  ×25
-//   · id=111  ×4
+// 未导出的装饰物件 id（按 id 汇总；括号内是成因：未登记 / 原版 Draw=0 / 由既有路径负责）：
+//   · id=104  ×25 （原版 Draw=0）
 // ─────────────────────────────────────────────────────────────────────────────
 
 using UnityEngine;
@@ -581,6 +566,7 @@ namespace Diablo2.Module.Map
                     new Vector2Int(16, 15),
                     new Vector2Int(18, 16),
                     new Vector2Int(15, 16),
+                    new Vector2Int(16, 16),
                     new Vector2Int(11, 20),
                     new Vector2Int(12, 1),
                     new Vector2Int(3, 13),
@@ -591,6 +577,7 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    111,
                     1,
                     1,
                     1,
@@ -962,21 +949,35 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(10, 18),
+                    new Vector2Int(10, 18),
                     new Vector2Int(15, 14),
+                    new Vector2Int(11, 14),
+                    new Vector2Int(7, 16),
+                    new Vector2Int(7, 20),
+                    new Vector2Int(10, 18),
                     new Vector2Int(10, 17),
                     new Vector2Int(9, 18),
                     new Vector2Int(12, 18),
                     new Vector2Int(10, 20),
+                    new Vector2Int(15, 17),
                     new Vector2Int(12, 10),
                     new Vector2Int(12, 5),
                 },
                 new int[]
                 {
+                    43,
+                    70,
+                    1,
+                    72,
+                    67,
+                    64,
+                    43,
                     1,
                     1,
                     1,
                     1,
-                    1,
+                    69,
                     1,
                     1,
                 }),
@@ -1318,6 +1319,7 @@ namespace Diablo2.Module.Map
                     new Vector2Int(8, 12),
                     new Vector2Int(6, 10),
                     new Vector2Int(4, 12),
+                    new Vector2Int(6, 12),
                     new Vector2Int(13, 3),
                     new Vector2Int(21, 11),
                 },
@@ -1327,6 +1329,7 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    111,
                     1,
                     1,
                 }),
@@ -1649,11 +1652,17 @@ namespace Diablo2.Module.Map
                 new Vector2Int[]
                 {
                     new Vector2Int(9, 20),
+                    new Vector2Int(7, 17),
+                    new Vector2Int(10, 17),
+                    new Vector2Int(9, 18),
                     new Vector2Int(14, 21),
                 },
                 new int[]
                 {
                     1,
+                    72,
+                    68,
+                    78,
                     1,
                 }),
             new Piece("caveNS", 3,
@@ -1983,22 +1992,30 @@ namespace Diablo2.Module.Map
                 new Vector2Int[]
                 {
                     new Vector2Int(15, 19),
+                    new Vector2Int(5, 11),
+                    new Vector2Int(4, 11),
+                    new Vector2Int(6, 14),
                     new Vector2Int(12, 22),
                     new Vector2Int(17, 10),
                     new Vector2Int(11, 9),
                     new Vector2Int(7, 8),
                     new Vector2Int(12, 3),
+                    new Vector2Int(4, 13),
                     new Vector2Int(3, 11),
                     new Vector2Int(7, 13),
                 },
                 new int[]
                 {
                     1,
+                    72,
+                    68,
+                    69,
                     1,
                     1,
                     1,
                     1,
                     1,
+                    78,
                     1,
                     1,
                 }),
@@ -2287,6 +2304,7 @@ namespace Diablo2.Module.Map
                     new Vector2Int(14, 8),
                     new Vector2Int(14, 4),
                     new Vector2Int(12, 6),
+                    new Vector2Int(14, 6),
                     new Vector2Int(4, 16),
                     new Vector2Int(12, 21),
                     new Vector2Int(21, 15),
@@ -2297,6 +2315,7 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    111,
                     1,
                     1,
                     1,
@@ -2629,6 +2648,16 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(6, 9),
+                    new Vector2Int(6, 9),
+                    new Vector2Int(6, 9),
+                    new Vector2Int(8, 9),
+                    new Vector2Int(6, 11),
+                    new Vector2Int(6, 11),
+                    new Vector2Int(3, 8),
+                    new Vector2Int(3, 8),
+                    new Vector2Int(3, 8),
+                    new Vector2Int(8, 6),
                     new Vector2Int(2, 15),
                     new Vector2Int(5, 13),
                     new Vector2Int(9, 9),
@@ -2636,6 +2665,16 @@ namespace Diablo2.Module.Map
                 },
                 new int[]
                 {
+                    43,
+                    44,
+                    70,
+                    67,
+                    69,
+                    35,
+                    95,
+                    95,
+                    95,
+                    65,
                     1,
                     1,
                     1,
@@ -3024,22 +3063,32 @@ namespace Diablo2.Module.Map
                 new Vector2Int[]
                 {
                     new Vector2Int(15, 20),
+                    new Vector2Int(10, 14),
                     new Vector2Int(10, 21),
                     new Vector2Int(3, 18),
                     new Vector2Int(3, 11),
                     new Vector2Int(8, 8),
                     new Vector2Int(12, 4),
+                    new Vector2Int(11, 14),
+                    new Vector2Int(11, 14),
+                    new Vector2Int(11, 14),
+                    new Vector2Int(21, 11),
                     new Vector2Int(22, 15),
                     new Vector2Int(12, 14),
                 },
                 new int[]
                 {
                     1,
+                    95,
                     1,
                     1,
                     1,
                     1,
                     1,
+                    95,
+                    95,
+                    95,
+                    66,
                     1,
                     1,
                 }),
@@ -3301,6 +3350,8 @@ namespace Diablo2.Module.Map
                     new Vector2Int(10, 12),
                     new Vector2Int(16, 13),
                     new Vector2Int(13, 10),
+                    new Vector2Int(14, 9),
+                    new Vector2Int(13, 13),
                 },
                 new int[]
                 {
@@ -3310,6 +3361,8 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    66,
+                    68,
                 }),
             new Piece("caveNSW", 7,
                 "!!!#!#!#!#!#!#!#!$!%!&!&!&!&!&!&!'!#!#!#!#!#!#!#!#!#!(!)!*!+!,!-!#!.!/!&!&!&!&!&!&!0!#!#!#!#!#!#!#!#!#!1!2!3!4!5!6!#!7!8!&!&!9!&!&!&!:!#!#!#!#!#!#!#!#!#!$!%!&!&!&!0!#!;!<!=!>!?!@!=!>!A!#!#!#!#!#!#!#!#!#!B!C!&!&!&!:!#!D!E!F!G!H!I!F!G!J!#!#!#!#!#!#!#!#!#!K!L!&!M!N!'!#!$!%!&!&!&!&!&!&!'!#!#!#!#!#!#!#!#!#!O!P!&!Q!R!S!*!T!U!&!&!&!&!&!V!W!#!#!#!#!#!#!#!#!#!X!Y!&!&!&!Z!3![!]!&!&!^!_!`!a!b!#!#!#!#!#!#!#!#!#!c!d!`!e!f!&!&!&!&!&!&!g!h!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!$!%!&!&!i!&!&!&!'!#!#!#!#!#!#!#!#!#!#!#!#!*!j!k!*!T!U!&!&!&!&!&!&!S!*!+!,!*!-!#!#!#!#!#!#!#!3!l!m!3![!]!&!&!&!&!&!&!Z!3!4!5!3!6!#!#!#!#!#!#!#!&!n!o!&!&!&!&!&!p!`!e!f!&!&!&!&!&!0!#!#!#!#!#!#!#!&!q!r!&!&!&!&!&!s!#!B!C!&!t!&!u!&!:!#!#!#!#!#!#!#!&!v!w!&!&!&!&!V!W!#!K!L!&!&!&!&!V!W!#!#!#!#!#!#!#!&!x!y!&!z!^!_!a!b!#!O!P!&!&!&!p!a!b!#!#!#!#!#!#!#!&!n!o!&!&!g!h!#!#!#!X!Y!&!&!&!s!#!#!#!#!#!#!#!#!#!&!q!r!&!V!W!(!)!+!,!T!U!&!&!&!S!-!#!#!#!#!#!#!#!#!`!{!|!}!a!b!1!2!4!5![!]!&!&!&!Z!6!#!#!#!#!#!#!#!#!#!#!#!#!#!#!$!%!&!&!&!&!&!&!i!&!'!#!#!#!#!#!#!#!#!#!#!#!#!#!#!c!d!e!f!&!&!M!N!&!&!0!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!$!%!&!&!Q!R!&!&!:!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!;!<!=!>!~#!!=!>!A!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!D!E!F!G###$!F!G!J!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!$!%!&!&!&!&!&!&!'!#!#!#!#!#!#!#!!",
@@ -3518,12 +3571,14 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(17, 17),
                     new Vector2Int(12, 5),
                     new Vector2Int(12, 22),
                     new Vector2Int(4, 16),
                 },
                 new int[]
                 {
+                    65,
                     1,
                     1,
                     1,
@@ -3644,11 +3699,15 @@ namespace Diablo2.Module.Map
                     new Vector2Int(17, 17),
                     new Vector2Int(17, 16),
                     new Vector2Int(17, 15),
+                    new Vector2Int(15, 18),
+                    new Vector2Int(18, 15),
+                    new Vector2Int(17, 13),
                     new Vector2Int(12, 22),
                     new Vector2Int(6, 20),
                     new Vector2Int(4, 14),
                     new Vector2Int(6, 10),
                     new Vector2Int(12, 5),
+                    new Vector2Int(16, 16),
                 },
                 new int[]
                 {
@@ -3660,11 +3719,15 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    72,
+                    69,
+                    66,
                     1,
                     1,
                     1,
                     1,
                     1,
+                    70,
                 }),
             new Piece("caveE", 8,
                 "!!!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!$!%!&!'!(!)!*!'!(!+!#!#!#!#!#!#!#!#!#!#!#!#!#!#!,!-!.!/!0!1!2!3!0!1!4!#!#!#!#!#!#!#!#!#!#!#!#!#!#!5!6!7!8!9!9!:!;!9!9!<!'!(!=!>!?!@!A!+!#!#!#!#!#!#!B!C!9!9!9!9!D!E!9!F!G!0!1!H!I!J!K!L!4!#!#!#!$!%!&!M!N!9!9!9!9!O!P!9!9!9!9!9!9!9!9!9!9!Q!#!#!,!-!.!/!R!S!9!9!9!T!U!V!9!W!X!9!9!9!Y!9!9!9!Z!#!#!5!6!7!8!9!9!9!9!9!9![!]!9!^!_!9!`!a!b!c!d!e!f!#!#!B!C!9!9!9!9!9!9!9!9!D!E!9!9!9!9!g!h!i!j!k!l!m!#!#!n!o!9!9!p!q!r!9!9!s!O!P!9!9!9!9!D!E!T!9!9!9!<!=!#!t!u!9!9!9!v!w!9!`!a!x!y!9!9!9!9!O!P!9!9!9!9!G!H!#!z!{!Y!9!9!9!9!9!g!h!|!}!9!9!`!a!x!y!9!9!9!9!9!9!#!~#!###$!9!9!9!9!U!V!9!9!9!9!g!h!|!}!9!q!r!9!9!9!#!#!#!n!o!9!9!9!9![!]!Y!9!9!9#%#&!9!9!9!v!w!9!9!9!#!#!##'#(!b!c!d!e!x!y!9!9!9!9#)#*!9!s!9#+!9!9!9!9!#!#!##,#-!i!j!k!l!|!}!9!9!9!9!D!E!9!9!9!9!9!9!9!9!#!#!#!t!u!9!9!9!9#.#/#0#1###$!O!P!9!9!9!9!9!9!9!9!#!#!#!z!{!9!F!9!9#2#3!#!##'#(!x!y!9!9!9!9#.#/#0#4!#!#!#!n!o!9!9!9#5#6!#!#!##,#-!|!}!9!9!9!9#2#3!#!#!#!#!#!~#!#7#0#1#8#9!#!#!#!n!o!9!9!9!9!9#5#6!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!~#!#7#4#4#0#1#8#9!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!!",
@@ -4056,6 +4119,7 @@ namespace Diablo2.Module.Map
                     new Vector2Int(10, 16),
                     new Vector2Int(8, 16),
                     new Vector2Int(8, 18),
+                    new Vector2Int(9, 17),
                     new Vector2Int(10, 8),
                     new Vector2Int(15, 5),
                     new Vector2Int(23, 10),
@@ -4066,6 +4130,7 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    111,
                     1,
                     1,
                     1,
@@ -4434,17 +4499,23 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(14, 7),
                     new Vector2Int(17, 8),
+                    new Vector2Int(10, 10),
                     new Vector2Int(12, 5),
                     new Vector2Int(23, 10),
+                    new Vector2Int(11, 4),
                     new Vector2Int(13, 9),
                     new Vector2Int(10, 6),
                 },
                 new int[]
                 {
+                    35,
+                    1,
+                    78,
                     1,
                     1,
-                    1,
+                    66,
                     1,
                     1,
                 }),
@@ -4808,6 +4879,9 @@ namespace Diablo2.Module.Map
                 {
                     new Vector2Int(19, 13),
                     new Vector2Int(13, 3),
+                    new Vector2Int(4, 18),
+                    new Vector2Int(8, 17),
+                    new Vector2Int(8, 17),
                     new Vector2Int(15, 16),
                     new Vector2Int(8, 15),
                     new Vector2Int(5, 19),
@@ -4819,6 +4893,9 @@ namespace Diablo2.Module.Map
                 {
                     1,
                     1,
+                    69,
+                    67,
+                    35,
                     1,
                     1,
                     1,
@@ -5200,21 +5277,29 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(7, 8),
+                    new Vector2Int(5, 7),
+                    new Vector2Int(3, 10),
                     new Vector2Int(21, 16),
                     new Vector2Int(16, 18),
                     new Vector2Int(13, 21),
                     new Vector2Int(13, 11),
                     new Vector2Int(6, 11),
                     new Vector2Int(7, 7),
+                    new Vector2Int(23, 14),
                 },
                 new int[]
                 {
+                    70,
+                    72,
+                    68,
                     1,
                     1,
                     1,
                     1,
                     1,
                     1,
+                    78,
                 }),
             new Piece("caveNSE", 11,
                 "!!!#!#!#!#!#!#!#!$!%!&!&!&!&!&!&!'!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!(!)!*!+!&!&!&!,!-!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!.!/!&!0!1!2!3!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!4!5!&!6!7!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!8!9!&!:!;!<!=!>!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!?!@!&!A!B!C!D!E!#!#!#!#!#!#!#!#!#!#!#!#!#!F!G!H!;!I!J!&!&!&!&!&!'!#!#!#!#!#!#!#!#!#!#!#!#!K!L!M!N!B!O!P!&!Q!R!S!T!U!#!#!#!#!#!#!#!#!#!#!#!#!V!W!X!Y!&!&!&!&!Z![!]!^!_!#!#!#!#!#!#!#!#!#!#!#!#!`!a!&!&!b!c!&!&!d!e!&!&!'!#!#!#!#!#!#!#!#!#!#!f!g!I!J!&!&!h!i!&!&!j!k!&!&!:!;!>!#!F!G!H!;!#!#!#!l!m!O!P!&!&!&!&!n!&!o!p!&!&!A!B!E!K!L!M!N!B!#!#!#!$!%!&!&!&!&!&!&!&!&!q!r!&!s!&!&!t!V!W!X!Y!&!#!#!#!u!v!S!T!w!x!y!z!S!T!{!|!&!&!&!&!}!`!a!&!&!&!#!#!#!~#!!]!^###$#%#&!]!^#'#(!&!&!&!&!:!I!J!&!&!&!#!#!#!$!%!&!&!&!&!&!&!&!&!&!&#)!&!&!&!A!O!P!&!&!&!#!f!g!I!J!&!&!&!&!&!&!&!&!&!&!&!&!&!&!&!&!&!&!n!&!#!l!m!O!P!0!1#*!*!+!&!&!&!&!&!&!&!&!&!&!&!&!&!&!&!##+#,!&!&!6!7!##+#,!&!&!&!0!1#-#.#/!*!+!&!0!1#.#*!##0#1!&!,!-!#!##0#1!&!&!&!6!7!#!#!##+#,!&!6!7!#!#!#!(!)#2!2!3!#!#!.!/!&#3!&!:!<!=!>!##0#1!,!-!#!#!#!#!#!#!#!#!#!#!#!4!5!&!&!&!A!C!D!E!#!(!)!2!3!#!#!#!#!#!#!#!#!#!#!#!8!9!&!&!b!c!&!&!t!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!?!@!&!&!h!i!&!&!}!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!$!%!&!&!&!&!&!&!'!#!#!#!#!#!#!#!!",
@@ -5578,6 +5663,7 @@ namespace Diablo2.Module.Map
                     new Vector2Int(22, 18),
                     new Vector2Int(13, 5),
                     new Vector2Int(17, 11),
+                    new Vector2Int(3, 18),
                     new Vector2Int(10, 17),
                     new Vector2Int(5, 15),
                     new Vector2Int(8, 12),
@@ -5589,6 +5675,7 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    71,
                     1,
                     1,
                     1,
@@ -5997,6 +6084,8 @@ namespace Diablo2.Module.Map
                 {
                     new Vector2Int(14, 16),
                     new Vector2Int(4, 18),
+                    new Vector2Int(18, 6),
+                    new Vector2Int(18, 6),
                     new Vector2Int(21, 18),
                     new Vector2Int(11, 11),
                     new Vector2Int(14, 6),
@@ -6007,6 +6096,8 @@ namespace Diablo2.Module.Map
                 {
                     1,
                     1,
+                    70,
+                    44,
                     1,
                     1,
                     1,
@@ -6334,25 +6425,37 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(9, 19),
+                    new Vector2Int(12, 20),
                     new Vector2Int(3, 12),
                     new Vector2Int(12, 3),
                     new Vector2Int(21, 18),
+                    new Vector2Int(10, 20),
                     new Vector2Int(9, 10),
                     new Vector2Int(13, 10),
                     new Vector2Int(16, 15),
                     new Vector2Int(12, 15),
+                    new Vector2Int(7, 22),
+                    new Vector2Int(12, 20),
+                    new Vector2Int(12, 20),
                     new Vector2Int(12, 21),
                     new Vector2Int(8, 18),
                 },
                 new int[]
                 {
+                    70,
+                    95,
+                    1,
+                    1,
+                    1,
+                    68,
                     1,
                     1,
                     1,
                     1,
-                    1,
-                    1,
-                    1,
+                    64,
+                    95,
+                    95,
                     1,
                     1,
                 }),
@@ -6743,24 +6846,38 @@ namespace Diablo2.Module.Map
                 new Vector2Int[]
                 {
                     new Vector2Int(9, 20),
+                    new Vector2Int(9, 4),
+                    new Vector2Int(9, 4),
+                    new Vector2Int(7, 10),
                     new Vector2Int(3, 14),
                     new Vector2Int(13, 21),
                     new Vector2Int(15, 16),
                     new Vector2Int(23, 11),
                     new Vector2Int(14, 9),
                     new Vector2Int(14, 5),
+                    new Vector2Int(9, 5),
+                    new Vector2Int(10, 4),
+                    new Vector2Int(8, 8),
                     new Vector2Int(9, 8),
+                    new Vector2Int(13, 6),
                 },
                 new int[]
                 {
                     1,
+                    95,
+                    95,
+                    64,
                     1,
                     1,
                     1,
                     1,
                     1,
                     1,
+                    95,
+                    95,
+                    69,
                     1,
+                    67,
                 }),
             new Piece("caveNSEW", 15,
                 "!!!#!#!#!#!#!#!#!$!%!&!&!&!&!&!&!'!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!(!)!*!+!&!,!&!-!.!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!/!0!&!1!2!3!4!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!5!6!&!7!8!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!9!:!&!;!<!=!>!?!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!@!A!&!B!C!D!E!F!#!#!#!#!#!#!#!#!#!G!H!I!J!K!L!M!<!N!O!&!&!&!&!&!'!#!#!#!#!#!#!#!#!P!Q!R!S!T!U!V!W!C!X!Y!&!Z![!]!^!_!#!#!#!#!#!#!#!#!`!a!b!c!&!&!&!&!&!&!&!&!d!e!f!g!h!#!#!#!#!#!#!#!#!i!j!&!&!&!&!&!&!&!&!&!&!k!l!&!&!'!#!#!#!#!#!#!#!<!N!O!&!m!&!&!&!&!&!&!&!&!n!o!&!&!;!<!?!#!G!H!I!<!C!X!Y!&!&!&!&!&!p!&!&!&!q!r!s!&!&!B!C!F!P!Q!R!S!C!&!&!&!&!&!1!2!t!u!*!+!&!&!v!w!&!&!&!&!x!`!a!b!c!&!&!&!&!&!&!7!8!#!#!y!z!]!^!{!|!&!&!&!&!}!i!j!&!&!&!&!&!&!&!-!.!#!#!#!~#!!f!g###$!&!&!&!&!;!N!O!&!&!&!&!&#%#&!3!4!G!H!I!N!O!&!&!&!&!&!,!&!&!B!X!Y!&!&!&!&!&#'!#!#!P!Q!R!S!X!Y!&!&!&!&!&!&!&!&!&!&!&!m!&!&!&!-!.!#!#!`!a!b!c!&!&#(!&!&!&!&!&!&!&!&!&!&!&!&!&#)!3!4!#!#!i!j!&!&!&!&!&!&!1!2!t!u#*!*!+!&!1!2!u#)!#!#!#!#!#!$!%!&!&!&!&!&!&!7!8!#!#!##+#,!&!7!8!#!#!#!#!#!#!#!(!)#-!*!+!&!&!&!;!=!>!?!##.#/!-!.!#!#!#!#!#!#!#!#!#!#!#!$!%!&!p!&!B!D!E!F!#!(!)!3!4!#!#!#!#!#!#!#!#!#!#!##+#,!&!&#0#1!&!&!x!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!##.#/!&!&#2#3!&!&!}!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!#!$!%!&!&!&!&!&!&!'!#!#!#!#!#!#!#!!",
@@ -7126,6 +7243,8 @@ namespace Diablo2.Module.Map
                 {
                     new Vector2Int(13, 7),
                     new Vector2Int(7, 13),
+                    new Vector2Int(6, 6),
+                    new Vector2Int(5, 6),
                     new Vector2Int(21, 16),
                     new Vector2Int(16, 17),
                     new Vector2Int(11, 20),
@@ -7133,11 +7252,14 @@ namespace Diablo2.Module.Map
                     new Vector2Int(3, 17),
                     new Vector2Int(6, 8),
                     new Vector2Int(8, 6),
+                    new Vector2Int(6, 4),
                 },
                 new int[]
                 {
                     1,
                     1,
+                    35,
+                    68,
                     1,
                     1,
                     1,
@@ -7145,6 +7267,7 @@ namespace Diablo2.Module.Map
                     1,
                     1,
                     1,
+                    65,
                 }),
         };
 

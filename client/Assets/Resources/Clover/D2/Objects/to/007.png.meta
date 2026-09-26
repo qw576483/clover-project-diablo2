@@ -5,9 +5,6 @@ TextureImporter:
   - first:
       213: 4307378007268850688
     second: 007_0
-  - first:
-      213: 2273677755071612814
-    second: 007_1
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -135,9 +132,9 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 0
-        y: 33
+        y: 0
         width: 32
-        height: 94
+        height: 147
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -148,28 +145,6 @@ TextureImporter:
       bones: []
       spriteID: 00cf694e971e6cb30800000000000000
       internalID: 4307378007268850688
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: 007_1
-      rect:
-        serializedVersion: 2
-        x: 22
-        y: 125
-        width: 7
-        height: 9
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: e8740cc2fd9bd8f10800000000000000
-      internalID: 2273677755071612814
       vertices: []
       indices: 
       edges: []

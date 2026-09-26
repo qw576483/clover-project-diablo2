@@ -21,6 +21,8 @@
         `TikiTorch1`→`TO`/Id 37、`RogueBonfire`→`RB`/39、`Standard1`→`N1`/35、
         `Standard2`→`N2`/36、`Bank`→`b6`/267、`WaypointOutsideAct1`→`wp`/119
         —— 与经典 1.10 `data/global/excel/objects.txt` 的 `Id`/`Token` **逐行相等**。
+        `CLASS_TO_OBJ` 的每条都按此法逐条核对过（D2R 的 `Class`→`*ID`/`Token` 取回经典同名
+        那行的 `Id`/`Token`/`Name`/`Draw`，四个字段逐行相等），每条的理由写在它的值里。
     (c) **石头段**：Act 1 的 `Index 6..11` = `StoneAlpha..StoneTheta`，
         与经典 `ObjType.txt` 的 `Stone 1..6`（Token `S1..S6`）**同序同数**。
 
@@ -39,9 +41,9 @@
   · 帧率：`25 × FrameDelta / 256`（换算两条出处：参考实现 `frameDuration = 256/25/FrameDelta`
     + 逐帧播放 ⇒ `fps = 1/frameDuration`；与 `ResPaths.WaypointFrameFps` 同一把尺子，
     见 `export_waypoint.py` 的 `frame_rate_of`）。
-  · 尺寸/落位：不缩放、不重采样、不调色；画布 = 各层包围盒并集 + 底部透明垫片，
-    使**原点距画布底边 40 px**（= 一格菱形半高 `GameConst.IsoHalfH` × 80 px/单位），
-    与 `export_waypoint.py` 同一口径。
+  · 尺寸/落位：不缩放、不重采样、不调色；画布 = **本次导出的那几帧**各层包围盒并集
+    + 底部透明垫片，使**原点距画布底边 40 px**（= 一格菱形半高 `GameConst.IsoHalfH`
+    × 80 px/单位），与 `export_waypoint.py` 同一口径；画布外的层像素裁掉（不缩放）。
 
 ── ④ 只搬被引用的那几个 ───────────────────────────────────────────────────────
   导出的 token 清单 = `DECO_IDS` 里 `Draw != 0` 的那些类（`objects.txt` 的 `Draw` 列；
@@ -151,6 +153,39 @@ CLASS_TO_OBJ = {
     'CainAct1Start': (385, 'Dummy', 'ss',
                       '经典 ObjType.txt 行386「cain start」/ss（唯一同名行；objects.txt '
                       'Id385 Draw=0 的原版就不画）；D2R 的 objects.txt 无该类行'),
+    # ── 野外 / 洞穴用到的类（依据同上：D2R objects.txt 的 `Class`→`*ID`/`Token` 与经典
+    #    `objects.txt` 的 `Id`/`Token`/`Name` 逐行相等；objpreset 的 `Index` 见
+    #    `OBJPRESET_ACT1`）──────────────────────────────────────────────────────
+    'Barrel': (7, 'Barrel', 'B1', 'D2R objects.txt: Barrel/ID7/B1 = 经典 Id7'),
+    'RogueCorpse1': (54, 'RogueCorpse', 'Z1',
+                     'D2R objects.txt: RogueCorpse1/ID54/Z1 = 经典 Id54'),
+    'RogueCorpse2': (55, 'RogueCorpse', 'Z2',
+                     'D2R objects.txt: RogueCorpse2/ID55/Z2 = 经典 Id55'),
+    'RogueRollingCorpse1': (56, 'RogueCorpse', 'Z5',
+                            'D2R objects.txt: RogueRollingCorpse1/ID56/Z5 = 经典 Id56'),
+    'RogueStakedCorpse1': (57, 'CorpseOnStick', 'Z3',
+                           'D2R objects.txt: RogueStakedCorpse1/ID57/Z3 = 经典 Id57'),
+    'RogueStakedCorpse2': (58, 'CorpseOnStick', 'Z4',
+                           'D2R objects.txt: RogueStakedCorpse2/ID58/Z4 = 经典 Id58'),
+    'ForestAltar': (81, 'Shrine', 'AF',
+                    'D2R objects.txt: ForestAltar/ID81/AF = 经典 Id81'),
+    'HornShrine': (83, 'Shrine', 'HS',
+                   'D2R objects.txt: HornShrine/ID83/HS = 经典 Id83'),
+    'Flies': (103, 'Dummy', 'FL', 'D2R objects.txt: Flies/ID103/FL = 经典 Id103'),
+    'Fountain8': (138, 'Well', 'zy', 'D2R objects.txt: Fountain8/ID138/zy = 经典 Id138'),
+    'FireSmall': (160, 'fire', 'FX',
+                  'D2R objects.txt: FireSmall/ID160/FX = 经典 Id160'),
+    'FireMedium': (161, 'fire', 'FY',
+                   'D2R objects.txt: FireMedium/ID161/FY = 经典 Id161'),
+    'CorpseSkeleton': (171, 'skeleton', 'sx',
+                       'D2R objects.txt: CorpseSkeleton/ID171/sx = 经典 Id171'),
+    'Chest5': (240, 'chest', 'cy', 'D2R objects.txt: Chest5/ID240/cy = 经典 Id240'),
+    'Chest6': (241, 'chest', 'cx', 'D2R objects.txt: Chest6/ID241/cx = 经典 Id241'),
+    'Chest7': (242, 'chest', 'cu', 'D2R objects.txt: Chest7/ID242/cu = 经典 Id242'),
+    'GoldProxy': (269, 'dummy', '1g',
+                  'D2R objects.txt: GoldProxy/ID269/1g = 经典 Id269（Draw=0）'),
+    'ConsolationChest': (397, 'chest', 'yf',
+                         'D2R objects.txt: ConsolationChest/ID397/yf = 经典 Id397'),
 }
 
 # ── DS1 kind=2 的 id → 物件类（Act 1）──────────────────────────────────────────
@@ -175,10 +210,47 @@ DECO_IDS = {
     52: ('WaypointOutsideAct1', 'TownW1 子格(84,69) 落在五芒星石台上 ⇒ 传送点（见文件头 ①(a)）'),
     102: ('Bank', 'TownW1 子格(56,94)/(11,18) 一处'),
     110: ('CainAct1Start', 'TownW1 子格(74,106)/(14,21) 一处（Warriv 站位旁）；Draw=0'),
+    # ── 野外 / 洞穴用到的（依据同第 ① 节：objpreset Act1 的 `Index` → `ObjectClass` 见
+    #    `OBJPRESET_ACT1`；该类 → 经典 `Id`/`Token` 的逐行相等见 `CLASS_TO_OBJ`）─────────
+    30: ('ForestAltar', '野外 wild3.ds1 1 处；objpreset Act1 Index30'),
+    32: ('HornShrine', '野外 wild2.ds1 1 处；objpreset Act1 Index32'),
+    35: ('Flies', '野外 sc_swamp2.ds1 2 处 / sc_obj.ds1 1 处；objpreset Act1 Index35'),
+    43: ('FireSmall', '洞穴 caveNtheme1.ds1 2 处 / caveWtheme1.ds1 1 处；objpreset Act1 Index43'),
+    44: ('FireMedium', '洞穴 caveEWtheme1.ds1 / caveWtheme1.ds1 各 1 处；objpreset Act1 Index44'),
+    64: ('Chest5', '洞穴 caveSPre2.ds1 / caveNEWtheme1.ds1 / caveNtheme1.ds1 各 1 处；'
+                   'objpreset Act1 Index64'),
+    65: ('Chest6', '洞穴 caveNSEWtheme1.ds1 / caveNSW2.ds1 / caveWtheme1.ds1 各 1 处；'
+                   'objpreset Act1 Index65'),
+    66: ('Chest7', '洞穴 caveEtheme1.ds1 / caveNWtheme1.ds1 / caveSWtheme1.ds1 / '
+                   'caveNSWtheme1.ds1 各 1 处；objpreset Act1 Index66'),
+    67: ('RogueCorpse1', '洞穴 caveNEtheme1.ds1 / caveNtheme1.ds1 / caveSEWtheme1.ds1 / '
+                         'caveWtheme1.ds1 各 1 处；objpreset Act1 Index67'),
+    68: ('RogueCorpse2', '洞穴 caveNEWtheme1.ds1 / caveNSEWtheme1.ds1 / caveNStheme1.ds1 / '
+                         'caveSEtheme1.ds1 / caveStheme1.ds1 / caveSWtheme1.ds1 各 1 处；'
+                         'objpreset Act1 Index68'),
+    69: ('RogueRollingCorpse1', '洞穴 caveNEtheme1.ds1 / caveNStheme1.ds1 / caveNtheme1.ds1 / '
+                                'caveNSWtheme1.ds1 / caveSEWtheme1.ds1 / caveWtheme1.ds1 各 1 处；'
+                                'objpreset Act1 Index69'),
+    70: ('RogueStakedCorpse1', '洞穴 caveEWtheme1.ds1 / caveNEWtheme1.ds1 / caveNSWtheme1.ds1 / '
+                               'caveNtheme1.ds1 / caveSEtheme1.ds1 / caveWtheme1.ds1 各 1 处；'
+                               'objpreset Act1 Index70'),
+    71: ('RogueStakedCorpse2', '洞穴 caveNSEtheme1.ds1 1 处；objpreset Act1 Index71'),
+    72: ('CorpseSkeleton', '洞穴 caveNStheme1.ds1 / caveNSWtheme1.ds1 / caveNtheme1.ds1 / '
+                           'caveSEtheme1.ds1 / caveStheme1.ds1 各 1 处；objpreset Act1 Index72'),
+    78: ('Fountain8', '洞穴 caveEtheme1.ds1 / caveNStheme1.ds1 / caveSEtheme1.ds1 / '
+                      'caveStheme1.ds1 各 1 处；objpreset Act1 Index78'),
+    95: ('Barrel', '洞穴 caveNEWtheme1.ds1 3 处 / caveNWtheme1.ds1 4 处 / caveSEWtheme1.ds1 4 处 / '
+                   'caveWtheme1.ds1 3 处；objpreset Act1 Index95'),
+    104: ('GoldProxy', '洞穴各块共 25 处；Draw=0（原版的金币占位，本来就不画）；'
+                       'objpreset Act1 Index104'),
+    111: ('ConsolationChest', '洞穴各块共 4 处；objpreset Act1 Index111'),
 }
 
 
-#: 子格 → 格：`sub-tile = 格 × 5`（出处 `libd2/.../drlg/src/lib.zig:1136`「SUBTILES (tile*5)」）。
+#: 子格 → 格：`sub-tile = 格 × 5`。出处 = 上游参考实现 `libd2` 的
+#: `packages/drlg/src/lib.zig:1136`，原文「SUBTILES (tile*5). We composite them onto a
+#: single subtile-space bitmap」；
+#: https://raw.githubusercontent.com/jaenster/libd2/main/packages/drlg/src/lib.zig
 SUBTILES_PER_TILE = 5
 
 
@@ -269,6 +341,15 @@ def deco_kinds(objects_rows):
     return out, unknown
 
 
+def skip_reason(ds1_id):
+    """某个 ds1 id **不在** `exportable_kinds()` 里的成因（供调用方点名时区分）。"""
+    if ds1_id not in DECO_IDS:
+        return '未登记'
+    if ds1_id in NOT_EXPORTED:
+        return '由既有路径负责'
+    return '原版 Draw=0'
+
+
 def exportable_kinds(objects_rows=None):
     """可导出的 ds1 kind=2 id → 物件描述（`Draw != 0` 且不在 `NOT_EXPORTED`）。
 
@@ -340,10 +421,20 @@ def export_token(handle, palette, item, out_root):
     if c.frames_per_dir < frames:
         raise ValueError('%s: COF 帧数 %d < 采用的 FrameCnt %d' % (cof_rel, c.frames_per_dir, frames))
 
-    left = min(l['dir'].box.left for l in layers)
-    top = min(l['dir'].box.top for l in layers)
-    right = max(l['dir'].box.left + l['dir'].box.width for l in layers)
-    bottom = max(l['dir'].box.top + l['dir'].box.height for l in layers)
+    # 画布 = **本次实际导出的那 `frames` 帧**的包围盒并集（不是 DCC 的方向包围盒）：
+    #   `frames` 取自 `objects.txt` 的 `FrameCnt`，可以小于 DCC 的 `framesPerDir`
+    #   （实测 `B1` 的 NU 有 10 帧、表只用第 0 帧，其余帧的偏移会把画布撑到给不出垫片）。
+    used = []
+    for l in layers:
+        boxes = l['dir'].frame_boxes
+        if len(boxes) < frames:
+            raise ValueError('%s：DCC 帧数 %d < 采用的 FrameCnt %d'
+                             % (l['rel'], len(boxes), frames))
+        used += boxes[:frames]
+    left = min(b.left for b in used)
+    top = min(b.top for b in used)
+    right = max(b.left + b.width for b in used)
+    bottom = max(b.top + b.height for b in used)
     box_w, box_h = right - left, bottom - top
     pad = HALF_CELL_PX - (box_h + top)          # 原点距画布底边 = box_h + top
     if pad < 0:
@@ -361,15 +452,19 @@ def export_token(handle, palette, item, out_root):
             lay = next(l for l in layers if l['component'] == comp)
             dr = lay['dir']
             rgba = dccmod.frame_rgba(dr.frames[fi], palette)
-            ox = dr.box.left - left
-            oy = dr.box.top - top
-            for y in range(dr.box.height):
-                src = y * dr.box.width * 4
-                dst = ((oy + y) * box_w + ox) * 4
-                for x in range(dr.box.width):
-                    if rgba[src + x * 4 + 3] == 0:
+            # 层图是**方向包围盒**尺寸 ⇒ 画布小于它时要裁掉画布外的部分（否则负下标会绕回）
+            ox, oy = dr.box.left - left, dr.box.top - top
+            x0, x1 = max(0, ox), min(box_w, ox + dr.box.width)
+            y0, y1 = max(0, oy), min(canvas_h, oy + dr.box.height)
+            for y in range(y0, y1):
+                src = (y - oy) * dr.box.width * 4
+                dst_row = y * box_w
+                for x in range(x0, x1):
+                    s = src + (x - ox) * 4
+                    if rgba[s + 3] == 0:
                         continue
-                    buf[dst + x * 4:dst + x * 4 + 4] = rgba[src + x * 4:src + x * 4 + 4]
+                    d = (dst_row + x) * 4
+                    buf[d:d + 4] = rgba[s:s + 4]
         name = '%03d.png' % fi
         path = os.path.join(out_dir, name)
         n = pngio.write_rgba(path, box_w, canvas_h, bytes(buf))

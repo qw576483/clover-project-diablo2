@@ -8,8 +8,10 @@
   ② `warp.dt1` 的 3 个"标记格"在**营地内部**（本地 (12,18)/(14,18)/(16,25)），与出城口无关；
      生成器按"原版 lvltype 不装 warp.dt1 ⇒ 原版不画"的口径把它们**丢掉**，是对的。
   ③ 城镇↔野外的接缝带 = `LvlPrest.txt`「Act 1 - Town 1 Transition E/S」（`TownETrans.ds1` /
-     `TownSTrans.ds1`）：**原版把它们铺在野外关卡上**（`参考工程_Diablerie/libd2/.../drlg/
-     outdoors/OutRoom.zig:265/268/271`）——本项目野外生成器已按此铺；营地**自己**的出口
+     `TownSTrans.ds1`）：**原版把它们铺在野外关卡上**（上游 `jaenster/libd2` 的 `packages/drlg/src/drlg/
+     outdoors/OutRoom.zig:265/268/271`「`OutPlace.SpawnOutdoorLevelPresetEx(pLevel, 0, 0, 3, 1, 0)`」，
+     `https://raw.githubusercontent.com/jaenster/libd2/main/packages/drlg/src/drlg/outdoors/OutRoom.zig`）
+     ——本项目野外生成器已按此铺；营地**自己**的出口
      外面那片地用关卡自己的瓦片（见 `export_town_layout.py` 的 `WIN_X0/WIN_Y0`）。
 
 用法：

@@ -435,8 +435,9 @@ def build(out_path, debug):
         if r['deco']:
             print('    %-10s %s' % (r['name'], ', '.join('(%d,%d)id=%d' % u for u in r['deco'])))
     if deco_skipped:
-        print('  [未导出] 未登记（判不出物件类）的 ds1 id，按 id 汇总：%s'
-              % ', '.join('id=%d×%d' % (i, n) for i, n in sorted(deco_skipped.items())))
+        print('  [未导出] 装饰物件 ds1 id，按 id 汇总：%s'
+              % ', '.join('id=%d×%d（%s）' % (i, n, deco.skip_reason(i))
+                          for i, n in sorted(deco_skipped.items())))
 
     _write_cs(out_path, records, packs, grass, dirt, skipped, deco_skipped)
     print('  → %s' % out_path)
@@ -479,7 +480,7 @@ HEADER = '''// ─────────────────────�
 //
 // 剔除记录（源文件缺失 / 依赖 dt1 读不到）：
 %s
-// 未导出的装饰物件 id（判不出物件类，按 id 汇总；不导出也不猜）：
+// 未导出的装饰物件 id（按 id 汇总；括号内是成因：未登记 / 原版 Draw=0 / 由既有路径负责）：
 %s
 // ─────────────────────────────────────────────────────────────────────────────
 '''
@@ -651,8 +652,8 @@ def _b(v):
 
 def _write_cs(out_path, records, packs, grass, dirt, skipped, deco_skipped):
     skip_lines = ['//   · %-12s %s' % (n, r) for n, r in skipped] or ['//   （无）']
-    deco_skip_lines = (['//   · id=%-4d ×%d' % (i, n) for i, n in sorted(deco_skipped.items())]
-                       or ['//   （无）'])
+    deco_skip_lines = (['//   · id=%-4d ×%-3d（%s）' % (i, n, deco.skip_reason(i))
+                        for i, n in sorted(deco_skipped.items())] or ['//   （无）'])
     header = HEADER % ('\n'.join(skip_lines), '\n'.join(deco_skip_lines))
 
     body = []

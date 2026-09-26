@@ -65,10 +65,8 @@
 //   · bord12c      源文件不存在 data/global/tiles/ACT1/OUTDOORS/bord12c.ds1
 //   · bord12o      源文件不存在 data/global/tiles/ACT1/OUTDOORS/bord12o.ds1
 //   · bord12oe     源文件不存在 data/global/tiles/ACT1/OUTDOORS/bord12oe.ds1
-// 未导出的装饰物件 id（判不出物件类，按 id 汇总；不导出也不猜）：
-//   · id=30   ×1
-//   · id=32   ×1
-//   · id=35   ×3
+// 未导出的装饰物件 id（按 id 汇总；括号内是成因：未登记 / 原版 Draw=0 / 由既有路径负责）：
+//   （无）
 // ─────────────────────────────────────────────────────────────────────────────
 using UnityEngine;
 
@@ -1781,9 +1779,11 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(8, 8),
                 },
                 new int[]
                 {
+                    32,
                 }),
             new Piece(
                 "wild3", "LvlPrest Act 1 - Fence Fill 3", 1, 16, 16, 17, 17, true, true, true, true,
@@ -1871,9 +1871,11 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(6, 8),
                 },
                 new int[]
                 {
+                    30,
                 }),
             new Piece(
                 "wild4", "LvlPrest Act 1 - Fence Fill 3", 1, 16, 16, 17, 17, true, true, true, true,
@@ -2686,9 +2688,13 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(20, 3),
+                    new Vector2Int(17, 12),
                 },
                 new int[]
                 {
+                    35,
+                    35,
                 }),
             new Piece(
                 "sc_obj", "LvlSub Type=6 Wild Objects", 6, 8, 8, 22, 14, false, true, false, true,
@@ -2755,9 +2761,11 @@ namespace Diablo2.Module.Map
                 },
                 new Vector2Int[]
                 {
+                    new Vector2Int(19, 11),
                 },
                 new int[]
                 {
+                    35,
                 }),
             new Piece(
                 "towne", "LvlPrest Act 1 - Town 1 Transition E", 7, 8, 40, 9, 41, true, true, true, true,

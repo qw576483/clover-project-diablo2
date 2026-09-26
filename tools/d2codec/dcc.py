@@ -166,13 +166,18 @@ class FrameHeader(object):
 
 
 class Direction(object):
-    """一个方向：`box` = 方向包围盒；`frames` = 逐帧索引图（box 尺寸、自顶向下、0=透明）。"""
+    """一个方向：`box` = 方向包围盒；`frames` = 逐帧索引图（box 尺寸、自顶向下、0=透明）。
 
-    __slots__ = ('box', 'frames')
+    `frame_boxes` = **逐帧**自己的包围盒（长度 = `framesPerDir`；每一帧都按 box 尺寸裁进
+    索引图里 ⇒ 只想用其中几帧时，据此算画布才能只覆盖用到的那几帧）。
+    """
 
-    def __init__(self, box, frames):
+    __slots__ = ('box', 'frames', 'frame_boxes')
+
+    def __init__(self, box, frames, frame_boxes=None):
         self.box = box
         self.frames = frames
+        self.frame_boxes = frame_boxes if frame_boxes is not None else []
 
     def pivot(self):
         """Unity 归一化轴心（原点 = D2 单位原点 = 脚下）。
@@ -314,7 +319,7 @@ def _decode_direction(data, bit_offset, frames_per_dir, tag):
     pixel_buffer = _fill_pixel_buffer(ec, pm, et, rp, pcd, frames, dbox, h_cells,
                                       equal_cells_size, encoding_type_size, palette_entries)
     out_frames = _generate_frames(pcd, frames, dir_cells, pixel_buffer, dbox, h_cells)
-    return Direction(dbox, out_frames)
+    return Direction(dbox, out_frames, [fr.box for fr in frames])
 
 
 def _build_direction_cells(dbox, h_cells):

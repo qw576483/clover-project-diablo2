@@ -29,18 +29,20 @@
 ── ③ 两块**不是对齐来的、而是直读 DS1 层**的数据 ─────────────────────────────
 
   (a) **5 个 NPC 的站位 = 原版坐标**（不再是启发式挑点）。
-      DS1 的 objects 层里有两类预设单位（参考实现：
-      `libd2/packages/drlg/src/drlg/preset.zig:488-494` 的 `switch (o.kind)` —
-      **kind=1 = 怪物/NPC、kind=2 = 物件**；`structs.zig:149-154` 的
+      DS1 的 objects 层里有两类预设单位（参考实现 = 上游 `jaenster/libd2`，基址
+      https://raw.githubusercontent.com/jaenster/libd2/main/packages/drlg/src/ ）：
+      `packages/drlg/src/drlg/preset.zig:488-494` 的 `switch (o.kind)` —
+      **kind=1 = 怪物/NPC、kind=2 = 物件**；`packages/drlg/src/drlg/structs.zig:149-154` 的
       `D2PresetUnitStrc` 注释：`nMode` 1=monster from monpreset.txt、`nPosX/nPosY`
       **是 sub-tile 坐标**）。kind=1 的 `id` 不是 monstats 行号，而是
       **该 act 的 `MonPreset.txt` 块（`Act == act+1` 的那些行，按文件顺序）的下标**
-      —— `presettables.zig:11-20`（`MONSTERTBLS_GetMonPresetRecord`）。
+      —— `packages/drlg/src/drlg/presettables.zig:11-20`（`MONSTERTBLS_GetMonPresetRecord`）。
       Act 1 的那块：`0=gheed 1=cain1 2=akara 3=chicken 4=rogue1 5=kashya 6=cow
       7=warriv1 8=charsi 9=andariel …`（`MonPreset.txt`，本批 d2data 里没有这张表，
-      取自 `原版资源/参考工程_Diablerie/libd2/packages/data/src/excel/MonPreset.txt`）。
+      取自上游 `https://raw.githubusercontent.com/jaenster/libd2/main/packages/data/src/excel/MonPreset.txt`）。
       ⇒ 按 `(sub_tile_x // 5, sub_tile_y // 5)` 换算成格（sub-tile = 格 × 5，
-      出处 `lib.zig:1136`「SUBTILES (tile*5)」）。
+      出处 = 上游参考实现 `libd2` 的 `packages/drlg/src/lib.zig:1136`「SUBTILES (tile*5)」，
+      https://raw.githubusercontent.com/jaenster/libd2/main/packages/drlg/src/lib.zig）。
       ⚠️ 四块里都各带一份 NPC；四块是同一座营地按不同原点导出的，实测它们的
       akara/charsi/warriv 换到关卡坐标后**逐格重合**，gheed/kashya 差 ≤2 格
       （作者在各块里手调过）。本项目**取参考块那一份**（= 本表内容所来自的那一块）。
@@ -150,7 +152,9 @@ NPC_PLACES = ['akara', 'kashya', 'charsi', 'gheed', 'warriv1']
 # 桥的提供者 dt1 短名（`fi.names_of()` 返回的是短名，如 'bridge.dt1'）。
 BRIDGE_DT1 = 'bridge.dt1'
 
-# 子格 → 格：sub-tile = 格 × 5（出处 `libd2/.../drlg/src/lib.zig:1136`「SUBTILES (tile*5)」）。
+# 子格 → 格：sub-tile = 格 × 5。出处 = 上游参考实现 `libd2` 的
+# `packages/drlg/src/lib.zig:1136`「SUBTILES (tile*5)」；
+# https://raw.githubusercontent.com/jaenster/libd2/main/packages/drlg/src/lib.zig
 SUBTILES_PER_TILE = deco.SUBTILES_PER_TILE
 
 
@@ -461,7 +465,7 @@ def align_offsets(files):
 #  ③-b 装饰物件（DS1 objects 层的 kind=2 预设单位）
 # ══════════════════════════════════════════════════════════════════════════════
 #  原版营地那 ~26 个「旗 / 火炬 / 营火 / 箱子」不是 dt1 瓦片，而是 **ds1 objects 层的 kind=2
-#  预设单位**（`preset.zig:488-494` 的 `switch (o.kind)`：1 = 怪物/NPC、2 = 物件）。
+#  预设单位**（`packages/drlg/src/drlg/preset.zig:488-494` 的 `switch (o.kind)`：1 = 怪物/NPC、2 = 物件）。
 #  它的 `id` 是**该幕 objpreset 表的下标**（不是 `Objects.txt` 的 Id），逐条判定与出处
 #  见 `export_deco.py` 文件头 ①。⇒ 本项目把它们导出成生成物里的 `DecoCells`/`DecoDs1Ids`
 #  两张**稀疏表**（关卡格 + ds1 id），运行期由 `MapGenDeco.IndexOf(id)` 换成物件类。
@@ -857,7 +861,7 @@ def _original_npcs(ref, off, kinds):
     ox, oy = off
     found = {}
     for o in ref.ds1.objects:
-        if o.obj_type != 1:                       # 1 = 怪物/NPC，2 = 物件（preset.zig:488-494）
+        if o.obj_type != 1:                       # 1 = 怪物/NPC，2 = 物件（packages/drlg/src/drlg/preset.zig:488-494）
             continue
         if o.obj_id < 0 or o.obj_id >= len(names):
             print('  [WARN] %s 的怪物预设单位 id=%d 越出 Act 1 MonPreset 块（%d 行）⇒ 忽略'

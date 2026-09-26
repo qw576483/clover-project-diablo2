@@ -319,8 +319,9 @@ def build(out_path, debug):
             print('    %-14s %s' % (p['name'],
                                     ', '.join('(%d,%d)id=%d' % u for u in p['deco'])))
     if deco_skipped:
-        print('  [未导出] 未登记（判不出物件类）的 ds1 id，按 id 汇总：%s'
-              % ', '.join('id=%d×%d' % (i, n) for i, n in sorted(deco_skipped.items())))
+        print('  [未导出] 装饰物件 ds1 id，按 id 汇总：%s'
+              % ', '.join('id=%d×%d（%s）' % (i, n, deco.skip_reason(i))
+                          for i, n in sorted(deco_skipped.items())))
 
     _write_cs(out_path, pieces, packs, skipped, by_mask, deco_skipped)
     print('  → %s' % out_path)
@@ -371,7 +372,7 @@ HEADER = '''// ─────────────────────�
 //
 // 剔除记录（形状不规整 / 开口跨片 / 依赖 `warp.dt1` 的块，共 %d 个）：
 %s
-// 未导出的装饰物件 id（判不出物件类，按 id 汇总；不导出也不猜）：
+// 未导出的装饰物件 id（按 id 汇总；括号内是成因：未登记 / 原版 Draw=0 / 由既有路径负责）：
 %s
 // ─────────────────────────────────────────────────────────────────────────────
 '''
@@ -384,8 +385,8 @@ def _write_cs(out_path, pieces, packs, skipped, by_mask, deco_skipped):
     walk_lines = []
     for p in pieces:
         walk_lines.append('//   · %-22s %d 格' % (p['name'], p['walkable']))
-    deco_skip_lines = (['//   · id=%-4d ×%d' % (i, n) for i, n in sorted(deco_skipped.items())]
-                       or ['//   （无）'])
+    deco_skip_lines = (['//   · id=%-4d ×%-3d（%s）' % (i, n, deco.skip_reason(i))
+                        for i, n in sorted(deco_skipped.items())] or ['//   （无）'])
     header = HEADER % ('\n'.join(walk_lines) if walk_lines else '//   （无）',
                        len(skipped), '\n'.join(skip_lines) if skip_lines else '//   （无）',
                        '\n'.join(deco_skip_lines))

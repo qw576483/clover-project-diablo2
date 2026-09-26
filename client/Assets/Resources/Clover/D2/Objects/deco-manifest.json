@@ -55,6 +55,114 @@
         "name": "Dummy",
         "token": "ss",
         "why": "经典 ObjType.txt 行386「cain start」/ss（唯一同名行；objects.txt Id385 Draw=0 的原版就不画）；D2R 的 objects.txt 无该类行"
+      },
+      "Barrel": {
+        "objId": 7,
+        "name": "Barrel",
+        "token": "B1",
+        "why": "D2R objects.txt: Barrel/ID7/B1 = 经典 Id7"
+      },
+      "RogueCorpse1": {
+        "objId": 54,
+        "name": "RogueCorpse",
+        "token": "Z1",
+        "why": "D2R objects.txt: RogueCorpse1/ID54/Z1 = 经典 Id54"
+      },
+      "RogueCorpse2": {
+        "objId": 55,
+        "name": "RogueCorpse",
+        "token": "Z2",
+        "why": "D2R objects.txt: RogueCorpse2/ID55/Z2 = 经典 Id55"
+      },
+      "RogueRollingCorpse1": {
+        "objId": 56,
+        "name": "RogueCorpse",
+        "token": "Z5",
+        "why": "D2R objects.txt: RogueRollingCorpse1/ID56/Z5 = 经典 Id56"
+      },
+      "RogueStakedCorpse1": {
+        "objId": 57,
+        "name": "CorpseOnStick",
+        "token": "Z3",
+        "why": "D2R objects.txt: RogueStakedCorpse1/ID57/Z3 = 经典 Id57"
+      },
+      "RogueStakedCorpse2": {
+        "objId": 58,
+        "name": "CorpseOnStick",
+        "token": "Z4",
+        "why": "D2R objects.txt: RogueStakedCorpse2/ID58/Z4 = 经典 Id58"
+      },
+      "ForestAltar": {
+        "objId": 81,
+        "name": "Shrine",
+        "token": "AF",
+        "why": "D2R objects.txt: ForestAltar/ID81/AF = 经典 Id81"
+      },
+      "HornShrine": {
+        "objId": 83,
+        "name": "Shrine",
+        "token": "HS",
+        "why": "D2R objects.txt: HornShrine/ID83/HS = 经典 Id83"
+      },
+      "Flies": {
+        "objId": 103,
+        "name": "Dummy",
+        "token": "FL",
+        "why": "D2R objects.txt: Flies/ID103/FL = 经典 Id103"
+      },
+      "Fountain8": {
+        "objId": 138,
+        "name": "Well",
+        "token": "zy",
+        "why": "D2R objects.txt: Fountain8/ID138/zy = 经典 Id138"
+      },
+      "FireSmall": {
+        "objId": 160,
+        "name": "fire",
+        "token": "FX",
+        "why": "D2R objects.txt: FireSmall/ID160/FX = 经典 Id160"
+      },
+      "FireMedium": {
+        "objId": 161,
+        "name": "fire",
+        "token": "FY",
+        "why": "D2R objects.txt: FireMedium/ID161/FY = 经典 Id161"
+      },
+      "CorpseSkeleton": {
+        "objId": 171,
+        "name": "skeleton",
+        "token": "sx",
+        "why": "D2R objects.txt: CorpseSkeleton/ID171/sx = 经典 Id171"
+      },
+      "Chest5": {
+        "objId": 240,
+        "name": "chest",
+        "token": "cy",
+        "why": "D2R objects.txt: Chest5/ID240/cy = 经典 Id240"
+      },
+      "Chest6": {
+        "objId": 241,
+        "name": "chest",
+        "token": "cx",
+        "why": "D2R objects.txt: Chest6/ID241/cx = 经典 Id241"
+      },
+      "Chest7": {
+        "objId": 242,
+        "name": "chest",
+        "token": "cu",
+        "why": "D2R objects.txt: Chest7/ID242/cu = 经典 Id242"
+      },
+      "GoldProxy": {
+        "objId": 269,
+        "name": "dummy",
+        "token": "1g",
+        "why": "D2R objects.txt: GoldProxy/ID269/1g = 经典 Id269（Draw=0）"
+      },
+      "ConsolationChest": {
+        "objId": 397,
+        "name": "chest",
+        "token": "yf",
+        "why": "D2R objects.txt: ConsolationChest/ID397/yf = 经典 Id397"
       }
     }
   },
@@ -594,6 +702,1407 @@
       ]
     },
     {
+      "ds1Id": 30,
+      "token": "AF",
+      "dir": "af",
+      "class": "ForestAltar",
+      "className": "Shrine",
+      "objId": 81,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 10,
+      "cycle": 1,
+      "frameDelta": 128,
+      "fps": 12.5,
+      "draw": 1,
+      "why": "野外 wild3.ds1 1 处；objpreset Act1 Index30",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: ForestAltar/ID81/AF = 经典 Id81",
+      "canvas": {
+        "w": 71,
+        "h": 137,
+        "unionH": 121,
+        "padBottom": 16,
+        "originPxFromTop": [
+          32,
+          97
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\AF\\COF\\AFNUHTH.COF",
+          "bytes": 57,
+          "sha256": "460e1b1cf3cacf32eee572aefb88e0190180f957fddb4792533b40028123145a"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\AF\\TR\\AFTRlitNUHTH.dcc",
+            "bytes": 7194,
+            "sha256": "8228236e1c995280f722caf36f351d5ece49d6d449f239b80560bd7ef4692a28"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "af/000.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4949,
+          "sha256": "2f4992314b8801548abd58d01bf30ea36fc26b030551439bba9cb527e1f2c113"
+        },
+        {
+          "file": "af/001.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4930,
+          "sha256": "d5b7bcb714e4b78667d5db8a877d2204021cc7f00dbc90cde7a45234807db492"
+        },
+        {
+          "file": "af/002.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4928,
+          "sha256": "0ea6321eeeb7fcb561ba17e20248de222e8eb6f8bd709abcb07af0249db1ff9e"
+        },
+        {
+          "file": "af/003.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4926,
+          "sha256": "51d26d1bbd3b4a72cc4f20c281c314fe9cb10e6c1baf6e7d061e693c3b71383e"
+        },
+        {
+          "file": "af/004.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4921,
+          "sha256": "5ec729aad323b92c578df6ff40f9b5a1f0a95cee2e2962476cb3cd40203c0433"
+        },
+        {
+          "file": "af/005.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4944,
+          "sha256": "5eb61f2edb84be0be1ebe87d571a43d04286fccbe107961134e99eaecd5291ed"
+        },
+        {
+          "file": "af/006.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4916,
+          "sha256": "6c47e61fd1fac656709d3203fa6d555df87abbce81f9e587e324f62cbc291a28"
+        },
+        {
+          "file": "af/007.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4936,
+          "sha256": "fa268355cd41e5f8a0ce4feb689f50557c35567de16c555eb3673138608b1b16"
+        },
+        {
+          "file": "af/008.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4932,
+          "sha256": "9b804af708398c7c8eabba6157be8b007b9b6c4ed7fb78983dca840db585f54e"
+        },
+        {
+          "file": "af/009.png",
+          "w": 71,
+          "h": 137,
+          "bytes": 4944,
+          "sha256": "058ea80c01c5446aaaa781a9a1add35f0a825dd72dc70b3efaed143b033f8793"
+        }
+      ]
+    },
+    {
+      "ds1Id": 32,
+      "token": "HS",
+      "dir": "hs",
+      "class": "HornShrine",
+      "className": "Shrine",
+      "objId": 83,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 0,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "野外 wild2.ds1 1 处；objpreset Act1 Index32",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: HornShrine/ID83/HS = 经典 Id83",
+      "canvas": {
+        "w": 54,
+        "h": 161,
+        "unionH": 135,
+        "padBottom": 26,
+        "originPxFromTop": [
+          4,
+          121
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\HS\\COF\\HSNUHTH.COF",
+          "bytes": 71,
+          "sha256": "9ad81674f3837aed5353d2c9cf7760d0f89ac048aa8658a837b905510e692eb2"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\HS\\TR\\HSTRlitNUHTH.dcc",
+            "bytes": 29893,
+            "sha256": "6ca6c613fa3936e80ed8d947570bb632cbd83acdf70b4b1e61f677d32417b6a4"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "hs/000.png",
+          "w": 54,
+          "h": 161,
+          "bytes": 3202,
+          "sha256": "45eb2411bc3a4e2222a53ed37bac6ea9c65a7d69f14621aef25ba28e1fc6d5f2"
+        }
+      ]
+    },
+    {
+      "ds1Id": 35,
+      "token": "FL",
+      "dir": "fl",
+      "class": "Flies",
+      "className": "Dummy",
+      "objId": 103,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 12,
+      "cycle": 1,
+      "frameDelta": 256,
+      "fps": 25.0,
+      "draw": 1,
+      "why": "野外 sc_swamp2.ds1 2 处 / sc_obj.ds1 1 处；objpreset Act1 Index35",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: Flies/ID103/FL = 经典 Id103",
+      "canvas": {
+        "w": 40,
+        "h": 86,
+        "unionH": 45,
+        "padBottom": 41,
+        "originPxFromTop": [
+          12,
+          46
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\FL\\COF\\FLNUHTH.COF",
+          "bytes": 61,
+          "sha256": "012e9d4bdaab67edacd01a741f2edb28da3651d5c47b68d686aecf400fb90565"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\FL\\TR\\FLTRlitNUHTH.dcc",
+            "bytes": 824,
+            "sha256": "33e46a504e5cbfc7f5250dc67c212ddc1eacc4d2ce5912b71f3e0c069e010c04"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "fl/000.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 170,
+          "sha256": "b08cf73cb6c6798dd1b04525f3ca1e7b125c508f5e1eca3b3a57313251897721"
+        },
+        {
+          "file": "fl/001.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 180,
+          "sha256": "fc27b9fd7847b794086a7813ba28bb4474788a39de04f2c1916579580a4c2e5a"
+        },
+        {
+          "file": "fl/002.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 188,
+          "sha256": "59d0db05a1210676a0cc19a6db9ecf78efc016961e1e34c0de9245658f0a595d"
+        },
+        {
+          "file": "fl/003.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 159,
+          "sha256": "ad58d55db55e61809990d5da22254a270308475b422471b8545556ef8a676ef4"
+        },
+        {
+          "file": "fl/004.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 175,
+          "sha256": "90296b35cf51dd4b702976dbb39aa000c754ba0fc7cb021ff5c85832aa7562e5"
+        },
+        {
+          "file": "fl/005.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 169,
+          "sha256": "daea1174bffaf9c7753ec489f7ec87369ef0be7366b4ebd0aa801fc5851991d6"
+        },
+        {
+          "file": "fl/006.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 173,
+          "sha256": "3469132e19cc1695f83dd60136ac40f98001472aa04fe66b58783ecfe978947f"
+        },
+        {
+          "file": "fl/007.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 184,
+          "sha256": "cb014a6c62e8e2b532f5ea87d91af328c77f218944265a6b57cb0742014e8e10"
+        },
+        {
+          "file": "fl/008.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 176,
+          "sha256": "1d18c87aa26d692ad82733964cbc422382154998bdf1f1b2748b1cdd3cd66745"
+        },
+        {
+          "file": "fl/009.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 170,
+          "sha256": "6741e0e49cf0f4218f11b61748856dc2efeb9a049bbcbcdc8ee8a4c6a0b5873b"
+        },
+        {
+          "file": "fl/010.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 184,
+          "sha256": "c0a2ce8f89bd3ea11f3607a796a1f603c2c6dd4f5c861a789d83c3954385b38b"
+        },
+        {
+          "file": "fl/011.png",
+          "w": 40,
+          "h": 86,
+          "bytes": 190,
+          "sha256": "d31a4c14d4289021507b988ab8c5fbf8f431736e3bc6eaef6d093f45f8419664"
+        }
+      ]
+    },
+    {
+      "ds1Id": 43,
+      "token": "FX",
+      "dir": "fx",
+      "class": "FireSmall",
+      "className": "fire",
+      "objId": 160,
+      "mode": "ON",
+      "modeIndex": 2,
+      "frames": 26,
+      "cycle": 1,
+      "frameDelta": 256,
+      "fps": 25.0,
+      "draw": 1,
+      "why": "洞穴 caveNtheme1.ds1 2 处 / caveWtheme1.ds1 1 处；objpreset Act1 Index43",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: FireSmall/ID160/FX = 经典 Id160",
+      "canvas": {
+        "w": 66,
+        "h": 117,
+        "unionH": 89,
+        "padBottom": 28,
+        "originPxFromTop": [
+          33,
+          77
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\FX\\COF\\FXONHTH.COF",
+          "bytes": 111,
+          "sha256": "916b0b1b2d668cd56f19318f40922128244aa1bc0cce30e2e98c1329428f84c8"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\FX\\TR\\FXTRlitONHTH.dcc",
+            "bytes": 36355,
+            "sha256": "b43310f903d7bfb6fb89e44763b4955699ab46e92dcbc8db886215e1f43bd9f7"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "fx/000.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 731,
+          "sha256": "c52d6fef38d5f142c140ec1cb85327c9bf22d17e60b81d482ab8b8d8eec31e78"
+        },
+        {
+          "file": "fx/001.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 831,
+          "sha256": "626783e3325414aa143555daeb7a7b37b3389b1fcabb6f77924fef93670bddff"
+        },
+        {
+          "file": "fx/002.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 937,
+          "sha256": "c9f2c9dbeab81072f6d2e6208c16361ef6df375fc5ba3161cdc861bc8947c6f6"
+        },
+        {
+          "file": "fx/003.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1038,
+          "sha256": "954791f30243fa1836ccabbdcd20d18ac753282d9ca3132be085fe62d78395ba"
+        },
+        {
+          "file": "fx/004.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1084,
+          "sha256": "6d021ea816116dc8696cd4c0c81cf25521b3d9c76c9b08b38988bed6e7ba268d"
+        },
+        {
+          "file": "fx/005.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1212,
+          "sha256": "2234a3c287c30ebeb6970be87155bf29a6a818840b6669d6ed94a29513407cf4"
+        },
+        {
+          "file": "fx/006.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1474,
+          "sha256": "707e902b4380885b99bfa7649cd4bd065dca7385d868a7846e2d609ef90fec9d"
+        },
+        {
+          "file": "fx/007.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1632,
+          "sha256": "b890b9d15b350624555a8394729bff5c0bd37713e529b405d92d7b859b532963"
+        },
+        {
+          "file": "fx/008.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1754,
+          "sha256": "6b3f7431088f1bb9fd67bafb433376c1f0c65238518885bce9ca4a8eb46c8022"
+        },
+        {
+          "file": "fx/009.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2005,
+          "sha256": "378804284c978aee87ec11ef5b90a4cfa0b4d9f8a17f788d95b24a35b7e65a55"
+        },
+        {
+          "file": "fx/010.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1964,
+          "sha256": "7a77c6c2e617fd0494add8c71fe0d6f5f0ac43ea37b6c7b4760b4cfce0a97101"
+        },
+        {
+          "file": "fx/011.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1917,
+          "sha256": "2d371c66a4a0df95bf6ba611a05891b08b2acc63338624c70fbb5b0818eb92d3"
+        },
+        {
+          "file": "fx/012.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1836,
+          "sha256": "018bb6c726c9913001d366e802954d252f9a766b19d4679f0ecbc58f6ed503ce"
+        },
+        {
+          "file": "fx/013.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1897,
+          "sha256": "3c6aa32320a586adcc89837b6d866cadadd91cf86fb42a0d23bc75aac0f755d9"
+        },
+        {
+          "file": "fx/014.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2014,
+          "sha256": "4dc243dd293eb9ed77af539313e9e67a099d9e8bc4e1aac0f2f1ef906d166914"
+        },
+        {
+          "file": "fx/015.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 1965,
+          "sha256": "1d836eb3a7cd0b44de1b925ce02d55668b8a97909578cdd637c0c7bf8f5cee97"
+        },
+        {
+          "file": "fx/016.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2062,
+          "sha256": "ad91a2e4d2a8425ca008d02fabe05b990c778c8acaaf08ae5594d02c70f7ee44"
+        },
+        {
+          "file": "fx/017.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2148,
+          "sha256": "10bfbe2155dd66f00da7b62d0ed338c834f0681cfb228c8b3e6feeee352a790a"
+        },
+        {
+          "file": "fx/018.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2257,
+          "sha256": "d96a7ce5b9b0388d75dc6943143b2a39c60be025e3743e4ce50ff2b593f6eb54"
+        },
+        {
+          "file": "fx/019.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2254,
+          "sha256": "16d0174e9e2edcad87b3a2bdc9eda90b9d362fd3ae69eec5d39a9bd3b62b4550"
+        },
+        {
+          "file": "fx/020.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2251,
+          "sha256": "73f73a3803f5be11750abd22b94ec473861c97ba94be0b42666fb96641c1920f"
+        },
+        {
+          "file": "fx/021.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2253,
+          "sha256": "ae1afb368c7d5dde548f15f2da56b33e728db2537c3d48adfb38d94c4e538dde"
+        },
+        {
+          "file": "fx/022.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2208,
+          "sha256": "4d56e9fd7530eb071ee856f1f5e37f51fb0dc958be6a438f8993e89121deaa92"
+        },
+        {
+          "file": "fx/023.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2029,
+          "sha256": "fb0c3a0c9f18380ff35b54496a2d6609484493af1d021b7e446c11b18db4956b"
+        },
+        {
+          "file": "fx/024.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2070,
+          "sha256": "9faa95b1547df8a503f3b83d3f21586fa1f782055436b635b3243db209bc6107"
+        },
+        {
+          "file": "fx/025.png",
+          "w": 66,
+          "h": 117,
+          "bytes": 2156,
+          "sha256": "659d2895dee0119c86472333322356db184eea0bdc9d287dc86a2a680a62b222"
+        }
+      ]
+    },
+    {
+      "ds1Id": 44,
+      "token": "FY",
+      "dir": "fy",
+      "class": "FireMedium",
+      "className": "fire",
+      "objId": 161,
+      "mode": "ON",
+      "modeIndex": 2,
+      "frames": 26,
+      "cycle": 1,
+      "frameDelta": 256,
+      "fps": 25.0,
+      "draw": 1,
+      "why": "洞穴 caveEWtheme1.ds1 / caveWtheme1.ds1 各 1 处；objpreset Act1 Index44",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: FireMedium/ID161/FY = 经典 Id161",
+      "canvas": {
+        "w": 66,
+        "h": 165,
+        "unionH": 136,
+        "padBottom": 29,
+        "originPxFromTop": [
+          33,
+          125
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\FY\\COF\\FYONHTH.COF",
+          "bytes": 111,
+          "sha256": "07f4d4285a324e1c9895bb384ad04653621dca3448fd4252c7d9fe2c103ea735"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\FY\\TR\\FYTRlitONHTH.dcc",
+            "bytes": 54848,
+            "sha256": "3b2b9fe761f8891d95a915171134cf0fa9250f3bf62cea8f84c1f44d83585f89"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "fy/000.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 755,
+          "sha256": "b7980ebdb319669bea739da53f82aa7ff4620ede355690e0e6709cbfb3e93555"
+        },
+        {
+          "file": "fy/001.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 882,
+          "sha256": "a0318fd1d7ec2cf12c0628e3a3c11fbbb76632f3f5015d1130c7d700e56d56bf"
+        },
+        {
+          "file": "fy/002.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 1028,
+          "sha256": "5e8776224b3ccfd0c0bb5e758416e56dccfa3e04ae42874df0e1b6163fb18aa9"
+        },
+        {
+          "file": "fy/003.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 1163,
+          "sha256": "b8087591b4126426282f76d7f5cf76c951e646211a01dbc32950d09120f35f84"
+        },
+        {
+          "file": "fy/004.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 1325,
+          "sha256": "2b0c7fb88c7fea6a567971c25c5b004d539f5224041e5e2beff2184d56a26870"
+        },
+        {
+          "file": "fy/005.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 1567,
+          "sha256": "835a661bb57c9499cba19e3e71914397e6b32d7ebd02ec3345b69f807b60935a"
+        },
+        {
+          "file": "fy/006.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 1969,
+          "sha256": "b218d9823c9f7427ee22b26ec166c07ee4e42a8e55b8d1c73eb2bf12b955457a"
+        },
+        {
+          "file": "fy/007.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2206,
+          "sha256": "f712d48fe2ec7677949f26ce2bae1dc852f7f92bb3d9c530b213b0f37079b456"
+        },
+        {
+          "file": "fy/008.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2372,
+          "sha256": "f7160329a91b0537639e484254e28d35bc61571fda6d610b75cd2951e4e35c33"
+        },
+        {
+          "file": "fy/009.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2847,
+          "sha256": "4f4c210e9da430572d2bb8158cab385eea883ceea6c74b71e1b7529669ac901f"
+        },
+        {
+          "file": "fy/010.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2853,
+          "sha256": "85041830c67bf2c45af22abacd3eaa7a8cbbbeb86908a8cde36c16289068aafb"
+        },
+        {
+          "file": "fy/011.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2748,
+          "sha256": "6b5108c8d6622c194d882912eaa06d58adabf136c2021d74aa078c497059b0db"
+        },
+        {
+          "file": "fy/012.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2597,
+          "sha256": "1596e3201895c69d9dd117abf78043c52323f7b36dfaae03fad30a4896660dfd"
+        },
+        {
+          "file": "fy/013.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2704,
+          "sha256": "b36f1fc63faef4ee6ffa35c4c94263ccb329c50f3818a85a7e4a7ede33c2e900"
+        },
+        {
+          "file": "fy/014.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2901,
+          "sha256": "a9d68926f47aedd32ccb393baf610ee3c291884b4dfb328aceda88dbc35d97ea"
+        },
+        {
+          "file": "fy/015.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2795,
+          "sha256": "3ae99457e12ac57254bce1e9b4425b853c0bf3c8641dccb81e56d4df81fa3a70"
+        },
+        {
+          "file": "fy/016.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2976,
+          "sha256": "5e9a6a76f9885fdca18a91ac73f2e523490f3e6f84929818e2376baaf789dbb6"
+        },
+        {
+          "file": "fy/017.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 3205,
+          "sha256": "a31d64c3fcfd3c06e9658bd7ba79b39f0377871fc865eaffa5acebd6d73012af"
+        },
+        {
+          "file": "fy/018.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 3189,
+          "sha256": "3ab12bb2d2bcd01652e76fda2bcdcb94e0c605b8647f96c1366c05a1feda2ae0"
+        },
+        {
+          "file": "fy/019.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 3223,
+          "sha256": "84bf164dab4819a306101d9b21185405602c2a631d6f77943ab685ec38d028bf"
+        },
+        {
+          "file": "fy/020.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 3281,
+          "sha256": "a259abbad5295424690d56d361b502215fc9ad4b55f30ed8963cf17c098713e5"
+        },
+        {
+          "file": "fy/021.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 3328,
+          "sha256": "738b1184e7b920d43940f19bd2c01b3d8469795f464d670bec78bdcc43f9f088"
+        },
+        {
+          "file": "fy/022.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 3199,
+          "sha256": "004a295ee8e739947aa41677430830d27ea1f99d0d1902e64c51a726cd63f046"
+        },
+        {
+          "file": "fy/023.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2926,
+          "sha256": "320fc95c9b69b3d75343880c1a09b3c5fed264d88b812e9e3fd07cb03f3c381a"
+        },
+        {
+          "file": "fy/024.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 2963,
+          "sha256": "dc8cd7e1d982553f0a539c1eb1f8e5e366f8dc9693ccffd4e9e144aed680b98b"
+        },
+        {
+          "file": "fy/025.png",
+          "w": 66,
+          "h": 165,
+          "bytes": 3120,
+          "sha256": "201ce1173dc2c798dd06a0d568a1f94f47e12bf7652343eb771d277425435810"
+        }
+      ]
+    },
+    {
+      "ds1Id": 64,
+      "token": "cy",
+      "dir": "cy",
+      "class": "Chest5",
+      "className": "chest",
+      "objId": 240,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 1,
+      "frameDelta": 0,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveSPre2.ds1 / caveNEWtheme1.ds1 / caveNtheme1.ds1 各 1 处；objpreset Act1 Index64",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: Chest5/ID240/cy = 经典 Id240",
+      "canvas": {
+        "w": 44,
+        "h": 66,
+        "unionH": 36,
+        "padBottom": 30,
+        "originPxFromTop": [
+          24,
+          26
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\cy\\COF\\cyNUHTH.COF",
+          "bytes": 39,
+          "sha256": "81c1875094a74c8b01a6a16f0d9cea9864529de1b969d822e2b9ff34d27e4abf"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\cy\\TR\\cyTRlitNUHTH.dcc",
+            "bytes": 542,
+            "sha256": "e8b965d4cd0f7dbe64a3342e3ade560478beadd7cfb5536c39a6c79cef3baa5b"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "cy/000.png",
+          "w": 44,
+          "h": 66,
+          "bytes": 991,
+          "sha256": "0e7a8f8e8c8b17ca4ba09aad5a3fa34e1f0278e088d6bdd0888e63eb269cdff6"
+        }
+      ]
+    },
+    {
+      "ds1Id": 65,
+      "token": "cx",
+      "dir": "cx",
+      "class": "Chest6",
+      "className": "chest",
+      "objId": 241,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 1,
+      "frameDelta": 0,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveNSEWtheme1.ds1 / caveNSW2.ds1 / caveWtheme1.ds1 各 1 处；objpreset Act1 Index65",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: Chest6/ID241/cx = 经典 Id241",
+      "canvas": {
+        "w": 20,
+        "h": 64,
+        "unionH": 29,
+        "padBottom": 35,
+        "originPxFromTop": [
+          10,
+          24
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\cx\\COF\\cxNUHTH.COF",
+          "bytes": 39,
+          "sha256": "1a1005c6d6587bf15398ac0e8e8fe30dd2f8458cb96ce13925999ce898eca3db"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\cx\\TR\\cxTRlitNUHTH.dcc",
+            "bytes": 279,
+            "sha256": "b4826ef88caabc2fbc33c71cf9220dfedd1447716b9ab72b9104c6599dcd3781"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "cx/000.png",
+          "w": 20,
+          "h": 64,
+          "bytes": 584,
+          "sha256": "4c17e78fa4b225c89a233b1fde49d65f876a5e4ac2847db28a43ae22bbde1b09"
+        }
+      ]
+    },
+    {
+      "ds1Id": 66,
+      "token": "cu",
+      "dir": "cu",
+      "class": "Chest7",
+      "className": "chest",
+      "objId": 242,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 1,
+      "frameDelta": 0,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveEtheme1.ds1 / caveNWtheme1.ds1 / caveSWtheme1.ds1 / caveNSWtheme1.ds1 各 1 处；objpreset Act1 Index66",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: Chest7/ID242/cu = 经典 Id242",
+      "canvas": {
+        "w": 31,
+        "h": 58,
+        "unionH": 27,
+        "padBottom": 31,
+        "originPxFromTop": [
+          15,
+          18
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\cu\\COF\\cuNUHTH.COF",
+          "bytes": 39,
+          "sha256": "25bfbc983292d508a13ba6edf32c186a0557b06b9be5038b18a894ca37b5901e"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\cu\\TR\\cuTRlitNUHTH.dcc",
+            "bytes": 336,
+            "sha256": "34a61b488cefed787e69c229cde0b5311c0e0242777bd6db02e79c4bf67f2d95"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "cu/000.png",
+          "w": 31,
+          "h": 58,
+          "bytes": 690,
+          "sha256": "cf985aab50c28aa94e6ae0b1c5fe15d294b80874766072626ad11830aea0eff1"
+        }
+      ]
+    },
+    {
+      "ds1Id": 67,
+      "token": "Z1",
+      "dir": "z1",
+      "class": "RogueCorpse1",
+      "className": "RogueCorpse",
+      "objId": 54,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 128,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveNEtheme1.ds1 / caveNtheme1.ds1 / caveSEWtheme1.ds1 / caveWtheme1.ds1 各 1 处；objpreset Act1 Index67",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: RogueCorpse1/ID54/Z1 = 经典 Id54",
+      "canvas": {
+        "w": 82,
+        "h": 75,
+        "unionH": 52,
+        "padBottom": 23,
+        "originPxFromTop": [
+          35,
+          35
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\Z1\\COF\\Z1NUHTH.COF",
+          "bytes": 39,
+          "sha256": "475f773def6d803c24fbb38aa2f772d08d432c45bbc3d3755557801548bab498"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\Z1\\TR\\Z1TRlitNUHTH.dcc",
+            "bytes": 946,
+            "sha256": "378b9c29e96ee0d4ae77de7632b770c3aca17794b4ccbf9b230dc64728b04583"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "z1/000.png",
+          "w": 82,
+          "h": 75,
+          "bytes": 1697,
+          "sha256": "af530dfc9314878c7544e0a9ffa1dd253335589a387f8c64fa31fca9a8dff92f"
+        }
+      ]
+    },
+    {
+      "ds1Id": 68,
+      "token": "Z2",
+      "dir": "z2",
+      "class": "RogueCorpse2",
+      "className": "RogueCorpse",
+      "objId": 55,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 128,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveNEWtheme1.ds1 / caveNSEWtheme1.ds1 / caveNStheme1.ds1 / caveSEtheme1.ds1 / caveStheme1.ds1 / caveSWtheme1.ds1 各 1 处；objpreset Act1 Index68",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: RogueCorpse2/ID55/Z2 = 经典 Id55",
+      "canvas": {
+        "w": 81,
+        "h": 72,
+        "unionH": 53,
+        "padBottom": 19,
+        "originPxFromTop": [
+          57,
+          32
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\Z2\\COF\\Z2NUHTH.COF",
+          "bytes": 39,
+          "sha256": "2ef05c38d187d724b387922337eaacebc026cef93f9001acfa571b90041b3688"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\Z2\\TR\\Z2TRlitNUHTH.dcc",
+            "bytes": 896,
+            "sha256": "e9a5f964e89bdd0125ef4eb6a015b0eabd6c76d173a1e3d39d11c5c5ca46f011"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "z2/000.png",
+          "w": 81,
+          "h": 72,
+          "bytes": 1525,
+          "sha256": "f9bc217ba5a1688c6c405aba3442a3c285625e3c1a1c37436a49e319d2254826"
+        }
+      ]
+    },
+    {
+      "ds1Id": 69,
+      "token": "Z5",
+      "dir": "z5",
+      "class": "RogueRollingCorpse1",
+      "className": "RogueCorpse",
+      "objId": 56,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 192,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveNEtheme1.ds1 / caveNStheme1.ds1 / caveNtheme1.ds1 / caveNSWtheme1.ds1 / caveSEWtheme1.ds1 / caveWtheme1.ds1 各 1 处；objpreset Act1 Index69",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: RogueRollingCorpse1/ID56/Z5 = 经典 Id56",
+      "canvas": {
+        "w": 84,
+        "h": 63,
+        "unionH": 30,
+        "padBottom": 33,
+        "originPxFromTop": [
+          36,
+          23
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\Z5\\COF\\Z5NUHTH.COF",
+          "bytes": 53,
+          "sha256": "3f9ca6a049439acb1ee6bfdaebecef8262fd447e254ec25fb5c0d951a8d470cf"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\Z5\\TR\\Z5TRlitNUHTH.dcc",
+            "bytes": 3587,
+            "sha256": "f846ded49a1f0d8ae8c20cd2e50e1a77cd0d458e64415ea4695a56d52317a0a3"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "z5/000.png",
+          "w": 84,
+          "h": 63,
+          "bytes": 1270,
+          "sha256": "c7268ff3b4ad84ae5ca28088915e4c2ca3fb90ea7ef93206d8eebcf43935fe88"
+        }
+      ]
+    },
+    {
+      "ds1Id": 70,
+      "token": "Z3",
+      "dir": "z3",
+      "class": "RogueStakedCorpse1",
+      "className": "CorpseOnStick",
+      "objId": 57,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 192,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveEWtheme1.ds1 / caveNEWtheme1.ds1 / caveNSWtheme1.ds1 / caveNtheme1.ds1 / caveSEtheme1.ds1 / caveWtheme1.ds1 各 1 处；objpreset Act1 Index70",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: RogueStakedCorpse1/ID57/Z3 = 经典 Id57",
+      "canvas": {
+        "w": 24,
+        "h": 127,
+        "unionH": 95,
+        "padBottom": 32,
+        "originPxFromTop": [
+          6,
+          87
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\Z3\\COF\\Z3NUHTH.COF",
+          "bytes": 57,
+          "sha256": "0bab144b8be7fc50337a589ae4a34fbd539d4cc4856a6d6d7ca5bc2f7cd71baf"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\Z3\\TR\\Z3TRlitNUHTH.dcc",
+            "bytes": 5592,
+            "sha256": "ba8ac5ef1faae3c83b9eae270d16c27253709c99d13863cf8ffdba1fa058da0b"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "z3/000.png",
+          "w": 24,
+          "h": 127,
+          "bytes": 1497,
+          "sha256": "b4ba823285a2dd423aefa6c12a513ef596c2246873bb732c2955bcb7ba4c1230"
+        }
+      ]
+    },
+    {
+      "ds1Id": 71,
+      "token": "Z4",
+      "dir": "z4",
+      "class": "RogueStakedCorpse2",
+      "className": "CorpseOnStick",
+      "objId": 58,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 192,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveNSEtheme1.ds1 1 处；objpreset Act1 Index71",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: RogueStakedCorpse2/ID58/Z4 = 经典 Id58",
+      "canvas": {
+        "w": 29,
+        "h": 126,
+        "unionH": 96,
+        "padBottom": 30,
+        "originPxFromTop": [
+          6,
+          86
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\Z4\\COF\\Z4NUHTH.COF",
+          "bytes": 57,
+          "sha256": "b681bd1420d3b8c84895bdddbe7d45db6dfd2a7d4894fb3aa7be1792cf872d86"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\Z4\\TR\\Z4TRlitNUHTH.dcc",
+            "bytes": 5759,
+            "sha256": "a034d53b8dc687bb7639ad7b50cedc4b54f0d307945610ecc0f04c413deefecc"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "z4/000.png",
+          "w": 29,
+          "h": 126,
+          "bytes": 1692,
+          "sha256": "f2fefa9d09071bdc5b53dd70e70a1badc13532d4d5a427dc739f9f1f4f36bb06"
+        }
+      ]
+    },
+    {
+      "ds1Id": 72,
+      "token": "sx",
+      "dir": "sx",
+      "class": "CorpseSkeleton",
+      "className": "skeleton",
+      "objId": 171,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 0,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveNStheme1.ds1 / caveNSWtheme1.ds1 / caveNtheme1.ds1 / caveSEtheme1.ds1 / caveStheme1.ds1 各 1 处；objpreset Act1 Index72",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: CorpseSkeleton/ID171/sx = 经典 Id171",
+      "canvas": {
+        "w": 90,
+        "h": 47,
+        "unionH": 27,
+        "padBottom": 20,
+        "originPxFromTop": [
+          46,
+          7
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\sx\\COF\\sxNUHTH.COF",
+          "bytes": 39,
+          "sha256": "fbf17597c558ebb6b3f5e296f529f60b2c3f7c264effabf08563ec064207c265"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\sx\\TR\\sxTRlitNUHTH.dcc",
+            "bytes": 555,
+            "sha256": "e8d836e3f7c144e974f72c24b2307078e72491f2c907a1c84b6e9c2fb1c81609"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "sx/000.png",
+          "w": 90,
+          "h": 47,
+          "bytes": 951,
+          "sha256": "e691b52f7ef008180875990dc6cb1f43ccdbee7d26dde6e19036261849f676c3"
+        }
+      ]
+    },
+    {
+      "ds1Id": 78,
+      "token": "zy",
+      "dir": "zy",
+      "class": "Fountain8",
+      "className": "Well",
+      "objId": 138,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 10,
+      "cycle": 1,
+      "frameDelta": 128,
+      "fps": 12.5,
+      "draw": 1,
+      "why": "洞穴 caveEtheme1.ds1 / caveNStheme1.ds1 / caveSEtheme1.ds1 / caveStheme1.ds1 各 1 处；objpreset Act1 Index78",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: Fountain8/ID138/zy = 经典 Id138",
+      "canvas": {
+        "w": 123,
+        "h": 112,
+        "unionH": 92,
+        "padBottom": 20,
+        "originPxFromTop": [
+          64,
+          72
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\zy\\COF\\zyNUHTH.COF",
+          "bytes": 57,
+          "sha256": "9e5f1bcb676df26a46e4bad7aac53237fd46e7a352a027de7507247f8184e082"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\zy\\TR\\zyTRlitNUHTH.dcc",
+            "bytes": 7098,
+            "sha256": "7ec0b19702447a4f027fcb69fa28372efb593986ccdfd2f773a2c854eac41f34"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "zy/000.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 6011,
+          "sha256": "3ea1a0643fafd641cd6403836a957a1b0479a4817ab02e4996df0bf1d7575deb"
+        },
+        {
+          "file": "zy/001.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 6034,
+          "sha256": "eef76dc57d86da794e31ee3384da4ae88045e8e03c4b431d265adbe065420da3"
+        },
+        {
+          "file": "zy/002.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 5998,
+          "sha256": "b3df94aeae38f0c111914865be13a6c669f62d7cf955693a9bba58c43ad30a3f"
+        },
+        {
+          "file": "zy/003.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 6029,
+          "sha256": "9b46da7fc51e548c0486f800403f7304bb27586c3206fc29e7ce1a274c05b896"
+        },
+        {
+          "file": "zy/004.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 6059,
+          "sha256": "fe2d05af3f8e3b8aa02e787ead4b2272c86c8f257c26b8410f5fdac62276358e"
+        },
+        {
+          "file": "zy/005.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 6022,
+          "sha256": "9e5801152300c29e60c4787557382ee8af736e9064389ebc3aefe44f2a0d209d"
+        },
+        {
+          "file": "zy/006.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 5991,
+          "sha256": "4105f4b48a4ba14ed938803b7d3cf52e2ab398a7091b37bdb85113f267673989"
+        },
+        {
+          "file": "zy/007.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 6002,
+          "sha256": "ef3e10344e21fd9ffb9086df39e7f768b3a4efd71fd5bb4b5221734ce1a6fe16"
+        },
+        {
+          "file": "zy/008.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 5982,
+          "sha256": "936d983fd7181cabbfd37369b0e1ef2a1f8d672d7949c4fbc740b12236422c39"
+        },
+        {
+          "file": "zy/009.png",
+          "w": 123,
+          "h": 112,
+          "bytes": 6015,
+          "sha256": "8886f2a7af3c520597134730d2ac97f80f96b5e51cd15d9e6ff1105f8e978daf"
+        }
+      ]
+    },
+    {
+      "ds1Id": 95,
+      "token": "B1",
+      "dir": "b1",
+      "class": "Barrel",
+      "className": "Barrel",
+      "objId": 7,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 210,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴 caveNEWtheme1.ds1 3 处 / caveNWtheme1.ds1 4 处 / caveSEWtheme1.ds1 4 处 / caveWtheme1.ds1 3 处；objpreset Act1 Index95",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: Barrel/ID7/B1 = 经典 Id7",
+      "canvas": {
+        "w": 29,
+        "h": 69,
+        "unionH": 43,
+        "padBottom": 26,
+        "originPxFromTop": [
+          17,
+          29
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\B1\\COF\\B1NUHTH.COF",
+          "bytes": 57,
+          "sha256": "cc84532b97f7eaef3ff78ed20205dd4a0df1a2646e1bfc3e1b23c66f97e1276e"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\B1\\TR\\B1TRlitNUHTH.dcc",
+            "bytes": 6391,
+            "sha256": "99d0575e97913804f3cbeed60ce8a2fa7afc288e1a221bd1e7293b47c171d9c7"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "b1/000.png",
+          "w": 29,
+          "h": 69,
+          "bytes": 991,
+          "sha256": "86fc1994d017a3ae5e23afc216726c025b55e4309853a93f0bf86c4811c00785"
+        }
+      ]
+    },
+    {
       "ds1Id": 102,
       "token": "b6",
       "dir": "b6",
@@ -643,6 +2152,59 @@
           "h": 70,
           "bytes": 1430,
           "sha256": "9383ef16b5521c3645e327ee6ab86fbde35de7d2d0eb009c7f42cd687afde192"
+        }
+      ]
+    },
+    {
+      "ds1Id": 111,
+      "token": "yf",
+      "dir": "yf",
+      "class": "ConsolationChest",
+      "className": "chest",
+      "objId": 397,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 1,
+      "frameDelta": 0,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "洞穴各块共 4 处；objpreset Act1 Index111",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: ConsolationChest/ID397/yf = 经典 Id397",
+      "canvas": {
+        "w": 35,
+        "h": 68,
+        "unionH": 38,
+        "padBottom": 30,
+        "originPxFromTop": [
+          18,
+          28
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\yf\\COF\\yfNUHTH.COF",
+          "bytes": 39,
+          "sha256": "23345fc8dd3ff265630a5077876f332a7c7079665dfb37cf43e7448ddf930094"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\yf\\TR\\yfTRlitNUHTH.dcc",
+            "bytes": 510,
+            "sha256": "b06843f5cacd48c0e27022c88cbc83bb7cba39c4ea1f7ae157089984c56a1e34"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "yf/000.png",
+          "w": 35,
+          "h": 68,
+          "bytes": 1087,
+          "sha256": "bdc5732413715e5f2e2ebd6acf206ed759a828ee591b4c6ff2d50eb91b1b15fb"
         }
       ]
     }
