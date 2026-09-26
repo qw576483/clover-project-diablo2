@@ -41,29 +41,30 @@ namespace Diablo2.Module.Map
     {
     /// <summary>
     /// 罗格营地的**传送点交互锚点**（关卡格 = 原版 DS1 的预设单位坐标换算而来的**关卡坐标**）。
-    /// <para>
-    /// </para>
     /// <list type="number">
     /// <item>`Levels.txt`「Act 1 - Town」的 `Waypoint` 列 = **0**（= 本关有传送点，编号 0；
     ///   同列 255 = 没有传送点，见同表 `Act 1 - Wilderness 1` / `Act 1 - Cave 1`）。
     ///   这是"本关有传送点"的**表级依据**。</item>
     /// <item>`Objects.txt` Id=**119** = `Name=Waypoint` / `Token=wp` / `SizeX=SizeY=5`
     ///   （5 子格 = 1 格；子格 = 格 × 5，见 `tools/d2codec/export_town_layout.py` 文件头 ③-a）
-    ///   ⇒ 传送点物件**占 1 格**、可选中（`Selectable0/2=1`）。</item>
-    /// <item>**位置** = 原版四块城镇块（`LpPrest.txt`「Act 1 - Town 1」的
-    ///   `TownN1/E1/S1/W1.ds1`）里那个 **kind=2 预设单位**。四块是同一座营地按不同原点导出的
-    ///   （对齐口径见 `MapGenTownLayout` 文件头），把该单位按生成器同一套变换
-    ///   （`level = local + WIN - offs`）折算成关卡坐标后**四块完全重合** = (31,26)：
-    ///   <c>TownW1 本地(14,21)+（17,5) / TownN1(28,10)+(3,16) / TownE1(32,16)+(-1,10) / TownS1(28,27)+(3,-1)</c>
-    ///   —— 四块给出同一个关卡格 ⇒ 它是**关卡级的标记单位**（不是某一块的装饰）。</item>
+    ///   ⇒ 传送点物件**占 1 格**、可选中（`Selectable0/2=1`）。
+    ///   本体艺术 = `data/global/objects/wp/{TR,S1}/*.dcc`（已解包，见 `ResPaths.D2ObjectsWaypoint`）。</item>
+    /// <item>**位置** = 原版城镇块 `TownW1.ds1`（= 本区瓦片的来源块，`MapGenTownLayout` 的参考块）
+    ///   objects 层里钉在**五芒星石台**上的那个 **kind=2 预设单位**：子格 (84,69) ⇒
+    ///   关卡坐标 (33.8,18.8)（`level = local + (17,5)`，同生成器的块对齐口径）⇒
+    ///   最近格 = **(34,19)**（距原版位置 0.2 世界单位；其余三格 ≥ 0.8）。
+    ///   `TownE1` 的同名单位折算后 = (34.8,19.8)（块间手调差 1 格，与 NPC 站位同况，
+    ///   取参考块那一份）。kind=2 单位的 id 是**该幕 objpreset 的下标**（不是 `Objects.txt`
+    ///   行号 —— 按行号直读 id=52 会得到 `Urn`，台子上会多一个原版没有的坛子）；
+    ///   该单位就是 objpreset 里的 Waypoint（Id=119），证据 = 它的落点：</item>
+    /// <item>五芒星石台 = `town_floor/000..003`（`floor.dt1` m=0 s=52..55）四块**全营唯一**的
+    ///   地砖，落 (33,18)/(34,18)/(33,19)/(34,19)（`tools/d2codec/dump_cell.py` 可查）；
+    ///   该单位的子格坐标钉在台心公共角（85,70）旁 1 子格内 —— 单位与石台同址 ⇒
+    ///   火焰画在石台上（与原版一致）。营火焦土圈（(31,26) 一带，`town_objects/070..079`）
+    ///   上的 id=110 单位是**营火**标记（Warriv 站位旁），不是传送点。</item>
     /// </list>
-    /// <para>
-    /// `not used`（Id=110 / Token=n5）—— 这是原版美术在 DS1 里留的**占位单位**，原版运行期
-    /// 用 Id=119 的 Waypoint 顶掉它；本工程由锚点表（<see cref="Waypoint"/>）直接落锚点，
-    /// 本体艺术 = `data/global/objects/wp/{TR,S1}/*.dcc`（已解包，见 `ResPaths.D2ObjectsWaypoint`）。
-    /// </para>
     /// </summary>
-    public static readonly Vector2Int Waypoint = new Vector2Int(31, 26);
+    public static readonly Vector2Int Waypoint = new Vector2Int(34, 19);
 
         /// <summary>生成罗格营地（**固定布局**，同 seed 与不同 seed 结果都一样）。</summary>
         public static void Generate(GridMap map, Rng rng)
@@ -165,6 +166,38 @@ namespace Diablo2.Module.Map
                 MapLog.Warn($"MapGenTown: 有 {noGround} 格不在原版布局表范围内（无原版瓦片键）⇒ 这" +
                             "几格在原版里没有瓦片，渲染层不会画任何东西");
             }
+
+            // ①.6 装饰物件（原版 ds1 `objects` 层的 kind=2 预设单位：火炬 / 营火 / 旗 / 箱子）：
+            //     位置与 ds1 id 都在布局表里（`DecoCells` / `DecoDs1Ids`），`id → 物件类` 查
+            //     `MapGenDeco`（帧数 / 帧率 / 贴图目录都在那张表里，出处见生成物文件头）。
+            //     **只登记"画什么"**：这些单位的可走性由 `Rows` 的 kind 决定，装饰物件不改它。
+            var decoRegistered = 0;
+            var decoUnmapped = 0;
+            for (var i = 0; i < MapGenTownLayout.DecoCells.Length; i++)
+            {
+                var cell = MapGenTownLayout.DecoCells[i];
+                if (!map.InBounds(cell))
+                {
+                    MapLog.Warn($"MapGenTown: 装饰物件 #{i} 的格 {cell} 在图外（布局表被改过？）⇒ 跳过");
+                    continue;
+                }
+                var kindIndex = MapGenDeco.IndexOf(MapGenTownLayout.DecoDs1Ids[i]);
+                if (kindIndex < 0)
+                {
+                    decoUnmapped++;
+                    if (decoUnmapped == 1)
+                    {
+                        MapLog.Warn($"MapGenTown: 装饰物件的 ds1 id={MapGenTownLayout.DecoDs1Ids[i]} " +
+                                    "在 MapGenDeco 里没有对应物件类 ⇒ 该单位不画" +
+                                    "（传送点走 MapGenTown.Waypoint 锚点路径；原版 Draw=0 的类本来就不画）");
+                    }
+                    continue;
+                }
+                map.SetDeco(cell.x, cell.y, kindIndex);
+                decoRegistered++;
+            }
+            MapLog.Info($"MapGenTown: 装饰物件登记 {decoRegistered} 个（原版 ds1 kind=2 预设单位）；" +
+                        $"未映射 {decoUnmapped} 个（传送点 / Draw=0）");
 
             //   封环口径（出处同 `GridMap.BorderRingCells`：原版 `LvlPrest` 边界块边长 8 >
             //   相机可见格半跨 7.083）：把**营地外**的边界带（距任一地图边 < `BorderRingCells`

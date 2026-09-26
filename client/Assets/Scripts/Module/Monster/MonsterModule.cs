@@ -344,8 +344,9 @@ namespace Diablo2.Module.Monster
             m.State.hp = hpBefore - final;
             if (m.State.hp < 0) m.State.hp = 0;
 
-            m.HitStunTimer = MonsterTuning.HitStunSeconds;   // 受击硬直（AI 本 tick 起不再动/出手）
+            m.HitStunTimer = MonsterTuning.HitStunSecondsOf(m.State.kindId);   // 受击硬直（AI 本 tick 起不再动/出手）
             m.AttackAnimTimer = 0f;
+            m.PendingAttackTimer = 0f;      // 挥击被打断 ⇒ 接触帧不再结算
             m.ViewDirty = true;
             m.Sync();
 
@@ -391,6 +392,8 @@ namespace Diablo2.Module.Monster
 
             m.HitStunTimer = 0f;
             m.AttackAnimTimer = 0f;
+            m.PendingAttackTimer = 0f;    // 死亡 ⇒ 接触帧不再结算
+            m.AiThinkTimer = 0f;          // 复用实体：出手节拍立即归零（下一次 tick 就能出手）
             m.Engaged = false;
             m.Returning = false;
             m.FleeTimer = 0f;
@@ -548,7 +551,23 @@ namespace Diablo2.Module.Monster
             audio.SfxAt(key, m.State.worldX, m.State.worldY, m.State.worldZ);
         }
 
-        /// <summary>怪物出手：把命中/伤害结算交给 `ICombatModule`（**本模块不自己算命中**）。</summary>
+        /// <summary>出手音（起手帧播放，挥空也有这一声；`MonsterAi.TryAttack` 在发起时调）。</summary>
+        internal void PlayAttackSfx(MonsterRuntime m)
+        {
+            var ctx = AppContext.I;
+            var audio = ctx != null ? ctx.Audio : null;
+            if (audio == null) return;
+            //   未登记的类别回落到通用键 `MonsterAttack`（素材源 = 堕落者），
+            //   并由 `MonsterSfx` 打一次 Warn 留痕（不用别的怪的叫声顶替）。
+            audio.SfxAt(MonsterSfx.AttackOf(m.State) ?? Combat.SfxKeys.MonsterAttack,
+                m.State.worldX, m.State.worldY, m.State.worldZ);
+        }
+
+        /// <summary>
+        /// 怪物挥击的**接触帧结算**：把命中/伤害交给 `ICombatModule`（**本模块不自己算命中**）。
+        /// <para>调用时机 = A1 的官方触发帧（`MonsterAi.Step` 对 `PendingAttackTimer` 倒计时到点）；
+        /// 结算层在那一刻按当时的格距/视线重判（玩家已跑出近战格的 ⇒ 空挥）。</para>
+        /// </summary>
         internal void RequestMonsterAttack(MonsterRuntime m)
         {
             var ctx = AppContext.I;
@@ -558,15 +577,6 @@ namespace Diablo2.Module.Monster
                 MonsterLog.WarnOnce("attack.nocombat",
                     "RequestMonsterAttack: ICombatModule 未接入（AppContext.Combat == null）⇒ 怪物打不出伤害");
                 return;
-            }
-
-            var audio = ctx.Audio;
-            if (audio != null)
-            {
-                //   未登记的类别回落到通用键 `MonsterAttack`（素材源 = 堕落者），
-                //   并由 `MonsterSfx` 打一次 Warn 留痕（不用别的怪的叫声顶替）。
-                audio.SfxAt(MonsterSfx.AttackOf(m.State) ?? Combat.SfxKeys.MonsterAttack,
-                    m.State.worldX, m.State.worldY, m.State.worldZ);
             }
 
             combat.RequestMonsterAttack(m.State.id);
@@ -622,6 +632,8 @@ namespace Diablo2.Module.Monster
             c.AggroMemory = MonsterTuning.AggroMemorySeconds;
             c.FleeTimer = 0f;
             c.HitStunTimer = 0f;
+            c.PendingAttackTimer = 0f;
+            c.AiThinkTimer = 0f;         // 刚复活：下一次 tick 就能决策
             c.ClearPath();               // 回到 AI 控制（位置仍是尸体所在格，不需要传送到别处）
             c.ViewDirty = true;
             c.Sync();

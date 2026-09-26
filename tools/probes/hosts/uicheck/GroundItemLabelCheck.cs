@@ -82,6 +82,9 @@ namespace Uicheck
                 ["HudPanel.cs"] = new[]
                 {
                     "ControlPanel#f", "?#f", "?#f", "ExpBarTrack#f", "ExpBarFill#f", "ExpBarOverlay#f",
+                    // 经验条悬停命中区（原版 `ControlPanel.prefab` 的 `TooltipArea`：吃射线 + alpha 0
+                    //   ⇒ `#t`，文案 = 原版串 4163；建在 ExpBarOverlay 之后 ⇒ 压在覆盖层之上）
+                    "ExpBarTipArea#t",
                     "SkillBar#t", "Icon#f", "?#t", "Belt#t", "Icon#f", "MiniPanel#f",
                     "MiniPanelToggle#t", "MiniBtn#t", "RunButton#t",
                 },
@@ -108,7 +111,7 @@ namespace Uicheck
                 ["MiniMapPanel.cs"] = new[] { "Backdrop#f", "PlayerDot#f", "Marker#f" },
 
                 // 对话：底图不吃（等尺寸 `DialogHit` 吃）；标题条装饰 ⇒ 不吃
-                ["NpcDialogPanel.cs"] = new[] { "DialogArt#f", "DialogHit#t", "SpeechBanner#n" },
+                ["NpcDialogPanel.cs"] = new[] { "DialogArt#f", "DialogHit#t", "SpeechBanner#f" },
 
                 // 暂停：满屏模态 ⇒ 吃
                 ["PausePanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },
@@ -131,7 +134,9 @@ namespace Uicheck
                 },
 
                 // 流程屏（菜单/选角/…）：满屏屏体与满屏底 ⇒ 不吃（无游戏内移动；按钮各自吃）
-                ["UiLayoutFlow.cs"] = new[] { "?#t", "Backdrop#f", "BackdropFill#f", "Backdrop#f" },
+                //   第 2 个 `?#f` = `BannerOnButton` 里那一处 `UiArt.Art`（原版中文本地化图贴到按钮上；
+                //   节点名是形参 ⇒ 登记口径用 `?`，实参 = 默认 `raycastTarget: false`（按钮自身吃射线））。
+                ["UiLayoutFlow.cs"] = new[] { "?#t", "Backdrop#f", "BackdropFill#f", "Backdrop#f", "?#f" },
 
                 //   同型 = 打开即**模态**弹窗 ⇒ 满屏遮罩 `Shade` 必须吃（挡住底下一切，防"面板开着还能点地面走"）；
                 //   `Box`（框内深色底）吃；`BoxFrame`（原版拼装窗框，后建压在底上）不吃，命中由底图负责。

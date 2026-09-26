@@ -173,6 +173,19 @@ namespace Diablo2.Module.Monster
         public float HitStunTimer;
 
         /// <summary>
+        /// 距**下一次 AI 思考**的节拍剩余秒数（= 官方 `MonStats.aidel` 帧 ÷ 25，逐怪；
+        /// 口径与出处见 `MonsterTuning.AiDelaySecondsOf`）。
+        /// <para>`MonsterAi.DispatchTick` 只在它 ≤ 0 的那一 tick 跑决策（出手决定因此只落在节拍点上）；
+        /// 每次决策后累加一个节拍 —— **不因出手重置** ⇒ 节拍相位固定，间隔 = `ceil(A1 / aidel) × aidel`。</para>
+        /// </summary>
+        public float AiThinkTimer;
+
+        /// <summary>
+        /// 本拍到下一拍之间要执行的**移动意图**（决策层在节拍点上写，推进层每帧照它积分位移）。
+        /// </summary>
+        public MonsterAi.AiIntent Intent;
+
+        /// <summary>
         /// 脚步：从上次出脚步声起**已走的距离（格）**。
         /// 出处 = 原版 `MonSounds.FsCnt`（一个走路循环几步 ⇒ 每 `1/FsCnt` 格一步）。
         /// </summary>
@@ -188,6 +201,9 @@ namespace Diablo2.Module.Monster
 
         /// <summary>攻击动画标记剩余秒数（写回 `State.attacking`）。</summary>
         public float AttackAnimTimer;
+
+        /// <summary>出手后到接触帧结算的剩余秒数（0 = 无待结算的挥击；受击/死亡即取消）。</summary>
+        public float PendingAttackTimer;
 
         /// <summary>尸体保留剩余秒数（到 0 回收）。</summary>
         public float CorpseTimer;

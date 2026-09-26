@@ -166,8 +166,9 @@ namespace Diablo2.UI
         /// </summary>
         private float LinePitch()
         {
-            // 与 D2Label 的字模选择**同一口径**（含 ForceChi；两边不一致会让行距与字形错档）
-            var chi = ForceChi || !D2Text.IsLatinOnly(Source != null ? Source.text : null);
+            // 与 D2Label 的字模选择**同一口径**（含 ForceChi 与 `ChiOnly`；两边不一致会让行距与字形错档）
+            var chi = ForceChi || D2Text.ChiOnly(Font)
+                || !D2Text.IsLatinOnly(Source != null ? Source.text : null);
             var cell = (chi ? D2Text.ChiCellH(Font) : D2Text.CellHeight(Font)) * 1.8f;
             var pt = Source != null && Source.fontSize > 0 ? Source.fontSize : cell;
             return pt;

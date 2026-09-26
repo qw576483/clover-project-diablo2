@@ -63,8 +63,8 @@ namespace Diablo2.Module.View
         /// `RN`/`SC` 的触发条件缺出处 ⇒ 这里**不**给它们造句）。
         /// </summary>
         /// <param name="alive">`MonsterState.alive`。</param>
-        /// <param name="hitStun">`MonsterState.hitStun`（`MonsterTuning.HitStunSeconds`）。</param>
-        /// <param name="attacking">`MonsterState.attacking`（`MonsterTuning.AttackAnimSeconds`）。</param>
+        /// <param name="hitStun">`MonsterState.hitStun`（`MonsterTuning.HitStunSecondsOf(kindId)`）。</param>
+        /// <param name="attacking">`MonsterState.attacking`（`MonsterTuning.AttackAnimSecondsOf(kindId)`）。</param>
         /// <param name="moved">本帧世界坐标是否变化（`ViewModule.UpdateMonster` 的判据）。</param>
         public static ViewAnim SelectMonster(bool alive, bool hitStun, bool attacking, bool moved)
         {

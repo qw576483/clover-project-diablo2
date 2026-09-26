@@ -80,6 +80,8 @@ internal static class MapCheckProgram
         Run(Step36_AssetKeysAllAreasAndPaths);
         Run(Step37_LandingChunkWindow);
         Run(Step38_CaveLayoutFailureStats);
+        //    「野外没有墙，只有空气墙；automap 边界不对」离线量化（只加断言，不动既有步骤）──
+        Run(Step39_WildInvisibleWalls);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
 
         Console.WriteLine($"================ MapCheck 结束：{( _failures == 0 ? "全部通过" : _failures + " 项失败" )} ================");
@@ -395,6 +397,133 @@ internal static class MapCheckProgram
         Check(reportedErr == (reportedOk ? 0 : 1),
             $"实机 seed={ReportedSeed} 可复现（Generate={(reportedOk ? "成功" : "失败")}，"
             + $"日志计数 {reportedErr} = {(reportedOk ? 0 : 1)}）");
+    }
+
+    // ── 39. 荒野空气墙 + automap 覆盖 ─────────────────────────────────────
+    /// <summary>
+    /// 用户实机原话「野外地图没有墙，只有空气墙；小地图边界还是不对」的离线量化：
+    /// ① 对生成的血腥荒野逐格复算生产 `MapView.PlanCell`（同源，不镜像），数出
+    ///    「不可走但 `DrawObject == false`」的格 = 玩家撞得到却看不见的**空气墙**，
+    ///    按 `TileKind` × 位置（边界环 / 内部）分类；
+    /// ② 对同一图 `BuildMinimap`，数「阻挡格在 automap 上一层 Cel 都没有（floor/over 均 -1）」
+    ///    的格（automap 上看不到世界边界的第一嫌疑），并抽典型野外键打印 Cel 号。
+    /// </summary>
+    private static void Step39_WildInvisibleWalls()
+    {
+        Section("39. ★ 血腥荒野「空气墙」离线量化（PlanCell 同源复算）+ automap 覆盖");
+
+        var seeds = new[] { 20250916, 333, 424242 };
+        var totalInv = 0;
+        var totalBlocked = 0;
+        var totalMmBlind = 0;
+        var kindNames = new Dictionary<TileKind, int>();
+        var invNames = new Dictionary<TileKind, int>();
+
+        foreach (var seed in seeds)
+        {
+            var m = NewMap();
+            m.Generate(AreaId.BloodMoor, seed);
+            var grid = m.Grid;
+            var w = grid.Width;
+            var h = grid.Height;
+
+            var blocked = 0;
+            var inv = 0;
+            var invRing = 0;
+            var invInner = 0;
+            var perKind = new Dictionary<TileKind, int>();
+            var samples = new List<string>();
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    var g = new Vector2Int(x, y);
+                    var kind = grid.Get(g);
+                    if (kind == TileKind.Void || kind == TileKind.Exit) continue;
+                    if (grid.Walkable(g)) continue;
+                    blocked++;
+                    kindNames[kind] = kindNames.TryGetValue(kind, out var kb) ? kb + 1 : 1;
+                    var plan = MapView.PlanCell(grid, AreaId.BloodMoor, g);
+                    if (plan.DrawObject) continue;
+                    // 水域格（地面键取自水域 dt1）不画物件是**正确**的：水面本身就是"不可走"的画面。
+                    grid.TryGetTiles(x, y, out var wgk, out _);
+                    if (MapView.IsWaterGroundKey(wgk)) continue;
+                    inv++;
+                    perKind[kind] = perKind.TryGetValue(kind, out var pk) ? pk + 1 : 1;
+                    invNames[kind] = invNames.TryGetValue(kind, out var ik) ? ik + 1 : 1;
+                    var edge = Math.Min(Math.Min(x, w - 1 - x), Math.Min(y, h - 1 - y));
+                    if (edge < GridMap.BorderRingCells) invRing++; else invInner++;
+                    if (samples.Count < 10)
+                    {
+                        grid.TryGetTiles(x, y, out var gk, out var ok);
+                        samples.Add($"({x},{y}){kind}[g={(string.IsNullOrEmpty(gk) ? "-" : gk)},o={(string.IsNullOrEmpty(ok) ? "-" : ok)}]");
+                    }
+                }
+            }
+            var perKindText = new List<string>();
+            foreach (var kv in perKind) perKindText.Add(kv.Key + "=" + kv.Value);
+            perKindText.Sort();
+            Console.WriteLine($"  seed={seed}：阻挡格 {blocked}，其中**空气墙**（PlanCell.DrawObject=false）{inv}" +
+                $"（边界环内 {invRing} / 内部 {invInner}）；按类：{string.Join(" ", perKindText)}");
+            if (samples.Count > 0)
+                Console.WriteLine($"    样本：{string.Join(" ", samples)}");
+
+            // ── automap 覆盖：阻挡格两层 Cel 都 -1 = 小地图上看不到的边界 ──
+            var mm = m.BuildMinimap();
+            var mmBlind = 0;
+            var mmBlindRing = 0;
+            var blindHist = new Dictionary<string, int>();
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    var g = new Vector2Int(x, y);
+                    var kind = grid.Get(g);
+                    if (kind == TileKind.Void || kind == TileKind.Exit) continue;
+                    if (grid.Walkable(g)) continue;
+                    if (mm.CelAt(x, y, false) >= 0 || mm.CelAt(x, y, true) >= 0) continue;
+                    mmBlind++;
+                    var edge = Math.Min(Math.Min(x, w - 1 - x), Math.Min(y, h - 1 - y));
+                    if (edge < GridMap.BorderRingCells) mmBlindRing++;
+                    grid.TryGetTiles(x, y, out var bgk, out var bok);
+                    var tag = kind + " g=" + (string.IsNullOrEmpty(bgk) ? "-" : bgk.Substring(0, bgk.IndexOf('/')))
+                             + " o=" + (string.IsNullOrEmpty(bok) ? "-" : bok.Substring(0, bok.IndexOf('/')));
+                    blindHist[tag] = blindHist.TryGetValue(tag, out var bh) ? bh + 1 : 1;
+                }
+            }
+            Console.WriteLine($"  seed={seed}：automap 阻挡格两层 Cel 全 -1（小地图看不见）= {mmBlind}" +
+                $"（边界环内 {mmBlindRing}）");
+            var histText = new List<string>();
+            foreach (var kv in blindHist) histText.Add(kv.Key + "×" + kv.Value);
+            histText.Sort();
+            if (histText.Count > 0) Console.WriteLine($"    盲区构成：{string.Join(" ", histText)}");
+            totalInv += inv;
+            totalBlocked += blocked;
+            totalMmBlind += mmBlind;
+        }
+
+        // 典型野外键的 automap Cel 号（-1 = 表里没有 ⇒ 该物件上小地图必然缺）
+        var probe = new[]
+        {
+            "moor_cliff1/009", "moor_cliff2/009", "moor_trees/001", "moor_fence/003",
+            "moor_stonewall/000", "moor_stones/026", "town_floor/035", "town_floor/028",
+        };
+        for (var i = 0; i < probe.Length; i++)
+        {
+            var cel = AutoMapCel.Cel((int)AreaId.BloodMoor, true, probe[i]);
+            var celG = AutoMapCel.Cel((int)AreaId.BloodMoor, false, probe[i]);
+            Console.WriteLine($"  Cel 探针 {probe[i]}：物件层={cel} 地面层={celG}");
+        }
+
+        var kindText = new List<string>();
+        foreach (var kv in invNames) kindText.Add(kv.Key + "=" + kv.Value);
+        kindText.Sort();
+        Console.WriteLine($"  合计（{seeds.Length} 个 seed）：阻挡 {totalBlocked}，空气墙 {totalInv}" +
+            $"（{string.Join(" ", kindText)}），automap 盲区 {totalMmBlind}");
+        Defect(totalInv == 0,
+            $"荒野空气墙：{seeds.Length} 个 seed 合计 {totalInv} 格不可走但画面什么都不画（0 = 已修）");
+        Defect(totalMmBlind == 0,
+            $"荒野 automap 边界：阻挡格两层 Cel 全 -1 合计 {totalMmBlind} 格（0 = 边界在小地图上可见）");
     }
 
     /// <summary>从一次 `MapGenCave.Generate` 的日志文本里取 slots 形状（先找报错/警告的 `slots=`，再找成功行的 `块网格=`）。</summary>
@@ -3881,7 +4010,7 @@ internal static class MapCheckProgram
     // ═════════════════════════════════════════════════════════════════════
     //     判据 1/3 = **生成 1 个且坐标与原版表一致**（数值类 ⇒ 断言，不截图）。
     //     出处逐条写在 `MapGenTown.Waypoint` 的注释里（Levels.txt 的 Waypoint 列 /
-    //     Objects.txt Id=119 / LvlPrest 四块城镇 ds1 的 kind=2 预设单位重合于 (31,26)）。
+    //     Objects.txt Id=119 / TownW1.ds1 钉在五芒星石台上的 kind=2 预设单位 ⇒ (34,19)）。
     // ═════════════════════════════════════════════════════════════════════
     private static void Step25_WaypointAnchor()
     {
@@ -3897,7 +4026,7 @@ internal static class MapCheckProgram
         var expect = MapGenTown.Waypoint;
         Check(pts != null && pts.Count == 1 && pts[0] == expect,
             $"锚点坐标 = 原版表算出的关卡格 {expect}（实得 {(pts != null && pts.Count == 1 ? pts[0].ToString() : "-")}）；" +
-            "出处 = Levels.txt Waypoint 列 0 + Objects.txt Id=119 + LvlPrest 四块 ds1 kind=2 预设单位重合");
+            "出处 = Levels.txt Waypoint 列 0 + Objects.txt Id=119 + TownW1.ds1 五芒星石台上的 kind=2 预设单位");
 
         if (pts == null || pts.Count != 1) return;
         var wp = pts[0];

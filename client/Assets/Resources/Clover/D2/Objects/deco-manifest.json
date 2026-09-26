@@ -1,0 +1,650 @@
+{
+  "source": {
+    "objpreset": "D2R objpreset.txt (Index/Act/ObjectClass) — 见生成器文件头 ①",
+    "objects": "C:\\Work\\Server\\f-v2\\clover-project-diablo2\\原版资源\\d2lod1.10txt-1.10f\\data\\global\\excel\\objects.txt",
+    "objtype": "data/global/excel/ObjType.txt",
+    "palette": "data/global/palette/units/Pal.dat"
+  },
+  "anchors": {
+    "index52": "Act1 Index52 = WaypointOutsideAct1 ↔ TownW1 kind=2 id=52 落在五芒星台",
+    "classToObj": {
+      "TikiTorch1": {
+        "objId": 37,
+        "name": "Dummy",
+        "token": "TO",
+        "why": "D2R objects.txt: TikiTorch1/ID37/TO = 经典 Id37"
+      },
+      "RogueBonfire": {
+        "objId": 39,
+        "name": "fire",
+        "token": "RB",
+        "why": "D2R objects.txt: RogueBonfire/ID39/RB = 经典 Id39"
+      },
+      "Standard1": {
+        "objId": 35,
+        "name": "Dummy",
+        "token": "N1",
+        "why": "D2R objects.txt: Standard1/ID35/N1 = 经典 Id35"
+      },
+      "Standard2": {
+        "objId": 36,
+        "name": "Dummy",
+        "token": "N2",
+        "why": "D2R objects.txt: Standard2/ID36/N2 = 经典 Id36"
+      },
+      "Bank": {
+        "objId": 267,
+        "name": "bank",
+        "token": "b6",
+        "why": "D2R objects.txt: Bank/ID267/b6 = 经典 Id267"
+      },
+      "WaypointOutsideAct1": {
+        "objId": 119,
+        "name": "Waypoint",
+        "token": "wp",
+        "why": "D2R objects.txt: WaypointOutsideAct1/ID119/wp = 经典 Id119"
+      },
+      "Town1Ambient": {
+        "objId": 78,
+        "name": "Town Ambient",
+        "token": "SS",
+        "why": "D2R objects.txt: Town1Ambient/ID78/SS = 经典 Id78（Draw=0）"
+      },
+      "CainAct1Start": {
+        "objId": 385,
+        "name": "Dummy",
+        "token": "ss",
+        "why": "经典 ObjType.txt 行386「cain start」/ss（唯一同名行；objects.txt Id385 Draw=0 的原版就不画）；D2R 的 objects.txt 无该类行"
+      }
+    }
+  },
+  "kinds": [
+    {
+      "ds1Id": 1,
+      "token": "TO",
+      "dir": "to",
+      "class": "TikiTorch1",
+      "className": "Dummy",
+      "objId": 37,
+      "mode": "ON",
+      "modeIndex": 2,
+      "frames": 20,
+      "cycle": 1,
+      "frameDelta": 200,
+      "fps": 19.53125,
+      "draw": 1,
+      "why": "营地里 19 处（TownW1/N1/E1/S1 各 18~19 处）、野外 trees2.ds1 1 处、洞穴 caveE/caveS 各 3~4 处；objpreset Act1 Index1",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: TikiTorch1/ID37/TO = 经典 Id37",
+      "canvas": {
+        "w": 32,
+        "h": 147,
+        "unionH": 113,
+        "padBottom": 34,
+        "originPxFromTop": [
+          19,
+          107
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\TO\\COF\\TOONHTH.COF",
+          "bytes": 77,
+          "sha256": "002d86009ed9713e6885672a443fc58677d4715803e41d85454eef485b5c82cd"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\TO\\TR\\TOTRlitONHTH.dcc",
+            "bytes": 4932,
+            "sha256": "5f97ef73e37c3867d39ceceb81ddef3c75395a63f7109f5bc7f5a7c7f302910d"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "to/000.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1419,
+          "sha256": "510de81d6f55ba0d01b663179136055f3faf02827ae062d45064a00f585402cb"
+        },
+        {
+          "file": "to/001.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1429,
+          "sha256": "a50d3e6ffe339b0768eaf2c3b5b86ba4d58f8d6b0f0fbb6a4887a9234e53d206"
+        },
+        {
+          "file": "to/002.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1456,
+          "sha256": "c0f2a863b53b9def842f2eb2d7ce73fca479b1f1c9b90f08029a0ed684940616"
+        },
+        {
+          "file": "to/003.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1464,
+          "sha256": "0a3e89ace9f47bde7b4a5747075b63dd62f508d36125a899a1820da5876aa9cd"
+        },
+        {
+          "file": "to/004.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1440,
+          "sha256": "19d1f9543bd936ae26a47a44ed27e8a02343bf92fc0b20a14c794d825215328c"
+        },
+        {
+          "file": "to/005.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1451,
+          "sha256": "553e5544a31d706826fea2438e8fab9fde1a0db502f5c3ccdc79e24095e2532b"
+        },
+        {
+          "file": "to/006.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1461,
+          "sha256": "f3436a4390b4145765a2ffbbf32ebb8521cbd1b3c987bc532dee86efbecad686"
+        },
+        {
+          "file": "to/007.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1462,
+          "sha256": "52eefb62e0fa9297e7c824f2cf58c140f1881d5bc1c86526a410bd54f482ac06"
+        },
+        {
+          "file": "to/008.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1415,
+          "sha256": "e230d87808bc76ee1ccd548318bb4209f10a271a81afde9d766087f1011947a7"
+        },
+        {
+          "file": "to/009.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1435,
+          "sha256": "ec2c395ae3e025ea3dfab7fa078c3c2c8e8b0017c18d8d89158731ec2f9e687f"
+        },
+        {
+          "file": "to/010.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1442,
+          "sha256": "df74aa890658325d5f36917d3c9b46a68ba1ba512c5889b001e0bda8cf7180a3"
+        },
+        {
+          "file": "to/011.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1461,
+          "sha256": "a4d795fdfbe04dcae254f3a1a4a4fb58fa3a7b0ece44f5b23f998c5417c0fa5a"
+        },
+        {
+          "file": "to/012.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1503,
+          "sha256": "996c9ea84bef39b856fa0a7435ae01734668941591515a0fee100812eb841947"
+        },
+        {
+          "file": "to/013.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1504,
+          "sha256": "6aab7901131adc58d5d38acecda0f19a86635a6d5aa93da5e3f5c52c30817f57"
+        },
+        {
+          "file": "to/014.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1550,
+          "sha256": "a61617b2428208e012f3497f4907975835b5ecadce3f084ff10681131ae34c0d"
+        },
+        {
+          "file": "to/015.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1522,
+          "sha256": "a8a18875987414b8b06e41603febd3a2e43bd279f3c907e59ea0f947104c4f3b"
+        },
+        {
+          "file": "to/016.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1506,
+          "sha256": "166cc1f2f364bcb14bdbdb28ccee49383f03695cefc9d53a6d0ef1550c8606ac"
+        },
+        {
+          "file": "to/017.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1446,
+          "sha256": "3fc16f35788792b80923ad638efc6c0f3ae2f60536bc70ea7b905bdd9ae8f2dc"
+        },
+        {
+          "file": "to/018.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1435,
+          "sha256": "4741d4564e1d98c3914c79c1e939e0573e2275b4cc4f707cb772b836208911d4"
+        },
+        {
+          "file": "to/019.png",
+          "w": 32,
+          "h": 147,
+          "bytes": 1407,
+          "sha256": "bddd1be87971ac5b5f27caf619f1aac680b68412b34d2612c94886db3ea0474b"
+        }
+      ]
+    },
+    {
+      "ds1Id": 2,
+      "token": "RB",
+      "dir": "rb",
+      "class": "RogueBonfire",
+      "className": "fire",
+      "objId": 39,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 10,
+      "cycle": 1,
+      "frameDelta": 128,
+      "fps": 12.5,
+      "draw": 1,
+      "why": "TownW1 子格(69,108)/(13,21) 一带，铺在 objects.dt1 的焦土圈地砖上",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: RogueBonfire/ID39/RB = 经典 Id39",
+      "canvas": {
+        "w": 77,
+        "h": 68,
+        "unionH": 42,
+        "padBottom": 26,
+        "originPxFromTop": [
+          33,
+          28
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\RB\\COF\\RBNUHTH.COF",
+          "bytes": 57,
+          "sha256": "bb011ba5b25d509e53361d4f8720b6253576d850db884f9979cab23906231ee5"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\RB\\TR\\RBTRlitNUHTH.dcc",
+            "bytes": 5072,
+            "sha256": "1786d8fce30a4be2759ba015887dbc8babcdcde41fc5269d14afb3b256feb06b"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "rb/000.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1940,
+          "sha256": "d6f0b50c3f81cc109c9d5d87676bade43cc651257351866f03184d34d3eec98d"
+        },
+        {
+          "file": "rb/001.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1922,
+          "sha256": "cf9e242dbd9cdb72d8b15deaee51c1264bcbe35be028e15a1b41c49d4b20ef47"
+        },
+        {
+          "file": "rb/002.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1922,
+          "sha256": "aaf0c0236758e7c40d20309be025b23a6c5fe5661bfb042344b580c6c022c00f"
+        },
+        {
+          "file": "rb/003.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1913,
+          "sha256": "cf6b8acb140e60210778e09c8c85e6a0174bf586d5084a70966fe80e87bd53c6"
+        },
+        {
+          "file": "rb/004.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1940,
+          "sha256": "d6f0b50c3f81cc109c9d5d87676bade43cc651257351866f03184d34d3eec98d"
+        },
+        {
+          "file": "rb/005.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1933,
+          "sha256": "9d8f8d3031c8a867706f1624182266d6bcb72cd8500e6136059f2e6b5bc1ece2"
+        },
+        {
+          "file": "rb/006.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1931,
+          "sha256": "12ff16a54bed4b90d62ca1a79aa0acf11456c738ae9c63e81ffcf6aa36ee50e5"
+        },
+        {
+          "file": "rb/007.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1962,
+          "sha256": "692775101cea16afdff48a4e6895a82a7799dffcf934197c8f4c255b60aecf56"
+        },
+        {
+          "file": "rb/008.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1928,
+          "sha256": "a79645fa13cd50d142a8e9cf6a38bd4e0df2b54609f97f003116c76f64c278f9"
+        },
+        {
+          "file": "rb/009.png",
+          "w": 77,
+          "h": 68,
+          "bytes": 1931,
+          "sha256": "6065dc933710f193713958d5d7294551fda15144cadab4147ff7f7b2de0ec8d8"
+        }
+      ]
+    },
+    {
+      "ds1Id": 3,
+      "token": "N1",
+      "dir": "n1",
+      "class": "Standard1",
+      "className": "Dummy",
+      "objId": 35,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 10,
+      "cycle": 1,
+      "frameDelta": 128,
+      "fps": 12.5,
+      "draw": 1,
+      "why": "TownW1 子格(113,117)/(22,23) 一处",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: Standard1/ID35/N1 = 经典 Id35",
+      "canvas": {
+        "w": 58,
+        "h": 188,
+        "unionH": 150,
+        "padBottom": 38,
+        "originPxFromTop": [
+          25,
+          148
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\N1\\COF\\N1NUHTH.COF",
+          "bytes": 57,
+          "sha256": "c222d3515f0e928d36679544ca609835c2d915d7f30ba79f898935eb7d6d258e"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\N1\\TR\\N1TRlitNUHTH.dcc",
+            "bytes": 10633,
+            "sha256": "3fa7f51e874e572573b6c25cb28d2613eebd66e406d42287a764f1dff9a4bcd1"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "n1/000.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2611,
+          "sha256": "d09c43b48ffd95ff6305b8c91beb75f5f61f6f2f774546081b4b55eaf34b6b53"
+        },
+        {
+          "file": "n1/001.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2628,
+          "sha256": "ea0354d160f0593331915742ab1a94d51389213da1879f4d6e00281cf7e385a3"
+        },
+        {
+          "file": "n1/002.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2654,
+          "sha256": "d05e3bf5e3115f4e395d8753375b822f6791ce3108edb3f5083bcc146de1903e"
+        },
+        {
+          "file": "n1/003.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2712,
+          "sha256": "990caf0e11e8a1a7720be2bf47e5171832cd086afbc2a1bc34b2b94ade44b76c"
+        },
+        {
+          "file": "n1/004.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2751,
+          "sha256": "e47be38856920f1790e8d16b9cd10f58881d5b5f4997fdb9936a8b6a87f77866"
+        },
+        {
+          "file": "n1/005.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2716,
+          "sha256": "cd04a428a2e00c1c77eab726bec56e23994c53e3ead30e3e16f4af16ff0da965"
+        },
+        {
+          "file": "n1/006.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2690,
+          "sha256": "a460abc7f137207dc537255c53a87887eea905852e5c0a16c872d29ae7c2276c"
+        },
+        {
+          "file": "n1/007.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2658,
+          "sha256": "2ff0be9cca469ea395d59b3ac86a7999ede8e9b7a6d72b4345097dbd2e9d5144"
+        },
+        {
+          "file": "n1/008.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2665,
+          "sha256": "7c9a949d0deaf2cf8f27f911c4884dc7863b6af223f6db9f98fadd037fa1fd46"
+        },
+        {
+          "file": "n1/009.png",
+          "w": 58,
+          "h": 188,
+          "bytes": 2620,
+          "sha256": "6a3661ad99db048b15e9fbe52880fa5ec08745d4c3bc8b643371dd4b047c13e6"
+        }
+      ]
+    },
+    {
+      "ds1Id": 4,
+      "token": "N2",
+      "dir": "n2",
+      "class": "Standard2",
+      "className": "Dummy",
+      "objId": 36,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 10,
+      "cycle": 1,
+      "frameDelta": 128,
+      "fps": 12.5,
+      "draw": 1,
+      "why": "TownW1 子格(52,138)/(10,27) 一处",
+      "whyMode": "第一个「帧数>1 且 CycleAnim=1」的模式",
+      "whyClass": "D2R objects.txt: Standard2/ID36/N2 = 经典 Id36",
+      "canvas": {
+        "w": 55,
+        "h": 187,
+        "unionH": 149,
+        "padBottom": 38,
+        "originPxFromTop": [
+          25,
+          147
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\N2\\COF\\N2NUHTH.COF",
+          "bytes": 57,
+          "sha256": "8a2a3a288cd2b77e0a307acff091902d48c135f6a056940bf33f5de235742666"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\N2\\TR\\N2TRlitNUHTH.dcc",
+            "bytes": 10909,
+            "sha256": "5a480ef41c3e5914d888eef58bf12a8745911c17e1a74720a60cc231ef320d75"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "n2/000.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2866,
+          "sha256": "6163dd2307359788f1ac332d0cb04de6d7616c67553a604c3faa6f677b873e3a"
+        },
+        {
+          "file": "n2/001.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2883,
+          "sha256": "bee2531538ef3264cba9be135b6b14e74d66c6020177a6eddadb6ccf7cc06a20"
+        },
+        {
+          "file": "n2/002.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2892,
+          "sha256": "a4be7312b76acb249e93bed9b14c3a59a1f44ba1eef9011079ea19bd0dc5b445"
+        },
+        {
+          "file": "n2/003.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2884,
+          "sha256": "6aea7705ac677ada94da5491fe8b8b8d17bd002d32846883cac2d1517649c6ed"
+        },
+        {
+          "file": "n2/004.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2893,
+          "sha256": "48d39095497f0ce124b7d10abdf42037ed0161e1b4f729c61863390e34c3589b"
+        },
+        {
+          "file": "n2/005.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2915,
+          "sha256": "8de632b55c794b0cccebe6271f41eb30499e38bbc5ea283ceeea9682ab71ff57"
+        },
+        {
+          "file": "n2/006.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2934,
+          "sha256": "05f6ab3e6203e9737e6ba232a526b050c1d335c23e61eed3b409047cf4a41d0b"
+        },
+        {
+          "file": "n2/007.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2911,
+          "sha256": "a866110699238b449fe1f261929ab8e0bbe6e30a9afeed5a68fb53d3715e6249"
+        },
+        {
+          "file": "n2/008.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2877,
+          "sha256": "ab44242d987aca8407484c821fbc0922f4ab03d0821311e14909d45a288f36dc"
+        },
+        {
+          "file": "n2/009.png",
+          "w": 55,
+          "h": 187,
+          "bytes": 2891,
+          "sha256": "c9bcc94ed3210ae7b7523b058fbb54ee18037f9b395f9a11c2ea4fcead381d14"
+        }
+      ]
+    },
+    {
+      "ds1Id": 102,
+      "token": "b6",
+      "dir": "b6",
+      "class": "Bank",
+      "className": "bank",
+      "objId": 267,
+      "mode": "NU",
+      "modeIndex": 0,
+      "frames": 1,
+      "cycle": 0,
+      "frameDelta": 256,
+      "fps": 0.0,
+      "draw": 1,
+      "why": "TownW1 子格(56,94)/(11,18) 一处",
+      "whyMode": "没有任何循环模式 ⇒ 静态，取模式 0 的第 0 帧",
+      "whyClass": "D2R objects.txt: Bank/ID267/b6 = 经典 Id267",
+      "canvas": {
+        "w": 42,
+        "h": 70,
+        "unionH": 43,
+        "padBottom": 27,
+        "originPxFromTop": [
+          25,
+          30
+        ]
+      },
+      "sources": {
+        "cof": {
+          "path": "data\\global\\objects\\b6\\COF\\b6NUHTH.COF",
+          "bytes": 39,
+          "sha256": "0ff7bd3b969a08944621fdbafa3346b25a6000c5af1a29501669be06e6ff8276"
+        },
+        "dcc": [
+          {
+            "path": "data\\global\\objects\\b6\\TR\\b6TRlitNUHTH.dcc",
+            "bytes": 728,
+            "sha256": "0f5a161ff3e1fc666cf0e725ea96ad0e6d66b9c8dcf8dacfa838f6c1f55ed47d"
+          }
+        ],
+        "objects": "data/global/excel/objects.txt",
+        "palette": "data/global/palette/units/Pal.dat"
+      },
+      "files": [
+        {
+          "file": "b6/000.png",
+          "w": 42,
+          "h": 70,
+          "bytes": 1430,
+          "sha256": "9383ef16b5521c3645e327ee6ab86fbde35de7d2d0eb009c7f42cd687afde192"
+        }
+      ]
+    }
+  ]
+}

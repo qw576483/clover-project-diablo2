@@ -373,8 +373,20 @@ namespace Diablo2.Def
         /// <summary>技能名（中文）。</summary>
         public string name;
 
-        /// <summary>说明文本。</summary>
+        /// <summary>说明文本（配表 `skill_c.desc`）。</summary>
         public string desc;
+
+        /// <summary>
+        /// 说明窗的**字段行**（原版逐行形制；**Skill 模块算好、UI 侧照原样画**）。
+        /// <para>每行 = 原版串表 `chi_string.txt:4253-4260` 的字段名 + **当前等级**的值，
+        /// 值一律走既有生产函数（`Combat.DamageFormula.SkillManaCost` / `SkillDamageRange`）；
+        /// 算不出来的字段**不产生行**（不写占位符）。字段名**单独一行**、值另起一行：
+        /// 可见区只有 78 art 宽（= 7 个 font8 汉字），而"标签 + 值"要 ≥ 88 art ⇒ 同一行放不下
+        /// （见 `UI/SkillTreePanel.BuildSkillInfoText`）。</para>
+        /// <para>**写者** = `Module/Skill/SkillModule.BuildTree`；**读者** = `UI/SkillTreePanel`（只拼行画字，
+        /// 不解析、不补默认值 —— UI 不 `using Diablo2.Module`）。</para>
+        /// </summary>
+        public List<string> descLines = new List<string>();
 
         /// <summary>需求等级。</summary>
         public int reqLevel;
@@ -1075,8 +1087,8 @@ namespace Diablo2.Module
         /// </para>
         /// <para>
         /// 数据来源（不许在 UI/交互层硬编码坐标）：`Module/Map/MapGenTown` 里逐条写了出处 ——
-        /// 原版四块城镇 DS1（`TownN1/E1/S1/W1.ds1`）各自带的那个**四块对齐后重合**的 `kind=2`
-        /// 预设单位，关卡坐标 (31,26)。
+        /// 原版城镇块 DS1 里钉在五芒星石台（`town_floor/000..003`，落 (33..34,18..19)）上的
+        /// `kind=2` 预设单位，折算成关卡坐标后取最近格 = (34,19)。
         /// </para>
         /// </summary>
         IReadOnlyList<Vector2Int> WaypointPoints { get; }
@@ -1265,6 +1277,12 @@ namespace Diablo2.Module
         /// <summary>直接落到某格（传送/进图/读档用，不做寻路）。</summary>
         void TeleportTo(Vector2Int grid);
 
+        /// <summary>
+        /// 原地转向目标格（只改朝向，不清路径、不打断移动；同格保持原朝向）。
+        /// 原版语义：点怪出手前角色先面向目标（`ICombatModule` 出手前调用）。
+        /// </summary>
+        void FaceTo(Vector2Int grid);
+
         /// <summary>每帧推进（由 AppContext 转发）。</summary>
         void Tick(float dt);
 
@@ -1371,10 +1389,12 @@ namespace Diablo2.Module
         /// <summary>距离下次可攻击的剩余秒数（HUD 可显示）。</summary>
         float AttackCooldownRemain { get; }
 
-        /// <summary>请求攻击指定怪物（左键点怪 / 自动攻击）。</summary>
+        /// <summary>请求攻击指定怪物（左键点怪 / 自动攻击）：闸门（冷却 / 距离 / 判定形状）过 ⇒
+        /// 挥击起手并扣冷却，命中/伤害在 A1 接触帧（官方 `AnimData.d2` trigger frame）结算。</summary>
         void RequestAttack(int monsterId);
 
-        /// <summary>请求怪物攻击玩家（怪物 AI 判定「该出手了」时调用，由本模块做命中与伤害结算）。</summary>
+        /// <summary>怪物挥击的**接触帧结算**入口（怪物 AI 在出手时排期；到接触帧由本模块按当时的
+        /// 格距/视线重判后做命中与伤害结算，玩家已跑出近战格的 ⇒ 空挥）。</summary>
         void RequestMonsterAttack(int monsterId);
 
         /// <summary>设置当前目标（不改移动意图）。</summary>

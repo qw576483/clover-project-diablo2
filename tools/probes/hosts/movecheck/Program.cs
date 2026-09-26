@@ -62,34 +62,25 @@ namespace MoveCheck
             CheckSpeed("Zombie（monstats.txt:7 Velocity=1）", 1, 0.2f);
             CheckSpeed("QuillRat（monstats.txt:65 Velocity=3）", 3, 0.6f);
 
-            Section("4. 帧率口径（出处：AnimData.cs:16-37 的每格一循环规律）");
-            Check("FpsForCycle(8, 3.0) == 24（跑：8 帧 × 3 格/s）",
-                Math.Abs(SpriteFrames.FpsForCycle(8, 3.0f) - 24f) < 1e-4f,
-                $"= {SpriteFrames.FpsForCycle(8, 3.0f)}");
-            Check("FpsForCycle(8, 1.4) ≈ 11.2（走：8 帧 × 1.4 格/s）",
-                Math.Abs(SpriteFrames.FpsForCycle(8, 1.4f) - 11.2f) < 1e-3f,
-                $"= {SpriteFrames.FpsForCycle(8, 1.4f)}");
-            Check("FpsForCycle(10, 1.0) == 10（怪物样例：僵尸 8 帧 / 堕落者 10 帧 @1.0 格/s）",
-                Math.Abs(SpriteFrames.FpsForCycle(10, 1.0f) - 10f) < 1e-4f,
-                $"= {SpriteFrames.FpsForCycle(10, 1.0f)}");
-            Check("SpeedScaleForCycle(8, 3.0, FpsOf(Run)=24) == 1（基准帧率与目标帧率一致）",
-                Math.Abs(SpriteFrames.SpeedScaleForCycle(8, 3.0f, SpriteFrames.FpsOf(ViewAnim.Run)) - 1f) < 1e-4f,
-                $"FpsOf(Run)={SpriteFrames.FpsOf(ViewAnim.Run)} scale={SpriteFrames.SpeedScaleForCycle(8, 3.0f, SpriteFrames.FpsOf(ViewAnim.Run)):0.####}");
-            Check("SpeedScaleForCycle(8, 1.4, FpsOf(Walk)=12) ≈ 0.9333",
-                Math.Abs(SpriteFrames.SpeedScaleForCycle(8, 1.4f, SpriteFrames.FpsOf(ViewAnim.Walk)) - 11.2f / 12f) < 1e-4f,
-                $"FpsOf(Walk)={SpriteFrames.FpsOf(ViewAnim.Walk)} scale={SpriteFrames.SpeedScaleForCycle(8, 1.4f, SpriteFrames.FpsOf(ViewAnim.Walk)):0.#####}");
-            Check("非法参数（帧数 0 / 速度 0 / 基准帧率 0）⇒ 倍率恒 1（⛔ 不许返回 0 把动画停住）",
-                SpriteFrames.SpeedScaleForCycle(0, 3f, 24f) == 1f
-                && SpriteFrames.SpeedScaleForCycle(8, 0f, 24f) == 1f
-                && SpriteFrames.SpeedScaleForCycle(8, 3f, 0f) == 1f
-                && SpriteFrames.SpeedScaleForCycle(-1, -1f, -1f) == 1f,
-                "三个非法分支都返回 1");
-            Check("IsMoveAnim：只有 Walk/Run 随速度缩放（静态动作一律不缩放）",
-                SpriteFrames.IsMoveAnim(ViewAnim.Walk) && SpriteFrames.IsMoveAnim(ViewAnim.Run)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Idle) && !SpriteFrames.IsMoveAnim(ViewAnim.Attack)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Cast) && !SpriteFrames.IsMoveAnim(ViewAnim.Hit)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Death),
-                "Walk/Run = true，其余 5 个 = false");
+            Section("4. 帧率口径（原版公式：25 × AnimData.speed/256 × 规范帧数/实际帧数；式子里没有移动速度）");
+            Check("CorrectedFpsOf == FpsOf × RefFrameCountOf ÷ FrameCountOf（逐职业/逐怪 × 7 动作，按盘上数值现算）",
+                CorrectedMatchesFormula(), CorrectedFormulaDetail());
+            Check("走 / 跑逐职业帧率 = 同一公式且带规范帧数修正（逐职业打印全表）",
+                WalkRunMatchesFormula(), WalkRunTable());
+            Check("官方表里没有规范帧数的动作（待机/攻击/施法/受击/死亡）⇒ 修正系数 = 1（等同 AnimData 基准帧率）",
+                StaticAnimsUncorrected(), StaticAnimsDetail());
+            Check("帧率与移动速度**解耦**（源码级：`SpriteFrames.cs` 不出现 `PlayerWalkSpeed`；`ViewModule.cs` 不出现 `SpeedScaleForCycle` / `IsMoveAnim`）",
+                FpsDoesNotDependOnMoveSpeed(), FpsDecouplingDetail());
+            Check("逐单位逐动作的**官方**基准帧率 = 25 × `AnimData.d2` speed / 256（亚马逊 NU=128 ⇒ 12.5fps；zm NU=80 ⇒ 7.8fps）",
+                Math.Abs(SpriteFrames.FpsOf("amazon", ViewAnim.Idle) - 25f * 128f / 256f) < 1e-4f
+                && Math.Abs(SpriteFrames.FpsOf("amazon", ViewAnim.Attack) - 25f) < 1e-4f
+                && Math.Abs(SpriteFrames.FpsOf("amazon", ViewAnim.Death) - 25f) < 1e-4f
+                && Math.Abs(SpriteFrames.FpsOf("zm", ViewAnim.Idle) - 25f * 80f / 256f) < 1e-4f
+                && SpriteFrames.SpeedOf("amazon/equip/hax", ViewAnim.Idle) == 128
+                && SpriteFrames.SpeedOf("zz", ViewAnim.Attack) == AnimRate.NormalSpeed,
+                $"amazon NU={SpriteFrames.FpsOf("amazon", ViewAnim.Idle):0.##}fps（8 帧 ⇒ {8f / SpriteFrames.FpsOf("amazon", ViewAnim.Idle):0.##}s）、"
+                + $"A1={SpriteFrames.FpsOf("amazon", ViewAnim.Attack):0.##}fps、DT={SpriteFrames.FpsOf("amazon", ViewAnim.Death):0.##}fps；"
+                + $"zm NU={SpriteFrames.FpsOf("zm", ViewAnim.Idle):0.##}fps");
 
             Section("5. 帧数表与 ViewAnim 下标一致（run 列 = 片 2a 导出产物 / --emit-cs 口径）");
             Check("ViewAnim.Run 的下标 == 6（末尾追加，不插中间）", (int)ViewAnim.Run == 6, $"= {(int)ViewAnim.Run}");
@@ -119,19 +110,22 @@ namespace MoveCheck
             Check("没有 RN 的单位请求 Run ⇒ 回落 Walk（fa；⛔ 不是占位色块）",
                 faRun == ViewAnim.Walk, "= " + faRun);
 
-            Section("6. ★ 有效帧率实测：移动动画帧率 == 帧数 × 速度（真 SpriteAnimator 逐帧推进）");
-            MeasureCycle("玩家跑（Run，亚马逊 8 帧 @3.0 格/s ⇒ 24fps）",
-                SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Run, Dir8.S), ViewAnim.Run,
-                GameConst.PlayerWalkSpeed, 24f);
-            MeasureCycle("玩家走（Walk，亚马逊 8 帧 @1.4 格/s ⇒ 11.2fps）",
-                SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Walk, Dir8.S), ViewAnim.Walk,
-                walkSpeed, 11.2f);
-            MeasureCycle("怪物样例（Walk，堕落者 fa 的 10 帧 @1.0 格/s ⇒ 10fps）",
-                SpriteFrames.Keys("fa", ViewAnim.Walk, Dir8.S), ViewAnim.Walk, 1.0f, 10f);
-            MeasureCycle("怪物样例（Walk，僵尸 zm 的 12 帧 @0.2 格/s ⇒ 2.4fps，最慢的怪）",
-                SpriteFrames.Keys("zm", ViewAnim.Walk, Dir8.S), ViewAnim.Walk, 0.2f, 2.4f);
-            Check("静帧动作不缩放：把 SpeedScale 设回 1（ViewModule.SyncMoveScale 的静态分支）后有效帧率 = 基准帧率",
-                NonMoveAnimKeepsBaseFps(), "Idle 动作 SpeedScale 恒 1");
+            Section("6. ★ 有效帧率实测：逐职业走 / 跑帧率 == 原版公式值（真 SpriteAnimator 逐帧推进）");
+            for (var c = 0; c < Classes.Length; c++)
+            {
+                MeasureFps(Classes[c].Disp + " 走（Walk）", Classes[c].Unit, ViewAnim.Walk);
+                MeasureFps(Classes[c].Disp + " 跑（Run）", Classes[c].Unit, ViewAnim.Run);
+            }
+            MeasureFps("僵尸 走（Walk）", "zm", ViewAnim.Walk);
+            MeasureFps("堕落者 走（Walk）", "fa", ViewAnim.Walk);
+            Check("非移动动作同样不缩放（待机 SpeedScale 恒 1 ⇒ 逐帧前进次数 = 该单位待机帧率 × 秒数）",
+                NonMoveAnimKeepsBaseFps(), "Idle：SpeedScale 恒 1");
+
+            // 数值断言看不见"生产那一行被删/被换成别的口径" ⇒ 再核一次**源码级**调用点：
+            // `ViewModule.PlayAnim` 是帧率的唯一出口，且它必须传 `CorrectedFpsOf`。
+            string where;
+            Check("§6c 帧率的**生产出口**在盘（`ViewModule.PlayAnim` 方法体内恰有 1 处 `CorrectedFpsOf(`、0 处 `FpsOf(`）",
+                PlayAnimUsesCorrectedFps(out where), where);
 
             Section7_AnimReset();
 
@@ -325,7 +319,7 @@ namespace MoveCheck
             Section("7. ★ 动画复位口径（R1-D / 候选②）：同组同状态不重置进度、换组必须从第 0 帧起");
 
             var keysS = SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Run, Dir8.S);
-            var fpsRun = SpriteFrames.FpsOf(ViewAnim.Run);
+            var fpsRun = SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Run);
 
             var a = new SpriteAnimator();
             a.Play(ViewAnim.Run, keysS, fpsRun, true);
@@ -387,7 +381,7 @@ namespace MoveCheck
                 var willReset = !(want == anim.Anim && SameKeys(curKeys, next) && next.Length > 0 && !anim.Finished);
                 if (willReset) resets++; else sameGroupCalls++;
 
-                anim.Play(want, next, SpriteFrames.FpsOf(want), SpriteFrames.LoopOf(want));
+                anim.Play(want, next, SpriteFrames.CorrectedFpsOf("amazon", want), SpriteFrames.LoopOf(want));
                 curKeys = next;
                 anim.Tick(Dt);
             }
@@ -471,57 +465,254 @@ namespace MoveCheck
         /// </summary>
         private static int SpriteFrameCountsRun(string unitKey) => SpriteFrameCounts.Of(unitKey, ViewAnim.Run);
 
-        /// <summary>
-        /// 核心实测：用真 <see cref="SpriteAnimator"/> 播某动作，倍率按
-        /// `SpeedScaleForCycle(帧数, 速度, 基准帧率)` 设置，逐帧 `Tick(Dt)` 跑 <paramref name="seconds"/> 秒，
-        /// 数出**帧号变化的次数** ⇒ 实测帧率，与 `帧数 × 速度` 比。
-        /// </summary>
-        private static void MeasureCycle(string label, string[] keys, ViewAnim anim,
-            float tilesPerSecond, float expectFps)
+        /// <summary>5 个职业（单位键 = `SpriteFrames` / `SpriteFrameCounts` 的键）。</summary>
+        private static readonly (string Unit, string Disp)[] Classes =
         {
-            const float seconds = 5f;
-            var frames = keys.Length;
-            var baseFps = SpriteFrames.FpsOf(anim);
-            var scale = SpriteFrames.SpeedScaleForCycle(frames, tilesPerSecond, baseFps);
+            ("amazon", "亚马逊"), ("sorceress", "法师"), ("necromancer", "死灵法师"),
+            ("paladin", "圣骑士"), ("barbarian", "野蛮人"),
+        };
 
-            var anim2 = new SpriteAnimator();
-            anim2.Play(anim, keys, baseFps, true);
-            anim2.SpeedScale = scale;
+        /// <summary>8 类怪物的单位键（走档样例；走 / 跑两档只在职业身上分）。</summary>
+        private static readonly string[] MonsterUnits = { "fa", "fs", "si", "zm", "cr", "bk", "ye", "wr" };
 
-            // ① 公式层：有效帧率 = 基准帧率 × 倍率，必须等于 帧数 × 速度
-            var effective = baseFps * scale;
-            Check($"{label} 有效帧率 = 基准 × 倍率 == 帧数 × 速度",
-                Math.Abs(effective - expectFps) < 0.01f && Math.Abs(effective - SpriteFrames.FpsForCycle(frames, tilesPerSecond)) < 0.01f,
-                $"基准 {baseFps:0.##}fps × {scale:0.#####} = {effective:0.####}fps（期望 帧数 {frames} × 速度 {tilesPerSecond} = {expectFps}）");
-
-            // ② 实跑层：逐帧推进 5 秒，数帧号变化次数
-            var steps = (int)Math.Round(seconds / Dt);
-            var advances = 0;
-            var last = anim2.FrameIndex;
-            for (var i = 0; i < steps; i++)
+        /// <summary>单位键 → <see cref="PlayerClass"/>（`SpriteFrames.Keys` 的玩家重载要它）。</summary>
+        private static PlayerClass PlayerClassOf(string unitKey)
+        {
+            switch (unitKey)
             {
-                anim2.Tick(Dt);
-                if (anim2.FrameIndex != last)
-                {
-                    advances++;
-                    last = anim2.FrameIndex;
-                }
+                case "amazon": return PlayerClass.Amazon;
+                case "sorceress": return PlayerClass.Sorceress;
+                case "necromancer": return PlayerClass.Necromancer;
+                case "paladin": return PlayerClass.Paladin;
+                case "barbarian": return PlayerClass.Barbarian;
+                default:
+                    Check($"PlayerClassOf({unitKey})：不是玩家职业", false,
+                        "MeasureFps 只对职业走玩家重载、对怪物走 sprite-code 重载");
+                    return PlayerClass.Amazon;
             }
-
-            var measured = advances / seconds;
-            var expectAdvance = expectFps * seconds;
-            Check($"{label} 5 秒内帧号前进 {expectAdvance:0} 次（±1 帧量化）",
-                Math.Abs(advances - expectAdvance) <= 1f,
-                $"实测 {advances} 次 ⇒ 帧率 {measured:0.###}fps（期望 {expectFps}fps；共 Tick {steps} 次 @ dt={Dt:0.#####}）");
         }
 
-        /// <summary>静态动作（Idle）不该被缩放：倍率恒 1 时 5 秒前进次数 = 基准帧率 × 5。</summary>
+        /// <summary>是不是 5 个职业之一（决定 `SpriteFrames.Keys` 走哪个重载）。</summary>
+        private static bool IsPlayerUnit(string unitKey)
+        {
+            for (var c = 0; c < Classes.Length; c++)
+                if (Classes[c].Unit == unitKey) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// 原版公式（**唯一口径**，出处 = 上游 `AnimData.GetCorrectedFrameDuration` 的倒数）：
+        /// `AnimBaseFps × AnimData.speed / 256 × 规范帧数 / 实际帧数`。
+        /// <para>⛔ 本函数是**宿主侧独立重算**，用来核生产实现是否就是这条式子
+        /// （判据不抄生产返回值、也不抄任何现成的帧率数字）。</para>
+        /// </summary>
+        private static float FormulaFps(string unitKey, ViewAnim anim)
+        {
+            var frames = SpriteFrames.FrameCountOf(unitKey, anim);
+            if (frames <= 0) return SpriteFrames.FpsOf(unitKey, anim);
+            return GameConst.AnimBaseFps * SpriteFrames.SpeedOf(unitKey, anim) / AnimRate.NormalSpeed
+                   * SpriteFrames.RefFrameCountOf(unitKey, anim) / frames;
+        }
+
+        private static bool CorrectedMatchesFormula()
+        {
+            for (var c = 0; c < Classes.Length; c++)
+            {
+                for (var a = 0; a < 7; a++)
+                {
+                    var anim = (ViewAnim)a;
+                    if (Math.Abs(SpriteFrames.CorrectedFpsOf(Classes[c].Unit, anim) - FormulaFps(Classes[c].Unit, anim)) > 1e-4f)
+                        return false;
+                }
+            }
+            for (var m = 0; m < MonsterUnits.Length; m++)
+            {
+                for (var a = 0; a < 7; a++)
+                {
+                    var anim = (ViewAnim)a;
+                    if (Math.Abs(SpriteFrames.CorrectedFpsOf(MonsterUnits[m], anim) - FormulaFps(MonsterUnits[m], anim)) > 1e-4f)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        private static string CorrectedFormulaDetail()
+            => $"逐职业 {Classes.Length} × 7 动作 + 逐怪 {MonsterUnits.Length} × 7 动作全部逐值相等"
+               + $"（例：amazon Walk = {SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Walk):0.####}fps）";
+
+        private static bool WalkRunMatchesFormula()
+        {
+            var corrected = 0;
+            for (var c = 0; c < Classes.Length; c++)
+            {
+                for (var a = 0; a < 2; a++)
+                {
+                    var anim = a == 0 ? ViewAnim.Walk : ViewAnim.Run;
+                    if (Math.Abs(SpriteFrames.CorrectedFpsOf(Classes[c].Unit, anim) - FormulaFps(Classes[c].Unit, anim)) > 1e-4f) return false;
+                    // 修正真的生效：规范帧数 ≠ 实际帧数时，修正后的值必须 ≠ `AnimData` 基准帧率
+                    var differs = SpriteFrames.RefFrameCountOf(Classes[c].Unit, anim) != SpriteFrames.FrameCountOf(Classes[c].Unit, anim);
+                    var moved = Math.Abs(SpriteFrames.CorrectedFpsOf(Classes[c].Unit, anim) - SpriteFrames.FpsOf(Classes[c].Unit, anim)) > 1e-4f;
+                    if (differs != moved) return false;
+                    if (moved) corrected++;
+                }
+            }
+            // 10 对里只有"规范帧数 = 实际帧数"的那一对（法师走 8/8）修正系数 = 1
+            return corrected >= 9;
+        }
+
+        private static string WalkRunTable()
+        {
+            var sb = new System.Text.StringBuilder();
+            for (var c = 0; c < Classes.Length; c++)
+            {
+                var u = Classes[c].Unit;
+                if (c > 0) sb.Append(" ｜ ");
+                sb.Append(Classes[c].Disp).Append("：走 ")
+                  .Append(SpriteFrames.CorrectedFpsOf(u, ViewAnim.Walk).ToString("0.####")).Append("fps（")
+                  .Append(SpriteFrames.FrameCountOf(u, ViewAnim.Walk)).Append(" 帧 / 规范 ")
+                  .Append(SpriteFrames.RefFrameCountOf(u, ViewAnim.Walk)).Append("）、跑 ")
+                  .Append(SpriteFrames.CorrectedFpsOf(u, ViewAnim.Run).ToString("0.####")).Append("fps（")
+                  .Append(SpriteFrames.FrameCountOf(u, ViewAnim.Run)).Append(" 帧 / 规范 ")
+                  .Append(SpriteFrames.RefFrameCountOf(u, ViewAnim.Run)).Append("）");
+            }
+            sb.Append("；修正生效 9/10 对（法师走 8 帧 / 规范 8 ⇒ 系数 1）");
+            return sb.ToString();
+        }
+
+        private static bool StaticAnimsUncorrected()
+        {
+            var anims = new[] { ViewAnim.Idle, ViewAnim.Attack, ViewAnim.Cast, ViewAnim.Hit, ViewAnim.Death };
+            for (var c = 0; c < Classes.Length; c++)
+            {
+                for (var a = 0; a < anims.Length; a++)
+                {
+                    if (Math.Abs(SpriteFrames.CorrectedFpsOf(Classes[c].Unit, anims[a])
+                                 - SpriteFrames.FpsOf(Classes[c].Unit, anims[a])) > 1e-4f) return false;
+                }
+            }
+            return true;
+        }
+
+        private static string StaticAnimsDetail()
+            => $"官方表里只有 WL / RN 两条规范帧数 ⇒ 其余 5 档逐职业与 `AnimData` 基准帧率逐值相等"
+               + $"（例：amazon Idle = {SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Idle):0.####}fps）";
+
+        /// <summary>
+        /// 源码级不变式：帧率与移动速度**解耦** —— 移动速度只进位移，不进帧率。
+        /// <para>数值断言看不见"有人又把速度塞回帧率"（那会让本判据全绿而口径悄悄跑偏）。</para>
+        /// </summary>
+        private static bool FpsDoesNotDependOnMoveSpeed()
+        {
+            var view = System.IO.Path.Combine(ResolveProjectRoot(),
+                "client", "Assets", "Scripts", "Module", "View");
+            var framesSrc = System.IO.File.ReadAllText(System.IO.Path.Combine(view, "SpriteFrames.cs"));
+            var viewSrc = System.IO.File.ReadAllText(System.IO.Path.Combine(view, "ViewModule.cs"));
+            return framesSrc.IndexOf("PlayerWalkSpeed", StringComparison.Ordinal) < 0
+                   && viewSrc.IndexOf("SpeedScaleForCycle", StringComparison.Ordinal) < 0
+                   && viewSrc.IndexOf("IsMoveAnim", StringComparison.Ordinal) < 0;
+        }
+
+        private static string FpsDecouplingDetail()
+        {
+            var view = System.IO.Path.Combine(ResolveProjectRoot(),
+                "client", "Assets", "Scripts", "Module", "View");
+            var framesSrc = System.IO.File.ReadAllText(System.IO.Path.Combine(view, "SpriteFrames.cs"));
+            var viewSrc = System.IO.File.ReadAllText(System.IO.Path.Combine(view, "ViewModule.cs"));
+            return $"SpriteFrames.cs 命中 PlayerWalkSpeed {CountOccurrences(framesSrc, "PlayerWalkSpeed")} 处；"
+                   + $"ViewModule.cs 命中 SpeedScaleForCycle {CountOccurrences(viewSrc, "SpeedScaleForCycle")} 处、"
+                   + $"IsMoveAnim {CountOccurrences(viewSrc, "IsMoveAnim")} 处";
+        }
+
+        private static int CountOccurrences(string haystack, string needle)
+        {
+            var n = 0;
+            for (var i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+                 i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal)) n++;
+            return n;
+        }
+
+        /// <summary>
+        /// 核心实测：用真 <see cref="SpriteAnimator"/> 播该单位该动作，**帧率取生产同一个函数**
+        /// （<see cref="SpriteFrames.CorrectedFpsOf"/>，原版公式），逐帧 `Tick(Dt)` 跑 5 秒，
+        /// 数出**帧号变化的次数** ⇒ 实测帧率，与公式值比。
+        /// </summary>
+        private static void MeasureFps(string label, string unitKey, ViewAnim anim)
+        {
+            const float seconds = 5f;
+            var keys = IsPlayerUnit(unitKey)
+                ? SpriteFrames.Keys(PlayerClassOf(unitKey), anim, Dir8.S)
+                : SpriteFrames.Keys(unitKey, anim, Dir8.S);
+            var fps = SpriteFrames.CorrectedFpsOf(unitKey, anim);
+            if (keys == null || keys.Length == 0) { Check($"{label}：帧键非空", false, "keys.Length = 0（缺素材）"); return; }
+
+            var a = new SpriteAnimator();
+            a.Play(anim, keys, fps, true);
+
+            // 公式层：生产帧率 == 宿主侧独立重算的同一条式子（⛔ 不抄现成数字）
+            Check($"{label}：{unitKey} 帧率 = 原版公式值（{keys.Length} 帧、规范 {SpriteFrames.RefFrameCountOf(unitKey, anim)}、speed {SpriteFrames.SpeedOf(unitKey, anim)}/256）",
+                Math.Abs(fps - FormulaFps(unitKey, anim)) < 1e-4f,
+                $"CorrectedFpsOf = {fps:0.####}fps；宿主重算 = {FormulaFps(unitKey, anim):0.####}fps");
+
+            // 实跑层：逐帧推进 5 秒，数帧号变化次数
+            var steps = (int)Math.Round(seconds / Dt);
+            var advances = 0;
+            var last = a.FrameIndex;
+            for (var i = 0; i < steps; i++)
+            {
+                a.Tick(Dt);
+                if (a.FrameIndex != last) { advances++; last = a.FrameIndex; }
+            }
+            var expectAdvance = fps * seconds;
+            Check($"{label}：逐帧跑 5 秒，帧号前进 {expectAdvance:0} 次（±1 帧量化 ⇔ 实测帧率 {fps:0.###}fps）",
+                Math.Abs(advances - expectAdvance) <= 1f,
+                $"实测 {advances} 次 ⇒ {advances / seconds:0.###}fps；SpeedScale={a.SpeedScale:0.###}（恒 1 = 不按速度缩放）");
+        }
+
+        /// <summary>
+        /// 源码级不变式：帧率的**唯一生产出口** = `ViewModule.PlayAnim` 里那一行
+        /// （必须传 `CorrectedFpsOf`，且该方法体内不出现**未修正**的 `FpsOf(`）。
+        /// <para>为什么需要它：数值断言只验函数算得对，"生产那一行被删/被换成别的口径"看不见 ——
+        /// 那会让全部数值项仍绿而实机走/跑帧率悄悄退回 `AnimData` 基准值。</para>
+        /// </summary>
+        private static bool PlayAnimUsesCorrectedFps(out string where)
+        {
+            where = string.Empty;
+            var file = System.IO.Path.Combine(ResolveProjectRoot(),
+                "client", "Assets", "Scripts", "Module", "View", "ViewModule.cs");
+            if (!System.IO.File.Exists(file)) { where = "文件不存在：" + file; return false; }
+
+            var src = System.IO.File.ReadAllLines(file);
+            var start = -1;
+            for (var i = 0; i < src.Length; i++)
+            {
+                if (src[i].Contains("private static void PlayAnim(")) { start = i; break; }
+            }
+            if (start < 0) { where = "找不到 private static void PlayAnim("; return false; }
+
+            var corrected = 0;
+            var raw = 0;
+            for (var i = start + 1; i < src.Length; i++)
+            {
+                var t = src[i].TrimStart();
+                if (t.StartsWith("//")) continue;
+                if (t.StartsWith("private ") || t.StartsWith("public ") || t.StartsWith("internal ")
+                    || t.StartsWith("static ") || t.StartsWith("///")) break;
+                if (t.Contains("SpriteFrames.CorrectedFpsOf(")) corrected++;
+                else if (t.Contains("SpriteFrames.FpsOf(")) raw++;
+            }
+            where = $"方法体内 CorrectedFpsOf( {corrected} 处、未修正的 FpsOf( {raw} 处"
+                    + $"（{System.IO.Path.GetFileName(file)}:{start + 1} 起）";
+            return corrected == 1 && raw == 0;
+        }
+
+        /// <summary>静态动作（Idle）不该被缩放：倍率恒 1 时 5 秒前进次数 = 该单位待机帧率 × 5。</summary>
         private static bool NonMoveAnimKeepsBaseFps()
         {
             var keys = SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Idle, Dir8.S);
-            var baseFps = SpriteFrames.FpsOf(ViewAnim.Idle);
+            var fps = SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Idle);
             var a = new SpriteAnimator();
-            a.Play(ViewAnim.Idle, keys, baseFps, true);
+            a.Play(ViewAnim.Idle, keys, fps, true);
             if (!MathfApprox(a.SpeedScale, 1f)) return false;      // 新建实体的默认倍率
 
             var steps = 300;                                       // 5 秒
@@ -532,7 +723,7 @@ namespace MoveCheck
                 a.Tick(Dt);
                 if (a.FrameIndex != last) { advances++; last = a.FrameIndex; }
             }
-            var expect = baseFps * 5f;
+            var expect = fps * 5f;
             return Math.Abs(advances - expect) <= 1f;
         }
 

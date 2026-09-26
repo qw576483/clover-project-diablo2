@@ -69,8 +69,12 @@ LEVELS['Town'] = dict(
          ('TownN1.ds1', 'TownE1.ds1', 'TownS1.ds1', 'TownW1.ds1')])
 LEVELS['BloodMoor'] = dict(
     act=1, level_type='Wilderness', area_id=1,
+    # `LvlPrest` 的野外块清单里有 4 块放在 CAVES/ 目录（Wild Cliff Cave Left/Right =
+    # 崖壁洞口件、Cave Entrance = 洞穴入口件）⇒ 它们的格也按 '1 Wilderness' 投票。
     ds1=sorted(glob.glob(os.path.join(TILES_ROOT, 'OUTDOORS', '*.ds1'))) +
-        [os.path.join(TILES_ROOT, 'TOWN', 'TownETrans.ds1')])
+        [os.path.join(TILES_ROOT, 'TOWN', 'TownETrans.ds1')] +
+        [os.path.join(TILES_ROOT, 'CAVES', n) for n in
+         ('clfcave.ds1', 'clfcave2.ds1', 'cavedr1.ds1', 'cavedr2.ds1')])
 LEVELS['DenOfEvil'] = dict(
     act=1, level_type='Cave', area_id=2,
     ds1=sorted(glob.glob(os.path.join(TILES_ROOT, 'CAVES', '*.ds1'))))
@@ -330,6 +334,20 @@ def emit_cs(table, cels_used, palette_rgb, cel_pixels, report, out_cs=None):
                                              ToKeys(table[area]['object'])))
     A('        };')
     A('')
+    A('        /// <summary>逐关卡的「同 pack（= 同一张 dt1）代表 Cel」表：值 = 该 pack 最小键的 Cel。</summary>')
+    A('        private static readonly Dictionary<string, short>[] _groundPack =')
+    A('        {')
+    for area in sorted(table):
+        A('            /* %s */ Build(%s),' % (report['areas'][area]['name'],
+                                             ToKeys(pack_table(table[area]['ground']))))
+    A('        };')
+    A('        private static readonly Dictionary<string, short>[] _objectPack =')
+    A('        {')
+    for area in sorted(table):
+        A('            /* %s */ Build(%s),' % (report['areas'][area]['name'],
+                                             ToKeys(pack_table(table[area]['object']))))
+    A('        };')
+    A('')
     A('        /// <summary>取某格（按原版瓦片键）的 Cel；<see cref="None"/> = 原版不画这格。</summary>')
     A('        public static short Cel(int areaId, bool objectLayer, string tileKey)')
     A('        {')
@@ -337,6 +355,15 @@ def emit_cs(table, cels_used, palette_rgb, cel_pixels, report, out_cs=None):
     A('            if (tileKey == null || areaId < 0 || areaId >= tbl.Length) return None;')
     A('            short cel;')
     A('            return tbl[areaId].TryGetValue(tileKey, out cel) ? cel : None;')
+    A('        }')
+    A('')
+    A('        /// <summary>取某 pack（= 同一张 dt1）的代表 Cel（该 pack 最小键的 Cel）；表里没有 ⇒ <see cref="None"/>。</summary>')
+    A('        public static short CelForPack(int areaId, bool objectLayer, string pack)')
+    A('        {')
+    A('            var tbl = objectLayer ? _objectPack : _groundPack;')
+    A('            if (pack == null || areaId < 0 || areaId >= tbl.Length) return None;')
+    A('            short cel;')
+    A('            return tbl[areaId].TryGetValue(pack, out cel) ? cel : None;')
     A('        }')
     A('')
     A('        private static Dictionary<string, short> Build(string[] flat)')
@@ -359,6 +386,16 @@ def ToKeys(d):
     for k in sorted(d):
         parts.append('"%s", "%d"' % (k, d[k]))
     return 'new[] { ' + ', '.join(parts) + ' }' if parts else 'new string[0]'
+
+
+def pack_table(d):
+    """`<pack>/<idx>` → Cel 的表 折叠成 pack → 代表 Cel（取该 pack 最小键那个）。"""
+    t = {}
+    for k in sorted(d):
+        p = k.split('/')[0]
+        if p not in t:
+            t[p] = d[k]
+    return t
 
 
 # ─────────────────────────────────────────────────────────────────────────────

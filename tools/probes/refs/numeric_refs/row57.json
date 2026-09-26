@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 57,
-  "spec_md_line": 1082,
-  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
+  "spec_md_line": 1081,
+  "spec_sha256": "ad133ce9c7980d7512877686f2a0ad9cff52a52a7c12719452a70d76f200c7f3",
   "category": "数值类",
   "system": "证据链·闸门",
   "method": "验收表每条引用必须真在盘（不许纯正则）",
   "criterion": "`tools/verify.ps1` 第 28 项 `coverage-acceptance` 实测",
   "conclusion": "通过：文献侧原先仍红，已由本轮**整轮实跑** `FAIL=0` 消除（闸门侧早先已改真做 `Test-Path`） ｜类别：数值类",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-25 02:35:47",
+  "generated": "2026-09-26 14:17:59",
   "selectors": {
     "line_anchors": {
       ".ai-tmp/test/main-verify-final1.txt": [

@@ -121,37 +121,162 @@ namespace Diablo2.Module.View
         }
 
         /// <summary>
-        /// 动作的**基准**播放帧率（原版节奏按 `AnimData.d2`；本项目沿用既有值）。
-        /// <para>它是**基准**、不是最终有效帧率：移动类动作（<see cref="ViewAnim.Walk"/> /
-        /// <see cref="ViewAnim.Run"/>）由 <see cref="SpeedScaleForCycle"/> 按**实际速度**再缩放
-        /// —— 有效帧率 = 帧数 × 格/秒，见 <see cref="FpsForCycle"/>。</para>
+        /// 官方 `charstats.txt` 的**规范帧数**（键 = 单位代号 + 动作代号，逐单位 × 逐动作）。
+        /// <para>出处：上游参考工程 `Diablerie/Engine/IO/D2Formats/AnimData.cs:17-32` 的
+        /// `referenceFrameCount` 表（原注 `values from charstats.txt`：
+        /// `AMWL = 6` / `AMRN = 4` / `SOWL = 8` / `SORN = 5` / `NEWL = 9` / `NERN = 5` /
+        /// `PAWL = 8` / `PARN = 5` / `BAWL = 7` / `BARN = 4` / `DZWL = 9` / `DZRN = 5` /
+        /// `AIWL = 6` / `AIRN = 4`）；三个职业代号 `DZ` / `AI` 是原版扩展包的德鲁伊 / 刺客，
+        /// 本项目没有这两个职业，保留为完整搬运。</para>
         /// </summary>
-        public static float FpsOf(ViewAnim anim)
+        private static readonly Dictionary<string, int> RefFrameCountByUnitMode = new Dictionary<string, int>
+        {
+            { "AMWL", 6 }, { "AMRN", 4 },
+            { "SOWL", 8 }, { "SORN", 5 },
+            { "NEWL", 9 }, { "NERN", 5 },
+            { "PAWL", 8 }, { "PARN", 5 },
+            { "BAWL", 7 }, { "BARN", 4 },
+            { "DZWL", 9 }, { "DZRN", 5 },
+            { "AIWL", 6 }, { "AIRN", 4 },
+        };
+
+        /// <summary>
+        /// 某单位某动作的**规范帧数**（官方 `charstats.txt`，见 <see cref="RefFrameCountByUnitMode"/>）。
+        /// <para>官方表里没有这个单位 / 这个动作 ⇒ 返回**实际帧数** ⇒ 修正系数 = 1，
+        /// 与上游 `AnimData.GetCorrectedFrameDuration` 的
+        /// `referenceFrameCount.GetValueOrDefault(token + mode, framesPerDir)` 同一口径。</para>
+        /// </summary>
+        public static int RefFrameCountOf(string unitKey, ViewAnim anim)
+        {
+            var frames = FrameCountOf(unitKey, anim);
+            if (string.IsNullOrEmpty(unitKey) || unitKey.Length < 2) return frames;
+            int refFrames;
+            var key = unitKey.Substring(0, 2).ToUpperInvariant() + ModeCodeOf(anim);
+            return RefFrameCountByUnitMode.TryGetValue(key, out refFrames) ? refFrames : frames;
+        }
+
+        /// <summary>
+        /// 某单位某动作的**原版播放帧率** = `AnimBaseFps × speed / 256 × 规范帧数 / 实际帧数`。
+        /// <para>口径唯一来源 = 上游参考工程 `Diablerie/Engine/IO/D2Formats/AnimData.cs`
+        /// （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Scripts/Diablerie/Engine/IO/D2Formats/AnimData.cs`）
+        /// 的 `GetCorrectedFrameDuration`（:34-38）取其倒数：
+        /// `frameDuration = 256.0f / 25.0f / speed`（:92）再 `× framesPerDir / refFrameCount`。
+        /// **式子里没有移动速度** —— 走 / 跑各自一套独立帧率，与角色跑多快无关。</para>
+        /// <para>官方表里**没有**这个单位 / 这个动作 ⇒ 规范帧数 = 实际帧数
+        /// ⇒ 等同 <see cref="FpsOf(string, ViewAnim)"/>（25 × speed / 256）。</para>
+        /// </summary>
+        public static float CorrectedFpsOf(string unitKey, ViewAnim anim)
+        {
+            var frames = FrameCountOf(unitKey, anim);
+            if (frames <= 0) return FpsOf(unitKey, anim);
+            return FpsOf(unitKey, anim) * RefFrameCountOf(unitKey, anim) / frames;
+        }
+
+        /// <summary>
+        /// 某单位某动作的**官方 `AnimData.d2` 基准帧率** = `25 × animationSpeed / 256`
+        /// （**未含**规范帧数修正 ⇒ 播放侧一律走 <see cref="CorrectedFpsOf"/>）。
+        /// <para>出处：官方 `AnimData.d2` 的 `animationSpeed`（逐单位 × 逐动作 × 逐武器类，
+        /// 生成物 <see cref="AnimRate"/>，生成器 `tools/d2codec/export_animdata.py`）；
+        /// 换算口径同 <see cref="ResPaths.WaypointFrameFps"/>（官方 `Objects.txt` 的 `FrameDelta`
+        /// 用的同一套 1/256 单位：`25 × 200 / 256 = 19.53125`）。</para>
+        /// <para>官方表里**没有**这个单位 / 这个动作 ⇒ <see cref="AnimRate.For"/> 返回 1×
+        /// （<see cref="AnimRate.NormalSpeed"/>）⇒ 25 fps = <see cref="GameConst.AnimBaseFps"/>。</para>
+        /// </summary>
+        public static float FpsOf(string unitKey, ViewAnim anim)
+            => GameConst.AnimBaseFps * SpeedOf(unitKey, anim) / AnimRate.NormalSpeed;
+
+        /// <summary>
+        /// `ViewAnim` → 官方 `AnimData.d2` 的**动作代号**（COF 名的第 3~4 个字符）。
+        /// <para>`NU` 待机 / `WL` 走 / `RN` 跑 / `A1` 攻击 / `SC` 施法 / `GH` 受击 / `DT` 死亡。</para>
+        /// </summary>
+        public static string ModeCodeOf(ViewAnim anim)
         {
             switch (anim)
             {
-                case ViewAnim.Idle: return 6f;
-                case ViewAnim.Walk: return 12f;
-                case ViewAnim.Attack: return 12f;
-                case ViewAnim.Cast: return 10f;
-                case ViewAnim.Hit: return 12f;
-                case ViewAnim.Death: return 8f;
-                //   （口径 = `FpsForCycle`；写成表达式是为了不出现第二份字面量）。
-                case ViewAnim.Run: return FrameCounts[(int)ViewAnim.Run] * GameConst.PlayerWalkSpeed;
-                default:
-                    ViewLog.WarnThrottled("anim.fps.unknown", $"FpsOf: 未登记的动作 {(int)anim} ⇒ 用默认帧率");
-                    return SpriteAnimator.DefaultFps;
+                case ViewAnim.Idle: return "NU";
+                case ViewAnim.Walk: return "WL";
+                case ViewAnim.Run: return "RN";
+                case ViewAnim.Attack: return "A1";
+                case ViewAnim.Cast: return "SC";
+                case ViewAnim.Hit: return "GH";
+                case ViewAnim.Death: return "DT";
+                default: return string.Empty;
             }
         }
 
         /// <summary>
-        /// 动作是否**循环播放**：只有 `Idle` / `Walk` / `Run` 循环（原版 `NU` / `WL` / `RN`
-        /// 都是周期动画 —— 站着呼吸 / 每循环走完一格）。
+        /// 该单位该动作的**官方** animation speed（`AnimRate` 由 `AnimData.d2` 生成）。
+        /// <para>单位代号 = `unitKey` 前两字符的大写（职业 `amazon`→`AM`、怪物 `zm`→`ZM`、
+        /// 装备套键 `amazon/equip/hax`→`AM`）⇒ 与官方 COF 名的命名同形。</para>
+        /// <para>官方表里没有该单位该动作 ⇒ 返回 <see cref="AnimRate.NormalSpeed"/>（= 1×）。</para>
+        /// </summary>
+        public static int SpeedOf(string unitKey, ViewAnim anim)
+        {
+            if (string.IsNullOrEmpty(unitKey) || unitKey.Length < 2) return AnimRate.NormalSpeed;
+            return AnimRate.For(unitKey.Substring(0, 2).ToUpperInvariant(), ModeCodeOf(anim));
+        }
+
+        /// <summary>
+        /// 该单位该动作的**官方时长（秒）** = 帧数 ÷ 播放帧率
+        /// （`LookupCount` 的真实逐单位帧数 ÷ <see cref="CorrectedFpsOf"/>）。
+        /// <para>这是"一个动作占多长时间"的**唯一口径** —— 施法/受击/出手这些"动作占满的时间"
+        /// 一律由它给（原版一个动作模式的生命周期就是它的动画时长）。</para>
+        /// <para>官方表里**没有**这个单位这个动作（帧数 0）⇒ 返回 0（调用方自己决定兜底，
+        /// ⛔ 不许在这里编一个"差不多"的时长）。</para>
+        /// </summary>
+        public static float AnimSecondsOf(string unitKey, ViewAnim anim)
+        {
+            var frames = LookupCount(unitKey, anim);
+            if (frames <= 0) return 0f;
+            var fps = CorrectedFpsOf(unitKey, anim);
+            return fps > 0f ? frames / fps : 0f;
+        }
+
+        /// <summary>
+        /// 该单位该动作的**接触帧时刻（秒）** = 官方 `AnimData.d2` 的 trigger frame ÷ 播放帧率。
+        /// <para>出处：`AnimTrigger`（官方 `AnimData.d2` 记录 +16 起的触发标记：平直下标 k 的非零字节
+        /// = "第 k 帧触发动作事件"，值 1 = 近战接触、值 2 = 投射物出手；生成器
+        /// `tools/d2codec/export_animtrigger.py`）。键的第三维 = **实际播放的帧数**
+        /// （同一单位逐武器类变体的 COF 帧数不同 ⇒ 用真实帧数定位到同一条记录）。</para>
+        /// <para>帧数对不上（装备外观套与官方变体不完全同名）⇒ 用同单位同动作的最近记录按
+        /// <see cref="AnimTrigger.FractionOf"/> 折算；表里整个没有 ⇒ 返回 0（调用方退化为
+        /// "出手即结算"，并在这里留一次 Warn）。</para>
+        /// </summary>
+        public static float AttackContactSecondsOf(string unitKey, ViewAnim anim)
+        {
+            var frames = LookupCount(unitKey, anim);
+            if (frames <= 0) return 0f;
+            var unit = string.IsNullOrEmpty(unitKey) || unitKey.Length < 2
+                ? string.Empty : unitKey.Substring(0, 2).ToUpperInvariant();
+            var mode = ModeCodeOf(anim);
+
+            var trig = AnimTrigger.FrameOf(unit, mode, frames);
+            if (trig >= 0)
+            {
+                var fps = CorrectedFpsOf(unitKey, anim);
+                if (fps > 0f) return trig / fps;
+            }
+
+            var frac = AnimTrigger.FractionOf(unit, mode, frames);
+            if (frac > 0f)
+            {
+                var seconds = AnimSecondsOf(unitKey, anim);
+                if (seconds > 0f) return frac * seconds;
+            }
+
+            ViewLog.WarnOnce("contact.notrigger." + unit + mode,
+                $"AttackContactSecondsOf: AnimData 里没有 {unit} 的 {mode} 触发帧 ⇒ 该单位出手即结算");
+            return 0f;
+        }
+
+        /// <summary>
+        /// 动作是否**循环播放**：只有 `Idle` / `Walk` / `Run` 循环
+        /// （三档都是周期动画：`NU` = 站着呼吸、`WL` / `RN` = 连续迈步）。
         /// <para> 修正（审计 `w3_anim_audit.tsv` 的「walk 循环 / attack 播完回 idle / death 停末帧」
         /// 三项判据）：`Attack`(A1) / `Cast`(SC) / `Hit`(GH) / `Death`(DT) 一律**单次播放**
         /// ① **保持时长 &gt; 动画时长**时动作会**自己重播**（一次出手看见"挥了第二刀"；
-        ///    例：怪物 A1 11 帧 @12fps = 0.92s，而 `MonsterTuning.AttackAnimSeconds` = 0.35s
-        ///    这类参数一旦被调大就会显形）；
+        ///    例：怪物 A1 11 帧 @12fps = 0.92s，而保持时长若小于它就播不完
+        ///    —— 出手/受击的保持时长一律取 `AnimSecondsOf` 的同一个值）；
         /// ② `Hit` 若循环 ⇒ <see cref="SpriteAnimator.Finished"/> **永不为真**
         ///    ⇒ 没法用"受击动画播完"当保持结束条件（玩家受击动作因此只能出 1 帧，见 `ViewModule.TickPlayer`）。</para>
         /// <para>原版语义：一次出手 / 一次施法 / 一次受击 / 一次死亡各播一套动画，播完回到静止。</para>
@@ -159,47 +284,6 @@ namespace Diablo2.Module.View
         public static bool LoopOf(ViewAnim anim)
         {
             return anim == ViewAnim.Idle || anim == ViewAnim.Walk || anim == ViewAnim.Run;
-        }
-
-        /// <summary>
-        /// **每格一个动画循环** ⇒ 该动作的有效帧率 = **帧数 × 速度（格/秒）**。
-        /// <para>出处（原版规律，不是估的）：角色/怪物每个移动动画循环正好走完**一格**
-        /// —— `原版资源/参考工程_Diablerie/.../Engine/IO/D2Formats/AnimData.cs:16-37` 的
-        /// `referenceFrameCount`（`AMWL = 6` / `AMRN = 4`）配合原版走 1.4 格/s、跑 3.0 格/s，
-        /// 得 WL ≈ 6 × 1.4 = 8.4fps、RN = 4 × 3.0 = 12fps（同一"每格一循环"口径）。</para>
-        /// <para>本项目用**自己导出的真实帧数**（亚马逊 WL/RN 都是 8 帧）
-        /// ⇒ 走 8 × 1.4 = 11.2fps、跑 8 × 3.0 = 24fps。</para>
-        /// </summary>
-        /// <param name="frameCount">该单位该动作的**真实**帧数（`FrameCountOf` / `Anim.FrameCount`）。</param>
-        /// <param name="tilesPerSecond">实际移动速度（格/秒）。</param>
-        public static float FpsForCycle(int frameCount, float tilesPerSecond)
-        {
-            return frameCount * tilesPerSecond;
-        }
-
-        /// <summary>
-        /// 把「每格一循环的目标帧率」换算成 <see cref="SpriteAnimator.SpeedScale"/>：
-        /// `SpeedScale = FpsForCycle(帧数, 速度) / baseFps`（`baseFps` = `Play` 时传的 `FpsOf(动作)`）。
-        /// <para>为什么用 `SpeedScale` 而不是改 `Play` 的 fps 参数：`SpriteAnimator.Play` 的**早退判据
-        /// 不比较 fps**（见 `SpriteAnimator.Play` 的注释）⇒ "动作没变、只有速度变了"时新 fps 会被吞掉；
-        /// 而 `SpeedScale` 每帧可改，且**不动帧号与累计时间**（不会把动画打回第 0 帧）。</para>
-        /// <para>参数非法（帧数 ≤ 0 / 速度 ≤ 0 / 基准帧率 ≤ 0）⇒ 恒返回 **1**（不返回 0：
-        /// 0 倍速会让动画停住，比"帧率不准"更糟）。</para>
-        /// </summary>
-        public static float SpeedScaleForCycle(int frameCount, float tilesPerSecond, float baseFps)
-        {
-            if (frameCount <= 0 || tilesPerSecond <= 0f || baseFps <= 0.01f) return 1f;
-            return FpsForCycle(frameCount, tilesPerSecond) / baseFps;
-        }
-
-        /// <summary>
-        /// 是否是**移动类**动作（只有它随速度缩放手感）。
-        /// <para>Idle / Attack / Cast / Hit / Death 一律不许跟着缩放：原版的出招与受击节奏
-        /// 与移动速度无关（`AnimData` 里每个动作一套独立帧率）。</para>
-        /// </summary>
-        public static bool IsMoveAnim(ViewAnim anim)
-        {
-            return anim == ViewAnim.Walk || anim == ViewAnim.Run;
         }
 
         /// <summary>角色的某个动作/方向的帧键数组（单位键 = 职业名小写，与 `CharDir` 同名）。</summary>

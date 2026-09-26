@@ -66,14 +66,15 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 按钮文案（**逐字 = 原版 prefab 的 `m_Text`**）。
-        /// <para>只留原版 4 项里的**第 1 项与第 4 项** —— 用户原话「菜单中，中间那两个既然
-        /// 没开发，就不要那个按钮了」。删掉的两项常量（`Multi` / `Cinematics`）**从本类删除**：
-        /// 常量留着就会出现"常量还在、按钮忘了建"的中间态（离线也查不出来）。</para>
+        /// 仍需**自绘文字**的按钮文案（**逐字 = 原版 prefab 的 `m_Text`**）。
+        /// <para>第 1 项（原版 `SINGLE PLAYER`）的文字改由**原版中文本地化图**
+        /// `SINGLEPLAYER.DC6`（2 tile 拼成的 282×29，图上是同一句话的花体金字）承担 ⇒ 它的常量从本类删除
+        /// （口径同下方"删掉的两项"：常量留着就会出现"常量还在、按钮忘了建"的中间态，离线也查不出来）。</para>
+        /// <para>只留原版 4 项里的**第 4 项** —— 用户原话「菜单中，中间那两个既然没开发，
+        /// 就不要那个按钮了」。`Multi` / `Cinematics` 两个常量亦已从本类删除。</para>
         /// </summary>
         private static class Text
         {
-            public const string Single = "SINGLE PLAYER";
             public const string Exit = "EXIT";
         }
 
@@ -121,9 +122,14 @@ namespace Diablo2.UI
             //      `SINGLE PLAYER` 原版 (0,-17.5)×1.8 = (0,-31.5)、`EXIT` 原版 (0,-152.5)×1.8 = (0,-274.5)。
             //   中间空出来的两行**不补位、不重排**（用户说的是"不要那个按钮"，不是"把下面提上来"）
             //   —— 所以画面上 `EXIT` 仍在原版第 4 槽的位置，不会跑位。
-            UiLayoutFlow.FlowButton.Create(screen, "Single", Text.Single,
+            // 空文案 ⇒ 不建文字标签；文字 = 下面那张原版中文本地化图（图自带 `SINGLE PLAYER` 花体字）
+            UiLayoutFlow.FlowButton.Create(screen, "Single", string.Empty,
                 UiLayoutFlow.WideButtonOrig, UiLayoutFlow.Menu.SinglePos,
                 () => Game.Event.Emit(Events.Fsm.TriggerNewGame));
+            // 整幅 = 2 tile（256×29 + 26×29 = 282×29）；墨迹框 = 图内 y 0..28（28 高）
+            // ⇒ 墨心比图中线**高** 0.5 原版px（= (0+28)/2 − 29/2 = −0.5，向下为正）
+            UiLayoutFlow.BannerOnButton(screen, "SingleArt", ResPaths.BannerSinglePlayer,
+                282f, 29f, 28f, UiLayoutFlow.Menu.SinglePos, -0.5f);
 
             UiLayoutFlow.FlowButton.Create(screen, "Quit", Text.Exit,
                 UiLayoutFlow.WideButtonOrig, UiLayoutFlow.Menu.ExitPos,
@@ -144,8 +150,31 @@ namespace Diablo2.UI
                 UiLayoutFlow.Brand.ByLineColor, UiLayoutFlow.Brand.ByLineSize,
                 UiLayoutFlow.Brand.ByLinePos, forceChi: true);
 
+            WarmUpGamePanelsArt();
+
             // 对照表进日志（每个面板一次）：验收要的「面板 → 原版坐标 → 我们的坐标 → 依据节点名」
             UiLayoutFlow.LogTable(nameof(MainMenuPanel));
+        }
+
+        /// <summary>
+        /// 预热进入游戏世界后才会用到的原版底图：NPC 对话底图 / 对话标题条 / 窗框
+        /// （路径见 <see cref="Core.ResPaths.PanelDialogBack"/> / <see cref="Core.ResPaths.Banner"/>
+        /// / <see cref="Core.ResPaths.PanelBoxFrameSettings"/>）。
+        /// <para>
+        /// 这三张图由对话屏与传送点面板**在各自构建的那一帧**经 `UiArt.SetSprite` 请求；那两屏同帧
+        /// 还有大量贴图请求在途，引擎的加载回调会悬在**在途**状态、当帧不落地，而 `UiImageLoader`
+        /// 的「同路径去重」在在途期间直接返回 ⇒ 调用方无法重试，该合成会话内这两屏只能露占位色。
+        /// 主菜单是进入游戏世界前玩家停留的最后一屏（Boot → MainMenu → CharSelect → Stage），
+        /// 且本屏请求量小 ⇒ 在这里先请求一次，贴图落进引擎缓存后，那两屏的 `SetSprite` 命中缓存、
+        /// 在调用点同步拿到贴图。
+        /// </para>
+        /// <para>`UiArt.WarmUp` 只把资源装进引擎缓存、不建任何控件；素材缺失只留一条 Warn。</para>
+        /// </summary>
+        private static void WarmUpGamePanelsArt()
+        {
+            UiArt.WarmUp(ResPaths.PanelDialogBack);
+            UiArt.WarmUp(ResPaths.Banner("npcspeech_0"));
+            UiArt.WarmUp(ResPaths.PanelBoxFrameSettings);
         }
 
         //   要恢复必须先把过场 CG 真做出来（Bink `.bik` 转码 → `VideoPlayer` 能播）再建回按钮，

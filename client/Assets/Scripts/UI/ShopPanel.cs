@@ -115,6 +115,11 @@ namespace Diablo2.UI
             Build();
             Subscribe();
 
+            // 打开时的**当前页签指示**：页签族的同族约定 = 用「按下帧」表达当前项
+            // （`buyselltabs` 帧 `slot+4`，与任务记录页签 `questtabs` 的 `2n+1` 同一套语义）。
+            // `OnTab` 之外没有别处调 `ApplyTabArt()` ⇒ 若不在打开时补一次，打开面板时「買入」就没有选中指示。
+            ApplyTabArt();
+
             var shop = UiLog.Require<ShopOpenArgs>(param, nameof(ShopPanel));
             if (shop != null) _shop = shop;
             Rebuild(_shop);
@@ -192,20 +197,52 @@ namespace Diablo2.UI
             }
         }
 
-        /// <summary>顶部原版页签（`buyselltabs` 8 帧 = 4 页签 × 常态/按下）。</summary>
+        /// <summary>顶部原版页签（`buyselltabs` 8 帧 = 4 页签 × 常态/按下，**帧序按位置分块**）。</summary>
         private void BuildTabs()
         {
-            for (var i = 0; i < 4; i++)
+            for (var i = 0; i < ResPaths.BuySellTabsCount; i++)
             {
                 var slot = i;
                 var img = UiArt.Panel(transform, "Tab" + i, UiLayoutGame.ShopTabSize,
                     new Vector2(UiLayoutGame.ShopTabX[i], UiLayoutGame.ShopTabY), Color.white, true);
-                UiArt.SetSprite(img, ResPaths.PanelBuySellTabs + "_" + (slot * 2));
+                UiArt.SetSprite(img, ResPaths.BuySellTabsFrame(slot, false));
                 var btn = img.gameObject.AddComponent<Button>();
                 btn.targetGraphic = img;
-                btn.onClick.AddListener(() => OnTab(slot));
+                btn.onClick.AddListener(() =>
+                {
+                    Game.Event.Emit(Events.UiClick);
+                    OnTab(slot);
+                });
+                //   常态 = 帧 `slot`、按下 = 帧 `slot + 4`（帧序的实测依据见 `ResPaths.PanelBuySellTabs`）。
+                //   ⛔ 不是 `slot*2 / slot*2+1` —— 那套是 `questtabs`（烘字交错排）的排法，抄过来会画错图。
+                ApplyTabPressFrame(btn, ResPaths.BuySellTabsFrame(slot, true));
                 _tabHit[i] = img;
             }
+        }
+
+        /// <summary>
+        /// 页签的按下帧（路径已由 <see cref="ResPaths.BuySellTabsFrame"/> 定好：帧 `slot + 4`）。
+        /// 常态帧走 `UiArt.SetSprite`，按下帧后到即补 `SpriteSwap`（与 `UiArt.ApplyCloseButtonArt` 同一口径）。
+        /// </summary>
+        private static void ApplyTabPressFrame(Button btn, string path)
+        {
+            if (btn == null || Game.Res == null)
+            {
+                UiLog.WarnOnce("shop.tab.res", "页签按下帧取不到（Game.Res 未初始化）⇒ 只显示常态帧");
+                return;
+            }
+
+            Game.Res.LoadAsset<Sprite>(path, sp =>
+            {
+                if (btn == null) return;
+                if (sp == null)
+                {
+                    UiLog.Warn($"商店页签按下帧缺失：{path}（保持常态帧）");
+                    return;
+                }
+                btn.transition = Selectable.Transition.SpriteSwap;
+                btn.spriteState = new SpriteState { pressedSprite = sp, highlightedSprite = sp };
+            });
         }
 
         /// <summary>原版 10×10 商品格（格线是底图画好的 ⇒ 只放命中区 + 图标 + 数量 + 价格）。</summary>
@@ -284,8 +321,11 @@ namespace Diablo2.UI
         /// <summary>修理钮的文案：原版该槽只有图形 ⇒ 只作**悬停提示**，不作常显标签。</summary>
         public const string RepairTipText = "修理";
 
-        /// <summary>关闭钮的文案：同上（与本工程关闭钮同源的「关闭」口径）。</summary>
-        public const string CloseTipText = "关闭";
+        /// <summary>
+        /// 关闭钮的文案：同上，且与 `UI/WaypointPanel.CloseText` **同一份原版串**
+        /// （`原版资源/d2text/chi_string.txt` id 4143/4144/4153 = `關閉`）。
+        /// </summary>
+        public const string CloseTipText = "關閉";
 
         /// <summary>
         /// 摘掉方钮的常显文字节点（`Label`）：工厂会顺手建一个（引擎 `UIFactory.CreateButton` 的契约），
@@ -881,7 +921,7 @@ namespace Diablo2.UI
             {
                 if (_tabHit[i] == null) continue;
                 var on = (_sellMode && i == 1) || (!_sellMode && i == 0);
-                UiArt.SetSprite(_tabHit[i], ResPaths.PanelBuySellTabs + "_" + (i * 2 + (on ? 1 : 0)));
+                UiArt.SetSprite(_tabHit[i], ResPaths.BuySellTabsFrame(i, on));
             }
         }
 
@@ -917,6 +957,10 @@ namespace Diablo2.UI
 
         private void OnRepairAll()
         {
+            // 点击音（键 = `SfxRegistry.UiClick` = 原版 `cursor\button.wav`）：`ShopRepairRequest`
+            // 不在音频模块的订阅表里（买/卖走 `ShopBuy/SellRequest`，那一对已出声）⇒ 本支自己发。
+            Game.Event.Emit(Events.UiClick);
+
             if (_shop == null) return;
             if (!_shop.canRepair)
             {
@@ -931,6 +975,9 @@ namespace Diablo2.UI
 
         private void OnCloseShop()
         {
+            // 点击音（键 = `SfxRegistry.UiClick`）：`ShopClose` 不在音频模块的订阅表里 ⇒ 本支自己发。
+            Game.Event.Emit(Events.UiClick);
+
             UiLog.Info("商店被玩家关闭 ⇒ 发 `Events.ShopClose`");
             Game.Event.Emit(Events.ShopClose);
             Game.UI.Close<ShopPanel>();

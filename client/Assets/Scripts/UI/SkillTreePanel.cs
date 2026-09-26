@@ -71,6 +71,36 @@ namespace Diablo2.UI
         /// </summary>
         public static readonly Vector2 IconCellSize = UiLayoutGame.SkillIconCell;
 
+        // ═════════════════════════════════════════════════════════════════════
+        // 说明窗字段行的**容量规则**（原版口径，三个量都可复算）
+        //
+        //   ① 汉字排版步进 = **11 原版px**（原版 font8 `font8.DC6` 13806 帧全 11×11；
+        //      `Fonts/font8_chi_map.txt` 的 `CELL 11 11` 与每行 `advance` 列实测 CJK 恒 11）。
+        //   ② 每行字数 = 可见宽 78 ÷ 11 = **7 汉字**（可见宽出处 = `UiLayoutGame.SkillInfoBox`：
+        //      页 0 木框外沿内缩金饰条 4px）。数字 5 / 斜杠 3 / 减号 3 / 百分号 9（同表 advance 列）。
+        //   ③ 行数 = `SkillDesc.txt` 的 `descline1..6` ⇒ 字段行**最多 6 行**；可见高 97 ÷ 行距 11
+        //      = **8 行**可见（行距出处 = `D2Text.LineSpacing`：font8 无 `.fontsettings`，
+        //      取原版帧高 11，与 libd2 `packages/formats/src/font.zig` L141-146 `lineHeight()` 同口径）。
+        //
+        //   溢出处理 = 原版口径：**先按串里的 `\n` 硬断，再按框宽贪心折行**
+        //   （libd2 `font.zig` L188-216 `breakLine`，工程内实现 = `D2Text.WrapLines`）。
+        //   本屏字段行由 Skill 模块按 78 原版px 切好（标签一行、值一行）⇒ 不触发折行；
+        //   真超宽时**不缩字、不砍字**（照画、压出框沿），并由 `VerifyDescFits` 留痕（不静默）。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>原版 font8 汉字排版步进（原版 px），见本区段 ①。</summary>
+        private const int DescChiStep = 11;
+
+        /// <summary>字段行数上限 = 原版 `SkillDesc.txt` 的 `descline1..6`，见本区段 ③。</summary>
+        private const int DescMaxLines = 6;
+
+        /// <summary>说明窗可见区能容下的行数（97 ÷ 11 = 8），见本区段 ③。</summary>
+        private static readonly int DescMaxVisibleLines = Mathf.FloorToInt(
+            UiLayoutGame.SkillInfoBox.h / D2Text.LineSpacing(D2Text.D2Font.Font8));
+
+        /// <summary>已做过容量核对的技能 id（同一技能只留一次痕）。</summary>
+        private readonly HashSet<int> _descChecked = new HashSet<int>();
+
         private sealed class Node
         {
             /// <summary>透明点击/命中区（尺寸 = 原版节点框 45×50 原版px）。</summary>
@@ -197,6 +227,15 @@ namespace Diablo2.UI
         /// 说明区文字（原版 px → 画布，落在**页 0 顶部木框的可见区**内）。
         /// <para>可见区 = `UiLayoutGame.SkillInfoBox`（木框外沿内缩金饰条 4px ⇒ 78×97 原版px）。
         /// 第一行 = 剩余技能点；其余 = 所点/所悬停技能的「名 / 等级 / 说明」。</para>
+        /// <para>字号 = <see cref="UiLayoutGame.FontPx8"/>（原版 **font8** = 11×1.8 = 19.8 画布px）——
+        /// 全 UI 字号的唯一出处。为什么是这一档：原版说明窗自己的字段标签
+        /// `chi_string.txt:4254`「目前技能等級：」是 **7 个字**（font8 下 7×11 = **77 art**，
+        /// 正好放进 78 art 宽的可见区；font16 下 7×13 = 91 art 放不下）⇒ 原版这个框走 font8。</para>
+        /// <para>换行策略：第一行（剩余技能点）`Overflow`（单行、居中，不折行）；
+        /// 字段行列表 `Wrap` —— 与原版口径一致（数据里的 `\n` 硬断 + 按框宽贪心折行，
+        /// 即 libd2 `font.zig` L188-216 `breakLine`）。字段行由 Skill 模块按 78 原版px 切好
+        /// （标签一行、值一行，见 `SkillDef.descLines`）⇒ 合规数据下**不会触发折行**；
+        /// 真超宽时折到框内，而不是压出框沿（超容量另由 `VerifyDescFits` 留痕）。</para>
         /// <para>两行都不带任何自绘框 —— 框是原版木框自己画的。</para>
         /// </summary>
         private void BuildSkillInfoText()
@@ -205,20 +244,27 @@ namespace Diablo2.UI
             var center = UiLayoutGame.SkillArtToPanel(box.x + box.w * 0.5f, box.y + box.h * 0.5f);
             var size = UiLayoutGame.SkillArtSize(box.w, box.h);
             var lineH = UiLayoutGame.SkillPointsLineH;
+            var fontPx = (int)UiLayoutGame.FontPx8;
 
-            // 剩余技能点：说明区顶行（居中）
-            _points = UiArt.Label(transform, "SkillPoints", string.Empty, 16, TextAnchor.MiddleCenter,
+            // 剩余技能点：说明区顶行（居中）+ 单行不折行
+            //   （`Text.horizontalOverflow` 由 `D2TextMirror` 同步给 `D2Label`；
+            //    `Overflow` 下 `D2Label` 不算 `availPx` ⇒ 永不折行）。
+            //   字模家族显式给 font8（不是只把 font16 的字形缩小）：见 `UiArt.Label` 的 `font` 参数。
+            _points = UiArt.Label(transform, "SkillPoints", string.Empty, fontPx, TextAnchor.MiddleCenter,
                 UiArt.TitleColor, new Vector2(size.x, lineH),
-                new Vector2(center.x, center.y + size.y * 0.5f - lineH * 0.5f));
+                new Vector2(center.x, center.y + size.y * 0.5f - lineH * 0.5f),
+                false, D2Text.D2Font.Font8);
+            _points.horizontalOverflow = HorizontalWrapMode.Overflow;
 
-            // 技能说明：说明区其余部分（左上，自动缩字号保证不出框）
+            // 字段行列表：说明区其余部分（左上）。按框宽 `Wrap`（原版口径，见本方法注释）：
+            //   行的内容由 Skill 模块按 78 art 的可用宽切好（字段名一行、值一行）
+            //   ⇒ 合规数据下 `availPx`(=78 art) 内放得下、不发生折行。
             var restH = size.y - lineH;
-            _desc = UiArt.Label(transform, "SkillDesc", string.Empty, 13, TextAnchor.UpperLeft,
+            _desc = UiArt.Label(transform, "SkillDesc", string.Empty, fontPx, TextAnchor.UpperLeft,
                 UiArt.TextColor, new Vector2(size.x, restH),
-                new Vector2(center.x, center.y + size.y * 0.5f - lineH - restH * 0.5f));
-            _desc.resizeTextForBestFit = true;
-            _desc.resizeTextMinSize = 8;
-            _desc.resizeTextMaxSize = 13;
+                new Vector2(center.x, center.y + size.y * 0.5f - lineH - restH * 0.5f),
+                false, D2Text.D2Font.Font8);
+            _desc.horizontalOverflow = HorizontalWrapMode.Wrap;
         }
 
         /// <summary>
@@ -430,6 +476,11 @@ namespace Diablo2.UI
         /// <summary>点系页签 ⇒ 切换当前系（一屏一系；原版底图第 k 页就是系 k 的完整屏）。</summary>
         private void OnTabClicked(int treeNo)
         {
+            // 点击音（原版 UI 点击音 `cursor\button.wav`，键 = `SfxRegistry.UiClick`）——
+            // 本屏页签**不发任何业务事件**（切系是本面板自己的状态）⇒ 不在这里发就没有声。
+            // 同一条写法见 `UI/ShopPanel.BuildTabs`（商店页签）与 `UI/CharacterPanel` 的加点箭头。
+            Game.Event.Emit(Events.UiClick);
+
             if (treeNo == _treeNo)
             {
                 UiLog.Info($"点技能树「系 {treeNo}」页签 ⇒ 已是当前系，无操作（原版也不重画）");
@@ -479,6 +530,10 @@ namespace Diablo2.UI
 
             ShowSkill(node.SkillIndex);
 
+            // 点击音（键 = `SfxRegistry.UiClick`，原版 `cursor\button.wav`）：本屏技能格**发的是业务事件**
+            // （学技能 / 设按钮技能），音频模块只订阅 `Events.UiClick` 这一条"按钮点击"通道 ⇒ 在这里发。
+            Game.Event.Emit(Events.UiClick);
+
             if (eventData.button == PointerEventData.InputButton.Right)
             {
                 UiLog.Info($"右键技能 {def.id}（{def.name}）⇒ 设为按钮技能（`{Events.SkillSelected}`）");
@@ -511,7 +566,7 @@ namespace Diablo2.UI
             Game.Event.Emit(Events.SkillLearnRequest, def.id);
         }
 
-        /// <summary>把某技能的「名 / 等级 / 说明」写进说明窗（同一技能不重复刷、也不刷屏）。</summary>
+        /// <summary>把某技能的名 + 字段行写进说明窗（同一技能不重复刷、也不刷屏）。</summary>
         private void ShowSkill(int skillIndex)
         {
             if (!_built || _tree?.skills == null) return;
@@ -519,16 +574,87 @@ namespace Diablo2.UI
 
             var def = _tree.skills[skillIndex];
             if (def == null) return;
-
-            var learned = _tree.learnedLevels != null && skillIndex < _tree.learnedLevels.Count
-                ? _tree.learnedLevels[skillIndex] : 0;
-
             if (_shownSkill == skillIndex) return;      // 同一个技能：不重复写
             _shownSkill = skillIndex;
 
-            _desc.text = string.IsNullOrEmpty(def.desc)
-                ? $"{def.name}　{learned}/{def.maxLevel}"
-                : $"{def.name}　{learned}/{def.maxLevel}\n{def.desc}";
+            _desc.text = DescTextOf(def);
+            VerifyDescFits(def);
+        }
+
+        /// <summary>
+        /// 一行的原生宽度（原版 px）：汉字按 <see cref="DescChiStep"/>（font8 帧宽 11）、
+        /// 拉丁按 <see cref="D2Text.Advance"/>（同 `font8_chi_map.txt` 的 `advance` 列）。
+        /// <para>算法与 `D2Text.MeasureNative` 同表同口径，但**不依赖 chi 图集是否已加载**（可离线复算）。</para>
+        /// </summary>
+        private static int LineWidthArt(string line)
+        {
+            if (string.IsNullOrEmpty(line)) return 0;
+
+            var w = 0;
+            for (var i = 0; i < line.Length; i++)
+            {
+                var c = line[i];
+                w += D2Text.IsLatinOnly(c.ToString()) ? D2Text.Advance(D2Text.D2Font.Font8, c) : DescChiStep;
+            }
+            return w;
+        }
+
+        /// <summary>
+        /// 说明窗字段行的容量核对（每技能一次）：行数 &gt; <see cref="DescMaxLines"/>
+        /// 或某行宽 &gt; 可见宽 ⇒ 一条 Warn，写明超了多少原版px。
+        /// <para>超容量**不改渲染**（原版不缩字、不砍字；折行口径见本类「说明窗字段行的容量规则」区段）——
+        /// 这里只保证它**不静默**发生。</para>
+        /// </summary>
+        private void VerifyDescFits(SkillDef def)
+        {
+            var lines = def?.descLines;
+            if (lines == null || lines.Count == 0) return;
+            if (!_descChecked.Add(def.id)) return;
+
+            var avail = UiLayoutGame.SkillInfoBox.w;
+            var widest = 0;
+            var widestLine = string.Empty;
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var w = LineWidthArt(lines[i]);
+                if (w > widest)
+                {
+                    widest = w;
+                    widestLine = lines[i];
+                }
+            }
+
+            var overLines = lines.Count > DescMaxLines;
+            var overWidth = widest > avail;
+            if (overLines || overWidth)
+            {
+                UiLog.Warn($"技能 {def.id}（{def.name}）说明窗字段行超容量："
+                           + $"行数 {lines.Count}/{DescMaxLines}，最宽行「{widestLine}」{widest}/{avail:0.#} 原版px"
+                           + $"（可见 {DescMaxVisibleLines} 行；超出的行照画、压出框沿）");
+                return;
+            }
+
+            UiLog.Info($"技能 {def.id}（{def.name}）说明窗字段行：{lines.Count} 行、最宽 {widest}/{avail:0.#} 原版px"
+                       + $"（上限 {DescMaxLines} 行 / 每行 {avail / DescChiStep:0} 汉字，可见 {DescMaxVisibleLines} 行）");
+        }
+
+        /// <summary>
+        /// 说明窗文字 = 技能名（`skill_c.name`）一行 + `SkillDef.descLines` 的原版字段行。
+        /// <para>字段行**由 Skill 模块算好**（值走既有生产函数）；本面板只拼行、画字，
+        /// 不解析、不补默认值（分层：UI 不 `using Diablo2.Module`）。</para>
+        /// </summary>
+        private static string DescTextOf(SkillDef def)
+        {
+            if (def == null) return string.Empty;
+
+            var lines = def.descLines;
+            var name = def.name ?? string.Empty;
+            if (lines == null || lines.Count == 0) return name;
+
+            var all = new string[lines.Count + 1];
+            all[0] = name;
+            for (var i = 0; i < lines.Count; i++) all[i + 1] = lines[i];
+            return string.Join("\n", all);
         }
 
         // ═════════════════════════════════════════════════════════════════════

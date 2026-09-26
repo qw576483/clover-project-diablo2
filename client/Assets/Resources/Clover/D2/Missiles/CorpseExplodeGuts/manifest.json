@@ -1,0 +1,42 @@
+{
+ "cel": "CorpseExplodeGuts",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\CorpseExplodeGuts.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 4,
+ "framesPerDir": 13,
+ "officialAnimLen": [
+  13
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 1,
+  "nw": 1,
+  "n": 2,
+  "ne": 2,
+  "e": 3,
+  "se": 3
+ },
+ "canvas": {
+  "w": 246,
+  "h": 142,
+  "originX": 123,
+  "originY": 71,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 104
+}

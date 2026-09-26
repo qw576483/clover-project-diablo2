@@ -37,7 +37,7 @@ DICT = os.path.join(ROOT, "原版资源", "简繁词典")
 CORPUS_DIR = os.path.join(ROOT, "原版资源", "d2text")
 OUT_DIR = os.path.join(ROOT, "client", "Assets", "Resources", "Clover", "D2", "Fonts")
 
-SIZES = (16, 24, 30, 42)
+SIZES = (8, 16, 24, 30, 42)
 
 # 字模确无、且无繁体对应的符号 ⇒ 用字模里已有的等价符号（原版语料里也没出现过这些符号）。
 # 为什么会用到：`⇒` 出现在本工程的任务日志提示串里（`QuestLogPanel`）。

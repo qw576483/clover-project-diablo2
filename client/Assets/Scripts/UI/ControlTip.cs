@@ -41,11 +41,17 @@ namespace Diablo2.UI
 
         private readonly RectTransform _node;
         private readonly RectTransform _anchor;
+        private readonly D2Label _label;
 
-        private ControlTip(RectTransform node, RectTransform anchor)
+        /// <summary>当前文案（<see cref="SetText"/> 写；<see cref="Show"/> 按它重算框尺寸）。</summary>
+        private string _text;
+
+        private ControlTip(RectTransform node, RectTransform anchor, D2Label label, string text)
         {
             _node = node;
             _anchor = anchor;
+            _label = label;
+            _text = text ?? string.Empty;
         }
 
         /// <summary>提示节点（面板可继续改它的层次 / 显隐）。</summary>
@@ -83,12 +89,48 @@ namespace Diablo2.UI
             var size = EnemyBarView.NameplateSizeFor(text);
             var bg = UiArt.Panel(parent, NodeName, size, Vector2.zero, EnemyBarView.NameplateBackColor, false);
             bg.rectTransform.pivot = new Vector2(0.5f, 0f);         // 底边中点 ⇒ 见类注释的落点契约
-            D2Label.Create(bg.transform, "Label", text, EnemyBarView.NameplateFont, TextAnchor.MiddleCenter,
-                Color.white, size, Vector2.zero, (int)UiLayoutGame.FontPx16);
+            var label = D2Label.Create(bg.transform, "Label", text, EnemyBarView.NameplateFont,
+                TextAnchor.MiddleCenter, Color.white, size, Vector2.zero, (int)UiLayoutGame.FontPx16);
 
-            var tip = new ControlTip(bg.rectTransform, anchor);
+            var tip = new ControlTip(bg.rectTransform, anchor, label, text);
             tip.Hide();
             return tip;
+        }
+
+        /// <summary>
+        /// 换文案（**值会变**的提示用，例：经验条提示的「經驗： 当前 / 下一级」）。
+        /// 底色板与**排版框**都按新文案的实测值重算（同一套 padding 口径，见 <see cref="ApplySize"/>）；
+        /// 节点 / 文本未建出来 ⇒ 只报一次并保留旧文案（不静默）。
+        /// </summary>
+        public void SetText(string text)
+        {
+            if (_node == null || _label == null)
+            {
+                UiLog.WarnOnce("tip.notext", "控件提示换文案时节点或文本未建出来 ⇒ 本次保留旧文案");
+                return;
+            }
+
+            _text = text ?? string.Empty;
+            _label.SetText(_text);
+            ApplySize();
+        }
+
+        /// <summary>
+        /// 按当前文案重算"底色板 = 排版框"的尺寸。
+        /// <para>三处都要写，缺一处就出缺陷（实测）：`_node.sizeDelta` = 黑底；`_label.Root.sizeDelta`
+        /// = 标签节点；**`_label.size` = D2Label 真正的排版框宽**（`D2Label._size` 在构造时定死，
+        /// 只改前两者 ⇒ 字仍按旧框宽折行）。</para>
+        /// <para>为什么在 <see cref="Show"/> 里再算一次：`EnemyBarView.NameplateSizeFor` 的度量读的是
+        /// chi 字模槽的**实时**状态（`D2Text.Slot`，表未到货时用 `DefaultChiCell` 兜底）⇒ 面板构建那一刻
+        /// 量出的宽度与字模到货后按真实步进排出来的宽度不是同一个数。</para>
+        /// </summary>
+        private void ApplySize()
+        {
+            var size = EnemyBarView.NameplateSizeFor(_text);
+            if (_node != null) _node.sizeDelta = size;
+            if (_label == null) return;
+            if (_label.Root != null) _label.Root.sizeDelta = size;
+            _label.size = size;
         }
 
         /// <summary>按锚控件**当前**位置摆好并显示。</summary>
@@ -105,6 +147,8 @@ namespace Diablo2.UI
                 return;
             }
 
+            // 悬停时刻 chi 字模必然已就绪（面板已跑过若干帧）⇒ 在这里重算一次尺寸，见 ApplySize 的注释。
+            ApplySize();
             _node.anchoredPosition = TopCenterOf(_anchor.anchoredPosition, _anchor.rect.height);
             _node.gameObject.SetActive(true);
         }

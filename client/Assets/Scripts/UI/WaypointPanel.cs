@@ -47,8 +47,11 @@ namespace Diablo2.UI
         /// <summary>原版字串：还没有任何已激活目的地（索引 3991）。</summary>
         public const string EmptyNone = "尚未啟動其他傳送點";
 
-        /// <summary>关闭按钮文案（与 `ShopPanel` 的关闭钮同一口径：项目 UI 文本用中文）。</summary>
-        public const string CloseText = "关闭";
+        /// <summary>
+        /// 关闭钮文案 = **原版串表逐字**：`原版资源/d2text/chi_string.txt` id 4143/4144/4153 = `關閉`
+        /// （与 `ShopPanel.CloseTipText` 同一份串；本工程各屏的关闭钮悬停提示共用这一条）。
+        /// </summary>
+        public const string CloseText = "關閉";
 
         /// <summary>
         /// 目的地按钮（含关闭钮）的**字色** = 既有配色常量 <see cref="UiArt.TitleColor"/>
@@ -227,7 +230,9 @@ namespace Diablo2.UI
             var boxPos = UiLayoutFlow.Px(Layout.BoxPosOrig);
             UiArt.Panel(screen, "Box", boxSize, boxPos, UiArt.PanelBg, true);
             var boxFrame = UiArt.Art(screen, "BoxFrame", ResPaths.PanelBoxFrameSettings, boxSize, boxPos);
-            if (boxFrame != null) boxFrame.color = UiArt.PanelBg;   // 在途占位 = 深色（贴图到位后由 SetSprite 覆写回白）
+            // 深色只在**贴图还没到**时给：到位那一刻 `SetSprite` 会把色调覆写回白；若无条件写色，
+            // 命中引擎缓存（同步回调）时反而会把框涂成深色 ⇒ 深框压深底 = 框看不见。
+            if (boxFrame != null && boxFrame.sprite == null) boxFrame.color = UiArt.PanelBg;
 
             // ④ 标题（原版字模 Font24）
             _title = UiLayoutFlow.FlowLabel.Create(screen, "Title", TitleWaypoint, D2Text.D2Font.Font24,

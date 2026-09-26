@@ -11,7 +11,8 @@
 //   任务完成 ← `Events.QuestCompleted`
 //   复活     ← `Events.Revived`（**复活完成**；发送方 = `App/AppEventRouting.cs`，它保证只在真的复活后广播。
 //              刻意**不**用 `Events.ReviveRequest` —— 那是"点击请求"，播放会早于真实复活）
-//   UI 点击  ← `Events.PanelToggleRequest` / `Events.DialogOptionChosen` / `Events.ShopBuyRequest` / `ShopSellRequest`
+//   UI 点击  ← `Events.UiClick`（按钮点击）/ `Events.PanelToggleRequest` / `Events.DialogOptionChosen`
+//              / `Events.ShopBuyRequest` / `ShopSellRequest`
 //   NPC 对话 ← `Events.DialogOpen`；商店 ← `Events.ShopOpen`
 //   传送     ← `Events.ExitEntered`（踩出入口 / 区域切换前的"嗖"）
 //   进图     ← `Events.StageEntered`
@@ -106,6 +107,7 @@ namespace Diablo2.Module.Audio
             bus.On<int>(Events.QuestCompleted, OnQuestCompleted);                   // 任务完成
             bus.On(Events.Revived, OnRevived);                                      // 复活（完成）
 
+            bus.On(Events.UiClick, OnUiClick);                                      // 按钮点击（不走业务事件的那批）
             bus.On<string>(Events.PanelToggleRequest, OnPanelToggleRequest);        // UI 点击
             bus.On<int>(Events.DialogOptionChosen, OnDialogOptionChosen);           // 对话选项点击
             bus.On<ShopTradeArgs>(Events.ShopBuyRequest, OnShopTradeRequest);       // 买入按钮
@@ -143,6 +145,7 @@ namespace Diablo2.Module.Audio
             bus.Off<int>(Events.QuestCompleted, OnQuestCompleted);
             bus.Off(Events.Revived, OnRevived);
 
+            bus.Off(Events.UiClick, OnUiClick);
             bus.Off<string>(Events.PanelToggleRequest, OnPanelToggleRequest);
             bus.Off<int>(Events.DialogOptionChosen, OnDialogOptionChosen);
             bus.Off<ShopTradeArgs>(Events.ShopBuyRequest, OnShopTradeRequest);
@@ -260,6 +263,9 @@ namespace Diablo2.Module.Audio
         /// 不用 `Events.ReviveRequest`：那是"点击请求"，玩家点了却没复活成功（例如未死亡）时不该出声。
         /// </summary>
         private void OnRevived() => _audio.Sfx(SfxRegistry.PlayerRevive);
+
+        /// <summary>按钮点击（主菜单 / 暂停菜单 / 设置 / 选角 / 创角 …）⇒ 一次点击音。</summary>
+        private void OnUiClick() => _audio.Sfx(SfxRegistry.UiClick);
 
         /// <summary>UI 面板开关请求 ⇒ 一次点击音。</summary>
         private void OnPanelToggleRequest(string panelName) => _audio.Sfx(SfxRegistry.UiClick);

@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Diablo2 · Module/Map/MapGenWildLayout.cs
-// **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_wild_layout.py`）。
+// ⚠️ **本文件是生成物，禁止手改**（生成器：`tools/d2codec/export_wild_layout.py`）。
 //
 // 数据来源 = **原版** `data/global/tiles/ACT1/{OUTDOORS,CAVES}/*.ds1`
 //   （Blizzard North, 2000，取自 d2data.mpq；本项目非商用）。
@@ -15,6 +15,12 @@
 //     **罗格营地的过渡带**。原版引擎把它铺在**野外关卡靠城的那条边**上
 //     （`libd2/.../drlg/outdoors/OutRoom.zig:251-275` + `ActInit.zig:75-83`）。
 // 每块的**四边开通标志**由该块的可走掩码算出，生成器据此挑能"穿过去"的边界块当出入口。
+//
+// 装饰物件（每块的 `DecoCells`/`DecoDs1Ids`）= 该块 ds1 `objects` 层里 kind=2 的**物件预设单位**
+//   （火炬这类；`id` = 该幕 objpreset 的**下标**，不是 `Objects.txt` 的 Id）。格是**块内格**
+//   （行 0 = 块最北，与 `Cells` 同一格坐标口径），落位时再按槽原点与镜像换成本图格。
+//   `id → 物件类（帧数 / 帧率 / 贴图目录）` = `MapGenDeco`（生成器 `tools/d2codec/export_deco.py`，
+//   id 判定表只有那一份）；判不出物件类的 id **不导出**，按 id 汇总记在下面。
 //
 // 三张表（逐格 1:1，不缩不放）：
 //   `Pieces[i].Cells` 每格 2 个字符 = `Alphabet` 下标（行 0 = 块**最北**一行）
@@ -59,6 +65,10 @@
 //   · bord12c      源文件不存在 data/global/tiles/ACT1/OUTDOORS/bord12c.ds1
 //   · bord12o      源文件不存在 data/global/tiles/ACT1/OUTDOORS/bord12o.ds1
 //   · bord12oe     源文件不存在 data/global/tiles/ACT1/OUTDOORS/bord12oe.ds1
+// 未导出的装饰物件 id（判不出物件类，按 id 汇总；不导出也不猜）：
+//   · id=30   ×1
+//   · id=32   ×1
+//   · id=35   ×3
 // ─────────────────────────────────────────────────────────────────────────────
 using UnityEngine;
 
@@ -317,9 +327,17 @@ namespace Diablo2.Module.Map
             /// <summary>`<kind><class><ground6><object6>`（14 字符）组合表；class 见文件头。</summary>
             public readonly string[] Alphabet;
 
+            /// <summary>**装饰物件**：本块 ds1 `objects` 层 kind=2 预设单位的**块内格**
+            /// （行 0 = 块最北，与 <see cref="Cells"/> 同一格坐标口径；落位时按槽原点与镜像换成本图格）。</summary>
+            public readonly Vector2Int[] DecoCells;
+
+            /// <summary>与 <see cref="DecoCells"/> 一一对应的 ds1 `kind=2` id
+            /// （= **该幕 objpreset 的下标**，不是 `Objects.txt` 的 Id；`id → 物件类` 查 `MapGenDeco.IndexOf`）。</summary>
+            public readonly int[] DecoDs1Ids;
+
             public Piece(string name, string source, int group, int pitchW, int pitchH,
                 int sizeW, int sizeH, bool openN, bool openS, bool openW, bool openE,
-                string cells, string[] alphabet)
+                string cells, string[] alphabet, Vector2Int[] decoCells, int[] decoDs1Ids)
             {
                 Name = name;
                 Source = source;
@@ -334,6 +352,8 @@ namespace Diablo2.Module.Map
                 OpenE = openE;
                 Cells = cells;
                 Alphabet = alphabet;
+                DecoCells = decoCells;
+                DecoDs1Ids = decoDs1Ids;
             }
 
             /// <summary>东西向可穿（出入口放在西 / 东边界时用它）。</summary>
@@ -368,6 +388,12 @@ namespace Diablo2.Module.Map
                     "#T015028013014",
                     "#T015028013019",
                     "#T015028013020",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord1b", "LvlPrest Act 1 - Wild Border 1 (variant b)", 0, 8, 8, 9, 9, true, false, false, false,
@@ -396,6 +422,12 @@ namespace Diablo2.Module.Map
                     "#T010000013014",
                     "#T015028013010",
                     "#T015028013009",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord1c", "LvlPrest Act 1 - Wild Border 1 (variant c)", 0, 8, 8, 9, 9, true, false, false, false,
@@ -422,6 +454,12 @@ namespace Diablo2.Module.Map
                     "#S010000------",
                     "#T015028013013",
                     "#T015028013014",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord1o", "LvlPrest Act 1 - Wild Border 1 (variant o)", 0, 8, 8, 9, 9, true, true, false, false,
@@ -453,6 +491,12 @@ namespace Diablo2.Module.Map
                     ".S010022------",
                     ".R015128------",
                     ".R015061------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord1oe", "LvlPrest Act 1 - Wild Border 1 (variant oe)", 0, 8, 8, 9, 9, true, true, false, false,
@@ -485,6 +529,12 @@ namespace Diablo2.Module.Map
                     ".R015130------",
                     ".R015128------",
                     ".R015061------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord2", "LvlPrest Act 1 - Wild Border 2", 0, 8, 8, 9, 9, true, true, false, true,
@@ -510,6 +560,12 @@ namespace Diablo2.Module.Map
                     "#T015028013014",
                     "#T015028013019",
                     "#T010000013020",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord2b", "LvlPrest Act 1 - Wild Border 2 (variant b)", 0, 8, 8, 9, 9, true, true, false, true,
@@ -532,6 +588,12 @@ namespace Diablo2.Module.Map
                     "#T015028013005",
                     "#T015028013016",
                     "#T015028013017",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord2c", "LvlPrest Act 1 - Wild Border 2 (variant c)", 0, 8, 8, 9, 9, true, true, false, true,
@@ -562,6 +624,12 @@ namespace Diablo2.Module.Map
                     "#T015028013005",
                     "#T015028013014",
                     "#S010000------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord2o", "LvlPrest Act 1 - Wild Border 2 (variant o)", 0, 8, 8, 9, 9, true, true, true, true,
@@ -596,6 +664,12 @@ namespace Diablo2.Module.Map
                     "#W015028011003",
                     "#W015035011022",
                     "#W015035011049",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord2oe", "LvlPrest Act 1 - Wild Border 2 (variant oe)", 0, 8, 8, 9, 9, true, true, true, true,
@@ -631,6 +705,12 @@ namespace Diablo2.Module.Map
                     "#W015028011003",
                     "#W015035011022",
                     "#W015035011049",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord3", "LvlPrest Act 1 - Wild Border 3", 0, 8, 8, 9, 9, false, true, true, true,
@@ -652,6 +732,12 @@ namespace Diablo2.Module.Map
                     "#W015035011031",
                     ".R015035------",
                     ".S010029------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord3b", "LvlPrest Act 1 - Wild Border 3 (variant b)", 0, 8, 8, 9, 9, false, true, true, true,
@@ -677,6 +763,12 @@ namespace Diablo2.Module.Map
                     "#W015035011002",
                     ".R015035------",
                     ".S010013------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord3c", "LvlPrest Act 1 - Wild Border 3 (variant c)", 0, 8, 8, 9, 9, false, true, true, true,
@@ -700,6 +792,12 @@ namespace Diablo2.Module.Map
                     "#W015035011031",
                     "#W015035011050",
                     ".R015035------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord3o", "LvlPrest Act 1 - Wild Border 3 (variant o)", 0, 8, 8, 9, 9, true, true, true, true,
@@ -732,6 +830,12 @@ namespace Diablo2.Module.Map
                     "#W015035011041",
                     ".R015063------",
                     ".R015120------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord3oe", "LvlPrest Act 1 - Wild Border 3 (variant oe)", 0, 8, 8, 9, 9, true, true, true, true,
@@ -764,6 +868,12 @@ namespace Diablo2.Module.Map
                     ".R015120------",
                     "#W015035011048",
                     "#W015035011041",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord4", "LvlPrest Act 1 - Wild Border 4", 0, 8, 8, 9, 9, false, false, true, false,
@@ -787,6 +897,12 @@ namespace Diablo2.Module.Map
                     "#T015028013015",
                     "#T015028013016",
                     "#T010000013017",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord4b", "LvlPrest Act 1 - Wild Border 4 (variant b)", 0, 8, 8, 9, 9, false, false, true, false,
@@ -812,6 +928,12 @@ namespace Diablo2.Module.Map
                     ".S010029------",
                     "#T015028013001",
                     "#T015028013002",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord4c", "LvlPrest Act 1 - Wild Border 4 (variant c)", 0, 8, 8, 9, 9, false, false, true, false,
@@ -838,6 +960,12 @@ namespace Diablo2.Module.Map
                     "#T015028013018",
                     "#T015028013019",
                     "#T015028013020",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord4o", "LvlPrest Act 1 - Wild Border 4 (variant o)", 0, 8, 8, 9, 9, false, false, true, true,
@@ -869,6 +997,12 @@ namespace Diablo2.Module.Map
                     "#W015028011003",
                     "#W015028011002",
                     "#W015028011031",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord4oe", "LvlPrest Act 1 - Wild Border 4 (variant oe)", 0, 8, 8, 9, 9, false, false, true, true,
@@ -900,6 +1034,12 @@ namespace Diablo2.Module.Map
                     "#W015028011003",
                     "#W015028011002",
                     "#W015028011031",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord5", "LvlPrest Act 1 - Wild Border 5", 0, 8, 8, 9, 9, true, false, false, false,
@@ -931,6 +1071,12 @@ namespace Diablo2.Module.Map
                     "#T015028013010",
                     "#T015028013017",
                     "#T015028013009",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord6", "LvlPrest Act 1 - Wild Border 6", 0, 8, 8, 9, 9, false, true, false, true,
@@ -956,6 +1102,12 @@ namespace Diablo2.Module.Map
                     ".R015035------",
                     "#T015028013007",
                     "#T015028013008",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord7", "LvlPrest Act 1 - Wild Border 7", 0, 8, 8, 9, 9, false, false, true, false,
@@ -983,6 +1135,12 @@ namespace Diablo2.Module.Map
                     "#W015028011029",
                     "#T015028013019",
                     "#T015028013020",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord8", "LvlPrest Act 1 - Wild Border 8", 0, 8, 8, 9, 9, false, false, false, false,
@@ -1013,6 +1171,12 @@ namespace Diablo2.Module.Map
                     "#T015028013005",
                     "#T015028013002",
                     "#T015028013020",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord9", "LvlPrest Act 1 - Wild Border 9", 0, 8, 8, 9, 9, true, true, false, true,
@@ -1039,6 +1203,12 @@ namespace Diablo2.Module.Map
                     "#T015028013020",
                     "#T015028013004",
                     "#T010000013005",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord10", "LvlPrest Act 1 - Wild Border 10", 0, 8, 8, 9, 9, true, true, true, true,
@@ -1065,6 +1235,12 @@ namespace Diablo2.Module.Map
                     "#W015035011032",
                     "#W015035011049",
                     "#W015035011048",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord11", "LvlPrest Act 1 - Wild Border 11", 0, 8, 8, 9, 9, false, true, true, true,
@@ -1091,6 +1267,12 @@ namespace Diablo2.Module.Map
                     "#W015035011031",
                     "#W015035011048",
                     ".S010029------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "bord12", "LvlPrest Act 1 - Wild Border 12", 0, 8, 8, 9, 9, true, false, true, false,
@@ -1118,6 +1300,12 @@ namespace Diablo2.Module.Map
                     "#T010000013020",
                     "#T015028013008",
                     "#W015028011029",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf2", "LvlPrest Act 1 - Wild Cliff Border 2", 0, 8, 8, 9, 9, true, true, false, true,
@@ -1135,6 +1323,12 @@ namespace Diablo2.Module.Map
                     "#C015035003012",
                     "#C015035003011",
                     "#C015035003010",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf3", "LvlPrest Act 1 - Wild Cliff Border 3", 0, 8, 8, 9, 9, false, true, true, true,
@@ -1152,6 +1346,12 @@ namespace Diablo2.Module.Map
                     "#C015035004011",
                     "#C015035004010",
                     ".R015035------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf5", "LvlPrest Act 1 - Wild Cliff Border 5", 0, 8, 8, 9, 9, true, false, false, false,
@@ -1170,6 +1370,12 @@ namespace Diablo2.Module.Map
                     "#C015028003011",
                     "#C015028003010",
                     "#C015028003009",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf6a", "LvlPrest Act 1 - Wild Cliff Border 6a", 0, 8, 8, 9, 9, false, true, false, true,
@@ -1186,6 +1392,12 @@ namespace Diablo2.Module.Map
                     ".R015035------",
                     "#C015035003010",
                     "#C015035003009",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf6b", "LvlPrest Act 1 - Wild Cliff Border 6b", 0, 8, 8, 9, 9, false, true, false, true,
@@ -1204,6 +1416,12 @@ namespace Diablo2.Module.Map
                     "#C015035003011",
                     "#C015035003010",
                     "#C015035003009",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf6c", "LvlPrest Act 1 - Wild Cliff Border 6c", 0, 8, 8, 9, 9, false, true, false, true,
@@ -1222,6 +1440,12 @@ namespace Diablo2.Module.Map
                     "#C015035004010",
                     "#C015035004009",
                     ".R015035------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf7", "LvlPrest Act 1 - Wild Cliff Border 7", 0, 8, 8, 9, 9, false, false, true, false,
@@ -1240,6 +1464,12 @@ namespace Diablo2.Module.Map
                     "#C015028004010",
                     "#C015028004009",
                     ".R015035------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclf10", "LvlPrest Act 1 - Wild Cliff Border 10", 0, 8, 8, 9, 9, true, true, true, true,
@@ -1258,6 +1488,12 @@ namespace Diablo2.Module.Map
                     "#C015035004011",
                     "#C015035004010",
                     "#C015035005002",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclfL1", "LvlPrest Act 1 - Wild Cliff Border L1", 0, 8, 8, 9, 9, true, false, false, false,
@@ -1276,6 +1512,12 @@ namespace Diablo2.Module.Map
                     "#C015028003006",
                     "#C015028003005",
                     "#C015028003012",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclfL2", "LvlPrest Act 1 - Wild Cliff Border L2", 0, 8, 8, 9, 9, false, true, false, false,
@@ -1294,6 +1536,12 @@ namespace Diablo2.Module.Map
                     "#C015035003005",
                     ".R015035------",
                     "#C015035003012",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclfR1", "LvlPrest Act 1 - Wild Cliff Border R1", 0, 8, 8, 9, 9, false, false, true, false,
@@ -1312,6 +1560,12 @@ namespace Diablo2.Module.Map
                     "#C015028004005",
                     "#C015028004012",
                     ".R015035------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "stnclfR2", "LvlPrest Act 1 - Wild Cliff Border R2", 0, 8, 8, 9, 9, false, true, false, true,
@@ -1330,6 +1584,12 @@ namespace Diablo2.Module.Map
                     "#C015035004005",
                     "#C015035004012",
                     ".R015035------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "clfcave", "LvlPrest Act 1 - Wild Cliff Cave Left", 0, 8, 8, 9, 9, true, true, false, true,
@@ -1355,6 +1615,12 @@ namespace Diablo2.Module.Map
                     "#C015035003007",
                     "#C015035003006",
                     "#C015035003005",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "clfcave2", "LvlPrest Act 1 - Wild Cliff Cave Right", 0, 8, 8, 9, 9, false, true, true, true,
@@ -1380,6 +1646,12 @@ namespace Diablo2.Module.Map
                     ".R015128------",
                     ".R015052------",
                     ".R015061------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild1", "LvlPrest Act 1 - Fence Fill 1", 1, 16, 16, 17, 17, true, true, true, true,
@@ -1436,6 +1708,12 @@ namespace Diablo2.Module.Map
                     "#W015035011009",
                     "#W015035011008",
                     "#W015035011048",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild2", "LvlPrest Act 1 - Fence Fill 1", 1, 16, 16, 17, 17, true, true, true, true,
@@ -1500,6 +1778,12 @@ namespace Diablo2.Module.Map
                     "#W015035011047",
                     "#W015035011012",
                     "#W010012011041",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild3", "LvlPrest Act 1 - Fence Fill 3", 1, 16, 16, 17, 17, true, true, true, true,
@@ -1584,6 +1868,12 @@ namespace Diablo2.Module.Map
                     "#F015035006006",
                     ".R015070------",
                     "#F015069006006",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild4", "LvlPrest Act 1 - Fence Fill 3", 1, 16, 16, 17, 17, true, true, true, true,
@@ -1666,6 +1956,12 @@ namespace Diablo2.Module.Map
                     "#F015035006011",
                     "#F015035006006",
                     "#F015069006006",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild5", "LvlPrest Act 1 - Fence Fill 4", 4, 8, 8, 9, 9, true, true, true, true,
@@ -1708,6 +2004,12 @@ namespace Diablo2.Module.Map
                     "#F015035006010",
                     "#F015035006009",
                     "#F015035006002",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild6", "LvlPrest Act 1 - Fence Fill 5", 2, 16, 8, 17, 9, true, true, true, true,
@@ -1771,6 +2073,12 @@ namespace Diablo2.Module.Map
                     "#F015035006011",
                     "#F015035006006",
                     ".R015069------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild7", "LvlPrest Act 1 - Fence Fill 6", 3, 8, 16, 9, 17, true, true, true, true,
@@ -1832,6 +2140,12 @@ namespace Diablo2.Module.Map
                     "#F015035006008",
                     "#F015035006007",
                     "#F015035006006",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild8", "LvlPrest Act 1 - Fence Fill 2", 3, 8, 16, 9, 17, true, true, true, true,
@@ -1873,6 +2187,12 @@ namespace Diablo2.Module.Map
                     "#W015035011044",
                     "#W015035011041",
                     "#W015035011048",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "wild9", "LvlPrest Act 1 - Fence Fill 2", 3, 8, 16, 9, 17, true, true, true, true,
@@ -1909,6 +2229,12 @@ namespace Diablo2.Module.Map
                     "#W015035011044",
                     "#W015035011041",
                     "#W015035011048",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "trees2", "LvlPrest Act 1 - Tree Fill", 1, 16, 16, 17, 17, true, true, true, true,
@@ -1965,6 +2291,14 @@ namespace Diablo2.Module.Map
                     "#T015035017054",
                     ".R015060------",
                     "#T015035017055",
+                },
+                new Vector2Int[]
+                {
+                    new Vector2Int(6, 6),
+                },
+                new int[]
+                {
+                    1,
                 }),
             new Piece(
                 "trees3", "LvlPrest Act 1 - Tree Fill", 1, 16, 16, 17, 17, true, true, true, true,
@@ -2007,6 +2341,14 @@ namespace Diablo2.Module.Map
                     ".R015061------",
                     ".R015060------",
                     ".R015052------",
+                },
+                new Vector2Int[]
+                {
+                    new Vector2Int(7, 7),
+                },
+                new int[]
+                {
+                    1,
                 }),
             new Piece(
                 "cdr1", "LvlPrest Act 1 - Cave Entrance", 5, 8, 8, 9, 9, true, true, true, true,
@@ -2047,6 +2389,12 @@ namespace Diablo2.Module.Map
                     ".R015062------",
                     "#O007003------",
                     "#O007007------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "cdr2", "LvlPrest Act 1 - Cave Entrance", 5, 8, 8, 9, 9, true, true, true, true,
@@ -2093,6 +2441,12 @@ namespace Diablo2.Module.Map
                     "#O007007------",
                     ".R015051------",
                     ".R015053------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "sc_stone", "LvlSub Type=6 Stone", 6, 8, 8, 11, 16, true, true, true, true,
@@ -2128,6 +2482,12 @@ namespace Diablo2.Module.Map
                     "#S015035010028",
                     "#S015035010027",
                     "#S015027010026",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "sc_trees", "LvlSub Type=6 Trees", 6, 8, 8, 37, 9, false, false, false, false,
@@ -2162,6 +2522,12 @@ namespace Diablo2.Module.Map
                     " T------017037",
                     " T------017028",
                     " T------017055",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "sc_pud", "LvlSub Type=6 Puddles", 6, 8, 8, 10, 7, true, true, true, true,
@@ -2194,6 +2560,12 @@ namespace Diablo2.Module.Map
                     ".X008000------",
                     "#X008013------",
                     ".X008012------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "sc_swamp", "LvlSub Type=6 Swamp Small", 6, 8, 8, 13, 18, true, false, true, false,
@@ -2239,6 +2611,12 @@ namespace Diablo2.Module.Map
                     ".X012018------",
                     ".X012020------",
                     ".X012000------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "sc_swamp2", "LvlSub Type=6 Swamp Big", 6, 8, 8, 23, 16, false, true, false, true,
@@ -2305,6 +2683,12 @@ namespace Diablo2.Module.Map
                     "#X012028------",
                     ".X012029------",
                     ".X012014------",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "sc_obj", "LvlSub Type=6 Wild Objects", 6, 8, 8, 22, 14, false, true, false, true,
@@ -2368,6 +2752,12 @@ namespace Diablo2.Module.Map
                     "#O015006007041",
                     "#O015035007038",
                     "#O015035007037",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
             new Piece(
                 "towne", "LvlPrest Act 1 - Town 1 Transition E", 7, 8, 40, 9, 41, true, true, true, true,
@@ -2419,6 +2809,12 @@ namespace Diablo2.Module.Map
                     "#T015028013010",
                     "#T015028013017",
                     "#T015028013009",
+                },
+                new Vector2Int[]
+                {
+                },
+                new int[]
+                {
                 }),
         };
 

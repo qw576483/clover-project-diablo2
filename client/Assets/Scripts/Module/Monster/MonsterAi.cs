@@ -8,6 +8,8 @@
 //   ③ `Shaman`  —— 萨满：**优先复活已死的同伴**（有冷却、要吃尸体），其余时间与 `Range` 同。
 //   ④ `Coward`  —— 低血逃跑（原版堕落者）：血量 ≤ `CowardFleeHpRatio` 就背向玩家逃一段时间。
 //
+//   0. **两层推进**：**决策**（4 个 AI 函数，每 `aidel` 帧跑一次）只定**移动意图**与"要不要出手"，
+//      位移积分（`Advance` / `StepToward`）每帧由该意图驱动 —— 见 `DispatchTick` / `AdvanceIntent`。
 //   1. **寻路一律走 `IMapModule.FindPath`**（本文件不实现任何寻路），并按
 //      `MonsterTuning.RepathIntervalSeconds` 做**重寻路节流**；
 //   2. **仇恨有时效**：一段时间没挨打/没看见玩家就遗忘（`MonsterTuning.AggroMemorySeconds`），
@@ -46,6 +48,21 @@ namespace Diablo2.Module.Monster
             Attack = 1,
         }
 
+        /// <summary>
+        /// 决策层定下的**移动意图**（推进层每帧按它积分位移；只描述"往哪走"，不含时长）。
+        /// </summary>
+        internal enum AiIntent
+        {
+            /// <summary>原地不动（出手 / 施法 / 等下一次决策）。</summary>
+            None = 0,
+
+            /// <summary>沿路径接近玩家当前格。</summary>
+            Approach = 1,
+
+            /// <summary>朝远离玩家的方向走一步（后撤 / 逃跑共用）。</summary>
+            Retreat = 2,
+        }
+
         // ── 状态骨架的状态名（引擎 `Fsm` 的 key；**字符串常量**，不散落字面量）──────────
         /// <summary>待机：未交战、也不在回原位。</summary>
         private const string PhaseIdle = "Idle";
@@ -79,10 +96,25 @@ namespace Diablo2.Module.Monster
             if (m.AttackTimer > 0f) m.AttackTimer -= dt;
             if (m.RepathTimer > 0f) m.RepathTimer -= dt;
             if (m.ReviveTimer > 0f) m.ReviveTimer -= dt;
+            if (m.AiThinkTimer > 0f) m.AiThinkTimer -= dt;   // 思考节拍恒在走（决策层只在它归零的那一 tick 跑）
+            if (m.FleeTimer > 0f) m.FleeTimer -= dt;         // 逃跑时长每帧走（逃跑位移在推进层）
             if (m.AttackAnimTimer > 0f)
             {
                 m.AttackAnimTimer -= dt;
                 if (m.AttackAnimTimer <= 0f) m.ViewDirty = true;
+            }
+            if (m.PendingAttackTimer > 0f)
+            {
+                // 接触帧结算：挥击在 TryAttack 发起，命中/伤害排期到 A1 的官方触发帧
+                // （`MonsterTuning.AttackContactSecondsOf`）；结算层在那一刻按当时的
+                // 格距/视线重判 ⇒ 玩家已跑出近战格的本次空挥。受击/死亡会清零本计时器
+                // （挥击被打断 ⇒ 不结算）。
+                m.PendingAttackTimer -= dt;
+                if (m.PendingAttackTimer <= 0f)
+                {
+                    m.PendingAttackTimer = 0f;
+                    owner.RequestMonsterAttack(m);
+                }
             }
 
             // ── 受击硬直：不动、不出手（`MonsterModule.ApplyDamage` 设置）──
@@ -123,7 +155,7 @@ namespace Diablo2.Module.Monster
         /// <para>
         /// `Attack` / `Flee` 是"事件点"显式转移的目标，这里**不复算**它们的条件 ——
         /// `Attack` 只活到下一 tick 归位为止；`Flee` 由 `FleeTimer` 决定何时交回 `Chase`
-        /// （该计时器仍由 `Coward` 维护，本方法不碰）。
+        /// （该计时器由 `Step` 每帧递减，本方法不碰）。
         /// </para>
         /// </summary>
         private static string PhaseOf(MonsterRuntime m)
@@ -180,33 +212,69 @@ namespace Diablo2.Module.Monster
         /// </summary>
         private static void DispatchTick(MonsterModule owner, MonsterRuntime m, float dt)
         {
-            m.AiResult = Dispatch(owner, m, m.AiPlayerCenter, m.AiDist, dt);
+            // ── ① 决策层：官方 AI **每 `aidel` 帧才思考一次**（逐怪 `MonsterTuning.AiDelaySecondsOf`）
+            //    ⇒ 出手决定只落在节拍点上 ⇒ 有效间隔 = `ceil(A1 / aidel) × aidel`
+            //    （`MonsterTuning.AttackIntervalSecondsOf` 与判据窗口同源于那一个函数）。
+            //    节拍**只累加、不因出手重置** ⇒ 相位固定，出手被量化到节拍点。
+            if (m.AiThinkTimer <= 0f)
+            {
+                m.AiResult = Decide(owner, m, m.AiPlayerCenter, m.AiDist);
+                m.AiThinkTimer += MonsterTuning.AiDelaySecondsOf(m.State.kindId);
+            }
+
+            // ── ② 推进层：位移每帧照旧积分（决策每拍只更新一次意图，位移不能跟着停）──
+            AdvanceIntent(owner, m, dt);
         }
 
         /// <summary>
-        /// **4 种 AI 的行为分发**（行为与数值的**唯一真相**）。
+        /// 推进层：按决策定下的 <see cref="MonsterRuntime.Intent"/> 积分**本帧**位移。
+        /// <para>每帧跑、不受节拍约束 —— 移动积分若跟着决策一起卡，怪会在两次思考之间被钉在原地。</para>
         /// </summary>
-        private static Action Dispatch(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
+        private static void AdvanceIntent(MonsterModule owner, MonsterRuntime m, float dt)
         {
+            switch (m.Intent)
+            {
+                case AiIntent.Approach:
+                    if (!TryPathTo(owner, m, owner.PlayerGrid)) return;
+                    m.Advance(owner.SpeedOf(m), dt);
+                    return;
+
+                case AiIntent.Retreat:
+                    StepAway(owner, m, m.AiPlayerCenter, dt);
+                    return;
+
+                default:
+                    return;
+            }
+        }
+
+        /// <summary>
+        /// **4 种 AI 的行为分发**（行为与数值的**唯一真相**；每个节拍点跑一次）。
+        /// <para>本方法只**定意图**（<see cref="MonsterRuntime.Intent"/>）与"要不要出手"，不动坐标 ——
+        /// 位移一律由 <see cref="AdvanceIntent"/> 每帧积分，出手由 <see cref="TryAttack"/> 的 A1 闸门把关。</para>
+        /// </summary>
+        private static Action Decide(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist)
+        {
+            m.Intent = AiIntent.None;
             switch (m.State.ai)
             {
                 case MonsterAI.Melee:
-                    return Melee(owner, m, playerCenter, dist, dt);
+                    return Melee(owner, m, playerCenter, dist);
 
                 case MonsterAI.Range:
-                    return Ranged(owner, m, playerCenter, dist, dt);
+                    return Ranged(owner, m, playerCenter, dist);
 
                 case MonsterAI.Shaman:
-                    return Shaman(owner, m, playerCenter, dist, dt);
+                    return Shaman(owner, m, playerCenter, dist);
 
                 case MonsterAI.Coward:
-                    return Coward(owner, m, playerCenter, dist, dt);
+                    return Coward(owner, m, playerCenter, dist);
 
                 default:
                     MonsterLog.WarnThrottled("ai.unknown",
                         $"m#{m.State.id} {m.State.name} 的 AI 类型 {(int)m.State.ai} 未登记" +
                         "（契约只有 Melee/Range/Shaman/Coward）⇒ 按 Melee 处理");
-                    return Melee(owner, m, playerCenter, dist, dt);
+                    return Melee(owner, m, playerCenter, dist);
             }
         }
 
@@ -277,6 +345,7 @@ namespace Diablo2.Module.Monster
             m.AggroMemory = 0f;
             m.Returning = true;
             m.FleeTimer = 0f;
+            m.Intent = AiIntent.None;           // 脱战即丢掉上一拍定下的移动意图（否则回原位期间残留）
             m.ClearPath();
             m.Ai?.Transition(PhaseReturn);      // 事件点：脱战 ⇒ 骨架置 Return（下一 tick 由 PhaseOf 接管）
         }
@@ -333,7 +402,7 @@ namespace Diablo2.Module.Monster
         /// 结算层 `RequestMonsterAttack` 判"线段被不可走地形阻断"时**只打日志就 return**，
         /// 而 `TryAttack` 在**发起前**已经把出手动画 / 出手音效 / 出手计时器都写好了
         /// （`m.AttackTimer` / `m.AttackAnimTimer` / `m.ViewDirty`，见 `TryAttack`）⇒
-        /// 怪每 `AttackIntervalSeconds` 挥一次空、且**永远不知道**自己被拒（死循环）。
+        /// 怪每 `AttackIntervalSecondsOf(kindId)` 挥一次空、且**永远不知道**自己被拒（死循环）。
         /// 现在出手前先用同一把尺子自检：不通 ⇒ **不发起**，改走"绕路"（原版近战怪够不着时
         /// 不会原地挥空）。
         /// </para>
@@ -354,26 +423,28 @@ namespace Diablo2.Module.Monster
             => Diablo2.Module.Combat.CombatModule.AttackLineClear(m.Grid, owner.PlayerGrid);
 
         /// <summary>① 近战：贴上去打。</summary>
-        private static Action Melee(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
+        private static Action Melee(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist)
         {
-            if (AttackDistance(owner, m) <= GameConst.MeleeRange)
-            {
-                //   隔墙/隔水时不发起（否则每次都在结算层被拒 = 挥空），落到下面**绕路**那一支。
-                if (AttackLineClear(owner, m)) return TryAttack(owner, m);
-            }
+            //   隔墙/隔水时不发起（否则每次都在结算层被拒 = 挥空），落到下面**绕路**那一支。
+            if (AttackDistance(owner, m) <= GameConst.MeleeRange && AttackLineClear(owner, m))
+                return TryAttack(owner, m);
 
-            var goal = owner.PlayerGrid;
-            if (!TryPathTo(owner, m, goal)) return Action.None;
-            m.Advance(owner.SpeedOf(m), dt);
+            m.Intent = AiIntent.Approach;
             return Action.None;
         }
 
         /// <summary>② 远程：保持 `RangedKeepDistance` ~ `RangedRange` 的射击距离。</summary>
-        private static Action Ranged(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
+        private static Action Ranged(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist)
         {
             if (dist < MonsterTuning.RangedKeepDistance)
             {
-                if (StepAway(owner, m, playerCenter, dt)) return Action.None;
+                //   退得动就退（本拍只定意图，位移在推进层）；真退不动 ⇒ 落下面"就地射击"那一支。
+                if (CanStepAway(owner, m, playerCenter))
+                {
+                    m.Intent = AiIntent.Retreat;
+                    return Action.None;
+                }
+
                 // 退无可退（角落里）：只能就地射击，而不是站着不动被白打
                 //   被墙挡住时"就地射击"同样会被结算层拒 ⇒ 不发起（原版怪物不隔墙放枪）。
                 if (AttackLineClear(owner, m)) return TryAttack(owner, m);
@@ -386,8 +457,7 @@ namespace Diablo2.Module.Monster
             //   "够不着 **或** 看不见"一律走**靠近**那一支（挪到有视线的格子）。
             if (AttackDistance(owner, m) > RangedAttackDistanceCap || !AttackLineClear(owner, m))
             {
-                if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
-                m.Advance(owner.SpeedOf(m), dt);
+                m.Intent = AiIntent.Approach;
                 return Action.None;
             }
 
@@ -395,7 +465,7 @@ namespace Diablo2.Module.Monster
         }
 
         /// <summary>③ 萨满：优先复活同伴；其余时间按远程节奏施法。</summary>
-        private static Action Shaman(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
+        private static Action Shaman(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist)
         {
             if (m.ReviveTimer <= 0f)
             {
@@ -403,17 +473,19 @@ namespace Diablo2.Module.Monster
                 if (corpseId >= 0)
                 {
                     if (owner.ReviveMonster(corpseId, m)) m.ReviveTimer = MonsterTuning.ShamanReviveCooldownSeconds;
-                    return Action.None;      // 复活是"施法"，本 tick 不再移动/攻击
+                    return Action.None;      // 复活是"施法"，本拍不再移动/攻击
                 }
             }
 
-            if (dist < MonsterTuning.RangedKeepDistance && StepAway(owner, m, playerCenter, dt))
+            if (dist < MonsterTuning.RangedKeepDistance && CanStepAway(owner, m, playerCenter))
+            {
+                m.Intent = AiIntent.Retreat;
                 return Action.None;
+            }
 
             if (AttackDistance(owner, m) > RangedAttackDistanceCap || !AttackLineClear(owner, m))
             {
-                if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
-                m.Advance(owner.SpeedOf(m), dt);
+                m.Intent = AiIntent.Approach;
                 return Action.None;
             }
 
@@ -421,12 +493,12 @@ namespace Diablo2.Module.Monster
         }
 
         /// <summary>④ 逃跑型：低血逃跑（原版堕落者），否则**等同近战**。</summary>
-        private static Action Coward(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist, float dt)
+        private static Action Coward(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, float dist)
         {
+            // 逃跑中（`FleeTimer` 由 `Step` 每帧递减）：继续背向玩家退
             if (m.FleeTimer > 0f)
             {
-                m.FleeTimer -= dt;
-                StepAway(owner, m, playerCenter, dt);
+                m.Intent = AiIntent.Retreat;
                 return Action.None;
             }
 
@@ -439,15 +511,14 @@ namespace Diablo2.Module.Monster
                 MonsterLog.Info($"flee m#{m.State.id} {m.State.name}：hp {m.State.hp}/{m.State.maxHp}" +
                                 $"（{ratio * 100f:0}%）≤ {MonsterTuning.CowardFleeHpRatio * 100f:0}% ⇒ 背向玩家逃跑" +
                                 $"（持续 {MonsterTuning.CowardFleeSeconds:0.0}s）");
-                StepAway(owner, m, playerCenter, dt);
+                m.Intent = AiIntent.Retreat;
                 return Action.None;
             }
 
             if (AttackDistance(owner, m) <= GameConst.MeleeRange && AttackLineClear(owner, m))
                 return TryAttack(owner, m);
 
-            if (!TryPathTo(owner, m, owner.PlayerGrid)) return Action.None;
-            m.Advance(owner.SpeedOf(m), dt);
+            m.Intent = AiIntent.Approach;
             return Action.None;
         }
 
@@ -469,10 +540,43 @@ namespace Diablo2.Module.Monster
                 return false;
             }
 
-            var cur = m.Grid;
-            var best = cur;
-            var bestDist = Vector2.Distance(MonsterRuntime.Center(cur), playerCenter);
+            Vector2Int best;
+            if (!TryPickFartherGrid(owner, m, playerCenter, out best))
+            {
+                MonsterLog.WarnThrottled("ai.nowayout",
+                    $"StepAway: m#{m.State.id} {m.State.name} 被围住/贴边（8 邻里没有更远的可走格）⇒ 退无可退");
+                return false;
+            }
 
+            m.ClearPath();
+            m.StepToward(MonsterRuntime.Center(best), owner.SpeedOf(m), dt);
+            return true;
+        }
+
+        /// <summary>
+        /// 决策层的**纯判定**：本拍退不退得动（不动坐标、不打日志）。
+        /// <para>决策要求"意图"在动手之前就定下来（位移归推进层），所以"退得动吗"必须是可单独求值的问题。</para>
+        /// </summary>
+        private static bool CanStepAway(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter)
+        {
+            Vector2Int best;
+            return TryPickFartherGrid(owner, m, playerCenter, out best);
+        }
+
+        /// <summary>
+        /// 挑一个"比当前格更远离玩家"的可走 8 邻格（**纯判定**，不移动坐标）。
+        /// 只在 8 邻里挑 ⇒ **绝不会把非法格喂给 `FindPath`**（`CloverEngine.AStar` 对非法入参会打限频日志）。
+        /// </summary>
+        /// <returns>true = 有可退的格（写入 <paramref name="best"/>）；false = 退无可退 / 地图未就绪。</returns>
+        private static bool TryPickFartherGrid(MonsterModule owner, MonsterRuntime m, Vector2 playerCenter, out Vector2Int best)
+        {
+            var cur = m.Grid;
+            best = cur;
+
+            var map = owner.Map;
+            if (map == null || !map.IsGenerated) return false;
+
+            var bestDist = Vector2.Distance(MonsterRuntime.Center(cur), playerCenter);
             for (var i = 0; i < Neighbors8.Length; i++)
             {
                 var cand = new Vector2Int(cur.x + Neighbors8[i].x, cur.y + Neighbors8[i].y);
@@ -485,16 +589,7 @@ namespace Diablo2.Module.Monster
                 }
             }
 
-            if (best == cur)
-            {
-                MonsterLog.WarnThrottled("ai.nowayout",
-                    $"StepAway: m#{m.State.id} {m.State.name} 被围住/贴边（8 邻里没有更远的可走格）⇒ 退无可退");
-                return false;
-            }
-
-            m.ClearPath();
-            m.StepToward(MonsterRuntime.Center(best), owner.SpeedOf(m), dt);
-            return true;
+            return best != cur;
         }
 
         /// <summary>
@@ -560,15 +655,25 @@ namespace Diablo2.Module.Monster
             return m.HasRemainingPath || m.Grid == goal;
         }
 
-        /// <summary>出手（受 `AttackIntervalSeconds` 节流）：写攻击动画标记并请 `CombatModule` 结算。</summary>
+        /// <summary>
+        /// 出手：写攻击动画标记并请 `CombatModule` 结算。
+        /// <para>两道节流合起来 = <see cref="MonsterTuning.AttackIntervalSecondsOf"/>（判据窗口同源于那一个函数）：
+        /// ① **思考节拍**（由调用方 `DispatchTick` 保证：本方法只在节拍点被调用，官方 `MonStats.aidel`
+        /// 逐怪出处见 `MonsterTuning.AiDelayFramesByCode` / `AiDelaySecondsOf`）；
+        /// ② `AttackTimer` = 这次出手**动作本身的时长**（A1）—— 动作没播完不能再来一次。</para>
+        /// <para>节拍点落在 A1 之内 ⇒ 那一拍不出手、等下一拍 ⇒ 有效间隔 = `ceil(A1 / aidel) × aidel`。</para>
+        /// </summary>
         private static Action TryAttack(MonsterModule owner, MonsterRuntime m)
         {
             if (m.AttackTimer > 0f) return Action.None;
 
-            m.AttackTimer = MonsterTuning.AttackIntervalSeconds;
-            m.AttackAnimTimer = MonsterTuning.AttackAnimSeconds;
+            m.AttackTimer = MonsterTuning.AttackAnimSecondsOf(m.State.kindId);
+            m.AttackAnimTimer = MonsterTuning.AttackAnimSecondsOf(m.State.kindId);
             m.ViewDirty = true;
-            owner.RequestMonsterAttack(m);
+            owner.PlayAttackSfx(m);             // 出手音随起手帧（挥空也有这一声，与原版一致）
+            var contact = MonsterTuning.AttackContactSecondsOf(m.State.kindId);
+            if (contact > 0f) m.PendingAttackTimer = contact;   // 命中/伤害排期到 A1 接触帧（Step 倒计时）
+            else owner.RequestMonsterAttack(m);                 // 官方表无触发帧 ⇒ 出手即结算
             m.Ai?.Transition(PhaseAttack);      // 事件点：出手 ⇒ 骨架置 Attack（下一 tick 由 PhaseOf 接管）
             return Action.Attack;
         }

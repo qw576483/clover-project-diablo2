@@ -167,6 +167,16 @@ namespace Diablo2.UI
         /// <summary>原版串 **4176**「遊戲選單（Esc）」（原文自带热键后缀）；键位 = `GameKeyAlias.KeyPause`。</summary>
         public const string MiniTipMenu = "遊戲選單（Esc）";
 
+        /// <summary>
+        /// 经验条悬停提示的前缀 = 原版串 **4163**「經驗： %u / %u」的字面部分
+        /// （出处 `原版资源/d2text/chi_string.txt`，两个 `%u` = 当前经验 / 下一级所需；
+        /// 复跑：`Select-String '^4163\t' 原版资源\d2text\chi_string.txt`）。
+        /// <para>原版**确有**这条提示：`ControlPanel.prefab` 的 `TooltipArea` 挂在 `ExperienceBar` 下，
+        /// 吃射线、贴图 alpha 0，挂 `Tooltip`（文案字段是占位英文 `experience bar tooltip`）
+        /// ⇒ 实装文案取同位置的串 4163。</para>
+        /// </summary>
+        public const string ExpTipPrefix = "經驗： ";
+
         public const float BeltCellSize = UiLayoutGame.BeltCellSize;
 
         public const float BeltCellH = UiLayoutGame.BeltCellH;
@@ -244,6 +254,9 @@ namespace Diablo2.UI
 
         /// <summary>小面板 8 个按钮的悬停提示（文案 = <see cref="MiniTipChar"/> 那一族原版串）。</summary>
         private readonly ControlTip[] _miniTips = new ControlTip[UiLayoutGame.MiniButtonCount];
+
+        /// <summary>经验条的悬停提示（文案 = 原版串 4163，值随 `Events.HudDirty` 刷新）。</summary>
+        private ControlTip _expTip;
 
         /// <summary>小面板是否展开（原版靠箭头按钮 `ShowNavigationalBar` 切换；原版默认**收起**）。</summary>
         private bool _miniOpen;
@@ -329,6 +342,7 @@ namespace Diablo2.UI
             _groundLabels?.Destroy();       // ★ 名牌层随 HUD 一起拆（节点不跨局保留）
             _groundLabels = null;
             HideMiniTips();
+            _expTip?.Hide();
             UiLog.Info("HUD 已关闭");
         }
 
@@ -503,7 +517,29 @@ namespace Diablo2.UI
             // 原版 ExpBarOverlay（948×160 → ×1.8 = 1706.4×288）画在填充条之上，只留中间一条透明通道
             var overlay = UiArt.Panel(transform, "ExpBarOverlay", PanelBgSize, ExpOverlayPos, Color.white, false);
             UiArt.SetSprite(overlay, ResPaths.D2UiPanel + "ExperienceBarOverlay");
+
+            // 经验条悬停区（原版 `ControlPanel.prefab` 的 `TooltipArea`：挂在 `ExperienceBar` 下、
+            // 吃射线、贴图 alpha 0、anchors 0..1 + sizeDelta (4,11) ⇒ 比经验条本体四周各放出一点）。
+            // 本项目建成"居中定尺"节点（`ControlTip` 的锚要求），矩形等价 = 本体尺寸 + (4,11) 原版px。
+            // 文案 = 原版串 4163（见 `ExpTipPrefix`），值在 `Refresh` 里随 `PlayerStatsDto` 更新。
+            var tipArea = UiArt.Panel(transform, "ExpBarTipArea",
+                ExpBarSize + UiLayoutGame.ExpBarTipPad * UiLayoutGame.K, ExpBarPos,
+                new Color(1f, 1f, 1f, 0f), true);
+            _expTip = ControlTip.Create(transform, tipArea.rectTransform, ExpTipText(null));
+            var expHover = tipArea.gameObject.AddComponent<HoverTarget>();
+            if (_expTip != null)
+            {
+                expHover.OnEnter = _expTip.Show;
+                expHover.OnExit = _expTip.Hide;
+            }
         }
+
+        /// <summary>
+        /// 经验条悬停文案 = 原版串 4163「經驗： %u / %u」的两个占位（当前经验 / 下一级所需）。
+        /// 纯函数（离线宿主可逐行断言）；快照缺失 ⇒ 两值按 0。
+        /// </summary>
+        public static string ExpTipText(PlayerStatsDto stats)
+            => ExpTipPrefix + (stats != null ? stats.exp : 0) + " / " + (stats != null ? stats.expNext : 0);
 
         private void BuildSkillSlots()
         {
@@ -585,6 +621,9 @@ namespace Diablo2.UI
                     // 点第 i 格 = 按 F(i+1)（原版口径：技能栏格与 F 键同源）
                     UiLog.Info($"技能栏第 {index + 1} 格（F{index + 1}）被点击 ⇒ 发 {Events.SkillSlotAssignRequest}"
                         + $"（槽号 {index + 1}）");
+                    // 命中区是**透明**的（格线画在 `ControlPanel.png` 底图里）⇒ 没有底板态变可看，
+                    // 反馈只有这一声原版按钮音（`cursor\button.wav`）。
+                    Game.Event.Emit(Events.UiClick);
                     Game.Event.Emit(Events.SkillSlotAssignRequest, index + 1);
                 });
 
@@ -805,11 +844,16 @@ namespace Diablo2.UI
             {
                 if (target == PanelNamePause)
                 {
+                    // 本支不发 `PanelToggleRequest`（走的是 PauseRequest）⇒ 点击音要在这里自己发，
+                    // 否则这一颗钮点下去没声（原版 8 颗钮都是同一声 `cursor\button.wav`）。
+                    Game.Event.Emit(Events.UiClick);
                     Game.Event.Emit(Events.PauseRequest);
                     return;
                 }
                 if (target == null)
                 {
+                    // 同上：未实装的两颗钮也要有原版点击音（键盘/鼠标点了同一个钮，反馈应一致）。
+                    Game.Event.Emit(Events.UiClick);
                     UiLog.Warn($"小面板按钮「{tip}」未接线（本项目未实装该界面）⇒ 只打日志");
                     Game.UI.Toast("该界面本项目未实装");
                     return;
@@ -904,6 +948,9 @@ namespace Diablo2.UI
             UiBar.SetRatio(_lifeFill, maxLife > 0 ? (float)life / maxLife : 0f);
             UiBar.SetRatio(_manaFill, maxMana > 0 ? (float)mana / maxMana : 0f);
             UiBar.SetRatio(_expFill, ExpRatio(stats));
+
+            // 经验条悬停文案跟着快照走（原版串 4163 的两个占位 = 当前经验 / 下一级所需）
+            _expTip?.SetText(ExpTipText(stats));
 
             // 文本格式照**原版实机基线图**（中文版）：`生命: 123/123` / `法力: 123/123`
             // —— 出处 `策划/基线图/原版_实机_UI基准_20260923.png`（左下/右下球上文字逐像素可读）。

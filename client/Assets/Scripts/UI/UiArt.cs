@@ -255,6 +255,30 @@ namespace Diablo2.UI
         }
 
         /// <summary>
+        /// **预热**一张原版贴图（只把资源装进引擎缓存，不建任何控件）。
+        /// <para>
+        /// `SetSprite` 走 `Game.Res.LoadAsset`（异步，命中引擎缓存才同步回调）⇒ 在**建件之前**先请求一次，
+        /// 后面的 `SetSprite` 就能在调用点同步拿到贴图。预热用的路径与 `SetSprite` 完全相同，
+        /// 因此预热自身也会占用/复用同一条引擎缓存条目。
+        /// </para>
+        /// <para>未初始化 / 素材缺失 ⇒ 只留一条 Warn（不抛、不阻塞建件；`SetSprite` 仍会自己请求一次）。</para>
+        /// </summary>
+        public static void WarmUp(string spritePath)
+        {
+            if (string.IsNullOrEmpty(spritePath)) return;
+            if (Game.Res == null)
+            {
+                Log.Warn(Tag, $"Game.Res 未初始化 ⇒ 贴图 {spritePath} 未预热（SetSprite 仍会异步请求）");
+                return;
+            }
+
+            Game.Res.LoadAsset<Sprite>(spritePath, sp =>
+            {
+                if (sp == null) Log.Warn(Tag, $"贴图预热未取到：{spritePath}（用它的面板会按占位色显示）");
+            });
+        }
+
+        /// <summary>
         /// 放一条**原版中文标题条**（`data/local/ui/chi/**` 解出的红金标题，见 <see cref="ResPaths.D2UiBanner"/>）。
         /// <para>
         /// 原版这些标题条的宽度各不相同（实测 74/111/148/256 …），写死尺寸必然有的被压扁 ⇒ 给个
@@ -330,7 +354,9 @@ namespace Diablo2.UI
             text.fontSize = (int)UiLayoutGame.FontPx16;
 
             //   引擎 `UIFactory.CreateButton` 造出来的那个 Text 保留为**数据持有者**（font=null、enabled=false）。
-            D2TextMirror.Attach(text, D2Text.FontFor(20), null);
+            //   档位按**上一行真实设的 `fontSize`**（= `FontPx16`）取，不写字面量 20
+            //   （写 20 与"实际 28 号字"不符：今天两者都落 font16，但数值本身是错的）。
+            D2TextMirror.Attach(text, D2Text.FontFor((int)UiLayoutGame.FontPx16), null);
 
             //   见 `ApplyOriginalButtonArt` 的注释（为什么换数据源）。
             // 兜底路径 = 老的「多帧条带 + SpriteSwap」：**只在单帧原版图缺失时**才用它
@@ -572,6 +598,36 @@ namespace Diablo2.UI
         public const string BuySellButtonFramePrefix = ResPaths.PanelBuySellButtonFramePrefix;
 
         /// <summary>
+        /// 给**原版 `PANEL/menubutton.DC6` 箭头**补**按下帧**（常态 = 第 <paramref name="normalFrame"/> 帧、
+        /// 按下 = 它 + 1；帧序出处见 <see cref="ArrowFrame"/>）。
+        /// <para>常态帧由调用方自己贴（<see cref="SetSprite"/>）；本方法只补 `SpriteSwap` 的按下/悬停帧。</para>
+        /// </summary>
+        public static void ApplyArrowPressFrame(Image img, Button btn, int normalFrame)
+        {
+            if (img == null || btn == null) return;
+
+            if (Game.Res == null)
+            {
+                Log.WarnOnce(Tag, "arrow.res.null",
+                    "Game.Res 未初始化 ⇒ 原版箭头按下帧取不到（只显示常态帧）");
+                return;
+            }
+
+            var path = ArrowFrame(normalFrame + 1);
+            Game.Res.LoadAsset<Sprite>(path, sp =>
+            {
+                if (btn == null) return;
+                if (sp == null)
+                {
+                    Log.Warn(Tag, $"原版箭头按下帧缺失：{path}（保持常态帧）");
+                    return;
+                }
+                btn.transition = Selectable.Transition.SpriteSwap;
+                btn.spriteState = new SpriteState { pressedSprite = sp, highlightedSprite = sp };
+            });
+        }
+
+        /// <summary>
         /// 把原版「关闭 / 取消」方钮图形贴到按钮上（常态帧 = <see cref="ResPaths.BuySellButtonFrameClose"/>，
         /// 按下 / 悬停帧 = 它 + 1；路径 = <see cref="BuySellButtonFramePrefix"/>）。
         /// <para>与 `UI/ShopPanel.cs` 的方钮同一条取帧口径（单帧文件；条带子 sprite 按名加载在本工程失效）。
@@ -777,8 +833,14 @@ namespace Diablo2.UI
         /// `by clover-engine` 会被画成 `BY CLOVER-ENGINE`；`font{N}_chi` 的 ASCII 才是真小写。
         /// 实测与出处见 `D2Text.D2Label._forceChi` 的注释。
         /// </param>
+        /// <param name="font">
+        /// 指定的**字模家族**；null = 按 `fontSize` 就近取档（`D2Text.FontFor`）。
+        /// 什么时候必须显式给：**该框在原版里用的就是另一档字模**（例如技能树说明窗只有 78 art 宽，
+        /// 原版自己的字段标签「目前技能等級：」7 字正好等于 font8 的 7 格 ⇒ 那一屏走 font8）；
+        /// 只改 `fontSize` 只会把 font16 的字形**缩放**成小字，不是原版那一档的位图。
+        /// </param>
         public static Text Label(Transform parent, string name, string content, int fontSize, TextAnchor anchor,
-            Color color, Vector2 size, Vector2 pos, bool forceChi = false)
+            Color color, Vector2 size, Vector2 pos, bool forceChi = false, D2Text.D2Font? font = null)
         {
             var rt = UIFactory.CreateCentered(name, parent, size, pos);
             var text = rt.gameObject.AddComponent<Text>();
@@ -790,7 +852,7 @@ namespace Diablo2.UI
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.supportRichText = false;
-            D2TextMirror.Attach(text, D2Text.FontFor(fontSize), null, forceChi);
+            D2TextMirror.Attach(text, font ?? D2Text.FontFor(fontSize), null, forceChi);
             return text;
         }
 

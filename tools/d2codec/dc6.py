@@ -25,7 +25,10 @@
 CLI：
   python dc6.py info  <dc6> [dc6...]              打印头 + 逐帧尺寸
   python dc6.py probe <dir>                       递归扫目录，打印「每帧尺寸」速览（用于认屏）
-  python dc6.py png   <dc6> <pl2> <outdir> [stem] 每帧导出 `{stem}_{i}.png`（i 从 0 起）
+  python dc6.py png   <dc6> <pl2> <outdir> [stem] [--bg auto|<n>]
+                                                  每帧导出 `{stem}_{i}.png`（i 从 0 起）
+                                                  `--bg` 默认不传 = 透明色号取 0（老口径）；
+                                                  `--bg auto` = 按 `background_index()` 逐帧反推
   python dc6.py selfcheck <dc6> <pl2> <ref.png> [frame]
                                                   与参考 PNG 逐像素比对（验证调色板/行序正确）
 """
@@ -204,15 +207,91 @@ def _hflip(indices, w, h):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def frame_rgba(frame, palette):
+# ─────────────────────────────────────────────────────────────────────────────
+#  帧的"背景索引"（= 透明孔的那个色号）
+# ─────────────────────────────────────────────────────────────────────────────
+#  D2 的 DC6 没有 alpha 通道，透明靠"这个像素的调色板色号"来表达。绝大多数件是**索引 0**
+#  （RLE 的跳像素指令也让那些位置留在 0）。但**原版里确实有例外**：`data/global/ui/CURSOR/Gaunt.dc6`
+#  的索引 0 占比 **0%**，它的背景是索引 **15**（占 62.8%）—— 一律按 0 解，会把背景当成图案，
+#  导出一块实心方块（.ai-tmp/test/mpq-enum 的实测记录）。
+#
+#  判据（只看这一帧的像素，不看文件名 / 不写死色号）：
+#    某个色号 i 是本帧背景 ⇔
+#      ① i 的**像素外接矩形 == 整帧**（它铺到四面），且
+#      ② 帧的**上/下/左/右四条边**上，i 都占该边的**多数**像素（> 一半）。
+#  先试 0；0 不成立才在其余色号里找；**候选不唯一 ⇒ 抛错点名** —— 宁可不导，也不导错。
+BG_EDGE_MAJORITY = 0.5
+
+
+def background_index(frame, fallback=None):
+    """返回该帧的背景（透明）色号：`0` 满足判据就是 `0`（默认口径），否则取**唯一**候选。
+
+    判不出来（连 0 一起一个候选都没有）⇒ 返回 `fallback`（不猜、也不装作知道）。
+    **候选多于一个 ⇒ 抛 `ValueError` 点名** —— 这种情况必须有人裁决，不能由本函数代选。
+    `fallback` 默认 `None`，而 `frame_rgba(..., background=None)` 就是既有口径（索引 0）
+    ⇒ `background=background_index(frame)` 这种写法在"判不出"时自动退回索引 0，是安全的。
+    ⛔ 调用点不许写死色号。
+    """
+    w, h, px = frame.width, frame.height, frame.indices
+    minx, miny, maxx, maxy, cnt = {}, {}, {}, {}, {}
+    edge = {}
+    for y in range(h):
+        row = y * w
+        for x in range(w):
+            i = px[row + x]
+            cnt[i] = cnt.get(i, 0) + 1
+            if x < minx.get(i, w):
+                minx[i] = x
+            if x > maxx.get(i, -1):
+                maxx[i] = x
+            if y < miny.get(i, h):
+                miny[i] = y
+            if y > maxy.get(i, -1):
+                maxy[i] = y
+            if y == 0:
+                edge[i] = edge.get(i, 0) + 1
+            if y == h - 1:
+                edge[i] = edge.get(i, 0) + 1
+            if x == 0 or x == w - 1:
+                edge[i] = edge.get(i, 0) + 1
+
+    def _ok(i):
+        if minx.get(i, 1) != 0 or maxx.get(i, -1) != w - 1:
+            return False
+        if miny.get(i, 1) != 0 or maxy.get(i, -1) != h - 1:
+            return False
+        top = sum(1 for x in range(w) if px[x] == i)
+        bot = sum(1 for x in range(w) if px[(h - 1) * w + x] == i)
+        lef = sum(1 for y in range(h) if px[y * w] == i)
+        rig = sum(1 for y in range(h) if px[y * w + w - 1] == i)
+        return (top > w * BG_EDGE_MAJORITY and bot > w * BG_EDGE_MAJORITY
+                and lef > h * BG_EDGE_MAJORITY and rig > h * BG_EDGE_MAJORITY)
+
+    if _ok(0):
+        return 0
+    cands = sorted(i for i in cnt if i != 0 and _ok(i))
+    if len(cands) == 1:
+        return cands[0]
+    if not cands:
+        return fallback
+    raise ValueError("这一帧有多个候选背景索引 %s ⇒ 不猜（%dx%d）" % (cands, w, h))
+
+
+def frame_rgba(frame, palette, background=None):
+    """帧 → RGBA8 字节。
+
+    `background=None` ⇒ 透明色号 = **0**（本模块既有口径，所有老调用点行为不变）；
+    给 int ⇒ 该色号当孔；要自动判定就传 `background_index(frame)`。
+    """
     px = frame.indices
     n = len(px)
+    hole = 0 if background is None else background
     out = bytearray(n * 4)
     for i in range(n):
         idx = px[i]
         o = i * 4
-        if idx == 0:
-            continue                      # 全 0 = 透明
+        if idx == hole:
+            continue                      # 背景色号 = 透明
         r, g, b, _a = palette[idx]
         out[o] = r
         out[o + 1] = g
@@ -522,17 +601,37 @@ def _cmd_probe(argv):
 
 
 def _cmd_png(argv):
-    dc6_path, pl2_path, outdir = argv[0], argv[1], argv[2]
-    stem = argv[3] if len(argv) > 3 else os.path.splitext(os.path.basename(dc6_path))[0]
+    bg = None
+    args = []
+    skip = -1
+    for i in range(len(argv)):
+        if i == skip:
+            continue
+        if argv[i] == "--bg":
+            bg = argv[i + 1]
+            skip = i + 1
+            continue
+        args.append(argv[i])
+    dc6_path, pl2_path, outdir = args[0], args[1], args[2]
+    stem = args[3] if len(args) > 3 else os.path.splitext(os.path.basename(dc6_path))[0]
     d = parse(open(dc6_path, "rb").read())
     pal = read_pl2(pl2_path)
     written = []
     for i, f in enumerate(d.frames):
+        if bg == "auto":
+            hole = background_index(f)
+            if hole is None:
+                print("   帧 %d：背景色号判不出（连索引 0 也不满足判据）⇒ 本帧按默认 0" % i)
+        elif bg is None:
+            hole = None
+        else:
+            hole = int(bg)
         out = os.path.join(outdir, "%s_%d.png" % (stem, i))
-        write_png_rgba(out, frame_rgba(f, pal), f.width, f.height)
-        written.append((out, f.width, f.height))
-    for out, w, h in written:
-        print("WROTE %s  %dx%d" % (out, w, h))
+        write_png_rgba(out, frame_rgba(f, pal, background=hole), f.width, f.height)
+        written.append((out, f.width, f.height, hole))
+    for out, w, h, hole in written:
+        print("WROTE %s  %dx%d  背景色号=%s" % (
+            out, w, h, "0(默认)" if hole is None else hole))
 
 
 def _cmd_compose(argv):

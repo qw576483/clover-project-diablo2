@@ -842,16 +842,44 @@ namespace Uicheck
 
             Check("底图全部来自 ResPaths.D2UiEquipSlot，half ∈ {0,1,2}", spriteOk, "见 InventoryPanel.EquipSlots");
 
-            // 戒指两枚要能被正确区分（同槽多件靠 slotIndex）
+            // 物品 → 槽位必须走 `item_c` 的官方列（`source`/`type`/`subtype`），与
+            //   `Module/Item/Equipment.SlotOf` **逐条同规则** —— `ItemStack` 只有大类 + 格数，
+            //   而圆盾（`armo/shie` 2×2）与帽子（`armo/helm` 2×2）同格、戒指/项链是 `misc` 1×1
+            //   ⇒ 按格数判会让盾进头盔槽、首饰槽永远空着。本节钉的就是这条映射。
+            Check("物品表口径 → 槽位：helm/pelt/phlm/circ→Helm、tors→Armor、shie/ashd→Shield、"
+                  + "glov→Gloves、boot→Boots、belt→Belt、amul→Amulet、ring→Ring、weap→Weapon（tpot 除外），"
+                  + "未登记的 armo type→Armor（与 Equipment.SlotOf 同口径）",
+                InventoryPanel.SlotOfItemRow("armo", "helm", "") == ItemSlot.Helm
+                && InventoryPanel.SlotOfItemRow("armo", "pelt", "") == ItemSlot.Helm
+                && InventoryPanel.SlotOfItemRow("armo", "phlm", "") == ItemSlot.Helm
+                && InventoryPanel.SlotOfItemRow("armo", "circ", "") == ItemSlot.Helm
+                && InventoryPanel.SlotOfItemRow("armo", "tors", "") == ItemSlot.Armor
+                && InventoryPanel.SlotOfItemRow("armo", "shie", "") == ItemSlot.Shield
+                && InventoryPanel.SlotOfItemRow("armo", "ashd", "") == ItemSlot.Shield
+                && InventoryPanel.SlotOfItemRow("armo", "glov", "") == ItemSlot.Gloves
+                && InventoryPanel.SlotOfItemRow("armo", "boot", "") == ItemSlot.Boots
+                && InventoryPanel.SlotOfItemRow("armo", "belt", "") == ItemSlot.Belt
+                && InventoryPanel.SlotOfItemRow("misc", "amul", "") == ItemSlot.Amulet
+                && InventoryPanel.SlotOfItemRow("misc", "ring", "") == ItemSlot.Ring
+                && InventoryPanel.SlotOfItemRow("weap", "swor", "1hs") == ItemSlot.Weapon
+                && InventoryPanel.SlotOfItemRow("weap", "tkax", "tpot") == ItemSlot.None
+                && InventoryPanel.SlotOfItemRow("armo", "head", "") == ItemSlot.Armor
+                && InventoryPanel.SlotOfItemRow("misc", "hpot", "") == ItemSlot.None,
+                "盾（2×2 的 shie）与帽子（2×2 的 helm）按格数判是同一条 ⇒ 必须看 type；"
+                + "戒指/项链是 misc 1×1 ⇒ 用大类判会判成无槽位");
+
+            // 同槽多件（双武器组）靠 slotIndex 区分。本宿主是离线进程、**不加载配表**
+            //   ⇒ 走 `ItemStack.type` 兜底那条路径（武器在两种口径下都是 Weapon）；配表那一半
+            //   由上面的纯函数判据钉住。
             var equip = new List<ItemStack>
             {
-                new ItemStack { name = "戒指A", type = ItemType.Armor, gridW = 1, gridH = 1 },
-                new ItemStack { name = "戒指B", type = ItemType.Armor, gridW = 1, gridH = 1 },
+                new ItemStack { name = "武器A", type = ItemType.Weapon, gridW = 2, gridH = 3 },
+                new ItemStack { name = "武器B", type = ItemType.Weapon, gridW = 2, gridH = 3 },
             };
-            var r0 = InventoryPanel.FindEquipped(equip, ItemSlot.Ring, 0);
-            var r1 = InventoryPanel.FindEquipped(equip, ItemSlot.Ring, 1);
-            Check("同槽多件（双戒指）按 slotIndex 取到不同物品",
-                r0 != null && r1 != null && r0 != r1 && r0.name == "戒指A" && r1.name == "戒指B",
+            var r0 = InventoryPanel.FindEquipped(equip, ItemSlot.Weapon, 0);
+            var r1 = InventoryPanel.FindEquipped(equip, ItemSlot.Weapon, 1);
+            Check("同槽多件（双武器组）按 slotIndex 取到不同物品",
+                r0 != null && r1 != null && r0 != r1 && r0.name == "武器A" && r1.name == "武器B",
                 $"{r0?.name}/{r1?.name}");
 
             Console.WriteLine();

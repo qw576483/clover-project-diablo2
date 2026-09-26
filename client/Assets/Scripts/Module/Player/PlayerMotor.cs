@@ -119,6 +119,16 @@ namespace Diablo2.Module.Player
             return true;
         }
 
+        /// <summary>
+        /// 原地转向目标格（只改朝向，不动路径；同格保持原朝向）。
+        /// 朝向换算走引擎权威表 `Iso.DirectionTo`（与移动逐路点的朝向来源同一张表）。
+        /// </summary>
+        public void FaceTo(Vector2Int grid)
+        {
+            if (grid == _grid) return;
+            _dir = Iso.DirectionTo(_grid, grid);
+        }
+
         /// <summary>停止移动（清空路径）。返回是否真的有路径被清掉。</summary>
         public bool Stop()
         {

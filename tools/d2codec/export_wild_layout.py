@@ -40,10 +40,12 @@ from collections import OrderedDict
 try:
     from . import ds1 as ds1mod
     from . import dt1 as dt1mod
+    from . import export_deco as deco
     from . import export_tiles as exp
 except ImportError:
     import ds1 as ds1mod
     import dt1 as dt1mod
+    import export_deco as deco
     import export_tiles as exp
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -325,8 +327,12 @@ def build(out_path, debug):
 
     grass, dirt = ground_tiles(pack_of, debug)
 
+    # 装饰物件（块内 kind=2 预设单位）：id 判定表与子格换算都走 `export_deco`（口径只有那一份）。
+    exportable = deco.exportable_kinds()
+
     records = []
     skipped = []
+    deco_skipped = {}
     for spec in PIECES:
         src = os.path.join(RAW, spec['rel'].replace('/', os.sep))
         if not os.path.exists(src):
@@ -398,9 +404,14 @@ def build(out_path, debug):
 
         o_n, o_s, o_w, o_e = edge_open(walk, w, h)
         n_walk = sum(1 for r in walk for v in r if v)
+        # 装饰物件：本块 kind=2 预设单位 → 块内格（行 0 = 块最北，与 `Cells` 同一格坐标口径）
+        deco_units, deco_skip = deco.units_of(d, exportable)
+        for _i, _n in deco_skip.items():
+            deco_skipped[_i] = deco_skipped.get(_i, 0) + _n
         rec = dict(spec)
         rec.update(w=w, h=h, kinds=kinds, cls=cls, ground=ground, objects=obj,
-                   open_n=o_n, open_s=o_s, open_w=o_w, open_e=o_e, walkable=n_walk)
+                   open_n=o_n, open_s=o_s, open_w=o_w, open_e=o_e, walkable=n_walk,
+                   deco=deco_units)
         records.append(rec)
         print('  %-10s %-18s %2dx%-3d pitch=%2dx%-3d open=%-4s 可走 %4d/%4d'
               % (spec['name'], os.path.basename(spec['rel']), w, h, spec['pw'], spec['ph'],
@@ -418,7 +429,16 @@ def build(out_path, debug):
     print('  出入口候选（东西向可穿）：%s'
           % ', '.join(r['name'] for r in records if r['open_w'] and r['open_e']) or '-')
 
-    _write_cs(out_path, records, packs, grass, dirt, skipped)
+    deco_total = sum(len(r['deco']) for r in records)
+    print('  装饰物件（ds1 `objects` 层 kind=2 预设单位，块内格）：%d 个' % deco_total)
+    for r in records:
+        if r['deco']:
+            print('    %-10s %s' % (r['name'], ', '.join('(%d,%d)id=%d' % u for u in r['deco'])))
+    if deco_skipped:
+        print('  [未导出] 未登记（判不出物件类）的 ds1 id，按 id 汇总：%s'
+              % ', '.join('id=%d×%d' % (i, n) for i, n in sorted(deco_skipped.items())))
+
+    _write_cs(out_path, records, packs, grass, dirt, skipped, deco_skipped)
     print('  → %s' % out_path)
     return 0
 
@@ -441,6 +461,12 @@ HEADER = '''// ─────────────────────�
 //     （`libd2/.../drlg/outdoors/OutRoom.zig:251-275` + `ActInit.zig:75-83`）。
 // 每块的**四边开通标志**由该块的可走掩码算出，生成器据此挑能"穿过去"的边界块当出入口。
 //
+// 装饰物件（每块的 `DecoCells`/`DecoDs1Ids`）= 该块 ds1 `objects` 层里 kind=2 的**物件预设单位**
+//   （火炬这类；`id` = 该幕 objpreset 的**下标**，不是 `Objects.txt` 的 Id）。格是**块内格**
+//   （行 0 = 块最北，与 `Cells` 同一格坐标口径），落位时再按槽原点与镜像换成本图格。
+//   `id → 物件类（帧数 / 帧率 / 贴图目录）` = `MapGenDeco`（生成器 `tools/d2codec/export_deco.py`，
+//   id 判定表只有那一份）；判不出物件类的 id **不导出**，按 id 汇总记在下面。
+//
 // 三张表（逐格 1:1，不缩不放）：
 //   `Pieces[i].Cells` 每格 2 个字符 = `Alphabet` 下标（行 0 = 块**最北**一行）
 //   `Alphabet` 每条 = `<kind><class><ground6><object6>`（14 字符）
@@ -452,6 +478,8 @@ HEADER = '''// ─────────────────────�
 //   `GrassTiles` / `DirtTiles` = 原版野外地面瓦片（`TOWN/floor.dt1`，按像素均值色分档）
 //
 // 剔除记录（源文件缺失 / 依赖 dt1 读不到）：
+%s
+// 未导出的装饰物件 id（判不出物件类，按 id 汇总；不导出也不猜）：
 %s
 // ─────────────────────────────────────────────────────────────────────────────
 '''
@@ -553,9 +581,17 @@ namespace Diablo2.Module.Map
             /// <summary>`<kind><class><ground6><object6>`（14 字符）组合表；class 见文件头。</summary>
             public readonly string[] Alphabet;
 
+            /// <summary>**装饰物件**：本块 ds1 `objects` 层 kind=2 预设单位的**块内格**
+            /// （行 0 = 块最北，与 <see cref="Cells"/> 同一格坐标口径；落位时按槽原点与镜像换成本图格）。</summary>
+            public readonly Vector2Int[] DecoCells;
+
+            /// <summary>与 <see cref="DecoCells"/> 一一对应的 ds1 `kind=2` id
+            /// （= **该幕 objpreset 的下标**，不是 `Objects.txt` 的 Id；`id → 物件类` 查 `MapGenDeco.IndexOf`）。</summary>
+            public readonly int[] DecoDs1Ids;
+
             public Piece(string name, string source, int group, int pitchW, int pitchH,
                 int sizeW, int sizeH, bool openN, bool openS, bool openW, bool openE,
-                string cells, string[] alphabet)
+                string cells, string[] alphabet, Vector2Int[] decoCells, int[] decoDs1Ids)
             {
                 Name = name;
                 Source = source;
@@ -570,6 +606,8 @@ namespace Diablo2.Module.Map
                 OpenE = openE;
                 Cells = cells;
                 Alphabet = alphabet;
+                DecoCells = decoCells;
+                DecoDs1Ids = decoDs1Ids;
             }
 
             /// <summary>东西向可穿（出入口放在西 / 东边界时用它）。</summary>
@@ -611,9 +649,11 @@ def _b(v):
     return 'true' if v else 'false'
 
 
-def _write_cs(out_path, records, packs, grass, dirt, skipped):
+def _write_cs(out_path, records, packs, grass, dirt, skipped, deco_skipped):
     skip_lines = ['//   · %-12s %s' % (n, r) for n, r in skipped] or ['//   （无）']
-    header = HEADER % '\n'.join(skip_lines)
+    deco_skip_lines = (['//   · id=%-4d ×%d' % (i, n) for i, n in sorted(deco_skipped.items())]
+                       or ['//   （无）'])
+    header = HEADER % ('\n'.join(skip_lines), '\n'.join(deco_skip_lines))
 
     body = []
     for r in records:
@@ -636,6 +676,16 @@ def _write_cs(out_path, records, packs, grass, dirt, skipped):
         body.append('                {')
         for (k, c, g, o) in alphabet.keys():
             body.append('                    "%s%s%s%s",' % (k, c, g, o))
+        body.append('                },')
+        body.append('                new Vector2Int[]')
+        body.append('                {')
+        for (dx, dy, _i) in r['deco']:
+            body.append('                    new Vector2Int(%d, %d),' % (dx, dy))
+        body.append('                },')
+        body.append('                new int[]')
+        body.append('                {')
+        for (_x, _y, i) in r['deco']:
+            body.append('                    %d,' % i)
         body.append('                }),')
 
     text = CLASS_SHELL % (G_BORDER, G_FILL16, G_FILL16X8, G_FILL8X16, G_FILL8,

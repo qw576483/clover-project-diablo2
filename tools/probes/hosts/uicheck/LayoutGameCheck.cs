@@ -618,7 +618,7 @@ namespace Uicheck
                 if (!InPanel(r, CharacterPanel.PanelPos, CharacterPanel.PanelSize)) inside = false;
             Check("原版 9 个行矩形都在面板内", inside, "9/9 在界内");
 
-            Check("补齐行（等级/经验/技能点/命中/格挡/四系抗性）落在原版**空框/空白区**内、不压原版行",
+            Check("补齐行（等级/经验/技能点/命中/格挡/四系抗性）落在原版底图**自己的槽**内、不压原版 9 行",
                 UiLayoutGame.CharBottomRightOrig.Length == 2
                 && UiLayoutGame.CharResistRowOrig.Length == 4
                 && !OverlapsAny(UiLayoutGame.CharTopRightPos, UiLayoutGame.CharTopRightSize, rowRects)
@@ -628,7 +628,9 @@ namespace Uicheck
                 && !OverlapsAny(UiLayoutGame.CharBottomRightOrig[1] * K, UiLayoutGame.CharBottomRightSize, rowRects)
                 && !OverlapsAny(UiLayoutGame.CharResistRowOrig[0] * K, UiLayoutGame.CharResistRowSize, rowRects)
                 && !OverlapsAny(UiLayoutGame.CharResistRowOrig[3] * K, UiLayoutGame.CharResistRowSize, rowRects),
-                "右上凹槽 / 第二排中·右空框 / 右下两细框 / 左下空白区（本项目新增，原版 prefab 无这些行）");
+                "右上凹槽 / 第二排中·右空框 / 右列上起第 3·4 行 / 右列下起 4 行"
+                + "（前 5 项 = 原版底图自己的槽；末项抗性 4 行 = 底图下起 4 行的槽，"
+                + "与原版 prefab 的 9 个行框都不相交）");
 
             // 新增的 3 个空框必须在**面板内**（旧 CharTopRight 尺寸 150×26 时右端已到面板边缘，
             Check("新增空框（右上凹槽 / 第二排中·右）都在面板矩形内",
@@ -794,7 +796,7 @@ namespace Uicheck
             Check("自检 D-1：删掉关闭钮的 hover 接线 ⇒ 接线那条必须变红",
                 cdCheckDiff(cpSrc, noTipSrc) && hoverTipWired(cpSrc) && !hoverTipWired(noTipSrc),
                 "正确样本绿 / 错误样本红");
-            var literalTextSrc = cpSrc.Replace("WaypointPanel.CloseText", "\"关闭\"");
+            var literalTextSrc = cpSrc.Replace("WaypointPanel.CloseText", "\"" + WaypointPanel.CloseText + "\"");
             Check("自检 D-2：文案由既有常量换写成自造字面量 ⇒ 接线那条必须变红",
                 cdCheckDiff(cpSrc, literalTextSrc) && hoverTipWired(cpSrc) && !hoverTipWired(literalTextSrc),
                 "正确样本绿 / 错误样本红");

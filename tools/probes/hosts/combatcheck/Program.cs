@@ -339,6 +339,8 @@ namespace CombatCheck
                 Trace.Marker("hit");
                 var floatsBefore = _view.Floats.Count;
                 _ctx.Combat.RequestAttack(target.id);
+                // 接触帧结算：伤害/三件套发生在 A1 的官方触发帧，不再与起手同帧 ⇒ 推进到接触帧再读
+                _ctx.Combat.Tick(ViewModule.PlayerAttackContactSeconds(_ctx.Player.Class) + 0.05f);
                 var seq = Trace.Since("hit");
 
                 if (_view.Floats.Count > floatsBefore)
@@ -355,7 +357,7 @@ namespace CombatCheck
             Check("出现过一次命中（飘字已产生）", hitWindow != null, hitWindow == null ? "(40 次尝试内未命中)" : "命中");
             if (hitWindow == null) return;
 
-            Console.WriteLine("  本次命中的调用序列（同一次 RequestAttack 内）：");
+            Console.WriteLine("  本次命中的调用序列（同一次挥击内：起手 + 接触帧结算）：");
             for (var i = 0; i < hitWindow.Count; i++) Console.WriteLine("    " + hitWindow[i]);
 
             var hasHp = ContainsStartsWith(hitWindow, "monsterHp:");
@@ -367,7 +369,7 @@ namespace CombatCheck
             Check("① 飘字（ViewModule.ShowFloatingText 被调用）", hasFloat, hasFloat ? "有 float: 记录" : "缺失");
             Check("② 音效钩子（IAudioModule.SfxAt 被调用）", hasSfx, hasSfx ? "有 sfxAt: 记录" : "缺失");
             Check("受击表现（PlayHit 闪白 + Hit 动画）", hasPlayHit, hasPlayHit ? "有 view.PlayHit: 记录" : "缺失");
-            Check("三者出现在**同一次**攻击调用里（不是三次各自触发）",
+            Check("三者出现在**同一次挥击**里（起手 + 接触帧结算，不是三次各自触发）",
                 hasHp && hasFloat && hasSfx, string.Join(" | ", hitWindow));
             Check("目标血量确实下降", target.hp < hpBefore, $"{hpBefore} → {target.hp}");
             Check("飘字颜色是打包的 ARGB（非 0）", _view.LastArgb != 0, "0x" + _view.LastArgb.ToString("X8"));
@@ -440,7 +442,8 @@ namespace CombatCheck
                 PlacePlayerAtDistance(m.Grid(), 5, 7.5f);   // 5 格起步、欧氏 ≤7.5 ⇒ 必在发现半径(8)内
                 var before = DistanceToPlayer(m.Grid());
 
-                //   窗口 = ⌈闭合到出手距离所需秒数⌉ + 事件余量（= 2 × 出手间隔 1.10s = 2.20s，至少 2 次机会）
+                //   窗口 = ⌈闭合到出手距离所需秒数⌉ + 事件余量（= 2 × **该怪自己**的出手间隔，至少 2 次机会）
+                //   出手间隔不手抄：`MonsterTuning.AttackIntervalSecondsOf(m.kindId)`（逐怪官方 A1 动作时长）
                 //   ① 闭合需求 = (起步欧氏距离 − 出手门槛) / 该怪的**格每秒**速度
                 //      · 出手门槛 = `GameConst.MeleeRange` = 1.60 格
                 //        出处 `Core/GameConst.cs:129`；生产侧同一把尺子 `MonsterAi.cs:193`
@@ -456,7 +459,8 @@ namespace CombatCheck
                 //      `attacks > 0`）**一字未改**，也**没有**放宽任何阈值。
                 var tileSpeed = TilesPerSecondOf(m);
                 var needSeconds = Mathf.Max(0f, (before - GameConst.MeleeRange) / tileSpeed);
-                var window = needSeconds + MonsterTuning.AttackIntervalSeconds * 2f;
+                var atkInterval = MonsterTuning.AttackIntervalSecondsOf(m.kindId);
+                var window = needSeconds + atkInterval * 2f;
 
                 TickSim(window);
 
@@ -466,7 +470,7 @@ namespace CombatCheck
                                   $"（官方 MonStats.Velocity，map 单位/秒）= {tileSpeed:0.00} 格/秒）：" +
                                   $"与玩家距离 {before:0.00} → {after:0.00} 格，该怪出手 {attacks} 次" +
                                   $"（窗口 {window:0.00}s = 闭合 {needSeconds:0.00}s + 出手余量 " +
-                                  $"{MonsterTuning.AttackIntervalSeconds * 2f:0.00}s）");
+                                  $"{atkInterval * 2f:0.00}s = 2 × 该怪出手间隔 {atkInterval:0.00}s）");
 
                 if (after < before - 1.0f && attacks > 0)
                 {
@@ -514,7 +518,7 @@ namespace CombatCheck
             //   在窗口**前**的累计量恰为 **0** ⇒ 两种口径当前**同值**（不存在"本来红、被修绿"）。
             //   累计口径就会立刻误判 ⇒ 本条是**隐患消除**；判据行与阈值一字未改，不是放宽。
             var atkBefore = Trace.AttacksBy(m.id);
-            TickSim(EventWindowSeconds(MonsterTuning.RangedKeepDistance / TilesPerSecondOf(m)));
+            TickSim(EventWindowSeconds(MonsterTuning.RangedKeepDistance / TilesPerSecondOf(m), m.kindId));
 
             var after = DistanceToPlayer(m.Grid());
             var attacks = Trace.AttacksBy(m.id) - atkBefore;
@@ -536,7 +540,7 @@ namespace CombatCheck
             PlacePlayerAtDistance(m.Grid(), 2, 4f);     // 贴到 2 格（欧氏 ≤4）⇒ 必触发后撤
             var before = DistanceToPlayer(m.Grid());
             //   （判据 = `after > before + 0.5f` ⇒ 0.5 格；速度算法同 `TilesPerSecondOf` 的出处注释）。
-            TickSim(EventWindowSeconds(0.5f / TilesPerSecondOf(m)));
+            TickSim(EventWindowSeconds(0.5f / TilesPerSecondOf(m), m.kindId));
             var after = DistanceToPlayer(m.Grid());
 
             Console.WriteLine($"  Range 后撤（m#{m.id} {m.name}）：玩家贴到 2 格 ⇒ 距离 {before:0.00} → {after:0.00} 格");
@@ -572,9 +576,9 @@ namespace CombatCheck
             var atkBefore = Trace.AttacksBy(m.id);
 
             //   ÷ 该怪的格每秒速度（算法出处见 `TilesPerSecondOf`）；余量见 `EventWindowSeconds`。
-            //   代入堕落者（`fallen` Velocity=5 ⇒ 1.0 格/秒）= 0.5s + 2.2s = 2.7s
+            //   代入堕落者（`fallen` Velocity=5 ⇒ 1.0 格/秒）= 0.5s + 2 × 0.400s = 1.30s
             //   ⇒ 仍落在 `MonsterTuning.CowardFleeSeconds`(3.0s) 的一次逃跑期内（"逃跑窗口内出手"语义不变）。
-            TickSim(EventWindowSeconds(0.5f / TilesPerSecondOf(m)));
+            TickSim(EventWindowSeconds(0.5f / TilesPerSecondOf(m), m.kindId));
 
             var after = DistanceToPlayer(m.Grid());
             var attacks = Trace.AttacksBy(m.id) - atkBefore;
@@ -848,7 +852,7 @@ namespace CombatCheck
             PlacePlayerAtDistance(shaman.Grid(), 5, 7f);
             //   `MonsterTuning.ShamanReviveCooldownSeconds`（0.6s，= 官方 aidel 15 帧 ÷ 25fps，见其注释）
             //   + 出手余量 ⇒ 覆盖"首个思考帧就复活"与"冷却后才复活"两种情形。
-            TickSim(EventWindowSeconds(MonsterTuning.ShamanReviveCooldownSeconds));
+            TickSim(EventWindowSeconds(MonsterTuning.ShamanReviveCooldownSeconds, shaman.kindId));
 
             Console.WriteLine($"  Shaman（m#{shaman.id} {shaman.name}）复活 m#{companion.id} {companion.name}：" +
                               $"alive={companion.alive} hp={companion.hp}/{companion.maxHp} corpseUsable={companion.corpseUsable}");
@@ -1984,14 +1988,17 @@ namespace CombatCheck
         }
 
         /// <summary>
-        /// 「等一个行为事件」的通用**窗口算式**：`所需秒数` + 事件余量（= 2 × `MonsterTuning.AttackIntervalSeconds`
-        /// = 2.20s，即至少给 2 次出手机会）。
+        /// 「等一个行为事件」的通用**窗口算式**：`所需秒数` + 事件余量（= 2 × 该怪自己的出手间隔，
+        /// 即至少给 2 次出手机会）。
+        /// <para>出手间隔**不手抄**：直接取生产口径 `MonsterTuning.AttackIntervalSecondsOf(kindId)`
+        /// —— 它由生成物给（`SpriteFrameCounts` 的 attack 帧数 ÷ `AnimRate` 的 A1 帧率），**逐怪不同**
+        /// ⇒ 窗口也逐怪不同（`kindId` 是必填参数，就是为了不出现"第二份真值"）。</para>
         /// <para>★ 片 melee-ai-why：本宿主原有多处"固定 N 帧"窗口是**拍的**（无算式出处），
         /// 其中 `AiMelee` 的 `6f` 用了**足以证伪**的短窗口（慢怪 17s 才到出手距离 ⇒ 判据必然量不到出手）。
         /// 统一改成"所需秒数（各调用点标明出处）+ 余量"，判据本身不动、阈值不放宽。</para>
         /// </summary>
-        private static float EventWindowSeconds(float requiredSeconds)
-            => requiredSeconds + MonsterTuning.AttackIntervalSeconds * 2f;
+        private static float EventWindowSeconds(float requiredSeconds, int kindId)
+            => requiredSeconds + MonsterTuning.AttackIntervalSecondsOf(kindId) * 2f;
 
         private static void TickSim(float seconds)
         {
@@ -2699,6 +2706,8 @@ namespace CombatCheck
                 var hp0 = target.hp;
                 var mark = _log.Lines.Count;
                 _ctx.Combat.RequestAttack(target.id);          // ← 生产入口（与左键点怪同一条路）
+                // 接触帧结算：扣血发生在 A1 触发帧 ⇒ 推进到接触帧再判
+                _ctx.Combat.Tick(ViewModule.PlayerAttackContactSeconds(_ctx.Player.Class) + 0.05f);
                 for (var i = mark; i < _log.Lines.Count; i++)
                 {
                     if (_log.Lines[i].Contains("判定形状")) shapeRejects++;
@@ -2727,7 +2736,7 @@ namespace CombatCheck
         /// ① 在真图上找一组「格距 ≤ `GameConst.MeleeRange`（够得着）但 `LineClear` 判不通（看不见）」的
         ///    （怪格, 玩家格）；
         /// ② 逐 tick 采样"该 tick 决策时线段是否被挡"，只把**被挡 tick** 里发生的
-        ///    **出手（音效 = `MonsterModule.RequestMonsterAttack` 的第一句）** 与
+        ///    **出手（音效 = `MonsterModule.PlayAttackSfx`，`MonsterAi.TryAttack` 在起手帧调）** 与
         ///    **结算层拒绝（`monatk.blocked` 日志）** 记进计数；
         /// ③ 断言两者都 == 0（修前：每 1.10s 一次 ⇒ 必然 > 0）。
         /// </para>
@@ -2822,14 +2831,16 @@ namespace CombatCheck
 
             _player.SetGrid(spot, Iso.DirectionTo(spot, target.Grid()));
 
-            // 出手的**可观测标记** = 出手音效（`MonsterModule.RequestMonsterAttack` 在把球交给结算层
-            // **之前**就播了它；被拒的出手也会播 ⇒ 它才是"挥了几次手"的计数器）。
+            // 出手的**可观测标记** = 出手音效（`MonsterAi.TryAttack` 起手帧经 `MonsterModule.PlayAttackSfx`
+            // 播放；接触帧结算在其之后 ⇒ 它才是"挥了几次手"的计数器）。
             var attackKey = MonsterSfx.AttackOf(target) ?? SfxKeys.MonsterAttack;
             const string rejectNeedle = "线段被不可走地形阻断";      // `CombatModule.RequestMonsterAttack` 的拒绝文案
             const string aggroNeedle = "aggro m#";                   // `MonsterAi.UpdateEngagement` 进入仇恨
 
-            // 窗口 = 4 × 出手间隔（= 4.40s ⇒ 修前至少有 4 次出手机会）
-            var steps = (int)(MonsterTuning.AttackIntervalSeconds * 4f / Dt);
+            // 窗口 = 4 × **该怪自己**的出手间隔（`MonsterTuning.AttackIntervalSecondsOf`，逐怪官方 A1 时长
+            // ⇒ 修前至少有 4 次出手机会；⛔ 不手抄秒数）
+            var atkInterval = MonsterTuning.AttackIntervalSecondsOf(target.kindId);
+            var steps = (int)(atkInterval * 4f / Dt);
             var blockedSteps = 0;
             var swingsWhileBlocked = 0;
             var rejectsWhileBlocked = 0;
@@ -2858,7 +2869,7 @@ namespace CombatCheck
             }
 
             Console.WriteLine($"  m#{target.id} {target.name}：窗口 {steps * Dt:0.00}s（4 × 出手间隔 "
-                + $"{MonsterTuning.AttackIntervalSeconds:0.00}s），其中**线段被挡**的决策帧 {blockedSteps}/{steps}；"
+                + $"{atkInterval:0.00}s），其中**线段被挡**的决策帧 {blockedSteps}/{steps}；"
                 + $"被挡帧内出手 {swingsWhileBlocked} 次、结算层拒绝 {rejectsWhileBlocked} 次"
                 + $"（音效键 {attackKey}；全窗口出手 {swingsTotal} 次）");
 
@@ -2866,7 +2877,7 @@ namespace CombatCheck
                 blockedSteps > 0, $"{blockedSteps}/{steps} 帧（阈值 = > 0）");
             Check("★ 线段被阻断时 **出手 0 次**（怪物不再隔墙挥空）",
                 swingsWhileBlocked == 0, $"出手 {swingsWhileBlocked} 次（被挡帧 {blockedSteps}；修前每 "
-                + $"{MonsterTuning.AttackIntervalSeconds:0.00}s 一次 ⇒ 必然 > 0）");
+                + $"{atkInterval:0.00}s 一次 ⇒ 必然 > 0）");
             Check("★ 结算层 **一次都没有** 因线段阻断拒绝（发起方已在出手前自检）",
                 rejectsWhileBlocked == 0, $"被拒 {rejectsWhileBlocked} 次（日志含「{rejectNeedle}」；"
                 + "`WarnThrottled` 只印第 1 次、第 100 次、第 200 次… ⇒ 这个数是**节流后的下限**，0 才是「一次都没有」）");
@@ -2898,10 +2909,10 @@ namespace CombatCheck
 
             _player.SetGrid(open, Iso.DirectionTo(open, a2));
             var sfx0 = SfxCount(attackKey);
-            TickSim(MonsterTuning.AttackIntervalSeconds * 2f);
+            TickSim(atkInterval * 2f);
             var swingsOpen = SfxCount(attackKey) - sfx0;
             Console.WriteLine($"  对照（同距离、无墙）：玩家格 {open}，怪在窗口 "
-                + $"{MonsterTuning.AttackIntervalSeconds * 2f:0.00}s 内出手 {swingsOpen} 次");
+                + $"{atkInterval * 2f:0.00}s 内出手 {swingsOpen} 次");
             Check("★ 对照：线段通畅时同一只怪**会**正常出手（防把正常攻击一起掐掉）",
                 swingsOpen > 0, $"出手 {swingsOpen} 次（阈值 = > 0）");
 
@@ -2927,10 +2938,11 @@ namespace CombatCheck
             _player.SetGrid(adj, Iso.DirectionTo(adj, mg));
             var meleeKey = MonsterSfx.AttackOf(melee) ?? SfxKeys.MonsterAttack;
             var meleeSfx0 = SfxCount(meleeKey);
-            TickSim(MonsterTuning.AttackIntervalSeconds * 2f);
+            var meleeInterval = MonsterTuning.AttackIntervalSecondsOf(melee.kindId);
+            TickSim(meleeInterval * 2f);
             var meleeSwings = SfxCount(meleeKey) - meleeSfx0;
             Console.WriteLine($"  近战对照（贴身、无墙）：玩家格 {adj}，怪在窗口 "
-                + $"{MonsterTuning.AttackIntervalSeconds * 2f:0.00}s 内出手 {meleeSwings} 次");
+                + $"{meleeInterval * 2f:0.00}s 内出手 {meleeSwings} 次");
             Check("★ 20.3 对照：近战贴身（线段必通）**照常出手** —— 新自检没有把近战掐掉",
                 meleeSwings > 0, $"出手 {meleeSwings} 次（阈值 = > 0）");
             Console.WriteLine();

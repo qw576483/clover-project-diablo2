@@ -1,0 +1,42 @@
+{
+ "cel": "BloodSmall01",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\BloodSmall01.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 8,
+ "framesPerDir": 9,
+ "officialAnimLen": [
+  9
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 4,
+  "sw": 0,
+  "w": 5,
+  "nw": 1,
+  "n": 6,
+  "ne": 2,
+  "e": 7,
+  "se": 3
+ },
+ "canvas": {
+  "w": 42,
+  "h": 102,
+  "originX": 21,
+  "originY": 51,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 72
+}

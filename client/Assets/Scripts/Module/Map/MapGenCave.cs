@@ -338,6 +338,26 @@ namespace Diablo2.Module.Map
                     if (tile == TileKind.CaveFloor) walkable++;
                 }
             }
+
+            // ── 装饰物件（原版 ds1 `objects` 层 kind=2 预设单位：火炬）──
+            //   落位口径与瓦片**同一套**（同一槽原点 + 同一南北翻转），只是它是**独立节点**、
+            //   不改可走性（`TileKind` 由该块的瓦片格决定）。`id → 物件类` 查 `MapGenDeco`。
+            for (var k = 0; k < piece.DecoCells.Length; k++)
+            {
+                var c = piece.DecoCells[k];
+                var dcx = si * p + c.x;
+                var dcy = sj * p + (p - 1 - c.y);
+                if (!map.InBounds(dcx, dcy)) continue;
+                var decoKind = MapGenDeco.IndexOf(piece.DecoDs1Ids[k]);
+                if (decoKind < 0)
+                {
+                    MapLog.WarnThrottled("cave.deco.unmapped",
+                        $"MapGenCave: 块 {piece.Name} 的装饰物件 ds1 id={piece.DecoDs1Ids[k]} " +
+                        "在 MapGenDeco 里没有对应物件类 ⇒ 该单位不画（生成物与类表不同源？）");
+                    continue;
+                }
+                map.SetDeco(dcx, dcy, decoKind);
+            }
             return walkable;
         }
 

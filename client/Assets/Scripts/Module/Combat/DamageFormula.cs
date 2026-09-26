@@ -7,13 +7,15 @@
 //
 // ═════════════════════════════════════════════════════════════════════════════
 // ═════════════════════════════════════════════════════════════════════════════
-// 权威表（LoD 1.10 官方 txt，随参考工程一起落盘）：
+// 权威表（LoD 1.10 官方 txt，**本机在盘**）：
 //   `<根>/原版资源/参考工程_Diablerie/d2lod1.10txt/data/global/excel/*.txt`
-//   `<根>/原版资源/参考工程_Diablerie/libd2/packages/game/src/{combat,spell,calc,skills_amazon,montable,monai}.zig`
+// 参考实现（`libd2` = 上游 clean-room Zig 实现 `jaenster/libd2`，本机无副本）：
+//   `https://cdn.jsdelivr.net/gh/jaenster/libd2@main/packages/game/src/{combat,spell,calc,skills_amazon,montable,monai}.zig`
+//   （下文简写 `combat.zig:NN` 等一律指该 URL 下的同名文件）
 //
 // ① 命中率（Chance to Hit）
 //    官方引擎函数 = `DAMAGE_RollAttackHit @0057d9b0`；参考实现逐行移植于
-//    `libd2/packages/game/src/combat.zig:72-108`（函数 `chanceToHit`，注释里给了 RVA 与整数口径）：
+//    `combat.zig:83-108`（函数 `chanceToHit`，注释里给了 RVA 与整数口径）：
 //      负数交叉：def<0 ⇒ ar-=def, def=0；ar<0 ⇒ def-=ar, ar=0；def<0 ⇒ def=0
 //      pct    = (def+ar==0) ? 100 : ar*100/(def+ar)        ← **整数截断**
 //      chance = (alvl+dlvl==0) ? pct : pct*2*alvl/(alvl+dlvl)  ← **整数截断**
@@ -21,7 +23,7 @@
 //
 // ② 物理伤害
 //    官方引擎函数 = `DAMAGE_CalculatePhysicalDamage @0057b420`；参考实现
-//    `combat.zig:149-180`（`rollPhysicalDamage`）：
+//    `combat.zig:150-193`（`rollPhysicalDamage`）：
 //      base   = 武器伤害（无武器则用 mindamage/maxdamage 两个属性）
 //      倍率百比 = 技能 param3(ED%) + damagepercent + str*StrBonus/100 + dex*DexBonus/100  ← **整数截断**
 //      输出   = base + base*倍率百比/100               ← 官方 `D2ApplyPercent`：**截断，不四舍五入**
@@ -47,9 +49,9 @@
 //    （`d2lod1.10txt/.../excel/skills.txt` 的 Critical Strike 行；1.09 经典版同一行也是 `5 / 80`，
 //      见 `<根>/原版资源/d2raw/data/global/excel/skills.txt`）。
 //    整数口径（引擎 `SKILLS_CalcDiminishingReturns @00645b20`）：
-//      `libd2/packages/game/src/calc.zig:33-36`：`divTrunc(divTrunc(110*level, level+6)*(b-a),100)+a`，
+//      `calc.zig:33-36`：`divTrunc(divTrunc(110*level, level+6)*(b-a),100)+a`，
 //      且结果 **上限 = b**（不是 75）。
-//    参考实现的用例（`libd2/.../skills_amazon.zig:123-131`）：1 级=16%、5 级=42%、20 级=68%。
+//    参考实现的用例（`skills_amazon.zig:123-131`）：1 级=16%、5 级=42%、20 级=68%。
 //    注意：新版**没有 75% 上限**（官方只夹到 Param2=80）。
 //
 // ⑥ 技能伤害的等级缩放（`SkillDamageRange`）
@@ -333,7 +335,7 @@ namespace Diablo2.Module.Combat
         // ═════════════════════════════════════════════════════════════════════
         /// <summary>
         /// 官方的**每级伤害分段式**（引擎 `SKILLS_GetDamage`；参考实现逐行移植见
-        /// `libd2/packages/game/src/spell.zig:88-116` 的 `staged`）：
+        /// `spell.zig:88-116` 的 `staged`）：
         /// <code>
         /// a = base
         /// if (l &gt; 28) { a += lev5*(l-28); l = 28; }

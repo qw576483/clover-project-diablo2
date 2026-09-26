@@ -36,10 +36,13 @@
 //          HalfW=1.0 / HalfH=0.5）⇒ 同屏条件 = |dx−dy| ≤ 3.75·aspect = 6.67 且 |dx+dy| ≤ 3.75/0.5 = 7.5；
 //          而 |dx|+|dy| = max(|dx+dy|, |dx−dy|) ⇒ 取紧的那个下界 floor(6.67) = **6** ⇒
 //          「凡是能被玩家看到的格，走过就都记下来」。
-//        · 仍与原版**不同**：原版按**房间**揭示（引擎 `DRLG` 的房间层，本机无载体），
+//        · 仍与原版**不同**：原版按**房间**揭示（引擎 `DRLG` 的房间层，本机无载体）
+//          ⇒ 本项目只按「视野半径 6 格 + 不穿墙 BFS + 墙轮廓」兜底；差异登记 E23 ④。
 //     ③ **标记图标语义**：`MINIMAP/mapicons.DC6` 8 帧是白色模板且无权威语义映射
-//        ⇒ 仍统一用帧 0 + 本项目色调（登记为缺口），只把**位置**口径照原版 blit。
-//     ④ 面板底色（半透明黑）沿用旧表现（原版不透明度无载体；登记）。
+//        ⇒ 仍统一用帧 0（登记为缺口），只把**位置**口径照原版 blit；
+//        色调 = <see cref="MiniMapPanel.MarkerTint"/>（由在盘的原版实机基线图逐像素实测）。
+//     ④ 叠加层 = 满屏 automap 贴图，无窗口框（原版 automap 是满屏叠加层）；
+//        **不压暗游戏画面**（用户报的 U46「背景不用压暗」，见 `BackdropAlpha` 的注释）。
 //
 // 数据来源（**零模块耦合**）：`Events.MapGenerated`（`Def.MinimapArgs`，含逐格 Cel）
 //   + `Events.PlayerGridChanged`（`Vector2Int`）+ **`Events.MapExplored`**（`IReadOnlyCollection<Vector2Int>`，
@@ -81,16 +84,36 @@ namespace Diablo2.UI
     public class MiniMapPanel : UIPanel
     {
         /// <summary>
-        /// 叠加层底色不透明度（沿用旧表现；原版该值**无载体** ⇒ 登记 E23 残余）。
-        /// 未探索的格是**透明**的 ⇒ 游戏画面透出来（原版 automap 只画已探索部分）。
+        /// 叠加层**底色不透明度**。**0 = 不建那一层**（`Build()` 里 `alpha &gt; 0` 才建满屏黑块）。
+        /// <para>
+        /// **为什么不压暗**：用户报的 U46 原话是「tab 渲染地图不对，**背景不用压暗**」（登记见
+        /// `策划/自审对比/bug清单.md` 第 103 行，处置栏写的就是 `UI/MiniMapPanel.cs（BackdropAlpha=0）`）；
+        /// `tools/probes/hosts/uicheck` 的 U4 / ⑤ 两条断言据此要求本值 `== 0`。
+        /// </para>
+        /// <para>
+        /// **另有一条待查的轴（与本值无关，⛔ 不许靠压暗世界去凑）**：原版 automap 图
+        /// （`策划/基线图/原版_实机_HUD+automap_20260923.png`，**地牢**场景）地图区的「亮线 / 底衬」= 6.73
+        /// （灰度中位 11、97 分位 74），而本项目未压暗时 = 2.94（亮线均值 94.4 / 差集外地表均值 32.1）。
+        /// 这个差额应在**地图线本身的亮度与"已探索"揭示密度**上找答案；两张图不是同一场景
+        /// （原版那张的地表本身就暗），**做不了定量对账**，故不作为本值（世界压暗）的依据。
+        /// </para>
         /// </summary>
-        public const float BackdropAlpha = 0f;      // ★ U4：原版 automap 不压暗（见上）；>0 ⇒ Build() 建满屏黑块
+        public const float BackdropAlpha = 0f;
 
-        /// <summary>出入口标记的**图标色调**（本项目选定，见文件头 ③；原版 8 帧是白模板，必须上色）。</summary>
-        public static readonly Color MarkerExitTint = new Color(0.95f, 0.85f, 0.35f, 1f);
-
-        /// <summary>可交互（NPC / 洞穴口）标记的**图标色调**（本项目选定，见文件头 ③）。</summary>
-        public static readonly Color MarkerInteractTint = new Color(0.42f, 0.62f, 0.95f, 1f);
+        /// <summary>
+        /// 标记图标的**色调**（原版图标帧是白色模板，必须上色 —— 见文件头 ③）。
+        /// <para>
+        /// 取值出处 = **本机在盘的原版实机基线图逐像素实测**：
+        /// `策划/基线图/原版_automap_实机截图_20260923.png` 里 5 处标记图标窗口（(170,255) /
+        /// (620,345) / (845,335) 三个窗口命中）的暖像素均值 = RGB(192,144,68)、
+        /// 亮核（亮度前 30%）均值 = RGB(232,188,95) ⇒ 归一化 **0.91 / 0.74 / 0.37**。
+        /// </para>
+        /// <para>
+        /// **出入口与可交互共用同一个色**：原版 automap 的标记图标**只有这一种金色**，
+        /// 没有第二种色调 ⇒ 不按类别分色（分色会是本项目自创的语义）。
+        /// </para>
+        /// </summary>
+        public static readonly Color MarkerTint = new Color(0.91f, 0.74f, 0.37f, 1f);
 
         private bool _built;
         private bool _subscribed;
@@ -168,16 +191,15 @@ namespace Diablo2.UI
             if (_built) return;
             _built = true;
 
-            // ① 叠加层底：**铺满画布**（原版 = 满屏叠加层，不再是右上角定尺框）
-            //     · 原版 automap 是**纯显示叠加层**（`D2/UI/Banner/automap*` 那一族只有标题/开关条，
-            //       本面板里也没有任何 `IPointer*Handler`）⇒ 它不该吃掉任何鼠标事件；
-            //     · 这块 Image **铺满整个画布**（下面 `anchorMin/anchorMax` = 0..1）⇒ 若吃射线，
-            //       uGUI 指针命中**恒为真**，`Module/Input/InputReader.IsPointerOverUi()` 随之恒真，
-            //       于是 `UiEatsIntent(pressed:true, pointerOverUi:true)` 把**每一次**点击都判成
-            //       "点 UI"⇒ `TryGetGroundClick/HoldTarget` 全部返回 false ⇒ **开着地图时人物一步都走不了**
-            //     · 面板外点地面照走是原版行为（Tab 开着也能点地面移动）⇒ 这一层必须是"看得见、点不到"。
-            //     —— 原版 automap 是纯图形叠加层（见常量注释）。连着老表现一起删掉，
-            //     否则「alpha=0 的满屏黑块」仍在节点树里（判据要求「不存在压暗层」）。
+            // ① 叠加层底（**当前不建**：`BackdropAlpha = 0` ⇒ 这一支不生效；留着是为把它一次性关掉的那条
+            //     路径有据可查，见 `BackdropAlpha` 的注释 = 用户报的 U46「背景不用压暗」）。
+            //     · 建在 ② 的 automap 贴图**之前** ⇒ 兄弟序在前 = 画在下层 ⇒ 只压游戏画面、不压地图；
+            //     · 整块**不吃鼠标事件**（`raycastTarget = false`）：这块 Image 铺满整个画布
+            //       （下面 `anchorMin/anchorMax` = 0..1）⇒ 若吃射线，uGUI 指针命中**恒为真**，
+            //       `Module/Input/InputReader.IsPointerOverUi()` 随之恒真，于是
+            //       `UiEatsIntent(pressed:true, pointerOverUi:true)` 把**每一次**点击都判成"点 UI"
+            //       ⇒ `TryGetGroundClick/HoldTarget` 全部返回 false ⇒ **开着地图时人物一步都走不了**；
+            //     · 面板外点地面照走是原版行为（Tab 开着也能点地面移动）⇒ 它若启用也是"看得见、点不到"。
             if (BackdropAlpha > 0f)
             {
                 var bg = UiArt.Panel(transform, "Backdrop",
@@ -642,10 +664,10 @@ namespace Diablo2.UI
                     break;
                 }
 
-                var exit = _map.markerKind[i] == MinimapArgs.TileExit;
                 var dot = UiArt.Art(_overlay, "Marker" + i, iconPath, side, Vector2.zero);
-                // 原版图标是"白色模板"（8 帧只用索引 32 = #F4F4F4）⇒ 必须上色，否则所有标记同色
-                UiArt.SetArtTint(dot, exit ? MarkerExitTint : MarkerInteractTint);
+                // 原版图标是"白色模板"（8 帧只用索引 32 = #F4F4F4）⇒ 必须上色，否则标记是白的；
+                // 色值出处见 MarkerTint（原版 automap 的标记只有一种金色）
+                UiArt.SetArtTint(dot, MarkerTint);
 
                 var tx = ((_map.markerX[i] - _map.markerY[i]) + (_map.height - 1)) * stepX
                          + AutoMapCel.W / 2;

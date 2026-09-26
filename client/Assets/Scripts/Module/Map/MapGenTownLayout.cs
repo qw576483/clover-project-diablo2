@@ -31,6 +31,10 @@
 //   packId → `Packs[packId]`，瓦片文件 = `Resources/Clover/D2/{Tiles,Objects}/<pack>/<idx>.png`
 //   Spawn / Npcs     出生点（**围栏环内**、8 邻全可走）；5 个 NPC = **原版坐标**
 //                    （`TownW1.ds1` 的 kind=1 预设单位 + `MonPreset.txt` Act 1 块）
+//   DecoCells/DecoDs1Ids   **装饰物件**（原版 ds1 `objects` 层的 kind=2 预设单位）：关卡格 +
+//                    ds1 id（= 该幕 objpreset 的下标，不是 `Objects.txt` 的 Id）。
+//                    `id → 物件类（帧数/帧率/贴图目录）` = `MapGenDeco`（生成器 `export_deco.py`）。
+//                    与 NPC 站位同一取法（取参考块那一份，四块换到关卡坐标后复验重合率）。
 //   **桥**：`bridge.dt1` 的格一律用桥（只有 `TownE1.ds1` 有）。可走性 = **地砖自己的子格标志**
 //          ⇒ 桥面中间 2 行 `'d'`（可走）、南北两条沿栏压边行 `'s'`（阻挡）；栏杆瓦片只落物件层。
 //          见生成器 `export_town_layout.py` 文件头 ③-b。
@@ -230,6 +234,72 @@ namespace Diablo2.Module.Map
             new Vector2Int(21, 21),
             new Vector2Int(22, 33),
             new Vector2Int(28, 25),
+        };
+
+        /// <summary>
+        /// **装饰物件**（原版 ds1 `objects` 层的 kind=2 预设单位：火炬 / 营火 / 旗 / 箱子…）。
+        /// <para>`DecoCells[i]` = 关卡格，`DecoDs1Ids[i]` = 该单位的 `id`（= **该幕 objpreset 的
+        /// 下标**，不是 `Objects.txt` 的 Id）。调用方用 `MapGenDeco.IndexOf(id)` 换成物件类
+        /// （帧数 / 帧率 / 贴图目录都在那张表里），再 `GridMap.SetDeco(x, y, kind)`。</para>
+        /// <para>出处：原版**参考块** `TownW1.ds1` 的 kind=2 预设单位（子格坐标 ÷5 换算成格，
+        /// 与 NPC 站位同一取法：合并后的瓦片就是参考块那一版营地，别的块的物件位置属于
+        /// 别的版本 —— 四块对照见生成器 `pick_deco_units` 的注释）；`id → 物件类` 的逐条判定见
+        /// `tools/d2codec/export_deco.py` 文件头 ①。**传送点本体不在这里**
+        /// （它由 `MapGenTown.Waypoint` 锚点路径画，重复导出会多画一个）。</para>
+        /// </summary>
+        public static readonly Vector2Int[] DecoCells =
+        {
+            new Vector2Int(26, 26),
+            new Vector2Int(40, 20),
+            new Vector2Int(30, 26),
+            new Vector2Int(43, 36),
+            new Vector2Int(23, 32),
+            new Vector2Int(23, 20),
+            new Vector2Int(42, 18),
+            new Vector2Int(37, 19),
+            new Vector2Int(20, 22),
+            new Vector2Int(28, 19),
+            new Vector2Int(18, 30),
+            new Vector2Int(21, 35),
+            new Vector2Int(27, 32),
+            new Vector2Int(29, 32),
+            new Vector2Int(34, 36),
+            new Vector2Int(39, 28),
+            new Vector2Int(42, 29),
+            new Vector2Int(43, 25),
+            new Vector2Int(35, 29),
+            new Vector2Int(18, 24),
+            new Vector2Int(22, 27),
+            new Vector2Int(28, 23),
+            new Vector2Int(32, 22),
+        };
+
+        /// <summary>与 <see cref="DecoCells"/> 一一对应的 ds1 `kind=2` id。</summary>
+        public static readonly int[] DecoDs1Ids =
+        {
+            1,
+            1,
+            2,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            4,
+            1,
+            1,
+            3,
+            1,
+            1,
+            1,
+            1,
+            1,
+            102,
+            1,
         };
 
         /// <summary>

@@ -13,6 +13,12 @@
 //      导入设置与已验证可加载的 `buyselltabs_0.png` 逐项一致（Sprite/Single/Point）、
 //      且**逐像素**证明「帧 2/3/10/11 是**带图形**的钮」（墨量 ≥ 150），
 //      「帧 0/1 是空白石钮」（墨量 ≤ 80）、「帧 2 与帧 10 是两个**不同**的图形」（差异 ≥ 100）。
+//   ④ **`buyselltabs` 的帧配对法（从素材像素推导，⛔ 不手抄结论）**：
+//      判据 = `UI/ShopPanel` 贴页签用的是 `ResPaths.BuySellTabsFrame(tab, pressed)` ——
+//      本检查**重新量 8 张帧**，验证「帧 `i` 与 `i+4` 是同一张图的两态（单向压暗）」而
+//      「帧 `2i` 与 `2i+1` 不是」，并把相邻配对当**退化样本**喂进同一判据（必须判不合规）。
+//      为什么要有这条：`buyselltabs`（位置分块 0..3/4..7）与 `questtabs`（烘字交错 2n/2n+1）
+//      两个族排法**不同**，照抄另一个族的写法会把第 3、4 个页签画成别的页签的按下图。
 //
 //  为什么能离线判：① 是源码文本断言（与 `V6Check` 同口径：去注释后再判）；
 //  ③ 是解 PNG 像素（宿主已链 Unity 托管 DLL，不需要 Unity 运行时）。
@@ -32,6 +38,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
+using Diablo2.Core;
 using Diablo2.UI;
 using UnityEngine;
 
@@ -63,6 +70,7 @@ namespace Uicheck
             CheckFrameBindings(src);
             CheckPolarity(src);
             CheckFrameAssets();
+            CheckBuySellTabsPairing(src);
             CheckConsumerScan();
             CheckNoVisibleLabel();
             CheckSlotGeometry();
@@ -382,7 +390,158 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ④ 消费点扫描：全仓"按钮底板"这条路必须都落到原版帧上
+        // ④ `buyselltabs` 的帧配对法：**从素材像素推导**（⛔ 不把结论手抄进判据）
+        //    素材事实 = 帧 `t` 与帧 `t+4` 是同一张图的两态（单向压暗），帧 `2t` 与 `2t+1` 不是。
+        //    为什么要有这条：`buyselltabs`（位置分块 0..3/4..7）与 `questtabs`（烘字交错 `2n/2n+1`）
+        //    两个族排法**不同** —— 照抄另一个族的写法会把第 3、4 个页签画成别的页签的按下图。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>`buyselltabs.DC6` 的页签个数（= 8 帧 ÷ 2 态）；必须与 `ResPaths.BuySellTabsCount` 相等。</summary>
+        private const int TabCount = 4;
+
+        /// <summary>「同图两态」的单向压暗比例下限（本次实测 4 对 = 95..97%）。</summary>
+        private const double OneWayMin = 0.90;
+
+        /// <summary>「不是同图两态」的单向压暗比例上限（本次实测相邻对 = 26..83%）。</summary>
+        private const double OneWayMax = 0.85;
+
+        /// <summary>
+        /// 两帧之间「亮者占差异像素的比例」（0..1）：= 1 ⇒ A 处处不比 B 暗（A 是 B 的**未压暗**版）。
+        /// 口径 = 逐像素亮度差 &gt; 16（亮度用 BT.601 加权，与 <see cref="Ink"/> 同口径），两侧都不透明才计入。
+        /// </summary>
+        private static double OneWayAB(byte[] a, byte[] b, int pixels, out int differ)
+        {
+            var aBright = 0;
+            var bBright = 0;
+            for (var i = 0; i < pixels; i++)
+            {
+                var o = i * 4;
+                if (a[o + 3] <= 128 || b[o + 3] <= 128) continue;
+                var la = 0.299f * a[o] + 0.587f * a[o + 1] + 0.114f * a[o + 2];
+                var lb = 0.299f * b[o] + 0.587f * b[o + 1] + 0.114f * b[o + 2];
+                if (la - lb > 16f) aBright++;
+                else if (lb - la > 16f) bBright++;
+            }
+            differ = aBright + bBright;
+            return differ == 0 ? 0d : (double)aBright / differ;
+        }
+
+        /// <summary>
+        /// 配对判据（纯函数 ⇒ 退化样本能喂进**同一个**判据）：
+        /// <paramref name="block"/>[t] = 单向度量(帧 t, 帧 t + <see cref="TabCount"/>) 必须 ≥ <see cref="OneWayMin"/>；
+        /// <paramref name="adj"/>[t] = 单向度量(帧 2t, 帧 2t+1) 必须 ≤ <see cref="OneWayMax"/>。
+        /// </summary>
+        private static bool JudgeTabsPairing(double[] block, double[] adj, out string why)
+        {
+            var bad = new StringBuilder();
+            for (var t = 0; t < block.Length; t++)
+                if (block[t] < OneWayMin) bad.Append("块").Append(t).Append('=').Append(block[t].ToString("P0")).Append(' ');
+            for (var t = 0; t < adj.Length; t++)
+                if (adj[t] > OneWayMax) bad.Append("邻").Append(t).Append('=').Append(adj[t].ToString("P0")).Append(' ');
+            why = bad.ToString().Trim();
+            return why.Length == 0;
+        }
+
+        private static void CheckBuySellTabsPairing(string src)
+        {
+            var px = new Dictionary<int, byte[]>();
+            var sizes = new Dictionary<int, int>();
+            var missing = new List<string>();
+            for (var f = 0; f < TabCount * 2; f++)
+            {
+                var file = Path.Combine(FrameDir, "buyselltabs_" + f + ".png");
+                if (!File.Exists(file)) { missing.Add(Path.GetFileName(file)); continue; }
+                int fw, fh;
+                byte[] rgba;
+                if (!TryDecodeRgba(file, out fw, out fh, out rgba)) { missing.Add(Path.GetFileName(file) + "(解码失败)"); continue; }
+                px[f] = rgba;
+                sizes[f] = fw * fh;
+            }
+
+            Check("④ `buyselltabs_{0..7}.png` 八帧在盘且可解 RGBA、八帧同尺寸（＝原版 79×31）",
+                missing.Count == 0 && SameSize(sizes),
+                missing.Count == 0
+                    ? (SameSize(sizes) ? "8/8 = 79x31" : "尺寸不一致：" + JoinSizes(sizes))
+                    : "缺 " + string.Join(",", missing.ToArray()));
+            if (missing.Count > 0 || !SameSize(sizes)) return;
+
+            var w = sizes[0];
+            var block = new double[TabCount];
+            var adj = new double[TabCount];
+            var det = new StringBuilder();
+            for (var t = 0; t < TabCount; t++)
+            {
+                int d1, d2;
+                block[t] = OneWayAB(px[t], px[t + TabCount], w, out d1);
+                adj[t] = OneWayAB(px[t * 2], px[t * 2 + 1], w, out d2);
+                det.Append("t").Append(t).Append(":块=").Append(block[t].ToString("P0"))
+                   .Append('(').Append(d1).Append(") 邻=").Append(adj[t].ToString("P0"))
+                   .Append('(').Append(d2).Append(")  ");
+            }
+
+            string why;
+            var ok = JudgeTabsPairing(block, adj, out why);
+            Check("④ 帧序 = **位置分块**：帧 `t` 与帧 `t+4` 是同一张图的两态（单向压暗 ≥ 90%）、"
+                + "帧 `2t` 与 `2t+1` 不是（≤ 85%）—— 这就是 `ResPaths.BuySellTabsFrame` 的素材依据",
+                ok, (ok ? "" : "不符合：" + why + " | ") + det.ToString().Trim());
+
+            string whyA, whyB;
+            Check("④ 退化样本 A：把**相邻对**的读数喂进同一判据 ⇒ 必须判不合规（防「判据恒绿」）",
+                !JudgeTabsPairing(adj, adj, out whyA), "why=" + whyA);
+            Check("④ 退化样本 B：把**分块对**的读数喂进同一判据 ⇒ 必须判不合规",
+                !JudgeTabsPairing(block, block, out whyB), "why=" + whyB);
+
+            var badPath = new StringBuilder();
+            var seen = new List<string>();
+            for (var t = 0; t < TabCount; t++)
+            {
+                var norm = ResPaths.BuySellTabsFrame(t, false);
+                var press = ResPaths.BuySellTabsFrame(t, true);
+                if (!norm.EndsWith("_" + t, StringComparison.Ordinal)) badPath.Append("常态").Append(t).Append("→").Append(norm).Append(' ');
+                if (!press.EndsWith("_" + (t + TabCount), StringComparison.Ordinal)) badPath.Append("按下").Append(t).Append("→").Append(press).Append(' ');
+                seen.Add(Path.GetFileName(norm));
+                seen.Add(Path.GetFileName(press));
+            }
+            if (ResPaths.BuySellTabsCount != TabCount)
+                badPath.Append("ResPaths.BuySellTabsCount=").Append(ResPaths.BuySellTabsCount).Append(' ');
+
+            seen.Sort();
+            var covered = true;
+            for (var f = 0; f < TabCount * 2; f++) if (seen[f] != "buyselltabs_" + f) covered = false;
+            Check("④ `ResPaths.BuySellTabsFrame(t,false/true)` = 帧 `t` / 帧 `t+4`，且 8 帧恰好覆盖满、"
+                + "页签数 = 素材帧数 ÷ 2",
+                badPath.Length == 0 && covered,
+                badPath.Length == 0 && covered ? string.Join(" ", seen.ToArray()) : "异常：" + badPath);
+
+            var s = Strip(src);
+            var calls = Regex.Matches(s, @"ResPaths\.BuySellTabsFrame\(").Count;
+            var literal = s.Contains("PanelBuySellTabs + \"_\"");
+            Check("④ `UI/ShopPanel.cs` 的页签贴图**只**经 `ResPaths.BuySellTabsFrame(...)`（≥ 2 处；"
+                + "且不再有 `PanelBuySellTabs + \"_\"` 这种字面帧号拼接）",
+                calls >= 2 && !literal, "调用 " + calls + " 处，字面拼接=" + literal);
+        }
+
+        private static bool SameSize(Dictionary<int, int> sizes)
+        {
+            var first = -1;
+            foreach (var kv in sizes)
+            {
+                if (first < 0) first = kv.Value;
+                else if (kv.Value != first) return false;
+            }
+            return true;
+        }
+
+        private static string JoinSizes(Dictionary<int, int> sizes)
+        {
+            var list = new List<string>();
+            foreach (var kv in sizes) list.Add("f" + kv.Key + "=" + kv.Value);
+            list.Sort();
+            return string.Join(",", list.ToArray());
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ⑤ 消费点扫描：全仓"按钮底板"这条路必须都落到原版帧上
         //    （`UiArt.ButtonBg` 是**唯一**的占位色常量；它只允许作为异步在途/缺图时的兜底，
         //     不允许有哪条按钮工厂"只给占位色、不贴原版帧"）
         // ═════════════════════════════════════════════════════════════════════

@@ -45,7 +45,10 @@
       akara/charsi/warriv 换到关卡坐标后**逐格重合**，gheed/kashya 差 ≤2 格
       （作者在各块里手调过）。本项目**取参考块那一份**（= 本表内容所来自的那一块）。
 
-  (b) **跨河木桥**（`OUTDOORS/bridge.dt1`）：只有 `TownE1.ds1`（与 `TownETrans.ds1`）
+  (a2) **装饰物件 = kind=2 预设单位**（火炬 / 营火 / 旗 / 箱子…，实测每块 25~26 个）：
+      见下面 ③-b 段。它们不是 dt1 瓦片 ⇒ 导出成生成物里的 `DecoCells`/`DecoDs1Ids`。
+
+(b) **跨河木桥**（`OUTDOORS/bridge.dt1`）：只有 `TownE1.ds1`（与 `TownETrans.ds1`）
       有 —— 实测 `TownE1` 的桥 = floor `x∈[47,56] y∈[15,18]`、wall `x∈[47,56] y∈{16,18}`
       （换算成关卡坐标 = `x∈[29,38] y∈[20,23]`，正好横跨河带 `x∈[30,37]`）。
       `TownETrans` 的桥在它自己的第 0 列（`x=0`，y 同 15..18）—— 与 `TownE1` 的第 56 列
@@ -74,11 +77,13 @@ try:
     from . import ds1 as ds1mod
     from . import dt1 as dt1mod
     from . import export_tiles as exp
+    from . import export_deco as deco
     from . import export_wild_layout as wild
 except ImportError:
     import ds1 as ds1mod
     import dt1 as dt1mod
     import export_tiles as exp
+    import export_deco as deco
     import export_wild_layout as wild
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -146,7 +151,7 @@ NPC_PLACES = ['akara', 'kashya', 'charsi', 'gheed', 'warriv1']
 BRIDGE_DT1 = 'bridge.dt1'
 
 # 子格 → 格：sub-tile = 格 × 5（出处 `libd2/.../drlg/src/lib.zig:1136`「SUBTILES (tile*5)」）。
-SUBTILES_PER_TILE = 5
+SUBTILES_PER_TILE = deco.SUBTILES_PER_TILE
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -453,6 +458,90 @@ def align_offsets(files):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  ③-b 装饰物件（DS1 objects 层的 kind=2 预设单位）
+# ══════════════════════════════════════════════════════════════════════════════
+#  原版营地那 ~26 个「旗 / 火炬 / 营火 / 箱子」不是 dt1 瓦片，而是 **ds1 objects 层的 kind=2
+#  预设单位**（`preset.zig:488-494` 的 `switch (o.kind)`：1 = 怪物/NPC、2 = 物件）。
+#  它的 `id` 是**该幕 objpreset 表的下标**（不是 `Objects.txt` 的 Id），逐条判定与出处
+#  见 `export_deco.py` 文件头 ①。⇒ 本项目把它们导出成生成物里的 `DecoCells`/`DecoDs1Ids`
+#  两张**稀疏表**（关卡格 + ds1 id），运行期由 `MapGenDeco.IndexOf(id)` 换成物件类。
+#
+#  取哪一块的那一份：**参考块**（与 NPC 站位同一口径；理由见 `pick_deco_units` 的注释 ——
+#  合并后的瓦片就是参考块那一版营地，别的块的物件位置属于别的版本）。本函数**每次自己打印
+#  复验**：把四块的单位都换算到关卡坐标后与参考块逐格比对（重合率只作报告、不作闸门 ——
+#  实测各块各自手调过物件位置，TownE1/TownS1 只有 39~41%）。
+
+#: 四块换算到关卡坐标后，与参考块单位**逐格重合**的期望比例（只用于打印，不是闸门）。
+DECO_MATCH_REF = 0.6
+
+
+def _deco_table():
+    """可导出的 ds1 id → 物件类（`Draw=0` 与由既有路径负责的 id 不算；表口径见 `export_deco`）。"""
+    return dict((i, it['cls']) for i, it in deco.exportable_kinds().items())
+
+
+def deco_units(fi, off, gw, gh, deco_ids):
+    """某块里 kind=2 单位 → **关卡格** + ds1 id（只留可导出的；其余按 id 汇总计数）。
+
+    子格换算与 kind=2 过滤走 `export_deco.units_of`（口径共用一份）；本函数只额外把
+    块本地坐标按该块偏移与关卡窗口原点换成关卡格，并卡越界。
+    """
+    ox, oy = off
+    out, skipped = deco.units_of(fi.ds1, deco_ids, (ox + WIN_X0, oy + WIN_Y0))
+    for tx, ty, oid in out:
+        if not (0 <= tx < gw and 0 <= ty < gh):
+            raise SystemExit('块 %s 的 kind=2 单位 id=%d 关卡坐标 (%d,%d) 越界'
+                             % (os.path.basename(fi.rel), oid, tx, ty))
+    return out, skipped
+
+
+def pick_deco_units(ref, offs, files, gw, gh, kinds, deco_ids, rels):
+    """**参考块的**装饰单位（换算到关卡坐标后按 (格, id) 去重）+ 四块对照报告。
+
+    为什么取参考块那一份（而不是四块并集）：**画面的一致性**。合并后的瓦片是"参考块第一 +
+    逐格补空"（见 ④ 的合并段），所以屏幕上那座营地就是**参考块那一版**；`TownE1/TownS1` 的
+    物件位置属于它们自己那一版（实测与参考块只重合 39~41%）⇒ 那些格在合并图里可能是**别的
+    块的瓦片**，把它们的单位画上去 = 往这一版营地上摆别的版本的东西。
+    与 NPC 站位同一口径（`_original_npcs` 也只取参考块那一份）。
+    四块并集（53 个）只作**对照**打印，不进生成物。
+    """
+    per_block = []
+    for f in files:
+        u, sk = deco_units(f, offs[f.rel], gw, gh, deco_ids)
+        per_block.append((f, u, sk))
+
+    ref_units = per_block[[i for i, t in enumerate(per_block) if t[0] is ref][0]][1]
+    # 参考块内部同格同 id 的重合份（子格坐标不同、格相同）只留一份。
+    order, seen = [], set()
+    for c in ref_units:
+        if c in seen:
+            continue
+        seen.add(c)
+        order.append(c)
+
+    ref_set = set(ref_units)
+    union = set()
+    for _f, u, _sk in per_block:
+        union |= set(u)
+
+    lines = []
+    for f, u, sk in per_block:
+        hit = sum(1 for c in u if c in ref_set) if f is not ref else len(u)
+        ratio = (hit / float(len(u))) if u else 0.0
+        lines.append('  块 %-12s kind=2 %2d 个（本块可导出 %d / 其余 id 跳过 %s），与参考块逐格重合 %d（%.0f%%）%s'
+                     % (os.path.basename(f.rel), len(u) + sum(sk.values()), len(u),
+                        dict(sorted(sk.items())) if sk else '无', hit, ratio * 100,
+                        '' if f is ref or ratio >= DECO_MATCH_REF
+                        else ' ← 该块自己调过物件位置（不进生成物）'))
+    lines.append('  取参考块那一份 %d 个（四块并集 %d 个，只作对照）' % (len(order), len(union)))
+    left = [c for c in order if kinds[c[1]][c[0]] == 'v']
+    if left:
+        lines.append('  [WARN] 参考块有 %d 个单位落在 kind=v（四块都没瓦片的格）上：%s'
+                     % (len(left), left[:8]))
+    return order, lines
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  ④ 主流程
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -675,6 +764,16 @@ def build(out_path, debug):
     spawn, reach = _pick_points(kinds, gate_x, gate_y,
                                 (ring_left, ring_top, ring_right, ring_bottom))
     npcs = _original_npcs(ref, offs[ref.rel], kinds)
+    deco_ids = _deco_table()
+    deco_cells, deco_lines = pick_deco_units(ref, offs, files, gw, gh, kinds, deco_ids, rels)
+    for ln in deco_lines:
+        print(ln)
+    deco_by_id = {}
+    for _x, _y, _i in deco_cells:
+        deco_by_id[_i] = deco_by_id.get(_i, 0) + 1
+    print('  装饰物件：%d 个 ⇒ %s'
+          % (len(deco_cells), ', '.join('id=%d(%s)×%d' % (i, deco_ids[i], n)
+                                        for i, n in sorted(deco_by_id.items()))))
 
     rx0 = min(c[0] for c in river_cells) if river_cells else -1
     rx1 = max(c[0] for c in river_cells) if river_cells else -1
@@ -742,7 +841,8 @@ def build(out_path, debug):
         print('  !! 有 kind 但取不到原版瓦片的格：%d 个 %s'
               % (len(no_tile), no_tile[:20]))
 
-    _write_cs(out_path, kinds, ground, objects, packs, spawn, npcs, gw, gh, rels, ref_rel, offs)
+    _write_cs(out_path, kinds, ground, objects, packs, spawn, npcs, gw, gh, rels, ref_rel, offs,
+              deco_cells)
     print('  → %s' % out_path)
     return 0
 
@@ -880,6 +980,10 @@ HEADER = '''// ─────────────────────�
 //   packId → `Packs[packId]`，瓦片文件 = `Resources/Clover/D2/{Tiles,Objects}/<pack>/<idx>.png`
 //   Spawn / Npcs     出生点（**围栏环内**、8 邻全可走）；5 个 NPC = **原版坐标**
 //                    （`TownW1.ds1` 的 kind=1 预设单位 + `MonPreset.txt` Act 1 块）
+//   DecoCells/DecoDs1Ids   **装饰物件**（原版 ds1 `objects` 层的 kind=2 预设单位）：关卡格 +
+//                    ds1 id（= 该幕 objpreset 的下标，不是 `Objects.txt` 的 Id）。
+//                    `id → 物件类（帧数/帧率/贴图目录）` = `MapGenDeco`（生成器 `export_deco.py`）。
+//                    与 NPC 站位同一取法（取参考块那一份，四块换到关卡坐标后复验重合率）。
 //   **桥**：`bridge.dt1` 的格一律用桥（只有 `TownE1.ds1` 有）。可走性 = **地砖自己的子格标志**
 //          ⇒ 桥面中间 2 行 `'d'`（可走）、南北两条沿栏压边行 `'s'`（阻挡）；栏杆瓦片只落物件层。
 //          见生成器 `export_town_layout.py` 文件头 ③-b。
@@ -902,7 +1006,8 @@ def _encode_rows(table):
     return ['            "%s",' % ''.join(cell for cell in row) for row in table]
 
 
-def _write_cs(out_path, kinds, ground, objects, packs, spawn, npcs, gw, gh, rels, ref_rel, offs):
+def _write_cs(out_path, kinds, ground, objects, packs, spawn, npcs, gw, gh, rels, ref_rel, offs,
+              deco_cells):
     offset_txt = ', '.join('%s(%+d,%+d)' % (os.path.basename(r), offs[r][0], offs[r][1])
                            for r in rels)
     lines = [HEADER % (gw, gh, len(rels), ', '.join(os.path.basename(r) for r in rels),
@@ -949,6 +1054,26 @@ def _write_cs(out_path, kinds, ground, objects, packs, spawn, npcs, gw, gh, rels
               '        public static readonly Vector2Int[] Npcs =', '        {']
     for p in npcs:
         lines.append('            new Vector2Int(%d, %d),' % (p[0], p[1]))
+    lines += ['        };', '',
+              '        /// <summary>',
+              '        /// **装饰物件**（原版 ds1 `objects` 层的 kind=2 预设单位：火炬 / 营火 / 旗 / 箱子…）。',
+              '        /// <para>`DecoCells[i]` = 关卡格，`DecoDs1Ids[i]` = 该单位的 `id`（= **该幕 objpreset 的',
+              '        /// 下标**，不是 `Objects.txt` 的 Id）。调用方用 `MapGenDeco.IndexOf(id)` 换成物件类',
+              '        /// （帧数 / 帧率 / 贴图目录都在那张表里），再 `GridMap.SetDeco(x, y, kind)`。</para>',
+              '        /// <para>出处：原版**参考块** `TownW1.ds1` 的 kind=2 预设单位（子格坐标 ÷5 换算成格，',
+              '        /// 与 NPC 站位同一取法：合并后的瓦片就是参考块那一版营地，别的块的物件位置属于',
+              '        /// 别的版本 —— 四块对照见生成器 `pick_deco_units` 的注释）；`id → 物件类` 的逐条判定见',
+              '        /// `tools/d2codec/export_deco.py` 文件头 ①。**传送点本体不在这里**',
+              '        /// （它由 `MapGenTown.Waypoint` 锚点路径画，重复导出会多画一个）。</para>',
+              '        /// </summary>',
+              '        public static readonly Vector2Int[] DecoCells =', '        {']
+    for (x, y, _i) in deco_cells:
+        lines.append('            new Vector2Int(%d, %d),' % (x, y))
+    lines += ['        };', '',
+              '        /// <summary>与 <see cref="DecoCells"/> 一一对应的 ds1 `kind=2` id。</summary>',
+              '        public static readonly int[] DecoDs1Ids =', '        {']
+    for (_x, _y, i) in deco_cells:
+        lines.append('            %d,' % i)
     lines += ['        };', '',
               '        /// <summary>',
               '        /// 取某格的**原版瓦片键**（`ResPaths.Tile` / `ObjectSprite` 的相对路径）。',

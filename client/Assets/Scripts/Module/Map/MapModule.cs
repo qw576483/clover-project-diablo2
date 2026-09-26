@@ -415,7 +415,7 @@ namespace Diablo2.Module.Map
         public string Hash() { return MapDebug.Hash(_grid); }
 
         /// <summary>
-        /// 自证：本图是否启用了「逐格原版瓦片键」（罗格营地 / 邪恶洞穴 = true，野外 = false）。
+        /// 自证：本图是否启用了「逐格原版瓦片键」（罗格营地 / 邪恶洞穴 / 野外 = true；保底布局 = false）。
         /// **非契约方法**（`IMapModule` 上没有）。
         /// </summary>
         public bool HasTileOverrides => _grid.HasTileOverrides;
@@ -509,6 +509,12 @@ namespace Diablo2.Module.Map
                     if (_grid.TryGetTiles(x, y, out gk, out ok))
                     {
                         g = AutoMapCel.Cel((int)_grid.Area, false, gk);
+                        //   该 idx 没进表时退到**同一张 dt1**（同 pack）的代表 Cel：
+                        //   同 dt1 = 同一地形族，automap 上是同一种图元（草地/水面/沼泽…）。
+                        if (g < 0 && !string.IsNullOrEmpty(gk))
+                        {
+                            g = AutoMapCel.CelForPack((int)_grid.Area, false, PackOf(gk));
+                        }
                         //   `AutoMapCel` 的物件表里和石墙（`moor_stonewall/*`）映射到**同一个 Cel 60**
                         //   ⇒ 水格在小地图上看着就是石头，这正是 R12 报的"小地图分不出水与石头"。
                         //   判据与主视图 **完全同一条**（`MapView.IsPaletteCycledFlatWallOverlay`）：
@@ -517,6 +523,20 @@ namespace Diablo2.Module.Map
                         o = MapView.IsPaletteCycledFlatWallOverlay(gk, ok)
                             ? AutoMapCel.None
                             : AutoMapCel.Cel((int)_grid.Area, true, ok);
+                        //   与主视图**同源**：`MapView.PlanCell` 画出来的物件（野外"空气墙"补画的
+                        //   那张）⇒ automap 画同一张的 Cel；传送台锚点格除外（它的物件是本体动画，
+                        //   automap 口径不变）。
+                        if (o < 0)
+                        {
+                            var cell = new Vector2Int(x, y);
+                            var planKey = MapView.PlanCell(_grid, _grid.Area, cell).ObjectKey;
+                            if (!string.IsNullOrEmpty(planKey) && planKey != ok
+                                && !MapView.IsWaypointAnchor(_grid, cell))
+                            {
+                                o = AutoMapCel.Cel((int)_grid.Area, true, planKey);
+                                if (o < 0) o = AutoMapCel.CelForPack((int)_grid.Area, true, PackOf(planKey));
+                            }
+                        }
                         if (g >= 0) celOk++;
                     }
                     args.cels.Add(g);
@@ -543,6 +563,13 @@ namespace Diablo2.Module.Map
             args.markerX.Add(g.x);
             args.markerY.Add(g.y);
             args.markerKind.Add(kind);
+        }
+
+        /// <summary>瓦片键（`pack/idx`）的 pack 段（= 该键出自哪一张 dt1）。</summary>
+        private static string PackOf(string tileKey)
+        {
+            var s = tileKey.IndexOf('/');
+            return s > 0 ? tileKey.Substring(0, s) : tileKey;
         }
 
         private static byte CodeOf(TileKind kind)

@@ -338,12 +338,66 @@ namespace Diablo2.Module.Skill
             for (var i = 0; i < _available.Count; i++)
             {
                 var def = _available[i];
+                var level = GetLevel(def.id);
+                def.descLines = DescLinesOf(def, level);   // 说明窗字段行：模块算好、UI 照画（见契约注释）
                 args.skills.Add(def);
-                args.learnedLevels.Add(GetLevel(def.id));
+                args.learnedLevels.Add(level);
                 args.learnable.Add(CanLearnInternal(def.id, false));   // 面板每帧都可能重绘 ⇒ 不打日志
             }
             return args;
         }
+
+        /// <summary>
+        /// 说明窗的字段行（原版串表 `chi_string.txt` 的字段名 + **当前等级**的值）。
+        /// <para>标签**单独一行**、值另起一行 —— 可见区 78 art = 7 个 font8 汉字，「标签 + 值」放不下
+        /// （算术见 `Def.SkillDef.descLines` 的注释）。</para>
+        /// <para>值只取既有生产函数；等级 0（未学）时耗蓝/伤害在那些函数里就是 0 ⇒ 只剩等级行，
+        /// **不写占位符**、也不拿 1 级的数字冒充（未学技能的预览值本项目没有出处）。</para>
+        /// </summary>
+        private List<string> DescLinesOf(SkillDef def, int level)
+        {
+            var lines = new List<string>(8);
+            lines.Add(LabelSkillLevel);
+            lines.Add(level.ToString());
+
+            if (level <= 0) return lines;                        // 0 级：耗蓝/伤害都算不出（生产函数返回 0）
+            if (!_rows.TryGetValue(def.id, out var row) || row == null) return lines;
+
+            lines.Add(LabelManaCost);
+            lines.Add(Combat.DamageFormula.SkillManaCost(row, level).ToString());
+
+            Combat.DamageFormula.SkillDamageRange(row, level, out var dmgMin, out var dmgMax);
+            if (dmgMax > 0)                                     // 武器伤害类（`SrcDam` 非空）算不出区间 ⇒ 不出这一行
+            {
+                lines.Add(DamageLabelOf(def.dmgType));
+                lines.Add(dmgMin + "-" + dmgMax);
+            }
+            return lines;
+        }
+
+        /// <summary>伤害字段名；<see cref="DamageType.Magic"/> 用中性的「傷害：」（原版 4256-4260 里没有魔法伤害一行）。</summary>
+        private static string DamageLabelOf(DamageType t)
+        {
+            switch (t)
+            {
+                case DamageType.Fire: return LabelFireDamage;
+                case DamageType.Cold: return LabelColdDamage;
+                case DamageType.Lightning: return LabelLightningDamage;
+                case DamageType.Poison: return LabelPoisonDamage;
+                default: return LabelDamage;
+            }
+        }
+
+        //  字段名出处 = 原版串表 `原版资源/d2text/chi_string.txt` 的 id（原版 UI 文案在本项目没有配表载体，
+        //  与 `UI/CharacterPanel` 的四维/派生名同一写法：常量 + id 注释）。逐字都在原版 chi 字模里
+        //  （`font8_chi_map.txt` 可查，`目前技能等級：` 7 字实测 advance 各 11 art）。
+        private const string LabelSkillLevel = "目前技能等級：";   // id 4254
+        private const string LabelManaCost = "法力耗費：";          // id 4255
+        private const string LabelDamage = "傷害：";                // id 4256
+        private const string LabelFireDamage = "火焰傷害：";        // id 4257
+        private const string LabelColdDamage = "冰凍傷害：";        // id 4258
+        private const string LabelLightningDamage = "閃電傷害：";   // id 4259
+        private const string LabelPoisonDamage = "毒素傷害：";      // id 4260
 
         // ═════════════════════════════════════════════════════════════════════
         // 施放

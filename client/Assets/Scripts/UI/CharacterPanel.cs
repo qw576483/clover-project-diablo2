@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // 人物属性面板（原版 `charstat.png` 320×432 → ×1.8 居中）：四维属性（带加点箭头 + 剩余点数）+
-// 派生属性（生命/法力/耐力/防御/命中/格挡）+ 四系抗性 + 等级与经验。
+// 派生属性（生命/法力/耐力/防禦/攻擊準確率/格擋）+ 四系抗性 + 等級與經驗。
+//   行名逐字取原版串表（`原版资源/d2text/chi_string.txt` id 4057-4074），见各常量注释；
+//   两条**本项目扩展字段**（原版无 1:1 串）在 `ExtraName` / `Refresh` 处逐条登记。
 //
 //   ① 面板与全部行一律 **×1.8 居中**（原版 800×600 → 本工程 1920×1080）；
 //   ② 行位置**改用 `CharstatPanel.prefab` 的节点实测值**（`UiLayoutGame` 里的
@@ -8,13 +10,30 @@
 //   ③ 面板中心 = 原版矩形 x −320..0 的中心 (−160,0) → ×1.8 = **(−288,0)**：
 //      **属性面板在原版里贴屏幕中线左侧**，背包贴右侧 —— 这是原版行为，不是错位。
 //
-// 原版 prefab 只有 5 个标签节点（CharName / Strength / Dex / Vitality / Energy /
-//   Defense / Stamina / Life / Mana）+ 1 个 CloseButton，**没有**「等级/经验/命中/格挡/四系抗性」
-//   的节点（原版把这些画在别的屏）。本项目 DTO 有这些字段 ⇒ 按**原版底图上剩下的空框**补齐：
-//     · 右上空框（art x 165..315）→ 等级 / 经验
-//     · 右下两个细长空框（art x 180..310, y 403..430）→ 命中 / 格挡
-//     · 左下空白区（art y 331..421）→ 四系抗性
-//   逐行在 `UiLayoutGame` 里注明「本项目新增」。
+// 原版 prefab 只有 9 个标签节点（CharName / Strength / Dex / Vitality / Energy /
+//   Defense / Stamina / Life / Mana）+ 1 个 CloseButton。`PlayerStatsDto` 还有 等級 / 經驗 /
+//   技能點（扩展字段）/ 攻擊準確率 / 格擋 / 四系抗性 ⇒ 按**底图 `Panel/charstat.png`（320×432，原版像素）**
+//   逐像素量出来的凹槽落位：
+//     · 上带右槽（art 193..309 × 10..26）→ 等級（见 `CharTopRightPos`）
+//     · 第二排中/右槽（art 64..181 / 192..309 × 32..66）→ 技能點 / 經驗（见 `CharBand2*`）
+//     · 右列上起第 3、4 行（art 161..269 + 271..309 × 142..162 / 166..186）→ 攻擊準確率 / 格擋
+//       （见 `CharBottomRightOrig`）
+//   右列「槽 ↔ 名」的对照现状（出处 = 原版 prefab + 底图逐像素，**不是缺图**）：
+//     · `原版资源/参考工程_Diablerie/CharstatPanel.prefab` 的**具名**节点锚点换算 art_y = 216 − y_anchored，
+//       与 `UiLayoutGame.CharDerivedRowOrig` / `CharResistRowOrig` 逐行**相等**：
+//       DefenseLabel 206.5 / Stamina 244.6 / Life 268.8 / Mana 306.8 ↔ 本工程「防禦 / 耐力 / 生命 / 法力」；
+//       左列 Strength 96.9 / Dex 159.0 / Vitality 244.4 / Energy 306.5 ↔ 「力量 / 敏捷 / 體力 / 精力」
+//       ⇒ 这 8 行**逐槽对上**。
+//     · 底图右列共 **12** 个标签隔间（实测 art_y ≈ 90 / 114 / 152 / 176 / 201 / 238 / 257 / 300 /
+//       340 / 364 / 388 / 412；隔间内宽 97 / 97 / 108 / 108 / 108 / 68 / 68 / 68 / 95 / 95 / 95 / 95）
+//       本工程只填到 10 个（152 / 176 / 201 / 238 / 257 / 300 + 下起 4 行）⇒ **art_y 90 与 114 两格空着**。
+//     · **未定案（⛔ 不重排、不猜）**：具名节点只覆盖「防禦 / 耐力 / 生命 / 法力」4 条；上组 4 格
+//       （90 / 114 / 152 / 176）里 152、176 由本工程占用，而可用的原版字段名只有
+//       `傷害(4061)` / `攻擊準確率(4063)` / `比率(4065)` —— **3 条名对 4 格**；且串表 id 顺序会把
+//       「防禦」摆在四行组的第 3 行（≈art 152），与 prefab 具名的 `DefenseLabel @ 206.5` **互相矛盾**。
+//       另：原版字段 `傷害(4061)` 本工程**没有渲染**（已登记，待原版人物面板实机图定案）。
+//     · 右列下起 4 行（art 174..269 + 271..309 × 332..421）→ 四系抗性（见 `CharResistRowOrig`）
+//   逐行在 `UiLayoutGame` 里注明几何出处。
 //
 // 数据：只吃 `Diablo2.Def.PlayerStatsDto`（`OnOpen` 参数 + `Events.HudDirty`/`PlayerStatsChanged`）。
 // 加点请求：`Events.StatAllocateRequest` + `Def.StatAllocArgs`（`delta` 可负，用于撤回）。
@@ -48,26 +67,74 @@ namespace Diablo2.UI
             StatKind.Strength, StatKind.Dexterity, StatKind.Vitality, StatKind.Energy,
         };
 
-        /// <summary>四维中文名（本项目新增；配表 `class_c` 无四维列名，故写成常量）。</summary>
-        public static readonly string[] StatRowName = { "力量", "敏捷", "体力", "精力" };
+        /// <summary>
+        /// 四维行名，**逐字取原版串表**（`原版资源/d2text/chi_string.txt` 的人员面板字段名块
+        /// id 4060/4062/4066/4069 = `力量` / `敏捷` / `體力` / `精力`）。
+        /// <para>顺序与 <see cref="UiLayoutGame.CharStatRowOrig"/> 一致；原版串是**繁体**，照抄不改写
+        /// （本工程字模没有简体码位、只有 `font_chi_s2t` 回退 ⇒ 写繁体 = 直查字模，写简体 = 走回退；
+        /// 既有先例见 `WaypointPanel` 的「傳送點」等原样繁体串）。</para>
+        /// </summary>
+        public static readonly string[] StatRowName = { "力量", "敏捷", "體力", "精力" };
 
-        /// <summary>右侧派生行名（顺序与 <see cref="UiLayoutGame.CharDerivedRowOrig"/> 一致，原版节点名）。</summary>
-        public static readonly string[] DerivedName = { "防御", "耐力", "生命", "法力" };
+        /// <summary>
+        /// 右侧派生行名，**逐字取原版串表**（id 4064/4067/4068/4070 = `防禦` / `耐力` / `生命` / `法力`）。
+        /// <para>顺序与 <see cref="UiLayoutGame.CharDerivedRowOrig"/> 一致
+        /// （prefab 节点名 Defense / Stamina / Life / Mana 是同一批行的英文名）。</para>
+        /// </summary>
+        public static readonly string[] DerivedName = { "防禦", "耐力", "生命", "法力" };
 
-        /// <summary>补齐行名（本项目新增；原版 prefab 无对应节点，见文件头说明）。</summary>
-        public static readonly string[] ExtraName = { "命中", "格挡" };
+        /// <summary>
+        /// 占底图右列上起第 3、4 行的两行名。
+        /// <para>① `攻擊準確率` 逐字取原版串表 id 4063（该串原文是**两段式** `%s\n攻擊準確率`：
+        /// 值在上、名在下 —— 本行取其中的**名**这一半，版面仍按底图隔间「名在左、值在右」；
+        /// 整条串逐字采用会改本行版面含义 ⇒ 留待原版人物面板实机图定案，见
+        /// `tools/probes/hosts/uicheck` 的既定口径）。</para>
+        /// <para>② `格擋` = **本项目扩展字段**（登记在此）：原版串表里 `格擋` 这个词是有出处的
+        /// （id 1853 `格擋的` / id 4363 `成功格擋： `），但**没有**一条把「格擋」当作独立字段名的串；
+        /// 候选串 id 4065 是两段式 `%s\n比率`（原版这一行的名字就是「比率」，语义单看含糊）——
+        /// 换不换待实机图定案。值取自 `PlayerStatsDto.blockChance`。</para>
+        /// <para>③ **右列逐槽实测**（量法 `.ai-tmp/test/charstat_slots.py`，读数 `.ai-tmp/test/charstat_slots.tsv`；
+        /// 底图 = `UI/Panel/charstat.png` 320×432 的暗色凹槽行带）：右列共 **8 个槽**，
+        /// 行心 art y = `90 / 114 / 152 / 176 / 201.5 / 239.5 / 263.5 / 301.5`
+        /// （标签框 art x 161..269 或 161..258，数值框 art x 271..309 或 260..309）。
+        /// 其中 4 个已由 `原版资源/参考工程_Diablerie/CharstatPanel.prefab` 的节点坐标钉死
+        /// （换算到 art 系后与左列四行同偏移 +5.3，**4/4 一致**）：
+        /// `201.5 = 防禦`（= `DefenseLabel`，它用的正是那个 **109 宽的框**）、`239.5 = 耐力`、
+        /// `263.5 = 生命`、`301.5 = 法力`。</para>
+        /// <para>⇒ 上方 **4 个槽**（`90 / 114 / 152 / 176`）装的是原版串表右列剩下的 3 个字段
+        /// `傷害(4061) / 攻擊準確率(4063) / 比率(4065)`，**4 槽对 3 字段 ⇒ 逐槽对应仍未定**：
+        /// 底图那些框是**空凹槽**（字是运行时画的）、串表不带位置，本机 4 张基线图 + 2 个参考 prefab
+        /// 都不含人物面板实机图 ⇒ 逐槽定案**必须有一张原版人物面板实机图**。
+        /// 本项目现用：`攻擊準確率` 占 `152`、`格擋` 占 `176`，`90 / 114` 两槽留空；
+        /// 行对齐线索 = `90` 与左列「力量」同行、`152` 与「敏捷」同行（图到手后按行对齐一次定案）。</para>
+        /// </summary>
+        public static readonly string[] ExtraName = { "攻擊準確率", "格擋" };
+
+        /// <summary>右上凹槽（等級）的行名前缀：原版串 id 4057 `等級` + 一个空格（分隔名与值 = 本面板排版）。</summary>
+        public const string TopRightPrefix = "等級 ";
+
+        /// <summary>第二排右框（當前經驗）的行名前缀：原版串 id 4058 `經驗` + 一个空格。</summary>
+        public const string Band2RightPrefix = "經驗 ";
+
+        /// <summary>
+        /// 第二排中框（技能點）的行名前缀：**本项目扩展字段**（登记口径见 <see cref="ExtraName"/> 与 `Refresh`）。
+        /// <para>三个前缀都公开，是为了让判据（`tools/probes/hosts/uicheck` 的单行宽度判据）**量面板真正画的串**，
+        /// 而不是在判据里另抄一份文案 —— 抄一份就会在文案改动后静默失配。</para>
+        /// </summary>
+        public const string Band2MidPrefix = "技能點 ";
 
         /// <summary>
         /// 四系抗性行名（顺序 火/冰/电/毒，与 <see cref="UiLayoutGame.CharResistRowOrig"/> 同序）。
-        /// <para>出处：本项目**配表**里这四个名字就是它们 ——
-        /// `client/Assets/StreamingAssets/Table/Affix.tsv:19-26` 的
-        /// `res-cold 冰冷抗性 / res-fire 火焰抗性 / res-ltng 闪电抗性 / res-pois 毒素抗性`
-        /// （由 `tools/table-convert/cn_names.py` 从原版串表映射；原版长形 `4071..4074`
-        /// 「火焰抵抗力/冰冷抵抗力/閃電抵抗力/毒素抵抗力」是 5 字，advance 65 art ⇒ 需 76 art 框，
-        /// 与「值列不折行」在 art 0..112.5 的预算内互斥 ⇒ 只能取 4 字这一档）。
-        /// ⇒ **本面板与物品 tooltip 用同一套词**，改文案会让两处不一致。</para>
+        /// <para>出处 = **原版人物面板的串表条目** `原版资源/d2text/chi_string.txt` id 4071-4074
+        /// （`火焰抵抗力 / 冰冷抵抗力 / 閃電抵抗力 / 毒素抵抗力`），**逐字照抄繁体**（不改简写、
+        /// 也不缩成 `火/冰/電/毒`：原文就是这 5 个字的全名，5 字 = 55 art ≤ 标签隔间 96 art）；
+        /// 物品 tooltip 一侧仍用配表
+        /// `client/Assets/StreamingAssets/Table/Affix.tsv:19-26` 的 4 字词缀名（那一屏各自的出处）。</para>
         /// </summary>
-        public static readonly string[] ResistName = { "火焰抗性", "冰冷抗性", "闪电抗性", "毒素抗性" };
+        public static readonly string[] ResistName =
+        {
+            "火焰抵抗力", "冰冷抵抗力", "閃電抵抗力", "毒素抵抗力",
+        };
 
         private bool _built;
         private bool _subscribed;
@@ -130,12 +197,12 @@ namespace Diablo2.UI
                 UiArt.TitleColor, UiLayoutGame.CharNameSize, PanelPos + UiLayoutGame.CharNamePos);
             _nameText.raycastTarget = false;
 
-            // ── 右上凹槽：等级（本项目新增；几何 = **底图实测凹槽** art 193..309 × 10..26）──
+            // ── 右上凹槽：等級（几何 = **底图实测凹槽** art 193..309 × 10..26；行名 = 原版串 id 4057）──
             _topRightText = UiArt.Label(transform, "TopRight", string.Empty, (int)UiLayoutGame.FontPx16, TextAnchor.MiddleCenter,
                 UiArt.TextColor, UiLayoutGame.CharTopRightSize, PanelPos + UiLayoutGame.CharTopRightPos);
             _topRightText.raycastTarget = false;
 
-            // ── 底图第二排两个空框（本项目新增）：中框 = 技能点 / 右框 = 经验 ──
+            // ── 底图第二排两个空框：中框 = 技能點（扩展字段）/ 右框 = 經驗（原版串 id 4058）──
             //   串长 ≈ 400 画布px，而右上凹槽净宽只有 210 画布px ⇒ 左起越过凹槽左沿、右端越出面板右边缘。
             _band2MidText = UiArt.Label(transform, "Band2Mid", string.Empty, (int)UiLayoutGame.FontPx16,
                 TextAnchor.MiddleCenter, UiArt.TextColor,
@@ -196,7 +263,12 @@ namespace Diablo2.UI
                 UiArt.SetSprite(plus, UiArt.ArrowFrame(0));
                 var button = plus.gameObject.AddComponent<Button>();
                 button.targetGraphic = plus;
-                button.onClick.AddListener(() => Allocate(kind, index));
+                button.onClick.AddListener(() =>
+                {
+                    Game.Event.Emit(Events.UiClick);
+                    Allocate(kind, index);
+                });
+                UiArt.ApplyArrowPressFrame(plus, button, 0);
                 _plusButtons[i] = plus;
             }
         }
@@ -216,7 +288,7 @@ namespace Diablo2.UI
                 _derivedNames[i].raycastTarget = false;
 
                 // 数值列 = 底图**紧邻标签隔间右侧**的数值隔间 ——
-                //   · i = 0（防御）：art 271..309 ⇒ node 130 ± 19（`CharDefValueX/W`）
+                //   · i = 0（防禦）：art 271..309 ⇒ node 130 ± 19（`CharDefValueX/W`）
                 //   · i ≥ 1（耐力/生命/法力）：底图这几行有**两格**数值隔间（art 231..270 + 272..309）
                 //     ⇒ `cur/max` 一串写在**跨这两格**的框里（node 110 ± 39 = `CharCurMaxX/W`）
                 var valueX = i == 0 ? UiLayoutGame.CharDefValueX : UiLayoutGame.CharCurMaxX;
@@ -231,7 +303,7 @@ namespace Diablo2.UI
             }
         }
 
-        /// <summary>补齐行：命中 / 格挡（本项目新增，占原版右下两个细长空框）。</summary>
+        /// <summary>攻擊準確率 / 格擋：占底图右列上起第 3、第 4 行（标签隔间 art 161..269 的实测矩形）。</summary>
         private void BuildExtraRows()
         {
             var size = UiLayoutGame.CharBottomRightSize;
@@ -239,13 +311,17 @@ namespace Diablo2.UI
             {
                 var center = PanelPos + UiLayoutGame.CharBottomRightOrig[i] * UiLayoutGame.K;
 
+                //   标签矩形 = **原版标签隔间本身**（`CharBottomRightSize` = art 161..269，109×18）——
+                //   不按行宽缩到 55%：`攻擊準確率` 5 字 = 65 art > 60 art（55%），缩了就会被 `Wrap` 折成两行；
+                //   矩形 = 隔间 ⇒ 左对齐文字起点仍是 art 161，且与数值隔间（art 271..309）不相交。
                 _extraNames[i] = UiArt.Label(transform, "ExtraName" + i, ExtraName[i],
                     (int)UiLayoutGame.FontPx16, TextAnchor.MiddleLeft, UiArt.TextColor,
-                    new Vector2(size.x * 0.55f, size.y), center + new Vector2(-size.x * 0.22f, 0f));
+                    new Vector2(size.x, size.y), center);
                 _extraNames[i].raycastTarget = false;
 
-                // 数值列与「防御」同口径（底图右下这几个薄框与右侧派生行同宽：
-                //   art 271..309 ⇒ node 130 ± 19）。
+                // 数值列与「防禦」同列（底图 art 271..309 ⇒ node 130 ± 19）。
+                //   行中心直接用 `CharBottomRightOrig`（它已是底图行框中心）⇒ 不加 `CharRowTextDy`
+                //   （那个修正只属于 `CharDerivedRowOrig` 的 prefab 标签矩形，见其注释）。
                 _extraValues[i] = D2Label.Create(transform, "ExtraValue" + i, "0", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
                     new Vector2(UiLayoutGame.CharDefValueW * UiLayoutGame.K,
@@ -256,7 +332,7 @@ namespace Diablo2.UI
             }
         }
 
-        /// <summary>四系抗性（本项目新增，占原版左下空白区）。</summary>
+        /// <summary>四系抗性：占底图右列**下起 4 行**的实测矩形（标签隔间 art 174..269 + 数值隔间 art 271..309）。</summary>
         private void BuildResistRows()
         {
             var size = UiLayoutGame.CharResistRowSize;
@@ -264,34 +340,31 @@ namespace Diablo2.UI
             {
                 var center = PanelPos + UiLayoutGame.CharResistRowOrig[i] * UiLayoutGame.K;
 
-                //   标签框改走 `CharResistNameX/W`（中心 node −127、宽 66 art = art 0..66），
-                //   值列同步改走收窄后的 `CharResistValueX/W`（art 67.5..112.5，**右沿不动**）；
-                //   两个框不相交（间隔 1.5 art px）、都在面板内。
-                //   为什么不能用「四维标签隔间的左沿 art 10」起框、为什么不能改文案
-                //   （配表出处 + 5 字原版长形放不下）⇒ 逐条写在 `UiLayoutGame.CharResistNameX` 的注释里。
-                //   折行判据（生产口径：`needNative < availPx`）见
-                //   `tools/probes/hosts/uicheck/U52ResistCheck.cs`。
+                //   标签框 = 底图标签隔间（`CharResistNameX/W` = art 174..269）。
+                //   画法 = **单行 + 允许溢出**（原版画字不折行）⇒ 关掉 uGUI 的 `Wrap`：
+                //   `D2TextMirror` 每帧把 `Text.horizontalOverflow` 同步给 `D2Label`，
+                //   而 `D2Label` 只在 `Wrap` 时算 `availPx` ⇒ `Overflow` 下**永不折行**。
                 _resistNames[i] = UiArt.Label(transform, "ResistName" + i, ResistName[i],
                     (int)UiLayoutGame.FontPx16, TextAnchor.MiddleLeft, UiArt.TextColor,
                     new Vector2(UiLayoutGame.CharResistNameW * UiLayoutGame.K, size.y),
                     PanelPos + new Vector2(UiLayoutGame.CharResistNameX, UiLayoutGame.CharResistRowOrig[i].y)
                         * UiLayoutGame.K);
+                _resistNames[i].horizontalOverflow = HorizontalWrapMode.Overflow;
                 _resistNames[i].raycastTarget = false;
 
-                // 值列**与四维行数值列对齐**（同一列 x = `CharStatValueX`，宽 `CharStatValueW`）。
-                //   本组行是"本项目新增"（底图左下是空白大理石，没有隔间）⇒ 列位只在面板内部求一致：
-                //   与**最近的一族有框行**（四维行）同列 ⇒ **右沿与四维数值列右沿对齐** = art 112.5。
-                //   值列宽 = **45 art**（左沿 art 67.5，右沿 art 112.5）——
-                //   给上面那个 66 art 的标签框让位；`-100%`（advance 47 art）在 45 art 下
-                //   availPx = 52 > 47 ⇒ **不折行**（余量 5 art；最小可放宽度 = 42 art）。
-                //   出处与算术逐条写在 `UiLayoutGame.CharResistValueX` 的注释里，
-                //   离线判据（含退化样本）见 `tools/probes/hosts/uicheck/U52ResistCheck.cs`。
+                //   值列 = 底图那条数值隔间（`CharResistValueX/W` = art 271..309 = 39 art，
+                //   与派生行 `CharDefValueX/W` 同列）。最坏值 `-100%` 的 advance = 47 art > 39 art
+                //   ⇒ 这一格**有意溢出**（仍单行、向右压出框沿），不缩字、也不砍 `%`；
+                //   算术见 `UiLayoutGame.CharResistValueX`。
+                //   `D2Label.Create` 的默认就是 `Overflow`；这里显式写一次，避免将来被改成 `Wrap`
+                //   （改成 `Wrap` 会把 `-100%` 折成两行）。
                 _resistValues[i] = D2Label.Create(transform, "ResistValue" + i, "0%", D2Text.D2Font.Font16,
                     TextAnchor.MiddleRight, UiArt.TitleColor,
                     new Vector2(UiLayoutGame.CharResistValueW * UiLayoutGame.K, size.y),
                     PanelPos + new Vector2(UiLayoutGame.CharResistValueX, UiLayoutGame.CharResistRowOrig[i].y)
                         * UiLayoutGame.K,
                     (int)UiLayoutGame.FontPx16);
+                _resistValues[i].horizontalOverflow = HorizontalWrapMode.Overflow;
             }
         }
 
@@ -325,7 +398,7 @@ namespace Diablo2.UI
 
             //   悬停提示（原版该节点挂着 `Tooltip`、文案字段 = `Close`；出处与外观口径见 `UI/ControlTip.cs`）：
             //   进 / 出各一次显隐；面板 `OnClose` 再收一次（对应参考实现的 `OnDisable`）。
-            //   文案走工程既有的「关闭」口径（与 `WaypointPanel` 的关闭钮同源）。
+            //   文案 = 原版串表逐字（`WaypointPanel.CloseText` = `關閉`，出处见该常量自身的注释）。
             _closeTip = ControlTip.Create(transform, close.rectTransform, WaypointPanel.CloseText);
             var hover = close.gameObject.AddComponent<HoverTarget>();
             if (_closeTip != null)
@@ -363,17 +436,20 @@ namespace Diablo2.UI
             var points = stats != null ? stats.statPoints : 0;
             var skillPoints = stats != null ? stats.skillPoints : 0;
 
-            // 三段分框显示（右上 = 等级 / 第二排右框 = 经验 / 第二排中框 = 技能点）。
+            // 三段分框显示（右上 = 等級 / 第二排右框 = 經驗 / 第二排中框 = 技能點）。
             //   出处：底图三处凹槽的逐像素实测（`UiLayoutGame.CharTopRightPos` / `CharBand2RightPos` /
             //   `CharBand2MidPos`）。
             //   本框只显示当前经验：原版 `CharstatPanel.prefab`（`原版资源/参考工程_Diablerie/`）无等级/经验节点，
             //   原版把「当前经验 / 下一等级」并列的载体是底部经验条的悬停提示串
             //   （`原版资源/d2text/chi_string.txt` 串 4163 `經驗： %u / %u`），不在人物面板。
-            //   容量（框 118 art ⇒ availPx 99；汉字 13 / 数字 6 / 斜杠 3 art）：「经验 {10 位}」need 89 ⇒ 单行；
-            //   「经验 {10 位}/{10 位}」need 152、「下一等级 {10 位}」need 115 ⇒ 都排不下。
-            _topRightText.text = $"等级 {(stats != null ? stats.level : 0)}";
-            _band2RightText.text = $"经验 {(stats != null ? stats.exp : 0)}";
-            _band2MidText.text = $"技能点 {skillPoints}";
+            //   容量（框 118 art ⇒ availPx 99；font16 汉字 13 / 数字 6 / 斜杠 3 art）：「經驗 {10 位}」need 89 ⇒ 单行；
+            //   「經驗 {10 位}/{10 位}」need 152、「下一等級 {10 位}」need 115 ⇒ 都排不下。
+            //   行名前缀逐字取原版串表：`等級` id 4057 / `經驗` id 4058。
+            //   第二排中框的 `技能點` 是**本项目扩展字段**（登记在此）：原版人物面板不显示技能点，
+            //   串表里 4059 `下一等級` / 4075 `狀況點數` / 4076 `剩餘` 都指别的字段 ⇒ 无 1:1 原版串可用。
+            _topRightText.text = TopRightPrefix + (stats != null ? stats.level : 0);
+            _band2RightText.text = Band2RightPrefix + (stats != null ? stats.exp : 0);
+            _band2MidText.text = Band2MidPrefix + skillPoints;
 
             SetStat(0, stats?.str ?? 0);
             SetStat(1, stats?.dex ?? 0);

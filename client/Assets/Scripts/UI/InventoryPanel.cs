@@ -562,7 +562,7 @@ namespace Diablo2.UI
 
             //   悬停提示（原版该节点挂着 `Tooltip`、文案字段 = `Close`；出处与外观口径见 `UI/ControlTip.cs`）：
             //   进 / 出各一次显隐；面板 `OnClose` 再收一次（对应参考实现的 `OnDisable`）。
-            //   文案走工程既有的「关闭」口径（与 `WaypointPanel` 的关闭钮同源）。
+            //   文案 = 原版串表逐字（`WaypointPanel.CloseText` = `關閉`，出处见该常量自身的注释）——与全工程关闭钮同一条。
             _closeTip = ControlTip.Create(transform, close.rectTransform, WaypointPanel.CloseText);
             var hover = close.gameObject.AddComponent<HoverTarget>();
             if (_closeTip != null)
@@ -599,10 +599,18 @@ namespace Diablo2.UI
                 gb.transition = Selectable.Transition.SpriteSwap;
                 gb.spriteState = new SpriteState { pressedSprite = pressed, highlightedSprite = pressed };
             });
-            gb.onClick.AddListener(() => UiLog.Info("点金币按钮 ⇒ 原版是「把钱丢地上」；本项目未接线（回报「未接线」）"));
+            gb.onClick.AddListener(() =>
+            {
+                // 点击音（键 = `SfxRegistry.UiClick` = 原版 `cursor\button.wav`）：本钮未接线、
+                // 不发任何业务事件 ⇒ 不在这里发就没有声（原版这颗钮点下去有按钮音）。
+                Game.Event.Emit(Events.UiClick);
+                UiLog.Info("点金币按钮 ⇒ 原版是「把钱丢地上」；本项目未接线（回报「未接线」）");
+            });
 
-            // ── 金币数字（原版 GoldText）：位图字体、居中 ──
-            _goldText = D2Label.Create(transform, "Gold", "0", D2Text.D2Font.Font16, TextAnchor.MiddleCenter,
+            // ── 金币数字（原版 GoldText）：位图字体、左对齐 —— 出处 = `InventoryPanel.prefab` 的
+            //    `GoldText` 节点（`m_AnchoredPosition: -7,-183.2`、`m_SizeDelta: 87.1×15.2`、
+            //    `m_Alignment: 6` = TextAnchor.LowerLeft）⇒ 数字紧跟在金币按钮右边、不居中 ──
+            _goldText = D2Label.Create(transform, "Gold", "0", D2Text.D2Font.Font16, TextAnchor.LowerLeft,
                 UiArt.TitleColor, GoldTextSize, PanelPos + GoldTextPos, (int)UiLayoutGame.FontPx16);
         }
 
@@ -701,26 +709,72 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 物品 → 装备槽。`Def.ItemStack` 只有大类（武器/防具/杂项）与格数，没有细分类字段
-        /// ⇒ 这里用**格数**按原版口径推定（1×1 杂项不占槽）。
+        /// 物品 → 装备槽。
+        /// <para>
+        /// 口径 = **`item_c` 的官方列**（`source` = weap/armo/misc；`type` = 官方 `type`，如
+        /// helm/tors/shie/glov/boot/belt/amul/ring；`subtype` = 官方 `type2`）—— 必须与
+        /// `Module/Item/Equipment.SlotOf` **逐条同规则**：`equip` 快照是模块按那条规则装出来的，
+        /// 本函数判得不一样就会出现"装了却找不到槽位"（槽位空着 / 同一物品挤进别的槽）。
+        /// </para>
+        /// <para>
+        /// 为什么不能看格数：圆盾（`shie`）与帽子（`helm`）都是 2×2、大盾 2×3 与盔甲 2×3 同格；
+        /// 戒指/项链是 `misc` 大类、1×1，用大类判会把它们判成"无槽位"（首饰槽永远是空的）。
+        /// </para>
+        /// <para>配表缺行 ⇒ 按 `ItemStack.type` 粗判（只有武器/防具两类，首饰判不出槽位）并告警。</para>
         /// </summary>
         private static ItemSlot SlotOf(ItemStack item)
         {
-            if (item.type == ItemType.Weapon) return ItemSlot.Weapon;
-            if (item.type != ItemType.Armor) return ItemSlot.None;
+            if (item == null) return ItemSlot.None;
 
-            switch (item.gridW)
+            var row = Table.TableLoader.Item(item.itemId);
+            if (row != null) return SlotOfItemRow(row.Source, row.Type, row.Subtype);
+
+            UiLog.WarnOnce("inv.slot.rowmiss." + item.itemId,
+                $"装备槽：`item_c` 缺 id={item.itemId} 的行 ⇒ 按 ItemStack.type 粗判（首饰判不出槽位）");
+            if (item.type == ItemType.Weapon) return ItemSlot.Weapon;
+            if (item.type == ItemType.Armor) return ItemSlot.Armor;
+            return ItemSlot.None;
+        }
+
+        /// <summary>
+        /// `item_c` 的 (`source`, `type`, `subtype`) → 装备槽（**纯函数，离线可断言**）。
+        /// 逐条对齐 `Module/Item/Equipment.SlotOf`：投掷药水（`type2 = tpot`）不是可穿戴武器；
+        /// 防具按官方 `type` 分槽，`type` 未登记时按盔甲处理。
+        /// </summary>
+        internal static ItemSlot SlotOfItemRow(string source, string type, string subtype)
+        {
+            if (source == "weap") return subtype == "tpot" ? ItemSlot.None : ItemSlot.Weapon;
+
+            if (source == "armo")
             {
-                case 2 when item.gridH >= 4: return ItemSlot.Armor;
-                case 2 when item.gridH == 3: return ItemSlot.Shield;
-                case 2 when item.gridH == 2: return ItemSlot.Helm;
-                case 2 when item.gridH == 1: return ItemSlot.Belt;
-                case 1 when item.gridH == 1: return ItemSlot.Ring;
-                default:
-                    UiLog.WarnOnce("inv.slot.guess." + item.gridW + "x" + item.gridH,
-                        $"防具 {item.name}（{item.gridW}×{item.gridH} 格）无法按格数推定槽位 ⇒ 按盔甲处理");
-                    return ItemSlot.Armor;
+                switch (type)
+                {
+                    case "helm":
+                    case "pelt":
+                    case "phlm":
+                    case "circ":
+                        return ItemSlot.Helm;
+                    case "tors":
+                        return ItemSlot.Armor;
+                    case "shie":
+                    case "ashd":
+                        return ItemSlot.Shield;
+                    case "glov":
+                        return ItemSlot.Gloves;
+                    case "boot":
+                        return ItemSlot.Boots;
+                    case "belt":
+                        return ItemSlot.Belt;
+                    default:
+                        UiLog.WarnOnce("inv.slot.armo." + type,
+                            $"装备槽：`item_c` 的 armo type=\"{type}\" 未登记 ⇒ 按盔甲处理");
+                        return ItemSlot.Armor;
+                }
             }
+
+            if (type == "amul") return ItemSlot.Amulet;
+            if (type == "ring") return ItemSlot.Ring;
+            return ItemSlot.None;
         }
 
         // ═════════════════════════════════════════════════════════════════════

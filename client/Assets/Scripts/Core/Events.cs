@@ -161,6 +161,15 @@ namespace Diablo2.Core
         public const string PanelToggleRequest = "D2.Ui.PanelToggle";
 
         /// <summary>
+        /// 一次 **UI 按钮点击**（无参）。收方 = `Module/Audio/AudioHook` ⇒ 播原版
+        /// `cursor\button.wav`（键 `ui_click`，登记见 `Module/Audio/SoundMap.md`）。
+        /// <para>发送方 = 那些**点击不走任何业务事件**的按钮（主菜单 / 暂停菜单 / 设置 / 选角 / 创角），
+        /// 它们点下去既没有 `PanelToggleRequest`、也没有 `DialogOptionChosen` ⇒ 不出声。
+        /// 已经会触发 `ui_click` 的链路（面板开关 / 对话选项 / 买卖）**不再**发本事件，避免同帧两声。</para>
+        /// </summary>
+        public const string UiClick = "D2.Ui.Click";
+
+        /// <summary>
         /// 地面物品名牌变化（参数 <c>Def.GroundItemLabelsArgs</c>）。
         /// <para>发送方 = `Module/Input/InputReader.UpdateHover`
         /// （消费 `InputReader.ShowGroundItems` = 原版 `Alt` 常显，以及当前悬停格）；
@@ -182,10 +191,11 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 玩家**真的挥出了一刀**（参数 <see cref="int"/> monsterId）。
-        /// <para>语义 = "这一次挥击已经落地"（冷却已扣、距离已够；**命中与未命中都算一次挥击**），
+        /// <para>语义 = "这一次挥击已经起手"（冷却已扣、距离已够；**命中与未命中都算一次挥击**；
+        /// 伤害在 A1 接触帧结算），
         /// 与 <see cref="AttackRequest"/> 的区别：那个是"请求"（会被冷却/超距丢弃，按住左键时每帧都发），
         /// 本事件只在真的出手时发一次 ⇒ 视图侧据此播**挥击动作**。</para>
-        /// <para>发送方：`Module/Combat/CombatModule.PlayerBasicAttack`（玩家普攻的唯一结算入口）；
+        /// <para>发送方：`Module/Combat/CombatModule.PlayerBasicAttack`（玩家普攻的唯一起手入口）；
         /// 收方：`Module/View/ViewModule`（`OnPlayerAttacked` ⇒ 播原版 `attack` 动作，
         /// 时长 = <c>GameConst.PlayerAttackInterval</c>）。</para>
         /// </summary>

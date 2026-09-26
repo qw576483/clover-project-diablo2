@@ -11,7 +11,7 @@
 //            D2Label.LineCount (three values together)
 //        W9  NPC nameplate black bar width: rendered rect vs NameplateSizeFor(text)
 //        N1  the first `[Hover]` hit of the session must be a MONSTER body
-//        U32 town waypoint anchor (31,26): sprite name read twice, frames apart
+//        U32 town waypoint anchor (34,19): sprite name read twice, frames apart
 //        N2  monster move / hit frames (viewed on the contact sheet)
 //        N4  inventory drag ghost + drop-cell highlight
 //
@@ -1189,7 +1189,7 @@ namespace P2
                     if (!Open<Diablo2.UI.DeathPanel>() || Elapsed(8f)) { Probe.KV("DEATH-CLOSED", "open=" + Open<Diablo2.UI.DeathPanel>()); Next(); }
                     break;
 
-                // 30) walk onto the waypoint anchor (31,26) -> WaypointPanel opens
+                // 30) walk onto the waypoint anchor (34,19) -> WaypointPanel opens
                 case 30:
                     {
                         var map = Probe.Map();

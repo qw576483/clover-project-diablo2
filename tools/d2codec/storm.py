@@ -111,7 +111,8 @@ def open_archive(path, patch=None):
     """打开一个 MPQ，返回 handle。
 
     ⚠️ 会 `os.chdir` 到该 MPQ 所在目录（见文件头 坑 1）—— 因为 ANSI 接口 + 本仓库
-    的 `原版资源/` 路径含中文。`patch` 非空时叠加补丁归档（同目录、ASCII 名）。
+    的 `原版资源/` 路径含中文。`patch` 非空时叠加补丁归档：**只取它的 basename**
+    （此时 cwd 已是主包目录 ⇒ 裸名就是完整语义的路径，且绝不含中文）。
     """
     lib = load()
     ap = os.path.abspath(path)
@@ -123,7 +124,9 @@ def open_archive(path, patch=None):
     if not lib.SFileOpenArchive(_A(base), 0, MPQ_OPEN_READONLY, byref(h)) or not h.value:
         raise OSError('SFileOpenArchive 失败：%s' % ap)
     if patch:
-        lib.SFileOpenPatchArchive(h, _A(patch), b'', 0)
+        # ⛔ 只传**裸文件名**：`原版资源/` 含中文，把绝对路径交给 `_A()` 会 `UnicodeEncodeError`；
+        #    上面已 chdir 到主包目录 ⇒ basename 就是同一份文件。
+        lib.SFileOpenPatchArchive(h, _A(os.path.basename(patch)), b'', 0)
     return h
 
 

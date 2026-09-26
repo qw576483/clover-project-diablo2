@@ -4,7 +4,7 @@
 //                                -> CharacterPanel derived rows must read 84/84, 50/50, 15/15
 //                                -> SaveAndExit -> that JSON's "version" key must become 2
 //   (2) W11  CharacterPanel Plus0..3 at statPoints == 0 (sprite / color.a / rect / interactable)
-//   (3) W12  town waypoint: walk to (31,26) -> panel -> delay >= 2 frames -> screenshot
+//   (3) W12  town waypoint: walk to (34,19) -> panel -> delay >= 2 frames -> screenshot
 //   (4) W2/W3 hover dispatch: town npc (plate, no bar) / live monster in BloodMoor (bar, no plate)
 //                                -> kill -> 3 samples of payload hasTarget + BarVisible
 //
@@ -787,7 +787,7 @@ namespace P1
                     if (Elapsed(45f)) { Probe.Warn("Town 45s not ready area=" + Area()); Next(); }
                     break;
 
-                // 24) W12: walk to the waypoint cell (31,26) -> the panel opens on arrival
+                // 24) W12: walk to the waypoint cell (34,19) -> the panel opens on arrival
                 case 24:
                     {
                         var map = Probe.Map();

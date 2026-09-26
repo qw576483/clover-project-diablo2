@@ -104,7 +104,8 @@ namespace Diablo2.UI
         /// ③ 正文行高 ≈ 屏宽 2.0% ⇒ 800 下 ≈16px = **原版 font16 的 1× 行距** ⇒ **字不放大、框放大**
         /// （所以原版看过去是"大字框、小正文字"）。
         /// </para>
-        /// <para>这是**量化推断**（原版没有该屏的坐标表，`参考工程_Diablerie` 本机只有 txt、无 prefab）
+        /// <para>这是**量化推断**（原版没有该屏的坐标表；`原版资源/参考工程_Diablerie/` 本机只有官方
+        /// txt + 2 个 prefab ⇒ 取不到该屏的 prefab）
         /// ⇒ 登记为「用户可一眼纠正」的一条：若原版实际是 1×，把 <see cref="DialogArtScale"/> 改回 1 即可，
         /// 其余所有换算都挂在它上面（不会有第二处需要改）。</para>
         /// </summary>
@@ -364,8 +365,12 @@ namespace Diablo2.UI
             // 底图 = **原版对话框**（`MENU/dialogbackground.DC6` = 210×158，按原版像素 1:1 ×1.8 = 378×284.4，
             //   **不拉伸/不九宫格** —— 实测该图没有同质中段（逐列/逐行比对最长同质段 = 1px），拉伸会把石纹拉花）。
             //   命中区单独一块透明板（比底图宽），保证点到空白处也能吃掉点击、不穿透到 HUD。
-            UiArt.Art(transform, "DialogArt", ResPaths.PanelDialogBack, DialogArtSize,
-                new Vector2(0f, FrameY));
+            //   占位色 = `UiArt.PanelBg`（深色）：贴图在途 / 缺失时石框不该是一整块刺眼白
+            //   （贴图到位后由 `SetSprite` 把色调覆写回白，`UiImageLoader` 只在加载成功时写 `color`）。
+            var dialogArt = UiArt.Panel(transform, "DialogArt", DialogArtSize, new Vector2(0f, FrameY),
+                UiArt.PanelBg, false);
+            UiArt.SetSprite(dialogArt, ResPaths.PanelDialogBack);
+
             UiArt.Panel(transform, "DialogHit", FrameSize, new Vector2(0f, FrameY),
                 new Color(1f, 1f, 1f, 0f), true);
 
@@ -373,8 +378,11 @@ namespace Diablo2.UI
             // 外框 = 原版尺寸 ×1.8 = 171×61.2，整条落在石框**上方**（底沿贴 FrameTop）。
             // 原版**没有这条的坐标出处**（石框里没有标题槽）⇒ 登记 E17。
             // U3：标题条同样按 `DialogArtScale`（截图实测它也是 ~1.9×，与石框同倍 ⇒ 两者相对比例不变）。
-            UiArt.Banner(transform, "SpeechBanner", ResPaths.Banner("npcspeech_0"),
-                new Vector2(L(95f), L(34f)), new Vector2(0f, FrameTop + L(34f) * 0.5f));
+            // 占位色同 `DialogArt`（深色占位，到位后覆写回白）；`preserveAspect` = 原版像素不被拉变形。
+            var banner = UiArt.Panel(transform, "SpeechBanner", new Vector2(L(95f), L(34f)),
+                new Vector2(0f, FrameTop + L(34f) * 0.5f), UiArt.PanelBg, false);
+            banner.preserveAspect = true;
+            UiArt.SetSprite(banner, ResPaths.Banner("npcspeech_0"));
 
             _speaker = UiArt.Label(transform, "Speaker", string.Empty, NameFont, TextAnchor.MiddleCenter,
                 UiArt.TitleColor, new Vector2(ContentW, NameH), new Vector2(ContentCx, NameY));

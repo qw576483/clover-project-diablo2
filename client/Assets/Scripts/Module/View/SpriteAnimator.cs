@@ -28,6 +28,7 @@
 // ═════════════════════════════════════════════════════════════════════════════
 
 using System;
+using Diablo2.Core;
 
 namespace Diablo2.Module.View
 {
@@ -102,8 +103,11 @@ namespace Diablo2.Module.View
             return true;
         }
 
-        /// <summary>默认帧率（素材到位后按原版 `.dcc` 的帧率校准；见 `SpriteFrames`）。</summary>
-        public const float DefaultFps = 8f;
+        /// <summary>
+        /// 默认帧率 = 原版动画基准帧率 <see cref="GameConst.AnimBaseFps"/>（25 fps）。
+        /// <para>只在 `Play` 传入的 fps ≤ 0.01 时兜底（`SpriteFrames.FpsOf` 已给出逐动作真值）。</para>
+        /// </summary>
+        public const float DefaultFps = GameConst.AnimBaseFps;
 
         /// <summary>
         /// 播放某个动作。**同一个动作重复调用不会重置进度**（否则每帧都被打回第 0 帧，

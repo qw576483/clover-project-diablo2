@@ -27,7 +27,7 @@
 //   桩**不镜像**生产的判定逻辑（不复制任何 if/阈值）—— 它只提供"地图长什么样"这一件事，
 //      判定全部落在被验证的生产类里。
 //
-// 桩坐标刻意用一个**明显是桩**的值（4,7），**不是**原版锚点：原版锚点 (31,26) 的出处与断言
+// 桩坐标刻意用一个**明显是桩**的值（4,7），**不是**原版锚点：原版锚点 (34,19) 的出处与断言
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -300,7 +300,7 @@ namespace Uicheck
             var mapViewSrc = File.ReadAllText(Path.Combine(Program.ProjectRoot,
                 "client", "Assets", "Scripts", "Module", "Map", "MapView.cs"));
             var tilePpu = SrcFloatAfter(mapViewSrc, "D2TilePixelsPerUnit");
-            var artAnchor = new Vector2Int(31, 26);       // 原版锚点（四块 DS1 预设单位重合，见 MapGenTown）
+            var artAnchor = new Vector2Int(34, 19);       // 原版锚点（五芒星石台单位折算最近格，见 MapGenTown）
             var recomputed = BandCells(cvW, cvH, pad, unionH, tilePpu, artAnchor);
             var declared = new List<string>();
             for (var k = 0; k < AppWaypoint.WaypointArtCells.Length; k++)

@@ -39,10 +39,12 @@ from collections import OrderedDict
 try:
     from . import ds1 as ds1mod
     from . import dt1 as dt1mod
+    from . import export_deco as deco
     from . import export_tiles as exp
 except ImportError:
     import ds1 as ds1mod
     import dt1 as dt1mod
+    import export_deco as deco
     import export_tiles as exp
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -192,9 +194,13 @@ def build(out_path, debug):
     packs = [p for p in sorted(set(pack_of.values())) if p in allowed_packs]
     pack_id = dict((p, i) for i, p in enumerate(packs))
 
+    # 装饰物件（块内 kind=2 预设单位）：id 判定表与子格换算都走 `export_deco`（口径只有那一份）。
+    exportable = deco.exportable_kinds()
+
     names = sorted(f for f in os.listdir(src_dir) if f.endswith('.ds1'))
     pieces = []
     skipped = []
+    deco_skipped = {}
 
     for name in names:
         ds1 = ds1mod.load_ds1(os.path.join(src_dir, name))
@@ -268,6 +274,10 @@ def build(out_path, debug):
             continue
 
         # ── ④ 编码 ────────────────────────────────────────────────────────
+        # 装饰物件：本块 kind=2 预设单位 → 块内格（行 0 = 块最北，与 `Cells` 同一格坐标口径）
+        deco_units, deco_skip = deco.units_of(ds1, exportable)
+        for _i, _n in deco_skip.items():
+            deco_skipped[_i] = deco_skipped.get(_i, 0) + _n
         alphabet = OrderedDict()
         cells = []
         for y in range(PIECE_SIZE):
@@ -283,6 +293,7 @@ def build(out_path, debug):
             'cells': ''.join(cells),
             'alphabet': [('%s%s%s' % (k, g, o)) for (k, g, o) in alphabet.keys()],
             'walkable': total,
+            'deco': deco_units,
         })
 
     # ── 按 (dirMask, 变体序号) 排序输出 ─────────────────────────────────────
@@ -301,7 +312,17 @@ def build(out_path, debug):
     for n, r in skipped:
         print('  [剔除] %-22s %s' % (n, r))
 
-    _write_cs(out_path, pieces, packs, skipped, by_mask)
+    deco_total = sum(len(p['deco']) for p in pieces)
+    print('  装饰物件（ds1 `objects` 层 kind=2 预设单位，块内格）：%d 个' % deco_total)
+    for p in pieces:
+        if p['deco']:
+            print('    %-14s %s' % (p['name'],
+                                    ', '.join('(%d,%d)id=%d' % u for u in p['deco'])))
+    if deco_skipped:
+        print('  [未导出] 未登记（判不出物件类）的 ds1 id，按 id 汇总：%s'
+              % ', '.join('id=%d×%d' % (i, n) for i, n in sorted(deco_skipped.items())))
+
+    _write_cs(out_path, pieces, packs, skipped, by_mask, deco_skipped)
     print('  → %s' % out_path)
     return 0
 
@@ -328,6 +349,12 @@ HEADER = '''// ─────────────────────�
 //   另有约 226 格的 floor 引用**解析不到任何 dt1 的 compositeIndex** —— 那正是原版洞穴里
 //   **什么都不画的实心岩体**（黑区），本项目按"实心岩体 + 不铺地砖"处理（见 cells 里的 'X'/' '）。
 //
+// 装饰物件（每块的 `DecoCells`/`DecoDs1Ids`）= 该块 ds1 `objects` 层里 kind=2 的**物件预设单位**
+//   （火炬这类；`id` = 该幕 objpreset 的**下标**，不是 `Objects.txt` 的 Id）。格是**块内格**
+//   （行 0 = 块最北，与 `Cells` 同一格坐标口径），落位时再按槽原点与南北翻转换成本图格。
+//   `id → 物件类（帧数 / 帧率 / 贴图目录）` = `MapGenDeco`（生成器 `tools/d2codec/export_deco.py`，
+//   id 判定表只有那一份）；判不出物件类的 id **不导出**，按 id 汇总记在下面。
+//
 // 三张数据：
 //   Pieces[i].DirMask   四边"通/不通"位（N=1 S=2 W=4 E=8；只收"要么不通、要么两条车道都通"的块）
 //   Pieces[i].Alphabet  该块用到的 `<kind><ground6><object6>` 组合表
@@ -344,19 +371,24 @@ HEADER = '''// ─────────────────────�
 //
 // 剔除记录（形状不规整 / 开口跨片 / 依赖 `warp.dt1` 的块，共 %d 个）：
 %s
+// 未导出的装饰物件 id（判不出物件类，按 id 汇总；不导出也不猜）：
+%s
 // ─────────────────────────────────────────────────────────────────────────────
 '''
 
 
-def _write_cs(out_path, pieces, packs, skipped, by_mask):
+def _write_cs(out_path, pieces, packs, skipped, by_mask, deco_skipped):
     skip_lines = []
     for n, r in skipped:
         skip_lines.append('//   · %-22s %s' % (n, r))
     walk_lines = []
     for p in pieces:
         walk_lines.append('//   · %-22s %d 格' % (p['name'], p['walkable']))
+    deco_skip_lines = (['//   · id=%-4d ×%d' % (i, n) for i, n in sorted(deco_skipped.items())]
+                       or ['//   （无）'])
     header = HEADER % ('\n'.join(walk_lines) if walk_lines else '//   （无）',
-                       len(skipped), '\n'.join(skip_lines) if skip_lines else '//   （无）')
+                       len(skipped), '\n'.join(skip_lines) if skip_lines else '//   （无）',
+                       '\n'.join(deco_skip_lines))
 
     lines = [header, 'using UnityEngine;', '', 'namespace Diablo2.Module.Map', '{',
              '    /// <summary>原版 ACT1 洞穴预设块库（生成物，见文件头）。</summary>',
@@ -385,12 +417,23 @@ def _write_cs(out_path, pieces, packs, skipped, by_mask):
               '            /// <summary>`<kind><ground6><object6>` 组合表。</summary>',
               '            public readonly string[] Alphabet;',
               '',
-              '            public Piece(string name, int dirMask, string cells, string[] alphabet)',
+              '            /// <summary>**装饰物件**：本块 ds1 `objects` 层 kind=2 预设单位的**块内格**',
+              '            /// （行 0 = 块最北，与 <see cref="Cells"/> 同一格坐标口径；落位时按槽原点与南北翻转换成本图格）。</summary>',
+              '            public readonly Vector2Int[] DecoCells;',
+              '',
+              '            /// <summary>与 <see cref="DecoCells"/> 一一对应的 ds1 `kind=2` id',
+              '            /// （= **该幕 objpreset 的下标**，不是 `Objects.txt` 的 Id；`id → 物件类` 查 `MapGenDeco.IndexOf`）。</summary>',
+              '            public readonly int[] DecoDs1Ids;',
+              '',
+              '            public Piece(string name, int dirMask, string cells, string[] alphabet,',
+              '                Vector2Int[] decoCells, int[] decoDs1Ids)',
               '            {',
               '                Name = name;',
               '                DirMask = dirMask;',
               '                Cells = cells;',
               '                Alphabet = alphabet;',
+              '                DecoCells = decoCells;',
+              '                DecoDs1Ids = decoDs1Ids;',
               '            }',
               '',
               '            /// <summary>该方向是否开通。</summary>',
@@ -407,6 +450,16 @@ def _write_cs(out_path, pieces, packs, skipped, by_mask):
         lines.append('                {')
         for a in p['alphabet']:
             lines.append('                    "%s",' % a)
+        lines.append('                },')
+        lines.append('                new Vector2Int[]')
+        lines.append('                {')
+        for (dx, dy, _i) in p['deco']:
+            lines.append('                    new Vector2Int(%d, %d),' % (dx, dy))
+        lines.append('                },')
+        lines.append('                new int[]')
+        lines.append('                {')
+        for (_x, _y, i) in p['deco']:
+            lines.append('                    %d,' % i)
         lines += ['                }),']
     lines += ['        };', '',
               '        /// <summary>`Cells` 里第 <paramref name="cell"/> 格（0 起，行优先）的 `Alphabet` 下标。</summary>',

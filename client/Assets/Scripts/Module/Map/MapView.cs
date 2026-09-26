@@ -55,7 +55,7 @@
 //     相机最快 `GameConst.PlayerWalkSpeed` = 3.0 格/s ⇒ 走完这 16 格余量要
 //     16 / 3.0 = 5.333 s = 5.333 s × `FramePacing.TargetFrameRate`(60) = **320 帧**。
 //     ⇒ 每帧建 1 块（16 格/帧 = 960 格/s）比"刚好跟上相机"快 320 倍，
-//       且一帧 1 块 ⇒ 一帧节点数 ≤ `ChunkSize² × 2 + 3` = 515（出货配置不开迷雾），
+//       且一帧 1 块 ⇒ 一帧节点数 ≤ `ChunkSize² × 3 + 3` = 771（地面 + 物件 + 装饰物件；出货配置不开迷雾），
 // ═════════════════════════════════════════════════════════════════════════════
 //
 // ═════════════════════════════════════════════════════════════════════════════
@@ -80,7 +80,7 @@
 //        建完才**一帧**切换（6 次**层根** `SetActive`，不逐个节点动）⇒ 任何中间帧上，
 //        屏幕上要么是**完整的旧图**、要么是**完整的新图**（不存在"半张"）。
 //     ③ **单帧预算**：每帧**新建节点** ≤ `MaxTileNodesPerFrame`（= 512，算式见该常量注释）；
-//        每帧扫描格 ≤ `MaxTileCellsPerFrame`（= 2×512 —— 一格最多 2 个节点）；
+//        每帧扫描格 ≤ `MaxTileCellsPerFrame`（= 2×512 —— 一格最多 3 个节点，见 `CellPlan.NodeCount`）；
 //        旧集**回收**同样按帧预算分摊（不在切换帧里逐个 `SetParent` / `Destroy`）。
 //     ④ **保底**：缓冲层根若被销毁（场景卸载那类非预期态）⇒ 放弃分帧、**一帧铺完**并打 Warn
 //        （不许静默、不许留空白）。
@@ -152,8 +152,9 @@ namespace Diablo2.Module.Map
         /// <para>· 实测整图重铺的每节点成本 = **27.416 µs/GO**（最差）/ 20.79 µs/GO（p50）
         /// （town-rebuild nodes=2824 p50=58714us max=77423us；出处 = `策划/差异登记.tsv` 的整图重铺行，
         /// 复核 = `tools/probes/hosts/mapcheck` 的预算算式段）；</para>
-        /// <para>· ⇒ 16666.7 ÷ 27.416 = **607.9** ⇒ 取 **512**（2 的幂，且 ≤ 一块满铺的节点上限
-        /// `ChunkSize²×2 + 3 = 515` ⇒ 与增量路径 <see cref="MaxChunksPerFrame"/> = 1 块/帧**同量级**）。</para>
+        /// <para>· ⇒ 16666.7 ÷ 27.416 = **607.9** ⇒ 取 **512**（2 的幂，且与一块满铺的节点上限
+        /// `ChunkSize²×3 + 3 = 771`（地面 + 物件 + 装饰物件，见 `CellPlan.NodeCount`）
+        /// ⇒ 与增量路径 <see cref="MaxChunksPerFrame"/> = 1 块/帧**同量级**）。</para>
         /// <para>⇒ 单帧最差 512 × 27.416 = **14037 µs** ≤ 16666.7 µs（裕度 **1.19×**；按 p50 算 10645 µs ⇒ 1.57×）。
         /// 而且本路径每帧**只做"建"或"回收"之一**，单位节点的开销比实测基线（建 + Destroy 挤在同一帧）更低。</para>
         /// </summary>
@@ -161,7 +162,9 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 整图重铺每帧最多**扫描**几格 = `MaxTileNodesPerFrame × 2`。
-        /// <para>不是随手写的：一格最多 2 个节点。它保证"本帧扫过的格数"也有上界 ——
+        /// <para>不是随手写的：一格最多 3 个节点（地面 + 物件 + 装饰物件，见 `CellPlan.NodeCount`），
+        /// 所以"扫描格数"的上界由**节点预算**决定；这个系数只兜住"整片不建节点的格子"
+        /// （洞穴里成片的"原版那格不画"）—— 它保证"本帧扫过的格数"也有上界 ——
         /// 否则洞穴里成片的"原版那格不画"（`groundKey == ""`）格子会让一帧扫过整张图
         /// （虽不建节点，但同样是白花帧）。</para>
         /// </summary>
@@ -365,7 +368,7 @@ namespace Diablo2.Module.Map
         /// <summary>待分帧归还池的旧块根个数（0 = 回收已完）。</summary>
         public int PendingRetireChunks { get { return _retireChunks.Count; } }
 
-        /// <summary>历史「单帧回收节点数」峰值（应 ≤ <c>max(MaxTileNodesPerFrame, 单块节点上限 515)</c>）。</summary>
+        /// <summary>历史「单帧回收节点数」峰值（应 ≤ <c>max(MaxTileNodesPerFrame, 单块节点上限 771)</c>）。</summary>
         public int RetirePeakPerFrame { get { return _retirePeakPerFrame; } }
 
         /// <summary>整图重铺的**单帧新建节点数**峰值（应恒 ≤ <see cref="MaxTileNodesPerFrame"/>）。</summary>
@@ -890,7 +893,7 @@ namespace Diablo2.Module.Map
         /// <para>为什么回收也要分帧：切换帧里逐个 `SetParent` + `SetActive` 上万次 = 又一个尖峰
         /// （实测每节点 20.79~27.416 µs ⇒ 2824 个节点 ≈ 59~77 ms）。</para>
         /// <para>口径：每帧**至少**回收一块（否则退回"永远回收不完"），故单帧上界 =
-        /// `max(budget, 单块节点上限 515)`。</para>
+        /// `max(budget, 单块节点上限 771)`。</para>
         /// </summary>
         private bool PumpRetire(int budget)
         {
@@ -1683,7 +1686,7 @@ namespace Diablo2.Module.Map
             ApplyCellPlan(plan, g, _groundChunks[chunk], _objectChunks[chunk], _overlayChunks[chunk]);
         }
 
-        /// <summary>一格的**建/画决定**（纯值；`NodeCount` = 本格要几个节点：0/1/2）。</summary>
+        /// <summary>一格的**建/画决定**（纯值；`NodeCount` = 本格要几个节点：0/1/2/3）。</summary>
         internal readonly struct CellPlan
         {
             /// <summary>这格要不要画（false = `TileKind.Void`：图外/未生成 —— 连迷雾都不画）。</summary>
@@ -1707,9 +1710,16 @@ namespace Diablo2.Module.Map
             /// <summary>本格的平色水墙瓦片被"不叠"跳过了（只用于计数）。</summary>
             public readonly bool SkipFlatWall;
 
+            /// <summary>
+            /// 本格的**原版装饰物件**类下标（`MapGenDeco.Kinds`；`-1` = 没有）。
+            /// <para>与 <see cref="ObjectKey"/> 是**两个节点**：`ObjectKey` = 原版 ds1 的 wall 层
+            /// 瓦片，装饰物件 = ds1 `objects` 层 kind=2 的预设单位（原版两者本来就叠着画）。</para>
+            /// </summary>
+            public readonly int DecoKind;
+
             /// <summary>构造（唯一入口；全部字段显式给）。</summary>
             public CellPlan(bool draw, string groundKey, TileKind groundKind, TileKind objectKind,
-                bool drawObject, string objectKey, bool skipFlatWall)
+                bool drawObject, string objectKey, bool skipFlatWall, int decoKind)
             {
                 Draw = draw;
                 GroundKey = groundKey;
@@ -1718,9 +1728,14 @@ namespace Diablo2.Module.Map
                 DrawObject = drawObject;
                 ObjectKey = objectKey;
                 SkipFlatWall = skipFlatWall;
+                DecoKind = decoKind;
             }
 
-            /// <summary>本格要建的节点数（0 = 什么都不画；1 = 只有一层；2 = 两层都画）。</summary>
+            /// <summary>
+            /// 本格要建的节点数（0 = 什么都不画；1 = 只有一层；2 = 两层都画；3 = 再加装饰物件）。
+            /// <para>⛔ 帧预算（`PumpRebuild` 的 `FrameAccepts`）就是按它扣的 ⇒ 本属性与
+            /// `ApplyCellPlan` 实际建的节点数必须**恒等**（该方法的注释是这条不变量的出处）。</para>
+            /// </summary>
             public int NodeCount
             {
                 get
@@ -1728,6 +1743,7 @@ namespace Diablo2.Module.Map
                     var n = 0;
                     if (!string.IsNullOrEmpty(GroundKey)) n++;
                     if (DrawObject) n++;
+                    if (DecoKind >= 0) n++;
                     return n;
                 }
             }
@@ -1742,12 +1758,13 @@ namespace Diablo2.Module.Map
         internal static CellPlan PlanCell(GridMap map, AreaId area, Vector2Int g)
         {
             var kind = map.Get(g);
-            if (kind == TileKind.Void) return new CellPlan(false, null, kind, kind, false, null, false);
+            if (kind == TileKind.Void) return new CellPlan(false, null, kind, kind, false, null, false, -1);
 
-            // ── 逐格「原版瓦片键」覆盖：**罗格营地**（`MapGenTownLayout`，源 `townW1.ds1`）
-            //    与**邪恶洞穴**（`MapGenCaveLayout`，源 `CAVES/*.ds1`）都用它。
+            // ── 逐格「原版瓦片键」覆盖：**罗格营地**（`MapGenTownLayout`，源 `townW1.ds1`）、
+            //    **邪恶洞穴**（`MapGenCaveLayout`，源 `CAVES/*.ds1`）与**野外**（`MapGenWildLayout`，
+            //    源 `ACT1/OUTDOORS/*.ds1`）三个生成器都用它。
             //    语义（见 `GridMap.TryGetTiles` 注释）：
-            //      · 返回 false ⇒ 本图没有逐格覆盖（= 野外），按 `TileKind` 分类取默认瓦片；
+            //      · 返回 false ⇒ 本图没有逐格覆盖（保底布局），按 `TileKind` 分类取默认瓦片；
             //      · 返回 true 且 groundKey == "" ⇒ **原版这格不画**（洞穴里的纯黑实心岩体就是
             //        这种格），不许兜底成占位菱形 —— 兜底会把它变成一堆灰方块。
             string ds1Ground = null, ds1Object = null;
@@ -1759,11 +1776,18 @@ namespace Diablo2.Module.Map
             var groundKey = fromDs1 ? ds1Ground : GroundKeyOf(groundKind, area, g);
 
             // ── 物件层 ──
-            // **有逐格覆盖的区域（营地 / 洞穴）**：只画原版那一格真的有的瓦片 —— 原版那格没有
+            // **营地 / 洞穴**：只画原版那一格真的有的瓦片 —— 原版那格没有
             //   wall 层瓦片（水上、纯黑岩体、被连通性修整改成 Wall 的死地…）就**什么都不画**。
             //   这里刻意**不做** `TileKind` 兜底：兜底会画出一堆纯色占位方块（实测 170 个），
             //   比"没有物件"难看得多，而且掩盖了"原版这里本来就没东西"这个事实。
-            // **其它区域（野外）**：按 `TileKind` 分类取默认瓦片；取不到才用纯色占位（便于发现问题）。
+            // **野外（血腥荒野）**：原版块数据里少数阻挡格没有 wall 层瓦片（树线/崖壁之间的
+            //   草地格，`MapGenWildLayout` 的 object6 为 `------`），封边环
+            //   （`GridMap.SealBorderRing`）与连通性修整（`GridMap.FillUnreachablePockets`）
+            //   也只改 `TileKind` 不给瓦片键 ⇒ 这些格撞得上却什么都不画（"空气墙"）。
+            //   补画口径（`WildObjectFallback`，两级都是原版瓦片，⛔ 不用纯色占位）：
+            //   ① 8 邻域里第一个带物件瓦片的阻挡格的键（同一原版块内的同类阻挡物）；
+            //   ② 都没有就按 `TileKind` 取同类原版瓦片（`ObjectKeyOf`）。
+            //   水域格（地面键取自水域 dt1）不补：水面本身就是"不可走"的画面。
             // ── 传送台锚点格 ──
             //   锚点 = `GridMap.WaypointPoints`（`MapGenTown` 按原版 DS1 的预设单位落的关卡格）。
             //   原版那一格在 DS1 里**没有** wall 层瓦片（原版运行期用 Id=119 的 Waypoint 顶掉
@@ -1776,22 +1800,38 @@ namespace Diablo2.Module.Map
             //   只影响本帧画不画这一张物件，**不动** `GridMap` 的键 / `TileKind` / 可走性。
             var skipFlatWallOverlay = ds1HasObject && IsPaletteCycledFlatWallOverlay(ds1Ground, ds1Object);
 
+            var wildFallback = (!fromDs1 || ds1HasObject || area != AreaId.BloodMoor)
+                ? null
+                : WildObjectFallback(map, g, kind, ds1Ground);
+
             var drawObject = isWaypoint
-                || (fromDs1 ? (ds1HasObject && !skipFlatWallOverlay) : IsObjectKind(kind));
+                || (fromDs1
+                    ? ((ds1HasObject && !skipFlatWallOverlay) || wildFallback != null)
+                    : IsObjectKind(kind));
             if (drawObject && IsHiddenSolidInterior(map, g, kind)) drawObject = false;
 
             var objectKey = isWaypoint
                 ? ResPaths.WaypointFrame(0)
                 : (drawObject
-                    ? (ds1HasObject ? ds1Object : (fromDs1 ? null : ObjectKeyOf(kind, area, g)))
+                    ? (ds1HasObject ? ds1Object : (fromDs1 ? wildFallback : ObjectKeyOf(kind, area, g)))
                     : null);
 
-            return new CellPlan(true, groundKey, groundKind, kind, drawObject, objectKey, skipFlatWallOverlay);
+            // ── 装饰物件（ds1 `objects` 层 kind=2 预设单位）──
+            //   登记表 = `GridMap.SetDeco`（三个生成器按原版 ds1 逐格写），类表 = `MapGenDeco.Kinds`。
+            //   它**独立成节点**、不改 `ObjectKey` 的语义（原版 wall 层瓦片与预设单位本来就叠着画）。
+            var decoKind = -1;
+            if (map.TryGetDeco(g.x, g.y, out var dk) && dk >= 0 && dk < MapGenDeco.Kinds.Length)
+            {
+                decoKind = dk;
+            }
+
+            return new CellPlan(true, groundKey, groundKind, kind, drawObject, objectKey,
+                skipFlatWallOverlay, decoKind);
         }
 
         /// <summary>
         /// 这一格是不是**传送台锚点**（`GridMap.WaypointPoints`）。
-        /// <para>锚点是**关卡格级**的标记单位（`MapGenTown.Waypoint` 一处；四条营地块导出的位置重合），
+        /// <para>锚点是**关卡格级**的标记单位（`MapGenTown.Waypoint` 一处；出处逐条写在该常量的注释里），
         /// 不是某一块的装饰 ⇒ 判据就是"格坐标在表里"。</para>
         /// </summary>
         internal static bool IsWaypointAnchor(GridMap map, Vector2Int g)
@@ -1857,6 +1897,129 @@ namespace Diablo2.Module.Map
             if (sprite != null) _waypointNode.sprite = sprite;
         }
 
+        // ── 装饰物件（原版 ds1 `objects` 层 kind=2 预设单位）─────────────────────
+        //   载体 = 那一格池化出来的物件层节点（`ApplyCellPlan` 里 `NewTile` 建的那个），
+        //   ⛔ 不为它新立节点体系；帧推进复用 `Module/View` 的 `SpriteAnimator`（纯逻辑，可离线驱动）。
+        //   帧数 / 帧率 = 生成物 `MapGenDeco.Kinds`（读数出处 = 原版 `Objects.txt` 的
+        //   `FrameCnt#` / `FrameDelta#`；换算口径见 `tools/d2codec/export_deco.py` 文件头 ③）。
+        //   **一个物件类一个动画器**：同类（营地里的 19 座火炬那样）共享同一相位。
+
+        /// <summary>一个物件类的动画器 + 它当前登记的节点（懒建）。</summary>
+        private sealed class DecoPlay
+        {
+            public SpriteAnimator Anim;
+            public string[] Keys;
+            public readonly List<SpriteRenderer> Nodes = new List<SpriteRenderer>();
+        }
+
+        /// <summary>各物件类的动画器（下标 = `MapGenDeco.Kinds` 下标；懒建）。</summary>
+        private DecoPlay[] _decoPlays;
+
+        /// <summary>节点 → 物件类下标（节点被回收时用它摘登记，见 `RecycleChunk`）。</summary>
+        private readonly Dictionary<SpriteRenderer, int> _decoKindOf =
+            new Dictionary<SpriteRenderer, int>();
+
+        /// <summary>
+        /// 登记一格装饰物件的节点并开播它的动画；非循环类（`Frames == 1` 或 `Loop == false`）
+        /// 只贴第 0 帧、不进动画表。
+        /// <para>重复登记**不会**把进度打回第 0 帧（`SpriteAnimator.Play` 的同动作早退），
+        /// 但会把当前帧同步到新节点上 —— 重铺后节点是新的，不同步就会停在 build 那一帧。</para>
+        /// </summary>
+        private void BindDecoNode(SpriteRenderer node, int kindIndex)
+        {
+            var k = MapGenDeco.Kinds[kindIndex];
+            if (k.Frames <= 1)
+            {
+                // 静态物件：第 0 帧已在 `ApplyCellPlan` 里贴好，不占动画表。
+                return;
+            }
+
+            if (_decoPlays == null) _decoPlays = new DecoPlay[MapGenDeco.Kinds.Length];
+            var play = _decoPlays[kindIndex];
+            if (play == null)
+            {
+                play = new DecoPlay { Anim = new SpriteAnimator() };
+                play.Keys = new string[k.Frames];
+                for (var i = 0; i < play.Keys.Length; i++)
+                {
+                    play.Keys[i] = ResPaths.DecoFrame(k.Dir, i);
+                }
+                _decoPlays[kindIndex] = play;
+            }
+            play.Anim.Play(ViewAnim.Idle, play.Keys, k.Fps, k.Loop);
+            play.Nodes.Add(node);
+            _decoKindOf[node] = kindIndex;
+            ApplyDecoFrame(kindIndex);
+        }
+
+        /// <summary>每帧推进各物件类的动画（帧号变了才换贴图）。</summary>
+        private void TickDeco()
+        {
+            if (_decoPlays == null) return;
+            for (var i = 0; i < _decoPlays.Length; i++)
+            {
+                var play = _decoPlays[i];
+                if (play == null || play.Nodes.Count == 0) continue;
+                if (play.Anim.Tick(Time.deltaTime)) ApplyDecoFrame(i);
+            }
+        }
+
+        /// <summary>
+        /// 把某物件类的当前帧贴到它登记的全部节点上。贴图异步没到位时（`TrySprite` 返回 null）
+        /// **保留原图不写成 null** —— 写成 null 会让节点退化成"纯色占位菱形"。
+        /// </summary>
+        private void ApplyDecoFrame(int kindIndex)
+        {
+            var play = _decoPlays[kindIndex];
+            var key = play.Anim.CurrentKey;
+            if (key == null) return;
+            var sprite = TrySprite(ResPaths.ObjectSprite(key));
+            if (sprite == null) return;
+            for (var i = 0; i < play.Nodes.Count; i++)
+            {
+                var node = play.Nodes[i];
+                if (node != null) node.sprite = sprite;
+            }
+        }
+
+        /// <summary>
+        /// 一个节点被归还进池时调它（见 `RecycleChunk`）：摘掉装饰物件动画的登记 ——
+        /// 留着登记会把那一格（马上可能被别的格子取走）的瓦片每帧改写成装饰物件帧（静默错图）。
+        /// </summary>
+        private void ForgetDecoNode(SpriteRenderer node)
+        {
+            int kindIndex;
+            if (!_decoKindOf.TryGetValue(node, out kindIndex)) return;
+            _decoKindOf.Remove(node);
+            var play = _decoPlays[kindIndex];
+            if (play != null) play.Nodes.Remove(node);
+        }
+
+        /// <summary>清空全部装饰物件登记（整图重铺/拆块时用；节点本身照旧归还池）。</summary>
+        private void ClearDecoNodes()
+        {
+            _decoKindOf.Clear();
+            if (_decoPlays == null) return;
+            for (var i = 0; i < _decoPlays.Length; i++)
+            {
+                if (_decoPlays[i] != null) _decoPlays[i].Nodes.Clear();
+            }
+        }
+
+        /// <summary>
+        /// 装饰物件一格的渲染状态：物件层同档位、落位规则与墙/物件一致（图像底边贴格中心下方半格）。
+        /// <para>`kind` 只用于占位色（有贴图时恒白）；同格同序时按兄弟序渲染，见 `ApplyCellPlan`。</para>
+        /// </summary>
+        internal static TileRenderState DecoState(Sprite sprite, Vector2Int g)
+        {
+            return new TileRenderState(
+                sprite,
+                ColorFor(sprite != null, TileKind.Tree, false),
+                LocalScaleFor(sprite != null),
+                PlaceOf(Iso.GridToWorld(g), sprite, false),
+                Iso.SortOrder(g, GameConst.LayerOffsetObject));
+        }
+
         /// <summary>
         /// 把一格的计划**落地**（建节点），返回本格**新建的节点数**（恒等于
         /// <see cref="CellPlan.NodeCount"/> —— 帧预算就是按它扣的）。
@@ -1887,6 +2050,20 @@ namespace Diablo2.Module.Map
                 n++;
             }
 
+            // ── 装饰物件（原版 ds1 `objects` 层 kind=2）──
+            //   **必须建在物件层节点之后**：两者 sortingOrder 相同（同格同层），
+            //   同序时按层级里的兄弟序渲染（后追加的在上）—— 这正是块内格序的口径
+            //   （`ApplyTileState` 的 `SetParent(parent, false)` 追加到末尾），
+            //   也是原版的画序（房间的 wall 瓦片先画、预设单位后画）。
+            if (p.DecoKind >= 0)
+            {
+                var k = MapGenDeco.Kinds[p.DecoKind];
+                var sprite = TrySprite(ResPaths.ObjectSprite(ResPaths.DecoFrame(k.Dir, 0)));
+                var node = NewTile(obj, DecoState(sprite, g));
+                BindDecoNode(node, p.DecoKind);
+                n++;
+            }
+
             // ── 遮蔽层（迷雾）──
             if (_fogOn) CreateFog(g, overlay);
             return n;
@@ -1909,6 +2086,41 @@ namespace Diablo2.Module.Map
         /// </summary>
         private static bool IsHiddenSolidInterior(GridMap map, Vector2Int g, TileKind kind)
             => kind == TileKind.CaveWall && !map.HasWalkableNeighbor(g);
+
+        // ── 野外「空气墙」补画 ─────────────────────────────────────────────
+        //   适用条件与两级口径见 `PlanCell` 物件层注释。本组函数是纯函数（离线可复算）。
+
+        /// <summary>8 邻域扫描顺序（固定 ⇒ 结果确定）。</summary>
+        private static readonly int[] NeighborDx = { 1, -1, 0, 0, 1, 1, -1, -1 };
+        private static readonly int[] NeighborDy = { 0, 0, 1, -1, 1, -1, 1, -1 };
+
+        /// <summary>
+        /// 野外阻挡格的补画物件键（原版瓦片）：① 8 邻域里第一个带物件瓦片的阻挡格的键；
+        /// ② 都没有 ⇒ <see cref="ObjectKeyOf"/> 的同类默认瓦片；该 kind 没有默认瓦片 ⇒ null。
+        /// </summary>
+        private static string WildObjectFallback(GridMap map, Vector2Int g, TileKind kind, string groundKey)
+        {
+            if (!IsObjectKind(kind)) return null;
+            if (kind == TileKind.Exit) return null;          // 出入口的物件口径在 `ObjectKeyOf`（仅洞穴口）
+            if (IsWaterGroundKey(groundKey)) return null;    // 水面本身就是"不可走"的画面
+            for (var d = 0; d < NeighborDx.Length; d++)
+            {
+                var n = new Vector2Int(g.x + NeighborDx[d], g.y + NeighborDy[d]);
+                if (!map.InBounds(n) || map.Walkable(n)) continue;
+                if (!map.TryGetTiles(n.x, n.y, out _, out var nObj)) continue;
+                if (!string.IsNullOrEmpty(nObj) && !IsPaletteCycledFlatWallTile(nObj)) return nObj;
+            }
+            return ObjectKeyOf(kind, AreaId.BloodMoor, g);
+        }
+
+        /// <summary>地面键是否取自水域 dt1（`ACT1/OUTDOORS` 的 river/puddle/swamp → pack 前缀）。</summary>
+        internal static bool IsWaterGroundKey(string groundKey)
+        {
+            if (string.IsNullOrEmpty(groundKey)) return false;
+            return groundKey.StartsWith("moor_river/", System.StringComparison.Ordinal)
+                || groundKey.StartsWith("moor_puddle/", System.StringComparison.Ordinal)
+                || groundKey.StartsWith("moor_swamp/", System.StringComparison.Ordinal);
+        }
 
         // ═════════════════════════════════════════════════════════════════════
         // 素材 / 颜色 / 节点
@@ -2533,6 +2745,7 @@ namespace Diablo2.Module.Map
             RecycleChildren(_bufGroundRoot);
             RecycleChildren(_bufObjectRoot);
             RecycleChildren(_bufOverlayRoot);
+            ClearDecoNodes();                 // 装饰物件节点已随上面两轮归还池 ⇒ 登记表必须一起清
             _retireChunks.Clear();            // 待回收队列里的块根已被上面两轮覆盖 ⇒ 不作废队列 = 悬空引用
             _groundChunks.Clear();
             _objectChunks.Clear();
@@ -2624,6 +2837,7 @@ namespace Diablo2.Module.Map
                     // 送回池的节点**必须摘掉本体动画的登记**：它马上可能被别的格子取走，
                     //   留着登记就会把那一格的瓦片每帧改写成传送台帧（静默错图）。
                     if (sr == _waypointNode) _waypointNode = null;
+                    ForgetDecoNode(sr);
                     _pool.Return(sr);
                     n++;
                 }
@@ -2644,6 +2858,9 @@ namespace Diablo2.Module.Map
             //   `RecycleChunk`（摘登记）与 `ApplyTileState`（无条件重写 sprite）都会覆盖它
             //   ⇒ 本体帧永远只写在"当前登记的那个锚点节点"上。
             TickWaypoint();
+            // 装饰物件动画同口径：也推在"本帧所有铺装"之前 ⇒ 被回收/复用的节点随后一定被
+            //   `RecycleChunk`（摘登记）与 `ApplyTileState`（无条件重写 sprite）覆盖掉。
+            TickDeco();
 
             if (_repaintRequested)
             {

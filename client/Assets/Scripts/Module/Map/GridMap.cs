@@ -39,14 +39,22 @@ namespace Diablo2.Module.Map
 
         private TileKind[,] _tiles;
 
-        // ── 逐格「原版瓦片键」覆盖（罗格营地 / 邪恶洞穴用；野外不用）────────────
+        // ── 逐格「原版瓦片键」覆盖（罗格营地 / 邪恶洞穴 / 野外三个生成器都用）────────
         // 为什么要它：`MapView` 默认按 `TileKind` 分类抽一张同类瓦片，那是"能看"的近似；
-        // 而原版的营地与洞穴是**每一格都有确定的一张瓦片**（取自原版 ds1），
+        // 而原版的三个区域是**每一格都有确定的一张瓦片**（取自原版 ds1），
         // 只有逐格记住才能 1:1 还原（含"原版这格什么都不画"的黑区）。
-        // 为空 = 该格按 `TileKind` 走默认瓦片（野外路径），**不是**"画空白"。
+        // 未启用覆盖时（保底布局）= 该图按 `TileKind` 走默认瓦片，**不是**"画空白"。
         private string[] _groundKeys;
         private string[] _objectKeys;
         private bool _tileOverrides;
+
+        // ── 逐格「原版装饰物件」（ds1 `objects` 层的 kind=2 预设单位）────────────────
+        //   为什么单独一张表、而不是塞进 `_objectKeys`：`_objectKeys` 的语义是**原版 ds1 的
+        //   wall 层瓦片**，词义固定（生成物 `ObjectRows` 一一对应），塞进去会同时改掉
+        //   "既有列义"与"逐像素不变"两条判据。装饰物件的**类**（帧数/帧率/资源目录）全部
+        //   来自生成物 `MapGenDeco.Kinds`，这里只存一个小整数下标（`-1` = 该格没有装饰物件）。
+        //   出处与逐条 id 判定见 `tools/d2codec/export_deco.py` 文件头。
+        private int[] _decoKinds;
 
         // ── 逐格「deck（可走上方的结构：桥面/平台/甲板）」标记 ───────────────────
         //   等距排序值 = `(gx+gy)*SortOrderStep + SortOrderBase + 层偏移`（`Core/GameConst.cs`）。
@@ -151,6 +159,7 @@ namespace Diablo2.Module.Map
             _tiles = new TileKind[Width, Height];   // 默认 (TileKind)0 = Void = 图外/未生成（不可走）
             _groundKeys = null;
             _objectKeys = null;
+            _decoKinds = null;
             _tileOverrides = false;
             _deck = new bool[Width * Height];       // 换图必须**重新分配**（否则上一张图的桥面标记会残留）
 
@@ -186,6 +195,7 @@ namespace Diablo2.Module.Map
             _countsDirty = true;
             _groundKeys = null;
             _objectKeys = null;
+            _decoKinds = null;
             _tileOverrides = false;
             _deck = null;                           // deck 标记随之作废（`IsDeck` 对 null 表一律 false）
             CaveEntrance = null;
@@ -266,7 +276,48 @@ namespace Diablo2.Module.Map
             if (_tiles == null) { MapLog.Error("BeginTileOverrides: 地图未 Reset"); return; }
             _groundKeys = new string[Width * Height];
             _objectKeys = new string[Width * Height];
+            _decoKinds = new int[Width * Height];
+            for (var i = 0; i < _decoKinds.Length; i++) _decoKinds[i] = -1;
             _tileOverrides = true;
+        }
+
+        /// <summary>
+        /// 标记一格画**装饰物件**（ds1 `objects` 层 kind=2 预设单位），<paramref name="kind"/> =
+        /// `MapGenDeco.Kinds` 的下标。
+        /// <para>⛔ 一格只允许一个：同一格上第二个单位会**覆盖**第一个（原版一格也只放一个预设单位，
+        /// 重复登记说明 ds1 数据或换算口径出了问题）⇒ 留一次 Warn，不静默。</para>
+        /// </summary>
+        public void SetDeco(int x, int y, int kind)
+        {
+            if (!InBounds(x, y))
+            {
+                MapLog.WarnThrottled("map.deco.oob", $"SetDeco: ({x},{y}) 在图外，忽略");
+                return;
+            }
+            if (_decoKinds == null)
+            {
+                MapLog.WarnThrottled("map.deco.noover", "SetDeco: 未先调用 BeginTileOverrides，忽略本次写入");
+                return;
+            }
+            var i = y * Width + x;
+            if (_decoKinds[i] >= 0)
+            {
+                MapLog.WarnThrottled("map.deco.dup",
+                    $"SetDeco: ({x},{y}) 已有装饰物件（kind {_decoKinds[i]}）⇒ 本次 kind {kind} 覆盖它");
+            }
+            _decoKinds[i] = kind;
+        }
+
+        /// <summary>
+        /// 取某格的装饰物件类下标（`-1` = 没有）。返回 <c>false</c> = 本图没有逐格覆盖
+        /// （调用方按"无装饰物件"处理）。
+        /// </summary>
+        public bool TryGetDeco(int x, int y, out int kind)
+        {
+            kind = -1;
+            if (!_tileOverrides || _decoKinds == null || !InBounds(x, y)) return false;
+            kind = _decoKinds[y * Width + x];
+            return true;
         }
 
         /// <summary>写一格的**原版瓦片键**（`ResPaths.Tile` / `ObjectSprite` 的相对路径；空串 = 原版这格不画）。</summary>

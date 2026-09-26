@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 52,
-  "spec_md_line": 1077,
-  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
+  "spec_md_line": 1076,
+  "spec_sha256": "ad133ce9c7980d7512877686f2a0ad9cff52a52a7c12719452a70d76f200c7f3",
   "category": "数值类",
   "system": "技能·武器伤害类",
   "method": "21 行攻击技能（含重击 #121）应按武器伤害结算",
   "criterion": "离线枚举官方 `SrcDam≠''` 的 21 行 + 断言 `TryCast` 真的扣血",
   "conclusion": "通过（21 行真的按武器伤害结算；枚举产物 + 列名冻结凭据 + 运行时断言三者都在盘）  ｜类别：数值类",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-25 02:35:47",
+  "generated": "2026-09-26 14:17:59",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [],

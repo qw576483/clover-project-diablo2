@@ -39,6 +39,10 @@ namespace Diablo2.Module.Combat
 
         private int _targetId = -1;
         private float _attackCd;
+        /// <summary>已起手、等待接触帧结算的挥击目标（-1 = 无待结算挥击）。</summary>
+        private int _pendingSwingId = -1;
+        /// <summary>到接触帧的剩余秒数（配合 <see cref="_pendingSwingId"/>）。</summary>
+        private float _pendingSwingTimer;
         private Rng _rng;
         private int _critSkillId;
         private bool _critSkillResolved;
@@ -110,7 +114,10 @@ namespace Diablo2.Module.Combat
             PlayerBasicAttack(monsterId);
         }
 
-        /// <summary>玩家**普通攻击**（左键）：命中判定 → 物理伤害 → 结算。</summary>
+        /// <summary>
+        /// 玩家**普通攻击**（左键）：闸门（冷却 / 距离 / 判定形状）→ 起手（扣冷却 + 挥击事件）→
+        /// **接触帧结算**（<see cref="SettlePlayerSwing"/>，排期由 <see cref="Tick"/> 推进）。
+        /// </summary>
         private void PlayerBasicAttack(int monsterId)
         {
             var ctx = AppContext.I;
@@ -156,6 +163,10 @@ namespace Diablo2.Module.Combat
                 return;
             }
 
+            //   原版语义：点怪 ⇒ 角色先**面向目标** ⇒ 出手。朝向来源 = 引擎 `Iso` 方向表
+            //   （`PlayerMotor.FaceTo` 内部走 `Iso.DirectionTo`），只改朝向、不打断移动/交战。
+            player.FaceTo(monsterGrid);
+
             //   判定 = **正面扇形（±60°）+ 以朝向为轴的矩形走廊 + 线段不得被地形阻断**，三关都过才结算
             //   （不是纯半径：背后的 / 正侧方的 / 隔着墙水的目标即使在同一半径内也不结算）。
             //   形状函数唯一出处 = `Module/Combat/MeleeShape.cs`（纯函数，`combatcheck` 第 18 节逐例驱动）。
@@ -181,6 +192,76 @@ namespace Diablo2.Module.Combat
             if (Game.Event != null) Game.Event.Emit(Events.PlayerAttacked, monsterId);
             else CombatLog.WarnOnce("atk.event.null",
                 "Game.Event 为 null（Game.Launch 未调用？）⇒ 挥击动画事件未派发（伤害结算不受影响）");
+
+            // 接触帧结算：挥击已起手，命中/伤害排期到 A1 的官方触发帧
+            // （`AnimData.d2` 的 trigger frame ⇒ `View.ViewModule.PlayerAttackContactSeconds`），
+            // 到点由 `Tick` 调 `SettlePlayerSwing`，按那时的格距/形状重判（原版：动画打到才扣血）。
+            // 官方表无触发帧 ⇒ 立即结算。
+            var contact = View.ViewModule.PlayerAttackContactSeconds(player.Class);
+            if (contact > 0f)
+            {
+                if (_pendingSwingId >= 0)
+                {
+                    CombatLog.Warn($"[普攻] 上一刀 m#{_pendingSwingId} 尚未到接触帧就被下一刀顶掉" +
+                                   " ⇒ 按挥击被打断处理（上一刀不结算）");
+                }
+                _pendingSwingId = monsterId;
+                _pendingSwingTimer = contact;
+                CombatLog.Info($"[普攻] 出手 m#{monsterId} {state.name}（距离 {dist:0.00}）" +
+                               $" ⇒ 挥击起手，接触帧 {contact:0.00}s 后结算");
+                return;
+            }
+
+            SettlePlayerSwing(monsterId);
+        }
+
+        /// <summary>
+        /// 挥击的**接触帧结算**：按当时的存活 / 距离 / 判定形状**重判**后掷命中与伤害
+        /// （原版语义：出手动画播到接触帧才结算；目标已脱手 / 已死 ⇒ 挥空）。
+        /// </summary>
+        private void SettlePlayerSwing(int monsterId)
+        {
+            var ctx = AppContext.I;
+            if (ctx == null || ctx.Monster == null || ctx.Player == null)
+            {
+                CombatLog.WarnOnce("swing.ctx.null",
+                    "SettlePlayerSwing: AppContext/IMonsterModule/IPlayerModule 未就绪 ⇒ 本次挥击结算丢弃");
+                return;
+            }
+
+            var player = ctx.Player;
+            if (player.IsDead)
+            {
+                CombatLog.Info("[普攻] 接触帧：玩家已死 ⇒ 挥击中断，不结算");
+                return;
+            }
+
+            var state = ctx.Monster.Get(monsterId);
+            if (state == null || !state.alive)
+            {
+                CombatLog.Info($"[普攻] 接触帧：目标 m#{monsterId} 已死或已离场 ⇒ 本次挥击落空");
+                return;
+            }
+
+            var monsterGrid = new Vector2Int(state.gridX, state.gridY);
+            var dist = Iso.GridDistanceEuclidean(player.Grid, monsterGrid);
+            if (dist > GameConst.MeleeRange)
+            {
+                CombatLog.Info($"[普攻] 接触帧：目标 m#{monsterId} 已脱手（距离 {dist:0.00}" +
+                               $" > 近战范围 {GameConst.MeleeRange:0.00}）⇒ 挥空");
+                DamagePipeline.ReportMiss(GameConst.PlayerEntityId, monsterId, false, 0, DamageType.Physical,
+                    state.worldX, state.worldY, state.worldZ, "普攻");
+                return;
+            }
+
+            var shape = ShapeGate(player.Dir, player.Grid, monsterGrid, GameConst.MeleeRange);
+            if (shape != null)
+            {
+                CombatLog.Info($"[普攻] 接触帧：目标 m#{monsterId} 被**判定形状**拒绝：{shape} ⇒ 挥空");
+                DamagePipeline.ReportMiss(GameConst.PlayerEntityId, monsterId, false, 0, DamageType.Physical,
+                    state.worldX, state.worldY, state.worldZ, "普攻");
+                return;
+            }
 
             // ── 伤害（官方公式，见 DamageFormula 文件头）──
             int wMin, wMax, wStrBonus, wDexBonus;
@@ -312,7 +393,7 @@ namespace Diablo2.Module.Combat
         /// **发起方**（`Diablo2.Module.Monster.MonsterAi` 出手前自检）共用同一句。
         /// <para>
         /// （`monatk.blocked`），发起方拿不到任何返回值/事件 ⇒ `MonsterAi.TryAttack` 照常
-        /// 置出手动画 + 播出手音效 + 每 `AttackIntervalSeconds` 再发起一次，**每次都被拒** ⇒
+        /// 置出手动画 + 播出手音效 + 每 `AttackIntervalSecondsOf(kindId)` 再发起一次，**每次都被拒** ⇒
         /// 用户看到的「怪物隔墙反复挥空」。把同一把尺子暴露给发起方后，AI 在**发起前**就能
         /// 自检 ⇒ 不再发出注定被拒的请求（原版语义：够不着就不挥，绕路或停手）。
         /// </para>
@@ -413,6 +494,8 @@ namespace Diablo2.Module.Combat
 
             var monsterGrid = new Vector2Int(state.gridX, state.gridY);
             var dist = Iso.GridDistanceEuclidean(player.Grid, monsterGrid);
+            var raw = CombatRng().Next(state.damageMin, state.damageMax + 1);
+            var w = player.World;
             //   `GameConst.RangedRange`(8 格) —— 8 格 = 16 世界单位，而**可见半宽只有
             //   6 ×(16/9) ÷ 2.0 格/单位 = 5.33 格**（相机 ortho 6 / 一格 2.0×1.0 世界单位，
             //   见 `GameConst.IsoTilePxW/HalfTilePxW` 与 `Editor/ProjectBuilder` 的主相机）
@@ -425,8 +508,11 @@ namespace Diablo2.Module.Combat
                 : GameConst.MeleeRange;
             if (dist > range)
             {
+                // 结算发生在 A1 接触帧 ⇒ 这一刻玩家可能已跑出射程：本次空挥（挥空反馈，不扣血）。
                 CombatLog.WarnThrottled("monatk.range",
                     $"RequestMonsterAttack: m#{monsterId}（{state.ai}）距离 {dist:0.00} > 射程 {range:0.00} ⇒ 本次攻击取消");
+                DamagePipeline.ReportMiss(monsterId, GameConst.PlayerEntityId, true, raw, DamageType.Physical,
+                    w.x, w.y + 1.1f, w.z, "怪攻");
                 return;
             }
 
@@ -437,14 +523,14 @@ namespace Diablo2.Module.Combat
                 CombatLog.WarnThrottled("monatk.blocked",
                     $"RequestMonsterAttack: m#{monsterId}（{state.ai}）与玩家的线段被不可走地形阻断" +
                     $"（距离 {dist:0.00} ≤ 射程 {range:0.00}）⇒ 本次攻击取消（不许隔墙打）");
+                DamagePipeline.ReportMiss(monsterId, GameConst.PlayerEntityId, true, raw, DamageType.Physical,
+                    w.x, w.y + 1.1f, w.z, "怪攻");
                 return;
             }
 
-            var raw = CombatRng().Next(state.damageMin, state.damageMax + 1);
             var chance = DamageFormula.HitChance(state.level, player.Level, state.attackRating, player.Defense);
             var hit = CombatRng().Chance(chance);
 
-            var w = player.World;
             CombatLog.Info($"[怪攻] m#{monsterId} {state.name}（{state.ai}）掷={raw} 命中率={chance * 100f:0.0}% " +
                            $"ALvl={state.level} DLvl={player.Level} AR={state.attackRating} DR={player.Defense} " +
                            $"⇒ {(hit ? "命中" : "未命中")}（距离 {dist:0.00}）");
@@ -497,6 +583,18 @@ namespace Diablo2.Module.Combat
         /// <inheritdoc />
         public void Tick(float dt)
         {
+            if (_pendingSwingId >= 0)
+            {
+                _pendingSwingTimer -= dt;
+                if (_pendingSwingTimer <= 0f)
+                {
+                    var id = _pendingSwingId;
+                    _pendingSwingId = -1;
+                    _pendingSwingTimer = 0f;
+                    SettlePlayerSwing(id);      // 接触帧：重判距离/形状后结算
+                }
+            }
+
             if (_attackCd > 0f)
             {
                 _attackCd -= dt;
@@ -509,6 +607,8 @@ namespace Diablo2.Module.Combat
         {
             if (_targetId != -1) SetTarget(-1);
             _attackCd = 0f;
+            _pendingSwingId = -1;
+            _pendingSwingTimer = 0f;
             _rng = null;
             _critSkillResolved = false;
             _critSkillId = 0;

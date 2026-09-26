@@ -69,9 +69,9 @@ def collect(only):
         state["palpath"][id(pal)] = path
         return pal
 
-    def spy_one(frame, out_path, palette, note="", group=""):
+    def spy_one(frame, out_path, palette, note="", group="", background=None):
         records.append({"group": group, "src": state["src"], "dst": out_path,
-                        "frame": frame, "pal": palette,
+                        "frame": frame, "pal": palette, "background": background,
                         "pl2": state["palpath"].get(id(palette)), "note": note})
 
     ex.read_dc6, ex.one, dc6.read_pl2, ex.write_fontmap_tsv = \
@@ -105,7 +105,7 @@ def check_frame_png(rec):
     f = rec["frame"]
     if (w, h) != (f.width, f.height):
         return False, "尺寸不符：PNG %dx%d vs 帧 %dx%d" % (w, h, f.width, f.height)
-    if got != bytes(dc6.frame_rgba(f, rec["pal"])):
+    if got != bytes(dc6.frame_rgba(f, rec["pal"], background=rec.get("background"))):
         return False, "像素不一致"
     return True, ""
 
@@ -209,17 +209,27 @@ def main():
                 srcs.setdefault((rec["src"], rec["pl2"]), []).append(rec)
         eq = ne = 0
         for (src, pl2), recs in sorted(srcs.items()):
-            stem = os.path.basename(recs[0]["dst"])
-            stem = stem[:stem.rfind("_")]
+            # 产物名两式：`{stem}_{i}.png`（逐帧落位）与 `{stem}.png`（**无帧号后缀的单帧件**，
+            # 如 `UI/Cursor/Gaunt.png` —— UI 侧 `ResPaths.CursorAttack` 直接取该名，不带帧号）。
+            # `dc6.py png` 一律写 `{stem}_{i}.png`，所以两式只比**内容**，名字按上式核对。
+            names = [os.path.basename(r["dst"]) for r in recs]
+            single = len(recs) == 1 and names[0].endswith(".png") and "_0.png" not in names[0]
+            stem = names[0][:-4] if single else names[0][:names[0].rfind("_")]
             for i, rec in enumerate(recs):
-                if os.path.basename(rec["dst"]) != "%s_%d.png" % (stem, i):
-                    print("      x 输出名与帧号不符：%s（期望 %s_%d）" % (rec["dst"], stem, i))
+                want = ("%s.png" % stem) if single else ("%s_%d.png" % (stem, i))
+                if os.path.basename(rec["dst"]) != want:
+                    print("      x 输出名与帧号不符：%s（期望 %s）" % (rec["dst"], want))
                     fail = 1
             out = os.path.join(work, g, stem)
-            subprocess.check_call([sys.executable, os.path.join(HERE, "dc6.py"), "png",
-                                   src, pl2, out, stem], stdout=subprocess.DEVNULL)
+            argv = [sys.executable, os.path.join(HERE, "dc6.py"), "png", src, pl2, out, stem]
+            bgs = set(r.get("background") for r in recs)
+            if bgs != set([None]):
+                # 该组的透明孔不是索引 0 ⇒ 独立复算必须走同一口径，否则比的是两张不同的图
+                argv += ["--bg", str(list(bgs)[0]) if len(bgs) == 1 else "auto"]
+            subprocess.check_call(argv, stdout=subprocess.DEVNULL)
             for i, rec in enumerate(recs):
-                if _sha256(os.path.join(out, "%s_%d.png" % (stem, i))) == _sha256(rec["dst"]):
+                cli_out = os.path.join(out, "%s_%d.png" % (stem, i))
+                if _sha256(cli_out) == _sha256(rec["dst"]):
                     eq += 1
                 else:
                     ne += 1

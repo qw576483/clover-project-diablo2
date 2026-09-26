@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//   人物属性面板「等级 / 经验 / 技能点」三框的**单行判据**（含退化样本）。
+//   人物属性面板「等級 / 經驗 / 技能點」三框的**单行判据**（含退化样本）。
 //
 //   现行形状（`CharacterPanel.Refresh` 里三处 `*Text.text` 赋值）：
-//     · `TopRight`   用 `UiLayoutGame.CharTopRightSize`   → 「等级 {level}」
-//     · `Band2Right` 用 `UiLayoutGame.CharBand2RightSize` → 「经验 {exp}」（只显示当前经验）
-//     · `Band2Mid`   用 `UiLayoutGame.CharBand2MidSize`   → 「技能点 {skillPoints}」
+//     · `TopRight`   用 `UiLayoutGame.CharTopRightSize`   → `CharacterPanel.TopRightPrefix`   + level（原版串 id 4057 `等級`）
+//     · `Band2Right` 用 `UiLayoutGame.CharBand2RightSize` → `CharacterPanel.Band2RightPrefix` + exp（原版串 id 4058 `經驗`；只显示当前经验）
+//     · `Band2Mid`   用 `UiLayoutGame.CharBand2MidSize`   → `CharacterPanel.Band2MidPrefix`   + skillPoints（**本项目扩展字段**）
+//   ⛔ 判据**不另抄一份文案**：三条样本都从上面那三个公开常量拼 ⇒ 面板改字，判据跟着改（抄一份会静默失配）。
 //
 // ── 判据口径（与 ⑧ 同源，不另立一套）─────────────────────────────────────
 //   单行的充要条件 = 生产折行口径 `MeasureNative(font, text, chi) < availPx`
@@ -112,7 +113,7 @@ namespace Uicheck
 
         public static void Run()
         {
-            Console.WriteLine("── ⑨ u52-resist：人物属性面板「等级/经验/技能点」三框的单行判据（U52 / P-2b）──");
+            Console.WriteLine("── ⑨ u52-resist：人物属性面板「等級/經驗/技能點」三框的单行判据（U52 / P-2b）──");
 
             if (!U52ResistCheck.LoadFontTables()) return;
 
@@ -135,8 +136,8 @@ namespace Uicheck
             int needLv;
             List<string> wrapLv;
             float scLv;
-            SweepInt(1, 99, v => $"等级 {v}", topArtW, out worstLv, out needLv, out wrapLv, out scLv);
-            Check("「等级 N」N∈1..99 在 `TopRight` 框内**全部单行**",
+            SweepInt(1, 99, v => CharacterPanel.TopRightPrefix + v, topArtW, out worstLv, out needLv, out wrapLv, out scLv);
+            Check("「等級 N」N∈1..99 在 `TopRight` 框内**全部单行**（文案 = `CharacterPanel.TopRightPrefix`，不另抄一份）",
                 wrapLv.Count == 0,
                 wrapLv.Count == 0
                     ? $"最坏「{worstLv}」need={needLv} art < availPx "
@@ -148,8 +149,8 @@ namespace Uicheck
             int needSp;
             List<string> wrapSp;
             float scSp;
-            SweepInt(0, 99, v => $"技能点 {v}", bandMW, out worstSp, out needSp, out wrapSp, out scSp);
-            Check("「技能点 N」N∈0..99 在 `Band2Mid` 框内**全部单行**",
+            SweepInt(0, 99, v => CharacterPanel.Band2MidPrefix + v, bandMW, out worstSp, out needSp, out wrapSp, out scSp);
+            Check("「技能點 N」N∈0..99 在 `Band2Mid` 框内**全部单行**（文案 = `CharacterPanel.Band2MidPrefix`）",
                 wrapSp.Count == 0,
                 wrapSp.Count == 0
                     ? $"最坏「{worstSp}」need={needSp} art < availPx "
@@ -160,26 +161,26 @@ namespace Uicheck
             //   本框只显示当前经验：原版 `CharstatPanel.prefab` 无等级/经验节点，并列「当前/下一等级」的载体
             //   是底部经验条的悬停提示串（`原版资源/d2text/chi_string.txt` 串 4163 `經驗： %u / %u`）。
             //   ⇒ 钉两条：① 「经验 cur」必须单行；② 退化样本「经验 cur/next」必须判**折行**（能失败）。
-            var txtExp = $"经验 {maxExp}";
+            var txtExp = CharacterPanel.Band2RightPrefix + maxExp;
             float scEx;
             string kEx;
             List<char> mEx, vEx;
             var needEx = U52ResistCheck.NeedNative(txtExp, out scEx, out kEx, out mEx, out vEx);
             var availEx = U52ResistCheck.AvailPx(bandRW * UiLayoutGame.K, scEx);
             var missNote = mEx.Count > 0 ? $" ⚠️ 缺字形 {new string(mEx.ToArray())}" : string.Empty;
-            Check("「经验 cur」最坏值（表内最大值，10 位）在 `Band2Right` 框内单行",
+            Check("「經驗 cur」最坏值（表内最大值，10 位）在 `Band2Right` 框内单行",
                 U52ResistCheck.SingleLine(needEx, availEx),
                 $"最坏「{txtExp}」need={needEx} art vs availPx {availEx}（框 {bandRW:0.#} art）"
                 + $"；余量 {availEx - needEx} art{missNote}");
 
             // ── ③b 退化样本：「经验 cur/next」并列 ⇒ 必须判**折行**（同一判据，非另写一套）──
-            var txtExpPair = $"经验 {maxExp}/{maxExp}";
+            var txtExpPair = CharacterPanel.Band2RightPrefix + maxExp + "/" + maxExp;
             float scExpPair;
             string kExpPair;
             List<char> mExpPair, vExpPair;
             var needExpPair = U52ResistCheck.NeedNative(txtExpPair, out scExpPair, out kExpPair, out mExpPair, out vExpPair);
             var availExpPair = U52ResistCheck.AvailPx(bandRW * UiLayoutGame.K, scExpPair);
-            Check("退化样本：并列「经验 cur/next」在 `Band2Right` 框内必须判**折行**（⇒ 本框只显示当前经验）",
+            Check("退化样本：并列「經驗 cur/next」在 `Band2Right` 框内必须判**折行**（⇒ 本框只显示当前经验）",
                 !U52ResistCheck.SingleLine(needExpPair, availExpPair),
                 $"并列样本「{txtExpPair}」need={needExpPair} art ≥ availPx {availExpPair}（框 {bandRW:0.#} art）⇒ 折行");
 
@@ -189,13 +190,13 @@ namespace Uicheck
             int needD;
             List<string> wrapD;
             float scD;
-            SweepInt(1, 99, v => $"等级 {v}", minArt - 1f, out worstD, out needD, out wrapD, out scD);
+            SweepInt(1, 99, v => CharacterPanel.TopRightPrefix + v, minArt - 1f, out worstD, out needD, out wrapD, out scD);
             Check("退化样本(a)：`TopRight` 框收窄到「最小可放宽度 − 1 art」⇒ 判据必须判**折行**",
                 minArt > 1 && wrapD.Count > 0,
                 $"等级最坏 need={needLv} art ⇒ 最小可放框 {minArt} art；喂 {minArt - 1} art ⇒ 折行 {wrapD.Count} 个");
 
             // ── ⑤ 退化样本 (b)：文案人为加长 ⇒ 必须折行（不依赖表内容）──────────
-            var longText = "技能点 " + new string('0', 40);
+            var longText = CharacterPanel.Band2MidPrefix + new string('0', 40);
             float scB;
             string kB;
             List<char> mB, vB;

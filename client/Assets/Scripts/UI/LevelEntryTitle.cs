@@ -4,9 +4,10 @@
 // **区域名弹出**：玩家**首次进入某区域**时，屏幕上浮出该区域名，淡入 → 停留 → 淡出。
 //
 // ── 依据（**原版 prefab 逐值 + 原版脚本逐行，不是回忆、不是估的**）──────────────
-//  ① 几何：`原版资源/参考工程_Diablerie/Diablerie/Assets/Prefabs/LevelEntryTitle.prefab`
-//       root RectTransform：`m_AnchorMin = (0,1)` / `m_AnchorMax = (1,1)` / `m_AnchoredPosition = (0,0)`
-//                            / `m_SizeDelta = (0,300)` / `m_Pivot = (0.5,1)`
+//  ① 几何：上游 `mofr/Diablerie` 的 `Assets/Prefabs/LevelEntryTitle.prefab`
+//       （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Prefabs/LevelEntryTitle.prefab`）
+//       root RectTransform（该文件 :96-100 逐值）：`m_AnchorMin = (0,1)` / `m_AnchorMax = (1,1)`
+//                            / `m_AnchoredPosition = (0,0)` / `m_SizeDelta = (0,300)` / `m_Pivot = (0.5,1)`
 //       ⇒ **满宽、贴屏幕顶边、高 300 原版px** 的文本框；
 //       它下面那个 `Text` 的 `m_FontData.m_Alignment = 4`（MiddleCenter）
 //       ⇒ 文字中心 = 顶边往下 300/2 = **150 原版px**。

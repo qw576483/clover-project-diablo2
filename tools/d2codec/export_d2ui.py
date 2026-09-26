@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | `skilltree` | `data/global/ui/SPELLS/skltree_{a,b,n,p,s}_back.DC6` | `Assets/Resources/Clover/D2/UI/SkillTree/skltree_{cls}_back_{i}.png` | 每类 16 | ACT1 |
 | `automap` | `data/global/ui/MINIMAP/mapicons.DC6` | `.../D2/UI/MiniMap/mapicon_{i}.png` | 8 | ACT1（**实测不影响像素**，见下） |
-| `chifont` | `data/LOCAL/FONT/chi/{Font16,font24,font30,font42}.DC6` | `.../D2/Fonts/font{N}_chi.png`（**整幅图集**）+ `原版资源/导出的字体映射/font{N}_chi.tsv`（帧→字符映射） | 每种 13806 | ACT1 |
+| `chifont` | `data/LOCAL/FONT/chi/{font8,Font16,font24,font30,font42}.DC6` | `.../D2/Fonts/font{N}_chi.png`（**整幅图集**）+ `原版资源/导出的字体映射/font{N}_chi.tsv`（帧→字符映射） | 每种 13806 | ACT1 |
 | `menu` | `data/global/ui/MENU/{boxpieces,helpborder,upgrade,okcancelbtn,buttontempok,buttontempcancel,endgameok,EndGame}.DC6` + `a{n}q{m}.dc6`(21 个) | `.../D2/UI/Menu/*.png` / `.../D2/UI/Quest/*.png` | 见 `MENU_*` 表 | ACT1；**`EndGame.dc6` 用 `EndGame/Pal.PL2`**（见下） |
 
 本轮（片 4「启动链路三屏 1:1」）新增的 2 组（**只增不改**，上面的组一个字没动）：
@@ -32,6 +32,16 @@
 |---|---|---|---|---|
 | `frontend` | `data/global/ui/FrontEnd/{amazon,barbarian,necromancer,paladin,sorceress}/{CLS}{NU1,NU2,NU3}.DC6` | `Assets/Resources/Clover/D2/UI/FrontEnd/{cls}/{nu1,nu2,nu3}_{i}.png` | 每职业 3 态（26+26+18 / 16+16+26 / 26+26+9 / 12+12+12 / 32+32+12） | **fechar** |
 | `logo` | `data/global/ui/Logo/logo.DC6` | `.../D2/UI/Logo/logo_{i}.png` | 1（319×177） | **fechar** |
+| `cursor` | `data/global/ui/CURSOR/Gaunt.dc6` | `.../D2/UI/Cursor/Gaunt.png`（**无帧号后缀** —— 工程内就是这一个文件名，`ResPaths.CursorAttack` 直接取它） | 1（34×30） | ACT1 |
+
+**透明孔口径（逐组裁决，不是全局）**：`logo` 与 `cursor` 两组的帧，透明孔**不是索引 0** ——
+`Logo/logo.DC6` 帧 0 的索引 15 占 72.0%、`CURSOR/Gaunt.dc6` 帧 0 的索引 15 占 62.8%，
+两者的 RLE 里**一条跳过指令都没有**（= 整帧被涂满）。这两组因此把 `dc6.background_index(frame)`
+**现算**出的色号当孔（`one(..., background=...)`）；判不出时该写法自动退回索引 0，与其余组同口径。
+⛔ **该判据不能全局套用**：它在「画面自身的暗色抖色填充」`MENU/buttontempok.DC6`#176、
+「整屏暗底图」`MENU/EndGame.dc6`#33、「100% 单色占位帧」`SPELLS/BaSkillicon.DC6`#132、
+「字形本身」`LOCAL/FONT/chi/font*.DC6` 帧 317（U+2588 全块）上也成立，那四类键掉会
+打洞 / 挖空底图 / 抹掉字形 ⇒ 一律保持索引 0 口径（实测见 `引擎问题.md` 的 skill 问题表）。
 
 **逐帧口径**：除 `chifont` 外，每个源 DC6 的每一帧解出**一个 PNG**，文件名 = `{输出 stem}_{DC6 帧号}.png`，
 帧号从 0 起 —— 与 `python tools/d2codec/dc6.py png <源> <pl2> <临时目录> <stem>` 的产出**逐字节同名同内容**，
@@ -42,7 +52,7 @@
 按任务书「语义/拼装参数搞不清的照解不误」⇒ 本轮**只做 1:1 逐帧落位**，拼装口径留给后续片。
 （`panels` 组早先已按 320×432 拼过 `skltree_*_back_{0..3}.png` 到 `UI/Panel/`，本轮**没动**它。）
 
-**`chifont` 为什么是整幅图集**：每帧只有 13×13（font16）/19×19（font24）/24×24（font30）/37×37（font42），
+**`chifont` 为什么是整幅图集**：每帧只有 11×11（font8）/13×13（font16）/19×19（font24）/24×24（font30）/37×37（font42），
 却有 13806 帧 —— 逐帧落盘会产生 55224 个 PNG（本项目现有一千余个，会直接压垮 Assets）。
 ⇒ 按**行主序规则网格**打成一张图集（列数 = 由帧数算出的因子，见运行输出；格子 = 该字体帧尺寸），
 **一帧不丢也一帧不多**。帧→字符的对应关系**另有权威依据**，不是猜的：
@@ -145,8 +155,12 @@ def read_dc6(*parts):
     return dc6.parse(open(p, "rb").read())
 
 
-def one(frame, out_path, palette, note="", group=""):
-    dc6.write_png_rgba(out_path, dc6.frame_rgba(frame, palette), frame.width, frame.height)
+def one(frame, out_path, palette, note="", group="", background=None):
+    """`background=None` ⇒ 透明孔 = 索引 0（本模块的默认口径，所有未传该参的组行为不变）；
+    给 int ⇒ 该色号当孔。传 `dc6.background_index(frame)` 是**逐件裁决过**的组才准用的写法
+    （文件头「透明孔口径」段列了裁决边界）。"""
+    dc6.write_png_rgba(out_path, dc6.frame_rgba(frame, palette, background=background),
+                       frame.width, frame.height)
     STATS.append((group, out_path, frame.width, frame.height, note))
 
 
@@ -377,10 +391,14 @@ MISC = [
     ("data/global/ui/PANEL/buyselltabs.DC6", "UI/Panel/buyselltabs", "商店页签（79×31 ×8）"),
     ("data/global/ui/PANEL/tradebtn.DC6", "UI/Panel/tradebtn", "交易小按钮（77×17 ×2）"),
     ("data/global/ui/PANEL/clickbox.dc6", "UI/Panel/clickbox", "勾选框"),
-    # 本轮补：`overlap.DC6` 实测 dir=1 fpd=2、两帧 82×88（球高光遮罩）。
-    #   声明两帧）⇒ 代码请求 `overlap_0/1` 必然 MISS，每次进 Play 2 条
-    #   `[Error] [Resource] 加载失败：D2/UI/Panel/overlap_0/_1`。
-    ("data/global/ui/PANEL/overlap.DC6", "UI/Panel/overlap", "球高光遮罩 82×88 ×2"),
+    # `overlap.DC6`（球高光遮罩，dir=1 fpd=2、两帧 82×88）**不在本表**：它的载体是
+    #   `client/Assets/Resources/Clover/D2/UI/Panel/overlap.png`（256×128 = 2 块 82×88 +
+    #   透明分隔列，`spriteMode: 2` 切出子 sprite `overlap_0`/`overlap_1`），
+    #   取件走 `UiArt.RequestStrip` → 引擎 `SpriteStripLoader` 的整条 `LoadAll<Sprite>` 兜底
+    #   （单条 `LoadAsset<Sprite>("…/overlap_0")` 在本工程导入设置下为 null，见 `UI/UiArt.cs` 文件头）。
+    #   实机佐证（进 Play 日志原文）：`[Info] [Ui] [原版按钮底图] D2/UI/Panel/overlap 2/2 帧就位`。
+    #   ⛔ 不要再按本表导出 `overlap_0.png` / `overlap_1.png` 单帧：导出器不过色键 ⇒ 深色底不透明，
+    #      一旦被按名加载就会在球上扣一块黑方框。
 ]
 
 
@@ -481,6 +499,7 @@ def group_automap(pal):
 ATLAS_MAX_TEX = 8192     # font42 的图集 117×37 = 4329 宽、118×37 = 4366 高 ⇒ 必须 8192
 CHI_FONTS = (
     # (DC6 文件名（照磁盘原样）, 输出 stem, 指标表文件名)
+    ("font8.DC6", "font8", "font8.tbl"),
     ("Font16.DC6", "font16", "font16.tbl"),
     ("font24.DC6", "font24", "font24.tbl"),
     ("font30.DC6", "font30", "font30.tbl"),
@@ -787,9 +806,31 @@ def group_logo(pal):
     if not d:
         return
     for i, f in enumerate(d.frames):
+        bg = dc6.background_index(f)      # 本帧 = 15；判不出 ⇒ None ⇒ 退回索引 0
         one(f, out("UI", "Logo", "logo_%d.png" % i), bar,
-            "原版 Logo/logo.DC6 帧 %d（DIABLO II 火焰字标 %dx%d，调色板 %s）" % (
-                i, f.width, f.height, PL2_FECHAR), "logo")
+            "原版 Logo/logo.DC6 帧 %d（DIABLO II 火焰字标 %dx%d，调色板 %s，透明孔 = 色号 %s）" % (
+                i, f.width, f.height, PL2_FECHAR, bg), "logo", background=bg)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 组 15：光标 —— 唯一来源是原版 `data/global/ui/CURSOR/Gaunt.dc6`（单帧 34×30，攻击态光标）。
+#   透明孔 = `dc6.background_index()` 现算的色号（本件 = 15），不是索引 0；口径边界见文件头
+#   「透明孔口径」段。
+#   ⛔ `CURSOR/ohand.dc6`（默认箭头 32×26 帧 0）**不在本组**：工程内 `UI/Cursor/Cursor.png`
+#      是参考工程 Diablerie 的原样副本（256 色 PNG，**透明键 RGB = (0,255,255) 青**），
+#      而本模块的透明像素恒写 (0,0,0,0) ⇒ 产不出它那个透明键（可见像素完全一致，差异只是
+#      456 个双方都全透明的像素底下的 RGB）。用本工程直出替换它与替换盘上另外 50 个
+#      "参考工程原样副本"是同一类决定，留给整类迁移那一轮。
+# ═════════════════════════════════════════════════════════════════════════════
+def group_cursor(pal):
+    d = read_dc6("data", "global", "ui", "CURSOR", "Gaunt.dc6")
+    if not d:
+        return
+    for i, f in enumerate(d.frames):
+        bg = dc6.background_index(f)      # 本帧 = 15
+        one(f, out("UI", "Cursor", "Gaunt.png"), pal,
+            "原版 CURSOR/Gaunt.dc6 帧 %d（攻击态光标 %dx%d，调色板 %s，透明孔 = 色号 %s）" % (
+                i, f.width, f.height, PL2_ACT1, bg), "cursor", background=bg)
 
 
 GROUPS = {
@@ -806,6 +847,7 @@ GROUPS = {
     "menu": group_menu,
     "frontend": group_frontend,
     "logo": group_logo,
+    "cursor": group_cursor,
 }
 
 

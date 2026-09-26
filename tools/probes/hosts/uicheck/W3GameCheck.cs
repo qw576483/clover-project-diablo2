@@ -719,8 +719,8 @@ namespace Uicheck
         //    ① `UI/CursorView.cs` 是 `Events.CursorChanged` 的**真消费方**（订阅 + 有处理方法）；
         //    ② 它**真的改鼠标光标**（`Cursor.visible` 的隐藏/恢复 + 跟随鼠标的 Image）；
         //    ③ `ResPaths.Cursor` 被真的引用（不再是零引用常量）；
-        //    ④ 素材在位（IHDR 32×26）；
-        //    ⑤ 4 态缺口**逐态有 Warn + 有登记**（仍不许自画 4 个光标）。
+        //    ④ 素材在位且 IHDR == 该形态声明的原版尺寸（默认态 32×26；攻击态 34×30 —— 两只不同的件）；
+        //    ⑤ 原版**没有对应件**的 3 态（交互/拾取/不可走）**逐态有 Warn + 有登记**（仍不许自画）。
         private static void CursorSide()
         {
             var code = new StringBuilder();
@@ -765,25 +765,36 @@ namespace Uicheck
                           + "不隐藏系统光标（否则会出现\u201c看不见指针\u201d这种更糟的状态）",
                 cursorSrc.Contains("Events.StageEntered, OnStageEntered")
                 && cursorSrc.Contains("Events.StageLeft, OnStageLeft")
-                && cursorSrc.Contains("_stageActive && _spriteReady")
+                && cursorSrc.Contains("_stageActive && HasSprite(")
                 && cursorEngSrc.Contains("Cursor.visible = !hidden;")
                 && cursorEngSrc.Contains("public void SetSystemCursorHidden(bool hidden)"),
-                "见 CursorView 的订阅 + ApplyVisibility（`_stageActive && _spriteReady`）"
+                "见 CursorView 的订阅 + ApplyVisibility（`_stageActive && HasSprite(_kind)`）"
                 + " + 引擎 SoftwareCursorLayer.SetSystemCursorHidden");
 
             TryPngSize(ResPaths.Cursor, out var cw, out var ch);
-            Program.Check($"光标素材在位且 IHDR == 声明的原版尺寸 {UiLayoutGame.CursorArtPx.x:0}×{UiLayoutGame.CursorArtPx.y:0}",
+            Program.Check($"光标默认态素材在位且 IHDR == 声明的原版尺寸 {UiLayoutGame.CursorArtPx.x:0}×{UiLayoutGame.CursorArtPx.y:0}",
                 cw == (int)UiLayoutGame.CursorArtPx.x && ch == (int)UiLayoutGame.CursorArtPx.y,
                 $"{ResPaths.Cursor} = {cw}×{ch}；画布尺寸 {UiLayoutGame.CursorSize.x:0.#}×{UiLayoutGame.CursorSize.y:0.#}（×{UiLayoutGame.K}）"
-                + $"，hot spot = 箭头尖（pivot {UiLayoutGame.CursorHotspotPivot}）");
+                + $"，hot spot = 手指尖（pivot {UiLayoutGame.CursorHotspotPivot}）");
+
+            // ★ 攻击态是**单独一只原版件**（`CURSOR/Gaunt.DC6`，34×30），与默认态 32×26 不同
+            //   ⇒ 判据必须分别量：路径被引用 + 文件在位 + IHDR 等于该形态声明的原生尺寸 + 按形态取尺寸。
+            TryPngSize(ResPaths.CursorAttack, out var aw, out var ah);
+            Program.Check($"光标攻击态素材在位且 IHDR == 声明的原版尺寸 {UiLayoutGame.CursorAttackArtPx.x:0}×{UiLayoutGame.CursorAttackArtPx.y:0}",
+                cursorSrc.Contains("ResPaths.CursorAttack")
+                && aw == (int)UiLayoutGame.CursorAttackArtPx.x && ah == (int)UiLayoutGame.CursorAttackArtPx.y,
+                $"{ResPaths.CursorAttack} = {aw}×{ah}；画布尺寸 {UiLayoutGame.CursorSizeOf(Diablo2.Def.CursorKind.Attack).x:0.#}×{UiLayoutGame.CursorSizeOf(Diablo2.Def.CursorKind.Attack).y:0.#}（×{UiLayoutGame.K}）"
+                + "；按形态取尺寸走 `UiLayoutGame.CursorArtPxOf/CursorSizeOf`（不是一个尺寸套所有态）");
 
             var lack = SafeRead(Path.Combine(Program.ProjectRoot, "client", "资源欠缺清单.md"));
-            Console.WriteLine("      │ [登记·素材缺口] 原版 5 态光标（" + UiLayoutGame.CursorKindCount
-                + " 种：普通/攻击/交互/拾取/不可走）本批**只有普通箭头 1 帧** ⇒ 5 态统一显示这一帧箭头，"
-                + "切到缺口形态时**逐态一条 Warn**（`UI/CursorView.cs::OnCursorChanged`）。");
-            Program.Check("光标 4 态缺口**已登记**在 `client/资源欠缺清单.md`（⛔ 不自画 4 个光标）",
-                lack.Contains("Cursor") && lack.Contains("4 态") && cursorSrc.Contains("UiLog.Warn"),
-                "见 `client/资源欠缺清单.md` 的「光标 5 态」行 + `UI/CursorView.cs::OnCursorChanged` 的逐态 Warn");
+            Console.WriteLine("      │ [登记·素材缺口] `Def.CursorKind` 共 " + UiLayoutGame.CursorKindCount
+                + " 种（普通/攻击/交互/拾取/不可走），其中**只有 2 种**有原版件"
+                + "（Default=原版 CURSOR/ohand.dc6、Attack=原版 CURSOR/Gaunt.dc6）；"
+                + "Interact/Pickup/NoWalk 原版没有对应件 ⇒ 显示默认态那张，切到时**逐态一条 Warn**"
+                + "（`UI/CursorView.cs::OnCursorChanged`）。");
+            Program.Check("光标 3 态（交互/拾取/不可走）**没有原版件**这件事已登记在 `client/资源欠缺清单.md`（⛔ 不自画）",
+                lack.Contains("Cursor") && lack.Contains("3 态") && cursorSrc.Contains("UiLog.Warn"),
+                "见 `client/资源欠缺清单.md` 的「光标」行 + `UI/CursorView.cs::OnCursorChanged` 的逐态 Warn");
         }
 
         // ── 工具 ─────────────────────────────────────────────────────────────

@@ -1,8 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // **游戏内面板（HUD / 背包 / 属性 / 技能 / 商店 / 怪物血条 / 关卡标题）的布局常量总表**。
 //
-//   `原版资源/参考工程_Diablerie/Diablerie/Assets/Prefabs/{ControlPanel,InventoryPanel,CharstatPanel,
-//   SkillPanel,SkillSlot,AvailableSkillsPanel,EnemyBar,LevelEntryTitle}.prefab`
+//   上游 `mofr/Diablerie` 的 `Assets/Prefabs/{ControlPanel,InventoryPanel,CharstatPanel,SkillPanel,
+//   SkillSlot,AvailableSkillsPanel,EnemyBar,LevelEntryTitle}.prefab`
+//   （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Prefabs/` 下的同名文件；
+//    本机只有 `原版资源/参考工程_Diablerie/{InventoryPanel,CharstatPanel}.prefab` 两份副本）
 //   里的 **RectTransform 精确值**（m_AnchorMin/Max、m_AnchoredPosition、m_SizeDelta、m_Pivot）。
 //   这些值由脚本从 prefab YAML 里逐节点解析出来（不靠肉眼估），下面每个常量都标注
 //   「原版值 → ×1.8（居中）」与来源节点名。
@@ -99,6 +101,12 @@ namespace Diablo2.UI
         /// <summary>原版某字号 → 本工程画布px（= 原版行距 × <see cref="K"/>）。**全 UI 字号唯一出处**。</summary>
         public static float FontPx(D2Text.D2Font font) => D2Text.LineSpacing(font) * K;
 
+        /// <summary>
+        /// 原版 font8 的画布px = **11 × 1.8 = 19.8**（原版小字；中文格子 11×11）。
+        /// <para>行距 11 的出处 = 原版 chi `font8.DC6` 实测帧高（见 `D2Text.LineSpacing`）。</para>
+        /// </summary>
+        public static readonly float FontPx8 = FontPx(D2Text.D2Font.Font8);
+
         /// <summary>原版 font16 的画布px = 16 × 1.8 = **28.8**（正文 / 按钮 / 格内数字/数量的默认档）。</summary>
         public static readonly float FontPx16 = FontPx(D2Text.D2Font.Font16);
 
@@ -112,17 +120,31 @@ namespace Diablo2.UI
         public static readonly float FontPx42 = FontPx(D2Text.D2Font.Font42);
 
         // ═════════════════════════════════════════════════════════════════════
-        // **游戏内鼠标光标**（原版 `CURSOR/Cursor.DC6` 的普通箭头，单帧）
+        // **游戏内鼠标光标**（原版 `data/global/ui/CURSOR/**`）
         // ═════════════════════════════════════════════════════════════════════
         //  承载方式 = Top 画布上跟随鼠标的 Image + `Cursor.visible = false`（理由逐条见
         //  `UI/CursorView.cs` 文件头：素材 `isReadable=0` ⇒ `Cursor.SetCursor` 用不了；
         //  且 UI Image 才能吃到与整屏一致的 ×1.8 缩放）。
-        /// <summary>原版光标贴图的**原生像素尺寸** = **32×26**（`D2/UI/Cursor/Cursor.png` 的 IHDR 实测）。</summary>
+        //  原版件的真名与"背景色号（透明孔）"口径见 `tools/d2codec/dc6.py`；工程内取件路径见
+        //  `Core/ResPaths.cs` 的 `Cursor` / `CursorAttack`（尺寸**逐件实测**，不是一个尺寸套所有形态）。
+        /// <summary>默认态贴图的**原生像素尺寸** = **32×26**（原版 `CURSOR/ohand.dc6` 帧 0，
+        /// 工程内文件 `D2/UI/Cursor/Cursor.png` 的 IHDR 实测）。</summary>
         public static readonly Vector2 CursorArtPx = new Vector2(32f, 26f);
 
-        /// <summary>光标在本工程画布上的尺寸 = 原版 32×26 ×<see cref="K"/> = **57.6×46.8**
+        /// <summary>攻击态贴图的**原生像素尺寸** = **34×30**（原版 `CURSOR/Gaunt.dc6` 单帧，
+        /// 工程内文件 `D2/UI/Cursor/Gaunt.png` 的 IHDR 实测）—— 与默认态**不同**，故按形态各取一份。</summary>
+        public static readonly Vector2 CursorAttackArtPx = new Vector2(34f, 30f);
+
+        /// <summary>光标在本工程画布上的尺寸（默认态）= 原版 32×26 ×<see cref="K"/> = **57.6×46.8**
         /// （与整屏 UI 同一换算口径，见本文件头的 ×1.8 说明）。</summary>
         public static readonly Vector2 CursorSize = CursorArtPx * K;
+
+        /// <summary>该形态贴图的**原生像素尺寸**（默认态之外的形态各有自己的件）。</summary>
+        public static Vector2 CursorArtPxOf(Def.CursorKind kind)
+            => kind == Def.CursorKind.Attack ? CursorAttackArtPx : CursorArtPx;
+
+        /// <summary>该形态光标在本工程画布上的尺寸 = 原生尺寸 ×<see cref="K"/>。</summary>
+        public static Vector2 CursorSizeOf(Def.CursorKind kind) => CursorArtPxOf(kind) * K;
 
         /// <summary>
         /// 光标的 **hot spot**（箭头"尖"落在贴图的哪一处）：逐像素实测 = 原版贴图的**左上角**
@@ -132,10 +154,12 @@ namespace Diablo2.UI
         public static readonly Vector2 CursorHotspotPivot = new Vector2(0f, 1f);
 
         /// <summary>
-        /// `Def.CursorKind` 的形态数（普通箭头 / 攻击 / 交互 / 拾取 / 不可走）= **5**。
-        /// <para>**素材缺口**：现有素材只有**普通箭头 1 帧**，原版其余 4 态（攻击 / 交互 / 拾取 / 不可走）
-        /// 的图不在本机 ⇒ 5 态统一显示这一帧箭头，缺口逐态打一条 Warn；素材到位后只改取帧口径
-        /// + 本组常量。</para>
+        /// `Def.CursorKind` 的形态数（普通 / 攻击 / 交互 / 拾取 / 不可走）= **5**。
+        /// <para>**原版件覆盖 2 / 5**：`Default` = 原版 `CURSOR/ohand.dc6` 帧 0、`Attack` = 原版
+        /// `CURSOR/Gaunt.dc6`。原版那套光标（7 态：`buysell`/`protate`/`ppress`/`orotate`/`ohand`/
+        /// `grasp`/`Gaunt`）里**没有**与 `Interact` / `Pickup` / `NoWalk` 一一对应的件
+        /// （`buysell` 的 10 帧是金色钩/槌/钥匙一类图元，逐帧语义无可核出处）⇒ 这 3 态显示
+        /// `Default` 的图并各打一条 Warn。</para>
         /// </summary>
         public const int CursorKindCount = 5;
 
@@ -202,9 +226,10 @@ namespace Diablo2.UI
         // ═════════════════════════════════════════════════════════════════════
         // ① HUD —— 原版 `ControlPanel.prefab`（锚点 (0.5,0)，即贴画布底边）
         //
-        // 唯一依据：`原版资源/参考工程_Diablerie/Diablerie/Assets/Prefabs/ControlPanel.prefab`
-        //   （脚本逐节点解析 m_AnchoredPosition / m_SizeDelta / m_Pivot / m_AnchorMin/Max + m_IsActive，
-        //    **非肉眼估**）。
+        // 唯一依据：上游 `mofr/Diablerie` 的 `Assets/Prefabs/ControlPanel.prefab`
+        //   （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Prefabs/ControlPanel.prefab`；
+        //    脚本逐节点解析 m_AnchoredPosition / m_SizeDelta / m_Pivot / m_AnchorMin/Max + m_IsActive，
+        //    **非肉眼估**）。根节点（该文件 :36-40）：`m_AnchorMin = m_AnchorMax = (0.5,0)`。
         //   原版节点清单（含兄弟顺序 = 绘制顺序，后者盖前者）：
         //     1 Background          948×160     pivot(0.5,0) pos(0,-21.3)
         //     2 LeftSkill           33.495×35.12  pos(-229.9, 35.2)   子: Label 1
@@ -455,6 +480,15 @@ namespace Diablo2.UI
 
         /// <summary>经验条覆盖层中心（原版 ExpBarOverlay 948×160 @ pos(0,59.1) → ×1.8 居中）。</summary>
         public static readonly Vector2 ExpOverlayPos = new Vector2(0f, BottomY(59.1f));
+
+        /// <summary>
+        /// 经验条**悬停命中区**比经验条本体放出的量（**原版 px**）。
+        /// 出处 = 原版控制面板的 `TooltipArea` 节点（挂在 `ExperienceBar` 下、
+        /// `m_AnchorMin (0,0)` + `m_AnchorMax (1,1)` + `m_SizeDelta (4, 11)` + `m_RaycastTarget 1`、
+        /// 贴图 alpha 0）⇒ 横向比经验条宽 4、纵向高 11 原版 px。×1.8 后用于
+        /// <see cref="UiLayoutGame"/> 的消费方 `UI/HudPanel.BuildExpBar`。
+        /// </summary>
+        public static readonly Vector2 ExpBarTipPad = new Vector2(4f, 11f);
 
         /// <summary>展开/收起小面板的箭头按钮尺寸（原版 `ImageExpBarRight/Button` = 15×24 → ×1.8）。</summary>
         public static readonly Vector2 MiniPanelArrowSize = Size(15f, 24f);
@@ -743,31 +777,44 @@ namespace Diablo2.UI
         public static readonly Vector2 CharTopRightSize = Size(117f, 17f);
 
         /// <summary>
-        /// 右下两个细长空框（底图实测 art x 180..310、y 403..415 / 418..430
-        /// ⇒ 面板中心坐标 (85,−193) / (85,−208)、尺寸 130×12 → ×1.8）→ 本项目放「命中 / 格挡」。
+        /// 右列**上起第 3、第 4 行**（底图实测：标签隔间 art x 161..269、数值隔间 art x 271..309；
+        /// 行 art y 142..162 与 166..186 ⇒ 行中心 art y 152 / 176 ⇒ node y **64 / 40**）
+        /// → 本项目放「格挡 / 命中」。
+        /// <para>量法 = 对 `Panel/charstat.png`（320×432，原版像素）求暗色连通域
+        /// （`lum &lt; 60 且 alpha &gt; 128`），这两行与「防御」行（art y 193..210）同族
+        /// —— 同为「标签 109 art + 数值 39 art」的单值行。</para>
+        /// <para>顺序：索引 0 = **命中**（靠下的那一行 node y 40）、索引 1 = **格挡**（node y 64）；
+        /// 「防御」由 <see cref="CharDerivedRowOrig"/> 钉在 art y 201.5（= 其上两行之下），
+        /// 故命中/格挡只占这两格。</para>
         /// </summary>
         public static readonly Vector2[] CharBottomRightOrig =
         {
-            new Vector2(85f, -193f), new Vector2(85f, -208f),
+            new Vector2(55f, 40f), new Vector2(55f, 64f),
         };
 
-        public static readonly Vector2 CharBottomRightSize = Size(130f, 12f);
+        /// <summary>
+        /// 上述两行的标签隔间尺寸（原版 art x 161..269、行净高 18 ⇒ 109×18 → ×1.8）。
+        /// <para>数值列不另给常量：它与「防御」同列（<see cref="CharDefValueX"/> / <see cref="CharDefValueW"/>），
+        /// 右沿就是底图那条 art x 271..309 的数值隔间。</para>
+        /// </summary>
+        public static readonly Vector2 CharBottomRightSize = Size(109f, CharRowSlotH);
 
         /// <summary>
-        /// 左下空白区（原版大理石底纹，无凹槽；art y 322/346/370/394）→ 本项目放四系抗性。
-        /// <para>
-        /// 行高取 **20**（不是四维行的 27.9）：能量行的下沿在 −104.45、面板下沿在 −216，
-        /// 中间只有 111.5px，4 行 27.9 高放不下（会越出面板）⇒ 用 20 高 + 24 行距。
-        /// </para>
+        /// 右列**下起 4 行**（底图实测：标签隔间 art x **174..269**、数值隔间 art x **271..309**；
+        /// 行 art y **332..349 / 356..373 / 380..397 / 404..421** ⇒ 行中心 art y
+        /// 340.5 / 364.5 / 388.5 / 412.5 ⇒ node y **−124.5 / −148.5 / −172.5 / −196.5**，
+        /// 标签隔间中心 art x 221.5 ⇒ node x **61.5**）→ 本项目放四系抗性。
+        /// <para>量法同 <see cref="CharBottomRightOrig"/>（暗色连通域 `lum &lt; 60 且 alpha &gt; 128`）；
+        /// 这 4 行与「防御」行同族但标签隔间**左沿多缩进 13 art**（174 vs 161）。</para>
         /// </summary>
         public static readonly Vector2[] CharResistRowOrig =
         {
-            new Vector2(-115.4f, -128f), new Vector2(-115.4f, -152f),
-            new Vector2(-115.4f, -176f), new Vector2(-115.4f, -200f),
+            new Vector2(61.5f, -124.5f), new Vector2(61.5f, -148.5f),
+            new Vector2(61.5f, -172.5f), new Vector2(61.5f, -196.5f),
         };
 
-        /// <summary>四系抗性行尺寸（原版行宽 74.3，高取 20 → ×1.8）。</summary>
-        public static readonly Vector2 CharResistRowSize = Size(74.3f, 20f);
+        /// <summary>四系抗性行尺寸（= 底图标签隔间 96 art × 行净高 18 art → ×1.8）。</summary>
+        public static readonly Vector2 CharResistRowSize = Size(96f, CharRowSlotH);
 
         // ═════════════════════════════════════════════════════════════════════
         //
@@ -834,54 +881,31 @@ namespace Diablo2.UI
         public const float CharCurMaxW = 79f;
 
         /// <summary>
-        /// 四系抗性行（本项目新增）的**标签框**：中心 node **−127**、宽 **66 art**（= art 0..66）。
-        /// <para>
-        /// `FontPx16` = 28 画布px）下**最少要 63 art** 才放得下一行 —— 实测口径见
-        /// `tools/probes/hosts/uicheck/U52ResistCheck.cs`（它从**同一份字模表**重算）：
-        ///   · 逐字 advance（`font16_chi_map.txt`，抗/火/焰/性 全是 13）= **52 art px**；
-        ///   · 生产折行口径 `D2Label.BuildBitmap`：`availPx = round(框画布px / scale)`、
-        ///     `scale = 字号 / 格高 = 28 / 13`；`D2Text.WrapLines` 的断点条件是
-        ///     **`next >= availPx`** ⇒ 「单行放得下」⇔ **52 &lt; availPx** ⇔ 框 ≥ **63 art**。
-        ///     （实机放大图逐行可见）。
-        /// </para>
-        /// <para>
-        /// **文案出处（不是自创）**：`ResistName` 的四个名字与**本项目配表**同源 ——
-        /// `client/Assets/StreamingAssets/Table/Affix.tsv:19-26`（`res-cold/res-fire/res-ltng/res-pois`
-        /// 四族词缀的显示名：`冰冷抗性/火焰抗性/闪电抗性/毒素抗性`，由
-        /// `tools/table-convert/cn_names.py` 从原版串表映射；原版长形 `4071..4074 火焰抵抗力…`
-        /// 为 5 字，advance 65 art ⇒ 需 76 art 框，与本行「值列不折行」在 art 0..112.5 的
-        /// 113 art 预算内**互斥**（76+42 &gt; 113）⇒ 只能取 4 字这一档）。
-        /// 因此**不改文案**（改文案会让角色面板与物品 tooltip 两处词不一致）。
-        /// </para>
-        /// <para>
-        /// **左沿为什么是 art 0**（不是四维标签隔间的 art 10）：预算 = art 0..112.5，
-        /// 标签 ≥63、值列 ≥42（见 <see cref="CharResistValueW"/>）⇒ 标签+值列 ≥105，
-        /// 若左沿取 art 10 则可用只剩 102.5 art ⇒ **数学上放不下**（差 2.5 art）。
-        /// 底图左下 art x 0..81 是**空白大理石**（逐像素实测：无凹槽、无图元；左侧金框在 art x 0..2），
-        /// </para>
+        /// 四系抗性行的**标签框**：中心 node **61.5**、宽 **96 art**（= 底图标签隔间 art 174..269）。
+        /// <para>文案出处 = **原版串表** `原版资源/d2text/chi_string.txt:4071-4074`
+        /// （`火焰抵抗力 / 冰冷抵抗力 / 闪电抵抗力 / 毒素抵抗力`）；5 字 advance = 65 art
+        /// （逐字 13 art，`font16_chi_map.txt`）&lt; 96 art ⇒ 单行放得下，且与原版人物面板同词。
+        /// 物品 tooltip 一侧仍用配表 `Table/Affix.tsv` 的 4 字词缀名（那一屏的出处不同，
+        /// 两屏各自照自己的原版来源）。</para>
         /// </summary>
-        public const float CharResistNameX = -127f;
+        public const float CharResistNameX = 61.5f;
 
-        /// <summary>抗性标签框宽（见 <see cref="CharResistNameX"/>：art 0..66 ⇒ 66；最小可放宽度 = 63）。</summary>
-        public const float CharResistNameW = 66f;
+        /// <summary>抗性标签框宽（见 <see cref="CharResistNameX"/>：art 174..269 ⇒ 96；5 字标签最小可放宽度 = 76）。</summary>
+        public const float CharResistNameW = 96f;
 
         /// <summary>
-        /// 四系抗性行（本项目新增）的**数值列**：右沿与四维行数值列右沿对齐
-        /// （= `CharStatValueX + CharStatValueW/2` = node −47.5 = **art 112.5**），
-        /// 左沿退到 art 67.5 ⇒ 中心 node **−70**、宽 **45 art = 81 画布px**。
-        /// <para>为什么必须比四维那列宽（**目的**：`preferredWidth &lt;= rect.width` 且单行）：
-        /// 抗性值是**带 % 的百分比**，最坏值 `-100%` 在 font16 下 advance = **47 art**
-        /// （拉丁字模：`-`5 `1`5 `0`12 `0`12 `%`13），而四维那种 33 art（59.4 画布px）的窄列
-        /// 连 `75%`（30 art）都压线 ⇒ 必然折行。</para>
-        /// <para>值列宽 = **45 art**（左沿 art 67.5）：**右沿不动**（仍对齐 art 112.5），
-        /// 让位给上面那个 66 art 的标签框。
-        /// 45 art ⇒ availPx = `round(45×1.8 / (28/18))` = **52** &gt; 47 ⇒ `-100%` 仍**不折行**
-        /// 且都在面板内 —— 判据见 `tools/probes/hosts/uicheck/U52ResistCheck.cs`。</para>
+        /// 四系抗性行的**数值列**：= 底图右列那条数值隔间 art **271..309**
+        /// ⇒ 中心 node **130**、宽 **39 art**（与派生行同列，见 <see cref="CharDefValueX"/>）。
+        /// <para>**画法 = 单行 + 允许溢出**（不是缩字、也不砍 `%`）：最坏值 `-100%` 的 latin
+        /// advance = **47 art**（`-`5 `1`5 `0`12 `0`12 `%`13）&gt; 39 art，而 `CharacterPanel`
+        /// 把这个标签设成 `HorizontalWrapMode.Overflow` ⇒ `D2Label` 的 `availPx` 恒 0
+        /// ⇒ `WrapLines` **不折行**、超出的笔画画在框右侧（原版画字同样不折行）。
+        /// 判据见 `tools/probes/hosts/uicheck/U52ResistCheck.cs` §④。</para>
         /// </summary>
-        public const float CharResistValueX = -70f;
+        public const float CharResistValueX = 130f;
 
-        /// <summary>抗性数值列宽（见 <see cref="CharResistValueX"/>：art 67.5..112.5 ⇒ 45；最小可放宽度 = 42）。</summary>
-        public const float CharResistValueW = 45f;
+        /// <summary>抗性数值列宽（见 <see cref="CharResistValueX"/>：art 271..309 ⇒ 39）。</summary>
+        public const float CharResistValueW = 39f;
 
         /// <summary>
         /// 底图**第二排**（原版 art y 32..66，中心 art y 49 ⇒ node y **167**）的两个空框 ——

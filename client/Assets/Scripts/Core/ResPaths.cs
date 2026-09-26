@@ -146,8 +146,12 @@ namespace Diablo2.Core
         /// </summary>
         public const string PanelOverlap = D2UiPanel + "overlap";
 
-        /// <summary>原版交互光标（多帧；帧序见 `Def.CursorKind`）。</summary>
+        /// <summary>默认态光标 = 原版 `data/global/ui/CURSOR/ohand.dc6` 帧 0（32×26；
+        /// 工程内文件与那一帧的可见像素逐像素全等）。</summary>
         public const string Cursor = D2UiCursor + "Cursor";
+
+        /// <summary>攻击态光标 = 原版 `data/global/ui/CURSOR/Gaunt.dc6`（单帧 34×30）。</summary>
+        public const string CursorAttack = D2UiCursor + "Gaunt";
 
         /// <summary>原版普通攻击技能图标。</summary>
         public const string SkillIconAttack = D2UiSkillIcon + "SkilliconAttack";
@@ -272,8 +276,29 @@ namespace Diablo2.Core
         /// <summary>原版技能页签按钮（= `MENU/questbutton.DC6`）。</summary>
         public const string PanelQuestTabButton = D2UiPanel + "questbutton";
 
-        /// <summary>原版商店页签（= `PANEL/buyselltabs.DC6`，8 帧 79×31，帧名前缀）。</summary>
+        /// <summary>
+        /// 原版商店页签（= `PANEL/buyselltabs.DC6`，8 帧 79×31，帧名前缀）。
+        /// <para>**帧序 = 4 个页签 × 2 态，按「位置」分块**：帧 `0..3` = 4 个页签各自的**常态**、
+        /// 帧 `4..7` = 同 4 个页签的**按下** ⇒ 第 <c>t</c> 个页签两态 = 帧 <see cref="BuySellTabsFrame"/>。
+        /// </para>
+        /// <para>依据（逐帧实测，量法 `.ai-tmp/test/duc/darken_rel.py` + `cornerdiff.py`，2026-09-26）：
+        /// ① 帧 `i` 与 `i+4` 是**单向压暗**（「A 亮于 B」的像素占 95..97%：1680..2130 对 75..83），
+        ///    且四对的「内芯差分像素数」**完全相等**（1273/1273/1273/1273 = 同一张图被整体压暗）；
+        /// ② 帧 `2i` 与 `2i+1` 是**双向差**（26%/63%/79%/83% 单向性）⇒ 不是同图两态。
+        /// ⛔ 不要照 `questtabs` 的 `2i/2i+1` 配（那份素材是烘字交错排的，这份不是）——照抄会把
+        /// 第 3、4 个页签画成**别的页签的按下图**（frame 4/6 = 位置 0/2 的暗态）。</para>
+        /// </summary>
         public const string PanelBuySellTabs = D2UiPanel + "buyselltabs";
+
+        /// <summary>原版商店页签的**页签个数**（= 8 帧 ÷ 2 态）；帧序见 <see cref="PanelBuySellTabs"/>。</summary>
+        public const int BuySellTabsCount = 4;
+
+        /// <summary>
+        /// 第 <paramref name="tab"/> 个商店页签（0 起）的帧路径：
+        /// <paramref name="pressed"/> = false ⇒ 常态帧（`tab`）、true ⇒ 按下帧（`tab + 4`）。
+        /// </summary>
+        public static string BuySellTabsFrame(int tab, bool pressed)
+            => PanelBuySellTabs + "_" + (tab + (pressed ? BuySellTabsCount : 0));
 
         /// <summary>原版交易小按钮（= `PANEL/tradebtn.DC6`，2 帧 77×17）。</summary>
         public const string PanelTradeButton = D2UiPanel + "tradebtn";
@@ -324,6 +349,69 @@ namespace Diablo2.Core
         /// 整幅 296×54 由这两块拼出，见 <see cref="FrameCountBannerYouDiedSoftCore"/>。
         /// </summary>
         public static string BannerYouDiedSoftCoreTile(int i) => Banner(BannerYouDiedSoftCore) + "_" + i;
+
+        /// <summary>
+        /// **本地化图第 i 帧**的路径（`D2/UI/Banner/{name}_{i}`）。逐帧口径 = 每个源 DC6 一帧一个 PNG，
+        /// 见 `tools/d2codec/export_d2ui.py` 组 5（源 = `原版资源/d2dc6/data/LOCAL/UI/chi/*.dc6`）。
+        /// </summary>
+        public static string BannerTile(string name, int i) => Banner(name) + "_" + i;
+
+        /// <summary>
+        /// 暂停菜单第 1 颗按钮的原版中文本地化图（`data/LOCAL/UI/chi/returntogame.dc6` 帧 0，**148×54**）：
+        /// 图上文字 = **「回到遊戲」**（= 原版这一槽的 `Continue`；串表同义条目 `chi_string.txt` id 3403「繼續」）。
+        /// </summary>
+        public const string BannerReturnToGame = "returntogame";
+
+        /// <summary>暂停菜单第 2 颗按钮（`options.dc6` 帧 0，**74×54**）：图上文字 = **「選項」**。</summary>
+        public const string BannerOptions = "options";
+
+        /// <summary>
+        /// 暂停菜单第 3 颗按钮（`exit.dc6`，**2 tile：256×54 + 3×54 = 259×54**）：
+        /// 图上文字 = **「儲存並離開遊戲」**
+        /// （= 原版这一槽的 `Save &amp; Exit`；`chi_string.txt` 里没有这条串，只有这张图）。
+        /// </summary>
+        public const string BannerExit = "exit";
+
+        /// <summary>
+        /// 暂停菜单第 4 颗按钮（`previous.dc6` 帧 0，**148×54**）：图上文字 = **「前一選單」**
+        /// （语义 = 退回上一层菜单，与本工程该槽的 `ToMainMenuRequest` 一致）。
+        /// </summary>
+        public const string BannerPrevious = "previous";
+
+        /// <summary>
+        /// 主菜单第 1 项按钮（`SINGLEPLAYER.DC6`，**2 tile：256×29 + 26×29 = 282×29**）：
+        /// 图上是**英文** `SINGLE PLAYER`
+        /// 的花体金字 —— 原版**中文版**主菜单这一项本来就是英文图（`LOCAL/UI/chi/` 里就是这张英文字），
+        /// 与本工程 `MainMenuPanel` 的文案逐字一致。
+        /// <para>只取第 0 个 tile（256 宽）会**少画最后 26 原版px**（`R` 的尾巴）⇒ 必须按
+        /// <see cref="BannerTiles"/> 的块数把两个 tile 横向拼成整幅。</para>
+        /// </summary>
+        public const string BannerSinglePlayer = "SINGLEPLAYER";
+
+        /// <summary>
+        /// DC6 **单块的宽度上限 = 256**（格式属性）：超过它的图被切成「若干 256 宽块 + 一个余量块」。
+        /// <para>出处 = `tools/d2codec/dc6.py info` 对 `LOCAL/UI/chi/*.dc6` 的实测读数：
+        /// `SINGLEPLAYER` = `256x29 26x29`、`exit` = `256x54 3x54`、`youdiedsoftcore` = `256x54 40x54`
+        /// —— 前置块一律 256 宽。</para>
+        /// </summary>
+        public const float Dc6TileWidth = 256f;
+
+        /// <summary>
+        /// 本地化图的 **tile 块数**（源 DC6 的帧数 = 横向拼成整幅的块数，`dc6.py info` 实测）。
+        /// <para>DC6 单块上限 256 宽 ⇒ 超过 256 的图被切成「若干 256 宽块 + 一个余量块」；
+        /// 拼法 = 按帧序横向相接（与 <see cref="BannerYouDiedSoftCoreTile"/> 同一口径）。
+        /// 未登记的图 = 单块（返回 1）。</para>
+        /// </summary>
+        public static int BannerTiles(string name)
+        {
+            switch (name)
+            {
+                case BannerSinglePlayer: return 2;   // 256×29 + 26×29
+                case BannerExit: return 2;           // 256×54 + 3×54
+                case BannerYouDiedSoftCore: return 2; // 256×54 + 40×54
+                default: return 1;
+            }
+        }
 
         /// <summary>小地图标记路径，例：`MiniMapIcon(3)` → `D2/UI/MiniMap/mapicon_3`。</summary>
         public static string MiniMapIcon(int index) => D2UiMiniMap + "mapicon_" + index;
@@ -637,6 +725,42 @@ namespace Diablo2.Core
         /// <summary>物品图标路径，例：`Item("invhp1")` → `D2/Items/invhp1`。</summary>
         public static string Item(string icon) => D2Items + icon;
 
+        // ── 投射物（法术飞行体）──────────────────────────────────────────────
+        //  出处：官方 `Missiles.txt` 的 `CelFile` 列（本项目运行时表 = `missile_c.cel_file`）；
+        //  帧图由 `tools/d2codec/export_missiles.py` 从 `D2data.mpq` 的
+        //  `data\global\missiles\<CelFile>.dcc` 逐帧解出（调色板 = `palette/units/Pal.dat`）。
+
+        /// <summary>契约：投射物帧目录（`D2/Missiles/{CelFile}/{方向}_{帧号}.png`）。</summary>
+        public const string D2Missiles = "D2/Missiles/";
+
+        /// <summary>
+        /// 投射物动画的**播放帧率** = **16 fps**。
+        /// <para>出处 = 官方 `Missiles.txt` 的 `AnimSpeed` 列：本项目被引用的 30 个 CelFile
+        /// 实测该列**全为 16**（复算口径见 `tools/d2codec/export_missiles.py` 文件头）。</para>
+        /// <para>⛔ 与实体动画基准帧率 `GameConst.AnimBaseFps`(25) **不是同一个量**，不许合并。</para>
+        /// </summary>
+        public const float MissileFps = 16f;
+
+        /// <summary>方向名表（下标 = `Def.Dir8` 值；与导出器 `export_chars.DIR_NAMES` 同序同名）。</summary>
+        private static readonly string[] Dir8Names = { "s", "sw", "w", "nw", "n", "ne", "e", "se" };
+
+        /// <summary>方向名（越界 ⇒ 报一次 Warn 并返回 "s" —— 不静默、也不抛）。</summary>
+        public static string Dir8Name(Dir8 dir)
+        {
+            var i = (int)dir;
+            if (i >= 0 && i < Dir8Names.Length) return Dir8Names[i];
+            Log.WarnOnce("D2", "respath.dir8.bad",
+                $"ResPaths.Dir8Name 收到未登记的方向 {(int)dir}（合法 0..{Dir8Names.Length - 1}）⇒ 按 s 处理");
+            return Dir8Names[0];
+        }
+
+        /// <summary>
+        /// 投射物帧路径，例：`MissileFrame("Firebolt", Dir8.SW, 2)` → `D2/Missiles/Firebolt/sw_2`。
+        /// <para>帧号上界见 `Module/Skill/MissileFrameCounts`（生成文件，与磁盘 PNG 同批产出）。</para>
+        /// </summary>
+        public static string MissileFrame(string celFile, Dir8 dir, int frame)
+            => D2Missiles + celFile + "/" + Dir8Name(dir) + "_" + frame;
+
         /// <summary>音效路径，例：`Sfx("hit")` → `Sound/SFX/hit`。</summary>
         public static string Sfx(string key) => D2Sfx + key;
 
@@ -683,6 +807,15 @@ namespace Diablo2.Core
         /// 必须同时改 exporter 的读数。</para>
         /// </summary>
         public const float WaypointFrameFps = 19.53125f;
+
+        /// <summary>
+        /// 装饰物件某一帧的**物件键**，例：`DecoFrame("rb", 2)` → `rb/002`。
+        /// <para>`dir` = `MapGenDeco.Kind.Dir`（= 原版 `Objects.txt` 的 `Token` 小写）；帧文件由
+        /// `tools/d2codec/export_deco.py` 从 `D2data.mpq` 解出，资源路径 = `ObjectSprite(DecoFrame(...))`
+        /// （= `D2/Objects/rb/002`）。⛔ 在别处手拼这个路径会漏掉 `D2/Objects/` 前缀，
+        /// `Resources.Load` 会**静默**返回 null。</para>
+        /// </summary>
+        public static string DecoFrame(string dir, int index) => dir + "/" + index.ToString("000");
 
         /// <summary>
         /// **帧名助手**（多帧条带取单帧用）：`Frame(path, i)` → `"{path}_{i}"`，帧号 **i 从 0 起**。

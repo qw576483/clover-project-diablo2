@@ -10,15 +10,15 @@
 //        帧→字符 + 排版度量在 `D2/Fonts/font{N}_chi_map.txt`（运行期数据资产，
 //        不是 `.cs` 常量：13806×4 条写死不可维护，也无法"换素材不动逻辑"）。
 //
-// 排版口径**全部有出处**（libd2 `packages/formats/src/font.zig`，同目录 `原版资源/
-//   参考工程_Diablerie/libd2/`）：
-//   · 步进 advance = 表里的 `width`（L67 注释原话："How far to advance after drawing it.
+// 排版口径**全部有出处**（`libd2` = 上游 clean-room Zig 实现 `jaenster/libd2`：
+//   `https://cdn.jsdelivr.net/gh/jaenster/libd2@main/packages/formats/src/font.zig`）：
+//   · 步进 advance = 表里的 `width`（:67 注释原话："How far to advance after drawing it.
 //     This is the whole reason the table exists."）⇒ 不猜字距。
-//   · 行高 lineHeight = 一帧的最高（L141-146 `lineHeight()`）= 格子高（13/19/24/37）。
-//   · 基线：字形画在基线上方，`top = y - frame.height`（L148-153）⇒ 字模格子底边 = 基线。
-//   · **表里没有的字符：不画、也不推进**（L130-131 注释 + L170 `orelse continue`）
+//   · 行高 lineHeight = 一帧的最高（:141-146 `lineHeight()`）= 格子高（13/19/24/37）。
+//   · 基线：字形画在基线上方，`const top = y - @intCast(f.height)`（:173）⇒ 字模格子底边 = 基线。
+//   · **表里没有的字符：不画、也不推进**（:170 `orelse continue`）
 //     —— 原版自己的行为就是这样，本项目照做（并且**打 Error 日志**，不静默）。
-//   · 换行：L188-216 `breakLine`（走一遍、停在"量到 ≥ 框宽"的那一字；路过空格就在空格断，
+//   · 换行：:199 `pub fn breakLine`（走一遍、停在"量到 ≥ 框宽"的那一字；路过空格就在空格断，
 //     没空格就按能塞下的最后一个字断）。
 //
 // 一个**必须写明的事实**（本文件的中文回退表就是为它存在的）：
@@ -42,10 +42,16 @@ namespace Diablo2.UI
     /// <summary>原版位图字体的取模 / 排版度量（纯数据 + 异步字模缓存，可离线自检）。</summary>
     internal static class D2Text
     {
-        /// <summary>可用字号（对应原版 `font{16,24,30,42}`）。</summary>
+        /// <summary>
+        /// 可用字号（对应原版 `font{8,16,24,30,42}`）。
+        /// <para>只有 <see cref="Font8"/> 是**仅 chi 侧**随工程发布的（见 <see cref="ChiOnly"/>）：
+        /// 它的原版拉丁侧（`data/local/font/latin/font8.dc6` + `font8.tbl`）**没有**做成工程素材
+        /// —— 拉丁图集要走 `AssetImporter.FontGrids` 的切分（工程里 `font{16,24,30,42}.png` 的
+        /// `.meta` 就是那次切分的产物），本项目的导出链不产出它。</para>
+        /// </summary>
         public enum D2Font
         {
-            /// <summary>16px（原版最小号，中文格子 13×13；HUD / 面板正文都用它）。</summary>
+            /// <summary>16px（原版最小中文号，中文格子 13×13；HUD / 面板正文都用它）。</summary>
             Font16 = 0,
 
             /// <summary>24px（中文格子 19×19）。</summary>
@@ -56,7 +62,18 @@ namespace Diablo2.UI
 
             /// <summary>42px（中文格子 37×37）。</summary>
             Font42 = 3,
+
+            /// <summary>8px（原版小字；中文格子 **11×11**，实测 `data/LOCAL/FONT/chi/font8.DC6` 13806 帧全 11×11）。</summary>
+            Font8 = 4,
         }
+
+        /// <summary>
+        /// 该字号是否**只能**走 chi 字模（= 拉丁侧没随工程发布，见 <see cref="D2Font"/> 的注释）。
+        /// <para>为什么必须有这条：`D2Label` 按"整串是否纯 ASCII"选字模，纯数字串会挑拉丁侧；
+        /// 而拉丁字模取不到时走的是 `MarkBitmapUnavailable`（**全项目**降级成系统 TTF）。
+        /// ⇒ <see cref="Font8"/> 一律走 chi（原版 chi 字模含 ASCII 字形，码位 32 起都在表里）。</para>
+        /// </summary>
+        public static bool ChiOnly(D2Font font) { return font == D2Font.Font8; }
 
         /// <summary>可渲染字符范围（原版 256 字形里的可打印 ASCII 段）。</summary>
         public const int FirstChar = 32;
@@ -167,11 +184,19 @@ namespace Diablo2.UI
             }
         }
 
-        /// <summary>原版行距（`font{N}.fontsettings` 的 `m_LineSpacing`）。</summary>
+        /// <summary>
+        /// 原版行距。
+        /// <para>font16/24/30/42 取自工程内 `font{N}.fontsettings` 的 `m_LineSpacing`；
+        /// **font8 没有 `.fontsettings`**（拉丁侧未随工程发）⇒ 取原版 chi `font8.DC6` 的实测帧高
+        /// **11**（13806 帧全 11×11，量法 `python tools/d2codec/dc6.py info
+        /// 原版资源/d2dc6/data/LOCAL/FONT/chi/font8.DC6`；与 chi 侧 `ChiCellH` 同一口径
+        /// = libd2 `packages/formats/src/font.zig` L141-146 `lineHeight()`）。</para>
+        /// </summary>
         public static int LineSpacing(D2Font font)
         {
             switch (font)
             {
+                case D2Font.Font8: return 11;
                 case D2Font.Font16: return 16;
                 case D2Font.Font24: return 24;
                 case D2Font.Font30: return 30;
@@ -217,11 +242,12 @@ namespace Diablo2.UI
         // 中文（chi）字模：码位 → 图集格子 + 步进
         // ═════════════════════════════════════════════════════════════════════
 
-        /// <summary>字号对应的原版 px（16/24/30/42）。</summary>
+        /// <summary>字号对应的原版 px（8/16/24/30/42；用于拼 `FontChi(N)` 之类的路径）。</summary>
         public static int SizeOf(D2Font font)
         {
             switch (font)
             {
+                case D2Font.Font8: return 8;
                 case D2Font.Font16: return 16;
                 case D2Font.Font24: return 24;
                 case D2Font.Font30: return 30;
@@ -272,13 +298,16 @@ namespace Diablo2.UI
             return new Rect(uv.X, uv.Y, uv.Width, uv.Height);
         }
 
-        private static readonly ChiFont[] ChiCache = new ChiFont[4];
+        //  长度 = 字号个数（`Slot()` 用 `ChiCache.Length` 夹下标）⇒ 加字号必须同时加长度，
+        //  否则新字号的槽会**别名到 font16**（取到别的字号的字模，静默画错）。
+        private static readonly ChiFont[] ChiCache = new ChiFont[5];
 
         /// <summary>chi 字模格子尺寸的**兜底默认**（映射表到手后一律以表头为准）。</summary>
         private static int DefaultChiCell(D2Font font)
         {
             switch (font)
             {
+                case D2Font.Font8: return 11;
                 case D2Font.Font16: return 13;
                 case D2Font.Font24: return 19;
                 case D2Font.Font30: return 24;
@@ -605,7 +634,8 @@ namespace Diablo2.UI
         // 一律转发到引擎件 `CloverEngine.BitmapFont`（零项目类型依赖、纯函数、可离线自检）。
         // 这里只负责把本项目的两套字模（拉丁 advance 表 / chi 映射表 + 简繁回退）喂给内核，
         // **素材口径（.tbl / .dc6 / png / 路径 / 简繁表）仍全部留在本项目侧**。
-        private static readonly IGlyphSource[,] Sources = new IGlyphSource[4, 2];
+        //  第一维 = 字号（`D2Font` 的取值上限 + 1）⇒ 加字号必须同时加长度。
+        private static readonly IGlyphSource[,] Sources = new IGlyphSource[5, 2];
 
         /// <summary>
         /// 取某字号 / 某套字模的内核数据源（缓存；属性读的是 slot 的**实时**状态，
@@ -867,6 +897,26 @@ namespace Diablo2.UI
         /// <summary>最近一次渲染出来的行数。</summary>
         public int LineCount { get { return _lineCount; } }
 
+        /// <summary>
+        /// 布局框尺寸（画布单位）—— 换行 / 居中的框宽就是它（见 <see cref="RectSize"/>：非零即优先于
+        /// <c>rectTransform.rect</c>）。
+        /// <para>为什么需要这个 setter：`_size` 在构造时由 <c>Create/Attach</c> 的实参**定死**，而
+        /// `rectTransform.sizeDelta` 是另一个量 —— 只改后者不会改变排版框。调用方要"换文案同时换框"
+        /// （例：`ControlTip.SetText` 的提示文案长度随数据变）就必须同时改这里，否则字仍然按**旧框宽**
+        /// 折行（实测：框 196.06 / 旧框 161.6 ⇒ 一串 12 字被折成两行，而原版该提示是单行）。</para>
+        /// <para>改它必然重排（换行判据 = 框宽）。</para>
+        /// </summary>
+        public Vector2 size
+        {
+            get { return _size; }
+            set
+            {
+                if (Mathf.Approximately(_size.x, value.x) && Mathf.Approximately(_size.y, value.y)) return;
+                _size = value;
+                Render();
+            }
+        }
+
         /// <summary>目标字高（画布单位；0 = 原版 px 1:1）。</summary>
         public int fontSize { get { return _fontSize; } set { if (_fontSize != value) { _fontSize = value; Render(); } } }
 
@@ -990,7 +1040,8 @@ namespace Diablo2.UI
             if (!_bitmapUnavailable)
             {
                 // `_forceChi`（品牌署名行）：拉丁字模不分大小写，ASCII 也改走 chi 字模，见 _forceChi 注释
-                var chi = _forceChi || !D2Text.IsLatinOnly(_text);
+                // `ChiOnly(_font)`：font8 的拉丁侧没随工程发布 ⇒ 该档一律走 chi（见 `ChiOnly` 注释）
+                var chi = _forceChi || D2Text.ChiOnly(_font) || !D2Text.IsLatinOnly(_text);
                 if (chi)
                 {
                     D2Text.EnsureChi(_font);      // 中文/混合：整条走 chi 字模

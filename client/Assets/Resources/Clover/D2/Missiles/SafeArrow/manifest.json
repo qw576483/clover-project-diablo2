@@ -1,0 +1,43 @@
+{
+ "cel": "SafeArrow",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\SafeArrow.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 32,
+ "framesPerDir": 8,
+ "officialAnimLen": [
+  1,
+  8
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 4,
+  "sw": 0,
+  "w": 5,
+  "nw": 1,
+  "n": 6,
+  "ne": 2,
+  "e": 7,
+  "se": 3
+ },
+ "canvas": {
+  "w": 60,
+  "h": 128,
+  "originX": 30,
+  "originY": 64,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 64
+}

@@ -366,6 +366,12 @@ namespace CombatCheck
             Dir = dir;
         }
 
+        /// <summary>原地转向目标格（与真实现同口径：同格保持原朝向）。</summary>
+        public void FaceTo(Vector2Int grid)
+        {
+            if (grid != Grid) Dir = Iso.DirectionTo(Grid, grid);
+        }
+
         public void SetMana(int mana) { Mana = mana; }
         public void SetLife(int life) { Life = life; }
         public void SetLevel(int level) { _level = level; RefreshExpNext(); }

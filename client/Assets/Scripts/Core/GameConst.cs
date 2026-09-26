@@ -23,13 +23,17 @@ namespace Diablo2.Core
         public const int PixelsPerUnit = 64;
 
         /// <summary>
-        /// <para>出处推导（三条都在参考工程里）：</para>
+        /// <para>出处（上游参考工程原文，逐字核过）：</para>
         /// <list type="bullet">
-        /// <item>原版 → `unit.runSpeed = 15`（**map 单位/秒**）：
-        /// `原版资源/参考工程_Diablerie/Diablerie/Assets/Scripts/Diablerie/Engine/Player.cs:48-49`
-        /// （`unit.walkSpeed = 7; unit.runSpeed = 15;`）。</item>
-        /// <item>**1 格 = 5 map 单位**：`Engine/Iso.cs:9-12` 的 `SubTileCount = 5`
-        /// （换算点 `Engine/World/LevelBuilder.cs:245/328/508` 的 `* Iso.SubTileCount`）。</item>
+        /// <item>`unit.runSpeed = 15`（**map 单位/秒**）：
+        /// `Diablerie/Engine/Player.cs:48-49` 的 `unit.walkSpeed = 7; unit.runSpeed = 15;`
+        /// （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Scripts/Diablerie/Engine/Player.cs`）；
+        /// 消费点 = `Engine/Entities/Unit.cs:324-325` 的 `speed = run ? runSpeed : walkSpeed;
+        /// distance = speed * Time.deltaTime;`（路径步长就是 map 单位）。</item>
+        /// <item>**1 格 = 5 map 单位**：`Engine/Iso.cs:9-12` 的
+        /// `SubTileCount = 5` + `pixelsPerUnit = 80` + `tileSize = 0.2f` + `tileSizeY = tileSize / 2`；
+        /// 换算点 = `Engine/World/LevelBuilder.cs:245/328/508` 的 `* Iso.SubTileCount`
+        /// （DS1 格坐标 ×5 ⇒ map 单位）。</item>
         /// <item>⇒ 15 ÷ 5 = **3.0 格/秒**（对应的走速见 <see cref="PlayerWalkSpeedFactor"/>）。</item>
         /// </list>
         /// </summary>
@@ -37,7 +41,7 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 玩家**走**速倍率 = 原版 `walkSpeed / runSpeed` = `7 / 15`。
-        /// <para>出处：`Player.cs:48-49` 的 `unit.walkSpeed = 7; unit.runSpeed = 15;`
+        /// <para>出处：`Diablerie/Engine/Player.cs:48-49` 的 `unit.walkSpeed = 7; unit.runSpeed = 15;`
         /// ⇒ 走速 = <see cref="PlayerWalkSpeed"/> × 7/15 = 3.0 × 7/15 = **1.4 格/秒**
         /// （原版"走"的绝对速度）。</para>
         /// <para>全项目只保留这一份字面量（`PlayerModule` 引用它）。</para>
@@ -279,6 +283,26 @@ namespace Diablo2.Core
 
         /// <summary>伤害飘字默认停留秒数。</summary>
         public const float FloatTextDuration = 1.2f;
+
+        // ── 帧节奏 ─────────────────────────────────────────────────────────
+        /// <summary>
+        /// 动画的**基准播放帧率** = 25 fps（原版 D2 的逐帧动画按它推进：动画时长 = 帧数 ÷ 25）。
+        /// <para>出处（三条都在本机可查）：</para>
+        /// <list type="bullet">
+        /// <item>① 原版逻辑帧率 25：`Module/Monster/MonsterTuning.LogicFps` 的注释
+        /// （参考实现 `gameserver.zig:675` 原文 "the real 25-fps per-game server loop"）。</item>
+        /// <item>② 官方表的帧率换算以 25 为基准：`Core/ResPaths.WaypointFrameFps`
+        /// = `25 × FrameDelta / 256`（官方 `Objects.txt` 的 `Id=119 / Token=wp` 行
+        /// `FrameDelta2 = 200` ⇒ 19.53125 fps）。</item>
+        /// <item>③ 参考工程的动画播放器也用 25：`Core/ResPaths.Portrait.TransitionFps`
+        /// （`ClassSelector.cs:218/232` 的 `Fps = 25`）。</item>
+        /// </list>
+        /// <para>它是**原版帧率公式的基准项**：逐单位逐动作的播放帧率 =
+        /// `AnimBaseFps × AnimData.speed / 256 × 规范帧数 / 实际帧数`
+        /// （`SpriteFrames.CorrectedFpsOf`，口径来源 = 上游 `AnimData.GetCorrectedFrameDuration`）。
+        /// **式子里没有移动速度** ⇒ 走 / 跑也由它推，不随角色跑多快变。</para>
+        /// </summary>
+        public const float AnimBaseFps = 25f;
 
         // ── 战斗节奏 ─────────────────────────────────────────────────────────
         /// <summary>玩家普通攻击间隔（秒）——手感参数，不随等级增长。</summary>

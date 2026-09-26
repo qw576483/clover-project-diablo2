@@ -5,9 +5,9 @@
 
        目的：把片 2b 改的每一个数都变成**可离线断言**的项（秒级、不依赖 Unity）：
          · 速度 / 视野 / 怪物速度量纲的常量值；
-         · 新增的 FpsForCycle / SpeedScaleForCycle 口径；
+         · 原版帧率公式 25 x AnimData.speed/256 x 规范帧数/实际帧数（CorrectedFpsOf）；
          · SpriteFrameCounts 的 run 列与 ViewAnim.Run 下标一致；
-         · **玩家走/跑时移动动画的有效帧率 = 帧数 x 速度**（用真 SpriteAnimator 逐帧推进实测）。
+         · **逐职业走/跑帧率 == 该公式值**（用真 SpriteAnimator 逐帧推进实测）。
 
        做法与 .ai-tmp/hosts 下其它宿主一致（链**真实业务源码** + 引擎门面替身，不复制逻辑）：
        shim 直接复用 fullcheck 那一份（内容取自 combatcheck 的超集；其中 WorldHpBar 替身**已无生产消费方**

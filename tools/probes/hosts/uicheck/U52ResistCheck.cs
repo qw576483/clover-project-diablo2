@@ -1,9 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //
-//   底图左下（原版 art x 0..81 × y 314..415 的空白大理石）那 4 行四系抗性里，
-//   **4 字中文标签被塞进 46 art 宽的框** ⇒ 生产折行口径下折成 2 行，
-//   4 行标签 = 8 行交错（实机放大图上逐行可见）。
-//   那个 46 art 是片 `charstat` 为修「值列折行」时**同步收窄**过来的 ⇒ 属回归。
+//   本文件判四系抗性 4 行的**行位**与**画法**：
+//   · 行位 = 底图右列**下起 4 行**的实测隔间（标签 art 174..269、数值 art 271..309；
+//     行 art y 332..349 / 356..373 / 380..397 / 404..421），由
+//     `UiLayoutGame.CharResistRowOrig/Size` + `CharResistNameX/W` + `CharResistValueX/W` 承载；
+//   · 画法 = **单行 + 允许溢出**（原版画字不折行）：生产侧两个标签都设
+//     `HorizontalWrapMode.Overflow` ⇒ `D2Label` 的 `availPx` 恒 0 ⇒ `WrapLines` 不折行。
+//     值列只有 **39 art**，而最坏可达值 `-100%` 的 advance = **47 art**
+//     ⇒ 那 8 art 是**有意溢出**（不缩字、不砍 `%`）。
+//   ⇒ 判据 = ① 行位/隔间 == 底图实测；② 生产源码确实设了 `Overflow`（含两面样本）；
+//     ③ 承重算术：39 art 下 `-100%` 若走 `Wrap` **会折行** ⇒ ② 不是空话。
 //
 // ── 判据口径（唯一口径；**不要再用裸 `lineCount`**）────────────────────────────
 //   生产实际画字的是 `D2Label.BuildBitmap`（`UI/D2Text.cs:981-983`）：
@@ -31,15 +37,16 @@
 //      拉丁侧则直接用**生产函数** `D2Text.Measure`（源码里的常量表，离线可用）。
 //
 // ── 覆盖口径 = 影响域（只重判受影响的行）────────────────────────────────────
-//   ① 标签框几何（`CharResistNameX/W`）—— 4 行标签
-//   ② 值列几何（`CharResistValueX/W`）—— 4 行值
-//   ④ 底图暗区（左下空白大理石的可用几何：art 0..81 / 行带 y 314..415）
-//   ⑤ 四维行与派生行（**不动** —— 但要判"没被碰到"：标签/值框与它们的行矩形不相交）
+//   ① 标签框几何（`CharResistNameX/W`）—— 4 行标签（= 底图隔间 art 174..269）
+//   ② 值列几何（`CharResistValueX/W`）—— 4 行值（= 底图隔间 art 271..309）
+//   ④ 行位（`CharResistRowOrig/Size`）—— 4 行**行中心** == 底图行框中心（art y 340.5…412.5）
+//   ⑤ 生产画法（`CharacterPanel.BuildResistRows` 设 `HorizontalWrapMode.Overflow`）—— 单行不折
+//   ⑥ 四维行与派生行（**不动** —— 但要判"没被碰到"：标签/值框与它们的行矩形不相交）
 //   ⑥ 其它同类短框（只出**读数**：它们的文案由存档数据驱动，判不成常量；见 §⑥）
 //
 // ── 退化样本（每条判据都要能红）──────────────────────────────────────────
-//   把**修前那个折行形状**喂进同一个 `SingleLine` ⇒ 必须判成"折行"；
-//   把**比最小可放宽度小 1 art** 的框喂进去 ⇒ 必须红；缺字形的样本 ⇒ 必须报 MISSING。
+//   `SingleLine` 本身：边界两侧对立读数（min−1 折 / min 单行）+ 缺字形样本必须报 MISSING；
+//   生产画法 needle：两面样本（含 `Overflow` 的生产源码命中、剥掉该行的样本不命中）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -279,20 +286,21 @@ namespace Uicheck
             Console.WriteLine("  §② 判据本体真值表（同一条 `SingleLine`，两侧对立读数）");
             var scaleChi = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, true, D2Text.D2Font.Font16);
             var box46 = AvailPx(46f * UiLayoutGame.K, scaleChi);
-            var box66 = AvailPx(UiLayoutGame.CharResistNameW * UiLayoutGame.K, scaleChi);
+            var box96 = AvailPx(UiLayoutGame.CharResistNameW * UiLayoutGame.K, scaleChi);
             Check("`SingleLine` **不是恒真**：need 52 在 avail 38 下必须为 false、在 avail 55 下必须为 true",
                 !SingleLine(52, 38) && SingleLine(52, 55),
                 $"SingleLine(52,38)={SingleLine(52, 38)}（应为 false）；SingleLine(52,55)={SingleLine(52, 55)}（应为 true）");
-            Check("`AvailPx` 真的随框宽变（46 art ⇒ 38、66 art ⇒ 55，同一个 scale）",
-                box46 == 38 && box66 == 55, $"46 art→{box46}；66 art→{box66}；scale={scaleChi:0.0000}");
+            Check("`AvailPx` 真的随框宽变（46 art ⇒ 38、96 art ⇒ 80，同一个 scale）",
+                box46 == 38 && box96 == 80, $"46 art→{box46}；96 art→{box96}；scale={scaleChi:0.0000}");
         }
 
         // ── §③ 4 个标签：逐字有字形 + 单行 ────────────────────────────────────
         private static void SectionLabels()
         {
-            Console.WriteLine("  §③ 四系抗性标签（chi 字模；文案出处 = 配表 `Affix.tsv:19-26` 的四个词缀显示名）");
+            Console.WriteLine("  §③ 四系抗性标签（chi 字模；文案出处 = 原版串表 `chi_string.txt:4071-4074`）");
             var scale = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, true, D2Text.D2Font.Font16);
             var minBox = 0;
+            var maxNeed = 0;
             var detail = new StringBuilder();
 
             for (var i = 0; i < CharacterPanel.ResistName.Length; i++)
@@ -309,21 +317,23 @@ namespace Uicheck
 
                 var min = MinBoxArt(need, scale);
                 if (min > minBox) minBox = min;
+                if (need > maxNeed) maxNeed = need;
                 detail.Append($"「{text}」need={need} art/最小框={min}；");
             }
 
-            Check("4 个标签的**最小可放宽度**（单行）≤ 声明框宽 `UiLayoutGame.CharResistNameW`",
+            Check("4 个标签的**最小可放宽度**（单行）≤ 声明框宽 `UiLayoutGame.CharResistNameW`"
+                + "（= 底图标签隔间 art 174..269）",
                 minBox <= UiLayoutGame.CharResistNameW,
                 $"{detail}⇒ 取最大 {minBox} art ≤ 声明 {UiLayoutGame.CharResistNameW} art");
-            Check("声明框宽**不是**「刚好贴着旧值」：旧 46 art 必须**判不到单行**（否则本断言无信息量）",
-                !SingleLine(52, AvailPx(46f * UiLayoutGame.K, scale)),
-                $"46 art ⇒ availPx {AvailPx(46f * UiLayoutGame.K, scale)} < need 52");
+            Check("声明框宽**不是**「刚好贴着最小可放宽度」：46 art 必须**判不到单行**（否则本断言无信息量）",
+                !SingleLine(maxNeed, AvailPx(46f * UiLayoutGame.K, scale)),
+                $"46 art ⇒ availPx {AvailPx(46f * UiLayoutGame.K, scale)} < 最长标签 need {maxNeed}");
         }
 
-        // ── §④ 值列：`-100%` 与**整个可达集合** ────────────────────────────────
+        // ── §④ 值列：底图隔间几何 + 「单行 + 允许溢出」画法 ────────────────────
         private static void SectionValues()
         {
-            Console.WriteLine("  §④ 抗性值列（latin 字模；可达值 = `PlayerStats.MinResist..MaxResist` 夹取后的整数）");
+            Console.WriteLine("  §④ 抗性值列（底图隔间 art 271..309；画法 = 单行 + 允许溢出）");
 
             var minResist = ReadIntConst("client/Assets/Scripts/Module/Player/PlayerStats.cs", "MinResist", -100);
             var maxResist = ReadIntConst("client/Assets/Scripts/Module/Player/PlayerStats.cs", "MaxResist", 75);
@@ -335,33 +345,51 @@ namespace Uicheck
             string kind;
             List<char> miss, s2t;
             var worst = (text: "", need: 0);
-            var wrapped = new List<string>();
             for (var r = minResist; r <= maxResist; r++)
             {
                 var t = r + "%";
                 var n = NeedNative(t, out sc, out kind, out miss, out s2t);
                 if (n > worst.need) worst = (t, n);
-                if (!SingleLine(n, AvailPx(UiLayoutGame.CharResistValueW * UiLayoutGame.K, scale)))
-                    wrapped.Add(t);
             }
-            Check($"**可达集合穷举**：{minResist}%..{maxResist}%（{maxResist - minResist + 1} 个值）在声明值列 "
-                + $"`CharResistValueW`={UiLayoutGame.CharResistValueW} art 下**全部单行**",
-                wrapped.Count == 0,
-                wrapped.Count == 0
-                    ? $"最长值 = 「{worst.text}」need={worst.need} art < availPx "
-                      + $"{AvailPx(UiLayoutGame.CharResistValueW * UiLayoutGame.K, scale)}"
-                    : $"折行的值 {wrapped.Count} 个，如 {string.Join(",", wrapped.GetRange(0, Math.Min(5, wrapped.Count)).ToArray())}");
+
+            // ① 几何：值列 == 底图那条数值隔间（**像元列** 271..309 = 39 列 ⇒ 连续区间 270.5..309.5；
+            //    中心 node 130、宽 39 art）。offset：node x = art x − 160。
+            var valLeftArt = UiLayoutGame.CharResistValueX - UiLayoutGame.CharResistValueW * 0.5f + 160f;
+            var valRightArt = UiLayoutGame.CharResistValueX + UiLayoutGame.CharResistValueW * 0.5f + 160f;
+            Check("值列 == 底图数值隔间（像元列 271..309 = 连续 270.5..309.5；中心 node 130、宽 39 art）"
+                + "—— 与派生行同一列（`CharDefValueX/W`）",
+                NearOrZero(valLeftArt, 270.5f) && NearOrZero(valRightArt, 309.5f)
+                && NearOrZero(UiLayoutGame.CharResistValueX, UiLayoutGame.CharDefValueX)
+                && NearOrZero(UiLayoutGame.CharResistValueW, UiLayoutGame.CharDefValueW),
+                $"值列 art {valLeftArt:0.#}..{valRightArt:0.#}（中心 node {UiLayoutGame.CharResistValueX}、"
+                + $"宽 {UiLayoutGame.CharResistValueW} art）vs 派生行 node {UiLayoutGame.CharDefValueX}"
+                + $"/{UiLayoutGame.CharDefValueW} art");
+
+            // ② 承重算术：39 art 下最长可达值在 `Wrap` 口径里**必须判成折行** ⇒ 保证 ③ 不是空话。
+            var avail = AvailPx(UiLayoutGame.CharResistValueW * UiLayoutGame.K, scale);
+            Check($"承重算术：可达集合最长值「{worst.text}」need {worst.need} art "
+                + $"> 值列 availPx {avail} ⇒ 走 `Wrap` 必折行（所以生产只能用 Overflow 口径）",
+                !SingleLine(worst.need, avail),
+                $"「{worst.text}」need {worst.need} art；{UiLayoutGame.CharResistValueW} art ⇒ availPx {avail}"
+                + $" ⇒ 溢出 {worst.need - avail} art（单行、画在框右侧，不折行）");
 
             var needWorst = NeedNative(worst.text, out sc, out kind, out miss, out s2t);
-            Check("值列的最小可放宽度（按最长可达值）≤ 声明宽（余量 = 非负）",
-                MinBoxArt(needWorst, scale) <= UiLayoutGame.CharResistValueW,
-                $"最长值「{worst.text}」need={needWorst} art ⇒ 最小框 {MinBoxArt(needWorst, scale)} art "
-                + $"≤ 声明 {UiLayoutGame.CharResistValueW} art");
-            Check("值列仍**与四维数值列右沿对齐**（主 agent 2026-09-24 裁决的锚点 art 112.5，本片不许动）",
-                NearOrZero(UiLayoutGame.CharResistValueX + UiLayoutGame.CharResistValueW * 0.5f,
-                    UiLayoutGame.CharStatValueX + UiLayoutGame.CharStatValueW * 0.5f),
-                $"抗性值列右沿 {UiLayoutGame.CharResistValueX + UiLayoutGame.CharResistValueW * 0.5f} node vs "
-                + $"四维 {UiLayoutGame.CharStatValueX + UiLayoutGame.CharStatValueW * 0.5f} node（= art 112.5）");
+            Check("可达集合的最长值 == 「-100%」且 advance == 47 art（拉丁字模表被改 ⇒ 本判据立刻红）",
+                worst.text == "-100%" && needWorst == 47,
+                $"最长值「{worst.text}」need={needWorst} art（'-'5 '1'5 '0'12 '0'12 '%'13）");
+
+            // ③ 生产画法：`CharacterPanel.BuildResistRows` 把标签与数值都设成 `Overflow`（**剥注释后**扫）。
+            const string needle = "horizontalOverflow = HorizontalWrapMode.Overflow";
+            var code = CharPanelCode();
+            var hits = CountOf(code, needle);
+            Check("生产侧两个标签都设了单行不换行（`horizontalOverflow = HorizontalWrapMode.Overflow` ×2；"
+                + "`D2Label` 只在 `Wrap` 时算 `availPx` ⇒ Overflow 下永不折行）",
+                hits == 2, $"命中 {hits} 处（已剥注释；文件读不到 ⇒ 0 命中 = 红）");
+            var degraded = code.Replace(needle, "horizontalOverflow = HorizontalWrapMode.Wrap");
+            Check("needle 自检：**正样本命中 2**、把两处换成 `Wrap` 的**负样本命中 0**"
+                + "（否则本断言只是在数自己）",
+                hits == 2 && CountOf(degraded, needle) == 0,
+                $"正样本 {hits}；负样本 {CountOf(degraded, needle)}");
         }
 
         // ── §⑤ 几何：两框不相交、都在面板内、与四维/派生行不碰 ─────────────────
@@ -386,8 +414,11 @@ namespace Uicheck
                 labelR < valueL, $"标签右沿 {labelR:0.0} < 值列左沿 {valueL:0.0}（间隔 {valueL - labelR:0.0} 画布px "
                 + $"= {(valueL - labelR) / UiLayoutGame.K:0.0} art px）");
 
-            Check("标签框左沿 == 面板左沿（原版 art x 0；见 `CharResistNameX` 的预算说明）",
-                Math.Abs(labelL - panelLeft) < 0.01f, $"labelL {labelL:0.0} vs panelLeft {panelLeft:0.0}");
+            Check("标签框 == 底图标签隔间（像元列 174..269 = 连续 art 173.5..269.5，右沿就是底图那条分隔条）",
+                NearOrZero(labelL, panelLeft + 173.5f * UiLayoutGame.K)
+                && NearOrZero(labelR, panelLeft + 269.5f * UiLayoutGame.K),
+                $"标签框 [{labelL:0.0},{labelR:0.0}] vs 底图隔间 art 173.5/269.5 ⇔ "
+                + $"[{panelLeft + 173.5f * UiLayoutGame.K:0.0},{panelLeft + 269.5f * UiLayoutGame.K:0.0}]");
 
             Check("两框都在面板矩形内（左沿 ≥ 面板左沿、右沿 ≤ 面板右沿）",
                 valueR <= panelRight + 0.01f && labelL >= panelLeft - 0.01f,
@@ -417,16 +448,25 @@ namespace Uicheck
             Check("标签框/值列框与原版四维行、派生行矩形**不相交**（本片只动抗性行，不许碰这些行）",
                 hit.Count == 0, hit.Count == 0 ? "0 处相交" : string.Join(",", hit.ToArray()));
 
-            // 「左沿对齐四维标签隔间 art 10」在预算内**不可行** —— 把它判出来，防止将来"顺手对齐"
-            var scaleChi = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, true, D2Text.D2Font.Font16);
-            var scaleLat = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, false, D2Text.D2Font.Font16);
-            var minLabel = MinBoxArt(52, scaleChi);
-            var minValue = MinBoxArt(47, scaleLat);
-            var rightEdgeArt = UiLayoutGame.CharStatValueX + UiLayoutGame.CharStatValueW * 0.5f + 160f; // node → art
-            Check("「标签左沿对齐四维标签隔间 art 10」在 art 0..112.5 的预算内**放不下**（不是懒得对齐）",
-                10 + minLabel + 1 + minValue > rightEdgeArt,
-                $"10 + {minLabel}（标签最小） + 1（最小间隔） + {minValue}（值列最小） = {10 + minLabel + 1 + minValue}"
-                + $" > 可用右界 {rightEdgeArt:0.#} art px");
+            // 行位：4 行行中心 == 底图右列下起 4 行的**行框中心**（art y 340.5/364.5/388.5/412.5）。
+            // 这 4 行在底图上有自己的隔间（左沿 art 174，比「防禦」行的 art 161 多缩进 13 art）
+            // ⇒ x 不是四维标签隔间的 art 10、也不是派生行的 art 161。
+            var wantArtY = new[] { 340.5f, 364.5f, 388.5f, 412.5f };
+            var rowOk = UiLayoutGame.CharResistRowOrig.Length == 4;
+            var rowDetail = new StringBuilder();
+            for (var i = 0; i < UiLayoutGame.CharResistRowOrig.Length && i < 4; i++)
+            {
+                var cy = UiLayoutGame.CharResistRowOrig[i];
+                var artY = 216f - cy.y;
+                rowOk &= NearOrZero(artY, wantArtY[i]) && NearOrZero(cy.x, UiLayoutGame.CharResistNameX);
+                rowDetail.Append($"[{i}] art y {artY:0.#}（应 {wantArtY[i]:0.#}）/ node x {cy.x:0.#}；");
+            }
+            Check("4 行行中心 == 底图行框中心（art y 340.5 / 364.5 / 388.5 / 412.5）且 x == 标签隔间中心",
+                rowOk, rowDetail.ToString());
+
+            Check("行高 == 底图行净高 18 art（不是四维 prefab 标签矩形的 27.9 —— 那会在行框内偏下 4.95 art）",
+                NearOrZero(UiLayoutGame.CharResistRowSize.y / UiLayoutGame.K, 18f),
+                $"行高 {UiLayoutGame.CharResistRowSize.y / UiLayoutGame.K:0.#} art");
         }
 
         // ── §⑥ 同类短框：只出读数（文案由数据驱动，判不成常量）────────────────
@@ -440,30 +480,85 @@ namespace Uicheck
             //   `…Size.x` ⇒ availPx 被放大 K²≈3.24× ⇒ **读数偏乐观 = 假绿读数**（它会说"单行"而真值折行）。
             //   一律先 `/ UiLayoutGame.K` 换回 art。`CharStatValueW/CharDefValueW/CharCurMaxW/
             //   CharResistNameW/CharResistValueW` 是**裸 art** 常量 ⇒ 不动。
-            Row("StatName0..3", UiLayoutGame.CharStatRowSize.x / UiLayoutGame.K * 0.58f, "力量", scaleChi);
-            Row("DerivedName0", UiLayoutGame.CharDefenseSize.x / UiLayoutGame.K * 0.55f, "防御", scaleChi);
-            Row("DerivedName1..3", UiLayoutGame.CharDerivedSize.x / UiLayoutGame.K * 0.55f, "耐力", scaleChi);
-            Row("ExtraName0..1", UiLayoutGame.CharBottomRightSize.x / UiLayoutGame.K * 0.55f, "命中", scaleChi);
-            Row("TopRight", UiLayoutGame.CharTopRightSize.x / UiLayoutGame.K, "等级 99", scaleChi);
-            Row("Band2Mid", UiLayoutGame.CharBand2MidSize.x / UiLayoutGame.K, "技能点 99", scaleChi);
-            Row("Band2Right", UiLayoutGame.CharBand2RightSize.x / UiLayoutGame.K, "经验 3837739017", scaleChi);
+            //   ⛔ 样本一律取 `CharacterPanel` 的**公开常量**（面板真正画的字），不在判据里另抄一份文案：
+            //     抄一份会在文案改动后**静默失配**（本项目刚发生过一次：面板改繁体、判据仍量简体）。
+            Row("StatName0..3", UiLayoutGame.CharStatRowSize.x / UiLayoutGame.K * 0.58f,
+                CharacterPanel.StatRowName[0], scaleChi);
+            Row("DerivedName0", UiLayoutGame.CharDefenseSize.x / UiLayoutGame.K * 0.55f,
+                CharacterPanel.DerivedName[0], scaleChi);
+            Row("DerivedName1..3", UiLayoutGame.CharDerivedSize.x / UiLayoutGame.K * 0.55f,
+                CharacterPanel.DerivedName[1], scaleChi);
+            //   这两行的标签矩形 = **整条原版标签隔间**（109 art，见 `CharacterPanel.BuildExtraRows`）——
+            //   不缩 55%：`攻擊準確率` 65 art 缩后就折行。
+            Row("ExtraName0..1", UiLayoutGame.CharBottomRightSize.x / UiLayoutGame.K,
+                CharacterPanel.ExtraName[0], scaleChi);
+            Row("TopRight", UiLayoutGame.CharTopRightSize.x / UiLayoutGame.K,
+                CharacterPanel.TopRightPrefix + 99, scaleChi);
+            Row("Band2Mid", UiLayoutGame.CharBand2MidSize.x / UiLayoutGame.K,
+                CharacterPanel.Band2MidPrefix + 99, scaleChi);
+            //   3837739017 = `Table/Tsv/Experience.tsv` 的表内最大 exp（10 位），即最坏宽度；
+            //   该值与经验表同出处的那条判据在 `CharTopRightTextCheck`（那里逐值穷举 + 退化样本）。
+            Row("Band2Right", UiLayoutGame.CharBand2RightSize.x / UiLayoutGame.K,
+                CharacterPanel.Band2RightPrefix + 3837739017, scaleChi);
             Row("CharName", UiLayoutGame.CharNameSize.x / UiLayoutGame.K, "S2203805", scaleLat);
-            Row("StatValue0..3", UiLayoutGame.CharStatValueW, "999", scaleLat);
-            Row("DerivedValue0", UiLayoutGame.CharDefValueW, "9999", scaleLat);
-            Row("ExtraValue0（命中 AR）", UiLayoutGame.CharDefValueW, "123456", scaleLat);
-            Row("DerivedValue1..3", UiLayoutGame.CharCurMaxW, "9999/9999", scaleLat);
-            Row("ResistName0..3", UiLayoutGame.CharResistNameW, CharacterPanel.ResistName[0], scaleChi);
-            Row("ResistValue0..3", UiLayoutGame.CharResistValueW, "-100%", scaleLat);
+            //   数值列那几条由 `D2Label.Create` 建 ⇒ `horizontalOverflow` 默认 `Overflow`
+            //   （只按框宽算 `availPx` 的是 `Wrap`）⇒ 这些行的读法是"溢出多少"，不是"折行"。
+            Row("StatValue0..3", UiLayoutGame.CharStatValueW, "999", scaleLat, true);
+            Row("DerivedValue0", UiLayoutGame.CharDefValueW, "9999", scaleLat, true);
+            Row("ExtraValue0（" + CharacterPanel.ExtraName[0] + "）", UiLayoutGame.CharDefValueW, "123456", scaleLat, true);
+            Row("DerivedValue1..3", UiLayoutGame.CharCurMaxW, "9999/9999", scaleLat, true);
+            Row("ResistName0..3（Overflow）", UiLayoutGame.CharResistNameW, CharacterPanel.ResistName[0], scaleChi, true);
+            Row("ResistValue0..3（Overflow）", UiLayoutGame.CharResistValueW, "-100%", scaleLat, true);
+
+            //   §⑥b **标签文案是常量 ⇒ 这几条能判、也必须判「不折行」**（数值列才是数据驱动、只看不判）：
+            //   任一条折行 = 玩家会看到断成两行的字段名。样本全部取 `CharacterPanel` 的公开常量。
+            var labelBox = new[]
+            {
+                UiLayoutGame.CharStatRowSize.x / UiLayoutGame.K * 0.58f,
+                UiLayoutGame.CharDefenseSize.x / UiLayoutGame.K * 0.55f,
+                UiLayoutGame.CharDerivedSize.x / UiLayoutGame.K * 0.55f,
+                UiLayoutGame.CharBottomRightSize.x / UiLayoutGame.K,
+                UiLayoutGame.CharResistNameW,
+            };
+            var labelText = new[]
+            {
+                CharacterPanel.StatRowName[0], CharacterPanel.DerivedName[0], CharacterPanel.DerivedName[1],
+                CharacterPanel.ExtraName[0], CharacterPanel.ResistName[0],
+            };
+            var folded = new List<string>();
+            for (var i = 0; i < labelText.Length; i++)
+            {
+                float scL; string kindL; List<char> missL, s2tL;
+                var needL = NeedNative(labelText[i], out scL, out kindL, out missL, out s2tL);
+                var availL = AvailPx(labelBox[i] * UiLayoutGame.K, scL);
+                if (!SingleLine(needL, availL))
+                    folded.Add(labelText[i] + "(need " + needL + " > availPx " + availL + ")");
+            }
+            Check("⑥b 面板里**常量标签**全部单行（四维 / 派生 / `" + CharacterPanel.ExtraName[0] + "` / 四系抗性）："
+                + "标签文案不随存档变 ⇒ 这条可判；折行会在面板上出现断成两行的字段名",
+                folded.Count == 0,
+                folded.Count == 0
+                    ? labelText.Length + " 条全单行（最长 " + CharacterPanel.ExtraName[0] + " = 65 art / 框 "
+                      + labelBox[3].ToString("0.#") + " art）"
+                    : "折行：" + string.Join(" ", folded.ToArray()));
             Console.WriteLine();
         }
 
-        private static void Row(string node, float boxArt, string sample, float scale)
+        /// <summary>
+        /// 一行读数。<paramref name="overflowAllowed"/> = 该框走 `Overflow`（单行 + 允许溢出）：
+        /// 此时"框装不下"的读法是**溢出多少 art**，不是"折行"（折行只在 `Wrap` 口径下会发生）。
+        /// </summary>
+        private static void Row(string node, float boxArt, string sample, float scale, bool overflowAllowed = false)
         {
             float sc; string kind; List<char> m, s;
             var need = NeedNative(sample, out sc, out kind, out m, out s);
             var avail = AvailPx(boxArt * UiLayoutGame.K, scale);
-            Console.WriteLine($"      │ {node,-24} 框 {boxArt,6:0.0} art  样本「{sample}」(need {need,3} art)  "
-                + $"availPx {avail,3}  ⇒ {(SingleLine(need, avail) ? "单行" : "**折行**")}");
+            string verdict;
+            if (SingleLine(need, avail)) verdict = "单行";
+            else if (overflowAllowed) verdict = $"单行 + 溢出 {need - avail} art（Overflow 口径，不折行）";
+            else verdict = "**折行**";
+            Console.WriteLine($"      │ {node,-26} 框 {boxArt,6:0.0} art  样本「{sample}」(need {need,3} art)  "
+                + $"availPx {avail,3}  ⇒ {verdict}");
         }
 
         // ── §⑦ 退化样本 ───────────────────────────────────────────────────────
@@ -473,10 +568,10 @@ namespace Uicheck
             var scaleChi = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, true, D2Text.D2Font.Font16);
             var scaleLat = D2Text.ScaleFor((int)UiLayoutGame.FontPx16, false, D2Text.D2Font.Font16);
 
-            // ① 修前那个折行形状：46 art 标签框 + 「火焰抗性」
+            // ① 窄框样本：46 art（= 底图隔间 96 art 的一半）喂进同一个判据必须判成「折行」
             List<char> miss, s2t;
             var needLabel = ChiMeasure(CharacterPanel.ResistName[0], out miss, out s2t);
-            Check("退化①：**修前的 46 art 标签框**喂进判据 ⇒ 必须判成「折行」（这就是 D10 的形状）",
+            Check("退化①：**窄一半的 46 art 标签框**喂进同一判据 ⇒ 必须判成「折行」（框宽真的在起作用）",
                 !SingleLine(needLabel, AvailPx(46f * UiLayoutGame.K, scaleChi)),
                 $"46 art ⇒ availPx {AvailPx(46f * UiLayoutGame.K, scaleChi)} < need {needLabel} ⇒ 折行");
 
@@ -529,6 +624,65 @@ namespace Uicheck
         // 小工具
         // ═════════════════════════════════════════════════════════════════════
         private static bool NearOrZero(float a, float b) => Math.Abs(a - b) <= 0.01f;
+
+        private static int CountOf(string text, string needle)
+        {
+            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(needle)) return 0;
+            var n = 0;
+            var i = 0;
+            while (true)
+            {
+                var j = text.IndexOf(needle, i, StringComparison.Ordinal);
+                if (j < 0) break;
+                n++;
+                i = j + needle.Length;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// 剥掉 `//…` 与 `/*…*/`（字符串字面量里的不算）。
+        /// 不剥 ⇒ "注释里留着那个写法、代码被删掉"会让源码判据**永真**（假绿）。
+        /// </summary>
+        private static string StripComments(string src)
+        {
+            var sb = new StringBuilder(src.Length);
+            var inStr = false;
+            for (var i = 0; i < src.Length; i++)
+            {
+                var c = src[i];
+                if (inStr)
+                {
+                    sb.Append(c);
+                    if (c == '\\' && i + 1 < src.Length) { sb.Append(src[++i]); continue; }
+                    if (c == '"') inStr = false;
+                    continue;
+                }
+                if (c == '"') { inStr = true; sb.Append(c); continue; }
+                if (c == '/' && i + 1 < src.Length && src[i + 1] == '/')
+                {
+                    while (i < src.Length && src[i] != '\n') i++;
+                    sb.Append('\n');
+                    continue;
+                }
+                if (c == '/' && i + 1 < src.Length && src[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < src.Length && !(src[i] == '*' && src[i + 1] == '/')) i++;
+                    i++;
+                    continue;
+                }
+                sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>生产面板源码（**剥注释**）；读不到 ⇒ 空串 ⇒ 依赖它的断言 fail-closed 判红。</summary>
+        private static string CharPanelCode()
+        {
+            var p = Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts", "UI", "CharacterPanel.cs");
+            return File.Exists(p) ? StripComments(File.ReadAllText(p, Encoding.UTF8)) : string.Empty;
+        }
 
         private static bool Overlap(float ax, float ay, float aw, float ah, Vector2 center, Vector2 size)
             => ax < center.x + size.x * 0.5f && ax + aw > center.x - size.x * 0.5f

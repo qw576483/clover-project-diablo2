@@ -42,14 +42,13 @@
 //    ps/rc/ci/gh/wa）⇒ **用的是原版 NPC 动画，不是色块**。NPC 只进 `_npcs` 字典，
 //    **不进 `_entities`** ⇒ 不参与战斗/血条/命中（NPC 无敌、不受伤）。
 //
-//   **每格只播 2 帧**（严重滑步 = 用户说的"飘着走"）；且玩家只有走路一套动画（跑也用 WL）。
-//     ① **走/跑两套动画**：玩家按契约 `IPlayerModule.IsRunning` 选 `ViewAnim.Run` / `Walk`
-//        （原版 `.cof` 的 RN / WL）⇒ 跑起来播的是原版跑动画；
-//     ② **每格一个动画循环**：移动类动作的有效帧率 = **帧数 × 格/秒**
-//        （`SpriteFrames.FpsForCycle` + `SpeedScaleForCycle`）⇒ 脚底与地面不再打滑。
-//   速度来源：玩家取**契约常量**（跑 `GameConst.PlayerWalkSpeed`、走 × `PlayerWalkSpeedFactor`）；
-//   怪物契约里没有速度值 ⇒ 用**本帧位移 / dt**（`_prevTickWorld` 逐帧做差，见 `TickOne`）。
-//   静态动作（Idle/Attack/Cast/Hit/Death）**一律不缩放**（`SyncMoveScale` 复位成 1）。
+//   **走 / 跑两套动画**：玩家按契约 `IPlayerModule.IsRunning` 选 `ViewAnim.Run` / `Walk`
+//     （原版 `.cof` 的 RN / WL）⇒ 跑起来播的是原版跑动画。
+//   播放帧率（全动作同一条）：`SpriteFrames.CorrectedFpsOf(单位键, 动作)` =
+//     `25 × AnimData.speed / 256 × 规范帧数 / 实际帧数`（口径 = 上游 `GetCorrectedFrameDuration`）；
+//     **式子里没有移动速度** ⇒ 走 / 跑各自一套独立帧率，与角色跑多快无关。
+//   移动速度只决定位移：玩家取**契约常量**（跑 `GameConst.PlayerWalkSpeed`、走 × `PlayerWalkSpeedFactor`）。
+//   ⇒ 没有任何动作按速度缩放：`SpriteAnimator.SpeedScale` 恒为 1。
 //
 //   审计口径：逐单位 × 逐动作记「方向数 / 帧数 / 帧文件 / 复用」，并单独记「动作是否真被触发」
 //            （判据入口 = `tools/probes/hosts/animcheck`）。
@@ -61,7 +60,10 @@
 //      `PlayAnim` 的早退判据**不比较 loop**，连续出手/施法时不会自动重开（会接着放上一次的剩余帧）。
 //   ③ **动作选择抽成纯函数** `ViewAnimState.SelectPlayer/SelectMonster`（本文件只喂状态）——
 //      （这正是①能藏这么久的原因）。抽出后 `tools/probes/hosts/animcheck` 可逐帧驱动断言。
-//   播放速度（`FpsOf` 的基准帧率）：原版 `AnimData.d2` 不在本机 ⇒ 无出处不许编。
+//   播放速度的两个因子都在盘上：官方 `AnimData.d2` 的逐单位逐动作 `animationSpeed`
+//   （生成物 `AnimRate.generated.cs`）与官方 `charstats.txt` 的逐单位走/跑**规范帧数**
+//   （`SpriteFrames.RefFrameCountOf`）；官方表里没这两项的（单位, 动作）⇒ 系数 1
+//   ⇒ 落回基准 `GameConst.AnimBaseFps` = 25 fps。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System;
@@ -69,6 +71,8 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
+//   区域光照口径（纯函数 + 官方表出处）在 Map 侧，见 `Module/Map/AreaLighting.cs` 文件头。
+using Diablo2.Module.Map;
 //   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
 //   用别名把裸 `Dir8` 钉死为**项目枚举**。
 using Dir8 = Diablo2.Def.Dir8;
@@ -89,14 +93,23 @@ namespace Diablo2.Module.View
         /// <summary>尸体最终不透明度（原版尸体是暗色的）。</summary>
         private const float CorpseAlpha = 0.55f;
 
-        /// <summary>施法动作保持时长（秒）。</summary>
-        private const float CastActionSeconds = 0.45f;
+        /// <summary>
+        /// 施法动作的保持时长（秒）= 该单位 `ViewAnim.Cast` 的**真实帧数** ÷
+        /// <see cref="GameConst.AnimBaseFps"/>（原版 25 fps）。
+        /// <para>口径 = "真实帧数 ÷ 基准帧率"，与受击保持 `ViewAnimState.IsHitHolding` 同一口径
+        /// （不引入无出处的时长常量；逐单位逐动作的帧率见 `SpriteFrames.CorrectedFpsOf`）。</para>
+        /// </summary>
+        /// <param name="view">玩家视图（`PlayAnim` 已切到 `ViewAnim.Cast` 之后取帧数才准）。</param>
+        private static float CastActionSecondsOf(EntityView view)
+            => view != null && view.Anim != null
+                ? view.Anim.FrameCount / GameConst.AnimBaseFps
+                : 1f / GameConst.AnimBaseFps;
 
         /// <summary>
         /// 挥击动作保持时长（秒）。
         /// <para>口径 = <c>GameConst.PlayerAttackInterval</c>（原版普通攻击的出手间隔，见其注释
         /// 「原版攻击间隔 ~0.5s」）—— 即"一次挥击占满两次出手之间的时间"，
-        /// 与怪物 AI 的出手-动作绑定口径一致（`MonsterTuning.AttackIntervalSeconds`）。
+        /// 与怪物 AI 的出手-动作绑定口径一致（`MonsterTuning.AttackAnimSecondsOf(kindId)`）。
         /// 原版逐武器的攻击速度表（`Weapons.txt::speed` / `AnimData.d2`）本项目未接 ⇒ 用统一间隔。</para>
         /// <para>与 <c>GameConst.PlayerAttackInterval</c> **同源**（不另写一个魔数）。</para>
         /// </summary>
@@ -106,14 +119,10 @@ namespace Diablo2.Module.View
         private readonly Dictionary<int, EntityView> _groundItems = new Dictionary<int, EntityView>();
 
         /// <summary>
-        /// <para>为什么需要它：契约里**没有"怪物速度"这个值**（`MonsterState` 只有位置/朝向），
-        /// 而步频同步要的是实际速度。`MonsterModule` 每帧先调 `UpdateMonster` 把新世界坐标写进
-        /// `v.LastWorld`（同一次 `AppContext.Tick` 里 Monster 在 View 之前）⇒ 这里逐帧做差就得到
-        /// 实际速度，**不必新增契约字段**。玩家不用这条（它走契约速度，见 `TickPlayer`）。</para>
+        /// 已打过「播放帧率」日志的 `(单位键, 动作)` 集合（同一对只报一次，避免换朝向刷屏）。
+        /// <para>`PlayAnim` 是 static ⇒ 本集合也是 static；`Clear()` 会一并清空。</para>
         /// </summary>
-        private readonly Dictionary<int, Vector3> _prevTickWorld = new Dictionary<int, Vector3>();
-
-        private readonly HashSet<int> _moveScaleLogged = new HashSet<int>();
+        private static readonly HashSet<string> _animFpsLogged = new HashSet<string>();
 
         /// <summary>城镇 NPC 视图（键 = `(int)Def.NpcId`）。**不计入 `_entities`**（无血条/不参战）。</summary>
         private readonly Dictionary<int, EntityView> _npcs = new Dictionary<int, EntityView>();
@@ -124,6 +133,12 @@ namespace Diablo2.Module.View
         private Transform _pendingRoot;
         private EntityView _player;
         private bool _cannotRender;
+
+        /// <summary>区域光照遮罩（只在暗区生效；口径见 `Module/Map/AreaLighting`）。</summary>
+        private PlayerLightMask _light;
+
+        /// <summary>遮罩已按哪个区域设过（`-1` = 还没设过）⇒ 换区才重设，不每帧算。</summary>
+        private int _lightAreaId = -1;
 
         /// <summary>构造：订阅 `SkillCast`（玩家施法动作）与 `StageLeft`（离场兜底清引用）。</summary>
         public ViewModule()
@@ -492,8 +507,6 @@ namespace Diablo2.Module.View
 
             DestroyView(v);
             _entities.Remove(monsterId);
-            _prevTickWorld.Remove(monsterId);
-            _moveScaleLogged.Remove(monsterId);
         }
 
         /// <inheritdoc />
@@ -714,6 +727,14 @@ namespace Diablo2.Module.View
             //   会因为 `next == _hoveredEntityId` 而**不点亮**：屏幕上看就是"新地图里第一次悬停没反应"）。
             _hoveredEntityId = -1;
 
+            // 区域光照遮罩：节点随场景卸载会被销毁 ⇒ 先拆引用，并让下个 Stage 按新区域重设一次。
+            if (_light != null)
+            {
+                _light.Dispose();
+                _light = null;
+            }
+            _lightAreaId = -1;
+
             // 已经干净 ⇒ 静默返回（`StageLeft` 与 Flow 的 `ResetModules()` 会各调一次本方法，正常路径
             // **不该**变成两条「清场完成」日志；异常路径（清了但没收到事件）也不会漏）。
             if (_root == null && _player == null && _entities.Count == 0 && _groundItems.Count == 0
@@ -743,8 +764,7 @@ namespace Diablo2.Module.View
             for (var i = 0; i < items.Count; i++) DestroyView(_groundItems[items[i]]);
             _groundItems.Clear();
 
-            _prevTickWorld.Clear();
-            _moveScaleLogged.Clear();
+            _animFpsLogged.Clear();
 
             if (_root != null) DestroyViewRoot();
             _root = null;             // 显式置 null（`DestroyViewRoot` 已做；这里再钉一次，防将来改动漏掉）
@@ -758,6 +778,30 @@ namespace Diablo2.Module.View
         // ═════════════════════════════════════════════════════════════════════
         // 内部
         // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 区域光照遮罩：遮罩中心跟角色、按当前区域决定是否压暗。
+        /// <para>每帧成本 = 一次 `transform.position` 写入 + 一次区域号整数比较（**换区才重设遮罩**，
+        /// 不逐帧重算渐变）；半径与压暗色的出处见 `Module/Map/AreaLighting` 文件头。</para>
+        /// </summary>
+        private void TickAreaLight(Vector3 playerWorld)
+        {
+            var map = AppContext.I != null ? AppContext.I.Map : null;
+            if (map == null) return;
+
+            if (_light == null) _light = new PlayerLightMask(_root);
+            _light.Follow(playerWorld);
+
+            var area = (int)map.Area;
+            if (area == _lightAreaId) return;      // 同区域 ⇒ 不重设（贴图/颜色都没变）
+            _lightAreaId = area;
+
+            var dark = AreaLighting.IsDark(map.Area, out var ambient);
+            _light.Set(dark, ambient);
+            ViewLog.Info($"区域光照（{(dark ? "压暗" : "不压暗")}）：区域={map.Area} " +
+                         $"半径={AreaLighting.RadiusCells:0.##} 格（{AreaLighting.RadiusUnits:0.##} 世界单位），" +
+                         $"半径外压到环境光 rgb({ambient.r:0.##},{ambient.g:0.##},{ambient.b:0.##})");
+        }
 
         private void TickPlayer(float dt)
         {
@@ -804,6 +848,9 @@ namespace Diablo2.Module.View
                 if (_player.Renderer != null) _player.Renderer.sortingOrder = EntitySortOrder(grid);
             }
 
+            // 光照遮罩跟角色（位置口径与角色节点同源 = `EntityWorld`，见 `PlayerLightMask.Follow`）。
+            TickAreaLight(world);
+
             var dirChanged = p.Dir != _player.Dir;
             if (dirChanged)
             {
@@ -844,12 +891,7 @@ namespace Diablo2.Module.View
             //   只按 `want != _player.Playing` 判会吞掉换方向 ⇒ 玩家"朝东走却放着朝南的动画"。
             if (dirChanged || want != _player.Playing) PlayAnim(_player, want, SpriteFrames.LoopOf(want));
 
-            //   速度取**契约常量**（不是位置做差）：跑 = `PlayerWalkSpeed`、走 = × `PlayerWalkSpeedFactor`。
-            //   静态动作（Idle/Attack/Cast/Hit/Death）在 `SyncMoveScale` 里复位成 1（原版出招节奏与移动速度无关）。
-            var tilesPerSecond = p.IsRunning
-                ? GameConst.PlayerWalkSpeed
-                : GameConst.PlayerWalkSpeed * GameConst.PlayerWalkSpeedFactor;
-            SyncMoveScale(_player, want, tilesPerSecond, true);
+            // 播放帧率由 `PlayAnim` 按原版公式给（走 / 跑各自一套独立帧率，与移动速度无关）。
             // 「死亡/复活状态同步」已在上面、动作选择**之前**做过（见那里的理由：PlayAnim 的死亡终态闸门）。
         }
 
@@ -895,8 +937,6 @@ namespace Diablo2.Module.View
                 {
                     if (deadEntities[i] == GameConst.PlayerEntityId) _player = null;
                     _entities.Remove(deadEntities[i]);
-                    _prevTickWorld.Remove(deadEntities[i]);
-                    _moveScaleLogged.Remove(deadEntities[i]);
                 }
             }
             if (deadItems != null)
@@ -913,22 +953,6 @@ namespace Diablo2.Module.View
         private void TickOne(EntityView v, float dt)
         {
             if (v == null || v.Root == null) return;
-
-            //   位移来源 = `MonsterModule` 每帧调 `UpdateMonster` 时写进 `v.LastWorld` 的世界坐标
-            //   （同一次 `AppContext.Tick` 里 Monster 排在 View 之前 ⇒ 这里读到的就是本帧的位移）。
-            //   首帧 / 站着不动 ⇒ 位移 0 ⇒ `SyncMoveScale` 收到 0 会**不缩放**（保持 1），
-            //      绝不用 0 当倍率（那会让动画停住，比"帧率不准"更像"飘"）。
-            //   玩家不走这条（它用契约速度，见 `TickPlayer`）⇒ 这里跳过 `IsPlayer`。
-            if (!v.IsPlayer)
-            {
-                Vector3 prev;
-                if (dt > 0f && _prevTickWorld.TryGetValue(v.EntityId, out prev))
-                {
-                    var moved = Vector3.Distance(prev, v.LastWorld);
-                    SyncMoveScale(v, v.Playing, moved / dt, _moveScaleLogged.Add(v.EntityId));
-                }
-                _prevTickWorld[v.EntityId] = v.LastWorld;
-            }
 
             if (v.HitFlashTimer > 0f)
             {
@@ -973,10 +997,12 @@ namespace Diablo2.Module.View
         {
             if (_player == null || _player.Root == null) return;
             if (_player.Dead) return;
-            _player.CastTimer = CastActionSeconds;
             PlayAnim(_player, ViewAnim.Cast, SpriteFrames.LoopOf(ViewAnim.Cast));
             _player.Anim.Replay();
-            ViewLog.Info($"收到 SkillCast({skillId}) ⇒ 玩家视图播施法动作 {CastActionSeconds:0.00}s");
+            var seconds = CastActionSecondsOf(_player);
+            _player.CastTimer = seconds;
+            ViewLog.Info($"收到 SkillCast({skillId}) ⇒ 玩家视图播施法动作 {seconds:0.00}s" +
+                         $"（{_player.Anim.FrameCount} 帧 ÷ {GameConst.AnimBaseFps:0} fps）");
         }
 
         /// <summary>
@@ -999,18 +1025,27 @@ namespace Diablo2.Module.View
             }
             if (_player.Dead) return;                       // 死亡姿态优先，不切成挥击
 
+            // 帧数取该职业**真实 .cof 帧数**（`SpriteFrameCounts.Of`；取不到 ⇒ 兜底默认职业）
+            var p = AppContext.I != null ? AppContext.I.Player : null;
+
+            // 出手前模型已转向目标（`IPlayerModule.FaceTo`）⇒ 这里同步到最新朝向再取帧键，
+            // 否则挥击整套帧用的是上一次 Tick 的旧朝向（"脸朝西却向东挥"）。
+            if (p != null && p.Dir != _player.Dir)
+            {
+                _player.Dir = p.Dir;
+                _player.NeedsFrameRefresh = true;
+            }
+
             _player.AttackTimer = AttackActionSeconds;
             PlayAnim(_player, ViewAnim.Attack, SpriteFrames.LoopOf(ViewAnim.Attack));
             _player.Anim.Replay();
 
-            // 帧数取该职业**真实 .cof 帧数**（`SpriteFrameCounts.Of`；取不到 ⇒ 兜底默认职业）
-            var p = AppContext.I != null ? AppContext.I.Player : null;
             var unitKey = (p != null ? p.Class : Diablo2.Def.PlayerClass.Amazon)
                 .ToString().ToLowerInvariant();
             ViewLog.Info($"收到 PlayerAttacked(m#{monsterId}) ⇒ 玩家视图播挥击动作 " +
                          $"{AttackActionSeconds:0.00}s（原版 attack，帧数 " +
                          $"{SpriteFrames.FrameCountOf(unitKey, ViewAnim.Attack)}，@ " +
-                         $"{SpriteFrames.FpsOf(ViewAnim.Attack):0.#}fps）");
+                         $"{SpriteFrames.FpsOf(unitKey, ViewAnim.Attack):0.#}fps）");
         }
 
         /// <summary>
@@ -1048,8 +1083,7 @@ namespace Diablo2.Module.View
             _entities.Clear();
             _groundItems.Clear();
             _npcs.Clear();
-            _prevTickWorld.Clear();      // 步频同步的辅助表一并丢弃
-            _moveScaleLogged.Clear();
+            _animFpsLogged.Clear();
             _player = null;
             _root = null;
             _pendingRoot = null;
@@ -1099,6 +1133,20 @@ namespace Diablo2.Module.View
                          $"（载荷装备 {(args != null && args.equip != null ? args.equip.Count : 0)} 件；" +
                          $"重取整套帧键并从头播，当前动作={_player.Playing} 帧数={_player.Anim.FrameCount}，" +
                          $"帧目录={(key != null ? ResPaths.CharEquipDir(_player.Cls, key) : ResPaths.CharDir(_player.Cls))}）");
+        }
+
+        /// <summary>
+        /// 玩家普攻 A1 的**接触帧时刻（秒）**：按当前生效的外观套（含徒手）查官方
+        /// `AnimData.d2` 的 trigger frame（<see cref="SpriteFrames.AttackContactSecondsOf"/>）。
+        /// <para>结算层（`CombatModule`）据此把伤害排期到挥击的接触帧；官方表没有 ⇒ 0
+        /// （调用方退化为出手即结算）。跨模块只取这一句纯查询（与 `MonsterAi` 取
+        /// `Combat.CombatModule.AttackLineClear` 同一写法）。</para>
+        /// </summary>
+        internal static float PlayerAttackContactSeconds(PlayerClass cls)
+        {
+            var key = ResolvePlayerEquipKey(cls);
+            var unitKey = key != null ? EquipVisual.UnitKeyOf(cls, key) : cls.ToString().ToLowerInvariant();
+            return SpriteFrames.AttackContactSecondsOf(unitKey, ViewAnim.Attack);
         }
 
         /// <summary>
@@ -1443,48 +1491,37 @@ namespace Diablo2.Module.View
                     ? SpriteFrames.Keys(v.Cls, v.EquipKey, anim, v.Dir)
                     : SpriteFrames.Keys(v.SpriteCode, anim, v.Dir);
 
-            v.Anim.Play(anim, keys, SpriteFrames.FpsOf(anim), loop);
+            var unitKey = UnitKeyOf(v);
+            // **回退点（一行）**：此处换回 `SpriteFrames.FpsOf(unitKey, anim)` 即退回
+            //   「只按 `AnimData.speed`、不含规范帧数修正」的帧率（走/跑会变成 25 × speed / 256）。
+            var fps = SpriteFrames.CorrectedFpsOf(unitKey, anim);
+            v.Anim.Play(anim, keys, fps, loop);
             SpriteFrames.Prefetch(keys);      // ★ 整组帧一次性发起加载（见 SpriteFrames.Prefetch 注释）
 
-            //   Idle/Attack/Cast/Hit/Death 上（`PlayHit`/`PlayDeath` 会在同一次调用栈里紧接着
-            //   `ApplyFrame` 出画，等不到下一次 `TickOne` 复位）。移动类动作的倍率由
-            //   `SyncMoveScale` 每帧按实际速度算。
-            if (!SpriteFrames.IsMoveAnim(anim)) v.Anim.SpeedScale = 1f;
+            // 帧率在 `Play` 的参数里一次给定（原版公式，与移动速度无关）⇒ 倍率恒 1。
+            v.Anim.SpeedScale = 1f;
+
+            if (_animFpsLogged.Add(unitKey + "/" + anim))
+            {
+                ViewLog.Info($"播放帧率：单位={unitKey} 动作={anim} 帧数={(keys != null ? keys.Length : 0)} " +
+                             $"规范帧数={SpriteFrames.RefFrameCountOf(unitKey, anim)} " +
+                             $"官方 speed={SpriteFrames.SpeedOf(unitKey, anim)}/256 " +
+                             $"⇒ {fps:0.####}fps（原版公式 25 × speed/256 × 规范帧数/实际帧数）");
+            }
         }
 
         /// <summary>
-        /// <para>口径：有效帧率 = **帧数 × 格/秒**（`SpriteFrames.FpsForCycle`，出处见该函数注释）
-        /// ⇒ `SpeedScale = 该值 ÷ Play 时传的基准帧率`（`SpriteFrames.SpeedScaleForCycle`）。</para>
-        /// <para>只对移动类动作（`ViewAnim.Walk` / `ViewAnim.Run`）缩放；其它动作一律**复位成 1**
-        /// —— 原版出招/受击的节奏与移动速度无关（`AnimData` 里每个动作一套独立帧率）。</para>
-        /// <para>`tilesPerSecond &lt;= 0`（速度未知 / 本帧没有位移）⇒ 不缩放（保持 1）。
-        /// 不许缩放到 0：那会让动画完全停住，是比"帧率不准"更糟的表现。</para>
+        /// 视图对应的**单位键**（`SpriteFrames` 的键空间；前两字符 = 官方 COF 名的单位代号）。
+        /// <para>玩家 = 职业小写（有装备外观套时用它自己的键，`amazon/equip/hax` 的前两字符同样是 `AM`）；
+        /// 怪物 / NPC = 原版 sprite 代码（`MonStats.Code` 小写）。</para>
         /// </summary>
-        /// <param name="verbose">是否允许打日志。玩家传 true（速度只有两档、切换时才变）；
-        /// 怪物传"本实体第一条"（实测速度每帧有微小抖动，逐次记录会刷屏）。</param>
-        private static void SyncMoveScale(EntityView v, ViewAnim anim, float tilesPerSecond, bool verbose)
+        private static string UnitKeyOf(EntityView v)
         {
-            if (v == null || v.Anim == null) return;
-
-            if (!SpriteFrames.IsMoveAnim(anim) || tilesPerSecond <= 0f)
-            {
-                if (!Mathf.Approximately(v.Anim.SpeedScale, 1f)) v.Anim.SpeedScale = 1f;
-                return;
-            }
-
-            var frames = v.Anim.FrameCount;                 // 该动作的**真实**帧数（回退已由 SpriteFrames 处理）
-            var baseFps = SpriteFrames.FpsOf(anim);
-            var scale = SpriteFrames.SpeedScaleForCycle(frames, tilesPerSecond, baseFps);
-
-            // 变化 < 1% 视为抖动：不重设、不刷日志（怪物实测速度会在真值附近小幅摆动）
-            if (Mathf.Abs(v.Anim.SpeedScale - scale) < 0.01f) return;
-            v.Anim.SpeedScale = scale;
-
-            if (!verbose) return;
-            ViewLog.Info($"步频同步：实体 {v.EntityId} 动作={anim} 帧数={frames} " +
-                         $"速度={tilesPerSecond:0.###} 格/秒 ⇒ 有效帧率 {SpriteFrames.FpsForCycle(frames, tilesPerSecond):0.##}fps" +
-                         $"（= 帧数 × 速度；基准 {baseFps:0.#}fps × SpeedScale {scale:0.###}）；" +
-                         "出处 = 原版每格一个动画循环（AnimData.referenceFrameCount + Iso.SubTileCount=5）");
+            if (v == null) return string.Empty;
+            if (v.IsPlayer) return string.IsNullOrEmpty(v.EquipKey)
+                ? v.Cls.ToString().ToLowerInvariant()
+                : EquipVisual.UnitKeyOf(v.Cls, v.EquipKey);
+            return v.SpriteCode ?? string.Empty;
         }
 
         /// <summary>

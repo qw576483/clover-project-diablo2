@@ -12,7 +12,8 @@
 //   不发：`PlayerDamaged` / `DamageDealt`（属 `ICombatModule` 的结算产物）、
 //         `ReviveRequest`（`ICombatModule.RevivePlayer()` 的入口，Player 不重复订阅）
 //
-//   原版左键语义：点怪 → `Emit(AttackRequest, id)`（并走过去）；点 NPC → `Emit(NpcInteractRequest, id)`
+//   原版左键语义：点怪 → `Emit(AttackRequest, id)` 并进入**持续交战**（走过去打到死或换目标，
+//   松开左键不停；见 `HandleMoveIntent` ②c）；点 NPC → `Emit(NpcInteractRequest, id)`
 //   （由 `Module/Npc` 下发走位、到位后开对话）；点空地/地面物品 → `MoveCommand` 意图。
 //   `Shift` 按住 = **站立攻击**（只发 `AttackRequest`，不产生移动目标）。
 //   走位说明：`ICombatModule.RequestAttack` 超距时**不结算也不走位**（只 Warn「先靠近」）⇒
@@ -138,6 +139,7 @@ namespace Diablo2.Module.Player
         private Vector2Int? _holdTarget;          // 按住左键时上一次下发的目标格
         private bool _running = true;             // 跑/走切换（原版默认跑；R 键切换）
         private int _lastAttackTargetId = int.MinValue;   // 上一次打日志的攻击目标（防按住时刷屏）
+        private int _engageTargetId = int.MinValue;       // 单击点怪后的持续交战目标（原版：点一下 = 走过去打到死或换目标）
         /// <summary>
         /// 出口触发闩锁（实现 = `Diablo2.Module.Map.ExitLatch`）：停在出口格上只发一次，
         /// **沿出口格逐格挪动**同样只发一次；离开出口格后重新武装
@@ -348,6 +350,7 @@ namespace Diablo2.Module.Player
             _created = true;
             _running = true;                          // 原版默认跑
             _lastAttackTargetId = int.MinValue;
+            _engageTargetId = int.MinValue;
             _motor.Reset();                           // 同时把 SpeedScale 复位为 1（跑）
             _holdTarget = null;
             _exitLatch.Reset();
@@ -392,6 +395,7 @@ namespace Diablo2.Module.Player
             _created = true;
             _running = true;                          // 原版默认跑（跑/走不在存档里）
             _lastAttackTargetId = int.MinValue;
+            _engageTargetId = int.MinValue;
             _motor.SpeedScale = 1f;
             _holdTarget = null;
             _exitLatch.Reset();
@@ -492,6 +496,7 @@ namespace Diablo2.Module.Player
             _created = false;
             _running = true;
             _lastAttackTargetId = int.MinValue;
+            _engageTargetId = int.MinValue;
             _holdTarget = null;
             _exitLatch.Reset();
             _motor.Reset();
@@ -677,6 +682,9 @@ namespace Diablo2.Module.Player
         }
 
         /// <inheritdoc />
+        public void FaceTo(Vector2Int grid) => _motor.FaceTo(grid);
+
+        /// <inheritdoc />
         public void Stop() => _motor.Stop();
 
         /// <inheritdoc />
@@ -685,6 +693,7 @@ namespace Diablo2.Module.Player
             var map = MapOrNull();
             _motor.Teleport(grid, map);
             _holdTarget = null;
+            _engageTargetId = int.MinValue;
             _exitLatch.Reset();
             _selfHealLogged = false;
             PlayerLog.Info($"落位：格=({_motor.Grid.x},{_motor.Grid.y}) 世界=({_motor.World.x:0.00},{_motor.World.y:0.00})");
@@ -784,7 +793,34 @@ namespace Diablo2.Module.Player
                 return;
             }
 
-            // ③ 松开左键：清意图（移动完全由点击/按住驱动 —— 原版没有方向键移动）
+            // ②c 单击点怪后的持续交战（原版：左键点一下怪 = 走过去并持续出手，直到目标死亡 /
+            //    点出新的意图；松开左键**不清**这条 —— ③ 清的是"按住"的路径缓存与日志闩）。
+            if (_engageTargetId != int.MinValue)
+            {
+                var mon = AppContext.I != null ? AppContext.I.Monster : null;
+                var st = mon != null ? mon.Get(_engageTargetId) : null;
+                if (st == null || !st.alive)
+                {
+                    PlayerLog.Info($"[Attack] 交战目标 m#{_engageTargetId} 已死或离场 ⇒ 结束持续交战");
+                    _engageTargetId = int.MinValue;
+                }
+                else
+                {
+                    Emit(Events.AttackRequest, st.id);   // 冷却/距离由 ICombatModule 闸（挥不出去不扣冷却）
+                    if (!_input.StandStill)
+                    {
+                        var approachTo = ApproachGrid(map, new Vector2Int(st.gridX, st.gridY));
+                        if (_holdTarget != approachTo)
+                        {
+                            _holdTarget = approachTo;
+                            Emit(Events.MoveCommand, approachTo);
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // ③ 松开左键：清"按住"的意图（移动完全由点击/按住驱动 —— 原版没有方向键移动）
             _holdTarget = null;
             _lastAttackTargetId = int.MinValue;
         }
@@ -821,6 +857,7 @@ namespace Diablo2.Module.Player
             {
                 _holdTarget = grid;
                 _lastAttackTargetId = int.MinValue;
+                _engageTargetId = int.MinValue;      // 新交互意图顶掉持续交战
                 PlayerLog.Info($"[Npc] 左键点中 NPC n#{hov.id}「{hov.name}」格=({hov.gridX},{hov.gridY})"
                     + $" ⇒ 发 {Events.NpcInteractRequest}（走过去后由 Npc 模块开对话）");
                 Emit(Events.NpcInteractRequest, hov.id);
@@ -828,6 +865,7 @@ namespace Diablo2.Module.Player
             }
 
             _holdTarget = grid;
+            _engageTargetId = int.MinValue;         // 点地面移动 = 新意图 ⇒ 持续交战结束
             Emit(Events.MoveCommand, grid);            // 契约事件（本类的 OnMoveCommand 会执行 MoveTo）
         }
 
@@ -893,6 +931,7 @@ namespace Diablo2.Module.Player
             var h = _input.HoverAt(grid);
             if (IsAttackable(h))
             {
+                _engageTargetId = h.id;              // 右键默认普攻与左键同一条持续交战语义
                 Emit(Events.AttackRequest, h.id);
                 if (_lastAttackTargetId != h.id)
                 {
@@ -930,6 +969,7 @@ namespace Diablo2.Module.Player
         /// </summary>
         private void AttackFrame(HoverTarget hov, IMapModule map, bool standStill)
         {
+            _engageTargetId = hov.id;          // 点怪 = 持续交战（目标死/换目标才停，见 HandleMoveIntent ②c）
             Emit(Events.AttackRequest, hov.id);
 
             if (_lastAttackTargetId != hov.id)
@@ -1230,6 +1270,7 @@ namespace Diablo2.Module.Player
             _dead = true;
             _motor.Stop();
             _holdTarget = null;
+            _engageTargetId = int.MinValue;
             ApplyDeathGoldPenalty();          // 软核死亡惩罚（扣当前金币 10%）
             PlayerLog.Info($"died {_name} 等级={_stats.Level}（发 {Events.PlayerDied}，" +
                            "死亡面板由 UI 侧监听；复活走 ICombatModule.RevivePlayer → Player.Revive）");

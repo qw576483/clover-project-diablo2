@@ -1,0 +1,1267 @@
+[
+ {
+  "cel": "Arrow",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Arrow.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 1,
+  "officialAnimLen": [
+   1
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 44,
+   "h": 116,
+   "originX": 22,
+   "originY": 58,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 8
+ },
+ {
+  "cel": "groundFireBig",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\groundFireBig.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 37,
+  "officialAnimLen": [
+   2,
+   37
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 66,
+   "h": 312,
+   "originX": 33,
+   "originY": 156,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 296
+ },
+ {
+  "cel": "BloodSmall01",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\BloodSmall01.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 8,
+  "framesPerDir": 9,
+  "officialAnimLen": [
+   9
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 42,
+   "h": 102,
+   "originX": 21,
+   "originY": 51,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 72
+ },
+ {
+  "cel": "BoneCast",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\BoneCast.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 16,
+  "officialAnimLen": [
+   16
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 254,
+   "h": 220,
+   "originX": 127,
+   "originY": 110,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 128
+ },
+ {
+  "cel": "ChargedBolt",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\ChargedBolt.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 10,
+  "officialAnimLen": [
+   10
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 88,
+   "h": 84,
+   "originX": 44,
+   "originY": 42,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 80
+ },
+ {
+  "cel": "IceArrow",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\IceArrow.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 8,
+  "officialAnimLen": [
+   8
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 68,
+   "h": 128,
+   "originX": 34,
+   "originY": 64,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 64
+ },
+ {
+  "cel": "CorpseExplodeGuts",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\CorpseExplodeGuts.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 4,
+  "framesPerDir": 13,
+  "officialAnimLen": [
+   13
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 1,
+   "nw": 1,
+   "n": 2,
+   "ne": 2,
+   "e": 3,
+   "se": 3
+  },
+  "canvas": {
+   "w": 246,
+   "h": 142,
+   "originX": 123,
+   "originY": 71,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 104
+ },
+ {
+  "cel": "CurseArea",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\CurseArea.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 20,
+  "officialAnimLen": [
+   20
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 26,
+   "h": 100,
+   "originX": 13,
+   "originY": 50,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 160
+ },
+ {
+  "cel": "CurseCast",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\CurseCast.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 25,
+  "officialAnimLen": [
+   25
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 98,
+   "h": 180,
+   "originX": 49,
+   "originY": 90,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 200
+ },
+ {
+  "cel": "FireArrow",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\FireArrow.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 8,
+  "officialAnimLen": [
+   8
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 44,
+   "h": 118,
+   "originX": 22,
+   "originY": 59,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 64
+ },
+ {
+  "cel": "ExpArrowExplode",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\ExpArrowExplode.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 16,
+  "officialAnimLen": [
+   11,
+   16
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 216,
+   "h": 246,
+   "originX": 108,
+   "originY": 123,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 128
+ },
+ {
+  "cel": "Fireball",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Fireball.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 5,
+  "officialAnimLen": [
+   5
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 148,
+   "h": 162,
+   "originX": 74,
+   "originY": 81,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 40
+ },
+ {
+  "cel": "Firebolt",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Firebolt.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 5,
+  "officialAnimLen": [
+   5
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 116,
+   "h": 152,
+   "originX": 58,
+   "originY": 76,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 40
+ },
+ {
+  "cel": "groundFireMedium",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\groundFireMedium.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 37,
+  "officialAnimLen": [
+   2,
+   37
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 66,
+   "h": 250,
+   "originX": 33,
+   "originY": 125,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 296
+ },
+ {
+  "cel": "groundFireSmall",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\groundFireSmall.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 37,
+  "officialAnimLen": [
+   2,
+   37
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 66,
+   "h": 154,
+   "originX": 33,
+   "originY": 77,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 296
+ },
+ {
+  "cel": "FrostNova",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\FrostNova.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 14,
+  "officialAnimLen": [
+   14
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 118,
+   "h": 72,
+   "originX": 59,
+   "originY": 36,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 112
+ },
+ {
+  "cel": "HolyBoltMissile",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\HolyBoltMissile.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 16,
+  "officialAnimLen": [
+   16
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 80,
+   "h": 118,
+   "originX": 40,
+   "originY": 59,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 128
+ },
+ {
+  "cel": "BAYellShockWave01",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\BAYellShockWave01.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 15,
+  "officialAnimLen": [
+   15
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 76,
+   "h": 44,
+   "originX": 38,
+   "originY": 22,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 120
+ },
+ {
+  "cel": "IceBlast",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\IceBlast.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 5,
+  "officialAnimLen": [
+   5
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 170,
+   "h": 156,
+   "originX": 85,
+   "originY": 78,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 40
+ },
+ {
+  "cel": "Icebolt",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Icebolt.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 6,
+  "officialAnimLen": [
+   6
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 92,
+   "h": 142,
+   "originX": 46,
+   "originY": 71,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 48
+ },
+ {
+  "cel": "Flamethrower",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Flamethrower.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 15,
+  "officialAnimLen": [
+   15
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 80,
+   "h": 208,
+   "originX": 40,
+   "originY": 104,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 120
+ },
+ {
+  "cel": "Flamethrower2",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Flamethrower2.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 15,
+  "officialAnimLen": [
+   15
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 76,
+   "h": 222,
+   "originX": 38,
+   "originY": 111,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 120
+ },
+ {
+  "cel": "LightningJavelin",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\LightningJavelin.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 5,
+  "officialAnimLen": [
+   5
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 176,
+   "h": 180,
+   "originX": 88,
+   "originY": 90,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 40
+ },
+ {
+  "cel": "SafeArrow",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\SafeArrow.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 8,
+  "officialAnimLen": [
+   1,
+   8
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 60,
+   "h": 128,
+   "originX": 30,
+   "originY": 64,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 64
+ },
+ {
+  "cel": "XBowBolt",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\XBowBolt.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 1,
+  "officialAnimLen": [
+   1
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 24,
+   "h": 124,
+   "originX": 12,
+   "originY": 62,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 8
+ },
+ {
+  "cel": "ElectricNova",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\ElectricNova.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 16,
+  "framesPerDir": 13,
+  "officialAnimLen": [
+   13
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 70,
+   "h": 48,
+   "originX": 35,
+   "originY": 24,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 104
+ },
+ {
+  "cel": "Javelin",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Javelin.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 1,
+  "officialAnimLen": [
+   1
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 88,
+   "h": 144,
+   "originX": 44,
+   "originY": 72,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 8
+ },
+ {
+  "cel": "Gleam",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\Gleam.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 1,
+  "framesPerDir": 8,
+  "officialAnimLen": [
+   8
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 0,
+   "sw": 0,
+   "w": 0,
+   "nw": 0,
+   "n": 0,
+   "ne": 0,
+   "e": 0,
+   "se": 0
+  },
+  "canvas": {
+   "w": 20,
+   "h": 16,
+   "originX": 10,
+   "originY": 8,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 64
+ },
+ {
+  "cel": "SpikeFiendMissle",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\SpikeFiendMissle.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 2,
+  "officialAnimLen": [
+   2
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 20,
+   "h": 68,
+   "originX": 10,
+   "originY": 34,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 16
+ },
+ {
+  "cel": "teethMissile",
+  "sourceMpq": "D2data.mpq",
+  "sourcePath": "data\\global\\missiles\\teethMissile.dcc",
+  "palette": "data\\global\\palette\\units\\Pal.dat",
+  "dccDirections": 32,
+  "framesPerDir": 30,
+  "officialAnimLen": [
+   30
+  ],
+  "dirs": [
+   "s",
+   "sw",
+   "w",
+   "nw",
+   "n",
+   "ne",
+   "e",
+   "se"
+  ],
+  "fileSlots": {
+   "s": 4,
+   "sw": 0,
+   "w": 5,
+   "nw": 1,
+   "n": 6,
+   "ne": 2,
+   "e": 7,
+   "se": 3
+  },
+  "canvas": {
+   "w": 112,
+   "h": 126,
+   "originX": 56,
+   "originY": 63,
+   "pivot": [
+    0.5,
+    0.5
+   ]
+  },
+  "pngCount": 240
+ }
+]

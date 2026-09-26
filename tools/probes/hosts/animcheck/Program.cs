@@ -296,13 +296,29 @@ namespace AnimCheck
                 !SpriteFrames.LoopOf(ViewAnim.Attack) && !SpriteFrames.LoopOf(ViewAnim.Cast)
                 && !SpriteFrames.LoopOf(ViewAnim.Hit) && !SpriteFrames.LoopOf(ViewAnim.Death),
                 "4 个都为 false");
-            Check("IsMoveAnim 未受影响：只有 Walk/Run 随速度缩放",
-                SpriteFrames.IsMoveAnim(ViewAnim.Walk) && SpriteFrames.IsMoveAnim(ViewAnim.Run)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Idle)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Attack)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Cast)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Hit)
-                && !SpriteFrames.IsMoveAnim(ViewAnim.Death), "Walk/Run = true，其余 false");
+            // 帧率口径 = 原版公式（上游 `AnimData.GetCorrectedFrameDuration` 的倒数）：
+            //   25 × AnimData.speed/256 × 规范帧数 / 实际帧数，**式子里没有移动速度**。
+            var amWalk = SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Walk);
+            var amRun = SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Run);
+            Check("走 / 跑帧率 = 25 × AnimData.speed/256 × 规范帧数/实际帧数（亚马逊规格 6 / 4、实际 8 帧 ⇒ 18.75 / 12.5）",
+                SpriteFrames.FpsOf("amazon", ViewAnim.Walk) == 25f
+                && SpriteFrames.FpsOf("amazon", ViewAnim.Run) == 25f
+                && SpriteFrames.RefFrameCountOf("amazon", ViewAnim.Walk) == 6
+                && SpriteFrames.RefFrameCountOf("amazon", ViewAnim.Run) == 4
+                && SpriteFrames.FrameCountOf("amazon", ViewAnim.Walk) == 8
+                && SpriteFrames.FrameCountOf("amazon", ViewAnim.Run) == 8
+                && Math.Abs(amWalk - 25f * 6f / 8f) < 1e-4f
+                && Math.Abs(amRun - 25f * 4f / 8f) < 1e-4f,
+                $"走 {amWalk:0.####}fps、跑 {amRun:0.####}fps（规范 {SpriteFrames.RefFrameCountOf("amazon", ViewAnim.Walk)}/"
+                + $"{SpriteFrames.RefFrameCountOf("amazon", ViewAnim.Run)}，实际 {SpriteFrames.FrameCountOf("amazon", ViewAnim.Walk)}/"
+                + $"{SpriteFrames.FrameCountOf("amazon", ViewAnim.Run)} 帧）");
+            Check("规范帧数只覆盖走 / 跑 ⇒ 其余动作的修正系数 = 1（逐动作与 AnimData 基准帧率相等）",
+                Math.Abs(SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Idle) - SpriteFrames.FpsOf("amazon", ViewAnim.Idle)) < 1e-6f
+                && Math.Abs(SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Attack) - SpriteFrames.FpsOf("amazon", ViewAnim.Attack)) < 1e-6f
+                && Math.Abs(SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Cast) - SpriteFrames.FpsOf("amazon", ViewAnim.Cast)) < 1e-6f
+                && Math.Abs(SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Hit) - SpriteFrames.FpsOf("amazon", ViewAnim.Hit)) < 1e-6f
+                && Math.Abs(SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Death) - SpriteFrames.FpsOf("amazon", ViewAnim.Death)) < 1e-6f,
+                "Idle/Attack/Cast/Hit/Death 五档逐值相等");
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -357,7 +373,7 @@ namespace AnimCheck
 
             // ── 6a walk 循环：60s 内帧号绕回 0 至少一次，且永不 Finished ──
             var w = new SpriteAnimator();
-            w.Play(ViewAnim.Walk, walkKeys, SpriteFrames.FpsOf(ViewAnim.Walk), SpriteFrames.LoopOf(ViewAnim.Walk));
+            w.Play(ViewAnim.Walk, walkKeys, SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Walk), SpriteFrames.LoopOf(ViewAnim.Walk));
             var wraps = 0;
             var last = w.FrameIndex;
             var finishedSeen = false;
@@ -368,12 +384,12 @@ namespace AnimCheck
                 last = w.FrameIndex;
                 if (w.Finished) finishedSeen = true;
             }
-            Check($"6a walk 循环：60s 内帧号绕回 {wraps} 次（每循环 8 帧 @ {SpriteFrames.FpsOf(ViewAnim.Walk):0.#}fps）且从不 Finished",
+            Check($"6a walk 循环：60s 内帧号绕回 {wraps} 次（每循环 8 帧 @ {SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Walk):0.#}fps）且从不 Finished",
                 wraps > 0 && !finishedSeen, $"绕回 {wraps} 次 / Finished={finishedSeen}");
 
             // ── 6b attack 单次播放：播到**末帧**停下（Finished），随后 want 回落 Idle ──
             var a = new SpriteAnimator();
-            a.Play(ViewAnim.Attack, atkKeys, SpriteFrames.FpsOf(ViewAnim.Attack), SpriteFrames.LoopOf(ViewAnim.Attack));
+            a.Play(ViewAnim.Attack, atkKeys, SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Attack), SpriteFrames.LoopOf(ViewAnim.Attack));
             var ticks = 0;
             while (!a.Finished && ticks < 600) { a.Tick(Dt); ticks++; }
             var atkLast = atkKeys.Length - 1;
@@ -383,14 +399,14 @@ namespace AnimCheck
                 ViewAnimState.SelectPlayer(false, false, false, false, false, false) == ViewAnim.Idle
                 && a.FrameIndex == atkLast, "Playing 判定用 Anim.Finished ⇒ Idle");
             var a2 = new SpriteAnimator();
-            a2.Play(ViewAnim.Attack, atkKeys, SpriteFrames.FpsOf(ViewAnim.Attack), SpriteFrames.LoopOf(ViewAnim.Attack));
+            a2.Play(ViewAnim.Attack, atkKeys, SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Attack), SpriteFrames.LoopOf(ViewAnim.Attack));
             for (var i = 0; i < 600; i++) a2.Tick(Dt);
             Check("6b attack 停住后**不再动**（非循环 ⇒ 不自己重播）",
                 a2.FrameIndex == atkLast, $"frame={a2.FrameIndex}（600 帧后仍是末帧）");
 
             // ── 6c death 停末帧 ──
             var d = new SpriteAnimator();
-            d.Play(ViewAnim.Death, dthKeys, SpriteFrames.FpsOf(ViewAnim.Death), SpriteFrames.LoopOf(ViewAnim.Death));
+            d.Play(ViewAnim.Death, dthKeys, SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Death), SpriteFrames.LoopOf(ViewAnim.Death));
             for (var i = 0; i < 600; i++) d.Tick(Dt);
             Check($"6c death 停末帧（frame={d.FrameIndex}，期望 {dthKeys.Length - 1}）",
                 d.Finished && d.FrameIndex == dthKeys.Length - 1, $"frame={d.FrameIndex}/{d.FrameCount}");
@@ -418,7 +434,7 @@ namespace AnimCheck
             // ── 6e 怪物：受击硬直结束 ⇒ 回落 Idle（不判帧数：E28 的硬直时长 = 登记项）──
             var m = new SpriteAnimator();
             var mKeys = SpriteFrames.Keys("fa", ViewAnim.Hit, Dir8.S);
-            m.Play(ViewAnim.Hit, mKeys, SpriteFrames.FpsOf(ViewAnim.Hit), SpriteFrames.LoopOf(ViewAnim.Hit));
+            m.Play(ViewAnim.Hit, mKeys, SpriteFrames.CorrectedFpsOf("fa", ViewAnim.Hit), SpriteFrames.LoopOf(ViewAnim.Hit));
             var stun = 0.18f;
             var elapsed = 0f;
             while (elapsed < stun) { m.Tick(Dt); elapsed += Dt; }
@@ -429,11 +445,11 @@ namespace AnimCheck
             // ── 6f 方向换组必须从第 0 帧起（原版 8 方向各一套 .cof）──
             var r = new SpriteAnimator();
             r.Play(ViewAnim.Walk, SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Walk, Dir8.S),
-                SpriteFrames.FpsOf(ViewAnim.Walk), true);
+                SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Walk), true);
             for (var i = 0; i < 20; i++) r.Tick(Dt);
             var before = r.FrameIndex;
             r.Play(ViewAnim.Walk, SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Walk, Dir8.E),
-                SpriteFrames.FpsOf(ViewAnim.Walk), true);
+                SpriteFrames.CorrectedFpsOf("amazon", ViewAnim.Walk), true);
             Check("6f 同动作换帧键（换朝向）⇒ 从第 0 帧起；同组重复 Play ⇒ 不重置进度",
                 before > 0 && r.FrameIndex == 0, $"换向前 {before} ⇒ 换向后 {r.FrameIndex}");
         }
@@ -456,11 +472,11 @@ namespace AnimCheck
 
             // 起始：站着 Idle
             anim.Play(ViewAnim.Idle, SpriteFrames.Keys(PlayerClass.Amazon, ViewAnim.Idle, Dir8.S),
-                SpriteFrames.FpsOf(ViewAnim.Idle), true);
+                SpriteFrames.FpsOf("amazon", ViewAnim.Idle), true);
             playing = ViewAnim.Idle;
 
             // ① 受击事件
-            anim.Play(ViewAnim.Hit, hitKeys, SpriteFrames.FpsOf(ViewAnim.Hit), SpriteFrames.LoopOf(ViewAnim.Hit));
+            anim.Play(ViewAnim.Hit, hitKeys, SpriteFrames.FpsOf("amazon", ViewAnim.Hit), SpriteFrames.LoopOf(ViewAnim.Hit));
             anim.Replay();
             playing = ViewAnim.Hit;
 
@@ -478,7 +494,7 @@ namespace AnimCheck
                 if (want != playing)
                 {
                     anim.Play(want, SpriteFrames.Keys(PlayerClass.Amazon, want, Dir8.S),
-                        SpriteFrames.FpsOf(want), SpriteFrames.LoopOf(want));
+                        SpriteFrames.FpsOf("amazon", want), SpriteFrames.LoopOf(want));
                     playing = want;
                 }
 
@@ -491,14 +507,16 @@ namespace AnimCheck
 
         // ═════════════════════════════════════════════════════════════════════
         //
-        // 判据分两条，缺一不可：
-        //   · 新口径（`hitStun || IsHitHolding`）⇒ 该单位受击动作的**每一帧**都上过屏（0..N-1 全在）；
-        //   · 旧口径（只按 `MonsterTuning.HitStunSeconds` = 0.18s 保持）⇒ **帧数不全**（E28）。
-        //     第二条是**反例断言**：它证明第一条真的在判东西（否则第一条可能恒为真 = 空断言）。
+        // 判据 = **参数化**的一条断言：把"受击保持时长"当作**注入入参**喂给同一条状态链，
+        //   要求"该单位受击动作的每一帧都上过屏（0..N-1 全在）"。两样本共用同一个通过条件：
+        //   · 正样本：注入**生产值**（`MonsterTuning.HitStunSecondsOf(kindId)`
+        //     = `SpriteFrames.AnimSecondsOf(code, Hit)` = 官方 GH 动画时长）⇒ 全帧；
+        //   · 负样本（极性锚）：注入**短于动画时长**的保持时长 ⇒ 帧数不全（通过条件不成立）
+        //     —— 证明同一条断言**能红**，不是恒真的空断言（注入值见下面那段实测理由）。
         // ═════════════════════════════════════════════════════════════════════
         private static void Section8MonsterHit()
         {
-            Section("8. ★ 片 monster-audio：怪物受击帧号序列（8 类怪物，新口径全帧 / 旧口径不全 = E28）");
+            Section("8. ★ 怪物受击帧号序列（8 类怪物；注入生产保持时长 ⇒ 全帧 / 注入短一帧 ⇒ 判红）");
 
             // 8 类怪物 = `MonsterSpawner` 的 AI 映射表（`MonStats.Code`；帧数见生成物 `SpriteFrameCounts`）
             var units = new[] { "fa", "fs", "si", "zm", "cr", "bk", "ye", "wr" };
@@ -513,28 +531,53 @@ namespace AnimCheck
                     continue;
                 }
 
-                var nowSeq = SimulateMonsterHit(units[i], keys, holdUntilFinished: true);
-                var oldSeq = SimulateMonsterHit(units[i], keys, holdUntilFinished: false);
+                var hitFps = SpriteFrames.FpsOf(units[i], ViewAnim.Hit);
+                // 生产保持时长 = 该怪自己的官方 GH 动画时长（生产走 kindId → code → `AnimSecondsOf`，
+                //   这里本来就有 code ⇒ 两边落到**同一个**表达式）。
+                var prodHoldSeconds = SpriteFrames.AnimSecondsOf(units[i], ViewAnim.Hit);
+                // 负样本夹具 = 生产值 − 2 个帧时距。
+                //   为什么不是"− 1 帧"：本链每帧只在 `Tick` **之后**才把当前帧推上屏（末次 Tick
+                //   已经落在保持时长之外），所以"短一帧"的保持时长里末帧照样上过屏 —— 实测 8/8 类
+                //   都出全帧（`dotnet run` 的原始输出）。要让通过条件真的不成立，须再短一个帧时距。
+                var shortHoldSeconds = prodHoldSeconds - 2f / hitFps;
 
-                var full = nowSeq.Count == keys.Length && nowSeq[0] == 0
-                           && nowSeq[nowSeq.Count - 1] == keys.Length - 1;
-                Check($"8 {units[i]}（{names[i]}）新口径：受击帧序列 {string.Join(",", nowSeq)}"
-                      + $" = 全部 {keys.Length} 帧（@ {SpriteFrames.FpsOf(ViewAnim.Hit):0.#}fps = {keys.Length / SpriteFrames.FpsOf(ViewAnim.Hit):0.###}s）",
-                    full, $"序列 {string.Join(",", nowSeq)} / 动作共 {keys.Length} 帧");
-                Check($"8 {units[i]}（{names[i]}）旧口径反例：只出 {oldSeq.Count}/{keys.Length} 帧"
-                      + "（hitStun 0.18s < 动画时长 ⇒ E28「受击只出 3/7 帧」，判红说明新口径非空断言）",
-                    oldSeq.Count < keys.Length, $"旧序列 {string.Join(",", oldSeq)}");
+                var nowSeq = SimulateMonsterHit(units[i], keys, prodHoldSeconds);
+                var shortSeq = SimulateMonsterHit(units[i], keys, shortHoldSeconds);
+
+                Check($"8 {units[i]}（{names[i]}）正样本（注入生产保持时长 {prodHoldSeconds:0.###}s）："
+                      + $"受击帧序列 {string.Join(",", nowSeq)} = 全部 {keys.Length} 帧"
+                      + $"（@ {hitFps:0.#}fps = {keys.Length / hitFps:0.###}s）",
+                    HitSeqFull(nowSeq, keys), $"序列 {string.Join(",", nowSeq)} / 动作共 {keys.Length} 帧");
+                Check($"8 {units[i]}（{names[i]}）负样本（**同实现·能红**）：注入短于动画的保持时长 "
+                      + $"{shortHoldSeconds:0.###}s ⇒ 受击帧序列 {string.Join(",", shortSeq)}"
+                      + $" 只出 {shortSeq.Count}/{keys.Length} 帧（同一个通过条件不成立）",
+                    !HitSeqFull(shortSeq, keys), $"注入序列 {string.Join(",", shortSeq)}");
             }
+        }
+
+        /// <summary>
+        /// 本节的通过条件（正样本与负样本**共用同一个**）：受击帧序列 = `0..N-1` 的**全部**帧
+        /// （首帧 0、末帧 N-1、个数 = N）。
+        /// </summary>
+        private static bool HitSeqFull(List<int> seq, string[] keys)
+        {
+            return keys != null && keys.Length > 0
+                   && seq.Count == keys.Length
+                   && seq[0] == 0
+                   && seq[seq.Count - 1] == keys.Length - 1;
         }
 
         /// <summary>
         /// 怪物受击的**完整状态链**逐帧驱动（与 `ViewModule.UpdateMonster` / `PlayHit` 同一口径）：
         /// ① 受击 ⇒ `Play(Hit, keys, FpsOf(Hit), LoopOf(Hit))` + `Replay()`；
-        /// ② 每帧 `want = ViewAnimState.SelectMonster(alive, hitStun || hitHolding, attacking=false, moved=false)`，
+        /// ② 每帧 `want = ViewAnimState.SelectMonster(alive, elapsed &lt; holdSeconds, attacking=false, moved=false)`，
         ///    want 变了才 `Play`（与 `UpdateMonster` 的调用口径一致）。
+        /// <para><paramref name="holdSeconds"/> = **注入的保持时长**：生产值来自
+        /// <see cref="SpriteFrames.AnimSecondsOf"/>（该怪官方 GH 动画时长），负样本注入更短的值
+        /// 以验证同一条通过条件能判红。</para>
         /// <para>返回**显示过的受击帧号序列**（按首次出现顺序，去重）。</para>
         /// </summary>
-        private static List<int> SimulateMonsterHit(string unit, string[] hitKeys, bool holdUntilFinished)
+        private static List<int> SimulateMonsterHit(string unit, string[] hitKeys, float holdSeconds)
         {
             var anim = new SpriteAnimator();
             var playing = ViewAnim.Idle;
@@ -542,28 +585,27 @@ namespace AnimCheck
             var uniq = new HashSet<int>();
 
             anim.Play(ViewAnim.Idle, SpriteFrames.Keys(unit, ViewAnim.Idle, Dir8.S),
-                SpriteFrames.FpsOf(ViewAnim.Idle), true);
+                SpriteFrames.FpsOf(unit, ViewAnim.Idle), true);
             playing = ViewAnim.Idle;
 
             // ① 受击（`ViewModule.PlayHit`）
-            anim.Play(ViewAnim.Hit, hitKeys, SpriteFrames.FpsOf(ViewAnim.Hit), SpriteFrames.LoopOf(ViewAnim.Hit));
+            anim.Play(ViewAnim.Hit, hitKeys, SpriteFrames.FpsOf(unit, ViewAnim.Hit), SpriteFrames.LoopOf(ViewAnim.Hit));
             anim.Replay();
             playing = ViewAnim.Hit;
 
             // ② 逐帧（受击动画最长 wr 8 帧 @12fps = 0.67s；跑 600 帧 = 10s 足够）
-            const float stun = 0.18f;     // = MonsterTuning.HitStunSeconds
             var elapsed = 0f;
             for (var f = 0; f < 600; f++)
             {
-                var hitStun = elapsed < stun;
-                var hold = holdUntilFinished
-                    && ViewAnimState.IsHitHolding(playing, anim.FrameCount, anim.Finished);
-                var want = ViewAnimState.SelectMonster(true, hitStun || hold, false, false);
+                // 保持档 = 注入的保持时长还没走完（生产里 `MonsterState.hitStun`
+                //   = `MonsterTuning.HitStunSecondsOf(kindId)`，与注入的生产值同一表达式）。
+                var hitStun = elapsed < holdSeconds;
+                var want = ViewAnimState.SelectMonster(true, hitStun, false, false);
 
                 if (want != playing)
                 {
                     anim.Play(want, SpriteFrames.Keys(unit, want, Dir8.S),
-                        SpriteFrames.FpsOf(want), SpriteFrames.LoopOf(want));
+                        SpriteFrames.CorrectedFpsOf(unit, want), SpriteFrames.LoopOf(want));
                     playing = want;
                 }
 

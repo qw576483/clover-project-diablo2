@@ -1050,8 +1050,6 @@ namespace Diablo2.UI
             ///   按钮 = 原版 `WideButton` 272×35、行节奏 45（原版 35+10）⇒
             ///   外接框 x ±136、y **−170..0**（170 高）⇒ + 2×4 = 280×178
             ///   ⇒ <see cref="BoxFrame.Snap(Vector2)"/> = **288×180** = 24×15 个 12px 格。</para>
-            /// <para>底部那行提示（`PRESS ESC TO CONTINUE`）**不进框**：它是本项目新增的一行注
-            ///   （原版 ESC 菜单没有这一行），故不参与外接框。</para>
             /// </summary>
             public static readonly Vector2 BoxSize =
                 BoxFrame.Snap(new Vector2(272f, 170f) + BoxFrame.ThicknessEdges) * Scale;
@@ -1070,9 +1068,6 @@ namespace Diablo2.UI
 
             /// <summary>第 4 项中心 = 原版 (0,-152.5) → ×1.8 = **(0,-274.5)**。</summary>
             public static readonly Vector2 ToMainPos = new Vector2(0f, -274.5f);
-
-            /// <summary>底部提示行 = 原版节奏再下一行 (0,-197.5) → ×1.8 = **(0,-355.5)**。</summary>
-            public static readonly Vector2 HintPos = new Vector2(0f, -355.5f);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -1502,8 +1497,6 @@ namespace Diablo2.UI
                 "暂停：保存并退出", new Vector2(0f, -107.5f), WideButtonOrig, Pause.SaveExitPos, WideButton, false);
             Add(Panel.Pause, "MainMenu/GameMenu/Buttons/ExitButton(复用)",
                 "暂停：回主菜单", new Vector2(0f, -152.5f), WideButtonOrig, Pause.ToMainPos, WideButton, false);
-            Add(Panel.Pause, "MainMenu/GameMenu/Buttons/(新增下一行)",
-                "暂停：底部提示", new Vector2(0f, -197.5f), WideButtonOrig, Pause.HintPos, WideButton, false);
             Add(Panel.Pause, "(原版 MENU/boxpieces.DC6 拼装窗框)", "暂停菜单底板（窗框）",
                 new Vector2(0f, -85f), new Vector2(288f, 180f),
                 Pause.BoxPos, Pause.BoxSize, false);
@@ -1782,6 +1775,59 @@ namespace Diablo2.UI
         /// 用"先按原版尺寸建、再放大矩形"的方式绕开。
         /// </para>
         /// </summary>
+        /// <summary>
+        /// 把**原版中文本地化图**（`Assets/Resources/Clover/D2/UI/Banner/*`，源 = 原版
+        /// `data/LOCAL/UI/chi/*.dc6`）贴到一颗按钮矩形上。这几张图**自带文字**
+        /// ⇒ 用它当标签的按钮**不要再叠文字标签**（否则双层字）。
+        /// <para>
+        /// 尺寸 = **原版帧的真实像素**（调用方按 `dc6` 实测值传 <paramref name="origW"/>/
+        /// <paramref name="origH"/>）× <see cref="UiLayoutGame.K"/>（与按钮底图同一口径）；
+        /// 图内**墨迹框**的中心通常不在图中线（`returntogame/options/exit/previous/cancel/…`
+        /// 这一族 54 高、墨迹恒在 `y 16..52` ⇒ 墨心比图中线低 **7 原版px**）⇒ 用
+        /// <paramref name="inkDyOrigPx"/> 补偿，让**字心**落在按钮矩形中心。
+        /// </para>
+        /// </summary>
+        /// <param name="inkH">该图**墨迹框**的高度（原版 px；缩放按它算，见下）。</param>
+        /// <param name="inkDyOrigPx">该图墨迹框中心相对图中线的纵向偏移（原版 px，向下为正）。</param>
+        public static void BannerOnButton(Transform parent, string name, string bannerName,
+            float imgW, float imgH, float inkH, Vector2 buttonPos, float inkDyOrigPx)
+        {
+            // 只缩不放：墨迹框装得下按钮就按原版 px 1:1，装不下才等比缩到刚好装下。
+            // 比例只由「墨迹框」与「按钮矩形」两个量算出 ⇒ 不引入任何新常量
+            // （54 高那一族的墨迹高 36，正好 ≈ 按钮高 35 ⇒ 系数 0.97，即**原版像素 1:1**）。
+            var btn = WideButtonOrig;
+            var s = Mathf.Min(1f, Mathf.Min(btn.x / imgW, btn.y / inkH));
+            var k = UiLayoutGame.K;
+
+            // 宽度 > DC6 单块上限的图是**多块横向拼接**的（例 `SINGLEPLAYER` = 256 + 26）：
+            // 只画第 0 块会少掉余量块（画面上 = 最后一个字母被切掉）⇒ 逐块按读序相接。
+            var tiles = ResPaths.BannerTiles(bannerName);
+            var left = -imgW * 0.5f;
+            for (var i = 0; i < tiles; i++)
+            {
+                var w = i < tiles - 1 ? ResPaths.Dc6TileWidth : imgW - ResPaths.Dc6TileWidth * (tiles - 1);
+                var cx = left + w * 0.5f;
+                left += w;
+                UiArt.Art(parent, i == 0 ? name : name + "Tile" + i, ResPaths.BannerTile(bannerName, i),
+                    new Vector2(w * s * k, imgH * s * k),
+                    buttonPos + new Vector2(cx * s * k, inkDyOrigPx * s * k));
+            }
+        }
+
+        /// <summary>
+        /// 给点击回调套一层**原版按钮音**（`Events.UiClick` → `cursor\button.wav`）。
+        /// <para>为什么套在工厂里而不是每个面板各写一遍：这批按钮点下去**不发任何业务事件**
+        /// （主菜单的 `Fsm.TriggerNewGame`、暂停菜单的 `ResumeRequest` …都不是音频模块的收听对象）
+        /// ⇒ 不套就是"点了没声"。已会出声的链路（面板开关 / 对话选项 / 买卖）走的是 `UiArt` 那三个工厂，
+        /// 不经本方法 ⇒ 不会同帧两声。</para>
+        /// </summary>
+        private static Action OnClickWithSfx(Action onClick)
+            => () =>
+            {
+                Game.Event.Emit(Events.UiClick);
+                onClick?.Invoke();
+            };
+
         internal sealed class FlowButton
         {
             /// <summary>底图 Image（原版帧 + SpriteSwap）。</summary>
@@ -1803,13 +1849,13 @@ namespace Diablo2.UI
             /// <param name="origSize">**原版 px** 尺寸（宽 ≥ 272 = 宽按钮底图；128 = 中等按钮底图）。</param>
             /// <param name="pos">本工程 Canvas 单位的位置（= 原版坐标 ×1.8）。</param>
             /// <param name="labelColor">
-            /// 覆盖**常态文字色**（null = 用 <see cref="ButtonText"/>，即原版 `WideButton.prefab` 的 #191919）。
+            /// 覆盖**常态文字色**（null = 用 <see cref="ButtonText"/>，即全项目唯一的那套按钮字色）。
             /// <para> 加这个口子的原因（**量化过，不是口味**）：
             /// 原版按钮**底图本身是深板岩灰**（`Menu/btn_med_normal.png` 内区逐像素取均值的平均 sRGB
             /// 亮度 **0.376**）⇒ #191919 压在它上面的对比度只有
             /// **2.79:1**（WCAG 2.1 AA 正文要求 ≥ 4.5:1）——拉丁细笔画还能认，**13px 的中文密笔画就糊成一块黑**。
-            /// 所以：中文按钮（如传送点目的地）由调用方传一个**既有可读色常量**；拉丁按钮保持原版 #191919 不变
-            /// （不动 `ButtonText` 本身 —— 它被 `uicheck` 的「按钮文字色 = #191919」那条断言钉着）。</para>
+            /// 所以：需要与全局字色不同的场合由调用方传一个**既有可读色常量**（先例 = `WaypointPanel.DestLabelColor`）；
+            /// `ButtonText` 本身不再改 —— 它已经是那套可读色，全项目按钮共用一套。</para>
             /// <para>禁用态 = 传入色的同色降 alpha（与既有 `ButtonTextDisabled` 的 0.45 同口径）。</para>
             /// </param>
             public static FlowButton Create(Transform parent, string name, string text, Vector2 origSize,
@@ -1820,7 +1866,7 @@ namespace Diablo2.UI
                 var disabledText = labelColor.HasValue
                     ? new Color(normalText.r, normalText.g, normalText.b, ButtonTextDisabled.a)
                     : ButtonTextDisabled;
-                var img = UiArt.Button(parent, name, string.Empty, origSize, pos, onClick);
+                var img = UiArt.Button(parent, name, string.Empty, origSize, pos, OnClickWithSfx(onClick));
                 if (img == null)
                 {
                     UiLog.Error($"创建按钮 {name} 失败（UiArt.Button 返回 null）⇒ 该按钮缺失，交互不可用");
@@ -1898,7 +1944,7 @@ namespace Diablo2.UI
             {
                 var btn = img.gameObject.AddComponent<Button>();
                 btn.transition = Selectable.Transition.None;
-                btn.onClick.AddListener(() => onClick());
+                btn.onClick.AddListener(() => OnClickWithSfx(onClick)());
             }
             return img;
         }

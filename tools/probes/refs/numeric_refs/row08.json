@@ -1,15 +1,15 @@
 {
   "_comment": "machine-readable extraction for one numeric-class acceptance row; every value is copied verbatim from the cited on-disk evidence, never invented",
   "row": 8,
-  "spec_md_line": 104,
-  "spec_sha256": "47ca4cd7feaa2e9cd8088b647640ac5b4676b402af13ebbbfa6d2882c1d17349",
+  "spec_md_line": 103,
+  "spec_sha256": "ad133ce9c7980d7512877686f2a0ad9cff52a52a7c12719452a70d76f200c7f3",
   "category": "数值类",
   "system": "血腥荒野（**随机**）",
   "method": "程序化生成，每局不同",
   "criterion": "**连开两局**，日志打印 layout seed 与障碍数，两次不同",
   "conclusion": "通过  ｜类别：数值类  + 机器可读产物：`tools/probes/refs/numeric_refs/row08.json`（由 `tools/probes/refs/gen_numeric_refs.py` 从本行已引用的读数**机械抽出**：源文件 sha256 + 行号 + 原文 + 数字字段；⛔ 未新造任何数值）\\",
   "generator": "tools/probes/refs/gen_numeric_refs.py",
-  "generated": "2026-09-25 02:35:47",
+  "generated": "2026-09-26 14:17:59",
   "selectors": {
     "line_anchors": {},
     "unscoped_anchors": [],

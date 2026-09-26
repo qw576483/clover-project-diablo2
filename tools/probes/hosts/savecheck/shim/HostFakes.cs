@@ -126,6 +126,7 @@ namespace SaveCheck
         public void MoveTo(Vector2Int target) { Grid = target; }
         public void Stop() { }
         public void TeleportTo(Vector2Int grid) { Grid = grid; }
+        public void FaceTo(Vector2Int grid) { }   // 本宿主不测朝向
         public void Tick(float dt) { }
         public bool ApplyDamage(int amount, DamageType type) { _life = Mathf.Max(0, _life - amount); return IsDead; }
         public void Heal(int amount) { _life = Mathf.Min(MaxLife, _life + amount); }

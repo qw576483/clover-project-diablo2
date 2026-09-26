@@ -71,7 +71,8 @@ namespace Diablo2.Module
         /// <summary>
         /// 默认正交尺寸（**半高**，世界单位）⇒ 视野高 = 2 × 3.75 = **7.5 世界单位 = 7.5 格**。
         /// <para>出处（逐条可查）：
-        /// ① 原版按**像素高**反推正交尺寸：`原版资源/参考工程_Diablerie/.../Engine/CameraController.cs:38-41`
+        /// ① 原版按**像素高**反推正交尺寸：上游 `mofr/Diablerie` 的 `Engine/CameraController.cs:38-41`
+        /// （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Scripts/Diablerie/Engine/CameraController.cs`）
         /// 的 `CalcDesiredSize() =&gt; camera.pixelHeight / Iso.pixelsPerUnit / 2`；
         /// ② `Engine/Iso.cs:10` 的 `pixelsPerUnit = 80`；
         /// ③ 原版 800×600 分辨率下 `pixelHeight = 600` ⇒ **600 / 80 / 2 = 3.75**（世界单位）。
@@ -110,8 +111,9 @@ namespace Diablo2.Module
         /// 变成一次画面跳跃）。0.02 的代价是 3.0×0.02 = 0.06 格 ≈ 8.6 px 的稳态偏移（滞回方向朝行进方向），
         /// 这比 0.12 的 0.36 格 ≈ 52 px 小一个量级。</item>
         /// </list>
-        /// <para>**滞后量的原版出处缺失**：原版参考工程（`原版资源/参考工程_Diablerie`）本机只有
-        /// `d2lod1.10txt` 数据表，**没有** `Engine/CameraController.cs`（该文件路径在本仓不存在，已全盘查过）
+        /// <para>**滞后量的原版出处缺失**：上游 `mofr/Diablerie` 的 `CameraController.cs`
+        /// （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Scripts/Diablerie/Engine/CameraController.cs`）
+        /// 只有正交尺寸（`CalcDesiredSize`）与水平位移（`horizontalShift`），**没有**跟随滞后
         /// ⇒ 无法证明"原版相机有无跟随滞后"。故本值按「消除抖动」这一目标取（原版滞后量无出处）。</para>
         /// </summary>
         public const float FollowSmoothTime = 0.02f;
