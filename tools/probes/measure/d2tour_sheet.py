@@ -33,7 +33,6 @@ PANELS = [
     ('InventoryPanel', 'tour_panel_inventory.png'),
     ('CharacterPanel', 'tour_panel_character.png'),
     ('SkillTreePanel', 'tour_panel_skilltree.png'),
-    ('QuestLogPanel', 'tour_panel_questlog.png'),
     ('MiniMapPanel', 'tour_panel_minimap.png'),
     ('PausePanel', 'tour_panel_pause.png'),
     ('SettingsPanel', 'tour_panel_settings.png'),
@@ -64,11 +63,7 @@ ZOOMS = [
     # close buttons: crop centred on the measured hit rect (57.6x55.8 canvas px;
     # InventoryPanel img=992.8,843.5  CharacterPanel img=615.5,851 -- logged by
     # the driver as CLOSEBTN-* in d2tour_readings_tour7.txt)
-    # QuestLog both states side by side (same crop): empty/NotStarted vs InProgress
-    ('QuestLogPanel NotStarted', 'tour_panel_questlog.png', (620, 280, 680, 510)),
-    ('QuestLogPanel InProgress', 'tour_panel_questlog_progress.png', (620, 280, 680, 510)),
     # magnified so the objective/progress line is readable (sheet-res is not enough)
-    ('QuestLogPanel InProgress text', 'tour_panel_questlog_progress.png', (640, 430, 360, 270)),
     ('InventoryPanel close button (x3.75)', 'tour_panel_inventory.png', (933, 784, 180, 180)),
     ('CharacterPanel close button (x3.75)', 'tour_panel_character.png', (556, 791, 180, 180)),
 ]
@@ -81,7 +76,6 @@ SUSPECTS = {
     ('tour_sheet_panels_3of3.png', 'r2c2'):
         ('SUSPECT-2', 'ShopPanel 商品图标格是白色方块占位（网格左上两格）'),
     ('tour_sheet_panels_2of3.png', 'r2c2'):
-        ('SUSPECT-3', 'QuestLogPanel 标题下内容区大块空白，只有一行「查看任务的细节…」'),
     ('tour_sheet_panels_3of3.png', 'r3c1'):
         ('SUSPECT-4', 'DeathPanel 横幅上写的是「你損失金錢數量」'),
 }

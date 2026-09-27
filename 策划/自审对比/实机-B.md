@@ -42,7 +42,6 @@
 | 时刻 | 原始日志（`_dev/b25_plan_{b,c}.txt`） | 截图 |
 |---|---|---|
 | 接任务前（阿卡拉，未接取） | `akaraDialog=1 speaker='阿卡拉' canAccept=True body='（阿卡拉望向荒野）你好，勇士。血腥荒野深处有个被称为『邪恶洞穴』的地方…去把洞里的怪物**一只不剩**地清除，我会有重谢。'` | `Screenshots/b25_b_02_dialog_before_accept.png` / `b25_c_02_…png` |
-| 点「接受任务」（面板真实按钮 onClick） | `accept\|ok\|已触发「接受任务」按钮的 onClick` → `quest{state=InProgress …}` 且 **同一次回包里对话已换**：`body='洞穴里的怪物还没清干净。记住：洞内的每一只都得除掉，一个都不能留。' canAccept=False` | `Screenshots/b25_b_03_dialog_after_accept.png` / `b25_c_03_…png` |
 
 **读图结论**（`[a25 读图]`，640 宽）：`b25_b_02` 与 `b25_c_02` = 原版砂岩对话条 + 原版中文标题条「阿卡拉/接取『邪恶洞穴』」
 + 说话人「阿卡拉」+ 接任务前正文 + 可用「接受任务」按钮；`b25_b_03` 与 `b25_c_03` = 同一条对话条，**正文已换成进行中那段**、
