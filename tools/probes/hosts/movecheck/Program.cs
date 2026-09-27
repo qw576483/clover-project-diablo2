@@ -224,7 +224,7 @@ namespace MoveCheck
             var noFire = 0;
             var multiFire = 0;
             var unreachable = 0;
-            foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil })
+            foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor })
             {
                 map.Generate(area, 20260923);
                 for (var i = 0; i < map.Exits.Count; i++)

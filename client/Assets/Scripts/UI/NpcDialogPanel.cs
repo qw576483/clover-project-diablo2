@@ -25,12 +25,11 @@
 //   `cellH * scale`，而 `scale = 字号 / cellH`）⇒ 行距 = 字号。
 //
 // 数据：只吃 `Diablo2.Def.NpcDialogArgs`（`OnOpen` 参数 + `Events.DialogOpen`）：
-//     npcId / npcName / text（**随任务阶段变化，由 Npc 模块给**）/ options /
-//     hasShop / canAcceptQuest / canTurnInQuest / questId
-//   ⇒ 本面板**不做任何任务阶段判断**，全部按 DTO 的布尔位渲染（数据由模块算）。
+//     npcId / npcName / text（由 Npc 模块给）/ options / hasShop
+//   ⇒ 本面板**不做任何业务判断**，全部按 DTO 渲染（数据由模块算）。
 // 请求（全部走 `Core/Events.cs`）：options[i] 点击 → `Events.DialogOptionChosen`（int 下标）
-//   —— 下标语义由 `Module/Npc/NpcModule.ChooseOption` 反解（0 = 关闭、1 = 任务动作、其余 = 商店），
-//   **本面板不直接发 `QuestAcceptRequest` / `QuestTurnInRequest` / `ShopOpenRequest`**
+//   —— 下标语义由 `Module/Npc/NpcModule.ChooseOption` 反解（0 = 关闭、其余 = 商店），
+//   **本面板不直接发 `ShopOpenRequest`**
 //   （那些由模块在 `ChooseOption` 里发 ⇒ 只有一条路径，不会出现"两条路径打同一个动作"）。
 // 零 `using Diablo2.Module`（分层自检 ③）。
 //
@@ -55,8 +54,7 @@
 //  · **`OnClose` 补发 `Events.DialogClose`：面板被引擎销毁时模块侧状态必须归零**
 //     问题链：引擎 `Close` 只调 `OnClose`（见上文），而 `NpcModule._currentNpcId` 只由
 //     `Events.DialogClose` 清（`Module/Npc/NpcModule.cs:746-749`）⇒ 面板被"互斥 / `CloseAll` /
-//     换站"销毁后 `_currentNpcId` 未清空 ⇒ 之后任何 `Events.QuestChanged` 都会**凭空再弹一次对话**
-//     （`NpcModule.OnQuestChanged` 的唯一门槛就是它），且 `ResolveNpcId` 会拿陈旧 NPC 兜底。
+//     换站"销毁后 `_currentNpcId` 未清空，且 `ResolveNpcId` 会拿陈旧 NPC 兜底。
 //
 //  · **一次 `Events.DialogOpen` 只 `Rebuild` 一次（本面板不订阅 `DialogOpen`）**
 //     `Events.DialogOpen` ⇒ 同一次刷新走两遍（`Open<T>` 已开 ⇒ 再 `OnOpen` 一次 + 本面板再
@@ -332,8 +330,7 @@ namespace Diablo2.UI
             Rebuild(_dialog);
 
             UiLog.Info($"对话面板已打开（NPC={(dialog != null ? dialog.npcName : "无数据")}，"
-                       + $"选项={_dialog?.options?.Count ?? 0}，可知接任务={_dialog?.canAcceptQuest ?? false}，"
-                       + $"可交任务={_dialog?.canTurnInQuest ?? false}）");
+                       + $"选项={_dialog?.options?.Count ?? 0}）");
         }
 
         /// <inheritdoc/>
@@ -347,7 +344,7 @@ namespace Diablo2.UI
                 _loggedS3 = true;
                 UiLog.Info("[R1-E] S3 生效：对话面板**关闭即归零** —— `OnClose` 补发 `Events.DialogClose`，"
                     + "`NpcModule._currentNpcId` 随之清空（面板被引擎互斥/CloseAll/换站销毁时也不例外）"
-                    + "⇒ 之后 `Events.QuestChanged` 不会再凭空弹出对话；模块侧清理幂等，无回环");
+                    + "⇒ 模块侧清理幂等，无回环");
             }
 
             // 引擎 `UIManager.Close` **只**回调 `OnClose`、不补发任何事件（`UI.cs:199-229`）

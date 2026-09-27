@@ -21,7 +21,7 @@
 //     重生成地图 / 移怪 / 挪玩家 / 关面板 / 发 `AreaChanged` 全在那条链上）。
 //     口径说明（已写进 `Core/Events.cs` 的常量注释）：`ExitEntered` 在引擎侧被
 //     `AppDoorGuard`（过门计数）/ `AudioHook`（传送音效，其注释原文就是"传送 ← ExitEntered"）/
-//     `QuestModule`（换区）/ `AppFlow`（切区）共同消费 —— 传送点换区在语义上正是"一次区域切换"
+//     `AppFlow`（切区）共同消费 —— 传送点换区在语义上正是"一次区域切换"
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Generic;

@@ -35,7 +35,7 @@ namespace Diablo2.Module.Flow
         /// 请求**不同区域** ⇒ 先走 7 项清场再进图（**绝不允许**不清场就重载场景）；
         /// 正在读条时收到重复请求 ⇒ 同样忽略（否则两次 `Game.Scene.Load` 并发）。</para>
         /// </summary>
-        /// <param name="area">进图后所在的区域（`AreaId.Town` / `BloodMoor` / `DenOfEvil`）。</param>
+        /// <param name="area">进图后所在的区域（`AreaId.Town` / `BloodMoor`）。</param>
         void GoStage(AreaId area);
 
         /// <summary>

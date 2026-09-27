@@ -7,7 +7,7 @@
 // 桩的两条纪律（否则判据会变成"自证"）：
 //   ① **忠实于真实现**：`StubPlayer.WriteTo` **不许**写 `save.areaId` —— 真 `PlayerModule.WriteTo`
 //      （`Module/Player/PlayerModule.cs:448-477`）在 `:473` 明文写着「mapSeed / areaId / 背包 / 任务：
-//      分别由 Flow、Map、Item、Quest 负责，**这里不碰**」。
+//      分别由 Flow、Map、Item 负责，**这里不碰**」。
 //      里有一行 `save.areaId = (int)AreaId.Town;` —— 那是桩自己的发明、与真实现**相反**，
 //   ② **只用被验证对象真正读到的成员**：桩地图/桩玩家只提供 `Save()` 收集链用得到的值
 //      （`Name` / `Class` / `Grid` / `WriteTo` + 地图的 `Area` / `Seed` / `IsGenerated`），
@@ -40,7 +40,6 @@ namespace SaveCheck
         public bool IsGenerated { get; set; } = true;
         public Vector2Int SpawnPoint => new Vector2Int(9, 60);
         public IReadOnlyList<Vector2Int> Exits => new List<Vector2Int> { new Vector2Int(2, 32) };
-        public Vector2Int? CaveEntrance => Area == AreaId.BloodMoor ? new Vector2Int(40, 40) : (Vector2Int?)null;
         public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
 
         /// <summary>桩地图无传送点（契约成员见 `Module/Contracts.cs` 的 `IMapModule.WaypointPoints`）。</summary>
@@ -168,7 +167,7 @@ namespace SaveCheck
         /// <summary>
         /// 与真 `<see cref="Diablo2.Module.PlayerModule.WriteTo"/>`（`Module/Player/PlayerModule.cs:448-477`）
         /// **逐字段对齐**：真实现只写属性/等级/经验/金币/**位置**，并在 `:473` 明文声明
-        /// 「mapSeed / **areaId** / 背包 / 任务：分别由 Flow、Map、Item、Quest 负责，**这里不碰**」。
+        /// 「mapSeed / **areaId** / 背包：分别由 Flow、Map、Item 负责，**这里不碰**」。
         /// </summary>
         public void WriteTo(CharacterSave save)
         {

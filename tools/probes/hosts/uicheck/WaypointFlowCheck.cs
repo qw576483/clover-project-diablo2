@@ -996,7 +996,6 @@ namespace Uicheck
             public int WalkableCount => 0;
             public Vector2Int SpawnPoint => new Vector2Int(1, 1);
             public IReadOnlyList<Vector2Int> Exits => new List<Vector2Int>();
-            public Vector2Int? CaveEntrance => null;
             public IReadOnlyList<Vector2Int> NpcPoints => new List<Vector2Int>();
             public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
             public IReadOnlyCollection<Vector2Int> ExploredCells => new List<Vector2Int>();

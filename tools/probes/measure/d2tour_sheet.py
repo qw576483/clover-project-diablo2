@@ -47,7 +47,6 @@ PANELS = [
 AREAS = [
     ('Area Town', 'tour_area_town.png'),
     ('Area BloodMoor', 'tour_area_bloodmoor.png'),
-    ('Area DenOfEvil', 'tour_area_den.png'),
 ]
 
 # (label, source png, crop box x,y,w,h) -- the cell is 900x675, so a box smaller

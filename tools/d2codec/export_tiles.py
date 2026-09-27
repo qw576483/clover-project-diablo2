@@ -59,8 +59,6 @@ PACKS = [
     ('data/global/tiles/ACT1/OUTDOORS/stonewall.dt1',  'moor_stonewall',  '血腥荒野石墙/断墙'),
     ('data/global/tiles/ACT1/OUTDOORS/fence.dt1',      'moor_fence',      '血腥荒野木栏'),
     ('data/global/tiles/ACT1/OUTDOORS/objects.dt1',    'moor_objects',    '帐篷 / 营地杂物（原版城镇的帐篷就在这张表里）'),
-    ('data/global/tiles/ACT1/CAVES/cave.dt1',          'cave',            '邪恶洞穴地面 / 岩壁'),
-    ('data/global/tiles/ACT1/CAVES/cavedr.dt1',        'cave_door',       '洞穴岩柱/门框'),
     ('data/global/tiles/ACT1/BARRACKS/warp.dt1',       'warp',            '出入口传送点（原版城镇出口就靠它的 orientation 10）'),
     ('data/global/tiles/ACT1/OUTDOORS/river.dt1',      'moor_river',      '河/水边（原版野外与城镇边界都用）'),
     # ── 野外拼块轮新增（`export_wild_layout.py` 的块依赖到它们）─────────────────

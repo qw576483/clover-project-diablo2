@@ -69,7 +69,7 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 校验 `OnOpen(param)` 里的整型载荷（如 skillId / questId）；缺失或类型不符 ⇒ 留痕 + 返回兜底值。
+        /// 校验 `OnOpen(param)` 里的整型载荷（如 skillId）；缺失或类型不符 ⇒ 留痕 + 返回兜底值。
         /// <para>判定与留痕由引擎件 <c>CloverEngine.UIPanelGuards.RequireValue</c> 提供（同一留痕口径：只报一次）。</para>
         /// </summary>
         public static int RequireInt(object param, string panel, int fallback)

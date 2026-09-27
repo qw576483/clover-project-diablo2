@@ -5,7 +5,7 @@
 // 职责：
 //   · 生成（含**可复现随机**、**出生点净空**、**连通性自检**、失败重试、保底布局）
 //   · 可走查询 / A* 寻路转发 / 随机可走格
-//   · 渲染入口（`ShowArea`）与怪物刷新点 / NPC 点 / 出口 / 洞穴入口的对外暴露
+//   · 渲染入口（`ShowArea`）与怪物刷新点 / NPC 点 / 出口的对外暴露
 //   · 发 `Events.MapGenerated`（小地图）与 `Events.AreaChanged`
 //   · 订阅 `Events.PlayerGridChanged` → 揭迷雾 / 记已探索 / 发 `Events.MapExplored`
 //
@@ -22,7 +22,7 @@ using UnityEngine;
 
 namespace Diablo2.Module.Map
 {
-    /// <summary>格子地图门面实现（三处区域：罗格营地 / 血腥荒野 / 邪恶洞穴）。</summary>
+    /// <summary>格子地图门面实现（两处区域：罗格营地 / 血腥荒野）。</summary>
     internal sealed class MapModule : IMapModule
     {
         /// <summary>重试换 seed 的步长（质数：让相邻尝试的随机序列充分打散）。</summary>
@@ -73,9 +73,6 @@ namespace Diablo2.Module.Map
 
         /// <inheritdoc />
         public IReadOnlyList<Vector2Int> Exits { get { return _grid.Exits; } }
-
-        /// <inheritdoc />
-        public Vector2Int? CaveEntrance { get { return _grid.CaveEntrance; } }
 
         /// <inheritdoc />
         public IReadOnlyList<Vector2Int> NpcPoints { get { return _grid.NpcPoints; } }
@@ -216,16 +213,8 @@ namespace Diablo2.Module.Map
                     MapGenWilderness.Generate(_grid, rng);
                     break;
 
-                case AreaId.DenOfEvil:
-                    if (!MapGenCave.Generate(_grid, rng))
-                    {
-                        reason = "房间-走廊算法放不下足够的房间";
-                        return false;
-                    }
-                    break;
-
                 default:
-                    MapLog.Error($"TryBuild: 未登记的区域 {(int)area}（契约只定义 Town/BloodMoor/DenOfEvil）");
+                    MapLog.Error($"TryBuild: 未登记的区域 {(int)area}（契约只定义 Town/BloodMoor）");
                     reason = $"未登记的区域 {(int)area}";
                     return false;
             }
@@ -237,7 +226,7 @@ namespace Diablo2.Module.Map
                 return false;
             }
 
-            // ③ 连通性：出生点必须可达 出口 / 洞穴入口 / 所有房间 / 所有刷怪点
+            // ③ 连通性：出生点必须可达 出口 / 所有刷怪点
             if (!_grid.VerifyConnectivity(out var unreachable, out var first))
             {
                 reason = $"{unreachable} 个目标不可达（第一个 {first}）";
@@ -259,10 +248,8 @@ namespace Diablo2.Module.Map
             var h = w;
             _grid.Reset(area, w, h, rng.Seed);
 
-            var floor = area == AreaId.DenOfEvil ? TileKind.CaveFloor
-                      : area == AreaId.Town ? TileKind.TownFloor
-                      : TileKind.Dirt;
-            var wall = area == AreaId.DenOfEvil ? TileKind.CaveWall : TileKind.Rock;
+            var floor = area == AreaId.Town ? TileKind.TownFloor : TileKind.Dirt;
+            var wall = TileKind.Rock;
             _grid.Fill(floor);
 
             for (var x = 0; x < w; x++)
@@ -286,19 +273,7 @@ namespace Diablo2.Module.Map
             _grid.Set(w / 2, 1, floor);
             _grid.Set(w / 2 + 1, 1, floor);
 
-            if (area == AreaId.BloodMoor)
-            {
-                var southDoor = new Vector2Int(w / 2, h - 1);
-                _grid.Set(southDoor, TileKind.Exit);
-                _grid.Exits.Add(southDoor);
-                _grid.CaveEntrance = southDoor;
-                _grid.Set(w / 2 - 1, h - 2, floor);
-                _grid.Set(w / 2, h - 2, floor);
-                _grid.Set(w / 2 + 1, h - 2, floor);
-            }
-
             _grid.RequiredReachable.AddRange(_grid.Exits);
-            _grid.CaveEntrance = area == AreaId.BloodMoor ? _grid.CaveEntrance : null;
 
             MapLog.Warn($"BuildFallback: 已铺设保底布局（area={area} size={w}x{h} seed={_grid.Seed} " +
                         $"出口={_grid.Exits.Count} 出生点={_grid.SpawnPoint}）");
@@ -415,7 +390,7 @@ namespace Diablo2.Module.Map
         public string Hash() { return MapDebug.Hash(_grid); }
 
         /// <summary>
-        /// 自证：本图是否启用了「逐格原版瓦片键」（罗格营地 / 邪恶洞穴 / 野外 = true；保底布局 = false）。
+        /// 自证：本图是否启用了「逐格原版瓦片键」（罗格营地 / 野外 = true；保底布局 = false）。
         /// **非契约方法**（`IMapModule` 上没有）。
         /// </summary>
         public bool HasTileOverrides => _grid.HasTileOverrides;
@@ -495,7 +470,7 @@ namespace Diablo2.Module.Map
 
             // 逐格 **原版 automap Cel**（`AutoMapCel.generated.cs` = 原版 `AutoMap.txt` + `MaxiMap.dc6`
             //   + ACT1 调色板 + 原版 DS1 的解析产物；口径见 `MinimapArgs.cels` 的 `# contract:` 注释）：
-            //   按该格的**原版瓦片键**（`GridMap.TryGetTiles`，罗格营地/洞穴/野外三个生成器都逐格登记）
+            //   按该格的**原版瓦片键**（`GridMap.TryGetTiles`，罗格营地/野外两个生成器都逐格登记）
             //   查表。查不到键 ⇒ `-1`（原版这一格不画 automap）。
             //   非预期分支：本图**没有**逐格瓦片覆盖（生成失败的保底布局 `BuildFallback`）⇒ 整幅
             //      查不到 Cel，自动地图会是空的 —— 留一次 Warn（不静默），并在回报里点名。

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Item / Quest / Npc / Save 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
+// Item / Npc / Save 自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
 //
 // 目的：在没有 Unity 编辑器的情况下（用户尚未打开编辑器 ⇒ 禁止跑 `unity run/test`），
 //
@@ -121,7 +121,6 @@ namespace ItemCheck
         public bool IsGenerated => true;
         public Vector2Int SpawnPoint => new Vector2Int(8, 8);
         public IReadOnlyList<Vector2Int> Exits => new List<Vector2Int> { new Vector2Int(2, 32) };
-        public Vector2Int? CaveEntrance => Area == AreaId.BloodMoor ? new Vector2Int(40, 40) : (Vector2Int?)null;
         public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
 
         public IReadOnlyList<Vector2Int> WaypointPoints => new List<Vector2Int>();
@@ -350,7 +349,6 @@ namespace ItemCheck
 
         public int CountInArea(AreaId area)
         {
-            if (area == AreaId.DenOfEvil) return DenAlive;
             if (area == AreaId.BloodMoor) return BloodMoorAlive;
             return 0;
         }
@@ -523,8 +521,8 @@ namespace ItemCheck
             Check("treasureclass_c 行数 = 59（片 O R3：+Quill 1）", Table.Tables.Default.Treasureclass.Count == 59,
                 "treasureclass_c=" + Table.Tables.Default.Treasureclass.Count);
 
-            // ── 1. 装配（AutoWire 必须能找到四个模块）───────────────────────────
-            Section("1) AppContext.AutoWire 装配四个门面");
+            // ── 1. 装配（AutoWire 必须能找到三个模块）───────────────────────────
+            Section("1) AppContext.AutoWire 装配三个门面");
             _map = new StubMap();
             _player = new StubPlayer(_log);
             _monster = new StubMonster();
@@ -534,18 +532,16 @@ namespace ItemCheck
             _ctx.Player = _player;
             _ctx.Monster = _monster;
             _ctx.Skill = _skill;
-            _ctx.AutoWire();                                  // 只填 null 字段 ⇒ 应装上 Item/Quest/Npc/Save
+            _ctx.AutoWire();                                  // 只填 null 字段 ⇒ 应装上 Item/Npc/Save
             Check("ItemModule 已自动装配", _ctx.Item != null && _ctx.Item.GetType().Name == "ItemModule",
                 _ctx.Item == null ? "null" : _ctx.Item.GetType().FullName);
-            Check("QuestModule 已自动装配", _ctx.Quest != null && _ctx.Quest.GetType().Name == "QuestModule",
-                _ctx.Quest == null ? "null" : _ctx.Quest.GetType().FullName);
             Check("NpcModule 已自动装配", _ctx.Npc != null && _ctx.Npc.GetType().Name == "NpcModule",
                 _ctx.Npc == null ? "null" : _ctx.Npc.GetType().FullName);
             Check("SaveModule 已自动装配", _ctx.Save != null && _ctx.Save.GetType().Name == "SaveModule",
                 _ctx.Save == null ? "null" : _ctx.Save.GetType().FullName);
             //   改成**真的用反射问一遍**每个已装配的实现类型（`AutoWire` 靠 `Activator` 建它 ⇒
             //   必须 `internal sealed`：public 会漏出装配面、非 sealed 可被继承改行为）。
-            var implTypes = new[] { _ctx.Item.GetType(), _ctx.Quest.GetType(), _ctx.Npc.GetType(), _ctx.Save.GetType() };
+            var implTypes = new[] { _ctx.Item.GetType(), _ctx.Npc.GetType(), _ctx.Save.GetType() };
             var notSealed = new List<string>();
             foreach (var t in implTypes)
                 if (!t.IsSealed || t.IsPublic) notSealed.Add(t.Name + "(" + (t.IsPublic ? "public" : "non-public")
@@ -557,7 +553,6 @@ namespace ItemCheck
                     : "不合格：" + string.Join(" ", notSealed));
 
             var item = _ctx.Item;
-            var quest = _ctx.Quest;
             var npc = _ctx.Npc;
             var save = _ctx.Save;
 
@@ -995,144 +990,56 @@ namespace ItemCheck
             Check("非药水不能放腰带", !item.AddToBelt(factory.Create(2, 1, ItemQuality.Normal, new Rng(4)), 1),
                 "武器入腰带应被拒（见 [WARN] [Item] 不是药水）");
 
-            // ── 8. 任务链（核心）────────────────────────────────────────────────
-            Section("8) 主线任务「邪恶洞穴」完整状态机");
-            item.Reset();
-            _map.Area = AreaId.Town;                     // 在城里接任务（此时洞穴还没生成 ⇒ 洞内 0 只）
-            _monster.SeedDen(0);
-            _monster.BloodMoorAlive = 3;
-            quest.Reset();
-            Check("初始状态 = NotStarted", quest.DenOfEvil == QuestState.NotStarted, quest.DenOfEvil.ToString());
-            Check("未接取时不可交付", !quest.CanTurnInDen, "CanTurnInDen=" + quest.CanTurnInDen);
-            _player.AddSkillPoint(-_player.SkillPoints); // 清零技能点便于观察 +1
-
-            quest.AcceptDen();
-            Check("接取后状态 = InProgress", quest.DenOfEvil == QuestState.InProgress, quest.DenOfEvil.ToString());
-            Console.WriteLine($"   接取后：required={quest.Get(1).required}（城里还没进洞 ⇒ 0）；DenRemaining={quest.DenRemaining}");
-            Check("城里接取时 required=0（未进洞不记数）", quest.Get(1).required == 0, "required=" + quest.Get(1).required);
-            Check("required=0 时不可交付", !quest.CanTurnInDen, "CanTurnInDen=" + quest.CanTurnInDen);
-            quest.AcceptDen();                            // 重复接取
-            Check("重复接取被忽略（状态不变）", quest.DenOfEvil == QuestState.InProgress, "见 [WARN] [Quest] 重复接取");
-
-            // 只认洞穴：在血腥荒野报击杀 ⇒ 剩余/进度/状态三者都不该动
-            _map.Area = AreaId.BloodMoor;
-            var denBeforeMoor = quest.DenRemaining;
-            var progBeforeMoor = quest.Get(1).progress;
-            quest.NotifyMonsterKilled(1001);
-            Check("野外的击杀不计入（DenRemaining 不变）", quest.DenRemaining == denBeforeMoor,
-                $"DenRemaining {denBeforeMoor}→{quest.DenRemaining}");
-            Check("野外的击杀不计入（progress 不变）", quest.Get(1).progress == progBeforeMoor,
-                $"progress {progBeforeMoor}→{quest.Get(1).progress}");
-            Check("野外击杀也不会把状态推进到可交付", quest.DenOfEvil == QuestState.InProgress,
-                "state=" + quest.DenOfEvil);
-            Check("野外击杀有可读日志（不是洞穴）", _log.Contains("Quest", "不是洞穴"), "见 [INFO] [Quest] NotifyMonsterKilled");
-
-            // 进入洞穴：怪物在这一刻生成（5 只）⇒ 记 required
-            _map.Area = AreaId.DenOfEvil;
-            _monster.SeedDen(5);
-            Game.Event.Emit(Events.AreaChanged, AreaId.DenOfEvil);
-            Check("进洞后记录 required = 5", quest.Get(1).required == 5, "required=" + quest.Get(1).required);
-            Console.WriteLine($"   进洞：required={quest.Get(1).required} DenRemaining={quest.DenRemaining} "
-                + $"progress={quest.Get(1).progress} state={quest.DenOfEvil}");
-
-            for (var i = 0; i < 5; i++)
-            {
-                _monster.KillOneInDen();
-                quest.NotifyMonsterKilled(1000 + i);
-                Console.WriteLine($"   击杀 {i + 1}/5：DenRemaining={quest.DenRemaining} "
-                    + $"progress={quest.Get(1).progress}/{quest.Get(1).required} state={quest.DenOfEvil}");
-            }
-            Check("清光后 DenRemaining = 0", quest.DenRemaining == 0, "DenRemaining=" + quest.DenRemaining);
-            Check("清光后状态 = ReadyToTurnIn", quest.DenOfEvil == QuestState.ReadyToTurnIn, quest.DenOfEvil.ToString());
-            Check("清光后可交付 CanTurnInDen = true", quest.CanTurnInDen, "CanTurnInDen=" + quest.CanTurnInDen);
-            Check("progress = required = 5", quest.Get(1).progress == 5 && quest.Get(1).required == 5,
-                $"{quest.Get(1).progress}/{quest.Get(1).required}");
-
-            var spBefore = _player.SkillPoints;
-            _map.Area = AreaId.Town;                      // 回城交付
-            quest.TurnInDen();
-            Console.WriteLine($"   交付：state={quest.DenOfEvil} 技能点 {spBefore} → {_player.SkillPoints} "
-                + $"rewardClaimed={quest.Get(1).rewardClaimed}");
-            Check("交付后状态 = Done", quest.DenOfEvil == QuestState.Done, quest.DenOfEvil.ToString());
-            Check("交付奖励：技能点 +1", _player.SkillPoints == spBefore + 1, $"{spBefore} → {_player.SkillPoints}");
-            Check("交付后不可再交", !quest.CanTurnInDen, "CanTurnInDen=" + quest.CanTurnInDen);
-            var spAfter = _player.SkillPoints;
-            quest.TurnInDen();
-            Check("重复交付不发第二次奖励", _player.SkillPoints == spAfter, "技能点=" + _player.SkillPoints);
-            Check("重复交付发 QuestTurnInDenied", _log.Contains("Quest", "交付被拒"), "见 [WARN] [Quest] 交付被拒");
-
-            // ── 9. NPC 对话 4 阶段 ──────────────────────────────────────────────
-            Section("9) NPC 对话随任务阶段变化（阿卡拉 4 段）");
+            // ── 9. NPC 对话 ────────────────────────────────────────────────────
+            Section("9) NPC 对话（每个 NPC 一句原版串）");
             Check("5 个 NPC 定义齐全", npc.All.Count == 5, "count=" + npc.All.Count);
             Check("站位来自 IMapModule.NpcPoints", npc.All[0].gridX == 10 && npc.All[4].gridX == 18,
                 $"阿卡拉=({npc.All[0].gridX},{npc.All[0].gridY}) 瓦瑞夫=({npc.All[4].gridX},{npc.All[4].gridY})");
-            Check("角色分工正确（阿卡拉任务发布者 / 恰西铁匠+修理）",
-                npc.Get(0).isQuestGiver && !npc.Get(0).isBlacksmith && npc.Get(2).isBlacksmith && npc.Get(2).canRepair,
-                "akara.questGiver / charsi.blacksmith+repair");
+            Check("角色分工正确（恰西铁匠+修理）",
+                !npc.Get(0).isBlacksmith && npc.Get(2).isBlacksmith && npc.Get(2).canRepair,
+                "charsi.blacksmith+repair");
 
-            var texts = new List<string>();
-            for (var stage = 0; stage < 4; stage++)
-            {
-                var state = (QuestState)stage;
-                SetQuestStage(quest, state);                       // 通过公开流程把状态推到该阶段
-                //   会把 `_map.Area` 推到 **DenOfEvil**；而"NPC 只在城镇存在"是**产品特性**
-                //   合法地返回 null。本段判的是「任务阶段 → 台词」，**区域不是本段的变量** ⇒
-                _map.Area = AreaId.Town;
-                var d = npc.GetDialog(0);
-                Check($"阶段 {state}：城镇内能取到阿卡拉对话（非 null）", d != null,
-                    d == null ? "null —— 原因见上一行 [Npc] Warn" : "ok");
-                if (d == null) { texts.Add("<null>"); continue; }   // ⛔ 不许 NRE 崩宿主
-                texts.Add(d.text);
-                Console.WriteLine($"   阶段 {state}：{d.text}");
-            }
-            //   「已完成」与「可交付」**故意共用**同一句（原版串表里阿卡拉在任务 1 之后没有独立的
-            //   "已完成"台词 —— `A1Q1SuccessfulAkara` 就是她关于本任务的最后一句），
-            //   所以 distinct 是 **3/4** 而不是 4/4；下面把它写成显式断言，防止以后有人"顺手"编一句新词。
-            Check("四态台词 = 原版串（未接取=64 / 进行中=71 / 可交付&已完成=76，故 distinct=3）",
-                DistinctCount(texts) == 3
-                && texts[2] == texts[3]                                  // 可交付 == 已完成（原版只有一句）
-                && texts[0].Contains("在荒地中有一個極度邪惡的地方")        // 串 64 A1Q1InitAkara
-                && texts[1].Contains("除非你殺死這個洞窟中的所有惡魔")      // 串 71 A1Q1EarlyReturnAkara
-                && texts[2].Contains("你已經清除了洞窟中的邪惡"),           // 串 76 A1Q1SuccessfulAkara
-                "distinct=" + DistinctCount(texts) + "/4（3 = 已完成与可交付共用原版串 76）");
+            _map.Area = AreaId.Town;
+            var akara = npc.GetDialog(0);
+            Check("城镇内能取到阿卡拉对话（非 null）", akara != null,
+                akara == null ? "null —— 原因见上一行 [Npc] Warn" : "ok");
+            Console.WriteLine("   阿卡拉：" + (akara != null ? akara.text : "<null>"));
+            Check("阿卡拉台词 = 原版串 64 `A1Q1InitAkara`",
+                akara != null && akara.text.Contains("在荒地中有一個極度邪惡的地方"),
+                akara == null ? "null" : akara.text);
             Check("对话选项下标 0 恒为关闭（文案 = 原版串 3394 `NPCMenuLeave`「離開」）",
-                npc.GetDialog(0).options.Count > 0 && npc.GetDialog(0).options[0] == "離開",
-                "options[0]=" + npc.GetDialog(0).options[0]);
-            Check("可交付阶段 canTurnInQuest = true", CanTurnInFlag(npc, quest), "见上");
-            Check("非任务 NPC（瓦瑞夫）也能对话", npc.GetDialog(4) != null && !npc.GetDialog(4).hasShop,
+                akara != null && akara.options.Count > 0 && akara.options[0] == "離開",
+                "options[0]=" + (akara != null && akara.options.Count > 0 ? akara.options[0] : "<空>"));
+            Check("瓦瑞夫也能对话（无商店）", npc.GetDialog(4) != null && !npc.GetDialog(4).hasShop,
                 "warriv.hasShop=" + npc.GetDialog(4).hasShop);
 
-            _map.Area = AreaId.DenOfEvil;
-            Check("★非城镇：`GetDialog(0)` 返回 null（不编台词 ⇒ 洞里拿不到阿卡拉台词）",
+            _map.Area = AreaId.BloodMoor;
+            Check("★非城镇：`GetDialog(0)` 返回 null（不编台词 ⇒ 荒野里拿不到阿卡拉台词）",
                 npc.GetDialog(0) == null, "GetDialog(0) = null（原因由 [Npc] 的 WarnOnce 点名）");
             Check("★非城镇：`Interact(0)` 被城镇门禁拒绝", !npc.Interact(0), "Interact(0) = false");
             Check("★非城镇：`Get(0)` 返回 null（定义存在、只是本区域不装配）",
                 npc.Get(0) == null, "Get(0) = null");
             _map.Area = AreaId.Town;                                  // 复位：下面的 §9b 依赖城镇场景
 
-            //   这样"某状态没有台词"就永远不会以 `null` 的形式出现在 `GetDialog` 上
+            //   这样"某 NPC 没有台词"就永远不会以 `null` 的形式出现在 `GetDialog` 上
             //   （`GetDialog` 的唯一 null 出口 = `Get` 拿不到定义，见其 注）。
             var textGaps = 0;
             var gapWhere = "";
             for (var id = 0; id < 5; id++)
             {
-                for (var s = 0; s < 4; s++)
-                {
-                    if (!string.IsNullOrWhiteSpace(
-                            Diablo2.Module.Npc.NpcDialog.TextOf(id, (QuestState)s))) continue;
-                    textGaps++;
-                    gapWhere += $" n{id}/{(QuestState)s}";
-                }
+                if (!string.IsNullOrWhiteSpace(Diablo2.Module.Npc.NpcDialog.TextOf(id))) continue;
+                textGaps++;
+                gapWhere += " n" + id;
             }
-            Check("★同族穷举：5 NPC × 4 任务阶段 = 20 格台词全部非空（无静默空格）",
+            Check("★同族穷举：5 NPC 台词全部非空（无静默空格）",
                 textGaps == 0, "空格=" + textGaps + gapWhere);
 
             // 9b) 「点击命中 NPC → 走过去 → 开对话」（原版：**必须点在 NPC 身上**；
             //     `Module/Player` 判出"指针下是 NPC"后发 `NpcInteractRequest`，走位与开对话由本模块编排）
             //
             //   （`InTownForNpc()`：只有 `IMapModule.Area == AreaId.Town` 才允许交互/自动对话 —— 修的是
-            //   而本宿主在上面第 7~8 节把 `_map.Area` 推到了 BloodMoor / DenOfEvil 就没再复位 ⇒
-            //   到这里区域仍是洞穴 ⇒ `Interact` 全被门禁拦掉、下面几条断言必然失败。
+            //   而本宿主在上面第 7~8 节把 `_map.Area` 推到了 BloodMoor 就没再复位 ⇒
+            //   到这里区域仍是野外 ⇒ `Interact` 全被门禁拦掉、下面几条断言必然失败。
             //   NPC 站位（阿卡拉 (10,10) / 瓦瑞夫 (18,10)）本来就是**城镇**坐标 ⇒ 这里复位回 Town 才是对场景。
             _map.Area = AreaId.Town;
             Game.Event.On<NpcDialogArgs>(Events.DialogOpen, OnDialogOpenRecorder);
@@ -1234,18 +1141,16 @@ namespace ItemCheck
             var b1 = factory.Create(124, 1, ItemQuality.Normal, new Rng(12));
             b1.count = 2;
             item.AddToBelt(b1, 0);
-            quest.Reset();
-            quest.AcceptDen();
 
             Check("SaveModule.Ready = true（Game.Setting 已接入）", save.Ready, "Ready=" + save.Ready);
             var savedOk = save.Save();
-            Check("Save() 成功（无参，走 Player/Item/Quest/Skill）", savedOk, savedOk ? "ok" : save.LastError);
+            Check("Save() 成功（无参，走 Player/Item/Skill）", savedOk, savedOk ? "ok" : save.LastError);
 
             //   `Game.Setting` 的 `char/{名}` 键改成**一角色一文件** ——
             //   `<SettingDir>/saves/<名>.json`，读写走引擎 `CloverEngine.FileSlotStore`
             //   （口径见 `Module/Save/SaveModule.cs:3-11`）。本宿主的存档断言仍按旧键读 ⇒ 必然 0 字节
             //   （verify.ps1 的 offline-hosts 因此一直 FAIL）。改成读**槽位文件**，断言强度不降：
-            //   仍要求"文件存在 + 非空 + 含 quests/inventory 字段 + 两次保存等价"。
+            //   仍要求"文件存在 + 非空 + 含 inventory 字段 + 两次保存等价"。
             //   `char/index`（创建先后索引）**仍在 Game.Setting**（业务语义，A6 未动它）。
             var saveRoot = Game.Config != null && !string.IsNullOrEmpty(Game.Config.SettingDir)
                 ? Game.Config.SettingDir
@@ -1254,7 +1159,7 @@ namespace ItemCheck
             var json1 = System.IO.File.Exists(saveFile) ? System.IO.File.ReadAllText(saveFile) : null;
             Check("存档已落盘到 <SettingDir>/saves/CheckHero.json", !string.IsNullOrEmpty(json1),
                 "path=" + saveFile + " bytes=" + (json1 == null ? 0 : json1.Length));
-            Check("存档含任务与背包字段", json1 != null && json1.Contains("\"quests\"") && json1.Contains("\"inventory\""), "见 JSON");
+            Check("存档含背包字段", json1 != null && json1.Contains("\"inventory\""), "见 JSON");
             Check("新档不再写旧键 char/CheckHero（A6 起档在槽位文件里，旧键只用于懒迁移）",
                 !_setting.HasKey(GameConst.SaveKeyPrefix + "CheckHero"),
                 "oldKeyPresent=" + _setting.HasKey(GameConst.SaveKeyPrefix + "CheckHero"));
@@ -1262,9 +1167,8 @@ namespace ItemCheck
 
             var data = save.Load("CheckHero");
             Check("Load() 返回存档", data != null, data == null ? "null" : data.name);
-            Check("读档带回金币/背包/任务", data != null && data.gold == 1234 && CountAnchorsInSave(data) == 1
-                && data.quests.Count == 1 && data.quests[0].state == QuestState.InProgress,
-                data == null ? "-" : $"gold={data.gold} anchors={CountAnchorsInSave(data)} quest={data.quests.Count}");
+            Check("读档带回金币/背包", data != null && data.gold == 1234 && CountAnchorsInSave(data) == 1,
+                data == null ? "-" : $"gold={data.gold} anchors={CountAnchorsInSave(data)}");
             Check("读档带回技能（从 ISkillModule 反查）", data != null && data.skillIds.Count == 2 && data.buttonSkills[1] != -1,
                 data == null ? "-" : $"skills={data.skillIds.Count} button1={data.buttonSkills[1]}");
 
@@ -2646,48 +2550,6 @@ namespace ItemCheck
                 if (!set.Contains(texts[i])) set.Add(texts[i]);
             }
             return set.Count;
-        }
-
-        private static bool CanTurnInFlag(Diablo2.Module.INpcModule npc, Diablo2.Module.IQuestModule quest)
-        {
-            // 把任务推到"可交付"，再看对话标志
-            _monster.SeedDen(1);
-            _map.Area = AreaId.DenOfEvil;
-            quest.Reset();
-            quest.AcceptDen();
-            Game.Event.Emit(Events.AreaChanged, AreaId.DenOfEvil);
-            _monster.KillOneInDen();
-            quest.NotifyMonsterKilled(1);
-            _map.Area = AreaId.Town;
-            var d = npc.GetDialog(0);
-            if (d == null)
-            {
-                Console.WriteLine("      （可交付阶段：GetDialog(0) = null ⇒ 见上一行 [Npc] Warn，本行判 fail）");
-                return false;
-            }
-            var ok = d.canTurnInQuest;
-            Console.WriteLine($"      （可交付阶段：CanTurnInDen={quest.CanTurnInDen} 对话.canTurnInQuest={d.canTurnInQuest}）");
-            return ok;
-        }
-
-        /// <summary>通过公开流程把任务推到四个阶段（验收要求"4 个阶段各取一次对话"）。</summary>
-        private static void SetQuestStage(Diablo2.Module.IQuestModule quest, QuestState target)
-        {
-            quest.Reset();
-            if (target == QuestState.NotStarted) return;
-
-            _monster.SeedDen(1);
-            _map.Area = AreaId.DenOfEvil;
-            quest.AcceptDen();
-            Game.Event.Emit(Events.AreaChanged, AreaId.DenOfEvil);
-            if (target == QuestState.InProgress) return;
-
-            _monster.KillOneInDen();
-            quest.NotifyMonsterKilled(1);
-            if (target == QuestState.ReadyToTurnIn) return;
-
-            _map.Area = AreaId.Town;
-            quest.TurnInDen();
         }
 
         private static bool BreakJsonRoundTrip(Diablo2.Module.ISaveModule save)

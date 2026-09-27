@@ -28,9 +28,6 @@ namespace Diablo2.Def
         /// <summary>技能树（原版 <c>T</c>）。</summary>
         public const GameKey KeySkillTree = GameKey.T;
 
-        /// <summary>任务日志（原版 <c>Q</c>）。</summary>
-        public const GameKey KeyQuestLog = GameKey.Q;
-
         /// <summary>自动地图 / 小地图（原版 <c>Tab</c>）。</summary>
         public const GameKey KeyMinimap = GameKey.Tab;
 

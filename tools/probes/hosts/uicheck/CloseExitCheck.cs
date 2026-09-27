@@ -14,7 +14,7 @@
 //   即「**要么屏自己有可见关闭控件，要么同一个入口（HUD 按钮/热键）还能再点一次关掉它**」。
 //
 // 覆盖口径 = 影响域：
-//   `InventoryPanel`（关闭控件可见化）· `SkillTreePanel` / `QuestLogPanel`（Popup → Normal
+//   `InventoryPanel`（关闭控件可见化）· `SkillTreePanel`（Popup → Normal
 //   **+ 右下角关闭钮**）· `MiniMapPanel`（本来就 Normal；原版 automap 是满屏叠加层、没有窗口框
 //   也没有关闭钮 ⇒ 出口 = Tab / HUD「自動地圖」按钮，见该屏类头注释）。
 //   `CharacterPanel` 归片 `charstat`、`ShopPanel` 归片 `shopart` ⇒ **只打印读数，不参与判定**
@@ -23,9 +23,8 @@
 // 退化样本（**同一 `Judge` 判，同进程对立读数，不是文字声明**）：把「修前形状」重建出来
 // （层改回 `Popup` + 去掉关闭钮的建节点与贴图形两步）再喂进同一判据 ⇒ 必须**不合格**：
 //   ① `InventoryPanel`：透明命中区 + 不贴任何图形帧；
-//   ② `SkillTreePanel`：`Layer => UILayer.Popup` + 无可见关闭控件；
-//   ③ `QuestLogPanel`：同上。
-//   三条退化样本若有一条"合格"，说明本判据没有在判该判的东西 ⇒ 直接报错。
+//   ② `SkillTreePanel`：`Layer => UILayer.Popup` + 无可见关闭控件。
+//   两条退化样本若有一条"合格"，说明本判据没有在判该判的东西 ⇒ 直接报错。
 //
 // 判据的**自认边界**（不夸大）：`CloseVisible` 是**源码结构**判据（节点底色 alpha / 后续贴原版贴图 /
 //   其下有没有一条 alpha=1 的位图字模标记），**不是像素判据**；"点下去到底关不关"属实机表现类，
@@ -47,7 +46,6 @@ namespace Uicheck
         {
             ("InventoryPanel", "关闭按钮从 alpha=0 命中区改成可见的原版「关闭 / 取消」图形帧"),
             ("SkillTreePanel", "Popup → Normal（遮罩消失 ⇒ HUD「技能樹 T」入口可点）+ 右下角关闭钮"),
-            ("QuestLogPanel", "Popup → Normal（同上）+ 右下角关闭钮（底图右下角方槽）"),
             ("MiniMapPanel", "本来就 Normal；原版 automap 无窗口框/无关闭钮 ⇒ 出口 = Tab / HUD「自動地圖」"),
         };
 
@@ -210,7 +208,6 @@ namespace Uicheck
             // ── ③ 退化样本：把「修前形状」喂进**同一个 Judge**，必须变红 ──────────
             var afterInv = Path.Combine(Program.UiDir, "InventoryPanel.cs");
             var afterSkill = Path.Combine(Program.UiDir, "SkillTreePanel.cs");
-            var afterQuest = Path.Combine(Program.UiDir, "QuestLogPanel.cs");
 
             // 退化 A：修前背包关闭按钮（透明命中区 + 不贴任何图形帧）
             var degA = File.Exists(afterInv)
@@ -232,21 +229,11 @@ namespace Uicheck
                 degB.Length > 0 && !rb.Ok,
                 $"层={rb.Layer} 关闭节点={rb.CloseNode} HUD入口={rb.HudEntry} ⇒ Ok={rb.Ok}");
 
-            // 退化 C：修前任务日志（Popup + 无关闭控件）
-            var degC = File.Exists(afterQuest)
-                ? PreFixShape(File.ReadAllText(afterQuest), "close")
-                : "";
-            var rc = Judge("QuestLogPanel", degC, hudSrc);
-            Check("R8-close 退化 C（任务日志 Popup 层 + 无关闭控件）必须不合格",
-                degC.Length > 0 && !rc.Ok,
-                $"层={rc.Layer} 关闭节点={rc.CloseNode} HUD入口={rc.HudEntry} ⇒ Ok={rc.Ok}");
-
             // 退化样本必须**真的改到了源码**（否则"变红"可能来自别的原因）
             Check("R8-close 退化样本确实替换了源码",
-                degA.Length > 0 && degB.Length > 0 && degC.Length > 0
-                && degA != File.ReadAllText(afterInv) && degB != File.ReadAllText(afterSkill)
-                && degC != File.ReadAllText(afterQuest),
-                "三条退化文本均非空且与当前源码不同");
+                degA.Length > 0 && degB.Length > 0
+                && degA != File.ReadAllText(afterInv) && degB != File.ReadAllText(afterSkill),
+                "两条退化文本均非空且与当前源码不同");
         }
     }
 }

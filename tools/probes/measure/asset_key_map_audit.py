@@ -4,7 +4,7 @@
 判什么
 ------
 `tools/probes/refs/asset-keys-map-keys.tsv`（由 `hosts/mapcheck` 的 §36 从**生产布局生成物**
-里全量枚举：营地/荒野/洞穴 × 地面层/物件层）里的每一个键，逐个判：
+里全量枚举：营地/荒野 × 地面层/物件层）里的每一个键，逐个判：
 
   ① 文件在不在（`ResPaths.Tile` / `ResPaths.ObjectSprite` 的拼法 = `D2/Tiles/<键>.png` / `D2/Objects/<键>.png`）；
   ② 不是**空图**（不透明像素 = 0 ⇒ 上屏等于空白 —— 比"缺文件"更隐蔽：菱形占位会被看成"没画"）；
@@ -15,8 +15,8 @@
 
 口径出处
 --------
-  · 键集合 / 文件拼法 = `hosts/mapcheck` 的 §36（从 `MapGenTownLayout` / `MapGenWildLayout` /
-    `MapGenCaveLayout` 三张生成物解析）+ `Core/ResPaths.cs` 的 `Tile` / `ObjectSprite`
+  · 键集合 / 文件拼法 = `hosts/mapcheck` 的 §36（从 `MapGenTownLayout` / `MapGenWildLayout`
+    两张生成物解析）+ `Core/ResPaths.cs` 的 `Tile` / `ObjectSprite`
   · 白名单           = `Module/Map/MapView.cs` 的 `PaletteCycledFlatWallTiles`
   · 平色口径         = 与 `hosts/mapcheck` 的 `TryFlatColor` 同一句话：只数不透明像素；
                        不透明 < 8 的细条不算平色

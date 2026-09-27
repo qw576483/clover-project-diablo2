@@ -81,8 +81,6 @@ namespace Diablo2.Module.Save
             WriteItemList(sb, s.equip);
             Key(sb, "belt", true);
             WriteItemList(sb, s.belt);
-            Key(sb, "quests", true);
-            WriteQuestList(sb, s.quests);
 
             Field(sb, "savedAtTicks", s.savedAtTicks, true);
             Key(sb, "playedSeconds", true);
@@ -294,34 +292,6 @@ namespace Diablo2.Module.Save
             sb.Append(']');
         }
 
-        private static void WriteQuestList(StringBuilder sb, List<QuestStateDto> list)
-        {
-            sb.Append('[');
-            if (list != null)
-            {
-                for (var i = 0; i < list.Count; i++)
-                {
-                    var q = list[i];
-                    if (i > 0) sb.Append(',');
-                    if (q == null)
-                    {
-                        sb.Append("null");
-                        continue;
-                    }
-                    sb.Append('{');
-                    Field(sb, "questId", q.questId, false);
-                    Field(sb, "name", q.name, true);
-                    Field(sb, "state", (int)q.state, true);
-                    Field(sb, "progress", q.progress, true);
-                    Field(sb, "required", q.required, true);
-                    Field(sb, "rewardClaimed", q.rewardClaimed, true);
-                    Field(sb, "objective", q.objective, true);
-                    sb.Append('}');
-                }
-            }
-            sb.Append(']');
-        }
-
         // ═════════════════════════════════════════════════════════════════════
         // 读
         // ═════════════════════════════════════════════════════════════════════
@@ -396,7 +366,6 @@ namespace Diablo2.Module.Save
             s.inventory = GetSlotList(dict, "inventory");
             s.equip = GetItemList(dict, "equip");
             s.belt = GetItemList(dict, "belt");
-            s.quests = GetQuestList(dict, "quests");
             s.savedAtTicks = GetLong(dict, "savedAtTicks", 0);
             s.playedSeconds = GetFloat(dict, "playedSeconds", 0f);
 
@@ -618,32 +587,6 @@ namespace Diablo2.Module.Save
                 });
             }
             return it;
-        }
-
-        private static List<QuestStateDto> GetQuestList(Dictionary<string, object> d, string key)
-        {
-            var res = new List<QuestStateDto>();
-            var list = GetList(d, key);
-            for (var i = 0; i < list.Count; i++)
-            {
-                var o = list[i] as Dictionary<string, object>;
-                if (o == null)
-                {
-                    res.Add(null);
-                    continue;
-                }
-                res.Add(new QuestStateDto
-                {
-                    questId = GetInt(o, "questId", 0),
-                    name = GetString(o, "name", ""),
-                    state = (QuestState)GetInt(o, "state", (int)QuestState.NotStarted),
-                    progress = GetInt(o, "progress", 0),
-                    required = GetInt(o, "required", 0),
-                    rewardClaimed = GetBool(o, "rewardClaimed", false),
-                    objective = GetString(o, "objective", ""),
-                });
-            }
-            return res;
         }
 
         // ═════════════════════════════════════════════════════════════════════

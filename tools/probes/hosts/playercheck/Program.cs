@@ -65,7 +65,6 @@ namespace PlayerCheck
         public bool IsGenerated => true;
         public Vector2Int SpawnPoint => new Vector2Int(1, 1);
         public IReadOnlyList<Vector2Int> Exits => new List<Vector2Int>();
-        public Vector2Int? CaveEntrance => null;
         public IReadOnlyList<Vector2Int> NpcPoints => new List<Vector2Int>();
         public IReadOnlyList<Vector2Int> MonsterSpawns => new List<Vector2Int>();
 
@@ -389,10 +388,10 @@ namespace PlayerCheck
                 "Game.Event.On(EquipChanged / StatAllocateRequest)");
             //    这里改为断言「本宿主**没有编入**的模块仍保持 null」——这才是该用例的本意（降级不崩）。
             //    本轮（T0 判据缺口 2）：`Module/Item` 已加入本宿主的编译清单（见 `PlayerCheck.csproj`），
-            //        名单里剩下的 4 个（Combat/Skill/Quest/Audio）仍必须为 null，
+            //        名单里剩下的 3 个（Combat/Skill/Audio）仍必须为 null，
             //        而 Save 必须**恰好**是生产实现（不是桩）。
             Check("本宿主未编入的模块保持 null（降级，不崩）",
-                ctx.Combat == null && ctx.Skill == null && ctx.Quest == null
+                ctx.Combat == null && ctx.Skill == null
                 && ctx.Audio == null,
                 ctx.Describe() + "（Monster/Npc = 本宿主 §13 的桩 StubMonsters/StubNpcs，非生产实现）");
             Check("本轮新增编入的 ViewModule 是真实现（§15 f 的三分判据打在它上面）",

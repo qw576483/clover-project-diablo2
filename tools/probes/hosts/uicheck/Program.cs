@@ -137,8 +137,6 @@ namespace Uicheck
             CheckQualityColors();
             CheckBitmapFont();
             CheckArgValidation();
-            CheckQuestLogic();
-            CheckQuestDialogTexts();    // ★ 本片：任务/对话文案 ↔ 原版串表逐条对账（正向 + 反向）
             CheckHudOriginalLayout();
             CheckPanelWiring();
             CheckSpritePathsExist();
@@ -209,7 +207,7 @@ namespace Uicheck
                     Events = new[]
                     {
                         "StageEntered", "StageLeft", "HudDirty", "PlayerStatsChanged", "LevelUp",
-                        "InventoryChanged", "EquipChanged", "SkillTreeChanged", "QuestChanged",
+                        "InventoryChanged", "EquipChanged", "SkillTreeChanged",
                         "MapGenerated",     // agent-13 §B-3：缓存 MinimapArgs 并在打开小地图时传入
                         "AreaChanged",      // agent-a3：过门换区 ⇒ 首次进入该区域时弹区域名（LevelEntryTitle）
                         "PanelToggleRequest", "DialogOpen", "ShopOpen", "PlayerDied",
@@ -250,16 +248,6 @@ namespace Uicheck
                     //   同族互斥（开另一个屏 ⇒ 旧屏关掉）由 `UI/HudPanel.cs` 的 `CloseScreenFamily` 显式补。
                     Type = typeof(SkillTreePanel), Layer = "Normal",
                     Events = new[] { "SkillTreeChanged", "SkillLearned", "SkillLearnRequest", "SkillSelected" },
-                },
-                new PanelSpec
-                {
-                    // R8-close：同上（`Popup` → `Normal`）—— 本屏同样没有任何关闭控件，出口 = Q 键 /
-                    //   HUD「任務記錄」按钮；详细理由见 `UI/QuestLogPanel.cs` 类头注释与 `CloseExitCheck.cs`。
-                    Type = typeof(QuestLogPanel), Layer = "Normal",
-                    // 本轮（UI 全量对照）改口径：**接取/交付任务只走 NPC 对话**（原版就没有任务面板按钮），
-                    //   这两个事件归 `NpcDialogPanel`（下面的 spec 里仍然核对）⇒ 本面板不再引用它们。
-                    //   本面板只收 QuestChanged（刷新）+ QuestCompleted / QuestTurnInDenied（给玩家回馈）。
-                    Events = new[] { "QuestChanged", "QuestCompleted", "QuestTurnInDenied" },
                 },
                 new PanelSpec
                 {
@@ -413,10 +401,10 @@ namespace Uicheck
                 File.Exists(prefab), prefab);
 
             // ② 列表口径 = 已去过 − 当前区域，顺序 = AreaId 枚举序（稳定可断言）
-            var all = new[] { (int)AreaId.Town, (int)AreaId.BloodMoor, (int)AreaId.DenOfEvil };
+            var all = new[] { (int)AreaId.Town, (int)AreaId.BloodMoor };
             var d1 = WaypointPanel.PlanDests(all, (int)AreaId.Town);
-            Check("PlanDests(去过 3 个, 当前=营地) ⇒ 恰 2 条、不含当前区域、按枚举序",
-                d1.Count == 2 && d1[0].area == (int)AreaId.BloodMoor && d1[1].area == (int)AreaId.DenOfEvil,
+            Check("PlanDests(去过 2 个, 当前=营地) ⇒ 恰 1 条、不含当前区域、按枚举序",
+                d1.Count == 1 && d1[0].area == (int)AreaId.BloodMoor,
                 $"count={d1.Count} [{string.Join(",", d1.ConvertAll(x => x.area + ":" + x.name).ToArray())}]");
 
             var d2 = WaypointPanel.PlanDests(new[] { (int)AreaId.Town }, (int)AreaId.Town);
@@ -433,12 +421,11 @@ namespace Uicheck
             var d5 = WaypointPanel.PlanDests(null, (int)AreaId.Town);
             Check("PlanDests(null) ⇒ 0 条（不抛）", d5.Count == 0, $"count={d5.Count}");
 
-            Check("区域名 = 原版三张图；表外号给占位名（不猜）",
+            Check("区域名 = 原版两张图；表外号给占位名（不猜）",
                 WaypointPanel.NameOf((int)AreaId.Town) == "罗格营地"
                 && WaypointPanel.NameOf((int)AreaId.BloodMoor) == "血腥荒野"
-                && WaypointPanel.NameOf((int)AreaId.DenOfEvil) == "邪恶洞穴"
                 && WaypointPanel.NameOf(999).StartsWith("区域#"),
-                "罗格营地 / 血腥荒野 / 邪恶洞穴 / 999→占位名");
+                "罗格营地 / 血腥荒野 / 999→占位名");
 
             // ③ 接线守卫（**回归闸门**）：`App/AppWaypoint.cs` 写好但没人调 `Install` ⇒ 点击 / 到达 /
             var wiring = File.ReadAllText(
@@ -1088,390 +1075,6 @@ namespace Uicheck
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // ⑧ 任务日志的状态口径
-        // ═════════════════════════════════════════════════════════════════════
-        private static void CheckQuestLogic()
-        {
-            Console.WriteLine("── ⑧ 任务（邪恶洞穴）进度口径 ──");
-
-            var inProgress = new QuestStateDto
-            {
-                questId = (int)QuestId.DenOfEvil, name = "邪恶洞穴",
-                state = QuestState.InProgress, progress = 3, required = 6,
-            };
-            Check("进行中（3/6）⇒ 剩余 3，不可交付",
-                QuestLogPanel.Remaining(inProgress) == 3 && !QuestLogPanel.CanTurnIn(inProgress),
-                $"remaining={QuestLogPanel.Remaining(inProgress)}");
-
-            inProgress.progress = 6;
-            Check("清光（6/6）⇒ 剩余 0，可交付（原版硬条件）",
-                QuestLogPanel.Remaining(inProgress) == 0 && QuestLogPanel.CanTurnIn(inProgress),
-                $"remaining={QuestLogPanel.Remaining(inProgress)}");
-
-            var done = new QuestStateDto { state = QuestState.Done, progress = 6, required = 6, rewardClaimed = true };
-            Check("已完成 ⇒ Remaining 不出现负数", QuestLogPanel.Remaining(done) == 0, "0");
-
-            //   （未接取 = `noactivequest` 3723；进行中 = 任务名 + 目标 + 进度行；…见 UI对照.md §②）
-            Check("正文 = 原版串：未接取 / 进行中（含进度行）/ 可交付 / 已完成 四态逐字正确",
-                QuestLogPanel.TextOf(null) == QuestLogPanel.TextNoActiveQuest
-                && QuestLogPanel.TextOf(new QuestStateDto
-                {
-                    questId = 1, name = "邪惡洞穴", state = QuestState.NotStarted,
-                }) == "沒有進行中的任務。"
-                && QuestLogPanel.TextOf(new QuestStateDto
-                {
-                    questId = 1, name = "邪惡洞穴", state = QuestState.InProgress,
-                    progress = 3, required = 6, objective = "A\nB",
-                }) == "邪惡洞穴\nA\nB\n剩下的怪物：3"
-                && QuestLogPanel.TextOf(new QuestStateDto
-                {
-                    questId = 1, name = "邪惡洞穴", state = QuestState.InProgress,
-                    progress = 5, required = 6, objective = "A",
-                }) == "邪惡洞穴\nA\n還有一個怪物。"
-                && QuestLogPanel.TextOf(new QuestStateDto
-                {
-                    questId = 1, name = "邪惡洞穴", state = QuestState.ReadyToTurnIn,
-                    progress = 6, required = 6, objective = "C",
-                }) == "邪惡洞穴\nC"
-                && QuestLogPanel.TextOf(new QuestStateDto
-                {
-                    questId = 1, name = "邪惡洞穴", state = QuestState.Done, objective = "D",
-                }) == "邪惡洞穴\nD",
-                "见 UI/QuestLogPanel.TextOf（串 3723 / 3738 / 3739）");
-
-            // ── 版面（**依据 = 原版 `MENU/questbackground.dc6` 实测分区**，见 `UiLayoutGame` §⑥）──
-            const float K = UiLayoutGame.K;
-            Check("任务面板尺寸 = 原版 320×432 ×1.8 = 576×777.6",
-                Math.Abs(UiLayoutGame.QuestPanelSize.x - 320f * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestPanelSize.y - 432f * K) < 0.01f,
-                $"{UiLayoutGame.QuestPanelSize.x}×{UiLayoutGame.QuestPanelSize.y}");
-
-            Check("章节页签 = 原版 4 个 78×30（4×78 = 312 ≈ 320 窄带）",
-                UiLayoutGame.QuestActCount == 4
-                && Math.Abs(UiLayoutGame.QuestTabSize.x - 78f * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestTabSize.y - 30f * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestTabX(0) - (43f - 160f) * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestTabX(3) - (277f - 160f) * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestTabY - (216f - 15f) * K) < 0.01f,
-                $"x={UiLayoutGame.QuestTabX(0)},{UiLayoutGame.QuestTabX(3)} y={UiLayoutGame.QuestTabY}");
-
-            // 2026「任务框」轮：石纹区实测净高 = 200（满宽金线 y=28/230）⇒ 2×95 上下各余 5
-            //   ⇒ 行心 82.5 / 177.5（旧断言按"y28..230 + 各留 6"取 81.5/176.5，差 1px，已按实测改准）。
-            Check("任务格 = 原版 3×2 个 80×95（240×190 嵌进石纹区实测净高 200）",
-                UiLayoutGame.QuestSlotCount == 6
-                && Math.Abs(UiLayoutGame.QuestSlotSize.x - 80f * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestSlotSize.y - 95f * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestSlotX(0) - (80f - 160f) * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestSlotX(2) - (240f - 160f) * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestSlotY(0) - (216f - 82.5f) * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestSlotY(1) - (216f - 177.5f) * K) < 0.01f,
-                $"colX={UiLayoutGame.QuestSlotX(0)}/{UiLayoutGame.QuestSlotX(2)} " +
-                $"rowY={UiLayoutGame.QuestSlotY(0)}/{UiLayoutGame.QuestSlotY(1)}");
-
-            //   石龛 80×95 ⇒ (80−72)/2=4、(95−86)/2=4.5 ⇒ **居中**（偏移 0）。
-            Check("任务图 72×86 在石龛 80×95 里居中（偏移 0）",
-                Math.Abs(UiLayoutGame.QuestArtSize.x - 72f * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestArtSize.y - 86f * K) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestArtPos.x) < 0.01f
-                && Math.Abs(UiLayoutGame.QuestArtPos.y) < 0.01f,
-                $"artSize={UiLayoutGame.QuestArtSize} artPos={UiLayoutGame.QuestArtPos}");
-
-            {
-                var boxH = UiLayoutGame.QuestTextBoxSize.y;
-                var top = UiLayoutGame.QuestTextTopY;
-                var bottom = UiLayoutGame.QuestTextBoxPos.y - boxH * 0.5f;
-                var textTop = UiLayoutGame.QuestTextPos.y + UiLayoutGame.QuestTextH * 0.5f;
-                var textBottom = UiLayoutGame.QuestTextPos.y - UiLayoutGame.QuestTextH * 0.5f;
-                Check("正文字框在黑芯（316×129 原版px）内、上下各留 2 原版px、行宽 300 原版px",
-                    Math.Abs(UiLayoutGame.QuestTextBoxSize.x - 316f * K) < 0.01f
-                    && Math.Abs(boxH - 129f * K) < 0.01f
-                    && Math.Abs(UiLayoutGame.QuestTextH - (129f - 2f * UiLayoutGame.QuestTextPadY) * K) < 0.01f
-                    && textTop <= top + 0.01f && textBottom >= bottom - 0.01f
-                    && Math.Abs(UiLayoutGame.QuestTextWidth - (316f - 2f * UiLayoutGame.QuestTextPadX) * K) < 0.01f,
-                    $"box={UiLayoutGame.QuestTextBoxSize.x}×{boxH} textH={UiLayoutGame.QuestTextH} "
-                    + $"textW={UiLayoutGame.QuestTextWidth}");
-            }
-
-            // 页签 / 石龛 / 正文黑区：两两不重叠，且都落在面板矩形（±288, ±388.8）内
-            static UnityEngine.Rect Deflate(UnityEngine.Rect r, float d)
-                => new UnityEngine.Rect(r.x + d, r.y + d, r.width - 2f * d, r.height - 2f * d);
-
-            var qr = UiLayoutGame.QuestRects();
-            var overlap = "";
-            for (var i = 0; i < qr.Length && overlap.Length == 0; i++)
-                for (var j = i + 1; j < qr.Length; j++)
-                    // 各内缩 0.5：石龛行是"刚好相接"（202−190=12 ⇒ 上下各 6），
-                    // 直接 Overlaps 会被浮点误差（156.59999 vs 156.600006）判成重叠。
-                    if (Deflate(qr[i].rect, 0.5f).Overlaps(Deflate(qr[j].rect, 0.5f)))
-                    {
-                        overlap = qr[i].name + " × " + qr[j].name;
-                        break;
-                    }
-            Check("任务面板图元两两不重叠（页签 4 / 石龛 6 / 正文黑区 1）",
-                overlap.Length == 0 && qr.Length == 11, overlap.Length == 0 ? $"{qr.Length} 个矩形" : overlap);
-
-            var outside = "";
-            foreach (var (n, r) in qr)
-                if (r.xMin < -320f * 0.9f || r.xMax > 320f * 0.9f
-                    || r.yMin < -432f * 0.9f || r.yMax > 432f * 0.9f)
-                {
-                    outside = n;
-                    break;
-                }
-            Check("任务面板图元都落在原版面板矩形内（±288 / ±388.8）", outside.Length == 0,
-                outside.Length == 0 ? "全部在内" : outside);
-
-            // 标题条在**面板外**（面板顶沿上方），不与页签行相撞
-            var bannerBottom = UiLayoutGame.QuestBannerY - UiLayoutGame.QuestBannerBox.y * 0.5f;
-            var tabTop = UiLayoutGame.QuestTabY + UiLayoutGame.QuestTabSize.y * 0.5f;
-            Check("标题条整条在面板上方（不与页签行/石龛相撞）",
-                bannerBottom >= tabTop - 0.01f && bannerBottom >= UiLayoutGame.QuestPanelSize.y * 0.5f - 0.01f,
-                $"bannerBottom={bannerBottom} tabTop={tabTop} panelTop={UiLayoutGame.QuestPanelSize.y * 0.5f}");
-
-            {
-                // U3 改口径（**不是放宽**）：底图按 `DialogArtScale`(=2) 画 —— 判据改成
-                //   「整幅尺寸 == 210×158 × DialogArtScale × K」+「内容行宽 == (205−2×6) × DialogArtScale × K」，
-                //   石框下沿钉在 HUD 控制面板上沿（−252）。依据/推导见 `NpcDialogPanel.DialogArtScale`。
-                var sc = NpcDialogPanel.DialogArtScale;
-                Check("对话面板：整幅 = 原版 210×158 × DialogArtScale(2) ×1.8 = 756×568.8；内容行宽 = (205−12)×2×1.8",
-                    Math.Abs(NpcDialogPanel.DialogArtSize.x - 210f * sc * K) < 0.01f
-                    && Math.Abs(NpcDialogPanel.DialogArtSize.y - 158f * sc * K) < 0.01f
-                    && Math.Abs(NpcDialogPanel.ContentW - (205f - 2f * NpcDialogPanel.TextPadX) * sc * K) < 0.01f
-                    && Math.Abs(NpcDialogPanel.FrameBottom - (-252f)) < 0.01f
-                    && Math.Abs(NpcDialogPanel.FrameTop
-                        - (NpcDialogPanel.FrameBottom + 158f * sc * K)) < 0.01f,
-                    $"art={NpcDialogPanel.DialogArtSize} W={NpcDialogPanel.ContentW} top={NpcDialogPanel.FrameTop} bottom={NpcDialogPanel.FrameBottom}");
-
-                var bodyTop = NpcDialogPanel.BodyY + NpcDialogPanel.BodyH * 0.5f;
-                var bodyBottom = NpcDialogPanel.BodyY - NpcDialogPanel.BodyH * 0.5f;
-                Check("对话面板：台词框（名 + 台词）整块落在石框内、且覆盖实测长槽（原版 y 3..90）",
-                    Math.Abs(NpcDialogPanel.TextH
-                        - (NpcDialogPanel.TextBottomOrigY - NpcDialogPanel.TextTopOrigY) * sc * K) < 0.01f
-                    && bodyTop <= NpcDialogPanel.FrameTop + 0.01f
-                    && bodyBottom >= NpcDialogPanel.FrameBottom - 0.01f
-                    && bodyBottom <= NpcDialogPanel.Cy(NpcDialogPanel.TextBottomOrigY) + 0.01f,
-                    $"bodyTop={bodyTop} bodyBottom={bodyBottom} textH={NpcDialogPanel.TextH}");
-
-                var optBad = "";
-                var bandTop = NpcDialogPanel.Cy(NpcDialogPanel.LowerBandY0);
-                for (var i = 0; i < NpcDialogPanel.MaxOptions; i++)
-                {
-                    var cy = NpcDialogPanel.OptionY(i);
-                    if (cy + NpcDialogPanel.OptionSize.y * 0.5f > bandTop + 0.01f
-                        || cy - NpcDialogPanel.OptionSize.y * 0.5f < NpcDialogPanel.FrameBottom - 0.01f)
-                        optBad += i + ":越界 ";
-                    if (i > 0 && (NpcDialogPanel.OptionY(i - 1) - cy) < NpcDialogPanel.OptionSize.y - 0.01f)
-                        optBad += i + ":重叠 ";
-                }
-                Check("对话面板：菜单项（最多 3 个）全部落在下带内、两两不重叠、不越石框底沿",
-                    optBad.Length == 0, optBad.Length == 0 ? "3 行都在下带内" : optBad);
-
-                Check("对话面板：实测两个 34×34 雕槽常量 = 左 x34..67 / 右 x139..172 / y115..148",
-                    Math.Abs(NpcDialogPanel.SlotCellSize - 34f) < 0.01f
-                    && NpcDialogPanel.SlotCellLeftX0 == 34f && NpcDialogPanel.SlotCellLeftX1 == 67f
-                    && NpcDialogPanel.SlotCellRightX0 == 139f && NpcDialogPanel.SlotCellRightX1 == 172f
-                    && NpcDialogPanel.SlotCellY0 == 115f && NpcDialogPanel.SlotCellY1 == 148f
-                    && NpcDialogPanel.SlotOuterX0 == 29f && NpcDialogPanel.SlotOuterX1 == 197f
-                    && NpcDialogPanel.SlotOuterY0 == 67f && NpcDialogPanel.SlotOuterY1 == 91f,
-                    "口径见 UI对照.md §③（逐像素扫金线）");
-            }
-
-            Check("石龛序号口径 = questId−1（第一章 6 个任务），越界不就近塞格",
-                QuestLogPanel.SlotOf((int)QuestId.DenOfEvil) == 0
-                && QuestLogPanel.SlotOf(6) == 5
-                && QuestLogPanel.SlotOf(7) == -1
-                && QuestLogPanel.SlotOf(0) == -1,
-                $"DenOfEvil→{QuestLogPanel.SlotOf((int)QuestId.DenOfEvil)} 7→{QuestLogPanel.SlotOf(7)}");
-
-            Check("四态 → 原版任务图：未接取=不画 / 进行中=a1q1 / 可交付=a1q1+金框 / 已完成=questdone",
-                QuestLogPanel.SlotArtPathOf(1, QuestState.NotStarted) == null
-                && QuestLogPanel.SlotArtPathOf(1, QuestState.InProgress) == ResPaths.QuestImage("a1q1", 0)
-                && QuestLogPanel.SlotArtPathOf(1, QuestState.ReadyToTurnIn) == ResPaths.QuestImage("a1q1", 0)
-                && QuestLogPanel.SlotArtPathOf(1, QuestState.Done) == ResPaths.Frame(ResPaths.PanelQuestDone, 0)
-                && QuestLogPanel.SocketFrameOf(new QuestStateDto { state = QuestState.ReadyToTurnIn }) == 1
-                && QuestLogPanel.SocketFrameOf(new QuestStateDto { state = QuestState.InProgress, progress = 6, required = 6 }) == 1
-                && QuestLogPanel.SocketFrameOf(new QuestStateDto { state = QuestState.InProgress, progress = 1, required = 6 }) == 0
-                && QuestLogPanel.SocketFrameOf(new QuestStateDto { state = QuestState.Done }) == 0,
-                "见 UI/QuestLogPanel.cs::SlotArtPathOf / SocketFrameOf");
-
-            Check("任务 id → 原版任务图文件名 = a{章}q{章内序号}（21 张：Act I~III 各 6、Act IV 3）",
-                QuestLogPanel.QuestArtFileOf(1) == "a1q1"
-                && QuestLogPanel.QuestArtFileOf(2) == "a1q2"
-                && QuestLogPanel.QuestArtFileOf(6) == "a1q6"
-                && QuestLogPanel.QuestArtFileOf(7) == "a2q1"
-                && QuestLogPanel.QuestArtFileOf(19) == "a4q1"
-                && QuestLogPanel.QuestArtFileOf(21) == "a4q3"
-                && QuestLogPanel.QuestArtFileOf(22) == null
-                && QuestLogPanel.QuestArtFileOf(0) == null,
-                $"1→{QuestLogPanel.QuestArtFileOf(1)} 19→{QuestLogPanel.QuestArtFileOf(19)} "
-                + $"21→{QuestLogPanel.QuestArtFileOf(21)} 22→{QuestLogPanel.QuestArtFileOf(22)}");
-
-            Console.WriteLine();
-        }
-
-        // ═════════════════════════════════════════════════════════════════════
-        //
-        //   ① **正向**：代码里逐句声明"这句是串 id N" ⇒ 去串表按 N 取原文，逐字（忽略空白/换行）比对；
-        //   ② **反向**：两个面板 `.cs` 里**所有含中日韩字符的字符串字面量**都必须能在串表里找到
-        //      —— 唯一豁免 = 控制台日志（行内含 `UiLog.` / `Log.`）与引擎 Toast（行内含 `Toast(`），
-        //      理由：它们不上"面板"，且 Toast 的中文字体问题已登记在验收表 **E19**。
-        // 串表口径：`原版资源/d2text/chi_string.txt` = `id<TAB>[<换行数>\n]<文本>`（换行是**字面** `\n`）；
-        //   键名对照 `原版资源/参考工程_Diablierie/Diablerie/Assets/StreamingAssets/data/local/string.txt`。
-        // ═════════════════════════════════════════════════════════════════════
-        private static void CheckQuestDialogTexts()
-        {
-            Console.WriteLine("── ⑧-2 任务日志 / NPC 对话文案 ↔ 原版串表（TBL）逐条对账 ──");
-
-            var tblPath = Path.Combine(OriginalResDir, "d2text", "chi_string.txt");
-            if (!File.Exists(tblPath))
-            {
-                CheckOriginalRes("原版串表 chi_string.txt 在磁盘上", tblPath);
-                Console.WriteLine("      ⇒ 本节 ①正向（逐条按串 id 取原文比对）/ ②反向（面板里每个含中日韩字符的"
-                    + "字面量都必须能在串表里找到）一并跳过 —— 判据源不在位时这两条**无法判定**（不是通过）。");
-                return;
-            }
-
-            var tbl = new Dictionary<int, string>();
-            foreach (var line in File.ReadAllLines(tblPath, Encoding.UTF8))
-            {
-                var tab = line.IndexOf('\t');
-                if (tab <= 0 || !int.TryParse(line.Substring(0, tab), out var id)) continue;
-                tbl[id] = NormTblText(line.Substring(tab + 1));
-            }
-            Check("原版串表已解析（5391 条）", tbl.Count >= 5391, $"{tbl.Count} 条");
-
-            // ① 正向：逐条把"代码里声称的串 id"拿到串表里核对
-            var claims = new (int id, string key, string where)[]
-            {
-                (3714, "qstsa1q1", "任务名（DenOfEvilQuest.Name）"),
-                (3735, "qstsa1q11", "目标行·找洞（ObjectiveLookForDen）"),
-                (3736, "qstsa1q12", "目标行·杀光（ObjectiveKillAll）"),
-                (3740, "qstsa1q15", "目标行·领赏（ObjectiveReturnForReward）"),
-                (3726, "qstsComplete", "目标行·結束（ObjectiveComplete）"),
-                (3723, "noactivequest", "未接取整屏（TextNoActiveQuest）"),
-                (3738, "qstsa1q14", "进度前缀（TextMonstersRemainingPrefix）"),
-                (3739, "qstsa1q140", "只剩一只（TextOneMonsterLeft）"),
-                (64, "A1Q1InitAkara", "阿卡拉·未接取"),
-                (71, "A1Q1EarlyReturnAkara", "阿卡拉·进行中"),
-                (76, "A1Q1SuccessfulAkara", "阿卡拉·可交付/已完成"),
-                (66, "A1Q1AfterInitKashya", "卡夏·未完成"),
-                (77, "A1Q1SuccessfulKashya", "卡夏·已完成"),
-                (67, "A1Q1AfterInitCharsiMain", "恰西·未完成"),
-                (78, "A1Q1SuccessfulCharsi", "恰西·已完成"),
-                (69, "A1Q1AfterInitGheed", "基得·未完成"),
-                (79, "A1Q1SuccessfulGheed", "基得·已完成"),
-                (70, "A1Q1AfterInitWarriv", "瓦瑞夫·未完成"),
-                (80, "A1Q1SuccessfulWarriv", "瓦瑞夫·已完成"),
-                (2892, "Akara", "NPC 名·阿卡拉"),
-                (2893, "Kashya", "NPC 名·卡夏"),
-                (2894, "Charsi", "NPC 名·恰西"),
-                (2891, "Gheed", "NPC 名·基得"),
-                (2896, "Warriv", "NPC 名·瓦瑞夫"),
-                (3394, "NPCMenuLeave", "选项·離開"),
-                (3386, "NPCMenuNews0", "选项·重要消息"),
-                (3334, "NPCMenuTradeRepair", "选项·交易/修理"),
-                (3396, "NPCMenuTrade", "选项·交易"),
-            };
-
-            var sources = new (string file, string tag)[]
-            {
-                (Path.Combine(UiDir, "QuestLogPanel.cs"), "UI/QuestLogPanel.cs"),
-                (Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "Module", "Quest", "DenOfEvilQuest.cs"),
-                    "Module/Quest/DenOfEvilQuest.cs"),
-                (Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "Module", "Npc", "NpcDialog.cs"),
-                    "Module/Npc/NpcDialog.cs"),
-                (Path.Combine(ProjectRoot, "client", "Assets", "Scripts", "Module", "Npc", "NpcModule.cs"),
-                    "Module/Npc/NpcModule.cs"),
-            };
-
-            var srcNorm = new Dictionary<string, string>();
-            foreach (var (file, tag) in sources)
-                srcNorm[tag] = NormSource(File.Exists(file) ? File.ReadAllText(file, Encoding.UTF8) : "");
-
-            var missTbl = new List<string>();
-            var missSrc = new List<string>();
-            foreach (var (id, key, where) in claims)
-            {
-                if (!tbl.TryGetValue(id, out var text) || text.Length == 0)
-                {
-                    missTbl.Add($"id={id} 串表里没有原文（{where}）");
-                    continue;
-                }
-                var found = false;
-                foreach (var (tag, norm) in srcNorm)
-                    if (norm.Contains(text)) { found = true; break; }
-                if (!found) missSrc.Add($"id={id}({key}) 的原文没出现在代码里：{where}");
-            }
-
-            Check("① 正向：代码里声称的 28 条原版串 id，逐条能在串表里取到原文", missTbl.Count == 0,
-                missTbl.Count == 0 ? $"28/28 命中（串 id 清单见 UI对照.md §⑦）" : string.Join(" | ", missTbl.ToArray()));
-            Check("② 正向：这 28 条原文逐字出现在 UI/Module 源码里（忽略空白/换行/拼接）", missSrc.Count == 0,
-                missSrc.Count == 0 ? "28/28 逐字命中" : string.Join(" | ", missSrc.ToArray()));
-
-            // ② 反向：两个面板里**所有**含中日韩字符的字面量都必须来自串表（豁免 = 日志 / Toast）
-            var allowed = new List<string>(tbl.Values);
-            var offenders = new List<string>();
-            foreach (var panel in new[] { "QuestLogPanel.cs", "NpcDialogPanel.cs" })
-            {
-                var path = Path.Combine(UiDir, panel);
-                if (!File.Exists(path)) continue;
-
-                // 必须**按语句**分组扫描（不能按行）：日志/Toast 的中文经常跨行拼接
-                //    （`UiLog.Warn(...` + 下一行的 `+ $"…"`），按行会把续行误判成"画面文案"。
-                var buf = new StringBuilder();
-                foreach (var raw in File.ReadAllLines(path, Encoding.UTF8))
-                {
-                    // 先去注释（`//` 到行尾，含 `///` 文档注释）——注释里的中文不算"画面文案"
-                    var cut = raw.IndexOf("//", StringComparison.Ordinal);
-                    var code = cut >= 0 ? raw.Substring(0, cut) : raw;
-                    buf.Append(code).Append('\n');
-                    if (code.IndexOf(';') < 0) continue;             // 语句还没结束
-                    var stmt = buf.ToString();
-                    buf.Clear();
-
-                    if (stmt.Trim().Length == 0) continue;
-                    // 豁免：控制台日志（不上屏）+ 引擎 Toast（中文字体问题已登记 E19）
-                    if (stmt.Contains("UiLog.") || stmt.Contains("Log.") || stmt.Contains("Toast(")) continue;
-
-                    foreach (Match m in Regex.Matches(stmt, "\"([^\"\\\\]|\\\\.)*\""))
-                    {
-                        var lit = m.Value.Trim('"');
-                        if (!HasCjk(lit)) continue;
-                        var n = lit.Replace("\\n", "").Replace(" ", "");
-                        if (n.Length == 0) continue;
-                        var ok = false;
-                        foreach (var a in allowed)
-                            if (a.Contains(n)) { ok = true; break; }
-                        if (!ok) offenders.Add(panel + "：「" + lit + "」");
-                    }
-                }
-            }
-            Check("③ 反向：两个面板里画面中文字面量全部来自原版串表（自写文案 = 0 条）",
-                offenders.Count == 0,
-                offenders.Count == 0 ? "0 条自写（豁免：UiLog/Log/Toast 三类上不到面板的中文，见 E19）"
-                    : string.Join(" | ", offenders.ToArray()));
-
-            Console.WriteLine();
-        }
-
-        /// <summary>串表条目归一化：去掉出口前缀（`<换行数>\n`）、字面 `\n` 转义与空白。</summary>
-        private static string NormTblText(string s)
-            => Regex.Replace(s, @"^\d+\\n", "").Replace("\\n", "").Replace(" ", "").Trim();
-
-        /// <summary>源码归一化：去掉注释里的字面 `\n`、引号与拼接符与空白 ⇒ 相邻字面量自然接上。</summary>
-        private static string NormSource(string s)
-            => s.Replace("\\n", "").Replace("\"", "").Replace("+", "")
-                .Replace(" ", "").Replace("\t", "").Replace("\r", "").Replace("\n", "");
-
-        /// <summary>是否含中日韩字符。</summary>
-        private static bool HasCjk(string s)
-        {
-            foreach (var c in s)
-                if (c >= 0x3400 && c <= 0x9FFF) return true;
-            return false;
-        }
-
-        // ═════════════════════════════════════════════════════════════════════
         // ⑨ HUD 布局：原版实测值 → 引擎中心坐标
         // ═════════════════════════════════════════════════════════════════════
         private static void CheckHudOriginalLayout()
@@ -1592,8 +1195,8 @@ namespace Uicheck
                 var dlgSrc = File.ReadAllText(Path.Combine(UiDir, "NpcDialogPanel.cs"));
                 var gone = new[]
                 {
-                    "Events.ShopOpenRequest", "Events.QuestAcceptRequest", "Events.QuestTurnInRequest",
-                    "EmitShopOpenRequest", "CanOpenShop", "_shopButton", "_acceptButton", "_turnInButton",
+                    "Events.ShopOpenRequest",
+                    "EmitShopOpenRequest", "CanOpenShop", "_shopButton", "_turnInButton",
                     "_shopHint",
                 };
                 var still = "";
@@ -1631,13 +1234,13 @@ namespace Uicheck
 
             var map = new MinimapArgs { areaId = (int)AreaId.Town, width = 32, height = 32, seed = 20260311 };
             Check("HUD 对 MiniMapPanel 的打开参数 = 缓存的 MinimapArgs（非 null）",
-                ReferenceEquals(HudPanel.PanelParam(nameof(MiniMapPanel), null, null, null, null, map), map),
+                ReferenceEquals(HudPanel.PanelParam(nameof(MiniMapPanel), null, null, null, map), map),
                 "PanelParam(MiniMapPanel, …, map) == map");
 
             Check("HUD 打开参数映射：其余面板各取自己的快照（互不串），未知面板 = null",
-                ReferenceEquals(HudPanel.PanelParam(nameof(InventoryPanel), null, inv, null, null, map), inv)
-                && HudPanel.PanelParam(nameof(CharacterPanel), new PlayerStatsDto(), inv, null, null, map) is PlayerStatsDto
-                && HudPanel.PanelParam("UnknownPanel", null, inv, null, null, map) == null,
+                ReferenceEquals(HudPanel.PanelParam(nameof(InventoryPanel), null, inv, null, map), inv)
+                && HudPanel.PanelParam(nameof(CharacterPanel), new PlayerStatsDto(), inv, null, map) is PlayerStatsDto
+                && HudPanel.PanelParam("UnknownPanel", null, inv, null, map) == null,
                 "Inventory→inv / Character→stats / 未知→null");
 
             Check("MiniMapPanel.OnOpen 的参数校验：传非 null MinimapArgs 原样收下（不会降级成「无数据」）",
@@ -3037,10 +2640,6 @@ namespace Uicheck
             Check("S3：模块侧 `_currentNpcId` 由 `DialogClose` 清（面板/模块两条通道都幂等）",
                 npcSrc.Contains("private void OnDialogClose()") && npcSrc.Contains("_currentNpcId = (int)NpcId.None;"),
                 "见 NpcModule.OnDialogClose");
-            Check("S3：`QuestChanged` 的唯一开面板门槛 = `_currentNpcId != None`（= 面板确实开着）",
-                MethodBody(npcSrc, "private void OnQuestChanged(QuestStateDto quest)")
-                    .Contains("if (_currentNpcId == (int)NpcId.None) return;"),
-                "见 NpcModule.OnQuestChanged");
             var resolveBody = MethodBody(npcSrc, "private int ResolveNpcId(int fromArgs)");
             Check("S3：交易请求不再用阿卡拉兜底（npcId 缺失 ⇒ 返回 None + Warn ⇒ 交易失败可定位）",
                 resolveBody.Contains("return (int)NpcId.None;")
@@ -3200,13 +2799,12 @@ namespace Uicheck
             }
             var optionConsts =
                 dialogSrc.Contains("OptionClose = \"離開\"")
-                && dialogSrc.Contains("OptionQuestNews = \"重要消息\"")
                 && dialogSrc.Contains("OptionShopBlacksmith = \"交易/修理\"")
                 && dialogSrc.Contains("OptionShopGoods = \"交易\"");
-            Check("回归：原版串口径仍在（`NpcDialog.cs` 的字面量里没有自造按钮字样、没有字面 `**`；4 条选项串在位）",
+            Check("回归：原版串口径仍在（`NpcDialog.cs` 的字面量里没有自造按钮字样、没有字面 `**`；3 条选项串在位）",
                 badLit.Length == 0 && optionConsts && dlgSrc.Contains("Events.DialogOptionChosen"),
                 (badLit.Length == 0 ? $"字面量 {dlgLits.Count} 条全部干净" : badLit)
-                + (optionConsts ? "；4 条选项串（離開/重要消息/交易·修理/交易）在位" : "；**选项串被改过**"));
+                + (optionConsts ? "；3 条选项串（離開/交易·修理/交易）在位" : "；**选项串被改过**"));
 
             Console.WriteLine();
         }

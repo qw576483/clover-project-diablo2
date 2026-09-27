@@ -111,10 +111,9 @@ namespace Diablo2.UI
             {
                 case AreaId.Town: return "Rogue Encampment";
                 case AreaId.BloodMoor: return "Blood Moor";
-                case AreaId.DenOfEvil: return "Den of Evil";
                 default:
                     UiLog.WarnOnce("leveltitle.area.unknown." + (int)area,
-                        $"LevelEntryTitle：未登记的区域 AreaId={(int)area}（期望 Town/BloodMoor/DenOfEvil 之一）"
+                        $"LevelEntryTitle：未登记的区域 AreaId={(int)area}（期望 Town/BloodMoor 之一）"
                         + " ⇒ 本次不弹区域名（请在 OfficialLevelName 补一行）");
                     return null;
             }

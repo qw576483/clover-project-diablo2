@@ -69,15 +69,12 @@ LEVELS['Town'] = dict(
          ('TownN1.ds1', 'TownE1.ds1', 'TownS1.ds1', 'TownW1.ds1')])
 LEVELS['BloodMoor'] = dict(
     act=1, level_type='Wilderness', area_id=1,
-    # `LvlPrest` 的野外块清单里有 4 块放在 CAVES/ 目录（Wild Cliff Cave Left/Right =
-    # 崖壁洞口件、Cave Entrance = 洞穴入口件）⇒ 它们的格也按 '1 Wilderness' 投票。
+    # `LvlPrest` 的野外块清单里有 2 块放在 CAVES/ 目录（Wild Cliff Cave Left/Right =
+    # 崖壁洞口件）⇒ 它们的格也按 '1 Wilderness' 投票。
     ds1=sorted(glob.glob(os.path.join(TILES_ROOT, 'OUTDOORS', '*.ds1'))) +
         [os.path.join(TILES_ROOT, 'TOWN', 'TownETrans.ds1')] +
         [os.path.join(TILES_ROOT, 'CAVES', n) for n in
-         ('clfcave.ds1', 'clfcave2.ds1', 'cavedr1.ds1', 'cavedr2.ds1')])
-LEVELS['DenOfEvil'] = dict(
-    act=1, level_type='Cave', area_id=2,
-    ds1=sorted(glob.glob(os.path.join(TILES_ROOT, 'CAVES', '*.ds1'))))
+         ('clfcave.ds1', 'clfcave2.ds1')])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -156,13 +153,10 @@ def resolve_cel(rows_by_level, level_name, is_floor, style, seq):
       把 key 里的 Sequence 平移 −1 / 0 / +1 后重算"无命中格数占比"：
         · Town(1 Town)      floor 73.1% → **0.8%**（+1）    wall 0%（三个平移都是 0%）
         · BloodMoor(1 Wild) floor 76.2% → **0.2%**（+1）    wall 0%
-        · DenOfEvil(1 Cave) floor **12.9%（现状已很低）** → 15.0%（+1，反而变差）
       逐键看根因：Town/Wilderness 的地面行是 `fl seq=[1,46]`/`[1,47]`，而 DS1 的 `prop2` 域含 0
-      且 0 是最大宗（Town 6781/9348 格、Wilderness 8044 格）；Cave 的地面行 `fl seq=[0,0]` 从 0 起、
-      0 命中 22393 格 ⇒ **两种约定在同一个字段上并存**。
+      且 0 是最大宗（Town 6781/9348 格、Wilderness 8044 格）。
 
-    ⇒ 因此**只做兜底、不做全局平移**（全局 +1 会改掉 Cave 已正确的 4 个键：seq=12 变无命中、
-      seq=16/10/11 选中不同 cel）。兜底是现状的**严格超集**：已命中的键仍命中同一行、cel 不变，
+    ⇒ 因此**只做兜底、不做全局平移**。兜底是现状的**严格超集**：已命中的键仍命中同一行、cel 不变，
       爆炸半径只有"把无命中的地面格变有"；wall 命中率在三个平移下都是 0% ⇒ 兜底不会触发。
     ⚠️ 本条**可证伪**：它假定原版城镇/野外 automap 的**地面是有纹理的**。若一张**已知关卡名**的
       Act1 原版 automap 基线图显示城镇地面确实空白 ⇒ 本条作废，恢复"无命中 ⇒ -1"。
@@ -282,8 +276,8 @@ def emit_cs(table, cels_used, palette_rgb, cel_pixels, report, out_cs=None):
     A('// 命中多行 ⇒ 取表里最先出现的一行、取该行第一个 `CelN >= 0`；无命中 ⇒ -1（该格不画）。')
     A('// ★ 地面层 Sequence 兜底（片 automap-redo2 第 3 轮，2026-09-23）：**仅当 `hits` 为空 且 该格属地面层**')
     A('//   时，用 `Sequence + 1` 再查一次；仍无命中 ⇒ -1。依据是机械实测：')
-    A('//   Town 地面无命中格 73.1% → 0.8%、Wilderness 76.2% → 0.2%（+1），而 Cave 地面现状已只 12.9%')
-    A('//   且它的 `fl` 行本就从 seq=0 起 ⇒ **全局平移会改坏 Cave**，所以只做兜底。墙层三个平移都是 0% 无命中 ⇒ 不受影响。')
+    A('//   Town 地面无命中格 73.1% → 0.8%、Wilderness 76.2% → 0.2%（+1）⇒ 只做兜底，不做全局平移')
+    A('//   （全局 +1 会改掉已命中键的 cel）。墙层三个平移都是 0% 无命中 ⇒ 不受影响。')
     A('// ⛔ 原版「多行命中时挑哪一行 / 4 个变体挑哪一个」的规则**本机没有载体**（见')
     A('//   （定案登记 §2）⇒ 上一条是本项目**定死并登记**的可复跑规则。')
     A('//')

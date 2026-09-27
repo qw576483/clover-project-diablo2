@@ -93,23 +93,6 @@ namespace Diablo2.Core
         /// <summary>血腥荒野随机尺寸上限。</summary>
         public const int WildernessMaxSize = 80;
 
-        /// <summary>
-        /// 邪恶洞穴：每轴的**原版洞穴预设块数**下限（`MapGenCave`）。
-        /// <para>为什么按"块数"而不是"格数"：原版洞穴层就是由 **25×25 的预设块**拼出来的
-        /// （`原版资源/d2raw/.../ACT1/CAVES/*.ds1`）⇒ 合法尺寸只能是块边长的整数倍，
-        /// 自定一个 40~64 的格数会让块拼不齐。块边长 = 25，见 `MapGenCaveLayout.PieceSize`。</para>
-        /// </summary>
-        public const int CaveSlotsMin = 2;
-
-        /// <summary>邪恶洞穴：每轴的原版块数上限（⇒ 尺寸 75）。</summary>
-        public const int CaveSlotsMax = 3;
-
-        /// <summary>邪恶洞穴随机尺寸下限（= <see cref="CaveSlotsMin"/> × 原版块边长 25）。</summary>
-        public const int CaveMinSize = 50;
-
-        /// <summary>邪恶洞穴随机尺寸上限（= <see cref="CaveSlotsMax"/> × 原版块边长 25）。</summary>
-        public const int CaveMaxSize = 75;
-
         /// <summary>任意区域尺寸硬下限（越小越可能生成失败，低于此值拒绝生成并报错）。</summary>
         public const int MapMinSize = 24;
 

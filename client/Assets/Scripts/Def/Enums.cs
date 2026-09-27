@@ -77,15 +77,6 @@ namespace Diablo2.Def
         Coward = 3,  // 逃跑型（尖刺鼠 / 堕落者）
     }
 
-    /// <summary>任务状态机状态（配表无关，运行时状态）。</summary>
-    public enum QuestState
-    {
-        NotStarted = 0,      // 未接取
-        InProgress = 1,      // 进行中
-        ReadyToTurnIn = 2,   // 目标已完成，可交付
-        Done = 3,            // 已完成
-    }
-
     /// <summary>
     /// 格子地形类型。**可走性唯一判定在 <see cref="TileKindInfo.IsWalkable"/>**，
     /// 不许在业务里再写一份 `<c>kind == ...</c>` 判等表。
@@ -132,7 +123,6 @@ namespace Diablo2.Def
     {
         Town = 0,        // 罗格营地（固定布局）
         BloodMoor = 1,   // 血腥荒野（随机生成）
-        DenOfEvil = 2,   // 邪恶洞穴（随机生成，任务地牢）
     }
 
     /// <summary>四维属性。分配入口：`IPlayerModule.AllocateStat(StatKind, int)`（`Module/Contracts.cs`）。</summary>
@@ -155,13 +145,6 @@ namespace Diablo2.Def
         Charsi = 2,    // 恰西（铁匠：武器/防具/修理）
         Gheed = 3,     // 基德（商人：杂货）
         Warriv = 4,    // 瓦瑞夫（商队首领）
-    }
-
-    /// <summary>任务 id。取值 = 任务日志的键。</summary>
-    public enum QuestId
-    {
-        None = 0,
-        DenOfEvil = 1,   // 邪恶洞穴（主线任务 1）
     }
 
     /// <summary>物品大类（配表 `item_c.type` 列）。</summary>

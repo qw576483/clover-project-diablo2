@@ -5,7 +5,7 @@
 // 请求；而**并非每个请求都有模块订阅**。已核对（2026-03）：
 //   · 有订阅者、无需本层：`AttackRequest`(Combat) `PickupRequest`/`EquipToggleRequest`/
 //     `ItemDropRequest`/`UseBeltRequest`(Item) `NpcInteractRequest`/`DialogOptionChosen`/
-//     `ShopBuy|Sell|RepairRequest`(Npc) `QuestAccept|TurnInRequest`(Quest)
+//     `ShopBuy|Sell|RepairRequest`(Npc)
 //     `StatAllocateRequest`(Player) `VolumeChanged`(AudioHook) `ReviveRequest`(Combat) …
 //   · **没有订阅者**（本层补齐）：
 //       `SkillLearnRequest`      技能树面板点「学习」—— `SkillModule` 一个事件都没订阅

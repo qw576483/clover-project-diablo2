@@ -23,13 +23,12 @@
 //      块里"纯可走"的格**不覆盖基底草地**：原版那几格本来就是引擎铺的草。
 //
 //    每一格的**地面与物件瓦片键都来自原版 ds1**（逐格覆盖，见 `GridMap.SetTiles`）。
-//    洞穴入口 = 原版 `Act 1 - Cave Entrance` 块（`CAVES/CaveDr*.ds1`）+ 原版洞穴口瓦片。
 //
 // 随机与可复现：块选择、镜像、散落件位置、土路拐点全部走注入的 `CloverEngine.Rng`
 //   ⇒ **同 seed ⇒ 同图；不同 seed ⇒ 不同图**（`MapCheck` 有断言）。
 //
-// 怪物刷新点：契约写明「洞穴生成时产出；野外为空列表」⇒ 本生成器**不填**
-//    `MonsterSpawns`，`MonsterModule` 用 `IMapModule.RandomWalkableTile(rng)` 撒点。
+// 怪物刷新点：本生成器**不填** `MonsterSpawns`，
+//    `MonsterModule` 用 `IMapModule.RandomWalkableTile(rng)` 撒点。
 // ─────────────────────────────────────────────────────────────────────────────
 
 using CloverEngine;
@@ -107,9 +106,6 @@ namespace Diablo2.Module.Map
         /// <summary>其中"四边全开"的块数（内部块不许把场地中间的通道掐断）。</summary>
         public static int AuditInteriorAllOpen;
 
-        /// <summary>洞穴口物件瓦片键（`Resources/Clover/D2/Objects/cave_door/000.png`）。</summary>
-        private const string CaveDoorKey = "cave_door/000";
-
         /// <summary>生成血腥荒野。**同 seed ⇒ 同地图**。</summary>
         public static void Generate(GridMap map, Rng rng)
         {
@@ -142,13 +138,8 @@ namespace Diablo2.Module.Map
             // ① 基底草地：每格一张**原版** `TOWN/floor.dt1` 草地瓦片
             FillBaseGround(map, rng);
 
-            // ② 两个出入口落在哪一"行"块上（回城口在西、洞穴口在东；相隔 ≥2 块避免门口对穿）
+            // ② 出入口（回城口）落在哪一"行"块上
             var gateRow = rng.Next(1, cells - 1);
-            var caveRow = gateRow;
-            for (var guard = 0; guard < 8 && Mathf.Abs(caveRow - gateRow) < 2; guard++)
-            {
-                caveRow = rng.Next(1, cells - 1);
-            }
 
             // ③ 周圈：原版边界块（崖壁 / 石墙 / 树线），按所在边镜像 ⇒ 崖壁贴外圈
             //    西边界上正对回城口那一段改铺**原版城镇过渡带**（`GroupBand`，8×40 = 5 槽）：
@@ -166,13 +157,9 @@ namespace Diablo2.Module.Map
             // ⑤ LvlSub Type=6 散落件（石堆 / 树 / 水洼 / 沼泽 / 野外杂物）
             ScatterProps(map, rng, cells);
 
-            // ⑥ 洞穴入口 = 原版 `Act 1 - Cave Entrance` 块（`CAVES/CaveDr*.ds1`）
-            StampEntrance(map, rng, cells, caveRow);
-
-            // ⑦ 土路：回城口 → （拐一次）→ 洞穴口；顺带把两侧出入口打通
+            // ⑥ 土路：回城口横穿全图；顺带把回城口两侧打通
             var gateY = gateRow * pitch + pitch / 2;
-            var caveY = caveRow * pitch + pitch / 2;
-            PaintRoad(map, rng, w, gateY, caveY);
+            PaintRoad(map, rng, w, gateY);
 
             //   原版语义：最外一圈 8 格块 = `LvlPrest`「Act 1 - Wild Border *」= 崖壁 + 树线，
             //   相机怎么夹都会露虚空（`camera-follow` 片已证：零虚空要求机位离边界 ≥ 7.083 格）。
@@ -182,15 +169,10 @@ namespace Diablo2.Module.Map
                         $"（n={GridMap.BorderRingCells} = 原版 `LvlPrest`「Act 1 - Wild Border *」块边长 8，" +
                         $"> 相机实测可见格半跨 7.083）⇒ 可走区离四边界恒 ≥ {GridMap.BorderRingCells} 格");
 
-            // ⑧ 出入口落在**边界环的内沿**（环本身不可走 ⇒ 门口不能再压在地图第 0 列 / 最后一列）
+            // ⑦ 出入口落在**边界环的内沿**（环本身不可走 ⇒ 门口不能再压在地图第 0 列）
             var gate = new Vector2Int(GridMap.BorderRingCells, gateY);
-            var cave = new Vector2Int(w - 1 - GridMap.BorderRingCells, caveY);
             map.Set(gate, TileKind.Exit);
-            map.Set(cave, TileKind.Exit);
             map.Exits.Add(gate);
-            map.Exits.Add(cave);
-            map.CaveEntrance = cave;
-            ApplyCaveDoor(map, rng, cave);
 
             // ⑧ 出生点：土路上第一个 3×3 全可走的格（**不挖洞**，只挑现成的）
             var spawn = PickSpawn(map, gate);
@@ -212,7 +194,7 @@ namespace Diablo2.Module.Map
             MapLog.Info($"MapGenWilderness: 原版块拼接的血腥荒野生成完成（size={w}x{h}" +
                         $"（= 原版 `Levels.txt`「Act 1 - Wilderness 1」的 SizeX/SizeY=80/80，**固定不随机**）" +
                         $" 块网格={cells}x{cells} 每块 {pitch} 格 seed={rng.Seed} 出生点={map.SpawnPoint} " +
-                        $"回城口={gate} 洞穴入口={cave} 可走={map.WalkableCount} 障碍={map.BlockedCount}）");
+                        $"回城口={gate} 可走={map.WalkableCount} 障碍={map.BlockedCount}）");
         }
 
         // ── 基底草地 ─────────────────────────────────────────────────────────
@@ -588,69 +570,26 @@ namespace Diablo2.Module.Map
                         $"写入阻挡格 {blocked}）");
         }
 
-        // ── 洞穴入口 ─────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// 洞穴口所在的那一"行"块 ← 原版 `Act 1 - Cave Entrance`（`CAVES/CaveDr1,2.ds1`）。
-        /// 该块在原版里就是把野外与洞穴口接上的那一块。
-        /// </summary>
-        private static void StampEntrance(GridMap map, Rng rng, int cells, int caveRow)
-        {
-            var piece = PickOne(rng, MapGenWildLayout.GroupEntrance);
-            if (piece == null)
-            {
-                MapLog.Warn("MapGenWilderness: 拼块库里没有洞穴入口块（Group=Entrance）" +
-                            "⇒ 洞口只有土路、没有洞口贴图");
-                return;
-            }
-            var blocked = Stamp(map, piece, cells - 1, caveRow, false, false);
-            MapLog.Info($"MapGenWilderness: 洞穴口块 = {piece.Name}（原版出处 {piece.Source}，" +
-                        $"写入阻挡格 {blocked}）");
-        }
-
-        /// <summary>把洞穴口的物件层换成原版洞穴口瓦片（`CAVES/cavedr.dt1`）。</summary>
-        private static void ApplyCaveDoor(GridMap map, Rng rng, Vector2Int cave)
-        {
-            if (!map.TryGetTiles(cave.x, cave.y, out var ground, out _))
-            {
-                MapLog.Warn("MapGenWilderness: 洞穴口格没有逐格瓦片覆盖（覆盖未启用？）⇒ 洞口不画洞穴口瓦片");
-                return;
-            }
-            if (string.IsNullOrEmpty(ground))
-            {
-                ground = MapGenWildLayout.GrassTiles[rng.Next(MapGenWildLayout.GrassTiles.Length)];
-            }
-            map.Set(cave, TileKind.Exit);
-            map.SetTiles(cave.x, cave.y, ground, CaveDoorKey);
-        }
-
         // ── 土路 ─────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// 从回城口铺到洞穴口：2 条横向段 + 1 条竖直段（拐一次，像原版的路）；
-        /// 路宽 `2*RoadHalfWidth+1 = 3` 格 —— **出生点 3×3 净空因此天然成立**（不额外挖洞）。
+        /// 从回城口横穿全图铺一条土路；路宽 `2*RoadHalfWidth+1 = 3` 格
+        /// —— **出生点 3×3 净空因此天然成立**（不额外挖洞）。
         /// 地面用**原版**泥土/土路瓦片（`TOWN/floor.dt1` 里非草地的那批）。
         /// </summary>
-        private static void PaintRoad(GridMap map, Rng rng, int w, int gateY, int caveY)
+        private static void PaintRoad(GridMap map, Rng rng, int w, int gateY)
         {
             var tiles = MapGenWildLayout.DirtTiles;
             if (tiles == null || tiles.Length == 0)
             {
                 MapLog.Error("MapGenWilderness: 原版泥土瓦片表为空 ⇒ 土路只能用占位色（生成物被改坏？）");
             }
-            var mid = Mathf.Clamp(w / 2, 1, w - 2);
             var painted = 0;
 
-            for (var x = 0; x < mid; x++) painted += PaintRoadCell(map, rng, tiles, x, gateY);
-            var step = caveY >= gateY ? 1 : -1;
-            for (var y = gateY; y != caveY + step; y += step)
-            {
-                painted += PaintRoadCell(map, rng, tiles, mid, y);
-            }
-            for (var x = mid; x < w; x++) painted += PaintRoadCell(map, rng, tiles, x, caveY);
+            for (var x = 0; x < w; x++) painted += PaintRoadCell(map, rng, tiles, x, gateY);
 
             MapLog.Info($"MapGenWilderness: 土路已铺 {painted} 格（宽 {2 * RoadHalfWidth + 1} 格，" +
-                        $"回城口 y={gateY} → 拐点 x={mid} → 洞穴口 y={caveY}）");
+                        $"回城口 y={gateY}）");
         }
 
         /// <summary>在 (x,y) 及其上下各 1 格铺土路（`TileKind.Road` + 原版泥土瓦片）。</summary>

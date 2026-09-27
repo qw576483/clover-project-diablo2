@@ -72,7 +72,7 @@ namespace Diablo2.Editor
             //   （`UIManager.Open<T>` 按类名加载，见 `Runtime/Presentation/UI.cs:131-140`）。
             "D2ConfirmPanel",
             "HudPanel", "MiniMapPanel", "InventoryPanel", "CharacterPanel", "SkillTreePanel",
-            "QuestLogPanel", "NpcDialogPanel", "ShopPanel", "DeathPanel",
+            "NpcDialogPanel", "ShopPanel", "DeathPanel",
             //   与 `D2ConfirmPanel` 同理：不属 FSM 站点，但同样要一个 `Resources/UI/{类名}` 空壳预制体
             //   （`UIManager.Open<T>` 按类名加载）。它是**游戏内面板**（层 = Popup），由
             //   `App/AppWaypoint.cs` 在"走到传送点"后打开。

@@ -10,7 +10,7 @@ namespace Table
 	{
 		public int Id; // 区域 id（1-3，本项目编号）
 		public string Name; // 区域名（中文）
-		public string Code; // 官方 Levels.Name（Act 1 - Town / Wilderness 1 / Cave 1）
+		public string Code; // 官方 Levels.Name（Act 1 - Town / Wilderness 1）
 		public string LevelName; // 官方 Levels.LevelName（Rogue Encampment / Blood Moor / Den of Evil）
 		public int LevelId; // 官方 Levels.Id
 		public int Act; // 所属章节（官方 Act，0 基 ⇒ 0 = 第一幕）

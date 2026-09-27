@@ -102,10 +102,7 @@ namespace Diablo2.Module.Map
         /// <summary>出生点（玩家进图位置）。</summary>
         public Vector2Int SpawnPoint { get; set; }
 
-        /// <summary>洞穴入口格（仅血腥荒野有效）。</summary>
-        public Vector2Int? CaveEntrance { get; set; }
-
-        /// <summary>出入口格（`TileKind.Exit`）。顺序：回城口在前、洞穴入口在后（城镇/洞穴各 1 个）。</summary>
+        /// <summary>出入口格（`TileKind.Exit`）。</summary>
         public readonly List<Vector2Int> Exits = new List<Vector2Int>();
 
         /// <summary>城镇 NPC 站位：**下标 = (int)Def.NpcId**（0=阿卡拉 … 4=瓦瑞夫）。</summary>
@@ -168,7 +165,6 @@ namespace Diablo2.Module.Map
             MonsterSpawns.Clear();
             WaypointPoints.Clear();
             RequiredReachable.Clear();
-            CaveEntrance = null;
             SpawnPoint = new Vector2Int(Width / 2, Height / 2);
             Generated = false;
             _countsDirty = true;
@@ -198,7 +194,6 @@ namespace Diablo2.Module.Map
             _decoKinds = null;
             _tileOverrides = false;
             _deck = null;                           // deck 标记随之作废（`IsDeck` 对 null 表一律 false）
-            CaveEntrance = null;
             SpawnPoint = Vector2Int.zero;
         }
 

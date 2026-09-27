@@ -8,7 +8,6 @@
 //
 // 依赖（只走接口）：
 //   · `IMapModule.NpcPoints / Seed / Area` —— 站位与"同一局货物不变"的 seed；
-//   · `IQuestModule.DenOfEvil / CanTurnInDen` —— 对话文本阶段 + 可否接/交任务；
 //   · `IItemModule` —— 金币结算 / 背包空间校验 / 修理 / 造货。
 //
 // 交互口径（原版）：**只有点在 NPC 身上**（`Module/Player` 用悬停命中判出 NPC 后发 `NpcInteractRequest`）
@@ -16,7 +15,7 @@
 //
 // 事件：
 //   发 `DialogOpen(NpcDialogArgs)` / `DialogClose` / `ShopOpen(ShopOpenArgs)` / `ShopChanged(ShopOpenArgs)` /
-//      `QuestAcceptRequest(int)` / `QuestTurnInRequest(int)` / `MoveCommand(Vector2Int)`（走向 NPC 的站位格）
+//      `MoveCommand(Vector2Int)`（走向 NPC 的站位格）
 //   收 `NpcInteractRequest(int)`（点击意图）/ `MoveCommand(Vector2Int)`（意图作废判据）/ `DialogOptionChosen(int)` /
 //      `DialogClose` / `ShopBuyRequest(ShopTradeArgs)` /
 //      `ShopSellRequest(ShopTradeArgs)` / `ShopRepairRequest(ShopTradeArgs)` / `ShopClose`
@@ -64,7 +63,7 @@ namespace Diablo2.Module.Npc
         /// 归零通道有两条且都幂等：① 本模块自己的 `ChooseOption(0)`；② 面板 `OnClose` 补发的
         /// `Events.DialogClose`（`UI/NpcDialogPanel.cs` 文件头）。引擎 `UIManager.Close`
         /// **不补发**任何事件（`Runtime/Presentation/UI.cs:199-229`）⇒ 少了第 ② 条就会出现
-        /// "面板没了但 `_currentNpcId` 还在" ⇒ 之后任何 `Events.QuestChanged` **凭空再弹一次对话**。</para>
+        /// "面板没了但 `_currentNpcId` 还在" 的陈旧状态。</para>
         /// </summary>
         private int _currentNpcId = (int)NpcId.None;
 
@@ -84,8 +83,6 @@ namespace Diablo2.Module.Npc
             }
             bus.On<int>(Events.DialogOptionChosen, OnDialogOptionChosen);
             bus.On(Events.DialogClose, OnDialogClose);
-            // 任务阶段 → 对话的**实时**联动（原版行为：在阿卡拉处接/交任务后，台词当场就换）。
-            bus.On<QuestStateDto>(Events.QuestChanged, OnQuestChanged);
             bus.On<int>(Events.NpcInteractRequest, OnInteractRequest);
             bus.On<ShopTradeArgs>(Events.ShopBuyRequest, OnBuyRequest);
             bus.On<ShopTradeArgs>(Events.ShopSellRequest, OnSellRequest);
@@ -197,17 +194,16 @@ namespace Diablo2.Module.Npc
 
             _currentNpcId = npcId;
             Game.Event?.Emit(Events.DialogOpen, args);
-            Log.Info("Npc", $"对话开始：{def.name}（questGiver={def.isQuestGiver} hasShop={def.hasShop} "
-                + $"canAccept={args.canAcceptQuest} canTurnIn={args.canTurnInQuest} 选项 {args.options.Count} 项）");
+            Log.Info("Npc", $"对话开始：{def.name}（hasShop={def.hasShop} 选项 {args.options.Count} 项）");
             return true;
         }
 
         /// <summary>
-        /// 取当前对话内容（**文本随任务阶段变化**）。
+        /// 取当前对话内容。
         /// <para>
         /// ① `Get(npcId) == null` —— 该 NPC **在当前场景取不到定义**（非罗格营地 ⇒ 不装配；
         ///    或地图未生成 / `NpcPoints` 缺站位），此时 `Get` 会打一条**点名原因**的 Warn（只报一次）；
-        /// ② 否则**恒返回非 null**：`NpcDialog.Build` 对 5 个 NPC × 4 个 `QuestState` **都有原版串**
+        /// ② 否则**恒返回非 null**：`NpcDialog.Build` 对 5 个 NPC **都有原版串**
         /// </para>
         /// </summary>
         public NpcDialogArgs GetDialog(int npcId)
@@ -215,22 +211,12 @@ namespace Diablo2.Module.Npc
             var def = Get(npcId);
             if (def == null) return null;      // 唯一 null 出口（原因已由 Get 的 WarnOnce 说清）
 
-            var quest = Quest;
-            var state = quest != null ? quest.DenOfEvil : QuestState.NotStarted;
-            var canAccept = def.isQuestGiver && state == QuestState.NotStarted;
-            var canTurnIn = def.isQuestGiver && quest != null && quest.CanTurnInDen;
-
-            if (quest == null)
-            {
-                Log.Warn("Npc", $"GetDialog(npcId={npcId})：`IQuestModule` 未接入 ⇒ 按未接取阶段给文本");
-            }
-
-            return NpcDialog.Build(def, state, (int)QuestId.DenOfEvil, canAccept, canTurnIn);
+            return NpcDialog.Build(def);
         }
 
         /// <summary>
         /// 推进对话（选项下标；0 = 关闭）。
-        /// 下标语义与 <see cref="NpcDialog.Build"/> 的组装顺序一致：0=关闭 → 任务动作 → 商店入口。
+        /// 下标语义与 <see cref="NpcDialog.Build"/> 的组装顺序一致：0=关闭 → 商店入口。
         /// </summary>
         public void ChooseOption(int npcId, int optionIndex)
         {
@@ -254,18 +240,6 @@ namespace Diablo2.Module.Npc
                 return;
             }
 
-            if (args.canAcceptQuest && optionIndex == 1)
-            {
-                Log.Info("Npc", $"对话选项：{args.npcName} → 接取任务「{args.questId}」");
-                Game.Event?.Emit(Events.QuestAcceptRequest, args.questId);
-                return;
-            }
-            if (args.canTurnInQuest && optionIndex == 1)
-            {
-                Log.Info("Npc", $"对话选项：{args.npcName} → 交付任务「{args.questId}」");
-                Game.Event?.Emit(Events.QuestTurnInRequest, args.questId);
-                return;
-            }
             if (args.hasShop)
             {
                 var shop = GetShop(npcId);
@@ -279,8 +253,7 @@ namespace Diablo2.Module.Npc
                 return;
             }
 
-            Log.Warn("Npc", $"ChooseOption：选项 {optionIndex} 无对应动作（canAccept={args.canAcceptQuest} "
-                + $"canTurnIn={args.canTurnInQuest} hasShop={args.hasShop}）⇒ 忽略");
+            Log.Warn("Npc", $"ChooseOption：选项 {optionIndex} 无对应动作（hasShop={args.hasShop}）⇒ 忽略");
         }
 
         // ── 商店 ───────────────────────────────────────────────────────────────
@@ -477,15 +450,15 @@ namespace Diablo2.Module.Npc
 
         // ── 存档 / 帧推进 / 复位 ─────────────────────────────────────────────────
 
-        /// <summary>按存档恢复（对话文本由任务阶段驱动，任务状态由 `IQuestModule` 读档）。</summary>
+        /// <summary>按存档恢复（NPC 站位随地图重建，商店货物随 `IMapModule.Seed` 复现）。</summary>
         public void LoadFrom(CharacterSave save)
         {
             if (save == null)
             {
-                Log.Warn("Npc", "NpcModule.LoadFrom 收到 null 存档 ⇒ 忽略（对话文本只依赖任务阶段）");
+                Log.Warn("Npc", "NpcModule.LoadFrom 收到 null 存档 ⇒ 忽略（站位与货物都由地图驱动）");
                 return;
             }
-            Log.Info("Npc", $"读档：NPC 模块就绪（所在区域 areaId={save.areaId}；对话文本随后按任务阶段实时生成）");
+            Log.Info("Npc", $"读档：NPC 模块就绪（所在区域 areaId={save.areaId}）");
         }
 
         /// <summary>每帧推进（NPC 待机动画由 View 负责；这里只做"重建站位"与"走到就说话"）。</summary>
@@ -584,15 +557,6 @@ namespace Diablo2.Module.Npc
             return map != null && map.IsGenerated && map.Area == AreaId.Town;
         }
 
-        private static IQuestModule Quest
-        {
-            get
-            {
-                var ctx = AppContext.I;
-                return ctx != null ? ctx.Quest : null;
-            }
-        }
-
         private static IItemModule Item
         {
             get
@@ -645,7 +609,6 @@ namespace Diablo2.Module.Npc
                     gridX = points[i].x,
                     gridY = points[i].y,
                     areaId = (int)AreaId.Town,
-                    isQuestGiver = i == (int)NpcId.Akara,
                     hasShop = i == (int)NpcId.Akara || i == (int)NpcId.Charsi || i == (int)NpcId.Gheed,
                     canRepair = i == (int)NpcId.Charsi,
                     isBlacksmith = i == (int)NpcId.Charsi,
@@ -831,40 +794,6 @@ namespace Diablo2.Module.Npc
         private void OnDialogClose()
         {
             _currentNpcId = (int)NpcId.None;
-        }
-
-        /// <summary>
-        /// 任务阶段变化 ⇒ **正在对话的那个 NPC 立刻改用新阶段的话术与选项**
-        /// （原版：在阿卡拉处接下/交付任务后，台词与选项当场就变，不需要关掉重开）。
-        /// 只在"确实有对话进行中"时才重发 `Events.DialogOpen`；没有对话时什么都不做。
-        /// <para>这里的门槛（<see cref="_currentNpcId"/>）**就是**"面板确实开着"
-        /// 的等价物 —— 见该字段的不变式注释。不许在这里追加别的开面板条件、也不许在
-        /// `_currentNpcId == None` 时"补弹一次对话"（那正是"凭空弹面板"）。</para>
-        /// </summary>
-        private void OnQuestChanged(QuestStateDto quest)
-        {
-            if (_currentNpcId == (int)NpcId.None) return;   // = 面板没开着 ⇒ 什么都不做（该不变式）
-
-            var def = Get(_currentNpcId);
-            if (def == null)
-            {
-                // 非预期分支：对话中的 NPC 定义丢失（复位/换图）⇒ 不刷新，留可定位日志
-                Log.Warn("Npc", $"任务阶段变化，但当前对话的 NPC(id={_currentNpcId}) 取不到定义 ⇒ 不刷新对话");
-                return;
-            }
-
-            var args = GetDialog(_currentNpcId);
-            if (args == null)
-            {
-                Log.Warn("Npc", $"任务阶段变化 ⇒ 「{def.name}」的对话重组装失败 ⇒ 保持旧台词（见上一行原因）");
-                return;
-            }
-
-            Log.Info("Npc", $"[Npc] 任务阶段变化（state={(quest != null ? quest.state.ToString() : "null")}）"
-                + $"⇒ 实时刷新「{def.name}」的对话（可接={args.canAcceptQuest} 可交={args.canTurnInQuest}"
-                + $" 选项 {args.options.Count} 项）");
-
-            Game.Event?.Emit(Events.DialogOpen, args);
         }
 
         private void OnBuyRequest(ShopTradeArgs args)

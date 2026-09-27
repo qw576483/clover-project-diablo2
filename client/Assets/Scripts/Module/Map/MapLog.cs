@@ -41,7 +41,6 @@ namespace Diablo2.Module.Map
             {
                 case AreaId.Town: return "罗格营地";
                 case AreaId.BloodMoor: return "血腥荒野";
-                case AreaId.DenOfEvil: return "邪恶洞穴";
                 default:
                     Warn($"AreaLabel: 未登记的区域 {(int)area}，按 Unknown 输出");
                     return "Unknown";

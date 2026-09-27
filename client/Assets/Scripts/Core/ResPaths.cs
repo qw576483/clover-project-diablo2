@@ -261,9 +261,6 @@ namespace Diablo2.Core
         /// <summary>原版中等按钮·高亮 + 按下（= `MediumSelButtonBlank.dc6` 帧 1）。</summary>
         public const string BtnMedSelPressed = D2UiMenu + "btn_med_sel_pressed";
 
-        /// <summary>原版任务日志底图（320×432，= `MENU/questbackground.dc6` 的 tile 拼装）。</summary>
-        public const string PanelQuestBack = D2UiPanel + "quest_back";
-
         /// <summary>原版 NPC 对话框底图（210×158，= `MENU/dialogbackground.DC6`）。</summary>
         public const string PanelDialogBack = D2UiPanel + "dialog_back";
 
@@ -272,9 +269,6 @@ namespace Diablo2.Core
 
         /// <summary>原版交易页底图（320×432，= `PANEL/trade.DC6` 的 tile 拼装）。</summary>
         public const string PanelTradeBack = D2UiPanel + "trade_back";
-
-        /// <summary>原版技能页签按钮（= `MENU/questbutton.DC6`）。</summary>
-        public const string PanelQuestTabButton = D2UiPanel + "questbutton";
 
         /// <summary>
         /// 原版商店页签（= `PANEL/buyselltabs.DC6`，8 帧 79×31，帧名前缀）。
@@ -285,7 +279,7 @@ namespace Diablo2.Core
         /// ① 帧 `i` 与 `i+4` 是**单向压暗**（「A 亮于 B」的像素占 95..97%：1680..2130 对 75..83），
         ///    且四对的「内芯差分像素数」**完全相等**（1273/1273/1273/1273 = 同一张图被整体压暗）；
         /// ② 帧 `2i` 与 `2i+1` 是**双向差**（26%/63%/79%/83% 单向性）⇒ 不是同图两态。
-        /// ⛔ 不要照 `questtabs` 的 `2i/2i+1` 配（那份素材是烘字交错排的，这份不是）——照抄会把
+        /// ⛔ 页签帧**不是**按 `2i/2i+1` 的「常态/按下」相邻排（这份素材是烘字交错排的）——照抄会把
         /// 第 3、4 个页签画成**别的页签的按下图**（frame 4/6 = 位置 0/2 的暗态）。</para>
         /// </summary>
         public const string PanelBuySellTabs = D2UiPanel + "buyselltabs";
@@ -302,25 +296,6 @@ namespace Diablo2.Core
 
         /// <summary>原版交易小按钮（= `PANEL/tradebtn.DC6`，2 帧 77×17）。</summary>
         public const string PanelTradeButton = D2UiPanel + "tradebtn";
-
-        /// <summary>原版任务页签（= `MENU/questtabs.dc6`，8 帧 78×30）。</summary>
-        public const string PanelQuestTabs = D2UiPanel + "questtab";
-
-        /// <summary>
-        /// 原版任务「已完成」图（= `MENU/questdone.dc6`，**21 帧 72×86**）。
-        /// <para>出处：`原版资源/d2dc6/data/global/ui/MENU/questdone.dc6`（`dc6.py info` 实测 `dir=1 fpd=21
-        /// frames=21 72x86 …`）→ `tools/d2codec/export_d2ui.py` 的 menu 组 → `D2/UI/Panel/questdone_{0..20}.png`。
-        /// 与 `MENU/a{章}q{序号}.dc6` 的任务图**同尺寸（72×86）且不透明形状逐像素相同**（实测 alpha 掩码差异 = 0 像素）、
-        /// 只是配色为灰 ⇒ 同一图标的「完成」变体。用法见 `UI/QuestLogPanel.SlotArtPathOf`。</para>
-        /// </summary>
-        public const string PanelQuestDone = D2UiPanel + "questdone";
-
-        /// <summary>
-        /// 原版任务格石龛（= `MENU/questsockets.dc6`，2 帧 80×95：帧 0 = 银灰常态、帧 1 = 金框选中）。
-        /// <para>出处：`原版资源/d2dc6/data/global/ui/MENU/questsockets.dc6`（`dc6.py info` 实测 dir=1 fpd=2
-        /// 两帧均 80×95）→ `tools/d2codec/export_d2ui.py` 的 misc 组 → `D2/UI/Panel/questsocket_{0,1}.png`。</para>
-        /// </summary>
-        public const string PanelQuestSocket = D2UiPanel + "questsocket";
 
         /// <summary>中文标题条目录（`data/local/ui/chi/**` 解出的原版**繁体中文**界面标题）。</summary>
         public const string D2UiBanner = D2Ui + "Banner/";
@@ -469,9 +444,6 @@ namespace Diablo2.Core
         /// </summary>
         public const string D2UiSkillTree = D2Ui + "SkillTree/";
 
-        /// <summary>任务说明图目录（原版 `MENU/a{n}q{m}.dc6` 21 个文件 × 27 帧，72×86）。</summary>
-        public const string D2UiQuest = D2Ui + "Quest/";
-
         /// <summary>技能树底图帧数（每职业 16，= 源 DC6 帧数）。</summary>
         public const int FrameCountSkillTreeBack = 16;
 
@@ -482,14 +454,6 @@ namespace Diablo2.Core
         /// </summary>
         public static string SkillTreeBack(string clsLetter, int frame)
             => D2UiSkillTree + "skltree_" + clsLetter + "_back_" + frame;
-
-        /// <summary>
-        /// 任务说明图路径：例 `QuestImage("a1q1", 0)` → `D2/UI/Quest/a1q1_0`。
-        /// <para>`file` = 源 DC6 名（小写，`a1q1`..`a4q3`，共 21 个）；帧号从 0 起。
-        /// 原版每文件 27 帧 72×86。</para>
-        /// </summary>
-        public static string QuestImage(string file, int frame)
-            => D2UiQuest + file + "_" + frame;
 
         /// <summary>
         /// 中文位图字体图集路径：例 `FontChi(16)` → `D2/Fonts/font16_chi`（与 latin 的 `font16` 同目录、不同文件）。
@@ -622,7 +586,7 @@ namespace Diablo2.Core
 
         //  出处：`tools/d2codec/export_d2ui.py` 的 `menu` 组（`--only menu`）。
         //  取帧：**单帧 PNG**（一帧一个文件）⇒ 直接用 <see cref="Frame"/> 拼帧名
-        //        （与 `loadingscreen` / `questsocket` / `logo` 同口径）。
+        //        （与 `loadingscreen` / `logo` 同口径）。
 
         /// <summary>
         /// 原版**死亡屏底图**（`data/global/ui/MENU/EndGame.dc6`，tile 打包，**8 帧 = 2 页 × 4 块**）。
@@ -776,7 +740,7 @@ namespace Diablo2.Core
         /// <summary>
         /// 传送台本体（`Objects.txt` Id=119 / `Token=wp` 的 `TR`+`S1` 层）所在目录 —— **相对 `D2/Objects/`**。
         /// <para>与 <see cref="D2Tiles"/> 之外的瓦片键同域：键是 `Objects/` 下的**相对路径**
-        /// （例 `cave_door/000`），资源路径由 <see cref="ObjectSprite"/> 补目录前缀。</para>
+        /// （例 `waypoint/000`），资源路径由 <see cref="ObjectSprite"/> 补目录前缀。</para>
         /// </summary>
         public const string D2ObjectsWaypoint = "waypoint/";
 

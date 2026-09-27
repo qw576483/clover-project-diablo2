@@ -9,7 +9,7 @@
 > ③ `16:58:13 … 技能点 0 → 1（Δ=1） 断言=PASS` + `16:58:33 CHAIN DONE 技能点=1 任务=Done 奖励已领=True 进度=11/11`（**全部改动后**，本轮截图的来源）
 >
 > 证据时间窗：`2026-09-17 16:57:49 ~ 16:58:33`（本地时间）。
-> 原始日志 = 从 `client/Logs/Editor.log` 抽出的 `[A26C]/[Quest]/[Npc]/[Player]/[Flow]` 行（正文按行摘录）。
+> 原始日志 = 从 `client/Logs/Editor.log` 抽出的 `[A26C]/[Npc]/[Player]/[Flow]` 行（正文按行摘录）。
 > 截图目录：`client/Screenshots/a26_*.png`（1920×1080，`ScreenCapture.CaptureScreenshot` 由驱动脚本自拍）。
 
 ## 0. 本轮怎么跑的（可复现）
@@ -57,11 +57,8 @@
 | 文件 | 改了什么 | 为什么（实机现象） |
 |---|---|---|
 | `client/Assets/Scripts/Module/Npc/NpcModule.cs` | 新增 `InTownForNpc()`；`FindNearest` / `Interact` 在**非罗格营地**直接拒绝（带日志） | ⚠️ **真缺陷**：非城镇区域 `IMapModule.NpcPoints` 是空列表 ⇒ `EnsureBuilt` 把 5 个 NPC 站位退化成 (0,0)。洞穴里一旦 `MoveCommand` 落点靠近 (0,0) 就会**误开阿卡拉的对话**。实机复现：进洞后弹出对话面板且带着"未清光"的旧参数 ⇒ 回城交付时『交付任务』按钮是灰的、真鼠标点击无效（上一轮只能靠 invoke 兜底） |
-| `client/Assets/Scripts/UI/QuestLogPanel.cs` | ① 删掉压在原版位图标题条上的多余文本 `任 务 日 志`；② `required == 0`（还没进过洞）时进度/提示改写为「进度：—（尚未进入洞穴…）」/「还没进入洞穴 ⇒ 洞内怪物数尚未统计」，不再写"还有 0 只怪物/剩余 0" | 实机截图里：标题两行字叠在一起；刚接任务时显示「清理邪恶洞穴中的怪物（剩余 0）」+「洞内还有 0 只怪物，清光后才能交付」——**语义相反**（会被读成"洞已清空/可以交了"） |
-| `client/Assets/Scripts/Module/Quest/DenOfEvilQuest.cs` | `Objective()` 的 `InProgress` 分支：`Required <= 0` 时不再拼「（剩余 0）」，改为「去血腥荒野的邪恶洞穴，把里面的怪物清光。」 | 同上（任务日志第一格就是这条 object ive 文本） |
 
 > 上述三处都不动契约（消息号/字段/接口签名/常量/场景名/面板名），只改行为与文案。
-> 未改 `Module/Quest/QuestModule.cs`（状态机本身实测正确：`NotStarted→InProgress→ReadyToTurnIn→Done`，奖励只发一次）。
 
 ## 3. 观察到的其它问题（**未改**，供主 agent 决定）
 
@@ -73,7 +70,7 @@
    日志里两种路径都留了行。若要"纯实打"版本，需要更长时间的不被打断窗口（本机编辑器被多 agent 共用，做不到）。
 3. **进洞前洞内怪物数不知为何已统计到**（`a26_05` 显示 `进度：0/11`，而 STEP0 的 dump 里 `剩余=0`，
    进洞时又是 13 只）。不影响本行判定（`CanTurnInDen` 要求"清光"），但**建议主 agent 复查**
-   `MonsterModule.SpawnArea/CountInArea` 与 `QuestModule.EnsureRequired` 的时序（疑似上一局的怪没被 `DespawnAll` 清掉，
+   `MonsterModule.SpawnArea/CountInArea` 的时序（疑似上一局的怪没被 `DespawnAll` 清掉，
    或本次 EnterArea 之前已为 DenOfEvil 刷过一次）。
 4. **`PanelToggleRequest` 偶尔 10~17s 不打开面板**（本轮 STEP28 重试了 20 次才打开任务日志）；
    同一时刻真实 `Q` 键也没生效 ⇒ 疑似 HUD `OnUpdate`/`Game.Input` 被别的 agent 的按键注入干扰（共用编辑器），

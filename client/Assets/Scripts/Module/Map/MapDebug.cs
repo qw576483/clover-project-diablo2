@@ -32,11 +32,10 @@ namespace Diablo2.Module.Map
         public static string StatsLine(GridMap map)
         {
             if (map == null) return "MapDebug.StatsLine: map == null";
-            var cave = map.CaveEntrance.HasValue ? map.CaveEntrance.Value.ToString() : "-";
             return $"area={map.Area}({MapLog.AreaLabel(map.Area)}) size={map.Width}x{map.Height} seed={map.Seed} " +
                    $"blocked={map.BlockedCount} walkable={map.WalkableCount} timeMs={map.LastGenerateMs:F1} " +
                    $"attempts={map.GenerateAttempts} spawn={map.SpawnPoint} exits={map.Exits.Count} " +
-                   $"caveEntrance={cave} npc={map.NpcPoints.Count} monsterSpawns={map.MonsterSpawns.Count}";
+                   $"npc={map.NpcPoints.Count} monsterSpawns={map.MonsterSpawns.Count}";
         }
 
         /// <summary>多行统计块（验收要贴的那份）。</summary>
@@ -57,7 +56,6 @@ namespace Diablo2.Module.Map
             sb.AppendLine($"  生成耗时  : {map.LastGenerateMs:F1} ms");
             sb.AppendLine($"  出生点    : {map.SpawnPoint}");
             sb.AppendLine($"  出口      : {Fmt(map.Exits)}");
-            sb.AppendLine($"  洞穴入口  : {(map.CaveEntrance.HasValue ? map.CaveEntrance.Value.ToString() : "-（本区域无）")}");
             sb.AppendLine($"  NPC 站位  : {Fmt(map.NpcPoints)}");
             sb.AppendLine($"  刷怪点    : {map.MonsterSpawns.Count} 个{Head(map.MonsterSpawns, 8)}");
             sb.AppendLine($"  地形哈希  : {Hash(map)}");
@@ -116,14 +114,13 @@ namespace Diablo2.Module.Map
 
         // ── 内部 ─────────────────────────────────────────────────────────────
         /// <summary>
-        /// 一格画什么字符（**本项目语义**：图例里的 `S`/`E`/`C`/`N`/`M` 与 `'~'` 水都在这里判；
+        /// 一格画什么字符（**本项目语义**：图例里的 `S`/`E`/`N`/`M` 与 `'~'` 水都在这里判；
         /// 引擎件 `StableHash.ToAscii` 只负责"怎么排版"，不认识这些符号）。
         /// </summary>
         private static char CharOf(GridMap map, int x, int y)
         {
             var g = new Vector2Int(x, y);
             if (g == map.SpawnPoint) return 'S';
-            if (map.CaveEntrance.HasValue && map.CaveEntrance.Value == g) return 'C';
             for (var i = 0; i < map.Exits.Count; i++)
             {
                 if (map.Exits[i] == g) return 'E';

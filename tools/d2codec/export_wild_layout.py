@@ -12,7 +12,6 @@
         「Act 1 - Wild Cliff Cave Left/Right」    SizeX=8  SizeY=8 → `CAVES/clfcave*.ds1`
         「Act 1 - Fence Fill 1..6」              SizeX/SizeY ∈ {16×16, 8×16, 16×8, 8×8} → `Wild1..9.ds1`
         「Act 1 - Tree Fill」                    SizeX=SizeY=16 → `Trees2/Trees3.ds1`
-        「Act 1 - Cave Entrance」                SizeX=SizeY=8  → `CAVES/CaveDr1,2.ds1`（洞穴入口）
     · `LvlSub.txt` Type=6（散落件）：`Stone / Trees / Puddles / Swamp Big / Swamp Small / Wild Objects`
       （`LvlSub.dt1mask` 是 **LvlTypes 槽位位掩码**；LvlType 2 的槽 1 = `Town/Floor.dt1`
        ⇒ 只有 `mask & 1` 的行属于 Act I 野外 —— 逐行核对：1 / 3 / 16385 / 262145 / 4194305 / 257 全部含 bit0）
@@ -23,7 +22,7 @@
 ⇒ 所以把血腥荒野做成原版那样，唯一正确的做法是**用原版这套块去拼**（块边长 8 格，
    相邻块共享 1 格 = 块 ds1 是 9×9），而不是自己写一个"随机崖壁带 + 随机撒障碍"。
 
-每格抽三样（与 `export_town_layout.py` / `export_cave_layout.py` 同一口径）：
+每格抽三样（与 `export_town_layout.py` 同一口径）：
     · kind：'.' 可走 / '#' 阻挡 / ' ' 原版这格没有 floor（图外）
     · ground / object：floor 层与 wall 层的瓦片键（`<packId:3><tileIdx:3>`，`------` = 无）
 另外每块带一个**四边开通标志**（`OpenN/S/W/E`，由该块可走掩码的边带算出）——
@@ -357,9 +356,9 @@ def build(out_path, debug):
             if hit is None:
                 return ''
             if hit[0] == 'warp':
-                # 非预期但原版确实存在：`CAVES/cavedr1,2.ds1` 依赖 `BARRACKS/warp.dt1`
+                # 非预期但原版确实存在：部分野外块依赖 `BARRACKS/warp.dt1`
                 # （编辑器留下的孤儿传送标记，纯色调色板）⇒ **不画**，与
-                # `export_town_layout.py::is_warp_cell` / `export_pieces.py` 同一处理。
+                # `export_town_layout.py::is_warp_cell` 同一处理。
                 return ''
             return '%03d%03d' % (pack_id[hit[0]], hit[1])
 

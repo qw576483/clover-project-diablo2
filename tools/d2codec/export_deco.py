@@ -49,9 +49,9 @@
   导出的 token 清单 = `DECO_IDS` 里 `Draw != 0` 的那些类（`objects.txt` 的 `Draw` 列；
   `Draw=0` 的原版就不画，跳过）。
 
-── ⑤ 三个布局导出器共用本文件的 id 判定 ───────────────────────────────────────
-  罗格营地（`export_town_layout.py`）、野外（`export_wild_layout.py`）、洞穴
-  （`export_cave_layout.py`）都从 DS1 的 `objects` 层取 kind=2 单位，一律走本文件的
+── ⑤ 两个布局导出器共用本文件的 id 判定 ───────────────────────────────────────
+  罗格营地（`export_town_layout.py`）与野外（`export_wild_layout.py`）都从
+  DS1 的 `objects` 层取 kind=2 单位，一律走本文件的
   `exportable_kinds()`（可导出 id → 物件描述）与 `units_of()`（单位 → 格 + ds1 id）——
   ⛔ id 判定表只有本文件这一份，别处不复制；判不出的 id 由调用方按 id 汇总点名（口径见
   `DECO_IDS` 上方的约定：留空、不猜）。

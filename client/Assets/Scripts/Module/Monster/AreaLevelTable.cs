@@ -3,10 +3,10 @@
 // **`Def.AreaId` → `level_c` 配表行**的唯一解析入口。
 //
 // 为什么需要它（**契约不一致**）：
-//   `Def.AreaId`（`Def/Enums.cs`）是 **0 基**：`Town=0 / BloodMoor=1 / DenOfEvil=2`，
+//   `Def.AreaId`（`Def/Enums.cs`）是 **0 基**：`Town=0 / BloodMoor=1`，
 //   注释写着"取值 = 配表 `level_c` 的主键"；
-//   而打表产物 `level_c` 的 `id` 是 **1 基**：`1=罗格营地(Rogue Encampment) / 2=血腥荒野(Blood Moor)
-//   / 3=邪恶洞穴(Den of Evil)`（见 `client/Assets/Scripts/Table/Tsv/Level.tsv`）。
+//   而打表产物 `level_c` 的 `id` 是 **1 基**：`1=罗格营地(Rogue Encampment) / 2=血腥荒野(Blood Moor)`
+//   （见 `client/Assets/Scripts/Table/Tsv/Level.tsv`）。
 //   ⇒ `Level.Get((int)AreaId.BloodMoor)` 会拿到**罗格营地**那一行。
 //
 // 处置（不改契约、不改配表、不猜数字）：
@@ -84,7 +84,6 @@ namespace Diablo2.Module.Monster
             {
                 case AreaId.Town: return "Rogue Encampment";
                 case AreaId.BloodMoor: return "Blood Moor";
-                case AreaId.DenOfEvil: return "Den of Evil";
                 default:
                     MonsterLog.WarnThrottled("level.area.unknown", $"ExpectedLevelNameOf: 未登记的区域 {(int)area}");
                     return null;

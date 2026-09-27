@@ -42,7 +42,6 @@ internal static class MapCheckProgram
         Run(Step7_FailurePath);
         // ── 本轮（"地图该随机的没随机 / 地窟是一坨"）新增 ──────────────────────
         Run(Step8_SeedFingerprints);
-        Run(Step9_CaveUsesOriginalPieces);
         Run(Step10_TownFixedAndOriginalTiles);
         Run(Step11_WildernessLayoutShape);
         Run(Step13_WildernessFixedSize);
@@ -79,7 +78,6 @@ internal static class MapCheckProgram
         //    只加断言，不动既有步骤、不放宽任何既有断言 ──────────────────────────────
         Run(Step36_AssetKeysAllAreasAndPaths);
         Run(Step37_LandingChunkWindow);
-        Run(Step38_CaveLayoutFailureStats);
         //    「野外没有墙，只有空气墙；automap 边界不对」离线量化（只加断言，不动既有步骤）──
         Run(Step39_WildInvisibleWalls);
         if (Environment.GetEnvironmentVariable("MAPCHECK_SEED") != null) Run(Step12_DebugSeed);
@@ -143,25 +141,8 @@ internal static class MapCheckProgram
         sets.Add(("BloodMoor", "floor", wildGround, "MapGenWildLayout 14 字码的 <ground6>"));
         sets.Add(("BloodMoor", "object", wildObject, "MapGenWildLayout 14 字码的 <object6>"));
 
-        // ── ③ 邪恶洞穴（随机布局）：符号表条目 = `<kind><ground6><object6>`（13 字符；`------` = 该层没瓦片）
-        var cave = System.IO.File.ReadAllText(System.IO.Path.Combine(mapDir, "MapGenCaveLayout.cs"));
-        var cavePacks = QuotedStrings(SectionBody(cave, "Packs"));
-        var caveGround = new HashSet<string>(StringComparer.Ordinal);
-        var caveObject = new HashSet<string>(StringComparer.Ordinal);
-        var caveCodes = 0;
-        foreach (var lit in QuotedStrings(cave))
-        {
-            if (lit.Length != 13) continue;
-            if (!IsDigits(lit.Substring(1, 6)) && !IsDigits(lit.Substring(7, 6))) continue;
-            caveCodes++;
-            AddKey(cavePacks, lit.Substring(1, 3), lit.Substring(4, 3), caveGround);
-            AddKey(cavePacks, lit.Substring(7, 3), lit.Substring(10, 3), caveObject);
-        }
-        sets.Add(("DenOfEvil", "floor", caveGround, "MapGenCaveLayout 13 字符号表的 <ground6>"));
-        sets.Add(("DenOfEvil", "object", caveObject, "MapGenCaveLayout 13 字符号表的 <object6>"));
-
-        Check(wildCodes > 0 && caveCodes > 0,
-            $"布局字码解析自证：荒野 14 字码 {wildCodes} 条、洞穴 13 字符号 {caveCodes} 条（都 > 0 ⇒ 解析口径在跑，不是空集假绿）");
+        Check(wildCodes > 0,
+            $"布局字码解析自证：荒野 14 字码 {wildCodes} 条（> 0 ⇒ 解析口径在跑，不是空集假绿）");
 
         // 自证：营地两层并集 = 既有 §18 口径的 295（拆分不许丢键）
         var townAll = new HashSet<string>(StringComparer.Ordinal);
@@ -198,7 +179,7 @@ internal static class MapCheckProgram
             }
             Console.WriteLine($"    {s.Area,-10} {s.Layer,-6} 被引用键 {keys.Count,4} 个 ⇒ 取不到文件 {missHere} 个（出处 {s.Src}）");
         }
-        Check(total > 0, $"三个区域 × 两层共枚举出 {total} 个被引用键（营地/荒野/洞穴的布局生成物；⛔ 不含 UI 素材）");
+        Check(total > 0, $"两个区域 × 两层共枚举出 {total} 个被引用键（营地/荒野的布局生成物；⛔ 不含 UI 素材）");
         Check(missing.Count == 0,
             $"**每一个被引用的地形/物件键都能取到文件**（{total} 个键，缺 {missing.Count} 个"
             + (missing.Count > 0 ? "：" + string.Join(",", missing.GetRange(0, Math.Min(8, missing.Count))) : "）"));
@@ -207,7 +188,7 @@ internal static class MapCheckProgram
         var mmBad = new List<string>();
         var mmCells = 0;
         var mmDrawn = 0;
-        foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil })
+        foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor })
         {
             IMapModule map = NewMap();
             map.Generate(area, 333);
@@ -239,7 +220,7 @@ internal static class MapCheckProgram
         Check(mmBad.Count == 0,
             "automap 逐格 cel 合法（None 或 [0," + AutoMapCel.FrameCount + ") 且有像素数据）"
             + (mmBad.Count > 0 ? "；越界/缺像素 " + mmBad.Count + " 个：" + string.Join(",", mmBad.GetRange(0, Math.Min(5, mmBad.Count))) : ""));
-        Check(mmDrawn > 0, $"automap **不是空图**：三个区域合计画出 {mmDrawn} 格（cels 总数 {mmCells}）");
+        Check(mmDrawn > 0, $"automap **不是空图**：两个区域合计画出 {mmDrawn} 格（cels 总数 {mmCells}）");
 
         var tsvPath = System.IO.Path.Combine(root, "tools", "probes", "refs", "asset-keys-map-keys.tsv");
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(tsvPath));
@@ -260,144 +241,6 @@ internal static class MapCheckProgram
     /// 且换区那条格跳变**不构成**大跨度（`IsLargeShift((32,27),(9,36))` = false）⇒ `PrimeLanding` 在换区无从下手，
     /// 落地覆盖由 `ShowArea` 的落点口径整图重铺负责（与重生走的是同一份纯函数 `LandingRange`/`PlannedChunks`）。</para>
     /// </summary>
-    /// <summary>
-    /// 洞穴块级拓扑的**多种子失败率 / 连击分布 / 逐形状归因** —— 判
-    /// `MapGenCave: 连续 16 次都没拼出一条可走的洞穴（slots=3x3 seed=…）⇒ 交由 MapModule 换 seed 重生成`
-    /// 是「生成可走性回归」还是「偶发种子 + 日志级别偏高」。
-    /// <para>口径：直接调**生产** `MapGenCave.Generate`（⛔ 不镜像它的抽签 / 挑块 / 判定逻辑 ——
-    /// 本步只喂种子、只读返回值与它自己打的日志文本）。逐形状归因走日志里的 `slots=` / `块网格=`
-    /// 读数，因此也不需要在本文件复算 `slotsX/slotsY`。</para>
-    /// <para>失败上限出处 = `MapGenCave.LayoutRetry`(=16，生产常量)；
-    /// 「16 连击」若落在本分布内 ⇒ 偶发；若对某形状**恒发生** ⇒ 结构性缺陷。</para>
-    /// <para>基准读数（4000 种子，`seed = 12345 + i×1000003`；与 `MapGenCave.Generate` 失败分支的
-    /// Warn 注释、`TryLayout` ⑤ 的注释同源）：失败 **492 次 = 12.3%**；跨种子最长连击 = **4**
-    /// （1:412 / 2:68 / 3:11 / 4:1）；逐形状 2x2 6.82% / 2x3 6.18% / 3x2 19.96% / 3x3 16.23%；
-    /// 作废原因**只有** `连通性自检失败`（其余四类 = 0）—— 故日志里"连续 16 次"= **内层循环用尽**，
-    /// ⛔ 不是 16 个连续种子都失败。</para>
-    /// </summary>
-    private static void Step38_CaveLayoutFailureStats()
-    {
-        Section("38. ★ 洞穴块级拓扑：多种子失败率 / 连击分布 / 逐形状归因（判「连续 16 次」是回归还是偶发）");
-        const int Seeds = 4000;
-        const int SeedBase = 12345;
-        const int SeedStep = 1000003;
-        const int ReportedSeed = 209530593;   // 实机那一条报错里的 seed（原样引，用于复现核对）
-
-        // ── 块库四边开通掩码覆盖（读生产生成物的公开数据）：某掩码 0 块 ⇒ 该 `need` 任何 seed 都挑不到块 ──
-        var pieces = MapGenCaveLayout.Pieces;
-        var maskCount = new int[16];
-        for (var i = 0; i < pieces.Length; i++) maskCount[pieces[i].DirMask & 15]++;
-        var maskParts = new List<string>();
-        var maskMissing = new List<string>();
-        for (var m = 0; m < 16; m++)
-        {
-            maskParts.Add(m.ToString("X") + "=" + maskCount[m]);
-            if (maskCount[m] == 0) maskMissing.Add(m.ToString("X"));
-        }
-        Console.WriteLine("  块库 " + pieces.Length + " 块，四边开通掩码分布：" + string.Join(" ", maskParts));
-        Console.WriteLine("  无块可用的掩码值：" + (maskMissing.Count == 0 ? "无" : string.Join(",", maskMissing))
-            + "（注：掩码 0 = 四边都不开；`PickPiece` 判的是「块掩码 ⊇ need」，need=0 时任何块都满足 ⇒ 0 缺失不构成不可满足）");
-
-        var prev = Game.Logger;
-        var cap = new CaptureLogger();
-        Game.Logger = cap;
-
-        var fail = 0;
-        var curRun = 0;
-        var maxRun = 0;
-        var runHist = new int[64];
-        var attHist = new Dictionary<int, int>();
-        var shapeAll = new Dictionary<string, int>();
-        var shapeFail = new Dictionary<string, int>();
-        // 作废原因逐条计数（口径 = `TryLayout` 自己打的告警/错误原文里那几个固定短语）
-        var reasons = new[]
-        {
-            "块库里没有能覆盖它的块", "边界环里仍有", "在西边界上没有可走格",
-            "找不到 3×3 净空", "连通性自检失败",
-        };
-        var reasonHits = new int[reasons.Length];
-        var firstFailSeed = 0;
-        var firstFailText = "(无失败)";
-        try
-        {
-            for (var i = 0; i < Seeds; i++)
-            {
-                var seed = unchecked(SeedBase + i * SeedStep);
-                cap.Clear();
-                var ok = MapGenCave.Generate(new GridMap(), new Rng(seed));
-                var log = cap.Text;
-
-                var shape = CaveShapeOf(log);
-                if (shape != null)
-                {
-                    shapeAll[shape] = shapeAll.TryGetValue(shape, out var a) ? a + 1 : 1;
-                    if (!ok) shapeFail[shape] = shapeFail.TryGetValue(shape, out var b) ? b + 1 : 1;
-                }
-
-                var att = CountSub(log, "次块级拓扑不可用");
-                attHist[att] = attHist.TryGetValue(att, out var c) ? c + 1 : 1;
-                for (var r = 0; r < reasons.Length; r++) reasonHits[r] += CountSub(log, reasons[r]);
-
-                if (ok) { curRun = 0; continue; }
-                fail++;
-                curRun++;
-                if (curRun > maxRun) maxRun = curRun;
-                if (curRun < runHist.Length) runHist[curRun]++;
-                if (firstFailSeed == 0)
-                {
-                    firstFailSeed = seed;
-                    var k = log.IndexOf("连续 16 次", StringComparison.Ordinal);
-                    firstFailText = (k >= 0 ? log.Substring(k, Math.Min(180, log.Length - k)) : log)
-                        .Replace("\r", " ").Replace("\n", " | ");
-                }
-            }
-        }
-        finally { Game.Logger = prev; }
-
-        Console.WriteLine($"  {Seeds} 个种子（seed = {SeedBase} + i×{SeedStep}）："
-            + $"`MapGenCave.Generate` 失败 {fail} 次 = {100.0 * fail / Seeds:0.####}%");
-        Console.WriteLine($"  最长**连击** = {maxRun}；连击长度分布（只列出现过的）：");
-        for (var k = 1; k < runHist.Length; k++)
-            if (runHist[k] > 0) Console.WriteLine($"    连击 {k} 次：出现 {runHist[k]} 回");
-        var attParts = new List<string>();
-        foreach (var kv in attHist) attParts.Add("耗尽 " + kv.Key + " 次=" + kv.Value);
-        attParts.Sort();
-        Console.WriteLine("  每次调用内「拓扑作废」计数分布（16 = 真的连击 16 次才放弃）：" + string.Join(" ", attParts));
-        var shapeParts = new List<string>();
-        foreach (var kv in shapeAll)
-        {
-            var f = shapeFail.TryGetValue(kv.Key, out var v) ? v : 0;
-            shapeParts.Add(kv.Key + "=" + f + "/" + kv.Value
-                + (kv.Value > 0 ? "（" + (100.0 * f / kv.Value).ToString("0.##") + "%）" : ""));
-        }
-        shapeParts.Sort();
-        Console.WriteLine("  逐形状失败率（slots）：" + string.Join("  ", shapeParts));
-        var reasonParts = new List<string>();
-        for (var r = 0; r < reasons.Length; r++) reasonParts.Add(reasons[r] + "=" + reasonHits[r]);
-        Console.WriteLine("  作废原因计数（全部调用累计）：" + string.Join("  ", reasonParts));
-        if (fail > 0)
-            Console.WriteLine($"  首例失败 seed={firstFailSeed}：{firstFailText}");
-
-        // ── 实机那条 seed 的复现核对（同 seed ⇒ 同结果，可复现）──
-        cap.Clear();
-        Game.Logger = cap;
-        var reportedOk = false;
-        try { reportedOk = MapGenCave.Generate(new GridMap(), new Rng(ReportedSeed)); }
-        finally { Game.Logger = prev; }
-        var reportedErr = CountSub(cap.Text, "连续 16 次都没拼出一条可走的洞穴");
-        Console.WriteLine($"  实机报错那条 seed={ReportedSeed}：本次 Generate = {(reportedOk ? "成功" : "失败")}，"
-            + $"日志里「连续 16 次…」出现 {reportedErr} 次");
-
-        // ── 断言：只钉"可复现 + 有归因数据"，不给任何概率下界（下界会随块库变化而误红）──
-        Check(maskCount.Length == 16 && pieces.Length >= 30,
-            $"块库掩码覆盖可读（{pieces.Length} 块，掩码 {maskMissing.Count} 个为空）");
-        Check(shapeAll.Count >= 1 && (fail == 0 || shapeFail.Count >= 1),
-            $"{Seeds} 个种子的形状归因齐全（读到 {shapeAll.Count} 种 slots 形状，失败 {fail} 次）");
-        Check(attHist.Count >= 1, $"每次调用的「拓扑作废」计数分布可读（{attHist.Count} 档）");
-        Check(reportedErr == (reportedOk ? 0 : 1),
-            $"实机 seed={ReportedSeed} 可复现（Generate={(reportedOk ? "成功" : "失败")}，"
-            + $"日志计数 {reportedErr} = {(reportedOk ? 0 : 1)}）");
-    }
 
     // ── 39. 荒野空气墙 + automap 覆盖 ─────────────────────────────────────
     /// <summary>
@@ -524,20 +367,6 @@ internal static class MapCheckProgram
             $"荒野空气墙：{seeds.Length} 个 seed 合计 {totalInv} 格不可走但画面什么都不画（0 = 已修）");
         Defect(totalMmBlind == 0,
             $"荒野 automap 边界：阻挡格两层 Cel 全 -1 合计 {totalMmBlind} 格（0 = 边界在小地图上可见）");
-    }
-
-    /// <summary>从一次 `MapGenCave.Generate` 的日志文本里取 slots 形状（先找报错/警告的 `slots=`，再找成功行的 `块网格=`）。</summary>
-    private static string CaveShapeOf(string log)
-    {
-        if (string.IsNullOrEmpty(log)) return null;
-        var k = log.IndexOf("slots=", StringComparison.Ordinal);
-        var skip = 6;
-        if (k < 0) { k = log.IndexOf("块网格=", StringComparison.Ordinal); skip = 4; }
-        if (k < 0) return null;
-        var e = k + skip;
-        var j = e;
-        while (j < log.Length && (char.IsDigit(log[j]) || log[j] == 'x')) j++;
-        return j > e ? log.Substring(e, j - e) : null;
     }
 
     /// <summary>子串出现次数（本步自用；不依赖别处的同名工具）。</summary>
@@ -670,12 +499,11 @@ internal static class MapCheckProgram
     // ── 1. 三处区域各生成一次 ────────────────────────────────────────────────
     private static void Step1_ThreeAreas()
     {
-        Section("1. 三处区域各生成一次（DumpStats）");
+        Section("1. 两处区域各生成一次（DumpStats）");
         var cases = new[]
         {
             new KeyValuePair<AreaId, int>(AreaId.Town, 20250916),
             new KeyValuePair<AreaId, int>(AreaId.BloodMoor, 20250916),
-            new KeyValuePair<AreaId, int>(AreaId.DenOfEvil, 20250916),
         };
 
         for (var i = 0; i < cases.Length; i++)
@@ -696,8 +524,8 @@ internal static class MapCheckProgram
     // ── 2. 同 seed 两次生成结果一致 ──────────────────────────────────────────
     private static void Step2_SameSeedDeterminism()
     {
-        Section("2. 同 seed 两次生成一致（Town / BloodMoor / DenOfEvil 各一组）");
-        var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+        Section("2. 同 seed 两次生成一致（Town / BloodMoor 各一组）");
+        var areas = new[] { AreaId.Town, AreaId.BloodMoor };
         for (var i = 0; i < areas.Length; i++)
         {
             var a = NewMap();
@@ -722,15 +550,13 @@ internal static class MapCheckProgram
     private static void Step3_FindPath()
     {
         Section("3. FindPath（出生点 → 出口）");
-        var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+        var areas = new[] { AreaId.Town, AreaId.BloodMoor };
         for (var i = 0; i < areas.Length; i++)
         {
             var map = NewMap();
             map.Generate(areas[i], 424242);
             var from = map.SpawnPoint;
-            var target = areas[i] == AreaId.BloodMoor && map.CaveEntrance.HasValue
-                ? map.CaveEntrance.Value
-                : map.Exits[0];
+            var target = map.Exits[0];
 
             var path = map.FindPath(from, target);
             if (path == null)
@@ -769,8 +595,7 @@ internal static class MapCheckProgram
             blocked.Add(map.BlockedCount);
             sizes.Add($"{map.Width}x{map.Height}");
             Console.WriteLine($"  第 {i + 1} 次：seed={seed,-12} size={map.Width}x{map.Height,-8} " +
-                              $"障碍={map.BlockedCount,-6} 可走={map.WalkableCount,-6} " +
-                              $"洞穴入口={map.CaveEntrance} hash={map.Hash()}");
+                              $"障碍={map.BlockedCount,-6} 可走={map.WalkableCount,-6} hash={map.Hash()}");
             System.Threading.Thread.Sleep(2);
         }
 
@@ -786,13 +611,12 @@ internal static class MapCheckProgram
     // ── 5. 后续 agent 要用的确切 API ─────────────────────────────────────────
     private static void Step5_PublicApi()
     {
-        Section("5. NPC 点 / Exit 点 / 洞穴入口点 / 怪物刷新点的确切 API 与取值");
+        Section("5. NPC 点 / Exit 点 / 怪物刷新点的确切 API 与取值");
         Console.WriteLine("接口：Diablo2.Module.IMapModule（Module/Contracts.cs，冻结）");
         Console.WriteLine("  Vector2Int SpawnPoint { get; }                      出生点");
         Console.WriteLine("  IReadOnlyList<Vector2Int> Exits { get; }            出口格（TileKind.Exit）");
-        Console.WriteLine("  Vector2Int? CaveEntrance { get; }                   洞穴入口（仅血腥荒野非 null）");
         Console.WriteLine("  IReadOnlyList<Vector2Int> NpcPoints { get; }        城镇 NPC 站位，下标 = (int)Def.NpcId");
-        Console.WriteLine("  IReadOnlyList<Vector2Int> MonsterSpawns { get; }    怪物刷新点（仅邪恶洞穴非空）");
+        Console.WriteLine("  IReadOnlyList<Vector2Int> MonsterSpawns { get; }    怪物刷新点");
         Console.WriteLine("  List<Vector2Int> FindPath(Vector2Int from, Vector2Int to)");
         Console.WriteLine("  Vector2Int RandomWalkableTile(CloverEngine.Rng rng)");
         Console.WriteLine();
@@ -807,29 +631,21 @@ internal static class MapCheckProgram
             Console.WriteLine($"      [{i}] {(NpcId)i,-8} → NpcPoints[{i}] = {town.NpcPoints[i]}");
         }
         Console.WriteLine($"  怪物刷新点 = {town.MonsterSpawns.Count} 个（契约：城镇为空）");
-        Console.WriteLine($"  洞穴入口 = {(town.CaveEntrance.HasValue ? town.CaveEntrance.Value.ToString() : "null")}");
         Console.WriteLine();
 
         var moor = NewMap();
         moor.Generate(AreaId.BloodMoor, 222);
         Console.WriteLine($"血腥荒野：出生点={moor.SpawnPoint}  出口 {moor.Exits.Count} 个 → {Fmt(moor.Exits)}");
-        Console.WriteLine($"  CaveEntrance = {moor.CaveEntrance}（= Exits[1]={moor.Exits[1]}）");
         Console.WriteLine($"  怪物刷新点 = {moor.MonsterSpawns.Count} 个（契约：野外为空 ⇒ MonsterModule 用 RandomWalkableTile 撒点）");
         Console.WriteLine();
-
-        var cave = NewMap();
-        cave.Generate(AreaId.DenOfEvil, 333);
-        Console.WriteLine($"邪恶洞穴：出生点={cave.SpawnPoint}  出口 {cave.Exits.Count} 个 → {Fmt(cave.Exits)}");
-        Console.WriteLine($"  怪物刷新点 {cave.MonsterSpawns.Count} 个 → {Fmt(cave.MonsterSpawns)}");
-        Console.WriteLine($"  CaveEntrance = {(cave.CaveEntrance.HasValue ? cave.CaveEntrance.Value.ToString() : "null")}（契约：仅血腥荒野有效）");
 
         // 抽样：RandomWalkableTile 必须给出可走格
         var rng = new Rng(2024);
         var ok = true;
         for (var i = 0; i < 200; i++)
         {
-            var g = cave.RandomWalkableTile(rng);
-            if (!cave.Walkable(g)) { ok = false; break; }
+            var g = moor.RandomWalkableTile(rng);
+            if (!moor.Walkable(g)) { ok = false; break; }
         }
         Check(ok, "RandomWalkableTile 200 次抽样全部落在可走格上");
         Console.WriteLine();
@@ -850,7 +666,6 @@ internal static class MapCheckProgram
         {
             new KeyValuePair<AreaId, int>(AreaId.Town, 20250916),
             new KeyValuePair<AreaId, int>(AreaId.BloodMoor, 20250916),
-            new KeyValuePair<AreaId, int>(AreaId.DenOfEvil, 20250916),
         };
 
         for (var i = 0; i < cases.Length; i++)
@@ -957,11 +772,11 @@ internal static class MapCheckProgram
         Console.WriteLine();
     }
 
-    // ── 8. 随机性取证（① 野外 / ② 洞穴：不同 seed ⇒ 不同布局；同 seed ⇒ 可复现）────
+    // ── 8. 随机性取证（野外：不同 seed ⇒ 不同布局；同 seed ⇒ 可复现）────
     private static void Step8_SeedFingerprints()
     {
-        Section("8. 随机性取证：不同 seed ⇒ 不同布局 / 同 seed ⇒ 同布局（野外 & 洞穴）");
-        var areas = new[] { AreaId.BloodMoor, AreaId.DenOfEvil };
+        Section("8. 随机性取证：不同 seed ⇒ 不同布局 / 同 seed ⇒ 同布局（野外）");
+        var areas = new[] { AreaId.BloodMoor };
         var seeds = new[] { 11, 22222222, 987654321 };
 
         for (var i = 0; i < areas.Length; i++)
@@ -988,86 +803,6 @@ internal static class MapCheckProgram
         Console.WriteLine();
     }
 
-    // ── 9. 洞穴必须用**原版 CAVES/*.ds1 预设块**拼（②）────────────────────────
-    private static void Step9_CaveUsesOriginalPieces()
-    {
-        Section("9. 邪恶洞穴：用**原版 CAVES/*.ds1 预设块**拼（逐格原版瓦片 + 走廊-房间拓扑）");
-
-        var pieces = MapGenCaveLayout.Pieces;
-        Console.WriteLine($"  块库：{pieces.Length} 块，块边长 {MapGenCaveLayout.PieceSize}，" +
-                          $"源 = `data/global/tiles/ACT1/CAVES/*.ds1`");
-        var byMask = new Dictionary<int, int>();
-        for (var i = 0; i < pieces.Length; i++)
-        {
-            var mk = pieces[i].DirMask & 15;
-            byMask[mk] = byMask.TryGetValue(mk, out var v) ? v + 1 : 1;
-        }
-        var parts = new List<string>();
-        foreach (var kv in byMask)
-        {
-            var dirs = "";
-            if ((kv.Key & 1) != 0) dirs += "N";
-            if ((kv.Key & 2) != 0) dirs += "S";
-            if ((kv.Key & 4) != 0) dirs += "W";
-            if ((kv.Key & 8) != 0) dirs += "E";
-            parts.Add($"{dirs}={kv.Value}");
-        }
-        parts.Sort();
-        Console.WriteLine($"  四边开通方向分布：{string.Join(" ", parts)}");
-
-        Check(pieces.Length >= 30, $"块库规模 {pieces.Length} ≥ 30（原版 95 个预设里可拼接的那些）");
-        Check(MapGenCaveLayout.PieceSize == 25, "块边长 = 25（与 GameConst.CaveMinSize/MaxSize 的倍数关系一致）");
-        Check(byMask.Count >= 14, $"覆盖 {byMask.Count} 种四边开通组合（≥14 ⇒ 迷宫拓扑不会被块库限死）");
-
-        for (var k = 0; k < 4; k++)
-        {
-            var seed = 1000 + k * 7919;
-            var cave = NewMap();
-            cave.Generate(AreaId.DenOfEvil, seed);
-            var w = cave.Width;
-            var h = cave.Height;
-
-            Check(cave.IsGenerated && w % 25 == 0 && h % 25 == 0
-                  && w >= GameConst.CaveMinSize && w <= GameConst.CaveMaxSize,
-                $"seed={seed}：尺寸 {w}x{h} 是原版块边长 25 的整数倍且在 [CaveMinSize {GameConst.CaveMinSize}, " +
-                $"CaveMaxSize {GameConst.CaveMaxSize}]");
-            Check(cave.HasTileOverrides, $"seed={seed}：洞穴启用了逐格原版瓦片键（渲染用 CAVES/cave.dt1）");
-
-            var bad = 0;
-            var groundCells = 0;
-            var blackCells = 0;
-            var objCells = 0;
-            for (var y = 0; y < h; y++)
-            {
-                for (var x = 0; x < w; x++)
-                {
-                    if (!cave.TryGetTileKeys(x, y, out var g, out var o)) { bad++; continue; }
-                    if (g.Length == 0) blackCells++;
-                    else
-                    {
-                        groundCells++;
-                        if (!g.StartsWith("cave/")) bad++;
-                    }
-                    if (o.Length > 0) objCells++;
-                }
-            }
-            Check(bad == 0, $"seed={seed}：每一格的瓦片键都来自原版 `CAVES/cave.dt1`（越界/异包 = 0 格，" +
-                            $"地砖 {groundCells} 格 / 全黑实心岩体 {blackCells} 格 / 带岩壁物件 {objCells} 格）");
-
-            var comps = cave.CountWalkableComponents();
-            Check(comps == 1, $"seed={seed}：可走格是**一整片**（连通片数 = {comps}，走廊+房间全通）");
-
-            var ratio = 100f * cave.WalkableCount / (w * h);
-            Check(ratio >= 15f && ratio <= 55f,
-                $"seed={seed}：可走率 {ratio:F1}%（原版洞穴块实测约 35% ⇒ 是走廊网，不是一坨空地）");
-            Check(cave.Exits.Count == 1 && cave.Walkable(cave.Exits[0]),
-                $"seed={seed}：恰 1 个出口且可走（{cave.Exits[0]}）");
-            Check(cave.Walkable(cave.SpawnPoint) && cave.SpawnPoint != cave.Exits[0],
-                $"seed={seed}：出生点 {cave.SpawnPoint} 可走且与出口分开");
-            Check(cave.MonsterSpawns.Count > 0, $"seed={seed}：刷怪点 {cave.MonsterSpawns.Count} 个");
-            Console.WriteLine();
-        }
-    }
 
     // ── 10. 罗格营地：固定布局 + 逐格原版瓦片（③）────────────────────────────
     private static void Step10_TownFixedAndOriginalTiles()
@@ -1361,10 +1096,8 @@ internal static class MapCheckProgram
             Check(road > 60, $"seed={seed}：土路 {road} 格（3 格宽 ⇒ 明显多于 1 格宽的 40 格量级）");
             Check(tree >= 80, $"seed={seed}：树 {tree} 格（原版边界块的树线 + Fence/Tree Fill 树丛）");
             Check(rock > 300, $"seed={seed}：岩体 {rock} 格（原版崖壁边界带）");
-            Check(m.Exits.Count == 2 && m.CaveEntrance.HasValue,
-                $"seed={seed}：出口 2 个（回城口 + 洞穴入口）、洞穴入口 = {m.CaveEntrance}");
-            Check(m.Walkable(m.Exits[0]) && m.Walkable(m.Exits[1]),
-                $"seed={seed}：两个出入口都真的可走（土路把两侧边界打通）");
+            Check(m.Exits.Count == 1, $"seed={seed}：出口 1 个（回城口）");
+            Check(m.Walkable(m.Exits[0]), $"seed={seed}：回城口真的可走（土路把边界打通）");
 
             // 关键形态断言：野外是**开阔场地**（原版血腥荒野就是这样），不是被障碍封成迷宫。
             // 阈值 35% 的来由：地形里有一圈**原版崖壁边界带**（8 格块 ⇒ 最外 8~9 格），
@@ -2001,7 +1734,7 @@ internal static class MapCheckProgram
 
         // 整图节点数（三区域逐块统计，与 Step16 ④ 同一口径）⇒ 模拟"全部归还后再次整图重铺"
         var nodes = 0;
-        foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil })
+        foreach (var area in new[] { AreaId.Town, AreaId.BloodMoor })
         {
             var m = NewMap();
             m.Generate(area, 20250916);
@@ -2176,7 +1909,7 @@ internal static class MapCheckProgram
             "零成本格在格数未到顶时仍放行（不会把「不画的格」永久卡住）");
 
         // ── ③④ 真实三区域：逐格成本 → 帧序模拟 → 不露空 ──────────────────────────────────
-        var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+        var areas = new[] { AreaId.Town, AreaId.BloodMoor };
         var framesByArea = new List<string>();
         var allBudgetOk = true;
         var allOrderOk = true;
@@ -2525,7 +2258,7 @@ internal static class MapCheckProgram
             "`EnsureBufferRoots` 仍 3 次 `SetActive(false)`（三个缓冲层根**恒隐藏**）" +
             " ⇒ 「缓冲集在切换前任何时刻都不可见」这条**不露空约束未失效**（本片的修复只复活块根，不动层根）");
 
-        var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+        var areas = new[] { AreaId.Town, AreaId.BloodMoor };
         var budget = MapView.MaxTileNodesPerFrame;
         var cellBudget = MapView.MaxTileCellsPerFrame;
         var allNoBlack = true;      // 修复后：切换那一帧新集可见节点数 == 计划节点数（> 0）
@@ -3300,7 +3033,7 @@ internal static class MapCheckProgram
             if (k < 5)
             {
                 Console.WriteLine($"  seed={seed,-12} size={m.Width}x{m.Height} 可走={m.WalkableCount,-6} " +
-                                  $"障碍={m.BlockedCount,-6} 回城口={Fmt(m.Exits)} 洞穴口={m.CaveEntrance}");
+                                  $"障碍={m.BlockedCount,-6} 回城口={Fmt(m.Exits)}");
             }
         }
 
@@ -3446,7 +3179,7 @@ internal static class MapCheckProgram
     private static void Step12_DebugSeed()
     {
         var seedText = Environment.GetEnvironmentVariable("MAPCHECK_SEED");
-        var areaText = Environment.GetEnvironmentVariable("MAPCHECK_AREA") ?? "DenOfEvil";
+        var areaText = Environment.GetEnvironmentVariable("MAPCHECK_AREA") ?? "BloodMoor";
         if (!int.TryParse(seedText, out var seed)) { Console.WriteLine("MAPCHECK_SEED 不是整数"); return; }
         var area = (AreaId)Enum.Parse(typeof(AreaId), areaText);
         Section($"12. 定点排查 area={area} seed={seed}");
@@ -3462,7 +3195,7 @@ internal static class MapCheckProgram
     {
         return key.StartsWith("town_floor/") || key.StartsWith("town_trees/")
             || key.StartsWith("town_fence/") || key.StartsWith("town_objects/")
-            || key.StartsWith("moor_") || key.StartsWith("cave_");
+            || key.StartsWith("moor_");
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -3547,8 +3280,8 @@ internal static class MapCheckProgram
         Check(waterNonRiverGround == 0,
             $"水格的地面键**全是** `moor_river/*`（原版水瓦片；异常 = {waterNonRiverGround} 格）");
 
-        // ── ② 其它两张图**一格水都没有**（按合同 `'X'` 保持原分类；洞穴的 'X' = 实心岩体）──
-        var areas = new[] { AreaId.BloodMoor, AreaId.DenOfEvil };
+        // ── ② 另一张图**一格水都没有**（按合同 `'X'` 保持原分类）──
+        var areas = new[] { AreaId.BloodMoor };
         for (var i = 0; i < areas.Length; i++)
         {
             var m = NewMap();
@@ -3574,11 +3307,10 @@ internal static class MapCheckProgram
                 ps.Add($"{ks[j]}×{counts2[ks[j]]}{(TileKindInfo.IsWalkable(ks[j]) ? "(可走)" : "(阻挡)")}");
             Console.WriteLine($"    [枚举] {areas[i]} 盘上实际出现的地形：{string.Join(" / ", ps)}");
             Check(water == 0, $"{areas[i]}：`TileKind.Water` = 0 格（合同：本片只摘城镇 `'r'`，`'X'` 等**保持原分类**；实测 {water}）");
-            // 野外有 `Rock`（崖壁/碎石/杂物/水都归它，按合同未改）；洞穴**没有** `Rock`（用 `CaveWall`）
-            // ⇒ 期望值分区域给，不许用一句"Rock>0"套三张图（那在洞穴上必然假红）。
-            var blockerKept = areas[i] == AreaId.BloodMoor ? rock : counts2.ContainsKey(TileKind.CaveWall) ? counts2[TileKind.CaveWall] : -1;
+            // 野外有 `Rock`（崖壁/碎石/杂物/水都归它，按合同未改）
+            var blockerKept = rock;
             Check(blockerKept > 0,
-                $"{areas[i]}：原地形分类仍在（{(areas[i] == AreaId.BloodMoor ? "Rock" : "CaveWall")} = {blockerKept} 格 ⇒ 阻挡码没有被顺手改成水）");
+                $"{areas[i]}：原地形分类仍在（Rock = {blockerKept} 格 ⇒ 阻挡码没有被顺手改成水）");
         }
 
         // ── ③ 消费者穷举（**源码级**）：每个 switch/判定点对 Water 都有显式分支或已登记的 default ──
@@ -3594,7 +3326,6 @@ internal static class MapCheckProgram
         var dbg = Src("client/Assets/Scripts/Module/Map/MapDebug.cs");
         var townGen = Src("client/Assets/Scripts/Module/Map/MapGenTown.cs");
         var wildGen = Src("client/Assets/Scripts/Module/Map/MapGenWilderness.cs");
-        var caveGen = Src("client/Assets/Scripts/Module/Map/MapGenCave.cs");
         int Count(string hay, string needle)
         {
             var n = 0;
@@ -3625,8 +3356,6 @@ internal static class MapCheckProgram
               && wildGen.Contains("case 'S': return TileKind.Rock;")
               && wildGen.Contains("case 'O': return TileKind.Rock;"),
             "MapGenWilderness.cs：`'X'`（水）与崖壁/碎石/杂物**保持原分类**（按本轮合同未改，已登记为未决）");
-        Check(Count(caveGen, "TileKind.Water") == 0,
-            "MapGenCave.cs：洞穴里**没有** Water（洞穴的 `'X'` = 实心岩体 `CaveWall`，⛔ 不许当水）");
 
         //   判据：凡文件里出现 `case TileKind.` 的，都必须对 `Water` 有显式分支，
         var scriptsRoot = System.IO.Path.Combine(ResolveProjectRoot(), "client", "Assets", "Scripts");
@@ -3818,10 +3547,14 @@ internal static class MapCheckProgram
         var m2 = NewMap();
         m2.Generate(AreaId.Town, 0);
         var deckTown = CountDeck(m2);
-        m2.Generate(AreaId.DenOfEvil, 7);
-        var deckCave = CountDeck(m2);
-        Check(deckTown > 0 && deckCave == 0,
-            $"换图后 deck 标记不残留：城镇 {deckTown} 格 → 邪恶洞穴 {deckCave} 格（洞穴地砖包 ≠ deck 类包）");
+        var fresh = NewMap();
+        fresh.Generate(AreaId.BloodMoor, 7);
+        var deckFresh = CountDeck(fresh);
+        m2.Generate(AreaId.BloodMoor, 7);
+        var deckMoor = CountDeck(m2);
+        Check(deckTown > 0 && deckMoor == deckFresh,
+            $"换图后 deck 标记不残留：城镇 {deckTown} 格 → 血腥荒野 {deckMoor} 格"
+            + $"（= 直接生成荒野的 {deckFresh} 格 ⇒ 没有带上城的桥面标记）");
         m2.Clear();
         Check(CountDeck(m2) == 0, $"Clear() 后 IsDeckGrid 全 false（实测 {CountDeck(m2)} 格）");
 
@@ -3870,7 +3603,7 @@ internal static class MapCheckProgram
             $"{covered}/{deck.Count}（生产路径断言见 combatcheck §15.4）");
 
         // ── ② 地图边界 / 图外一格 / 边缘格 / 出口可达（逐区域）───────────────────
-        var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+        var areas = new[] { AreaId.Town, AreaId.BloodMoor };
         var seeds = new[] { 0, 424242, 7 };
         for (var i = 0; i < areas.Length; i++)
         {
@@ -4629,7 +4362,7 @@ internal static class MapCheckProgram
         var halfH = ortho;
 
         var seeds = new[] { 20250916, 222, 1001, 777001 };
-        var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+        var areas = new[] { AreaId.Town, AreaId.BloodMoor };
 
         foreach (var area in areas)
         {

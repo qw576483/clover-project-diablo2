@@ -13,9 +13,8 @@
 //
 //   · **普通怪** = 原版逐格抽样命中的格（每格 `MonDen/100000`）⇒ 命中格各刷一群；
 //     出处 `Diablerie/.../Engine/World/LevelBuilder.cs:225-237`；
-//   · **精英群**（`mon_umin/mon_umax`）仍自己挑锚点：洞穴用 `MonsterSpawns`、
-//     野外用 `RandomWalkableTile(rng)`（官方只规定"刷几群"，没规定落点）。
-//      普通怪不再用它 —— 但仍由 `MapGenCave` 继续产出（契约 `IMapModule` 的字段没改、宿主仍在断言它）。
+//   · **精英群**（`mon_umin/mon_umax`）仍自己挑锚点：用 `RandomWalkableTile(rng)`
+//     （官方只规定"刷几群"，没规定落点）。
 //
 // 官方 `MonAi.txt` 的 AI 名 → 契约的 4 种 `MonsterAI` 的**映射表**见 `MapAi`（唯一一处）。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -272,7 +271,7 @@ namespace Diablo2.Module.Monster
         }
 
         /// <summary>
-        /// 选一个群锚点（**只给精英群用**）：洞穴用 `MonsterSpawns`，野外用 `RandomWalkableTile`；
+        /// 选一个群锚点（**只给精英群用**）：用 `RandomWalkableTile`；
         /// 并保证离玩家出生点 ≥ `MonsterTuning.SpawnMinDistanceFromPlayer`。
         /// <para>
         /// </para>
@@ -300,7 +299,7 @@ namespace Diablo2.Module.Monster
                 if (!map.Walkable(g)) continue;
                 if (Iso.GridDistanceEuclidean(g, playerSpawn) < MonsterTuning.SpawnMinDistanceFromPlayer)
                 {
-                    // 太贴脸：再抽一次（洞穴的刷新点是地图给的，抽到近处就多试几次）
+                    // 太贴脸：再抽一次
                     continue;
                 }
                 return g;

@@ -4,7 +4,7 @@
 // 为什么必须有这一步（否则必然出现"面板打开是空的"）：
 //   面板只吃两种输入：`OnOpen(param)` 与它自己订阅的 `Events.*` 事件。
 //   · `MapGenerated` 在 `Generate` 里发出，而 HUD / 小地图面板是**之后**才被创建的；
-//   · `InventoryChanged` / `SkillTreeChanged` / `QuestChanged` / `HudDirty` 只在"发生变化时"发，
+//   · `InventoryChanged` / `SkillTreeChanged` / `HudDirty` 只在"发生变化时"发，
 //     进图那一刻没有任何变化 ⇒ 不广播的话，HUD 的缓存是 null，按 I/C/T/Q 打开的面板全空。
 //   ⇒ 约定：**App 在 `Events.StageEntered` 之后主动广播一次全量快照**（本文件），
 //     并在 `Events.PanelToggleRequest` 到达时**再补发一次对应快照**（HUD 打开面板时把缓存传进去）。
@@ -147,8 +147,6 @@ namespace Diablo2.App
             if (ctx.Skill != null) { bus.Emit(Events.SkillTreeChanged, ctx.Skill.BuildTree()); n++; }
             else AppWiring.Missing("ISkillModule");
 
-            n += EmitQuests(ctx);
-
             if (ctx.Map != null)
             {
                 if (ctx.Map.IsGenerated) { EmitMapEcho(ctx.Map.BuildMinimap()); n++; }
@@ -159,22 +157,7 @@ namespace Diablo2.App
 
             Game.Logger.Info(Tag,
                 $"[Stage] 全量快照已广播 {n} 条（{reason}）：{Events.HudDirty} / {Events.InventoryChanged} / " +
-                $"{Events.SkillTreeChanged} / {Events.QuestChanged} / {Events.MapGenerated} / {Events.PlayerGridChanged}");
-        }
-
-        private static int EmitQuests(AppContext ctx)
-        {
-            if (ctx.Quest == null) { AppWiring.Missing("IQuestModule"); return 0; }
-
-            var qs = ctx.Quest.Quests;
-            if (qs == null || qs.Count == 0)
-            {
-                Game.Logger.Warn(Tag, $"任务模块的 Quests 为空 ⇒ 未广播 {Events.QuestChanged}（任务链装配异常？）");
-                return 0;
-            }
-
-            for (var i = 0; i < qs.Count; i++) Game.Event.Emit(Events.QuestChanged, qs[i]);
-            return qs.Count;
+                $"{Events.SkillTreeChanged} / {Events.MapGenerated} / {Events.PlayerGridChanged}");
         }
 
         /// <summary>
@@ -202,10 +185,6 @@ namespace Diablo2.App
                 case nameof(SkillTreePanel):
                     if (ctx.Skill != null) Game.Event.Emit(Events.SkillTreeChanged, ctx.Skill.BuildTree());
                     else AppWiring.Missing("ISkillModule");
-                    break;
-
-                case nameof(QuestLogPanel):
-                    EmitQuests(ctx);
                     break;
 
                 case nameof(MiniMapPanel):

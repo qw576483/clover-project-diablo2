@@ -395,25 +395,6 @@ namespace CombatCheck
             MonsterStepCadence();
             MonsterDeathDelay();
 
-            // ── 4.2 邪恶洞穴：Shaman(堕落萨满) 复活同伴 ──
-            // 本轮改：洞穴布点是随机的，**"萨满 + 复活半径内的同伴"这一对不是每张图都有**
-            //   ⇒ 按固定 seed 取图的旧写法会偶发"这张图没有可测场景"而误报失败。
-            //   改成：在若干 seed 里找**第一张能测的图**测到底；一张都找不到才判失败（如实报）。
-            var seeds = new[] { 424343, 20250916, 555001, 12345, 987654321, 424242 };
-            var tested = false;
-            for (var i = 0; i < seeds.Length && !tested; i++)
-            {
-                PrepareMap(AreaId.DenOfEvil, seeds[i]);
-                _ctx.Monster.DespawnAll();
-                _ctx.Monster.SpawnArea(AreaId.DenOfEvil);
-                tested = AiShamanRevives(seeds[i]);
-            }
-            if (!tested)
-            {
-                Check("Shaman：候选 seed 里存在「萨满 + 复活半径内同伴」的洞穴图", false,
-                    $"试过 {seeds.Length} 张图都没有 ⇒ 测不了（不是模块缺陷，但本轮也没测到）");
-            }
-            Console.WriteLine();
         }
 
         /// <summary>
@@ -782,87 +763,6 @@ namespace CombatCheck
             return n;
         }
 
-        /// <summary>
-        /// 4.2 萨满复活：**配对必须按系统自己的距离口径找**。
-        /// <para>
-        /// 选配对，注释声称"世界单位 ≤ `ShamanReviveRange`"。**那是错的** —— 生产口径的出处：
-        /// `Module/Monster/MonsterModule.cs::FindRevivableCorpse` 比的是
-        /// `Vector2.Distance(shaman.Pos, corpse.Pos)`，而 `MonsterRuntime.Pos` 是
-        /// **连续格坐标（格中心制）**（`Module/Monster/MonsterRuntime.cs` 文件头第 11~14 行：
-        /// "格 (gx,gy) 覆盖 [gx,gx+1]×[gy,gy+1]，中心 = (gx+0.5, gy+0.5)"，
-        /// 即 `Pos == (gx+0.5, gy+0.5)` 时才等于 `Iso.GridToWorld(gx,gy)` 的**输入**）
-        /// ⇒ 该距离的单位是 **格**，与 `MonsterTuning.ShamanReviveRange`（注释写明"最大距离（**格**）"）同量纲。
-        /// </para>
-        /// <para>
-        /// 等距世界单位与格欧氏**不是同一个度量**（`world.x=(gx-gy)·1.0`、`world.y=-(gx+gy+1)·0.5`）：
-        /// 实测同一对（萨满 (17,59) ↔ 同伴 (10,54)）**格欧氏 = 8.60 > 7**（生产正确返回 -1，
-        /// 因为这对真的不在复活半径内），而**等距世界距离只有 6.32 ≤ 7** ⇒ 旧判据把一对"够不着"的
-        /// 组合当成"可测场景"，杀掉同伴后萨满当然复活不了 ⇒ 3 项断言连锁变红（既存 FAIL 的真因）。
-        /// `Chebyshev` 格距（= 7）同样不能用：对角时 7 格 Chebyshev = 9.90 格欧氏。
-        /// </para>
-        /// <para>⇒ 判定一律走 <see cref="ReviveScanDistance"/>（与生产同一把尺子）。断言本身一字未改。</para>
-        /// </summary>
-        /// <returns>true = 本图有可测场景且已完整测过；false = 本图没有可测场景（换 seed）。</returns>
-        private static bool AiShamanRevives(int seed)
-        {
-            MonsterState shaman = null, nearest = null;
-            var nearestD = float.MaxValue;
-            foreach (var s in _ctx.Monster.All)
-            {
-                if (s == null || !s.alive || s.ai != MonsterAI.Shaman) continue;
-                foreach (var m in _ctx.Monster.All)
-                {
-                    if (m == null || !m.alive || m.id == s.id) continue;
-                    var d = ReviveScanDistance(s, m);
-                    if (d >= nearestD) continue;
-                    nearestD = d;
-                    shaman = s;
-                    nearest = m;
-                }
-            }
-            if (shaman == null)
-            {
-                Check($"Shaman(seed={seed})：洞穴里刷到了堕落萨满", false, "none");
-                return true;                       // 有萨满才算"测过"；没萨满属模块问题，直接判失败
-            }
-            if (nearestD > MonsterTuning.ShamanReviveRange)
-            {
-                Console.WriteLine($"  seed={seed}：最近的一对（萨满, 同伴）**格欧氏距离** = {nearestD:0.00} > " +
-                                  $"ShamanReviveRange = {MonsterTuning.ShamanReviveRange}（格）" +
-                                  $" ⇒ 本图无场景，换图");
-                return false;
-            }
-
-            // 本行原为硬编码 `true`（只当"场景构造成功"的打印）⇒ 改成真的比一遍：判据更严，不是放宽。
-            Check($"Shaman(seed={seed})：复活半径（{MonsterTuning.ShamanReviveRange:0.#} 格）内有同伴可复活",
-                nearestD <= MonsterTuning.ShamanReviveRange, $"最近一对 = {nearestD:0.00} 格（格欧氏）");
-
-            // 杀这一对里那个"同伴"（它在复活半径内 ⇒ 萨满必然能吃尸体复活它）
-            var companion = nearest;
-            Console.WriteLine($"  Shaman m#{shaman.id} 与同伴 m#{companion.id} 的**格欧氏距离** = " +
-                              $"{ReviveScanDistance(shaman, companion):0.00} " +
-                              $"（ShamanReviveRange = {MonsterTuning.ShamanReviveRange}（格）；" +
-                              $"Chebyshev 格距 = {Iso.GridDistance(shaman.Grid(), companion.Grid())}；" +
-                              $"等距世界距离 = {WorldDistance(shaman, companion):0.00}（⛔ 非判定口径，仅披露））");
-
-            _ctx.Monster.ApplyDamage(companion.id, 9999, DamageType.Physical);
-            Check("Shaman：同伴已死且**保留可复活尸体**", !companion.alive && companion.corpseUsable,
-                $"m#{companion.id} alive={companion.alive} corpseUsable={companion.corpseUsable}");
-
-            PlacePlayerAtDistance(shaman.Grid(), 5, 7f);
-            //   `MonsterTuning.ShamanReviveCooldownSeconds`（0.6s，= 官方 aidel 15 帧 ÷ 25fps，见其注释）
-            //   + 出手余量 ⇒ 覆盖"首个思考帧就复活"与"冷却后才复活"两种情形。
-            TickSim(EventWindowSeconds(MonsterTuning.ShamanReviveCooldownSeconds, shaman.kindId));
-
-            Console.WriteLine($"  Shaman（m#{shaman.id} {shaman.name}）复活 m#{companion.id} {companion.name}：" +
-                              $"alive={companion.alive} hp={companion.hp}/{companion.maxHp} corpseUsable={companion.corpseUsable}");
-            Check("Shaman：日志里有 [Monster] revive（验收要贴的行）", _log.Has("[Monster] revive"), "见上方日志");
-            Check("Shaman：同伴真的被复活（alive=true 且血量 > 0）", companion.alive && companion.hp > 0,
-                $"alive={companion.alive} hp={companion.hp}");
-            Check("Shaman：复活消耗了尸体（corpseUsable=false）", !companion.corpseUsable, "见上行");
-            return true;
-        }
-
         // ═════════════════════════════════════════════════════════════════════
         // 5. 精英怪（monumod_c 倍率）
         // ═════════════════════════════════════════════════════════════════════
@@ -995,8 +895,8 @@ namespace CombatCheck
         {
             Section("7. 掉落落点合理性：所有掉落格 Walkable == true");
 
-            PrepareMap(AreaId.DenOfEvil, 777003);
-            _ctx.Monster.SpawnArea(AreaId.DenOfEvil);
+            PrepareMap(AreaId.BloodMoor, 777003);
+            _ctx.Monster.SpawnArea(AreaId.BloodMoor);
 
             _item.DropGrids.Clear();
             var killed = 0;
@@ -1959,7 +1859,7 @@ namespace CombatCheck
                 ctx2.Item != null && ctx2.Player != null && ctx2.Audio != null,
                 $"Item={Name(ctx2.Item)} Player={Name(ctx2.Player)} Audio={Name(ctx2.Audio)}");
             Check("本程序集里**没有**实现的接口保持 null 且有 Warn（降级不崩）",
-                ctx2.Quest == null && ctx2.Npc == null && ctx2.Camera == null && ctx2.Save == null,
+                ctx2.Npc == null && ctx2.Camera == null && ctx2.Save == null,
                 ctx2.Describe());
             Check("IAppFlow 刻意不在 AutoWire 里（契约要求，由 Bootstrap 显式 new）", ctx2.Flow == null,
                 ctx2.Flow == null ? "null（正确）" : "被装配了（**违反契约**）");
@@ -2029,7 +1929,7 @@ namespace CombatCheck
 
         /// <summary>
         /// 按**复活判定用的距离口径**取最近的活怪 —— 与 `MonsterModule.FindRevivableCorpse` 同一把尺子。
-        /// 那是错的（生产比的是 `MonsterRuntime.Pos`，单位 = **格**；见 `AiShamanRevives` 的出处说明）。
+        /// 那是错的（生产比的是 `MonsterRuntime.Pos`，单位 = **格**；见 `MonsterModule.FindRevivableCorpse`）。
         /// </summary>
         private static MonsterState NearestMonsterByReviveMetric(MonsterState from, float maxDistance, int exceptId)
         {
@@ -2789,7 +2689,7 @@ namespace CombatCheck
             // （`MonsterAi.Ranged` 在**连续**距离 < `RangedKeepDistance` 时先 `StepAway`、后撤期间不射击）。
             var lo = MonsterTuning.RangedKeepDistance + 0.05f;
             var hi = Mathf.Min(GameConst.RangedRange, MonsterTuning.RangedAttackMaxRange);
-            var areas = new[] { AreaId.BloodMoor, AreaId.DenOfEvil };
+            var areas = new[] { AreaId.BloodMoor, AreaId.Town };
             for (var ai = 0; ai < areas.Length && target == null; ai++)
             {
                 if (ai > 0)
@@ -2826,7 +2726,7 @@ namespace CombatCheck
                     ? $"m#{target.id} {target.name}（{target.ai}）格 {target.Grid()} ← 玩家格 {spot}"
                       + $"（格距 {Iso.GridDistanceEuclidean(target.Grid(), spot):0.00} ∈ [{lo:0.00},{hi:0.00}]，"
                       + $"LineClear={CombatModule.AttackLineClear(target.Grid(), spot)}）"
-                    : "BloodMoor / DenOfEvil 两个区域都没找到「射程内 + 线段被挡」的组合（⛔ 不是跳过，是本用例无法构造）");
+                    : "BloodMoor / Town 两个区域都没找到「射程内 + 线段被挡」的组合（⛔ 不是跳过，是本用例无法构造）");
             if (target == null) return;
 
             _player.SetGrid(spot, Iso.DirectionTo(spot, target.Grid()));

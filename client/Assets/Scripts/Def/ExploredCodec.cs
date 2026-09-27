@@ -45,7 +45,7 @@ namespace Diablo2.Def
     /// 一个区域的小地图已探索格（存档里的紧凑表示；见文件头的选型理由）。
     /// <para>
     /// `w`/`h` **必须一起存**：格索引 `i = y * w + x` 是**区域局部**坐标，而各区域尺寸不同
-    /// （Town 固定 40×40 量级、BloodMoor/DenOfEvil 随机 32~80）⇒ 只存位图不存尺寸 = 解不出来。
+    /// （Town 固定 40×40 量级、BloodMoor 随机 32~80）⇒ 只存位图不存尺寸 = 解不出来。
     /// </para>
     /// </summary>
     [Serializable]

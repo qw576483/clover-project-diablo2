@@ -138,9 +138,6 @@ namespace Diablo2.Module.Audio
         /// <summary>进图（进入 Stage）。触发：`Events.StageEntered`。</summary>
         public const string AreaEnter = "area_enter";
 
-        /// <summary>任务完成。触发：`Events.QuestCompleted`。</summary>
-        public const string QuestComplete = "quest_complete";
-
         // ═════════════════════════════════════════════════════════════════════
         // 本项目新增：BGM 键（原版每区域一首；素材来自 `d2music.mpq`）
         // ═════════════════════════════════════════════════════════════════════
@@ -150,9 +147,6 @@ namespace Diablo2.Module.Audio
 
         /// <summary>血腥荒野（随机野外）。</summary>
         public const string BgmBloodMoor = "bloodmoor";
-
-        /// <summary>邪恶洞穴（随机地牢）。</summary>
-        public const string BgmDenOfEvil = "denofevil";
 
         /// <summary>SFX 期望扩展名（`Resources` 按名取、扩展名无关；此处仅供"素材清单"落地文件用）。</summary>
         public const string SfxExtension = ".wav";
@@ -221,7 +215,6 @@ namespace Diablo2.Module.Audio
             { ShopOpen, "shop_open" + SfxExtension },
             { Portal, "portal" + SfxExtension },
             { AreaEnter, "area_enter" + SfxExtension },
-            { QuestComplete, "quest_complete" + SfxExtension },
         };
 
         private static readonly Dictionary<string, string> BgmFiles =
@@ -229,7 +222,6 @@ namespace Diablo2.Module.Audio
         {
             { BgmTown, "town" + BgmExtension },
             { BgmBloodMoor, "bloodmoor" + BgmExtension },
-            { BgmDenOfEvil, "denofevil" + BgmExtension },
         };
 
         // ═════════════════════════════════════════════════════════════════════
@@ -244,7 +236,7 @@ namespace Diablo2.Module.Audio
         //   第 1 列 `Sound`（原版条目名）/ 第 3 列 `FileName`（相对路径）；
         //   音效前缀 `data\global\sfx\`、音乐前缀 `data\global\music\` 已逐条用 StormLib 实测命中。
         // 取用口径：默认职业是亚马逊 ⇒ 玩家类音效取亚马逊；元素施法取法师；
-        //   每区域 BGM 取原版该区域的音乐条目（`music_town_1` / `music_wilderness` / `music_caves`）。
+        //   每区域 BGM 取原版该区域的音乐条目（`music_town_1` / `music_wilderness`）。
         // 人类可读的完整对照表（含触发点）见同目录 `SoundMap.md`。
         // ═════════════════════════════════════════════════════════════════════
 
@@ -314,12 +306,10 @@ namespace Diablo2.Module.Audio
             { ShopOpen, "cursor_error / cursor_switch（原版开窗口音）│ " + SfxMpq + "cursor\\windowopen.wav" },
             { Portal, "player_townportal_cast │ " + SfxMpq + "skill\\misc\\portalcast.wav" },
             { AreaEnter, "object_stairs │ " + SfxMpq + "object\\stairs.wav" },
-            { QuestComplete, "cairn_success（原版任务完成音）│ " + SfxMpq + "object\\cairnsuccess.wav" },
 
             // ── BGM（原版每区域一首）──────────────────────────────────────────
             { BgmTown, "music_town_1 │ " + MusMpq + "act1\\town1.wav" },
             { BgmBloodMoor, "music_wilderness │ " + MusMpq + "act1\\wild.wav" },
-            { BgmDenOfEvil, "music_caves │ " + MusMpq + "act1\\caves.wav" },
         };
 
         // ── 查询 ────────────────────────────────────────────────────────────
@@ -372,7 +362,6 @@ namespace Diablo2.Module.Audio
             {
                 case AreaId.Town: return BgmTown;
                 case AreaId.BloodMoor: return BgmBloodMoor;
-                case AreaId.DenOfEvil: return BgmDenOfEvil;
                 default: return null;
             }
         }

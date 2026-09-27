@@ -48,21 +48,18 @@ MUS_PREFIX = "data\\global\\music\\"
 KEYS = [
     ("town",       r"act1\town1.wav", "music_town_1"),
     ("bloodmoor",  r"act1\wild.wav",  "music_wilderness"),
-    ("denofevil",  r"act1\caves.wav", "music_caves"),
 ]
 
 # key -> C# 常量标识符（SfxRegistry 里的名字；用于在源码里找真实调用点）
 IDENT = {
     "town": "BgmTown",
     "bloodmoor": "BgmBloodMoor",
-    "denofevil": "BgmDenOfEvil",
 }
 
 # 人类可读的"场景"（列进 bgm-map.tsv；措辞取自 `client/资源欠缺清单.md:46` 点名的三个区）
 AREA = {
     "town": "罗格营地（Town，固定布局城镇）",
     "bloodmoor": "血腥荒野（BloodMoor，随机野外）",
-    "denofevil": "邪恶洞穴（DenOfEvil，随机地牢）",
 }
 
 
@@ -114,7 +111,6 @@ def parse_sounds(sounds_path):
 AREA_CASE = {
     "town":      ("AreaId.Town", "BgmTown"),
     "bloodmoor": ("AreaId.BloodMoor", "BgmBloodMoor"),
-    "denofevil": ("AreaId.DenOfEvil", "BgmDenOfEvil"),
 }
 
 

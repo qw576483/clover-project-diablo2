@@ -481,7 +481,7 @@ namespace Uicheck
             var golden = new (int Area, bool Obj, string Key, int Cel)[]
             {
                 (0, false, "moor_bridge/020", 0), (0, true, "moor_bridge/001", 60),
-                (2, false, "cave/004", 130), (2, false, "cave/005", 131),
+                (1, false, "town_floor/024", 0), (0, true, "town_objects/068", 65),
             };
             var gbad = string.Empty;
             foreach (var g in golden)

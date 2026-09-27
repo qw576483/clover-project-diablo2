@@ -60,7 +60,7 @@ namespace Diablo2.Module.Player
     {
         public const int MaxLevel = 99;
 
-        /// <summary>升一级给的技能点（原版：每级 +1；任务奖励另算，见 `IQuestModule`）。</summary>
+        /// <summary>升一级给的技能点（原版：每级 +1）。</summary>
         public const int SkillPointsPerLevel = 1;
 
         /// <summary>
@@ -473,7 +473,7 @@ namespace Diablo2.Module.Player
             save.gold = _gold;
             save.gridX = _motor.Grid.x;
             save.gridY = _motor.Grid.y;
-            // mapSeed / areaId / 背包 / 任务：分别由 Flow、Map、Item、Quest 负责，这里不碰。
+            // mapSeed / areaId / 背包：分别由 Flow、Map、Item 负责，这里不碰。
 
             PlayerLog.Info($"写回存档：{_name} 等级={_stats.Level} 经验={_exp} 生命={_life}/{_stats.MaxLife} " +
                            $"格=({_motor.Grid.x},{_motor.Grid.y}) 金币={_gold}");
@@ -1105,9 +1105,7 @@ namespace Diablo2.Module.Player
             Emit(Events.ExitEntered, to);
         }
 
-        /// <summary>
-        /// `Town`→`BloodMoor`；`BloodMoor`→ 该格 == 洞穴入口 ? `DenOfEvil` : `Town`；`DenOfEvil`→`BloodMoor`。
-        /// </summary>
+        /// <summary>`Town`→`BloodMoor`；`BloodMoor`→`Town`。</summary>
         private static AreaId ExitTargetArea(IMapModule map, Vector2Int grid)
         {
             switch (map.Area)
@@ -1116,15 +1114,11 @@ namespace Diablo2.Module.Player
                     return AreaId.BloodMoor;
 
                 case AreaId.BloodMoor:
-                    if (map.CaveEntrance.HasValue && map.CaveEntrance.Value == grid) return AreaId.DenOfEvil;
                     return AreaId.Town;
-
-                case AreaId.DenOfEvil:
-                    return AreaId.BloodMoor;
 
                 default:
                     PlayerLog.Warn($"ExitTargetArea：未登记的区域 {(int)map.Area}" +
-                                   "（契约只定义 Town/BloodMoor/DenOfEvil）⇒ 不切换");
+                                   "（契约只定义 Town/BloodMoor）⇒ 不切换");
                     return map.Area;
             }
         }

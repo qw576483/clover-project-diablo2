@@ -4,7 +4,7 @@
 //     A) 18 panel screenshots (Boot / MainMenu / CharSelect / CharCreate /
 //        Loading / Hud / Inventory / Character / SkillTree / QuestLog / MiniMap /
 //        Pause / Settings / Confirm / NpcDialog / Shop / Death / Waypoint)
-//     B) 3 in-game area screenshots (Town / BloodMoor / DenOfEvil)
+//     B) 2 in-game area screenshots (Town / BloodMoor)
 //     C) the remaining "needs a window" readings:
 //        W1  same camera + same sprite: un-hovered vs hovered-then-left, two frames
 //        W4  CharacterPanel: mirror Text preferredWidth / GetPreferredWidth /
@@ -1439,21 +1439,12 @@ namespace P2
                     if (Elapsed(0.22f)) { Snap("mob_hit2"); Next(); }
                     break;
 
-                // 51) DenOfEvil
+                // 51) 占位（原「进邪恶洞穴」；该区域已移除 ⇒ 本步与下一步只推进，不产生读数）
                 case 51:
-                    Probe.KV("EXIT-DEN", "emit " + Events.ExitEntered + "(DenOfEvil)");
-                    Probe.Emit(Events.ExitEntered, AreaId.DenOfEvil);
                     Next();
                     break;
                 case 52:
-                    if (Area() == (int)AreaId.DenOfEvil && Open<Diablo2.UI.HudPanel>() && Elapsed(2.0f))
-                    {
-                        Probe.KV("AREA", "DenOfEvil me=" + Probe.Grid(PlayerGrid()));
-                        Snap("area_den");
-                        Next();
-                        break;
-                    }
-                    if (Elapsed(45f)) { Probe.Warn("DenOfEvil 45s area=" + Area()); Next(); }
+                    Next();
                     break;
 
                 // 53) back to town for N4 (inventory drag ghost + drop-cell highlight)

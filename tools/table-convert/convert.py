@@ -486,7 +486,7 @@ def build_level():
     s = sheet("level", "区域（罗格营地 / 血腥荒野 / 邪恶洞穴）")
     s.col("id", "int", "区域 id（1-3，本项目编号）")
     s.col("name", "string", "区域名（中文）")
-    s.col("code", "string", "官方 Levels.Name（Act 1 - Town / Wilderness 1 / Cave 1）")
+    s.col("code", "string", "官方 Levels.Name（Act 1 - Town / Wilderness 1）")
     s.col("level_name", "string", "官方 Levels.LevelName（Rogue Encampment / Blood Moor / Den of Evil）")
     s.col("level_id", "int", "官方 Levels.Id")
     s.col("act", "int", "所属章节（官方 Act，0 基 ⇒ 0 = 第一幕）")

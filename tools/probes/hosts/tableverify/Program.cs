@@ -125,7 +125,7 @@ namespace TableVerify
             Console.WriteLine("── ④ 其余 10 张表行数不变（无附带损伤）──");
             Check("StartItem=23", Tables.Default.StartItem.Count == 23, "Count=" + Tables.Default.StartItem.Count);
             Check("Experience=99", Tables.Default.Experience.Count == 99, "Count=" + Tables.Default.Experience.Count);
-            Check("Level=3", Tables.Default.Level.Count == 3, "Count=" + Tables.Default.Level.Count);
+            Check("Level=2", Tables.Default.Level.Count == 2, "Count=" + Tables.Default.Level.Count);
             Check("Monster=8", Tables.Default.Monster.Count == 8, "Count=" + Tables.Default.Monster.Count);
             Check("Skill=150", Tables.Default.Skill.Count == 150, "Count=" + Tables.Default.Skill.Count);
             Check("Item=137", Tables.Default.Item.Count == 137, "Count=" + Tables.Default.Item.Count);

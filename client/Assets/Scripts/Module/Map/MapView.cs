@@ -1760,13 +1760,12 @@ namespace Diablo2.Module.Map
             var kind = map.Get(g);
             if (kind == TileKind.Void) return new CellPlan(false, null, kind, kind, false, null, false, -1);
 
-            // ── 逐格「原版瓦片键」覆盖：**罗格营地**（`MapGenTownLayout`，源 `townW1.ds1`）、
-            //    **邪恶洞穴**（`MapGenCaveLayout`，源 `CAVES/*.ds1`）与**野外**（`MapGenWildLayout`，
-            //    源 `ACT1/OUTDOORS/*.ds1`）三个生成器都用它。
+            // ── 逐格「原版瓦片键」覆盖：**罗格营地**（`MapGenTownLayout`，源 `townW1.ds1`）与
+            //    **野外**（`MapGenWildLayout`，源 `ACT1/OUTDOORS/*.ds1`）两个生成器都用它。
             //    语义（见 `GridMap.TryGetTiles` 注释）：
             //      · 返回 false ⇒ 本图没有逐格覆盖（保底布局），按 `TileKind` 分类取默认瓦片；
-            //      · 返回 true 且 groundKey == "" ⇒ **原版这格不画**（洞穴里的纯黑实心岩体就是
-            //        这种格），不许兜底成占位菱形 —— 兜底会把它变成一堆灰方块。
+            //      · 返回 true 且 groundKey == "" ⇒ **原版这格不画**，不许兜底成占位菱形
+            //        —— 兜底会把它变成一堆灰方块。
             string ds1Ground = null, ds1Object = null;
             var fromDs1 = map.TryGetTiles(g.x, g.y, out ds1Ground, out ds1Object);
 
@@ -2162,14 +2161,13 @@ namespace Diablo2.Module.Map
             return null;
         }
 
-        /// <summary>本区域「无专用贴图的地形」的底：城镇=石地 / 野外=草地 / 洞穴=岩壁。</summary>
+        /// <summary>本区域「无专用贴图的地形」的底：城镇=石地 / 野外=草地。</summary>
         private static TileKind BaseGroundOf(AreaId area)
         {
             switch (area)
             {
                 case AreaId.Town: return TileKind.TownFloor;
                 case AreaId.BloodMoor: return TileKind.Grass;
-                case AreaId.DenOfEvil: return TileKind.CaveWall;
                 default:
                     MapLog.WarnThrottled("view.areabase", $"BaseGroundOf: 未登记的区域 {(int)area}，按草地处理");
                     return TileKind.Grass;
@@ -2186,7 +2184,7 @@ namespace Diablo2.Module.Map
                 case TileKind.Fence:
                 case TileKind.Wall:
                 case TileKind.CaveWall:
-                case TileKind.Exit:      // 出入口要看得见（营地出口 = 围栏缺口；野外洞穴口 = `CAVES/cavedr.dt1`）
+                case TileKind.Exit:      // 出入口要看得见（营地出口 = 围栏缺口）
                     return true;
                 //   显式写出来 = 即便将来 default 改成 true，水也不会被画成石头/崖壁的物件。
                 case TileKind.Water:
@@ -2227,16 +2225,6 @@ namespace Diablo2.Module.Map
             "town_floor/019", "town_floor/020", "town_floor/021", "town_floor/022", "town_floor/062",
             "town_floor/063", "town_floor/064", "town_floor/065", "town_floor/066", "town_floor/067",
         };
-
-        /// <summary>洞穴地面 —— `CAVES/cave.dt1` 里 orientation==0 且 `Walk` 标志为真的瓦片。</summary>
-        private static readonly string[] CaveFloorTiles =
-        {
-            "cave/144", "cave/081", "cave/139", "cave/107", "cave/111",
-            "cave/125", "cave/087", "cave/137",
-        };
-
-        /// <summary>洞穴实心岩体（`CaveWall`）的地面：同洞穴地面，岩壁另有物件层盖上去。</summary>
-        private static readonly string[] CaveWallGroundTiles = CaveFloorTiles;
 
         /// <summary>
         /// 水面（`TileKind.Water`）的 floor 瓦片 —— 原版 `ACT1/OUTDOORS/river.dt1` 解出的
@@ -2312,12 +2300,6 @@ namespace Diablo2.Module.Map
             "moor_stonewall/000", "moor_stonewall/001", "moor_stonewall/006", "moor_stonewall/007",
         };
 
-        /// <summary>洞穴岩壁（`CAVES/cave.dt1` 的 orientation==12 岩体）。</summary>
-        private static readonly string[] CaveWallTiles =
-        {
-            "cave/091", "cave/093", "cave/095", "cave/096",
-        };
-
         //    "城镇/野外的传送点，`BARRACKS/warp.dt1` orientation==10"。**两条都是错的**（实测）：
         //    ① 出处不对：`BARRACKS/warp.dt1` 的瓦片在**营地内部** 3 格上（参考块 `TownW1.ds1`
         //       本地 (12,18)/(14,18)/(16,25)，合并后同坐标）——**不是出城口**，也不是任何一个
@@ -2325,21 +2307,12 @@ namespace Diablo2.Module.Map
         //       wall 层是**空的**（原版那里本来就不画东西）。
         //       实测命令：`python tools/d2codec/dump_town_exit.py`（出城口 + warp 标记格）
         //       / `python tools/d2codec/dump_cell.py 17,26`（新窗口下出城口格）。
-        //    ② 常量本身是**死代码**：三个区域生成器都调了 `GridMap.BeginTileOverrides()`
+        //    ② 常量本身是**死代码**：两个区域生成器都调了 `GridMap.BeginTileOverrides()`
         //       ⇒ `TryGetTiles` 一律返回 true ⇒ `ObjectKeyOf` 的 Exit 分支只在
         //       "没有逐格覆盖的图"上才会走到，而本项目不存在这种图。
         //    ③ `D2/Tiles/` 下没有 `warp` 目录（只有 `D2/Objects/warp/`，从 `warp.dt1` 解出的
         //       81 张**纯色填充菱形**）—— 真按它取图会得到一块纯色方块。
         //    ⇒ 出入口的**真实口径**：营地出口 = 关卡自己的地面瓦片（`MapGenTownLayout` 逐格键，
-
-        /// <summary>
-        /// 洞穴口物件（`CAVES/cavedr.dt1`，出处：`LvlPrest.txt`「Act 1 - Cave Entrance」→
-        /// `Act1/Caves/CaveDr1.ds1`；本项目野外生成器 `MapGenWilderness.ApplyCaveDoor` 也用它）。
-        /// </summary>
-        private static readonly string[] ExitCaveTiles =
-        {
-            "cave_door/000", "cave_door/001",
-        };
 
         // ═════════════════════════════════════════════════════════════════════
         // 「靠 PL2 调色板循环成动画的**平色** wall 层瓦片」白名单 + 不叠判定
@@ -2426,11 +2399,9 @@ namespace Diablo2.Module.Map
                 case TileKind.Dirt: set = DirtTiles; break;
                 case TileKind.Road: set = DirtTiles; break;
                 case TileKind.TownFloor: set = TownFloorTiles; break;
-                case TileKind.CaveFloor: set = CaveFloorTiles; break;
-                case TileKind.CaveWall: set = CaveWallGroundTiles; break;
                 case TileKind.Exit:
-                    // 出入口本身是块地：城镇/野外的门走土路，洞穴口走洞内地面
-                    set = area == AreaId.DenOfEvil ? CaveFloorTiles : DirtTiles;
+                    // 出入口本身是块地：城镇/野外的门走土路
+                    set = DirtTiles;
                     break;
                 //   不走 default（default = "未登记 ⇒ 纯色占位 + Warn"），否则水面退化成灰块。
                 case TileKind.Water: set = WaterTiles; break;
@@ -2467,14 +2438,10 @@ namespace Diablo2.Module.Map
                 case TileKind.Wall:
                     set = area == AreaId.Town ? TentTiles : WallMoorTiles;
                     break;
-                case TileKind.CaveWall: set = CaveWallTiles; break;
                 case TileKind.Water: return null;
                 case TileKind.Exit:
-                    // 只有**洞穴口**有物件瓦片；营地/野外的出口原版**不画物件**
-                    //    （营地出口 = 围栏缺口，wall 层本来就是空的）。别再给营地出口编一张物件。
-                    if (area != AreaId.DenOfEvil) return null;
-                    set = ExitCaveTiles;
-                    break;
+                    //   出入口原版**不画物件**（营地出口 = 围栏缺口，wall 层本来就是空的）。
+                    return null;
                 default: return null;
             }
             return set[PickVariant(g, set.Length)];

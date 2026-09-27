@@ -11,7 +11,7 @@
 //     「不重复读盘」由引擎 `ResourceManager.Exists` 的按路径缓存承担，`Sound` 侧另有
 //     `LogThrottle.WarnOnce` 兜底）；
 //   · 音量持久化：`SetVolume` → `Game.Setting` 有值 → **重建模块**后读回一致；
-//   · BGM 切区域：Town→BloodMoor→DenOfEvil 三次 `AreaChanged` → 三次不同 `Bgm` 请求；
+//   · BGM 切区域：Town→BloodMoor 两次 `AreaChanged` → 两次不同 `Bgm` 请求；
 //   · 生产探测实现 (`EngineAudioClipProbe`) 在资源取不到时能**降级**（不抛异常）。
 //
 // 为了在没有 Unity 原生对象（`AudioClip` 造不出来）的环境里跑，自检给 `AudioModule.ClipProbe`
@@ -242,11 +242,11 @@ namespace AudioCheck
             Check("Combat.SfxKeys 的每个键都已登记进 SfxRegistry（键名集合一致）",
                 missingInRegistry.Count == 0, missingInRegistry.Count == 0 ? "全部命中" : string.Join(",", missingInRegistry));
 
-            Check("SfxRegistry 音效键数量 = SfxKeys + 本项目新增 10",
-                SfxRegistry.AllSfxKeys.Count == sfxKeyConsts.Count + 10,
+            Check("SfxRegistry 音效键数量 = SfxKeys + 本项目新增 9",
+                SfxRegistry.AllSfxKeys.Count == sfxKeyConsts.Count + 9,
                 $"registry={SfxRegistry.AllSfxKeys.Count} sfxKeys={sfxKeyConsts.Count}");
-            Check("SfxRegistry BGM 键数量 = 3（Town/BloodMoor/DenOfEvil）",
-                SfxRegistry.AllBgmKeys.Count == 3, "count=" + SfxRegistry.AllBgmKeys.Count);
+            Check("SfxRegistry BGM 键数量 = 2（Town/BloodMoor）",
+                SfxRegistry.AllBgmKeys.Count == 2, "count=" + SfxRegistry.AllBgmKeys.Count);
             Check("SfxRegistry 的每个音效键都能取到期望 .wav 文件名",
                 AllHaveFileNames(SfxRegistry.AllSfxKeys, true), "见下方清单");
             Check("SfxRegistry 的每个 BGM 键都能取到期望文件名",
@@ -262,7 +262,7 @@ namespace AudioCheck
             Section("素材溯源自检（① Sounds.txt 行 / ② 与 d2sfx.mpq 原字节 sha256 / ③ 调用点 / ④ 缺文件分支）");
             ProvenanceChecks();
 
-            Section("BGM 溯源自检（① 三区映射对回 Sounds.txt 行 / ② 与 d2music.mpq 原字节 sha256 / ③ 调用点 / ④ 场景切换真换曲）");
+            Section("BGM 溯源自检（① 两区映射对回 Sounds.txt 行 / ② 与 d2music.mpq 原字节 sha256 / ③ 调用点 / ④ 场景切换真换曲）");
             BgmProvenanceChecks();
 
             // ③ 场景一：素材"已到位"（探测恒 true）→ 触发点覆盖 / 脚步 / 静止 / BGM
@@ -441,7 +441,7 @@ namespace AudioCheck
                 sfxMissing.Count == 0 && sfxKeys.Count > 0,
                 sfxMissing.Count == 0 ? $"共 {sfxBytes} 字节 → {root}\\SFX" : "缺失=" + string.Join(",", sfxMissing));
             Check($"BGM 键 {bgmKeys.Count} 个：文件**全部**就位（逐条 Test-Path 全真）",
-                bgmMissing.Count == 0 && bgmKeys.Count == 3,
+                bgmMissing.Count == 0 && bgmKeys.Count == 2,
                 bgmMissing.Count == 0 ? $"共 {bgmBytes} 字节 → {root}\\BGM" : "缺失=" + string.Join(",", bgmMissing));
             Check("全部素材都是合法 RIFF/WAVE 且非空（不是占位/空文件）",
                 sfxBad.Count == 0 && bgmBad.Count == 0,
@@ -521,7 +521,6 @@ namespace AudioCheck
                 bus.Emit(Events.ItemUsed, new ItemStack { itemId = 3, name = "体力药水" }));
 
             Sfx(bus, sound, "升级 → level_up", SfxRegistry.LevelUp, () => bus.Emit(Events.LevelUp, 2));
-            Sfx(bus, sound, "任务完成 → quest_complete", SfxRegistry.QuestComplete, () => bus.Emit(Events.QuestCompleted, 1));
             Sfx(bus, sound, "复活完成 → player_revive", SfxRegistry.PlayerRevive, () => bus.Emit(Events.Revived));
             Sfx(bus, sound, "面板开关（UI 点击）→ ui_click", SfxRegistry.UiClick, () => bus.Emit(Events.PanelToggleRequest, "InventoryPanel"));
             Sfx(bus, sound, "对话选项（UI 点击）→ ui_click", SfxRegistry.UiClick, () => bus.Emit(Events.DialogOptionChosen, 1));
@@ -729,7 +728,7 @@ namespace AudioCheck
             return n;
         }
 
-        /// <summary>BGM 切区域：Town → BloodMoor → DenOfEvil ⇒ 三首不同。</summary>
+        /// <summary>BGM 切区域：Town → BloodMoor ⇒ 两首不同。</summary>
         private static void BgmChecks(ConsoleEventBus bus, RecSound sound, AudioModule audio)
         {
             audio.Reset();                     // 清零"当前曲目"，避免上面 StageEntered 起的 town 把第一次同名切歌吃掉
@@ -737,17 +736,16 @@ namespace AudioCheck
 
             bus.Emit(Events.AreaChanged, AreaId.Town);
             bus.Emit(Events.AreaChanged, AreaId.BloodMoor);
-            bus.Emit(Events.AreaChanged, AreaId.DenOfEvil);
 
-            Check("三次 AreaChanged → 三次切歌", sound.Bgm.Count == 3, string.Join(" → ", sound.Bgm));
-            Check("三首互不相同（Town/BloodMoor/DenOfEvil 各一首）",
-                sound.Bgm.Count == 3 && sound.Bgm[0] == SfxRegistry.BgmTown
-                && sound.Bgm[1] == SfxRegistry.BgmBloodMoor && sound.Bgm[2] == SfxRegistry.BgmDenOfEvil,
+            Check("两次 AreaChanged → 两次切歌", sound.Bgm.Count == 2, string.Join(" → ", sound.Bgm));
+            Check("两首互不相同（Town/BloodMoor 各一首）",
+                sound.Bgm.Count == 2 && sound.Bgm[0] == SfxRegistry.BgmTown
+                && sound.Bgm[1] == SfxRegistry.BgmBloodMoor,
                 string.Join(" → ", sound.Bgm));
 
             // 重复发同一区域（AppFlow 换区域时 Map.Generate + EnterArea 各发一次）不应重复切歌
             sound.Clear();
-            bus.Emit(Events.AreaChanged, AreaId.DenOfEvil);
+            bus.Emit(Events.AreaChanged, AreaId.BloodMoor);
             Check("同一区域重复 AreaChanged → 不重复切歌", sound.Bgm.Count == 0, "切歌次数=" + sound.Bgm.Count);
         }
 
@@ -1128,13 +1126,13 @@ namespace AudioCheck
                 rows.Add(r);
             }
 
-            Check("BGM 台账行数 == 3（登记表的 3 个 BGM 键，一个不多一个不少）", rows.Count == 3, "rows=" + rows.Count);
+            Check("BGM 台账行数 == 2（登记表的 2 个 BGM 键，一个不多一个不少）", rows.Count == 2, "rows=" + rows.Count);
             Check("BGM 台账键无重复", dup.Count == 0, dup.Count == 0 ? "unique=" + keys.Count : "dup=" + string.Join(",", dup));
             Check("BGM 台账覆盖登记表的**全部** BGM 键（无遗漏）",
                 keys.SetEquals(new HashSet<string>(SfxRegistry.AllBgmKeys, StringComparer.Ordinal)),
                 "台账=" + keys.Count + " 登记表=" + SfxRegistry.AllBgmKeys.Count);
 
-            // ── ① 三区映射：场景 → 原版 sound 名 → Sounds.txt 行 ────────────────
+            // ── ① 两区映射：场景 → 原版 sound 名 → Sounds.txt 行 ────────────────
             var badLine = new List<string>();
             var badEntry = new List<string>();
             foreach (var r in rows)
@@ -1217,28 +1215,27 @@ namespace AudioCheck
                 }
             }
             Check("③ 每个 BGM 键都有**活的**调用点（`文件:行` 在盘 + 那一行真的引用了该键）",
-                trigBad.Count == 0 && trigCount >= 3,
+                trigBad.Count == 0 && trigCount >= 2,
                 trigBad.Count == 0 ? $"{rows.Count} 键 / {trigCount} 个调用点全部可解析" : "坏=" + string.Join(",", trigBad));
             Console.WriteLine("    (人类可读映射表：.ai-tmp/test/bgm-map.tsv —— 场景 → sound 名 → Sounds.txt 行 → mpq 路径 → 调用点)");
 
             // ── ④ 场景切换真的换曲（离线回读：本地图 → 引擎收到的键名）────────
             var mapBad = new List<string>();
             var got = new List<string>();
-            foreach (var area in new[] { Diablo2.Def.AreaId.Town, Diablo2.Def.AreaId.BloodMoor, Diablo2.Def.AreaId.DenOfEvil })
+            foreach (var area in new[] { Diablo2.Def.AreaId.Town, Diablo2.Def.AreaId.BloodMoor })
             {
                 var k = SfxRegistry.BgmKeyOf(area);
                 got.Add(area + "=" + (k ?? "(null)"));
                 if (k == null || !keys.Contains(k)) mapBad.Add(area + "->" + (k ?? "(null)"));
             }
-            Check("④ 三个区域的 区域→键 映射与台账键集合**一一对应**（无一区域映射到未登记键）",
+            Check("④ 两个区域的 区域→键 映射与台账键集合**一一对应**（无一区域映射到未登记键）",
                 mapBad.Count == 0, string.Join(" ", got));
-            Check("④ 三区**互不相同**（换区即换曲，不是同一首顶着）",
-                got.Count == 3 && new HashSet<string>(new[] {
+            Check("④ 两区**互不相同**（换区即换曲，不是同一首顶着）",
+                got.Count == 2 && new HashSet<string>(new[] {
                     SfxRegistry.BgmKeyOf(Diablo2.Def.AreaId.Town),
-                    SfxRegistry.BgmKeyOf(Diablo2.Def.AreaId.BloodMoor),
-                    SfxRegistry.BgmKeyOf(Diablo2.Def.AreaId.DenOfEvil) }).Count == 3,
+                    SfxRegistry.BgmKeyOf(Diablo2.Def.AreaId.BloodMoor) }).Count == 2,
                 string.Join(" ", got));
-            Console.WriteLine("    (④ 的**运行期**回读另见本节上方「BGM 切区域」：三次 AreaChanged → 引擎收到 town→bloodmoor→denofevil)");
+            Console.WriteLine("    (④ 的**运行期**回读另见本节上方「BGM 切区域」：两次 AreaChanged → 引擎收到 town→bloodmoor)");
         }
 
         /// <summary>BGM 键 → 区域枚举名（判 `case AreaId.X: return BgmY;` 用）。</summary>
@@ -1248,7 +1245,6 @@ namespace AudioCheck
             {
                 case "town": return "AreaId.Town";
                 case "bloodmoor": return "AreaId.BloodMoor";
-                case "denofevil": return "AreaId.DenOfEvil";
                 default: return null;
             }
         }
@@ -1260,7 +1256,6 @@ namespace AudioCheck
             {
                 case "town": return "BgmTown";
                 case "bloodmoor": return "BgmBloodMoor";
-                case "denofevil": return "BgmDenOfEvil";
                 default: return null;
             }
         }
@@ -1396,7 +1391,6 @@ namespace AudioCheck
                 case "shop_open": return "ShopOpen";
                 case "portal": return "Portal";
                 case "area_enter": return "AreaEnter";
-                case "quest_complete": return "QuestComplete";
                 // （与 `tools/probes/mpq/sfx_provenance.py` 的 IDENT 表同口径；调用点在
                 //   `Module/Monster/MonsterSfx.cs`（解析表）+ `DamagePipeline` / `MonsterModule`）
                 case "monster_hit_fa": return "MonsterHitFa";

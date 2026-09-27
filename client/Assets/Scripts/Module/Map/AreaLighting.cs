@@ -83,19 +83,13 @@ namespace Diablo2.Module.Map
                     ambient = Color.black;
                     return false;
 
-                // Levels.txt:10 `Act 1 - Cave 1`：Intensity=0 Red=255 Green=255 Blue=255
-                //   ⇒ 设了环境光，但强度 0 ⇒ 半径外压到黑
-                case AreaId.DenOfEvil:
-                    ambient = new Color(0f, 0f, 0f, 1f);
-                    return true;
-
                 default:
                     ambient = Color.black;
                     if (!_unknownAreaWarned)
                     {
                         _unknownAreaWarned = true;
-                        MapLog.Warn($"AreaLighting.IsDark: 区域 {area} 不在光照表内（罗格营地 / 血腥荒野 / " +
-                                    "邪恶洞穴三处之外）⇒ 不做压暗；新增区域时按官方 Levels.txt 的 " +
+                        MapLog.Warn($"AreaLighting.IsDark: 区域 {area} 不在光照表内（罗格营地 / 血腥荒野 " +
+                                    "两处之外）⇒ 不做压暗；新增区域时按官方 Levels.txt 的 " +
                                     "Intensity/Red/Green/Blue 补一行");
                     }
                     return false;

@@ -51,9 +51,6 @@ namespace Diablo2.App
         /// <summary>物品（掉落 / 背包 / 装备 / 腰带 / 金币）。</summary>
         public IItemModule Item;
 
-        /// <summary>任务状态机（邪恶洞穴）。</summary>
-        public IQuestModule Quest;
-
         /// <summary>NPC / 对话 / 商店 / 修理。</summary>
         public INpcModule Npc;
 
@@ -111,7 +108,6 @@ namespace Diablo2.App
                 Wire<IMonsterModule>(ref Monster, nameof(Monster));
                 Wire<ISkillModule>(ref Skill, nameof(Skill));
                 Wire<IItemModule>(ref Item, nameof(Item));
-                Wire<IQuestModule>(ref Quest, nameof(Quest));
                 Wire<INpcModule>(ref Npc, nameof(Npc));
                 Wire<ICameraRig>(ref Camera, nameof(Camera));
                 Wire<IViewModule>(ref View, nameof(View));
@@ -148,7 +144,7 @@ namespace Diablo2.App
             Game.Logger?.Warn("App", $"模块 {name} 尚无实现（{error}）⇒ 相关功能降级");
         }
 
-        /// <summary>每帧转发给已注册模块（未注册的跳过；`IQuestModule` 无 Tick）。</summary>
+        /// <summary>每帧转发给已注册模块（未注册的跳过）。</summary>
         public void Tick(float dt)
         {
             Player?.Tick(dt);
@@ -173,7 +169,6 @@ namespace Diablo2.App
                 + $"Monster={(Monster != null ? "ok" : "NULL")} "
                 + $"Skill={(Skill != null ? "ok" : "NULL")} "
                 + $"Item={(Item != null ? "ok" : "NULL")} "
-                + $"Quest={(Quest != null ? "ok" : "NULL")} "
                 + $"Npc={(Npc != null ? "ok" : "NULL")} "
                 + $"Camera={(Camera != null ? "ok" : "NULL")} "
                 + $"View={(View != null ? "ok" : "NULL")} "

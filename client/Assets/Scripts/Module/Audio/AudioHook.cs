@@ -8,7 +8,6 @@
 //   拾取     ← `Events.ItemPicked`（金币 / 普通物品两键）
 //   使用物品 ← `Events.ItemUsed`
 //   升级     ← `Events.LevelUp`
-//   任务完成 ← `Events.QuestCompleted`
 //   复活     ← `Events.Revived`（**复活完成**；发送方 = `App/AppEventRouting.cs`，它保证只在真的复活后广播。
 //              刻意**不**用 `Events.ReviveRequest` —— 那是"点击请求"，播放会早于真实复活）
 //   UI 点击  ← `Events.UiClick`（按钮点击）/ `Events.PanelToggleRequest` / `Events.DialogOptionChosen`
@@ -16,7 +15,7 @@
 //   NPC 对话 ← `Events.DialogOpen`；商店 ← `Events.ShopOpen`
 //   传送     ← `Events.ExitEntered`（踩出入口 / 区域切换前的"嗖"）
 //   进图     ← `Events.StageEntered`
-//   BGM 切换 ← `Events.AreaChanged`（Town/BloodMoor/DenOfEvil 各一首）+ `Events.StageEntered`（首次进图）
+//   BGM 切换 ← `Events.AreaChanged`（Town/BloodMoor 各一首）+ `Events.StageEntered`（首次进图）
 //   统一入口 ← `Events.PlaySfx` / `Events.PlayBgm`（`Core/Events.cs` 为本模块预留的两个键）
 //   音量同步 ← `Events.VolumeChanged`（设置面板改音量后同步本模块缓存，不重复落盘）
 //
@@ -104,7 +103,6 @@ namespace Diablo2.Module.Audio
             bus.On<ItemStack>(Events.ItemUsed, OnItemUsed);                         // 使用物品
 
             bus.On<int>(Events.LevelUp, OnLevelUp);                                 // 升级
-            bus.On<int>(Events.QuestCompleted, OnQuestCompleted);                   // 任务完成
             bus.On(Events.Revived, OnRevived);                                      // 复活（完成）
 
             bus.On(Events.UiClick, OnUiClick);                                      // 按钮点击（不走业务事件的那批）
@@ -142,7 +140,6 @@ namespace Diablo2.Module.Audio
             bus.Off<ItemStack>(Events.ItemUsed, OnItemUsed);
 
             bus.Off<int>(Events.LevelUp, OnLevelUp);
-            bus.Off<int>(Events.QuestCompleted, OnQuestCompleted);
             bus.Off(Events.Revived, OnRevived);
 
             bus.Off(Events.UiClick, OnUiClick);
@@ -255,9 +252,6 @@ namespace Diablo2.Module.Audio
         /// <summary>升级。</summary>
         private void OnLevelUp(int newLevel) => _audio.Sfx(SfxRegistry.LevelUp);
 
-        /// <summary>任务完成。</summary>
-        private void OnQuestCompleted(int questId) => _audio.Sfx(SfxRegistry.QuestComplete);
-
         /// <summary>
         /// 复活完成（`App/AppEventRouting.cs` 在 `ReviveRequest` 被处理完且玩家不再死亡时广播）。
         /// 不用 `Events.ReviveRequest`：那是"点击请求"，玩家点了却没复活成功（例如未死亡）时不该出声。
@@ -309,7 +303,7 @@ namespace Diablo2.Module.Audio
         /// <summary>踩出入口 / 传送（Flow 收到后才真正切区域，这里先出一声）。</summary>
         private void OnExitEntered(AreaId target) => _audio.Sfx(SfxRegistry.Portal);
 
-        /// <summary>区域切换 ⇒ 切 BGM（Town / BloodMoor / DenOfEvil 各一首）。</summary>
+        /// <summary>区域切换 ⇒ 切 BGM（Town / BloodMoor 各一首）。</summary>
         private void OnAreaChanged(AreaId to)
         {
             _sawAreaChanged = true;

@@ -8,7 +8,7 @@
 //   · 存盘：`Module/Save/SaveModule.Save()`（无参）在**新造**的 `CharacterSave` 上逐字段从 Live 收集
 //     ⇒ 凡"没被显式收集"的字段就恒为默认值。上面两项的**持有者不在模块侧**（一个在 App 交互类、
 //     一个在渲染层）⇒ `SaveModule` 发 `Events.SaveCollect`，**本类**把两块填进去（同一个收集阶段）。
-//   · 读档：`SaveModule.Load()` 把数据装回 Player/Item/Quest/Skill/Npc，但上面两块**没人装**
+//   · 读档：`SaveModule.Load()` 把数据装回 Player/Item/Skill/Npc，但上面两块**没人装**
 //     （也不能在 Load 里装：那一刻地图还没生成、面板还没建，而且 Player 的落格是 Flow 在进图时做的）
 //     ⇒ 本类在 `Events.LoadDone` 时**暂存**，在**进图装配完成之后**（`AppWiring.OnStageEntered`）与
 //     **换区铺装完成之后**（`Events.MapAreaReady`）再回灌。

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ───────────────────────────────────────────────────────────────────────
-       Item / Quest / Npc / Save 自检宿主（**非 Unity 工程、不参与打包**）
+       Item / Npc / Save 自检宿主（**非 Unity 工程、不参与打包**）
 
        为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`
        （用户尚未打开编辑器 ⇒ Unity 未重新生成工程文件 ⇒ `dotnet build client.slnx`
@@ -10,7 +10,7 @@
        `tools/probes/hosts/flowcheck`(agent-05)，见 skill `reference/fast-compile-loop.md`）。
 
        覆盖：掉落/品质/词缀、背包格子、拾取（距离+满包）、腰带喝药、装备生效（EquipChanged 载荷）、
-             任务链「邪恶洞穴」全流程 + 只认洞穴、NPC 对话随阶段、商店买卖/修理、存档往返。
+             只认洞穴、商店买卖/修理、存档往返。
        不覆盖（需要 Unity 原生）：面板像素布局、真人手感、Unity 原生 JsonUtility（本项目存档走自研
              `SaveJson`，见 `Module/Save/SaveJson.cs` 的文件头原因说明）。
        ─────────────────────────────────────────────────────────────────────── -->
@@ -67,7 +67,7 @@
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
     <!--
-      真实的 `App/AppContext.cs`（**要验 `AutoWire` 真的能反射装出四个模块**），
+      真实的 `App/AppContext.cs`（**要验 `AutoWire` 真的能反射装出三个模块**），
       它只依赖流程门面 `IAppFlow` ⇒ 只编那一个文件。
       ⚠️ 故意**不**纳入 `Module/Flow/**`、`UI/**`、`App/Bootstrap.cs`：
          Flow/UI 由 agent-05 / agent-09 并行编写，随时处于"改到一半"的中间态；
@@ -115,9 +115,8 @@
              `UnityEngine` + 本宿主已链的 `CombatLog` + 门面 `AppContext`(已链) 与 `Contracts.cs`(已链)。 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Combat\DeathFlow.cs" />
 
-    <!-- 本 agent 的四个模块 -->
+    <!-- 本 agent 的三个模块 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
-    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Quest\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Npc\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Save\*.cs" />
   </ItemGroup>

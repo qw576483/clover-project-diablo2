@@ -567,7 +567,7 @@ namespace FlowCheck
             var loadsBeforeSwitch = scene.LoadedScenes.Count;
             var cleanedBeforeSwitch = ConsoleLogger.CountOf("清场完成：");
 
-            ctx.Flow.GoStage(AreaId.DenOfEvil);     // 已在 Stage（BloodMoor）⇒ 必须走「先清场再进图」的正规路径
+            ctx.Flow.GoStage(AreaId.Town);          // 已在 Stage（BloodMoor）⇒ 必须走「先清场再进图」的正规路径
 
             var tape = Tape.GetRange(tapeFrom, Tape.Count - tapeFrom);
             Check("★§A-② 不同区进图：清场 ①~⑤ 在 Scene.Load **之前**按序各执行一次（顺序磁带）",
@@ -696,7 +696,7 @@ namespace FlowCheck
         private static bool OffWorks(ConsoleEventBus bus, IAppFlow flow)
         {
             var stationBefore = flow.CurrentState;
-            bus.Emit(Events.ExitEntered, AreaId.DenOfEvil);
+            bus.Emit(Events.ExitEntered, AreaId.BloodMoor);
             return flow.CurrentState == stationBefore;
         }
 

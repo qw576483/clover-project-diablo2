@@ -20,7 +20,7 @@
 //
 // 读档时谁把数据灌回各模块：`AppFlow` 只在进 Stage 时自己调 `ctx.Player.LoadFrom(save)`
 //    （`AppFlow.cs:431`），**从不调用** `ApplyToModules`。所以本模块在 `Load(name)` 成功时
-//    **顺手把 Item / Quest / Npc / Skill 装回去**（Player 留给 Flow 装，重复装也幂等）；
+//    **顺手把 Item / Npc / Skill 装回去**（Player 留给 Flow 装，重复装也幂等）；
 //    `ApplyToModules(data)` 仍是"一次装全部（含 Player）"的公开入口，供其它调用点使用。
 //
 // 版本：`CharacterSave.version`；读档版本不符 ⇒ **降级处理 + Warn + Info**（缺字段取默认值，绝不让读档崩）。
@@ -163,7 +163,6 @@ namespace Diablo2.Module.Save
 
             p.WriteTo(data);                                     // 属性 / 等级 / 经验 / 金币 / 位置
             Item?.WriteTo(data);                                 // 背包 / 装备 / 腰带
-            Quest?.WriteTo(data);                                // 任务状态
             WriteSkills(data);                                   // 技能（`ISkillModule` 没有 WriteTo ⇒ 反查）
 
             var map = Map;
@@ -172,7 +171,7 @@ namespace Diablo2.Module.Save
                 data.mapSeed = map.Seed;        // 本局地图 seed（读档要复现同一张图）
                 //   一个 `CharacterSave`，从 Live 模块逐字段收集；而 `areaId` **全仓没有写者** ——
                 //   `PlayerModule.WriteTo`（:471-473 注释明文「mapSeed / areaId … 这里不碰」）、
-                //   `ItemModule.WriteTo` / `QuestModule.WriteTo` / `WriteSkills` 都不写它
+                //   `ItemModule.WriteTo` / `WriteSkills` 都不写它
                 //   ⇒ 落盘 `"areaId":0`（= 默认值），读档 `GoStage(ToArea(save.areaId))` 于是**一律回营地**。
                 //   注意：`AppFlow._selected.areaId`（`EnterArea`/`GoStage` 会写）**不是**落盘对象 ——
                 //   `AppFlow.SaveCurrentCharacter` 调的是**无参** `Save()`，它只认这里的 Live 收集。
@@ -248,7 +247,7 @@ namespace Diablo2.Module.Save
 
             _lastError = "";
             Log.Info("Save", $"[Save] 已落盘「{data.name}」：槽位={Store.Dir} 大小={json.Length} 字节 "
-                + $"版本={data.version} 等级={data.level} 任务={DescribeQuests(data)}");
+                + $"版本={data.version} 等级={data.level}");
 
             // **存档成功**的唯一出口 —— 发 `Events.SaveDone(true)`。
             //   `Events.SaveDone`（`Core/Events.cs`，参数 = bool 是否成功）的参数口径 =
@@ -359,7 +358,7 @@ namespace Diablo2.Module.Save
             Log.Info("Save", $"[Save] 读档成功：「{data.name}」等级={data.level} 金币={data.gold} "
                 + $"位置=({data.gridX},{data.gridY}) area={data.areaId} seed={data.mapSeed} "
                 + $"背包锚点={CountAnchors(data)} 装备={data.equip.Count} 技能={data.skillIds.Count} "
-                + $"任务={DescribeQuests(data)} 大小={json.Length} 字节");
+                + $"大小={json.Length} 字节");
 
             // Flow 只会自己装 Player（AppFlow.cs:431）⇒ 这里把其余模块顺手装回去（幂等）
             ApplyOtherModules(data);
@@ -476,7 +475,7 @@ namespace Diablo2.Module.Save
 
         // ── 装配回模块 ─────────────────────────────────────────────────────────
 
-        /// <summary>把存档数据装配回各模块（Player / Skill / Item / Quest / Npc）。</summary>
+        /// <summary>把存档数据装配回各模块（Player / Skill / Item / Npc）。</summary>
         public void ApplyToModules(CharacterSave data)
         {
             if (data == null)
@@ -490,7 +489,7 @@ namespace Diablo2.Module.Save
             else Log.Warn("Save", "ApplyToModules：`IPlayerModule` 未接入 ⇒ 角色属性未装配");
 
             ApplyOtherModules(data);
-            Log.Info("Save", $"[Save] 存档已装配到各模块：{data.name}（Player/Item/Quest/Npc/Skill）");
+            Log.Info("Save", $"[Save] 存档已装配到各模块：{data.name}（Player/Item/Npc/Skill）");
         }
 
         // ── 内部 ───────────────────────────────────────────────────────────────
@@ -590,15 +589,6 @@ namespace Diablo2.Module.Save
             }
         }
 
-        private static IQuestModule Quest
-        {
-            get
-            {
-                var ctx = AppContext.I;
-                return ctx != null ? ctx.Quest : null;
-            }
-        }
-
         private static INpcModule Npc
         {
             get
@@ -680,10 +670,6 @@ namespace Diablo2.Module.Save
             var item = Item;
             if (item != null) item.LoadFrom(data);
             else Log.Warn("Save", "读档：`IItemModule` 未接入 ⇒ 背包/装备/腰带未恢复");
-
-            var quest = Quest;
-            if (quest != null) quest.LoadFrom(data);
-            else Log.Warn("Save", "读档：`IQuestModule` 未接入 ⇒ 任务进度未恢复");
 
             var npc = Npc;
             if (npc != null) npc.LoadFrom(data);
@@ -860,20 +846,6 @@ namespace Diablo2.Module.Save
                 if (s != null && s.isAnchor && s.item != null) n++;
             }
             return n;
-        }
-
-        private static string DescribeQuests(CharacterSave data)
-        {
-            if (data.quests == null || data.quests.Count == 0) return "无";
-            var sb = new System.Text.StringBuilder();
-            for (var i = 0; i < data.quests.Count; i++)
-            {
-                var q = data.quests[i];
-                if (q == null) continue;
-                if (sb.Length > 0) sb.Append(' ');
-                sb.Append(q.name).Append('=').Append(q.state).Append('(').Append(q.progress).Append('/').Append(q.required).Append(')');
-            }
-            return sb.Length == 0 ? "无" : sb.ToString();
         }
     }
 }

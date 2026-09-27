@@ -2,7 +2,7 @@
 // Diablo2 · Module/Contracts.cs  全模块契约（**冻结**）
 //
 // 本文件 = 后续 agent 的**唯一接口依据**：只放 `public interface` 与可序列化 DTO，
-// **不含任何实现**（实现分别落在 `Module/{Flow,Map,Player,Combat,Monster,Skill,Item,Quest,Npc,
+// **不含任何实现**（实现分别落在 `Module/{Flow,Map,Player,Combat,Monster,Skill,Item,Npc,
 // Camera,View,Audio,Save}/`，按 `tools/ai-skill/registry.md` 的模块表）。
 //
 // ── 命名空间划分（**故意分成两个**，改动前先读这段）──────────────────────────
@@ -292,33 +292,6 @@ namespace Diablo2.Def
         public bool hitStun;
     }
 
-    /// <summary>
-    /// </summary>
-    [Serializable]
-    public class QuestStateDto
-    {
-        /// <summary>任务 id（见 <see cref="QuestId"/>）。</summary>
-        public int questId;
-
-        /// <summary>任务名（中文）。</summary>
-        public string name;
-
-        /// <summary>当前状态。</summary>
-        public QuestState state;
-
-        /// <summary>目标进度（邪恶洞穴 = 已清怪数）。</summary>
-        public int progress;
-
-        /// <summary>目标进度上限（邪恶洞穴 = 洞内初始怪物总数）。</summary>
-        public int required;
-
-        /// <summary>奖励是否已领（防重复发放）。</summary>
-        public bool rewardClaimed;
-
-        /// <summary>目标描述（任务日志显示用，随状态变化）。</summary>
-        public string objective;
-    }
-
     /// <summary>NPC 静态定义（城镇布局 + 商店能力）。</summary>
     [Serializable]
     public class NpcDef
@@ -337,9 +310,6 @@ namespace Diablo2.Def
 
         /// <summary>所在区域（见 <see cref="AreaId"/>）。</summary>
         public int areaId;
-
-        /// <summary>是否为任务发布者（对话里可接/交任务）。</summary>
-        public bool isQuestGiver;
 
         /// <summary>是否有商店（可买卖）。</summary>
         public bool hasShop;
@@ -542,9 +512,6 @@ namespace Diablo2.Def
         /// <summary>腰带（长度 = `GameConst.BeltSlots`，空位为 null）。</summary>
         public List<ItemStack> belt = new List<ItemStack>();
 
-        /// <summary>任务状态。</summary>
-        public List<QuestStateDto> quests = new List<QuestStateDto>();
-
         /// <summary>存档时间（`DateTime.UtcNow.Ticks`，0 = 未知）。</summary>
         public long savedAtTicks;
 
@@ -649,7 +616,7 @@ namespace Diablo2.Def
         /// <summary>NPC 名。</summary>
         public string npcName;
 
-        /// <summary>对话正文（**随任务阶段变化**）。</summary>
+        /// <summary>对话正文。</summary>
         public string text;
 
         /// <summary>可选项文本（下标即 `Events.DialogOptionChosen` 的参数；空 = 只能关闭）。</summary>
@@ -657,15 +624,6 @@ namespace Diablo2.Def
 
         /// <summary>是否有商店入口。</summary>
         public bool hasShop;
-
-        /// <summary>本篇对话是否可接任务。</summary>
-        public bool canAcceptQuest;
-
-        /// <summary>本篇对话是否可交任务。</summary>
-        public bool canTurnInQuest;
-
-        /// <summary>可接/可交的任务 id。</summary>
-        public int questId;
     }
 
     /// <summary>商店里的一条商品。</summary>
@@ -1070,9 +1028,6 @@ namespace Diablo2.Module
         /// <summary>出入口格（`TileKind.Exit`），城镇的出城口 / 野外的洞穴入口。</summary>
         IReadOnlyList<Vector2Int> Exits { get; }
 
-        /// <summary>洞穴入口格（仅血腥荒野有效；其它区域为 null）。</summary>
-        Vector2Int? CaveEntrance { get; }
-
         /// <summary>城镇 NPC 站位（下标 = `Def.NpcId` 的整数值；非城镇区域为空列表）。</summary>
         IReadOnlyList<Vector2Int> NpcPoints { get; }
 
@@ -1343,7 +1298,7 @@ namespace Diablo2.Module
         /// <summary>全部怪物（含尸体，`alive=false` 仍保留直到清理）。</summary>
         IReadOnlyList<MonsterState> All { get; }
 
-        /// <summary>某区域内的存活怪物数（**任务判定用它**：`CountInArea(AreaId.DenOfEvil) == 0` ⇒ 可交付）。</summary>
+        /// <summary>某区域内的存活怪物数。</summary>
         int CountInArea(AreaId area);
 
         /// <summary>按 id 取怪物状态；不存在返回 null 并限频告警。</summary>
@@ -1577,47 +1532,7 @@ namespace Diablo2.Module
     }
 
     /// <summary>
-    /// 任务门面（`Module/Quest/QuestModule.cs`）：邪恶洞穴任务链状态机。
-    /// 「清光洞内全部怪物才可交付」是**硬条件**。
-    /// </summary>
-    public interface IQuestModule
-    {
-        /// <summary>邪恶洞穴任务状态。</summary>
-        QuestState DenOfEvil { get; }
-
-        /// <summary>洞内剩余怪物数（= `IMonsterModule.CountInArea(AreaId.DenOfEvil)`）。</summary>
-        int DenRemaining { get; }
-
-        /// <summary>是否满足交付条件（进行中 且 剩余 = 0）。</summary>
-        bool CanTurnInDen { get; }
-
-        /// <summary>全部任务状态（任务日志面板用）。</summary>
-        IReadOnlyList<QuestStateDto> Quests { get; }
-
-        /// <summary>取某个任务状态。</summary>
-        QuestStateDto Get(int questId);
-
-        /// <summary>接取邪恶洞穴任务（重复接取打日志并忽略）。</summary>
-        void AcceptDen();
-
-        /// <summary>交付邪恶洞穴任务（不满足条件则发 `Events.QuestTurnInDenied` 并打日志）。</summary>
-        void TurnInDen();
-
-        /// <summary>怪物被击杀时调用（重新统计洞内剩余并刷新状态）。</summary>
-        void NotifyMonsterKilled(int monsterId);
-
-        /// <summary>按存档恢复任务状态。</summary>
-        void LoadFrom(CharacterSave save);
-
-        /// <summary>写回存档对象。</summary>
-        void WriteTo(CharacterSave save);
-
-        /// <summary>复位（回主菜单时调用）。</summary>
-        void Reset();
-    }
-
-    /// <summary>
-    /// NPC 门面（`Module/Npc/NpcModule.cs`）：5 个 NPC 的定义 / 对话文本（随任务阶段变化）/ 商店 / 修理。
+    /// NPC 门面（`Module/Npc/NpcModule.cs`）：5 个 NPC 的定义 / 对话文本 / 商店 / 修理。
     /// </summary>
     public interface INpcModule
     {
@@ -1820,7 +1735,7 @@ namespace Diablo2.Module
         /// <summary>是否存在任意存档（主菜单「继续」按钮可用性）。</summary>
         bool HasAny { get; }
 
-        /// <summary>把存档数据装配回各模块（Player / Skill / Item / Quest / Npc）。</summary>
+        /// <summary>把存档数据装配回各模块（Player / Skill / Item / Npc）。</summary>
         void ApplyToModules(CharacterSave data);
     }
 }

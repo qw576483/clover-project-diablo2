@@ -147,14 +147,6 @@ namespace Uicheck
                 UiLayoutGame.SkillIconArtPx, SkillTreePanel.IconCellSize,
                 note: "★ w3 修正：原版位图原生 48×48（旧值取「框内径 41×46」⇒ 图标被缩到 85.4%）");
 
-            // ── 任务日志（原版 `MENU/questbackground.dc6` 实测分区 ×1.8）──
-            Add("任务日志", "面板底图", ResPaths.PanelQuestBack, 320f, 432f, QuestLogPanel.PanelSize);
-            Add("任务日志", "章节页签", ResPaths.PanelQuestTabs + "_1", 78f, 30f, UiLayoutGame.QuestTabSize);
-            Add("任务日志", "任务石龛", ResPaths.PanelQuestSocket + "_0", 80f, 95f, UiLayoutGame.QuestSlotSize);
-            Add("任务日志", "任务图", ResPaths.QuestImage("a1q1", 0), 72f, 86f, UiLayoutGame.QuestArtSize);
-            Add("任务日志", "标题条", ResPaths.Banner("quests_0"), 74f, 54f, UiLayoutGame.QuestBannerBox,
-                note: "`preserveAspect` 等比落进外框（原版标题条宽度各不相同）");
-
             // ── 小地图（原版 `MINIMAP/mapicons.DC6` 帧 16×16；框尺寸无原版出处，登记 E23）──
             Add("小地图", "标记图标", ResPaths.MiniMapIcon(ResPaths.MiniMapMarkerFrame), 16f, 16f,
                 new Vector2(UiLayoutGame.MiniMapIconPx, UiLayoutGame.MiniMapIconPx));

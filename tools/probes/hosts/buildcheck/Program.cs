@@ -119,9 +119,8 @@ internal static class Program
         Check(ProjectBuilder.MenuPath == "Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）",
             "菜单名逐字等于契约：Diablo2/一键生成工程（场景 + 预制体 + BuildSettings）");
 
-        // 本轮 17 → 18：新增 `WaypointPanel`（原版「傳送點」屏；见 `UI/WaypointPanel.cs`
-        Check(ProjectBuilder.PanelNames.Length == 18,
-            "面板清单 = 18 个（实测 " + ProjectBuilder.PanelNames.Length + "）");
+        Check(ProjectBuilder.PanelNames.Length == 17,
+            "面板清单 = 17 个（实测 " + ProjectBuilder.PanelNames.Length + "）");
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var dup = new List<string>();
@@ -139,7 +138,7 @@ internal static class Program
                 missing.Add(n);
         }
         Check(missing.Count == 0,
-            "18 个面板类都能在 Assets/Scripts/UI/{类名}.cs 里找到 `class {类名} : UIPanel`"
+            "17 个面板类都能在 Assets/Scripts/UI/{类名}.cs 里找到 `class {类名} : UIPanel`"
             + (missing.Count == 0 ? "" : "（缺：" + string.Join(",", missing.ToArray()) + "）"));
 
         Check(ProjectBuilder.PanelsDir == "Assets/Resources/UI", "预制体目录 = Assets/Resources/UI（契约 §3.6）");
@@ -168,7 +167,7 @@ internal static class Program
 
         var dir = P("client", "Assets", "Resources", "UI");
         var files = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.prefab") : new string[0];
-        Check(files.Length == 18, "预制体个数 = 18（实测 " + files.Length + "）");
+        Check(files.Length == 17, "预制体个数 = 17（实测 " + files.Length + "）");
 
         var bad = new List<string>();
         for (int i = 0; i < ProjectBuilder.PanelNames.Length; i++)
@@ -203,7 +202,7 @@ internal static class Program
         }
 
         Check(bad.Count == 0,
-            "18 个预制体：根节点铺满(anchorMin=0,0 / anchorMax=1,1 / anchoredPosition=0,0 / sizeDelta=0,0 / pivot=0.5,0.5)"
+            "17 个预制体：根节点铺满(anchorMin=0,0 / anchorMax=1,1 / anchoredPosition=0,0 / sizeDelta=0,0 / pivot=0.5,0.5)"
             + " + m_Script 指向本面板脚本的 .cs.meta guid + layer=UI"
             + (bad.Count == 0 ? "" : "；不合格：" + string.Join("; ", bad.ToArray())));
 

@@ -764,16 +764,13 @@ namespace P1
                     if (Elapsed(0.5f)) { _hoverOn = false; Probe.KV("HOVER-OFF", "frame=" + Time.frameCount); Next(); }
                     break;
 
-                // 20) visit DenOfEvil so the town panel has 2 destinations
+                // 20) 占位（原「进邪恶洞穴」；该区域已移除 ⇒ 本步与下一步只推进，不产生读数）
                 case 20:
-                    Probe.KV("EXIT-DEN", "emit " + Events.ExitEntered + "(DenOfEvil)");
-                    Probe.Emit(Events.ExitEntered, AreaId.DenOfEvil);
                     Next();
                     break;
 
                 case 21:
-                    if (Elapsed(1.5f) && Area() == (int)AreaId.DenOfEvil) { Probe.KV("DEN-ARRIVED", "me=" + Probe.Grid(PlayerGrid())); Next(); break; }
-                    if (Elapsed(45f)) { Probe.Warn("DenOfEvil 45s not ready area=" + Area()); Next(); }
+                    Next();
                     break;
 
                 case 22:

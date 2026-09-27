@@ -31,7 +31,6 @@ namespace Uicheck
             Console.WriteLine("── (u56-fix4) 实机四条画面缺陷的离线判据：① 启动屏白块 ② 商店白方块 ③ 任务日志正文 ④ 死亡屏横幅取帧 ──");
             BootLogo();
             ItemIcon();
-            QuestText();
             DeathBanner();
             Console.WriteLine();
         }
@@ -108,47 +107,6 @@ namespace Uicheck
             var n = 1;
             for (var i = 0; i < text.Length; i++) if (text[i] == '\n') n++;
             return n;
-        }
-
-        private static QuestStateDto Quest(QuestState state, string objective, int progress, int required)
-            => new QuestStateDto
-            {
-                questId = 1,
-                name = "邪惡洞穴",
-                state = state,
-                objective = objective,
-                progress = progress,
-                required = required,
-            };
-
-        private static void QuestText()
-        {
-            var notStarted = QuestLogPanel.TextOf(Quest(QuestState.NotStarted, "去洞穴深處", 0, 4));
-            var inProgress = QuestLogPanel.TextOf(Quest(QuestState.InProgress, "殺光洞穴裡的怪物", 1, 4));
-            var ready = QuestLogPanel.TextOf(Quest(QuestState.ReadyToTurnIn, "回報阿卡拉", 4, 4));
-
-            Check("③ 未接取 ⇒ 整屏**只有一行**原版串「沒有進行中的任務。」（不画任务名/目标）",
-                notStarted == QuestLogPanel.TextNoActiveQuest && LineCount(notStarted) == 1,
-                $"行数={LineCount(notStarted)} 文本=\"{notStarted}\"");
-
-            Check("③ 进行中 ⇒ **三行**（任务名 | 目标 | 进度行），正文区不该只剩一行",
-                LineCount(inProgress) == 3 && inProgress.Contains(QuestLogPanel.TextMonstersRemainingPrefix),
-                $"行数={LineCount(inProgress)} 预览=\"{inProgress.Replace("\n", " | ")}\"");
-
-            Check("③ 可交付 ⇒ **两行**（任务名 | 目标）",
-                LineCount(ready) == 2, $"行数={LineCount(ready)}");
-
-            var boxOk = Math.Abs(UiLayoutGame.QuestTextBoxSize.x - 316f * UiLayoutGame.K) < 0.01f
-                        && Math.Abs(UiLayoutGame.QuestTextBoxSize.y - 129f * UiLayoutGame.K) < 0.01f
-                        && Math.Abs(UiLayoutGame.QuestTextWidth
-                                    - (316f - 2f * UiLayoutGame.QuestTextPadX) * UiLayoutGame.K) < 0.01f;
-            Check("③ 正文框 == 原版 `questbackground.dc6` 实测黑芯 316×129（×1.8），文字框宽 = 框宽 − 左右各 8 原版px",
-                boxOk, $"框={UiLayoutGame.QuestTextBoxSize.x}×{UiLayoutGame.QuestTextBoxSize.y} 文本宽={UiLayoutGame.QuestTextWidth}");
-
-            // 退化样本：目标行被吞掉 ⇒ 行数变 2 ⇒ 同一"必须 3 行"的判据变红
-            var deg = LineCount(QuestLogPanel.TextOf(Quest(QuestState.InProgress, string.Empty, 1, 4)));
-            Check("③ 退化样本（进行中但 objective 为空 ⇒ 行数 2）喂进同一判据 ⇒ 必须变红",
-                deg != 3, $"退化样本行数={deg}");
         }
 
         // ═════════════════════════════════════════════════════════════════════

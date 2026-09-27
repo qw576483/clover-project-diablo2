@@ -45,7 +45,7 @@ namespace Diablo2.Core
         /// <summary>本项目合法的模块 tag 白名单（写错 tag 会让验收脚本检索不到日志）。</summary>
         private static readonly HashSet<string> KnownTags = new HashSet<string>(StringComparer.Ordinal)
         {
-            "App", "Flow", "Map", "Player", "Monster", "Combat", "Skill", "Item", "Quest",
+            "App", "Flow", "Map", "Player", "Monster", "Combat", "Skill", "Item",
             "Npc", "Input", "Camera", "View", "Audio", "Save", "Ui", "Table", "Cfg",
             "AStar", "Iso", "Rng", "D2",
             // 把"生效口径"类 Info 单独挂一个 tag 便于按 tag 检索（混进 Map/Player

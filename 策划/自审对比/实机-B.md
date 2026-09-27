@@ -53,57 +53,6 @@
 
 ---
 
-## 2. #39 任务日志面板（Q）：四阶段（通过）
-
-面板 `UI/QuestLogPanel.cs` 吃 `Def.QuestStateDto`（`OnOpen` 参数 + `Events.QuestChanged`），
-打开走 HUD 的同一条 `Events.PanelToggleRequest`（`HudPanel.PanelParam` 把缓存快照传进去）。
-同一会话内四个阶段的**面板文本**（日志原样，注意这四行是面板控件里读出来的真实字符串）：
-
-| 阶段 | 日志（`_dev/b25_plan_c.txt`） | 截图 |
-|---|---|---|
-| 未接取 | `qlog{名='邪恶洞穴' 状态='状态：未接取' 目标='去罗格营地找阿卡拉谈谈。' 进度='进度：—（尚未进入洞穴，洞内怪物数进洞后统计）' 提示='在阿卡拉处接取任务后，目标会出现在这里'}` | `Screenshots/b25_c_01_questlog_notstarted.png`（B 轮同名 `b25_b_01_…`） |
-| 进行中 | `状态='状态：进行中' 目标='去血腥荒野的邪恶洞穴，把里面的怪物清光。' 进度='进度：—（尚未进入洞穴…）'` | `Screenshots/b25_c_04_questlog_inprogress.png` |
-| 可交付（人在洞里） | `状态='状态：可交付' 目标='洞穴已清理干净，回罗格营地找阿卡拉复命。' 进度='进度：11/11    剩余怪物：0' 提示='目标已完成，可回城找阿卡拉交付（奖励 +1 技能点）'` | `Screenshots/b25_c_05_questlog_ready.png` |
-| 已完成 | `状态='状态：已完成' 目标='已完成：邪恶洞穴里的怪物已被清光。' 进度='进度：11/11    剩余怪物：0' 提示='任务已完成（奖励已领取）'` | `Screenshots/b25_c_08_questlog_done.png` |
-
-**"可交付"是被真事推出来的**（不是摆拍）：`clear|ok|清怪 11 只；state=ReadyToTurnIn progress=11/11 remaining=0 canTurnIn=True`
-—— 由 `IMonsterModule.ApplyDamage` 逐只击杀、每只都走 `Module/Monster.Die` 发 `Events.MonsterKilled`
-→ `QuestModule.NotifyMonsterKilled` → `_den.Refresh(remaining)` 把 11/11 累出来。
-
-**读图结论**（`[a25 读图]`）：四张都是**原版任务日志底图**（`MENU/questbackground.dc6` 石材区+深色文本区）
-+ 原版中文标题条「任務」；图上文字（任务名/状态/目标/进度/提示）与上表日志逐字一致。
-其中"可交付"那张**背景是洞穴岩石**（`area=DenOfEvil seed=1692052093 pgrid=9,24`），另三张在营地 —— 与日志 `area=` 对得上。
-B 轮的四张同状态图（`b25_b_01/04/05/08`）也逐张读过，结论相同。
-
----
-
-## 3. #40 任务阶段联动（通过）
-
-要求：交任务后 NPC 对话变化（截图对照）。**对照的一对图**：
-
-| 时刻 | 日志（`_dev/b25_plan_c.txt`） | 截图 |
-|---|---|---|
-| 交任务**前**（可交付，回城找阿卡拉） | `akaraDialog=1 speaker='阿卡拉' canAccept=False canTurnIn=True body='我已经听说了——邪恶洞穴被清理得干干净净。你为营地做了件了不起的事。把手伸过来，我赐予你力量（技能点 +1）。'` | `Screenshots/b25_c_06_dialog_before_turnin.png` |
-| 点「交付任务」（面板真实按钮 onClick） | `turnin\|ok\|已触发「交付任务」按钮的 onClick` → `quest{state=Done progress=11/11 …}` 且 **同一次回包里对话已换**：`body='愿光明与你同在，勇士。罗格营地欠你一份人情。' canTurnIn=False` | `Screenshots/b25_c_07_dialog_after_turnin.png` |
-
-**读图结论**（`[a25 读图]`）：`b25_c_06` = 可交付台词 + 「交付任务」按钮**可点**（高亮）；`b25_c_07` = 同一位置变成
-「愿光明与你同在，勇士。罗格营地欠你一份人情。」且「交付任务」**已变灰**。两图背景同为营地、同一 NPC 机位，可并排对照。
-B 轮同名两张（`b25_b_06/07`）也读过，结论相同。
-
-顺带把"联动"的第三个出口也验了：交付后任务日志立刻是「已完成」（§2 第 4 行），HUD 缓存快照与面板同步。
-
----
-
-## 4. 修掉的缺陷（#40 必须的那一处）
-
-| # | 现象 | 根因 | 修复 | 证据 |
-|---|---|---|---|---|
-| B5 | **面板开着时任务阶段变化，NPC 对话不刷新**（接取后正文仍是接取前那段、`canAcceptQuest` 还是旧值；交付后仍是"可交付"那段、`canTurnInQuest` 还是 True）⇒ 要"关掉再打开"才看得到新台词，验收 #40「状态机驱动 NPC 对话」在面板上不成立 | `NpcModule` 只在 `Interact()` 时构造一次 `NpcDialogArgs` 发 `Events.DialogOpen`；**从没订阅 `Events.QuestChanged`**（`UI/NpcDialogPanel` 也不订阅，它只吃 DTO）⇒ 阶段变了没人重发 | `Module/Npc/NpcModule.cs`：构造里 `bus.On<QuestStateDto>(Events.QuestChanged, OnQuestChanged)`；新方法 `OnQuestChanged` 在"确实有对话进行中"（`_currentNpcId != None`）时用 `GetDialog(当前NPC)` 重组装并重发 `Events.DialogOpen`（HUD 对已打开面板 `Open<T>` → `OnOpen(param)` 就地重建）。两条非预期分支（NPC 定义丢失 / 对话组装失败）各留一条 `Log.Warn` | 修**前**（B 轮首次跑，`_dev/b25_plan_b.txt` 16:49 段）：`accept\|ok\|按钮不可点 ⇒ 发 DialogOptionChosen(1)` 后 `quest{state=InProgress}` 但 `body='（阿卡拉望向荒野）你好，勇士…一只不剩**地清除，我会有重谢。' canAccept=True`（**旧台词+旧布尔位**）；修**后**（同一会话 17:01 段 + 新会话 17:05 段）：`body='洞穴里的怪物还没清干净…' canAccept=False`。日志另有 `[Npc] 任务阶段变化（state=InProgress）⇒ 实时刷新「阿卡拉」的对话` |
-
-> ⚠️ 修前/修后各拍了一张同位置图：修前的 `Screenshots/b25_a_03_dialog_after_accept.png`（旧正文）、
-> 修后的 `b25_b_03` / `b25_c_03`（新正文）。**旧图保留**，用于说明"改了什么"。
-
----
 
 ## 5. 环境性发现（不是这 3 行的事，但影响取证）
 

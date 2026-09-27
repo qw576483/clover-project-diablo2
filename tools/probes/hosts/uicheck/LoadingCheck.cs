@@ -304,7 +304,7 @@ namespace Uicheck
 
             var nameOk = true;
             var nameDetail = new List<string>();
-            var areas = new[] { AreaId.Town, AreaId.BloodMoor, AreaId.DenOfEvil };
+            var areas = new[] { AreaId.Town, AreaId.BloodMoor };
             for (var i = 0; i < areas.Length; i++)
             {
                 var mine = LevelEntryTitle.OfficialLevelName(areas[i]);
@@ -326,11 +326,10 @@ namespace Uicheck
             if (File.Exists(areaLevelTable))
             {
                 var src = File.ReadAllText(areaLevelTable);
-                crossOk = src.Contains("\"Rogue Encampment\"") && src.Contains("\"Blood Moor\"")
-                          && src.Contains("\"Den of Evil\"");
+                crossOk = src.Contains("\"Rogue Encampment\"") && src.Contains("\"Blood Moor\"");
             }
-            Check("区域名与 `Module/Monster/AreaLevelTable.ExpectedLevelNameOf` 的三项逐字一致（同一份契约哨兵）",
-                crossOk, crossOk ? "Rogue Encampment / Blood Moor / Den of Evil" : "AreaLevelTable.cs 里对不上");
+            Check("区域名与 `Module/Monster/AreaLevelTable.ExpectedLevelNameOf` 的两项逐字一致（同一份契约哨兵）",
+                crossOk, crossOk ? "Rogue Encampment / Blood Moor" : "AreaLevelTable.cs 里对不上");
 
             Check("未登记区域 ⇒ 不崩、不弹（返回 null，由调用方 WarnOnce）",
                 LevelEntryTitle.OfficialLevelName((AreaId)999) == null

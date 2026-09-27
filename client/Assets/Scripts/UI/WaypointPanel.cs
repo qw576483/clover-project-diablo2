@@ -70,9 +70,9 @@ namespace Diablo2.UI
         /// <summary>
         /// 本面板能列出的**最多目的地数**。
         /// <para>
-        /// 出处 = 本工程 Act I 只有 3 个区域（`AreaId`：Town / BloodMoor / DenOfEvil），
-        /// 而面板只在罗格营地打开、列表又要去掉当前区域 ⇒ 最多 **2** 条。
-        /// 超出的（未来加了区域却忘了排版）**不静默**：`Build` 会 Warn 并只画前 2 条。
+        /// 出处 = 本工程 Act I 只有 2 个区域（`AreaId`：Town / BloodMoor），面板只在罗格营地打开
+        /// ⇒ 实际列出 **1** 条；本上限按排版容量定 2，超出的（未来加了区域却忘了排版）**不静默**：
+        /// `Build` 会 Warn 并只画前 2 条。
         /// </para>
         /// </summary>
         public const int MaxDests = 2;
@@ -200,7 +200,6 @@ namespace Diablo2.UI
             {
                 case AreaId.Town: return "罗格营地";
                 case AreaId.BloodMoor: return "血腥荒野";
-                case AreaId.DenOfEvil: return "邪恶洞穴";
                 default:
                     UiLog.Warn($"传送面板：区域号 {area} 不在 AreaId 登记表里 ⇒ 显示为占位名");
                     return $"区域#{area}";

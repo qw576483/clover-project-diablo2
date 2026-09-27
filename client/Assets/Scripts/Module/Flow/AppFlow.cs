@@ -1551,7 +1551,6 @@ namespace Diablo2.Module.Flow
             // 先把各模块的运行时状态写回存档对象，再交给 Save 模块落盘。
             ctx.Player?.WriteTo(_selected);
             ctx.Item?.WriteTo(_selected);
-            ctx.Quest?.WriteTo(_selected);
             _selected.savedAtTicks = DateTime.UtcNow.Ticks;
 
             // save-areaid：把"保存那一刻的三方"打成一行，供存疑时逐项对照（数值类判据，不必截图）：
@@ -1650,7 +1649,6 @@ namespace Diablo2.Module.Flow
             if (ctx.Monster == null) FlowLog.Missing("IMonsterModule"); else ctx.Monster.DespawnAll();
             if (ctx.Combat == null) FlowLog.Missing("ICombatModule"); else ctx.Combat.Reset();
             if (ctx.Item == null) FlowLog.Missing("IItemModule"); else ctx.Item.Reset();
-            if (ctx.Quest == null) FlowLog.Missing("IQuestModule"); else ctx.Quest.Reset();
             if (ctx.Npc == null) FlowLog.Missing("INpcModule"); else ctx.Npc.Reset();
             if (ctx.View == null) FlowLog.Missing("IViewModule"); else ctx.View.Clear();
             if (ctx.Camera == null) FlowLog.Missing("ICameraRig"); else ctx.Camera.Reset();
@@ -1669,9 +1667,9 @@ namespace Diablo2.Module.Flow
         /// <summary>存档里的 areaId → `AreaId`（越界视为数据损坏，回城镇并打日志）。</summary>
         private static AreaId ToArea(int areaId)
         {
-            if (areaId < (int)AreaId.Town || areaId > (int)AreaId.DenOfEvil)
+            if (areaId < (int)AreaId.Town || areaId > (int)AreaId.BloodMoor)
             {
-                Log.Warn(FlowLog.Tag, $"存档 areaId={areaId} 越界（合法 {AreaId.Town}..{AreaId.DenOfEvil}）⇒ 回城镇");
+                Log.Warn(FlowLog.Tag, $"存档 areaId={areaId} 越界（合法 {AreaId.Town}..{AreaId.BloodMoor}）⇒ 回城镇");
                 return AreaId.Town;
             }
             return (AreaId)areaId;

@@ -39,8 +39,6 @@ namespace Diablo2.Core
 
         public const string LevelUp = "D2.Player.LevelUp";
 
-        public const string QuestChanged = "D2.Quest.Changed";
-
         public const string DialogOpen = "D2.Npc.DialogOpen";
 
         public const string ShopOpen = "D2.Npc.ShopOpen";
@@ -369,22 +367,6 @@ namespace Diablo2.Core
         public const string MapAreaReady = "D2.Map.AreaReady";
 
         // ═════════════════════════════════════════════════════════════════════
-        // 任务（Quest）
-        // ═════════════════════════════════════════════════════════════════════
-
-        /// <summary>请求接取任务（参数 <see cref="int"/> 见 <c>Def.QuestId</c>）。</summary>
-        public const string QuestAcceptRequest = "D2.Quest.AcceptRequest";
-
-        /// <summary>请求交付任务（参数 <see cref="int"/> 见 <c>Def.QuestId</c>）。</summary>
-        public const string QuestTurnInRequest = "D2.Quest.TurnInRequest";
-
-        /// <summary>任务完成（参数 <see cref="int"/> 见 <c>Def.QuestId</c>）。</summary>
-        public const string QuestCompleted = "D2.Quest.Completed";
-
-        /// <summary>任务未达成交付条件（参数 <see cref="int"/> 见 <c>Def.QuestId</c>）。</summary>
-        public const string QuestTurnInDenied = "D2.Quest.TurnInDenied";
-
-        // ═════════════════════════════════════════════════════════════════════
         // NPC / 商店（Npc）
         // ═════════════════════════════════════════════════════════════════════
 
@@ -422,7 +404,7 @@ namespace Diablo2.Core
         /// <summary>
         /// <para>
         /// 为什么需要它（链条断在哪）：`Module/Save/SaveModule.Save()`（无参）在**新造**的 `CharacterSave` 上
-        /// 逐字段从 Live 收集（`Player.WriteTo` / `Item.WriteTo` / `Quest.WriteTo` / `WriteSkills` / Map 分支）；
+        /// 逐字段从 Live 收集（`Player.WriteTo` / `Item.WriteTo` / `WriteSkills` / Map 分支）；
         /// 而「传送点已激活列表」（`App/AppWaypoint.Visited`）与「小地图已探索格」（渲染层 `MapView._explored`
         /// 经 `IMapModule.ExploredCells`）的**持有者在 App / 渲染层**，模块侧拿不到
         /// </para>
@@ -432,7 +414,7 @@ namespace Diablo2.Core
         /// `visitedWaypoints` / `exploredByArea`）。
         /// </para>
         /// <para>
-        /// 语义边界：本事件**只填两个"App 层持有"的字段**，不改其它字段（Player/Item/Quest/Skill
+        /// 语义边界：本事件**只填两个"App 层持有"的字段**，不改其它字段（Player/Item/Skill
         /// 的收集仍在 `SaveModule` 自己那几条写者里）；收方收到时 `data` 已基本填好，只负责补自己的两块。
         /// 无订阅者（离线宿主 / App 未接线）⇒ `SaveModule` 留一条 Warn、这两个字段保持空集合**照常存档**。
         /// </para>

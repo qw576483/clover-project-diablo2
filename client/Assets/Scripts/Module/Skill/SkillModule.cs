@@ -891,7 +891,7 @@ namespace Diablo2.Module.Skill
         /// **该地形是否阻挡投射物** —— 逐类裁决的**唯一出处**（`internal` 供 `tools/probes/hosts/combatcheck` 逐类断言）。
         ///
         /// <para><b>裁决表</b>（判据 = 该地形在本项目的**几何/占格语义**，见 `MapGenTown` /
-        /// `MapGenWilderness` / `MapGenCave` 的铺图点；不是"随手把 Walkable 抄一遍"）：</para>
+        /// `MapGenWilderness` 的铺图点；不是"随手把 Walkable 抄一遍"）：</para>
         /// <list type="table">
         /// <item><description><c>Grass / Dirt / Road / CaveFloor / TownFloor / Exit</c> = **可穿** —
         /// 全是**可穿的地面层**（= `TileKindInfo.IsGroundLayer` 的 6 个**非水**值；`Water` 虽然也是
@@ -900,7 +900,7 @@ namespace Diablo2.Module.Skill
         /// <item><description><c>Void</c> = **阻挡** — 图外 / 未生成，没有可飞的空间。</description></item>
         /// <item><description><c>Wall</c> = **阻挡** — 帐篷 / 摊位 / 货车 / 野外建筑墙
         /// （`MapGenTown.cs` <c>'o'</c>；`MapGenWilderness.cs` <c>'W'</c>）。</description></item>
-        /// <item><description><c>CaveWall</c> = **阻挡** — 洞穴岩壁（`MapGenCave*`）。</description></item>
+        /// <item><description><c>CaveWall</c> = **阻挡** — 岩体占满整格且不可走。</description></item>
         /// <item><description><c>Tree</c> = **阻挡** — 树干占格（`MapGenTown.cs` <c>'t'</c>；
         /// `MapGenWilderness.cs` <c>'T'</c>）。原版树干挡投射物。</description></item>
         /// <item><description><c>Fence</c> = **阻挡** — 栅栏（`MapGenTown.cs` <c>'f'</c>；

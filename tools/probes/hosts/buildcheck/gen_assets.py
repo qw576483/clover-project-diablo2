@@ -53,7 +53,7 @@ ASSETS = os.path.join(CLIENT, "Assets")
 PANELS = [
     "BootPanel", "MainMenuPanel", "SettingsPanel", "CharSelectPanel", "CharCreatePanel",
     "LoadingPanel", "PausePanel", "HudPanel", "MiniMapPanel", "InventoryPanel",
-    "CharacterPanel", "SkillTreePanel", "QuestLogPanel", "NpcDialogPanel", "ShopPanel", "DeathPanel",
+    "CharacterPanel", "SkillTreePanel", "NpcDialogPanel", "ShopPanel", "DeathPanel",
 ]
 SCENES = ["Boot", "Menu", "Stage"]
 

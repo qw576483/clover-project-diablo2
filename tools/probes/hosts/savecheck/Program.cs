@@ -421,11 +421,11 @@ namespace SaveCheck
                 diffs == 0, "diff=" + diffs);
             Check("★ `Write(Parse(json)) == json`（逐字节恒等 ⇒ 本片没动 `SaveJson` 的序列化语义）",
                 SaveJson.Write(after) == json1, "");
-            Check("关键字段抽样（等级/金币/seed/背包锚点/任务）",
+            Check("关键字段抽样（等级/金币/seed/背包锚点）",
                 after.level == 7 && after.gold == 4321 && after.mapSeed == 20260919 &&
-                CountAnchors(after) == 1 && after.quests.Count == 1 && after.quests[0].state == QuestState.InProgress,
+                CountAnchors(after) == 1,
                 "lv=" + after.level + " gold=" + after.gold + " seed=" + after.mapSeed +
-                " anchors=" + CountAnchors(after) + " quests=" + after.quests.Count);
+                " anchors=" + CountAnchors(after));
             Console.WriteLine();
         }
 
@@ -923,7 +923,7 @@ namespace SaveCheck
             "\"vit\":20,\"eng\":15,\"life\":60,\"mana\":22,\"stamina\":20,\"statPoints\":0,\"skillPoints\":0," +
             "\"gold\":123,\"activeWeaponIndex\":0,\"areaId\":1,\"gridX\":9,\"gridY\":60,\"mapSeed\":777," +
             "\"skillIds\":[],\"skillLevels\":[],\"buttonSkills\":[-1,-1],\"inventory\":[],\"equip\":[]," +
-            "\"belt\":[],\"quests\":[],\"savedAtTicks\":0,\"playedSeconds\":12.5}";
+            "\"belt\":[],\"savedAtTicks\":0,\"playedSeconds\":12.5}";
 
         private static void Step14_ProgressStateRoundTrip()
         {
@@ -1295,19 +1295,6 @@ namespace SaveCheck
             data.equip = new List<ItemStack>
             {
                 new ItemStack { itemId = 2, name = "短剑", type = ItemType.Weapon, quality = ItemQuality.Magic, count = 1 },
-            };
-            data.quests = new List<QuestStateDto>
-            {
-                new QuestStateDto
-                {
-                    questId = 1,
-                    name = "邪恶洞穴",
-                    state = QuestState.InProgress,
-                    progress = 5,
-                    required = 13,
-                    rewardClaimed = false,
-                    objective = "殺死所有盤踞在洞穴中的怪物。",
-                },
             };
             data.skillIds = new List<int> { 1, 7 };
             data.skillLevels = new List<int> { 2, 1 };

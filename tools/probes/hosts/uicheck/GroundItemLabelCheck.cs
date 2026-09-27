@@ -116,12 +116,6 @@ namespace Uicheck
                 // 暂停：满屏模态 ⇒ 吃
                 ["PausePanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },
 
-                // 任务日志：底图 = 面板矩形 ⇒ **改吃**（R8）；页签/关闭钮吃；石龛/任务图不吃（底图已覆盖）
-                ["QuestLogPanel.cs"] = new[]
-                {
-                    "QuestBg#t", "QuestBanner#n", "ActTab#t", "Slot#f", "Art#f", "CloseButton#t",
-                },
-
                 // 设置：满屏模态 ⇒ 吃
                 ["SettingsPanel.cs"] = new[] { "Shade#t", "Box#t", "BoxFrame#f" },
 
@@ -184,7 +178,6 @@ namespace Uicheck
             {
                 "InventoryPanel.cs|InventoryBg", "CharacterPanel.cs|CharstatBg",
                 "SkillTreePanel.cs|TreeBackPage0", "SkillTreePanel.cs|TreeBackPageK",
-                "QuestLogPanel.cs|QuestBg",
             };
             for (var i = 0; i < mustEat.Length; i++)
             {

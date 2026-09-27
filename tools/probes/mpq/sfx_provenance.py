@@ -67,7 +67,6 @@ KEYS = [
     ("shop_open",      r"cursor\windowopen.wav"),
     ("portal",         r"skill\misc\portalcast.wav"),
     ("area_enter",     r"object\stairs.wav"),
-    ("quest_complete", r"object\cairnsuccess.wav"),
     # 条目名出处 = `MonSounds.txt`（Attack1 / HitSound / DeathSound / Footstep / FootstepLayer）；
     # 文件名出处 = `Sounds.txt` 的 FileName 列；类别码 = `MonStats.txt` 的 Code 列。
     ("monster_hit_fa", r"monster\fallen\gethit1.wav"),
@@ -111,7 +110,7 @@ IDENT = {
     "level_up": "LevelUp", "footstep": "Footstep", "item_pickup": "ItemPickup",
     "gold_pickup": "GoldPickup", "item_use": "ItemUse", "ui_click": "UiClick",
     "dialog_open": "DialogOpen", "shop_open": "ShopOpen", "portal": "Portal",
-    "area_enter": "AreaEnter", "quest_complete": "QuestComplete",
+    "area_enter": "AreaEnter",
     "monster_hit_fa": "MonsterHitFa", "monster_atk_fa": "MonsterAtkFa",
     "monster_die_fa": "MonsterDieFa", "monster_step_fa": "MonsterStepFa",
     "monster_hit_fs": "MonsterHitFs", "monster_atk_fs": "MonsterAtkFs",
@@ -143,7 +142,7 @@ EVENT = {
     "gold_pickup": "拾取金币", "item_use": "喝药 / 用卷轴",
     "ui_click": "UI 点击（面板/对话选项/买/卖）", "dialog_open": "NPC 对话开始",
     "shop_open": "商店打开", "portal": "传送 / 踩出入口",
-    "area_enter": "进入场景（Stage）", "quest_complete": "任务完成",
+    "area_enter": "进入场景（Stage）",
     "monster_hit_fa": "沉沦魔受击", "monster_atk_fa": "沉沦魔挥击起手",
     "monster_die_fa": "沉沦魔死亡", "monster_step_fa": "沉沦魔脚步",
     "monster_hit_fs": "沉沦魔萨满受击", "monster_atk_fs": "沉沦魔萨满挥击起手",
@@ -166,7 +165,6 @@ NOTE = {
     "player_revive": "※1 原版无“玩家复活”条目 ⇒ 取 necromancer_revive_target",
     "dialog_open":   "※2 原版开对话不播专用音 ⇒ 取 cursor_select",
     "shop_open":     "※2 原版开商店不播专用音 ⇒ 取 cursor_error/cursor_switch",
-    "quest_complete": "※3 原版 cursor_questdone 的 questdone.wav 不在此包内 ⇒ 取 cairn_success",
 }
 
 

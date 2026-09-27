@@ -30,7 +30,7 @@ using Diablo2.Def;
 using Diablo2.Module;
 using Diablo2.Module.Combat;    // ★ 片 2b：Step7 用 `DeathFlow.TreasureClassIdOf` 选"TC 可解析"的靶子
 using Diablo2.Module.Flow;
-using Diablo2.UI;              // ★ 本片：任务日志文案口径的回归断言用 QuestLogPanel.TextOf / Remaining
+using Diablo2.UI;
 using UnityEngine;
 using AppContext = Diablo2.App.AppContext;
 
@@ -521,7 +521,6 @@ namespace FullCheck
             Run(Step5_EnterTown);
             Run(Step6_DoorDedup);
             Run(Step7_Combat);
-            Run(Step8_QuestChain);
             Run(Step9_SaveReloadAndReset);
 
             //   走 Run(...) 包一层：单步隔离（炸掉也不吞掉后面的汇总输出）。
@@ -637,12 +636,10 @@ namespace FullCheck
 
             var lv1 = Table.Tables.Default.Level.Get(1);
             var lv2 = Table.Tables.Default.Level.Get(2);
-            var lv3 = Table.Tables.Default.Level.Get(3);
-            Check("level_c 三行（1=罗格营地 / 2=血腥荒野 / 3=邪恶洞穴）",
-                lv1 != null && lv2 != null && lv3 != null,
+            Check("level_c 两行（1=罗格营地 / 2=血腥荒野）",
+                lv1 != null && lv2 != null,
                 $"1={lv1?.LevelName} 怪=[{(lv1?.Monsters != null ? string.Join(",", lv1.Monsters) : "")}] / " +
-                $"2={lv2?.LevelName} 怪=[{(lv2?.Monsters != null ? string.Join(",", lv2.Monsters) : "")}] / " +
-                $"3={lv3?.LevelName} 怪=[{(lv3?.Monsters != null ? string.Join(",", lv3.Monsters) : "")}]");
+                $"2={lv2?.LevelName} 怪=[{(lv2?.Monsters != null ? string.Join(",", lv2.Monsters) : "")}]");
 
             Check("[Assert] 罗格营地的 monsters 列为空 ⇒ 城镇不刷怪（配表侧保证）",
                 lv1 != null && (lv1.Monsters == null || lv1.Monsters.Length == 0), "见上方 level_c id=1");
@@ -668,21 +665,20 @@ namespace FullCheck
             var missing =
                 (ctx.Map == null ? "Map " : "") + (ctx.Player == null ? "Player " : "") +
                 (ctx.Combat == null ? "Combat " : "") + (ctx.Monster == null ? "Monster " : "") +
-                (ctx.Skill == null ? "Skill " : "") + (ctx.Item == null ? "Item " : "") +
-                (ctx.Quest == null ? "Quest " : "") + (ctx.Npc == null ? "Npc " : "") +
+                (ctx.Skill == null ? "Skill " : "") +                 (ctx.Item == null ? "Item " : "") + (ctx.Npc == null ? "Npc " : "") +
                 (ctx.Camera == null ? "Camera " : "") + (ctx.View == null ? "View " : "") +
                 (ctx.Audio == null ? "Audio " : "") + (ctx.Save == null ? "Save " : "");
 
-            Check("AutoWire 后 **12 个模块全部非 null**" + (missing.Length > 0 ? "（缺：" + missing.Trim() + "）" : ""),
+            Check("AutoWire 后 **11 个模块全部非 null**" + (missing.Length > 0 ? "（缺：" + missing.Trim() + "）" : ""),
                 missing.Length == 0, ctx.Describe());
 
             Check("每个门面的实现类型唯一且叫 XxxModule（自动装配契约）",
                 ctx.Map.GetType().Name == "MapModule" && ctx.Player.GetType().Name == "PlayerModule" &&
                 ctx.Monster.GetType().Name == "MonsterModule" && ctx.Item.GetType().Name == "ItemModule" &&
-                ctx.Quest.GetType().Name == "QuestModule" && ctx.Npc.GetType().Name == "NpcModule" &&
+                ctx.Npc.GetType().Name == "NpcModule" &&
                 ctx.Save.GetType().Name == "SaveModule" && ctx.View.GetType().Name == "ViewModule" &&
                 ctx.Audio.GetType().Name == "AudioModule" && ctx.Camera.GetType().Name == "CameraRig",
-                "Map/Player/Monster/Item/Quest/Npc/Save/View/Audio/Camera 逐个核对");
+                "Map/Player/Monster/Item/Npc/Save/View/Audio/Camera 逐个核对");
 
             Check("`IAppFlow` 不在 AutoWire 内（`ctx.Flow` 由 Bootstrap 显式 new）",
                 ctx.Flow is AppFlow, ctx.Flow.GetType().Name);
@@ -829,8 +825,7 @@ namespace FullCheck
                 $"（MapModule 的 DumpStats 见 [Map] 日志）");
             Check("出生点 / 出口 / NPC 站位有效（契约 §3.5）",
                 ctx.Map.SpawnPoint.x > 0 && ctx.Map.SpawnPoint.y > 0 && ctx.Map.Exits.Count >= 1 && ctx.Map.NpcPoints.Count == 5,
-                $"出生点={ctx.Map.SpawnPoint} 出口={ctx.Map.Exits.Count} NPC={ctx.Map.NpcPoints.Count} " +
-                $"洞穴入口={(ctx.Map.CaveEntrance.HasValue ? ctx.Map.CaveEntrance.Value.ToString() : "null（城镇应为 null）")}");
+                $"出生点={ctx.Map.SpawnPoint} 出口={ctx.Map.Exits.Count} NPC={ctx.Map.NpcPoints.Count}");
 
             TryShowArea();      // 渲染层：Unity 原生 ⇒ 隔离并记录
 
@@ -863,12 +858,12 @@ namespace FullCheck
             Check("App 接线：HUD 随 StageEntered 打开（约定 §3.5 的 (a) 方案）",
                 _ui.Opened.Contains("HudPanel"), "已打开面板=" + string.Join(",", _ui.Opened));
 
-            Check("App 接线：进图全量快照 6 条全部广播（面板打开即有数据）",
+            Check("App 接线：进图全量快照 5 条全部广播（面板打开即有数据）",
                 _bus.CountOf(Events.HudDirty) >= 1 && _bus.CountOf(Events.InventoryChanged) >= 1 &&
-                _bus.CountOf(Events.SkillTreeChanged) >= 1 && _bus.CountOf(Events.QuestChanged) >= 1 &&
+                _bus.CountOf(Events.SkillTreeChanged) >= 1 &&
                 _bus.CountOf(Events.MapGenerated) >= 1 && _bus.CountOf(Events.PlayerGridChanged) >= 1,
                 $"HudDirty={_bus.CountOf(Events.HudDirty)} Inv={_bus.CountOf(Events.InventoryChanged)} " +
-                $"SkillTree={_bus.CountOf(Events.SkillTreeChanged)} Quest={_bus.CountOf(Events.QuestChanged)} " +
+                $"SkillTree={_bus.CountOf(Events.SkillTreeChanged)} " +
                 $"Map={_bus.CountOf(Events.MapGenerated)} Grid={_bus.CountOf(Events.PlayerGridChanged)}");
 
             Check("App 接线：进图断言日志（地图已生成 + 刷怪就绪）都打出来了",
@@ -885,10 +880,10 @@ namespace FullCheck
                 _log.Contains("本次进图：生成地图 1 次 —— 去重断言通过，另有 1 次快照回声已忽略"),
                 $"Generate完成={genCount} 重复生成Warn={dupWarnCount}");
 
-            // 任务接取（原版：进图后找阿卡拉接「邪恶洞穴」）
-            ctx.Quest.AcceptDen();
-            Check("任务「邪恶洞穴」已接取（state=InProgress）",
-                ctx.Quest.DenOfEvil == QuestState.InProgress, "state=" + ctx.Quest.DenOfEvil);
+            Check("技能树快照可构建（5 职业 × 3 系数据来自 skill_c）",
+                ctx.Skill.BuildTree() != null && ctx.Skill.BuildTree().skills.Count > 0,
+                "技能数=" + ctx.Skill.BuildTree().skills.Count);
+
             Console.WriteLine();
         }
 
@@ -902,8 +897,7 @@ namespace FullCheck
 
             Check("过门 #1 后地图 = 血腥荒野且已刷怪",
                 ctx.Map.Area == AreaId.BloodMoor && ctx.Monster.AliveCount > 0,
-                $"区域={ctx.Map.Area} 尺寸={ctx.Map.Width}x{ctx.Map.Height} 存活={ctx.Monster.AliveCount} " +
-                $"洞穴入口={ctx.Map.CaveEntrance}");
+                $"区域={ctx.Map.Area} 尺寸={ctx.Map.Width}x{ctx.Map.Height} 存活={ctx.Monster.AliveCount}");
 
             Check("[Assert] 过门 #1 只触发 **1 次** 地图生成（边界上报为 1，随后清零）",
                 AppDoorGuard.DoorSerial == 1 && AppDoorGuard.GensSinceLastBoundary == 0 &&
@@ -1167,92 +1161,6 @@ namespace FullCheck
             Check("击杀经验给了玩家（AddExp 生效：等级或经验变化）",
                 ctx.Player.Exp > 0, $"Exp={ctx.Player.Exp} 下一级需要={ctx.Player.ExpNext}");
 
-            Check("野外的击杀**不计入**任务进度（任务只认洞穴）",
-                ctx.Quest.DenOfEvil == QuestState.InProgress && ctx.Quest.Quests[0].progress == 0,
-                $"state={ctx.Quest.DenOfEvil} progress={ctx.Quest.Quests[0].progress}/{ctx.Quest.Quests[0].required}");
-            Console.WriteLine();
-        }
-
-        // ── 8. 任务链 ───────────────────────────────────────────────────────
-        private static void Step8_QuestChain()
-        {
-            Section("8. 任务链：进邪恶洞穴 → 清光 → 可交付 → 交付（技能点 +1）");
-
-            var ctx = AppContext.I;
-            DoorTransition(AreaId.DenOfEvil, 20260312);
-            var required = ctx.Quest.Quests[0].required;
-
-            Check("进洞后记录了洞内初始怪物总数（required > 0）",
-                required > 0 && _log.Contains("记录洞内初始怪物总数"),
-                $"required={required} 洞内存活={ctx.Monster.CountInArea(AreaId.DenOfEvil)}");
-
-            //          进度行拼 `required − progress` ⇒ 同屏"剩余 0"与"剩余怪物：11"打架。
-            //          数字只出现在**进度行**，唯一来源 = `required − progress`
-            //          （`UI/QuestLogPanel.Remaining` / `TextOf`）⇒ 与 `CountInArea` 彻底解耦，
-            //          进洞 / 出洞两态的目标行**逐字相同**，矛盾在结构上不可能再出现。
-            var dtoInCave = ctx.Quest.Quests[0];
-            Check("进洞后：目标行 = 原版串 3735+3736 逐字（无数字）；进度行 = 剩下的怪物：required − progress",
-                dtoInCave.state == QuestState.InProgress
-                && dtoInCave.objective == "在蘿格營地外面的荒野中，找尋一個洞穴。\n殺死所有盤踞在洞穴中的怪物。"
-                && QuestLogPanel.TextOf(dtoInCave)
-                    .Contains(QuestLogPanel.TextMonstersRemainingPrefix + (dtoInCave.required - dtoInCave.progress)),
-                $"objective=\"{dtoInCave.objective}\"；面板文本=\"{QuestLogPanel.TextOf(dtoInCave).Replace("\n", " | ")}\" "
-                + $"（进度行口径 required − progress = {dtoInCave.required - dtoInCave.progress}）");
-
-            DoorTransition(AreaId.BloodMoor, 20260313);      // 出洞（洞内怪随 DespawnAll 清场）
-            var dtoOutCave = ctx.Quest.Quests[0];
-            Check("出洞后洞内计数恒为 0（= 旧缺陷的成因，先复现该前提）",
-                ctx.Monster.CountInArea(AreaId.DenOfEvil) == 0 && dtoOutCave.required > 0,
-                $"洞内计数={ctx.Monster.CountInArea(AreaId.DenOfEvil)} required={dtoOutCave.required} "
-                + $"progress={dtoOutCave.progress}");
-            Check("出洞后：目标行与人在洞里时**逐字相同**（不再随 CountInArea 变），进度行数字仍 = required − progress",
-                dtoOutCave.state == QuestState.InProgress
-                && dtoOutCave.objective == dtoInCave.objective
-                && QuestLogPanel.TextOf(dtoOutCave)
-                    .Contains(QuestLogPanel.TextMonstersRemainingPrefix + (dtoOutCave.required - dtoOutCave.progress)),
-                $"objective=\"{dtoOutCave.objective}\"；面板文本=\"{QuestLogPanel.TextOf(dtoOutCave).Replace("\n", " | ")}\" "
-                + $"（进度行口径 required − progress = {dtoOutCave.required - dtoOutCave.progress}）");
-            DoorTransition(AreaId.DenOfEvil, 20260312);      // 回洞里，继续走原来的清怪链
-
-            // 清光洞穴（用模块自身的伤害入口，保证确定性；战斗结算路径已在 Step7 验过）
-            // 说明：`MonsterState`（契约冻结）里没有区域字段 ⇒ 宿主不能按区域筛怪；
-            // 但 `DoorTransition` 已 `DespawnAll` + 只刷当前区域，故此刻"存活的怪"全在洞穴里。
-            var guard = 0;
-            while (ctx.Monster.CountInArea(AreaId.DenOfEvil) > 0 && guard++ < 500)
-            {
-                var m = FirstAlive(ctx);
-                if (m == null) break;
-                ctx.Monster.ApplyDamage(m.id, 99999, DamageType.Physical);
-                Ticks(ctx, 1, 0.05f);
-            }
-
-            Check("洞内怪物已清光", ctx.Monster.CountInArea(AreaId.DenOfEvil) == 0,
-                $"剩余={ctx.Monster.CountInArea(AreaId.DenOfEvil)}（清怪循环 {guard} 次）");
-
-            var dto = ctx.Quest.Quests[0];
-            Check("任务状态推进到 ReadyToTurnIn 且进度 = 总数",
-                dto.state == QuestState.ReadyToTurnIn && dto.progress == required,
-                $"state={dto.state} progress={dto.progress}/{dto.required} objective=\"{dto.objective}\"");
-
-            Check("CanTurnInDen == true（清光才可交）", ctx.Quest.CanTurnInDen, "");
-
-            // 交付奖励的净增量：必须在交付**直前**取值（清怪途中会升级，升级也会 +1 技能点）
-            var spBefore = ctx.Player.SkillPoints;
-            ctx.Quest.TurnInDen();
-            Check("交付成功：state=Done、rewardClaimed=true、技能点恰好 +1",
-                ctx.Quest.DenOfEvil == QuestState.Done && ctx.Player.SkillPoints == spBefore + 1,
-                $"state={ctx.Quest.DenOfEvil} 技能点 {spBefore} → {ctx.Player.SkillPoints}；" +
-                $"QuestCompleted 事件={_bus.CountOf(Events.QuestCompleted)}；等级={ctx.Player.Level}（清怪途中已升级）");
-
-            var spAfterTurnIn = ctx.Player.SkillPoints;
-            ctx.Quest.TurnInDen();          // 再交一次：必须被拒（防重复发奖）
-            Check("重复交付被拒：技能点不再增加（rewardClaimed 防重）",
-                ctx.Player.SkillPoints == spAfterTurnIn && ctx.Quest.Quests[0].rewardClaimed,
-                $"技能点保持 {spAfterTurnIn}；rewardClaimed={ctx.Quest.Quests[0].rewardClaimed}");
-
-            Check("技能树快照可构建（5 职业 × 3 系数据来自 skill_c）",
-                ctx.Skill.BuildTree() != null && ctx.Skill.BuildTree().skills.Count > 0,
-                "技能数=" + ctx.Skill.BuildTree().skills.Count);
             Console.WriteLine();
         }
 
@@ -1269,15 +1177,14 @@ namespace FullCheck
             var goldAfter = ctx.Item.Gold;
 
             var savedOk = ctx.Save.Save();
-            Check("存档（`ISaveModule.Save()` 自己收集 Player/Item/Quest/Skill）", savedOk,
+            Check("存档（`ISaveModule.Save()` 自己收集 Player/Item/Skill）", savedOk,
                 savedOk ? "已落盘（键 " + GameConst.SaveKeyPrefix + HeroName + "）" : ("失败原因：" + ctx.Save.LastError));
 
             var reloaded = ctx.Save.Load(HeroName);
-            Check("读档字段与内存状态一致（金币/等级/任务）",
-                reloaded != null && reloaded.gold == goldAfter && reloaded.level == levelBefore &&
-                reloaded.quests.Count > 0 && reloaded.quests[0].state == QuestState.Done,
-                reloaded == null ? "null" : $"gold {goldBefore}→{goldAfter} 存档={reloaded.gold} lv={reloaded.level} " +
-                $"任务={reloaded.quests[0].state} 背包锚点={CountAnchors(reloaded)}");
+            Check("读档字段与内存状态一致（金币/等级）",
+                reloaded != null && reloaded.gold == goldAfter && reloaded.level == levelBefore,
+                reloaded == null ? "null" : $"gold {goldBefore}→{goldAfter} 存档={reloaded.gold} lv={reloaded.level} "
+                + $"背包锚点={CountAnchors(reloaded)}");
 
             ctx.Save.ApplyToModules(reloaded);
             Check("ApplyToModules 把存档灌回各模块（金币一致）",
@@ -1412,7 +1319,7 @@ namespace FullCheck
             Game.Event.Emit(Events.ExitEntered, to);
             Game.Event.Off<AreaId>(Events.ExitEntered, enterArea);
 
-            Game.Event.Emit(Events.AreaChanged, to);       // 2) 广播区域（QuestModule/MonsterModule/AudioHook 收）
+            Game.Event.Emit(Events.AreaChanged, to);       // 2) 广播区域（MonsterModule/AudioHook 收）
         }
 
         /// <summary>渲染入口隔离：Unity 原生对象在离线进程不可用，这里只记录，不掩盖。</summary>
