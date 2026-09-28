@@ -788,6 +788,64 @@ namespace Diablo2.Core
         public static string DecoFrame(string dir, int index) => dir + "/" + index.ToString("000");
 
         /// <summary>
+        /// 水面瓦片的**循环帧数** = 5。
+        /// <para>出处 = `tools/d2codec/export_water_frames.py` 的循环色段（`ACT1/Pal.PL2` 的
+        /// 连续索引 `[233..237]`，每帧轮转一格 ⇒ 5 帧走满一圈回到原色）；该脚本同时把色段的
+        /// 取值依据与"原版确切区间/步进未公开"这件事写在文件头。</para>
+        /// </summary>
+        public const int WaterFrameCount = 5;
+
+        /// <summary>
+        /// 水面动画**帧率** = 6 fps（每帧约 0.167 s，走满 <see cref="WaterFrameCount"/> 帧约 0.83 s）。
+        /// <para>⛔ 原版循环速率未公开（取证见 `tools/d2codec/export_water_frames.py` 文件头）⇒ 本值是
+        /// **本项目新增**的常数，登记在 `策划/对照表.md`；改它等于改水面节奏。</para>
+        /// </summary>
+        public const float WaterFrameFps = 6f;
+
+        /// <summary>
+        /// 水面动画瓦片的 **pack 前缀**（= 原版 `ACT1/OUTDOORS/river.dt1` 解出的 `moor_river/`）。
+        /// <para>`MapView` 按它判"这一格的瓦片有没有循环帧"；帧图由
+        /// `tools/d2codec/export_water_frames.py` 出，键域与 <see cref="Tile"/> / <see cref="ObjectSprite"/> 同域。</para>
+        /// </summary>
+        public const string D2WaterPack = "moor_river/";
+
+        /// <summary>
+        /// 墙层平色水瓦片（`moor_river/028` 那一张）作为**水面覆盖层**的不透明度 = 0.5。
+        /// <para>它整张只有一个调色板索引（`ACT1/Pal.PL2` 索引 233），不透明地叠上去就是一块
+        /// 纯色硬边菱形（观感等同占位图）；半透明叠加后下面的**地砖水纹理**透出来，色相随循环帧变化
+        /// ⇒ 才是"水面"而不像色块。⛔ 原版是否半透明**未公开**（取证见
+        /// `tools/d2codec/export_water_frames.py` 文件头）⇒ 本值是**本项目新增**的常数，
+        /// 登记在 `策划/对照表.md`。地砖层的循环帧仍是**不透明**的（不受本值影响）。</para>
+        /// </summary>
+        public const float WaterOverlayAlpha = 0.5f;
+
+        /// <summary>
+        /// 水面瓦片某一帧的资源路径。例：`WaterFrame("moor_river/028", false, 2)` →
+        /// `D2/Objects/moor_river/f2/028`。
+        /// <para>帧目录与静态图同域：`D2/Tiles/<pack>/f<帧>/<idx>`（地面层）/
+        /// `D2/Objects/<pack>/f<帧>/<idx>`（墙物件层）。⛔ 别处手拼会漏 `D2/Tiles/` 前缀，
+        /// `Resources.Load` 会**静默**返回 null（同 <see cref="WaypointFrame"/> 的坑）。</para>
+        /// </summary>
+        /// <param name="key">瓦片键（`<pack>/<idx>`，与 <see cref="Tile"/> / <see cref="ObjectSprite"/> 同域）。</param>
+        /// <param name="isFloor">true = 地面层（`D2/Tiles/`），false = 墙物件层（`D2/Objects/`）。</param>
+        /// <param name="frame">帧号，从 0 起；合法范围 `[0, WaterFrameCount)`。</param>
+        public static string WaterFrame(string key, bool isFloor, int frame)
+        {
+            var slash = key != null ? key.LastIndexOf('/') : -1;
+            if (slash <= 0 || frame < 0 || frame >= WaterFrameCount)
+            {
+                // 非预期分支（参数不合法）：不静默 —— 只报一次，避免每帧刷屏。
+                // 返回值仍按"忠实拼接"给（不偷偷换成合法帧），这样取不到图会落回调用方自己的占位分支。
+                Log.WarnOnce("D2", "respath.waterframe.bad_args",
+                    $"ResPaths.WaterFrame 参数不合法：key=\"{key}\" isFloor={isFloor} frame={frame}" +
+                    $"（期望 key 形如 \"<pack>/<idx>\"、frame ∈ [0,{WaterFrameCount})）");
+            }
+            var folder = (isFloor ? D2Tiles : D2Objects) + (slash > 0 ? key.Substring(0, slash + 1) : "");
+            var idx = slash > 0 ? key.Substring(slash + 1) : (key ?? "");
+            return folder + "f" + frame + "/" + idx;
+        }
+
+        /// <summary>
         /// **帧名助手**（多帧条带取单帧用）：`Frame(path, i)` → `"{path}_{i}"`，帧号 **i 从 0 起**。
         /// <para>依据：`Multiple` 切分后每个子资源名 = `{文件名}_{帧号}`。出处
         /// `client/Assets/Editor/AssetImporter.cs:325`（`name = spec.FileName + "_" + i`，`BuildStripRects`），

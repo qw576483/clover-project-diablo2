@@ -46,8 +46,8 @@ internal static class MapCheckProgram
         Run(Step11_WildernessLayoutShape);
         Run(Step13_WildernessFixedSize);
         Run(Step14_BorderSealGaps);
-        // ── R1-B（用户报「为什么有奇怪的蓝条图片占位」）新增 ────────────────────
-        Run(Step15_FlatWaterWallNotOverlaid);
+        // ── 河面水瓦片（含那张平色水墙 `moor_river/028`）的循环帧动画 ─────────────
+        Run(Step15_WaterTilesAnimate);
         // ── 本轮（「走图跨分块边界的单帧尖峰」离线量化）新增 ──────────────────────
         Run(Step16_ChunkRebuildSpike);
         Run(Step17_BuildPacingAndPool);
@@ -1254,90 +1254,109 @@ internal static class MapCheckProgram
         Console.WriteLine();
     }
 
-    // ── 15. R1-B：河面 wall 层「平色水墙瓦片」不叠（用户报「奇怪的蓝条图片占位」）──────
-    //   **295 个**瓦片键 → 逐张 PNG 采样像素）：**唯一色数 = 1（平色）的只有一个** ——
-    //   `Objects/moor_river/028`（160×128，不透明 6400 px = 恰好一格，全图同色 RGBA(0,32,68) 深蓝），
-    //   铺在河带 x=47 / x=54 两列共 **49 格**。原版靠 `ACT1/Pal.PL2` **调色板循环**把它变成水波，
-    //   本引擎**没有运行期循环** ⇒ 静态渲染 = 硬边平色色块（视觉上等价占位图）。
-    //   本步把「规则 + 实测格数 + 素材侧代理证据 + 只影响渲染」四条都钉住。
-    private static void Step15_FlatWaterWallNotOverlaid()
+    // ── 15. 河面水瓦片（含那张平色水墙 `moor_river/028`）**照常画 + 循环帧动画** ────────
+    //   那张瓦片整张只有一个调色板索引（`ACT1/Pal.PL2` 索引 233 = RGBA(0,32,68)），原版靠
+    //   **调色板循环**把它动起来；本引擎没有运行期循环 ⇒ 帧图由
+    //   `tools/d2codec/export_water_frames.py` 预生成（循环色段 `[233..237]`，5 帧），
+    //   运行期用 `MapView` 的 `BindWaterNode` / `TickWater` 切图。
+    //   本步把「键域判定 + 河带照常画 / 仍是水 = 阻挡 + 帧图落盘且真的逐帧不同」四条钉住。
+    private static void Step15_WaterTilesAnimate()
     {
-        Section("15. ★ R1-B：河面 wall 层平色瓦片**不叠**（白名单键 / 命中 49 格 / 不碰可走性）");
+        Section("15. ★ 河面水瓦片**照常画 + 循环帧动画**（键域 / 河带 49 格 / 帧图逐帧不同）");
 
-        // ① 白名单本身：只有 1 个键，且就是取证出来的那一个
-        Check(MapView.FlatWallTileWhitelist.Length == 1
-              && MapView.FlatWallTileWhitelist[0] == "moor_river/028",
-            $"白名单 = [{string.Join(",", MapView.FlatWallTileWhitelist)}]（必须恰 1 个：moor_river/028）");
+        // ① 键域判定：`moor_river/` 整包（river.dt1 的 45 张瓦片）吃循环帧，别的 pack 不吃
+        Check(MapView.IsWaterAnimTile("moor_river/028")
+              && MapView.IsWaterAnimTile("moor_river/000")
+              && MapView.IsWaterAnimTile("moor_river/044")
+              && !MapView.IsWaterAnimTile("moor_bridge/001")
+              && !MapView.IsWaterAnimTile("town_floor/000")
+              && !MapView.IsWaterAnimTile("")
+              && !MapView.IsWaterAnimTile(null),
+            "IsWaterAnimTile：`moor_river/*` = true（028/000/044）/ 异包 = false（moor_bridge、town_floor）/ 空键 = false");
 
-        // ② 城镇图上命中规则的格数 / 位置（与 Python 视线判据的 49 格对账）
+        // ①b 帧路径拼法（纯逻辑）：地面层走 `D2/Tiles/`、物件层走 `D2/Objects/`，帧目录 `f<帧>`
+        Check(ResPaths.WaterFrame("moor_river/028", false, 2) == "D2/Objects/moor_river/f2/028"
+              && ResPaths.WaterFrame("moor_river/025", true, 0) == "D2/Tiles/moor_river/f0/025",
+            $"WaterFrame 拼接 = {ResPaths.WaterFrame("moor_river/028", false, 2)} / " +
+            $"{ResPaths.WaterFrame("moor_river/025", true, 0)}（期望 D2/Objects/moor_river/f2/028 与 D2/Tiles/moor_river/f0/025）");
+
+        // ② 城镇图河带：ds1 物件键是 `moor_river/028` 的格 —— 全部照常画（不再"不叠"）、
+        //    仍然全是水 = 阻挡（逻辑一个字没动）
         var town = NewMap();
         town.Generate(AreaId.Town, 20250916);
         var hit = 0;
         var wrongColumn = 0;
-        var wrongObject = 0;
-        var blockedKept = 0;
+        var notWater = 0;
+        var notDrawn = 0;
         var cols = new List<int>();
         for (var y = 0; y < town.Height; y++)
         {
             for (var x = 0; x < town.Width; x++)
             {
-                town.TryGetTileKeys(x, y, out var g, out var o);
-                if (!MapView.IsPaletteCycledFlatWallOverlay(g, o)) continue;
+                town.TryGetTileKeys(x, y, out _, out var o);
+                if (o != "moor_river/028") continue;
                 hit++;
                 if (x != 47 && x != 54) wrongColumn++;
-                if (o != "moor_river/028") wrongObject++;
                 if (!cols.Contains(x)) cols.Add(x);
-                // 只影响渲染：这 49 格**依然是水 = 阻挡**（可走性一个字没动）
-                // 【R12 重判·受影响行】本行原判 `TileKind.Rock`（那时水与石头同归 Rock）。
-                //   判的仍是同一件事（"这 49 格还是水、还是不可走"），只是水的 kind 有了自己的名字。
-                if (town.TileAt(new Vector2Int(x, y)) == TileKind.Water
-                    && !town.Walkable(new Vector2Int(x, y))) blockedKept++;
+                var cell = new Vector2Int(x, y);
+                if (town.TileAt(cell) != TileKind.Water || town.Walkable(cell)) notWater++;
+                var plan = MapView.PlanCell(town.Grid, AreaId.Town, cell);
+                if (!plan.DrawObject || plan.ObjectKey != "moor_river/028"
+                    || !MapView.IsWaterAnimTile(plan.ObjectKey)) notDrawn++;
             }
         }
         cols.Sort();
-        Console.WriteLine($"  命中「平色水墙瓦片不叠」的格 = {hit} 格，列 x = {FmtInts(cols)}");
-        Check(hit == 49, $"城镇图命中 **49 格**（河带 x=47 有 13 格 + x=54 有 36 格；实测 {hit}）");
-        Check(wrongColumn == 0 && wrongObject == 0,
-            $"命中格全在河带 x=47/54（越界列 = {wrongColumn}）且 object 键全是 moor_river/028（异常 = {wrongObject}）");
-        Check(blockedKept == hit,
-            $"这 {hit} 格**仍然是水 = 阻挡**（TileKind == Water 且不可走 = {blockedKept}/{hit} ⇒ R1-B 只改渲染、R12 只给水换 kind，逻辑不变）");
+        Console.WriteLine($"  ds1 物件键 = moor_river/028 的格 = {hit} 格，列 x = {FmtInts(cols)}");
+        Check(hit > 0 && wrongColumn == 0,
+            $"这些格全在河带 x=47/54（越界列 = {wrongColumn}）；实测 {hit} 格");
+        Check(notWater == 0,
+            $"这 {hit} 格**仍然是水 = 阻挡**（TileKind == Water 且不可走 = {hit - notWater}/{hit} ⇒ 只改渲染，逻辑不变）");
+        Check(notDrawn == 0,
+            $"这 {hit} 格**照常画物件层**且该键吃循环帧（未画/键不对 = {notDrawn}/{hit} ⇒ 与原「不叠」口径相反）");
 
-        // ③ 反例：规则不许泛化（空地面 / 异包 / 白名单外的平色 / 空物件）
-        Check(!MapView.IsPaletteCycledFlatWallOverlay("", "moor_river/028")
-              && !MapView.IsPaletteCycledFlatWallOverlay("moor_bridge/001", "moor_river/028")
-              && !MapView.IsPaletteCycledFlatWallOverlay("moor_river/025", "moor_river/001")
-              && !MapView.IsPaletteCycledFlatWallOverlay("moor_river/025", ""),
-            "反例全部为 false：空地面 / 异包（moor_bridge 地面 + moor_river 物件）/ 白名单外的物件键 / 空物件键");
-
-        // ④ 素材侧代理证据（像素权威 = 逐像素采样量法；本宿主无解码器 ⇒ 这里只用文件级代理）：
-        //    `Objects/moor_river/manifest.json` 只有 1 个瓦片（idx 28、orientation 1 ⇒ 不是地砖层）；
-        //    同 dt1 的 `Tiles/moor_river/` 有 44 张地砖；且**平色瓦片的 PNG 大小 ≪ 带纹理的地砖**
-        //    （单色 160×128 压到 < 1 KB，带纹理的 4~11 KB）。
-        var manWall = ResourceFile("D2/Objects/moor_river/manifest.json");
-        var manFloor = ResourceFile("D2/Tiles/moor_river/manifest.json");
-        var pngWall = ResourceFile("D2/Objects/moor_river/028.png");
-        var pngFloor = ResourceFile("D2/Tiles/moor_river/025.png");
-        if (manWall == null || manFloor == null || pngWall == null || pngFloor == null)
+        // ③ 素材侧：帧图真的落盘，且**逐帧内容不同**（第 0 帧 = 静态图那一张；第 1 帧 ≠ 第 0 帧）
+        //    像素权威 = 逐像素采样量法；本宿主无解码器 ⇒ 这里用"PNG 字节 + 逐帧两两不等"作代理。
+        var floorStatic = ResourceFile("D2/Tiles/moor_river/025.png");
+        var wallStatic = ResourceFile("D2/Objects/moor_river/028.png");
+        if (floorStatic == null || wallStatic == null)
         {
-            Check(false, "取不到 moor_river 的 manifest / PNG（素材没落盘？路径：" +
-                         $"{(manWall ?? "manifest(Objects) 缺")} / {(manFloor ?? "manifest(Tiles) 缺")}）");
+            Check(false, $"取不到 moor_river 的静态 PNG（素材没落盘？{(floorStatic ?? "Tiles/025 缺")} / {(wallStatic ?? "Objects/028 缺")}）");
         }
         else
         {
-            var wallText = System.IO.File.ReadAllText(manWall);
-            var floorText = System.IO.File.ReadAllText(manFloor);
-            Check(wallText.Contains("\"tileCount\": 1") && wallText.Contains("\"idx\": 28")
-                  && wallText.Contains("\"orientation\": 1"),
-                "`Objects/moor_river/manifest.json`：tileCount=1 / idx=28 / orientation=1（该 dt1 只有这一个物件瓦片）");
-            Check(floorText.Contains("\"tileCount\": 44"),
-                "`Tiles/moor_river/manifest.json`：同 dt1 的**地砖** 44 张（河面由它们呈现）");
-            var sw = new System.IO.FileInfo(pngWall).Length;
-            var sf = new System.IO.FileInfo(pngFloor).Length;
-            Console.WriteLine($"  PNG 字节数：平色物件瓦片 028.png = {sw} B，带纹理地砖 025.png = {sf} B");
-            Check(sw * 4 < sf,
-                $"平色物件瓦片 028.png（{sw} B）**远小于**带纹理地砖 025.png（{sf} B）" +
-                "（单色 160×128 的压缩率证据；逐像素权威 = 逐像素采样量法）");
+            foreach (var key in new[] { "moor_river/025", "moor_river/028" })
+            {
+                var isFloor = key == "moor_river/025";
+                var frames = new string[ResPaths.WaterFrameCount];
+                var missing = 0;
+                for (var i = 0; i < frames.Length; i++)
+                {
+                    frames[i] = ResourceFile(ResPaths.WaterFrame(key, isFloor, i) + ".png");
+                    if (frames[i] == null) missing++;
+                }
+                Check(missing == 0 && frames.Length == 5,
+                    $"`{key}` 的循环帧图 {frames.Length} 张全部落盘（缺 {missing} 张）");
+
+                if (missing == 0)
+                {
+                    var f0 = System.IO.File.ReadAllBytes(frames[0]);
+                    var f1 = System.IO.File.ReadAllBytes(frames[1]);
+                    var st = System.IO.File.ReadAllBytes(isFloor ? floorStatic : wallStatic);
+                    Check(f0.Length == st.Length && f0.AsSpan().SequenceEqual(st),
+                        $"`{key}` 第 0 帧 = 静态图同一张（字节 {f0.Length} vs {st.Length}；0 = 不轮转）");
+                    Check(!f0.AsSpan().SequenceEqual(f1),
+                        $"`{key}` 第 1 帧 **逐字节不同于** 第 0 帧（轮转一步真的改了像素 ⇒ 上屏会动）");
+                }
+            }
         }
+
+        // ④ 覆盖层透明度接线：那张平色水瓦片不透明地叠上去就是硬边纯色菱形（= 占位观感），
+        //    必须按 `ResPaths.WaterOverlayAlpha` 半透明叠加，让下面的地砖水纹理透出来。
+        var mapViewSrc = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            ResolveProjectRoot(), "client", "Assets", "Scripts", "Module", "Map", "MapView.cs"));
+        Check(mapViewSrc.Contains("new Color(1f, 1f, 1f, ResPaths.WaterOverlayAlpha)"),
+            "MapView.ApplyCellPlan：墙层水瓦片按 `ResPaths.WaterOverlayAlpha` 半透明叠加"
+            + "（不透明时那块平色图就是硬边色块 = 占位观感；地砖层仍不透明）");
         Console.WriteLine();
     }
 
@@ -1425,11 +1444,10 @@ internal static class MapCheckProgram
                 var ci = (x / chunkSize) * chunksY + (y / chunkSize);
                 // 地面：`BuildCell:485` 的 `!string.IsNullOrEmpty(groundKey)` 才建节点
                 if (!string.IsNullOrEmpty(gk)) groundByChunk[ci]++;
-                // 物件：`BuildCell:499-506` 的 `drawObject`（逐格覆盖图 = ds1Object 非空，且不是 R1-B
-                // 白名单的「平色水墙瓦片不叠」）；`IsHiddenSolidInterior` 只对 CaveWall 生效
-                //   `IsHiddenSolidInterior`（`:535-536`）= `kind == CaveWall && 无 8 邻可走` ⇒ 只对洞穴生效；
+                // 物件：`PlanCell` 的 `drawObject`（逐格覆盖图 = ds1Object 非空）；`IsHiddenSolidInterior`
+                //   只对 CaveWall 生效（`kind == CaveWall && 无 8 邻可走`）⇒ 只对洞穴生效；
                 //   野外**没有 CaveWall 格**（下面 `caveWallCells == 0` 断言）⇒ 本统计是**上界**。
-                var drawObject = !string.IsNullOrEmpty(ok) && !MapView.IsPaletteCycledFlatWallOverlay(gk, ok);
+                var drawObject = !string.IsNullOrEmpty(ok);
                 if (drawObject) objectByChunk[ci]++;
             }
         }
@@ -1760,8 +1778,7 @@ internal static class MapCheckProgram
                             m.TryGetTileKeys(gx, gy, out var gk, out var ok);
                             if (!string.IsNullOrEmpty(gk)) nodes++;                      // 地面层
                             // 上界口径（不额外算 IsHiddenSolidInterior：它只对洞穴 CaveWall 生效 ⇒ 只多不少）
-                            var drawObject = !string.IsNullOrEmpty(ok)
-                                             && !MapView.IsPaletteCycledFlatWallOverlay(gk, ok);
+                            var drawObject = !string.IsNullOrEmpty(ok);
                             if (drawObject) nodes++;
                         }
                     }
@@ -2473,21 +2490,22 @@ internal static class MapCheckProgram
         }
 
         // 被引用 = **会上屏** ⇒ 必须已有处置（R1-B 白名单），否则就是没处置完的平色块
-        var whiteListed = 0;
+        var animated = 0;
         var unhandled = new List<string>();
         foreach (var f in referenced)
         {
             var packIdx = f.Substring("Objects/".Length);            // <pack>/<idx>.png
             var key = packIdx.Substring(0, packIdx.Length - 4);
-            if (MapView.IsPaletteCycledFlatWallTile(key)) whiteListed++;
+            if (MapView.IsWaterAnimTile(key)) animated++;
             else unhandled.Add(f);
         }
-        Console.WriteLine($"  其中：被布局引用 {referenced.Count} 个（已在 `R1-B` 平色白名单里 {whiteListed} 个 / " +
+        Console.WriteLine($"  其中：被布局引用 {referenced.Count} 个（吃循环帧动画 {animated} 个 / " +
                           $"未处置 {unhandled.Count} 个）；（无可对到布局键的）未被引用 {unreferenced.Count} 个");
         if (unreferenced.Count > 0)
             Console.WriteLine($"    未被引用的前 8 个（= 零可见影响）：{string.Join(" ", unreferenced.GetRange(0, Math.Min(8, unreferenced.Count)))}");
         Check(unhandled.Count == 0,
-            "被布局引用的平色瓦片**全部**已有处置（`MapView.PaletteCycledFlatWallTiles` 白名单：平色水墙不叠）" +
+            "被布局引用的平色瓦片**全部**已有处置（`moor_river` 族 = 循环帧动画，" +
+            "`MapView.IsWaterAnimTile`；帧图见 `tools/d2codec/export_water_frames.py`）" +
             $"—— 实测被引用 {referenced.Count} 个 / 未处置 {unhandled.Count} 个" +
             (unhandled.Count > 0 ? "（" + string.Join(",", unhandled) + "）" : ""));
 
@@ -3379,8 +3397,8 @@ internal static class MapCheckProgram
             $"**全仓**含 `case TileKind.` 的消费者共 {switchFiles.Count} 个文件（{string.Join(", ", switchFiles)}）" +
             $"⇒ 全部对 `Water` 有显式分支（缺失 = {risky.Count}：{(risky.Count == 0 ? "无" : string.Join(", ", risky))}）");
 
-        // ── ④ 表现侧：小地图不再把水画成石墙（R1-B 同一条判据）──
-        Check(module.Contains("MapView.IsPaletteCycledFlatWallOverlay(gk, ok)"),
+        // ── ④ 表现侧：小地图不再把水画成石墙（判据 = 该格 `TileKind.Water`，不是具体瓦片键）──
+        Check(module.Contains("_grid.TileAt(new Vector2Int(x, y)) == TileKind.Water"),
             "MapModule.BuildMinimap：水格的**物件 Cel 不叠**（`moor_river/028` 与石墙同 Cel 60 ⇒ " +
             "不叠之后水格只剩 floor 水 Cel，小地图上水 ≠ 石头）");
 

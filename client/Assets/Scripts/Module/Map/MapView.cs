@@ -29,13 +29,13 @@
 // 调色板 = `data/global/palette/ACT1/Pal.PL2`），路径由 `GroundKeyOf`/`ObjectKeyOf` 给出；
 // **取不到才回退纯色菱形占位**（异步加载成功后会自己重铺一次）。
 //
-// **平色水墙瓦片不叠**（用户报「为什么有奇怪的蓝条图片占位」）。
-//   原版水域里有一层瓦片是**平色**的（唯一色数 = 1），原版靠 `ACT1/Pal.PL2` 的**调色板循环**
-//   把它变成水波动画；本引擎**没有运行期调色板循环** ⇒ 它静态渲染出来就是一块硬边平色色块，
-//   视觉上等价占位图（用户看到的那条深蓝长条 = `Objects/moor_river/028`，实测 RGBA(0,32,68)、
-//   铺在河带 x=47/54 两列共 49 格）。处置 = 当同一格 floor 层已经是**同 dt1 的水瓦片**时，
-//   不再把这块平色 wall 瓦片叠上去（河面由 floor 水瓦片呈现）。**只影响渲染**，逐格键/可走性不动。
-//   白名单、取证与生效口径见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay`。
+// **水面动画 = 预生成的调色板循环帧**。
+//   原版水面（含 `Objects/moor_river/028` 那张唯一色 `233` = RGBA(0,32,68) 的平色水墙）靠
+//   `ACT1/Pal.PL2` 的**调色板循环**动起来；本引擎没有运行期循环 ⇒ 由
+//   `tools/d2codec/export_water_frames.py` 按循环色段 `[233..237]` 逐帧重算 RGBA 出 5 帧 PNG
+//   （`D2/Tiles|Objects/moor_river/f<帧>/<idx>`），运行期用 `SpriteAnimator` 切图。
+//   帧数 / 帧率 = `ResPaths.WaterFrameCount` / `WaterFrameFps`；绑定与推进见 `BindWaterNode` /
+//   `TickWater`。**只影响渲染**，逐格键 / `TileKind` / 可走性一个字不动。
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -304,15 +304,6 @@ namespace Diablo2.Module.Map
         private bool[,] _explored;
         private int _exploredCount;
         private SpriteRenderer[,] _fogTiles;
-
-        /// <summary>日志 tag（`Core/Log.cs` 的 KnownTags 白名单内的独立 tag）。</summary>
-        private const string FlatOverlayTag = "R1-B";
-
-        /// <summary>本次铺装里，因「平色水墙瓦片不叠」被跳过的格数（`ReportFlatWallOverlaySkips` 用）。</summary>
-        private int _flatWallOverlaySkipped;
-
-        /// <summary>生效口径是否已经报过（整个进程只报一次，避免每次重铺都刷屏）。</summary>
-        private bool _flatWallOverlayLogged;
 
         private readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
         private readonly HashSet<string> _pendingLoads = new HashSet<string>();
@@ -588,6 +579,8 @@ namespace Diablo2.Module.Map
             _primeQueued = 0;
             _waypointNode = null;                        // 退场：本体动画的载体（池化节点）已随池销毁
             _waypointAnim = null;
+            ClearWaterNodes();                           // 同上：水面动画的登记指向的节点也已被销毁
+            _waterAnim = null;
             _repaintRequested = false;
             _repaintFirstAt = -1f;                       // 清掉待重铺时刻（否则旧时刻会立刻触发）
             _lastRepaintAt = float.NegativeInfinity;     // （`_repaintCoalesceLogged` 不复位：口径日志一局只报一次）
@@ -691,7 +684,6 @@ namespace Diablo2.Module.Map
             EnsureBufferRoots();
 
             _pendingChunks.Clear();           // 整图重铺 = 缓冲集从头建 ⇒ 队列里的增量待办作废
-            _flatWallOverlaySkipped = 0;      // 本次铺装的计数
 
             _fogTiles = _fogOn ? new SpriteRenderer[_map.Width, _map.Height] : null;
             _chunked = _map.Width * _map.Height > BuildAllTileThreshold;
@@ -749,7 +741,6 @@ namespace Diablo2.Module.Map
             _retireChunks.Clear();
             DestroyAllChunks();               // 连缓冲集一起清（它可能已被销毁 ⇒ 判空无害）
             _pendingChunks.Clear();
-            _flatWallOverlaySkipped = 0;
 
             _fogTiles = _fogOn ? new SpriteRenderer[_map.Width, _map.Height] : null;
             _chunked = _map.Width * _map.Height > BuildAllTileThreshold;
@@ -772,7 +763,6 @@ namespace Diablo2.Module.Map
 
             _rebuildFramesLast = 1;
             LogPacingOnce("整图重铺(保底)");
-            ReportFlatWallOverlaySkips();
             NotifyAreaReadyIfOwed("整图重铺(保底，一帧铺完)");
         }
 
@@ -1127,7 +1117,6 @@ namespace Diablo2.Module.Map
             if (job.Frames > _rebuildFramesPeak) _rebuildFramesPeak = job.Frames;
 
             LogPacingOnce("整图重铺");
-            ReportFlatWallOverlaySkips();     // 只报一次的数值证据
             NotifyAreaReadyIfOwed("分帧双缓冲交换");   // travel-black：换区那次 ⇒ Flow 此刻才挪玩家/相机
             MapLog.Info($"[T0FIX-H] 整图重铺完成并**一帧切换**：{job.Frames} 帧 / 块 {job.Chunks.Count} / " +
                         $"建节点 {job.NodesBuilt}（单帧峰值 {job.PeakNodesInFrame}/{MaxTileNodesPerFrame}，" +
@@ -1203,22 +1192,93 @@ namespace Diablo2.Module.Map
                 $"池计数：新建 {PoolCreatedCount} / 复用 {PoolReusedCount}；块根建出先 SetActive(false)、块内建完才激活");
         }
 
-        /// <summary>
-        /// 把「平色水墙瓦片不叠」的**生效口径 + 实测格数**报一次（tag = <see cref="FlatOverlayTag"/>），
-        /// 供下一批进 Play 当**数值证据**（不必截图即可判定这条渲染规则生效）。
-        /// 只报一次（整个进程），且只在真的跳过过格子的地图上报（野外/洞穴不会产生这条）。
-        /// </summary>
-        private void ReportFlatWallOverlaySkips()
+        // ── 水面动画（原版靠 `ACT1/Pal.PL2` 调色板循环成水波的那一族瓦片）────────────────
+        //   载体 = **那一格的池化瓦片节点本身**（`ApplyCellPlan` 里 `NewTile` 建的地面/物件节点），
+        //   ⛔ 不为它新立节点体系；帧推进复用 `Module/View` 的 `SpriteAnimator`（纯逻辑，可离线驱动）。
+        //   帧图 = 预生成的调色板循环帧（`tools/d2codec/export_water_frames.py` 出，
+        //   `D2/Tiles|Objects/moor_river/f<帧>/<idx>`），帧数 / 帧率见 `ResPaths.WaterFrame*`。
+
+        /// <summary>水面动画器（懒建；`Tick` 只推帧号，贴图由 <see cref="TickWater"/> 换）。</summary>
+        private SpriteAnimator _waterAnim;
+
+        /// <summary>水面动画的帧键（占位串，只为计时 —— 真正取图按登记的路径数组）。</summary>
+        private string[] _waterKeys;
+
+        /// <summary>节点 → 它那 <see cref="ResPaths.WaterFrameCount"/> 帧的资源路径（下标 = 帧号）。</summary>
+        private readonly Dictionary<SpriteRenderer, string[]> _waterFramesOf =
+            new Dictionary<SpriteRenderer, string[]>();
+
+        /// <summary>帧路径按「层 + 瓦片键」缓存（同一张瓦片在河带里被很多格复用）。</summary>
+        private readonly Dictionary<string, string[]> _waterFramesCache =
+            new Dictionary<string, string[]>();
+
+        /// <summary>该瓦片键是不是"有循环帧的水面瓦片"（前缀 = <see cref="ResPaths.D2WaterPack"/>）。</summary>
+        internal static bool IsWaterAnimTile(string key)
         {
-            if (_flatWallOverlaySkipped <= 0 || _flatWallOverlayLogged) return;
-            _flatWallOverlayLogged = true;
-            Log.Info(FlatOverlayTag,
-                $"河面 wall 层平色瓦片**不叠**（生效）：本次铺装跳过 {_flatWallOverlaySkipped} 格；" +
-                $"白名单键 = {string.Join(",", PaletteCycledFlatWallTiles)}；" +
-                "生效条件 = 该 wall 瓦片在白名单内 且 floor 层是同 dt1 的非空水瓦片" +
-                "（原版靠 `ACT1/Pal.PL2` 调色板循环把这块平色瓦片变成水波，本引擎无运行期调色板循环 ⇒ " +
-                "静态渲染 = 硬边平色色块，视觉上等价占位）⇒ 河面改由同 dt1 的 floor 水瓦片呈现。" +
-                "仅渲染层：TileKind / 可走性 / 逐格键一个字未动");
+            return !string.IsNullOrEmpty(key)
+                && key.StartsWith(ResPaths.D2WaterPack, System.StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// 登记一格的水面节点并开播循环帧。
+        /// <para>重复登记**不会**把进度打回第 0 帧（`SpriteAnimator.Play` 的同动作早退），
+        /// 但会把**当前帧**同步到新节点上 —— 重铺后节点是新的，不同步就会停在 build 那一帧。</para>
+        /// </summary>
+        private void BindWaterNode(SpriteRenderer node, string key, bool isFloor)
+        {
+            if (node == null || !IsWaterAnimTile(key)) return;
+            if (_waterAnim == null) _waterAnim = new SpriteAnimator();
+            if (_waterKeys == null)
+            {
+                _waterKeys = new string[ResPaths.WaterFrameCount];
+                for (var i = 0; i < _waterKeys.Length; i++) _waterKeys[i] = i.ToString();
+            }
+            _waterAnim.Play(ViewAnim.Idle, _waterKeys, ResPaths.WaterFrameFps, true);
+
+            var cacheKey = (isFloor ? "T:" : "O:") + key;
+            string[] paths;
+            if (!_waterFramesCache.TryGetValue(cacheKey, out paths))
+            {
+                paths = new string[ResPaths.WaterFrameCount];
+                for (var i = 0; i < paths.Length; i++) paths[i] = ResPaths.WaterFrame(key, isFloor, i);
+                _waterFramesCache[cacheKey] = paths;
+            }
+            _waterFramesOf[node] = paths;
+
+            // 同步当前帧到新节点（贴图没到位时保留 build 时那张静态图，不写成 null = 占位菱形）
+            var frame = _waterAnim.FrameIndex;
+            var sprite = TrySprite(paths[frame]);
+            if (sprite != null) node.sprite = sprite;
+        }
+
+        /// <summary>每帧推进水面动画；`Tick` 的返回值就是"帧号变了没"。</summary>
+        private void TickWater()
+        {
+            if (_waterAnim == null || _waterFramesOf.Count == 0) return;
+            if (!_waterAnim.Tick(Time.deltaTime)) return;
+            var frame = _waterAnim.FrameIndex;
+            foreach (var kv in _waterFramesOf)
+            {
+                var node = kv.Key;
+                if (node == null) continue;
+                var sprite = TrySprite(kv.Value[frame]);
+                if (sprite != null) node.sprite = sprite;
+            }
+        }
+
+        /// <summary>
+        /// 一个节点被归还进池时调它（见 `RecycleChunk`）：摘掉水面动画的登记 ——
+        /// 留着登记会把那一格（马上可能被别的格子取走）的瓦片每帧改写成水帧（静默错图）。
+        /// </summary>
+        private void ForgetWaterNode(SpriteRenderer node)
+        {
+            if (node != null) _waterFramesOf.Remove(node);
+        }
+
+        /// <summary>清空全部水面登记（整图重铺 / 拆块 / 退场时用；节点本身照旧归还池）。</summary>
+        private void ClearWaterNodes()
+        {
+            _waterFramesOf.Clear();
         }
 
         /// <summary>
@@ -1711,9 +1771,6 @@ namespace Diablo2.Module.Map
             /// <summary>物件层画不画（已含 `IsHiddenSolidInterior` 排除）。</summary>
             public readonly bool DrawObject;
 
-            /// <summary>本格的平色水墙瓦片被"不叠"跳过了（只用于计数）。</summary>
-            public readonly bool SkipFlatWall;
-
             /// <summary>
             /// 本格的**原版装饰物件**类下标（`MapGenDeco.Kinds`；`-1` = 没有）。
             /// <para>与 <see cref="ObjectKey"/> 是**两个节点**：`ObjectKey` = 原版 ds1 的 wall 层
@@ -1723,7 +1780,7 @@ namespace Diablo2.Module.Map
 
             /// <summary>构造（唯一入口；全部字段显式给）。</summary>
             public CellPlan(bool draw, string groundKey, TileKind groundKind, TileKind objectKind,
-                bool drawObject, string objectKey, bool skipFlatWall, int decoKind)
+                bool drawObject, string objectKey, int decoKind)
             {
                 Draw = draw;
                 GroundKey = groundKey;
@@ -1731,7 +1788,6 @@ namespace Diablo2.Module.Map
                 ObjectKind = objectKind;
                 DrawObject = drawObject;
                 ObjectKey = objectKey;
-                SkipFlatWall = skipFlatWall;
                 DecoKind = decoKind;
             }
 
@@ -1754,15 +1810,15 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
-        /// **纯函数**（离线可断言）：一格要画什么。零副作用（不建节点、不动
-        /// `_flatWallOverlaySkipped`、不请求贴图）—— 与 <see cref="ApplyCellPlan"/> 的分工见 `BuildCell`。
+        /// **纯函数**（离线可断言）：一格要画什么。零副作用（不建节点、不登记动画、不请求贴图）
+        /// —— 与 <see cref="ApplyCellPlan"/> 的分工见 `BuildCell`。
         /// <para>判定逐条与改前 `BuildCell` 同源：逐格「原版瓦片键」覆盖（罗格营地 / 邪恶洞穴）、
-        /// 地面层排序下移、物件层不做 `TileKind` 兜底、平色水墙不叠、洞穴实心岩体不画物件。</para>
+        /// 地面层排序下移、物件层不做 `TileKind` 兜底、洞穴实心岩体不画物件。</para>
         /// </summary>
         internal static CellPlan PlanCell(GridMap map, AreaId area, Vector2Int g)
         {
             var kind = map.Get(g);
-            if (kind == TileKind.Void) return new CellPlan(false, null, kind, kind, false, null, false, -1);
+            if (kind == TileKind.Void) return new CellPlan(false, null, kind, kind, false, null, -1);
 
             // ── 逐格「原版瓦片键」覆盖：**罗格营地**（`MapGenTownLayout`，源 `townW1.ds1`）与
             //    **野外**（`MapGenWildLayout`，源 `ACT1/OUTDOORS/*.ds1`）两个生成器都用它。
@@ -1798,10 +1854,6 @@ namespace Diablo2.Module.Map
             var isWaypoint = IsWaypointAnchor(map, g);
 
             var ds1HasObject = fromDs1 && !string.IsNullOrEmpty(ds1Object);
-            // **平色水墙瓦片不叠**（该格 floor 层已经是同一 dt1 的水瓦片 ⇒ 河面由它呈现）。
-            //   口径与出处见 `PaletteCycledFlatWallTiles` / `IsPaletteCycledFlatWallOverlay` 的注释；
-            //   只影响本帧画不画这一张物件，**不动** `GridMap` 的键 / `TileKind` / 可走性。
-            var skipFlatWallOverlay = ds1HasObject && IsPaletteCycledFlatWallOverlay(ds1Ground, ds1Object);
 
             var wildFallback = (!fromDs1 || ds1HasObject || area != AreaId.BloodMoor)
                 ? null
@@ -1809,7 +1861,7 @@ namespace Diablo2.Module.Map
 
             var drawObject = isWaypoint
                 || (fromDs1
-                    ? ((ds1HasObject && !skipFlatWallOverlay) || wildFallback != null)
+                    ? (ds1HasObject || wildFallback != null)
                     : IsObjectKind(kind));
             if (drawObject && IsHiddenSolidInterior(map, g, kind)) drawObject = false;
 
@@ -1828,8 +1880,7 @@ namespace Diablo2.Module.Map
                 decoKind = dk;
             }
 
-            return new CellPlan(true, groundKey, groundKind, kind, drawObject, objectKey,
-                skipFlatWallOverlay, decoKind);
+            return new CellPlan(true, groundKey, groundKind, kind, drawObject, objectKey, decoKind);
         }
 
         /// <summary>
@@ -2027,7 +2078,7 @@ namespace Diablo2.Module.Map
         /// 把一格的计划**落地**（建节点），返回本格**新建的节点数**（恒等于
         /// <see cref="CellPlan.NodeCount"/> —— 帧预算就是按它扣的）。
         /// <para>本方法**不含任何决定**（决定全在 `PlanCell`）；贴图请求（`TrySprite` 的异步侧效）
-        /// 与「不叠」计数都在这里，顺序是固定的：地面 → 物件 → 迷雾。</para>
+        /// 与水面帧动画的登记都在这里，顺序是固定的：地面 → 物件 → 迷雾。</para>
         /// </summary>
         private int ApplyCellPlan(CellPlan p, Vector2Int g, Transform ground, Transform obj, Transform overlay)
         {
@@ -2038,17 +2089,26 @@ namespace Diablo2.Module.Map
             if (!string.IsNullOrEmpty(p.GroundKey))
             {
                 var groundSprite = TrySprite(ResPaths.Tile(p.GroundKey));
-                NewTile(ground, GroundState(groundSprite, p.GroundKind, g));
+                var groundNode = NewTile(ground, GroundState(groundSprite, p.GroundKind, g));
+                // 水面瓦片：这个节点同时是**循环帧动画的载体**（节点本身仍是池化瓦片节点）。
+                BindWaterNode(groundNode, p.GroundKey, true);
                 n++;
             }
-
-            if (p.SkipFlatWall) _flatWallOverlaySkipped++;
 
             if (p.DrawObject)
             {
                 var objectSprite = p.ObjectKey != null ? TrySprite(ResPaths.ObjectSprite(p.ObjectKey)) : null;
                 var node = NewTile(obj, ObjectState(objectSprite, p.ObjectKind, g));
-                // 锚点格的那个节点同时是**本体动画的载体**（节点本身仍是池化瓦片节点）。
+                // 水面瓦片（含那张平色水墙 `moor_river/028`）同样吃循环帧；
+                //   锚点格的那个节点同时是**本体动画的载体**（节点本身仍是池化瓦片节点）。
+                BindWaterNode(node, p.ObjectKey, false);
+                // 墙层那张平色水瓦片是**水面覆盖层**：半透明叠加，让下面的地砖水纹理透出来
+                //   （不透明时它就是一块纯色硬边菱形 = 占位观感）。复用节点会被 `ApplyTileState`
+                //   无条件重写 `sr.color` ⇒ 本值不会漏到别的格子上。
+                if (IsWaterAnimTile(p.ObjectKey))
+                {
+                    node.color = new Color(1f, 1f, 1f, ResPaths.WaterOverlayAlpha);
+                }
                 if (IsWaypointAnchor(_map, g)) BindWaypointNode(node);
                 n++;
             }
@@ -2111,7 +2171,7 @@ namespace Diablo2.Module.Map
                 var n = new Vector2Int(g.x + NeighborDx[d], g.y + NeighborDy[d]);
                 if (!map.InBounds(n) || map.Walkable(n)) continue;
                 if (!map.TryGetTiles(n.x, n.y, out _, out var nObj)) continue;
-                if (!string.IsNullOrEmpty(nObj) && !IsPaletteCycledFlatWallTile(nObj)) return nObj;
+                if (!string.IsNullOrEmpty(nObj)) return nObj;
             }
             return ObjectKeyOf(kind, AreaId.BloodMoor, g);
         }
@@ -2232,7 +2292,8 @@ namespace Diablo2.Module.Map
 
         /// <summary>
         /// 水面（`TileKind.Water`）的 floor 瓦片 —— 原版 `ACT1/OUTDOORS/river.dt1` 解出的
-        /// `Tiles/moor_river/*`（44 张水面瓦片，见 `PaletteCycledFlatWallTiles` 的取证）。
+        /// `Tiles/moor_river/*`（44 张水面瓦片；水面动画的帧图与循环口径见
+        /// `tools/d2codec/export_water_frames.py`）。
         /// <para>
         /// 全部 `'r'` 格实际引用的 floor 键（去重 **41** 个，离线脚本逐格解 6 字符 packId+idx 得到）。
         /// </para>
@@ -2318,81 +2379,6 @@ namespace Diablo2.Module.Map
         //       81 张**纯色填充菱形**）—— 真按它取图会得到一块纯色方块。
         //    ⇒ 出入口的**真实口径**：营地出口 = 关卡自己的地面瓦片（`MapGenTownLayout` 逐格键，
 
-        // ═════════════════════════════════════════════════════════════════════
-        // 「靠 PL2 调色板循环成动画的**平色** wall 层瓦片」白名单 + 不叠判定
-        //   （用户原始投诉：「为什么有奇怪的蓝条图片占位」—— 罗格营地东侧河上的深蓝硬边长条）
-        // ═════════════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// **平色**且**靠 `PL2` 调色板循环成动画**的 wall 层瓦片白名单。
-        /// <para>
-        /// 取证（对 `MapGenTownLayout` 真正引用到的 **295 个**瓦片键逐张 PNG 采样）：
-        /// 其中**唯一色数 = 1（平色）的只有一个** ——
-        /// `Objects/moor_river/028`（160×128，不透明像素 6400 px = 恰好一格的 160×79 菱形，
-        /// 全图同色 **RGBA(0,32,68) 深蓝**）。它在原版 `river.dt1` 里是**水面**瓦片，原版靠
-        /// `ACT1/Pal.PL2` 的调色板循环把它变成水波动画；本项目**没有运行期调色板循环**
-        /// （全库 grep `PaletteCycle|调色板循环` = 0 命中；`MapView` 的真实瓦片一律 `sr.color = Color.white`）
-        /// ⇒ 静态渲染出来就是**一块硬边平色色块**，视觉上等价占位图（用户看到的就是它）。
-        /// </para>
-        /// <para>出处链：`Objects/moor_river/manifest.json`（tileCount=1 / idx 28 / main 5 / sub 0 /
-        /// orientation 1 / walk true）× `tools/d2codec/export_tiles.py:66`
-        /// （`data/global/tiles/ACT1/OUTDOORS/river.dt1` → pack `moor_river`）×
-        /// `Tiles/moor_river/manifest.json`（同一张 dt1 的 44 张 **floor** 水瓦片自带纹理，
-        /// 唯一色 11~97，不透明像素同为 6400 px ⇒ 它们本来就铺满整格）。</para>
-        /// <para>这是**具体键的白名单**，不是「凡平色/透明就丢」的泛化规则：上述扫描证明本项目
-        /// 被引用到的平色瓦片只有这一个；将来出现第二个必须**重新取证并登记**，不许把判定放宽。</para>
-        /// </summary>
-        private static readonly string[] PaletteCycledFlatWallTiles =
-        {
-            "moor_river/028",
-        };
-
-        /// <summary>
-        /// 白名单的**只读视图**（离线自检宿主 `tools/probes/hosts/mapcheck` 的 `Step15` 用它钉住
-        /// "恰 1 个键且就是取证出来的那一个"）。业务代码不要用它做判定 —— 判定走
-        /// <see cref="IsPaletteCycledFlatWallOverlay"/>。
-        /// </summary>
-        internal static string[] FlatWallTileWhitelist { get { return PaletteCycledFlatWallTiles; } }
-
-        /// <summary>
-        /// 该格的 wall 层瓦片是否应该**不叠**（河面改由**同 dt1 的 floor 水瓦片**呈现）。
-        /// <para>生效口径（三条**同时**成立）：</para>
-        /// <para>① <paramref name="objectKey"/> 在 <see cref="PaletteCycledFlatWallTiles"/> 白名单里
-        /// （= 平色 + 靠 PL2 循环）；</para>
-        /// <para>② <paramref name="groundKey"/> **非空**（这格地板层已经有东西 —— 不叠不会让它变成空洞）；</para>
-        /// <para>③ 两者**同一个 pack**（同一张 `.dt1`）⇒ 是"同一片水的两层"，不是"水面上压了别的东西"。</para>
-        /// <para>实测效果：罗格营地河带 `x∈[47,54]` 里 `x=47` / `x=54` 两列的 **49 格**不再出现
-        /// 那条硬边深蓝长条（`RebuildLayers` 会把这 49 格报一次日志）。</para>
-        /// <para>只影响**渲染**：`GridMap` 的逐格键、`TileKind`、可走性一个字都不动（桥/水的
-        /// 可走性仍由 `MapGenTown` 的 kind 决定，`mapcheck` 的桥/水断言不受影响）。</para>
-        /// </summary>
-        internal static bool IsPaletteCycledFlatWallOverlay(string groundKey, string objectKey)
-        {
-            if (string.IsNullOrEmpty(groundKey) || string.IsNullOrEmpty(objectKey)) return false;
-            if (!IsPaletteCycledFlatWallTile(objectKey)) return false;
-            return SameDt1Pack(groundKey, objectKey);
-        }
-
-        /// <summary>该物件键是否就是白名单里那块平色水墙瓦片（逐字比较）。</summary>
-        internal static bool IsPaletteCycledFlatWallTile(string objectKey)
-        {
-            if (string.IsNullOrEmpty(objectKey)) return false;
-            for (var i = 0; i < PaletteCycledFlatWallTiles.Length; i++)
-            {
-                if (PaletteCycledFlatWallTiles[i] == objectKey) return true;
-            }
-            return false;
-        }
-
-        /// <summary>两个瓦片键是否来自**同一个 pack 目录**（键形如 `pack/idx`）。</summary>
-        private static bool SameDt1Pack(string a, string b)
-        {
-            var sa = a.LastIndexOf('/');
-            var sb = b.LastIndexOf('/');
-            if (sa <= 0 || sb <= 0 || sa != sb) return false;
-            return string.CompareOrdinal(a, 0, b, 0, sa) == 0;
-        }
-
         /// <summary>地面贴图键（`kind` + 区域 ⇒ 具体瓦片；**取不到路径返回 null = 纯色占位**）。</summary>
         private static string GroundKeyOf(TileKind kind, AreaId area, Vector2Int g)
         {
@@ -2476,8 +2462,8 @@ namespace Diablo2.Module.Map
                 case TileKind.CaveFloor: return new Color(0.55f, 0.50f, 0.45f);
                 case TileKind.CaveWall: return new Color(0.07f, 0.07f, 0.09f);   // 洞穴实心岩体：近黑
                 case TileKind.Exit: return new Color(0.00f, 0.85f, 1.00f);       // 出入口：亮青（显眼）
-                //   取值照原版取证到的那张平色水瓦片 `Objects/moor_river/028` 的实测色
-                //   RGBA(0,32,68)（= `PaletteCycledFlatWallTiles` 注释），不是随手挑的蓝。
+                //   取值 = 原版调色板 `ACT1/Pal.PL2` 索引 233 的 RGB(0,32,68)
+                //   （那张平色水瓦片 `Objects/moor_river/028` 整张就这一个索引），不是随手挑的蓝。
                 case TileKind.Water: return new Color(0f, 32f / 255f, 68f / 255f);
                 default: return new Color(0.5f, 0.5f, 0.5f);
             }
@@ -2717,6 +2703,7 @@ namespace Diablo2.Module.Map
             RecycleChildren(_bufObjectRoot);
             RecycleChildren(_bufOverlayRoot);
             ClearDecoNodes();                 // 装饰物件节点已随上面两轮归还池 ⇒ 登记表必须一起清
+            ClearWaterNodes();                // 同理：水面动画的登记指向的节点也已归还池
             _retireChunks.Clear();            // 待回收队列里的块根已被上面两轮覆盖 ⇒ 不作废队列 = 悬空引用
             _groundChunks.Clear();
             _objectChunks.Clear();
@@ -2809,6 +2796,7 @@ namespace Diablo2.Module.Map
                     //   留着登记就会把那一格的瓦片每帧改写成传送台帧（静默错图）。
                     if (sr == _waypointNode) _waypointNode = null;
                     ForgetDecoNode(sr);
+                    ForgetWaterNode(sr);
                     _pool.Return(sr);
                     n++;
                 }
@@ -2832,6 +2820,8 @@ namespace Diablo2.Module.Map
             // 装饰物件动画同口径：也推在"本帧所有铺装"之前 ⇒ 被回收/复用的节点随后一定被
             //   `RecycleChunk`（摘登记）与 `ApplyTileState`（无条件重写 sprite）覆盖掉。
             TickDeco();
+            // 水面循环帧同口径：推在本帧铺装之前 ⇒ 本帧被回收/复用的节点随后一定被覆盖掉。
+            TickWater();
 
             if (_repaintRequested)
             {

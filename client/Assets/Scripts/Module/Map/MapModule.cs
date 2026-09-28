@@ -492,10 +492,11 @@ namespace Diablo2.Module.Map
                         }
                         //   `AutoMapCel` 的物件表里和石墙（`moor_stonewall/*`）映射到**同一个 Cel 60**
                         //   ⇒ 水格在小地图上看着就是石头，这正是 R12 报的"小地图分不出水与石头"。
-                        //   判据与主视图 **完全同一条**（`MapView.IsPaletteCycledFlatWallOverlay`）：
-                        //   它不是墙、是水面，水面已由 floor 层的水 Cel 呈现 ⇒ 物件层在这个 Cel 上**不叠**。
+                        //   判据 = **语义**（该格 `TileKind.Water`），不是具体瓦片键：水面已由 floor 层
+                        //   的水 Cel 呈现 ⇒ 物件层在小地图上**不叠**。（主视图不叠这张物件 —— 它自己是
+                        //   一圈循环帧动画，见 `MapView.BindWaterNode`。）
                         //   只影响小地图画不画这一张物件；`TileKind` / 可走性 / 逐格键一个字不动。
-                        o = MapView.IsPaletteCycledFlatWallOverlay(gk, ok)
+                        o = _grid.TileAt(new Vector2Int(x, y)) == TileKind.Water
                             ? AutoMapCel.None
                             : AutoMapCel.Cel((int)_grid.Area, true, ok);
                         //   与主视图**同源**：`MapView.PlanCell` 画出来的物件（野外"空气墙"补画的
