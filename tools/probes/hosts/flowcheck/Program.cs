@@ -83,6 +83,15 @@ namespace FlowCheck
         public int CloseAllCount;
         public int ToastCount;
 
+        /// <summary>面板开 / 关订阅者（宿主不实例化面板 ⇒ 只登记，不派发）。</summary>
+        public readonly List<Action<string>> PanelOpenedHandlers = new List<Action<string>>();
+        public readonly List<Action<string>> PanelClosedHandlers = new List<Action<string>>();
+
+        public void OnPanelOpened(Action<string> handler) => PanelOpenedHandlers.Add(handler);
+        public void OffPanelOpened(Action<string> handler) => PanelOpenedHandlers.Remove(handler);
+        public void OnPanelClosed(Action<string> handler) => PanelClosedHandlers.Add(handler);
+        public void OffPanelClosed(Action<string> handler) => PanelClosedHandlers.Remove(handler);
+
         public void Open<T>(object param = null) where T : class, IUIPanel
         {
             var n = typeof(T).Name;

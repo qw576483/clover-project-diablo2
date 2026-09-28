@@ -222,6 +222,10 @@ namespace CloverEngine
         void Confirm(string title, string message, Action onConfirm, Action onCancel = null,
             string confirmText = null, string cancelText = null);
         void Tick(float dt);
+        void OnPanelOpened(Action<string> handler);
+        void OffPanelOpened(Action<string> handler);
+        void OnPanelClosed(Action<string> handler);
+        void OffPanelClosed(Action<string> handler);
     }
 
     /// <summary>`Runtime/Presentation/UIWidgets.cs:31`（UIFactory 公开面）。</summary>

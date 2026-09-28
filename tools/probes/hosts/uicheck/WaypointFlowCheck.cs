@@ -1045,6 +1045,10 @@ namespace Uicheck
             public void Confirm(string title, string message, Action onConfirm, Action onCancel = null,
                 string confirmText = null, string cancelText = null) { }
             public void Tick(float dt) { }
+            public void OnPanelOpened(Action<string> handler) { }
+            public void OffPanelOpened(Action<string> handler) { }
+            public void OnPanelClosed(Action<string> handler) { }
+            public void OffPanelClosed(Action<string> handler) { }
         }
     }
 }

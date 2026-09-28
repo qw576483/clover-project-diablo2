@@ -379,6 +379,8 @@ namespace Diablo2.UI
             /// 在 <paramref name="parent"/> 上挂常驻品牌署名 `by clover-engine`（居底居中；
             /// 几何 / 字号 / 颜色 = 本节常量）。
             /// <para>**在该屏所有内容都建完之后再调**：uGUI 里后建的兄弟画在上层 ⇒ 署名不被任何元素压住。</para>
+            /// <para>挂上即登记进 <see cref="Nodes"/>，可见性由 <see cref="Refresh"/> 按**绘制次序**统一裁决
+            /// ⇒ 「同一屏恰好一条可见」，面板侧不参与这个开关。</para>
             /// </summary>
             /// <param name="parent">挂点（该屏的内容容器；坐标 = 画布单位，同 <see cref="ByLinePos"/>）。</param>
             /// <returns>署名行的 Text（挂点为空 ⇒ null）。</returns>
@@ -397,9 +399,102 @@ namespace Diablo2.UI
                     return null;
                 }
 
-                return UiArt.Label(parent, "ByLine", ByLineText,
+                var label = UiArt.Label(parent, "ByLine", ByLineText,
                     ChineseFontSize(D2Text.D2Font.Font24), TextAnchor.MiddleCenter,
                     ByLineColor, ByLineSize, new Vector2(ByLinePos.x, y), forceChi: true);
+
+                if (label != null)
+                {
+                    Nodes.Add(label);
+                    label.gameObject.AddComponent<ByLineWatch>();   // 面板被销毁 / 隐藏时请本件重算
+                    HookPanelEvents();
+                    Refresh();
+                }
+                return label;
+            }
+
+            // ═════════════════════════════════════════════════════════════════
+            // 同屏唯一性（**开关只有这一处**，17 个面板侧不参与）
+            // ═════════════════════════════════════════════════════════════════
+            //  游戏内一屏可能有多个面板各带一条署名（HUD 底栏那条 + 打开的对话框 / 商店 / 背包 …
+            //  各一条）⇒ 画面上会出现上下两条。引擎的绘制次序 = `[UI]` 下
+            //  「层节点 Background→Normal→Popup→Top→System（按此顺序建）→ 层内按打开顺序」
+            //  （`clover-client-unity-engine/Runtime/Presentation/UI.cs`：层节点 65-77 行、
+            //   面板 162-166 行 SetParent 后才 OnOpen）⇒ 取子节点下标链上**最靠上**的那条为唯一可见，
+            //  其余 `SetActive(false)`；面板开 / 关时重算，被压住的那条自动恢复。
+            private static readonly List<Text> Nodes = new List<Text>();
+            private static IUIManager _hookedFor;
+            private static bool _refreshing;
+
+            private static void HookPanelEvents()
+            {
+                // 每个 UIManager 实例只接一次（域不重载时静态量会带着上一局的接线进来）。
+                if (Game.UI == null || ReferenceEquals(_hookedFor, Game.UI)) return;
+                _hookedFor = Game.UI;
+                Game.UI.OnPanelOpened(OnPanelChanged);
+                Game.UI.OnPanelClosed(OnPanelChanged);
+                UiLog.Info("[署名] 同屏唯一性已接线：面板开 / 关时只留最上面那条 `by clover-engine`");
+            }
+
+            private static void OnPanelChanged(string panelName) => Refresh();
+
+            /// <summary>重算所有署名行的可见性 —— **同一屏恰好一条**（绘制次序最上层的那条）。</summary>
+            public static void Refresh()
+            {
+                if (_refreshing) return;      // 自己 `SetActive` 会再触发 `ByLineWatch` ⇒ 防重入
+                _refreshing = true;
+                try
+                {
+                    for (var i = Nodes.Count - 1; i >= 0; i--)
+                        if (Nodes[i] == null) Nodes.RemoveAt(i);      // 面板已销毁 ⇒ 摘掉登记
+
+                    Text top = null;
+                    for (var i = 0; i < Nodes.Count; i++)
+                    {
+                        var n = Nodes[i];
+                        if (!AncestorsActive(n.transform)) continue;  // 它的面板不在台上 ⇒ 不参与裁决
+                        if (top == null || IsAbove(n.transform, top.transform)) top = n;
+                    }
+
+                    for (var i = 0; i < Nodes.Count; i++)
+                    {
+                        var n = Nodes[i];
+                        if (n == null) continue;
+                        n.gameObject.SetActive(n == top);
+                    }
+                }
+                finally { _refreshing = false; }
+            }
+
+            /// <summary>署名行的**祖先**是否每一级都 `activeSelf`（= 它的面板在台上；不看它自己）。</summary>
+            private static bool AncestorsActive(Transform t)
+            {
+                for (var p = t.parent; p != null; p = p.parent)
+                    if (!p.gameObject.activeSelf) return false;
+                return true;
+            }
+
+            /// <summary>谁画在更上层：从画布根往下逐级比子节点下标，第一处不同者下标大者在上。</summary>
+            private static bool IsAbove(Transform a, Transform b)
+            {
+                var pa = Chain(a);
+                var pb = Chain(b);
+                var n = pa.Count < pb.Count ? pa.Count : pb.Count;
+                for (var i = 0; i < n; i++)
+                {
+                    if (pa[i] == pb[i]) continue;
+                    return pa[i].GetSiblingIndex() > pb[i].GetSiblingIndex();
+                }
+                return pa.Count > pb.Count;
+            }
+
+            /// <summary>画布根 → 该节点的链路（含两端）。</summary>
+            private static List<Transform> Chain(Transform t)
+            {
+                var list = new List<Transform>();
+                for (var p = t; p != null; p = p.parent) list.Add(p);
+                list.Reverse();
+                return list;
             }
         }
 
