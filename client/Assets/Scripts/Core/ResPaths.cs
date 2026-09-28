@@ -153,6 +153,12 @@ namespace Diablo2.Core
         /// <summary>攻击态光标 = 原版 `data/global/ui/CURSOR/Gaunt.dc6`（单帧 34×30）。</summary>
         public const string CursorAttack = D2UiCursor + "Gaunt";
 
+        /// <summary>拾取态光标 = 原版 `data/global/ui/CURSOR/grasp.dc6` 帧 0（32×30）。</summary>
+        public const string CursorPickup = D2UiCursor + "grasp";
+
+        /// <summary>交互态光标 = 原版 `data/global/ui/CURSOR/buysell.dc6` 帧 0（32×40）。</summary>
+        public const string CursorInteract = D2UiCursor + "buysell";
+
         /// <summary>原版普通攻击技能图标。</summary>
         public const string SkillIconAttack = D2UiSkillIcon + "SkilliconAttack";
 

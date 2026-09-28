@@ -2046,16 +2046,50 @@ namespace Uicheck
             //   `export_d2ui.py --only frontend` 统计；这里作为**独立第二判据**再核一遍磁盘）
             var live = new[]
             {
-                (slot: 0, cls: "amazon", fw: 54, bw: 30),
-                (slot: 2, cls: "barbarian", fw: 64, bw: 19),
+                (slot: 0, cls: "amazon", pre: "AM", fw: 54, bw: 30),
+                (slot: 2, cls: "barbarian", pre: "BA", fw: 64, bw: 19),
             };
             var codes = UiLayoutFlow.ClassMenu.Transition.Codes;
+
+            // ── ② 位置判据：逐帧中心 == **原版 DC6 帧头**推算值 ─────────────────────
+            //   锚点不在本断言里写死，而是由**已被本宿主另一条断言验过的** `NU1` 待机矩形 +
+            //   `{CLS}NU1.DC6` 帧 0 的帧头反推：
+            //     NU1.OrigPos = A + (offX + w/2, h/2 − offY)  ⇒  A = NU1.OrigPos − (offX + w/2, h/2 − offY)
+            //   再拿这个 A 去**预测**两段过渡的每一帧：
+            //     中心_f = A + (offX_f + w_f/2, h_f/2 − offY_f)
+            //   （公式出处 = 参考物 `Diablerie/.../DC6.cs:197-198` 的 pivot 口径；三态那四条
+            //      `off=` 注释就是它在同族上的已验证实例。）
+            var dc6Dir = Path.Combine(Program.ProjectRoot, "原版资源", "d2dc6", "data", "global", "ui", "FrontEnd");
+            var anchor = new Dictionary<int, Vector2>();
+            var anchorBad = new List<string>();
+            foreach (var c in live)
+            {
+                var idle = UiLayoutFlow.ClassMenu.Spot.Of(c.slot, ResPaths.Portrait.Idle);
+                var q0 = Dc6Quads(Path.Combine(dc6Dir, c.cls, c.pre + "NU1.DC6"));
+                if (idle == null || q0 == null || q0.Length < 4)
+                {
+                    var probe = Path.Combine(dc6Dir, c.cls, c.pre + "NU1.DC6");
+                    anchorBad.Add($"{c.cls}：取不到 NU1 矩形或 {c.pre}NU1.DC6（root={Program.ProjectRoot} 路径={probe} "
+                                  + $"exists={File.Exists(probe)} q={(q0 == null ? "null" : q0.Length.ToString())} "
+                                  + $"idle={(idle == null ? "null" : "ok")}）");
+                    continue;
+                }
+                anchor[c.slot] = new Vector2(
+                    idle.OrigPos.x - (q0[2] + q0[0] * 0.5f),
+                    idle.OrigPos.y - (q0[1] * 0.5f - q0[3]));
+            }
+            Check("过渡锚点由「`NU1` 待机矩形 + `{CLS}NU1.DC6` 帧 0 帧头」反推（两职业都推得出，不写死常量）",
+                anchorBad.Count == 0 && anchor.Count == live.Length,
+                anchorBad.Count == 0
+                    ? $"Amazon A=({anchor[0].x:0.#},{anchor[0].y:0.#}) / Barbarian A=({anchor[2].x:0.#},{anchor[2].y:0.#})"
+                    : string.Join("；", anchorBad.ToArray()));
 
             var frames = 0;
             var countBad = new List<string>();
             var sizeBad = new List<string>();
             var ratioBad = new List<string>();
             var outBad = new List<string>();
+            var posBad = new List<string>();
 
             foreach (var c in live)
             {
@@ -2068,6 +2102,11 @@ namespace Uicheck
                     if (n != want || onDisk != want)
                         countBad.Add($"{c.cls}/{code}: 表={n} 磁盘={onDisk} 期望={want}");
 
+                    // 该段过渡的**原版 DC6 帧头**（独立第二来源：工程 PNG 之外的原始字节）
+                    var quads = Dc6Quads(Path.Combine(dc6Dir, c.cls, c.pre + code.ToUpperInvariant() + ".DC6"));
+                    if (quads == null)
+                        posBad.Add($"{c.cls}/{code}: 读不到原版 {c.pre}{code.ToUpperInvariant()}.DC6 的帧头");
+
                     for (var f = 0; f < n; f++)
                     {
                         var ps = UiLayoutFlow.ClassMenu.Transition.Of(c.slot, code, f);
@@ -2077,6 +2116,21 @@ namespace Uicheck
 
                         if (!Near2(ps.OrigSize, png, 0.001f))
                             sizeBad.Add($"{c.cls}/{code}#{f} 表 {ps.OrigSize.x:0}×{ps.OrigSize.y:0} ≠ PNG {png.x:0}×{png.y:0}");
+
+                        // ② 逐帧中心 == 原版帧头推算（中心 = A + (offX+w/2, h/2−offY)）
+                        if (quads != null && quads.Length >= (f + 1) * 4 && anchor.ContainsKey(c.slot))
+                        {
+                            var w = (float)quads[f * 4];
+                            var h = (float)quads[f * 4 + 1];
+                            var want2 = new Vector2(
+                                anchor[c.slot].x + quads[f * 4 + 2] + w * 0.5f,
+                                anchor[c.slot].y + h * 0.5f - quads[f * 4 + 3]);
+                            if (!Near2(ps.OrigSize, new Vector2(w, h), 0.001f))
+                                posBad.Add($"{c.cls}/{code}#{f} 表尺寸 {ps.OrigSize.x:0}×{ps.OrigSize.y:0} ≠ 帧头 {w:0}×{h:0}");
+                            else if (!Near2(ps.OrigPos, want2, 0.001f))
+                                posBad.Add($"{c.cls}/{code}#{f} 中心 ({ps.OrigPos.x:0.###},{ps.OrigPos.y:0.###}) ≠ 帧头推算 "
+                                           + $"({want2.x:0.###},{want2.y:0.###})；帧头 off=({quads[f * 4 + 2]},{quads[f * 4 + 3]})");
+                        }
 
                         // ② 画布尺寸 == 原版尺寸 × 1.8，且**矩形宽高比 == 该帧原生宽高比**（= 不变形，
                         //    这正是用户报的那条：215×228 的帧被塞进 118×198 的框）
@@ -2112,6 +2166,23 @@ namespace Uicheck
 
             Check($"过渡逐帧矩形全部落在 1920×1080 参考画布内（共 {frames} 帧）",
                 outBad.Count == 0, outBad.Count == 0 ? "0 帧出画布" : string.Join("；", outBad.ToArray()));
+
+            Check($"过渡逐帧矩形 == **原版 DC6 帧头**逐值推算（中心 = A + (offX+w/2, h/2−offY)，共 {frames} 帧，0 例外）",
+                posBad.Count == 0 && frames > 0, posBad.Count == 0
+                    ? $"{frames} 帧的中心与尺寸逐值等于帧头推算（offX/offY 取原版字节，不是插值）"
+                    : string.Join("；", posBad.GetRange(0, Math.Min(6, posBad.Count)).ToArray()));
+
+            // 退化样本：把同一算式里的 offY 拨 1 px ⇒ 必须与 `Transition.Of` 的结果不等
+            //   （证明上面那条不是"两边同源所以恒绿"的摆设）。
+            var degQ = Dc6Quads(Path.Combine(dc6Dir, "amazon", "AMFW.DC6"));
+            var degIdle = UiLayoutFlow.ClassMenu.Spot.Of(0, ResPaths.Portrait.Idle);
+            var degPos = UiLayoutFlow.ClassMenu.Transition.Of(0, ResPaths.Portrait.TransitionFront, 0);
+            var degA = new Vector2(degIdle.OrigPos.x - (degQ[2] + degQ[0] * 0.5f),
+                                   degIdle.OrigPos.y - (degQ[1] * 0.5f - degQ[3]));
+            var shifted = new Vector2(degA.x + degQ[2] + degQ[0] * 0.5f, degA.y + degQ[1] * 0.5f - (degQ[3] + 1f));
+            Check("退化：offY 拨 1 原版px ⇒ 与 `Transition.Of` 的结果不等（判据不是恒绿的摆设）",
+                !Near2(degPos.OrigPos, shifted, 0.001f),
+                $"原值 ({degPos.OrigPos.x:0.###},{degPos.OrigPos.y:0.###}) vs offY+1 ({shifted.x:0.###},{shifted.y:0.###})");
 
             // ── 两端与三态矩形的衔接（"两头无缝"的判据）──
             //   fw：首帧 == `NU1`（背面待机）、末帧 == `NU3`（正面待机），**逐像素一致**（两端锚点就是它们）；
@@ -2462,6 +2533,31 @@ namespace Uicheck
             var w = (b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19];
             var h = (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23];
             return new Vector2(w, h);
+        }
+
+        /// <summary>
+        /// 读原版 `.DC6` 的**逐帧帧头**，返回每帧 4 个数（宽, 高, offX, offY）的行主序数组；读不到 ⇒ null。
+        /// <para>格式出处 = 参考物 `Diablerie/.../D2Formats/DC6.cs`（头 24B：0/4/8 = 版本 6/1/0、
+        /// 16 = 方向数、20 = 每方向帧数；紧跟 `方向数×帧数` 个 u32 帧偏移；帧头 32B 里
+        /// +4 = 宽、+8 = 高、+12 = offX、+16 = offY）。与 `tools/d2codec/dc6.py::parse` 同口径。</para>
+        /// </summary>
+        private static int[] Dc6Quads(string path)
+        {
+            if (!File.Exists(path)) return null;
+            var b = File.ReadAllBytes(path);
+            if (b.Length < 24) return null;
+            Func<int, int> i32 = o => b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24);
+            var n = i32(16) * i32(20);                          // 方向数 × 每方向帧数（**小端**）
+            if (n <= 0 || b.Length < 24 + n * 4) return null;
+            var q = new int[n * 4];
+            for (var i = 0; i < n; i++)
+            {
+                var fo = i32(24 + i * 4);
+                if (fo < 0 || fo + 32 > b.Length) return null;
+                for (var k = 0; k < 4; k++)
+                    q[i * 4 + k] = i32(fo + 4 + k * 4);         // +4 宽 / +8 高 / +12 offX / +16 offY
+            }
+            return q;
         }
 
         /// <summary>

@@ -126,7 +126,8 @@ namespace Diablo2.UI
         //  `UI/CursorView.cs` 文件头：素材 `isReadable=0` ⇒ `Cursor.SetCursor` 用不了；
         //  且 UI Image 才能吃到与整屏一致的 ×1.8 缩放）。
         //  原版件的真名与"背景色号（透明孔）"口径见 `tools/d2codec/dc6.py`；工程内取件路径见
-        //  `Core/ResPaths.cs` 的 `Cursor` / `CursorAttack`（尺寸**逐件实测**，不是一个尺寸套所有形态）。
+        //  `Core/ResPaths.cs` 的 `Cursor` / `CursorAttack` / `CursorPickup` / `CursorInteract`
+        //  （尺寸**逐件实测**，不是一个尺寸套所有形态）。
         /// <summary>默认态贴图的**原生像素尺寸** = **32×26**（原版 `CURSOR/ohand.dc6` 帧 0，
         /// 工程内文件 `D2/UI/Cursor/Cursor.png` 的 IHDR 实测）。</summary>
         public static readonly Vector2 CursorArtPx = new Vector2(32f, 26f);
@@ -135,13 +136,29 @@ namespace Diablo2.UI
         /// 工程内文件 `D2/UI/Cursor/Gaunt.png` 的 IHDR 实测）—— 与默认态**不同**，故按形态各取一份。</summary>
         public static readonly Vector2 CursorAttackArtPx = new Vector2(34f, 30f);
 
+        /// <summary>拾取态贴图的**原生像素尺寸** = **32×30**（原版 `CURSOR/grasp.dc6` 帧 0，
+        /// 工程内文件 `D2/UI/Cursor/grasp.png` 的 IHDR 实测）。</summary>
+        public static readonly Vector2 CursorPickupArtPx = new Vector2(32f, 30f);
+
+        /// <summary>交互态贴图的**原生像素尺寸** = **32×40**（原版 `CURSOR/buysell.dc6` 帧 0，
+        /// 工程内文件 `D2/UI/Cursor/buysell.png` 的 IHDR 实测）。</summary>
+        public static readonly Vector2 CursorInteractArtPx = new Vector2(32f, 40f);
+
         /// <summary>光标在本工程画布上的尺寸（默认态）= 原版 32×26 ×<see cref="K"/> = **57.6×46.8**
         /// （与整屏 UI 同一换算口径，见本文件头的 ×1.8 说明）。</summary>
         public static readonly Vector2 CursorSize = CursorArtPx * K;
 
-        /// <summary>该形态贴图的**原生像素尺寸**（默认态之外的形态各有自己的件）。</summary>
+        /// <summary>该形态贴图的**原生像素尺寸**（每个形态各有自己的件）。</summary>
         public static Vector2 CursorArtPxOf(Def.CursorKind kind)
-            => kind == Def.CursorKind.Attack ? CursorAttackArtPx : CursorArtPx;
+        {
+            switch (kind)
+            {
+                case Def.CursorKind.Attack: return CursorAttackArtPx;
+                case Def.CursorKind.Pickup: return CursorPickupArtPx;
+                case Def.CursorKind.Interact: return CursorInteractArtPx;
+                default: return CursorArtPx;          // Default 与 NoWalk（见 CursorKindCount 注释）
+            }
+        }
 
         /// <summary>该形态光标在本工程画布上的尺寸 = 原生尺寸 ×<see cref="K"/>。</summary>
         public static Vector2 CursorSizeOf(Def.CursorKind kind) => CursorArtPxOf(kind) * K;
@@ -155,11 +172,15 @@ namespace Diablo2.UI
 
         /// <summary>
         /// `Def.CursorKind` 的形态数（普通 / 攻击 / 交互 / 拾取 / 不可走）= **5**。
-        /// <para>**原版件覆盖 2 / 5**：`Default` = 原版 `CURSOR/ohand.dc6` 帧 0、`Attack` = 原版
-        /// `CURSOR/Gaunt.dc6`。原版那套光标（7 态：`buysell`/`protate`/`ppress`/`orotate`/`ohand`/
-        /// `grasp`/`Gaunt`）里**没有**与 `Interact` / `Pickup` / `NoWalk` 一一对应的件
-        /// （`buysell` 的 10 帧是金色钩/槌/钥匙一类图元，逐帧语义无可核出处）⇒ 这 3 态显示
-        /// `Default` 的图并各打一条 Warn。</para>
+        /// <para>**每个形态都取到原版件**，映射见 `Core/ResPaths.cs` 的四个光标常量：</para>
+        /// <list type="bullet">
+        ///   <item>`Default` ← 原版 `CURSOR/ohand.dc6` 帧 0（32×26）。</item>
+        ///   <item>`Attack` ← 原版 `CURSOR/Gaunt.dc6`（34×30）。</item>
+        ///   <item>`Pickup` ← 原版 `CURSOR/grasp.dc6` 帧 0（32×30；件名 = 抓握）。</item>
+        ///   <item>`Interact` ← 原版 `CURSOR/buysell.dc6` 帧 0（32×40；件名 = 买卖）。</item>
+        ///   <item>`NoWalk` ← 与 `Default` 同一件：原版光标表（`D2Client.dll` 名字表
+        ///     `buysell/protate/ppress/orotate/ohand/grasp/Gaunt`）里没有"不可到达"语义的件。</item>
+        /// </list>
         /// </summary>
         public const int CursorKindCount = 5;
 

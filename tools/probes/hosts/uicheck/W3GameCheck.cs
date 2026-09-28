@@ -778,15 +778,33 @@ namespace Uicheck
                 $"{ResPaths.CursorAttack} = {aw}×{ah}；画布尺寸 {UiLayoutGame.CursorSizeOf(Diablo2.Def.CursorKind.Attack).x:0.#}×{UiLayoutGame.CursorSizeOf(Diablo2.Def.CursorKind.Attack).y:0.#}（×{UiLayoutGame.K}）"
                 + "；按形态取尺寸走 `UiLayoutGame.CursorArtPxOf/CursorSizeOf`（不是一个尺寸套所有态）");
 
-            var lack = SafeRead(Path.Combine(Program.ProjectRoot, "client", "资源欠缺清单.md"));
-            Console.WriteLine("      │ [登记·素材缺口] `Def.CursorKind` 共 " + UiLayoutGame.CursorKindCount
-                + " 种（普通/攻击/交互/拾取/不可走），其中**只有 2 种**有原版件"
-                + "（Default=原版 CURSOR/ohand.dc6、Attack=原版 CURSOR/Gaunt.dc6）；"
-                + "Interact/Pickup/NoWalk 原版没有对应件 ⇒ 显示默认态那张，切到时**逐态一条 Warn**"
-                + "（`UI/CursorView.cs::OnCursorChanged`）。");
-            Program.Check("光标 3 态（交互/拾取/不可走）**没有原版件**这件事已登记在 `client/资源欠缺清单.md`（⛔ 不自画）",
-                lack.Contains("Cursor") && lack.Contains("3 态") && cursorSrc.Contains("UiLog.Warn"),
-                "见 `client/资源欠缺清单.md` 的「光标」行 + `UI/CursorView.cs::OnCursorChanged` 的逐态 Warn");
+            // ★ 拾取态 / 交互态也各有**自己的原版件**（`CURSOR/grasp.dc6` 帧 0 / `CURSOR/buysell.dc6` 帧 0，
+            //   由 `tools/d2codec/export_d2ui.py --only cursor` 落位）⇒ 与默认/攻击两态同口径逐件判。
+            TryPngSize(ResPaths.CursorPickup, out var pw, out var ph);
+            Program.Check($"光标拾取态素材在位且 IHDR == 声明的原版尺寸 {UiLayoutGame.CursorPickupArtPx.x:0}×{UiLayoutGame.CursorPickupArtPx.y:0}",
+                cursorSrc.Contains("ResPaths.CursorPickup")
+                && pw == (int)UiLayoutGame.CursorPickupArtPx.x && ph == (int)UiLayoutGame.CursorPickupArtPx.y,
+                $"{ResPaths.CursorPickup} = {pw}×{ph}（原版 CURSOR/grasp.dc6 帧 0；件名 grasp = 抓握）");
+
+            TryPngSize(ResPaths.CursorInteract, out var iw, out var ih);
+            Program.Check($"光标交互态素材在位且 IHDR == 声明的原版尺寸 {UiLayoutGame.CursorInteractArtPx.x:0}×{UiLayoutGame.CursorInteractArtPx.y:0}",
+                cursorSrc.Contains("ResPaths.CursorInteract")
+                && iw == (int)UiLayoutGame.CursorInteractArtPx.x && ih == (int)UiLayoutGame.CursorInteractArtPx.y,
+                $"{ResPaths.CursorInteract} = {iw}×{ih}（原版 CURSOR/buysell.dc6 帧 0；件名 buysell = 买卖）");
+
+            // 5 个形态的取件齐（唯一的"沿用默认件"是 `NoWalk`，它是**原版光标表里没有该语义的件**
+            //   的结论，不是缺素材）⇒ `OnCursorChanged` 不再有"缺口"分支，只有 `Label()` 的未知形态 Warn。
+            Console.WriteLine("      │ [取件] `Def.CursorKind` 共 " + UiLayoutGame.CursorKindCount
+                + " 种（普通/攻击/交互/拾取/不可走）：Default=CURSOR/ohand.dc6 帧 0、"
+                + "Attack=CURSOR/Gaunt.dc6、Pickup=CURSOR/grasp.dc6 帧 0、Interact=CURSOR/buysell.dc6 帧 0、"
+                + "NoWalk 与 Default 同件（原版光标表 buysell/protate/ppress/orotate/ohand/grasp/Gaunt 里无该语义）。");
+            Program.Check("光标 5 个形态**都取到原版件**（NoWalk 显式与 Default 同件）且 0 处缺口 Warn",
+                cursorSrc.Contains("ResPaths.CursorPickup")
+                && cursorSrc.Contains("ResPaths.CursorInteract")
+                && cursorSrc.Contains("kind != CursorKind.NoWalk")
+                && cursorSrc.Contains("UiLog.WarnOnce")            // 只剩 Label() 的未知形态 Warn
+                && !cursorSrc.Contains("原版没有对应件"),
+                "见 `UI/CursorView.cs` 的 PathFor / HasOriginalArt / OnCursorChanged");
         }
 
         // ── 工具 ─────────────────────────────────────────────────────────────

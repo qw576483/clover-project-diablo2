@@ -1147,9 +1147,9 @@ namespace Diablo2.UI
         /// </para>
         /// <para>
         /// **现在**：几何由 `UiLayoutFlow.ClassMenu.Transition.Of(slot, code, frame)` 给
-        /// （尺寸 = 该帧原生尺寸 ×1.8 ⇒ **每帧的矩形宽高比 == 该帧原生宽高比**，`uicheck` 逐帧断言；
-        /// 位置 = 底边中点落在两端锚点的线性插值上，两端与 `NU1` / `NU3` 矩形逐像素一致）⇒
-        /// **不需要 `preserveAspect`**（矩形本身就是按该帧原生比例给的，再让 uGUI 等比内缩只会缩小画面）。
+        /// （尺寸与位置**都取该帧的原版 DC6 帧头**：尺寸 = 该帧原生尺寸 ×1.8 ⇒ **每帧的矩形宽高比 ==
+        /// 该帧原生宽高比**；中心 = 热点锚点 + `(offX + w/2, h/2 − offY)`，`uicheck` 逐帧与原版帧头
+        /// 对值断言）⇒ **不需要 `preserveAspect`**（矩形本身就是按该帧原生比例给的，再让 uGUI 等比内缩只会缩小画面）。
         /// </para>
         /// <para>同一帧不重复贴（`TickTransition` 每帧都调；动画 25fps < 屏幕刷新率）。</para>
         /// </summary>

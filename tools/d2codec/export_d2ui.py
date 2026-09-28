@@ -813,10 +813,13 @@ def group_logo(pal):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 组 15：光标 —— 唯一来源是原版 `data/global/ui/CURSOR/Gaunt.dc6`（单帧 34×30，攻击态光标）。
-#   透明孔 = `dc6.background_index()` 现算的色号（本件 = 15），不是索引 0；口径边界见文件头
-#   「透明孔口径」段。
-#   ⛔ `CURSOR/ohand.dc6`（默认箭头 32×26 帧 0）**不在本组**：工程内 `UI/Cursor/Cursor.png`
+# 组 15：光标 —— 来源是原版 `data/global/ui/CURSOR/**` 里**与 `Def.CursorKind` 语义对应**的三件：
+#   `Gaunt.dc6`（攻击态，单帧 34×30）/ `grasp.dc6`（拾取态，帧 0 32×30）/
+#   `buysell.dc6`（交互态，帧 0 32×40）。每件只落**工程内实际显示的那一帧**（其余帧不搬，见
+#   skill「只复制被引用的那几个」）；工程内按静态贴图显示，与默认态同口径。
+#   透明孔 = `dc6.background_index()` 现算的色号（`Gaunt` = 15，另两件 = 0），不是一律索引 0；
+#   口径边界见文件头「透明孔口径」段。
+#   ⛔ `CURSOR/ohand.dc6`（默认态 32×26 帧 0）**不在本组**：工程内 `UI/Cursor/Cursor.png`
 #      是参考工程 Diablerie 的原样副本（256 色 PNG，**透明键 RGB = (0,255,255) 青**），
 #      而本模块的透明像素恒写 (0,0,0,0) ⇒ 产不出它那个透明键（可见像素完全一致，差异只是
 #      456 个双方都全透明的像素底下的 RGB）。用本工程直出替换它与替换盘上另外 50 个
@@ -824,13 +827,24 @@ def group_logo(pal):
 # ═════════════════════════════════════════════════════════════════════════════
 def group_cursor(pal):
     d = read_dc6("data", "global", "ui", "CURSOR", "Gaunt.dc6")
-    if not d:
-        return
-    for i, f in enumerate(d.frames):
-        bg = dc6.background_index(f)      # 本帧 = 15
-        one(f, out("UI", "Cursor", "Gaunt.png"), pal,
-            "原版 CURSOR/Gaunt.dc6 帧 %d（攻击态光标 %dx%d，调色板 %s，透明孔 = 色号 %s）" % (
-                i, f.width, f.height, PL2_ACT1, bg), "cursor", background=bg)
+    if d:
+        for i, f in enumerate(d.frames):
+            bg = dc6.background_index(f)      # 本帧 = 15
+            one(f, out("UI", "Cursor", "Gaunt.png"), pal,
+                "原版 CURSOR/Gaunt.dc6 帧 %d（攻击态光标 %dx%d，调色板 %s，透明孔 = 色号 %s）" % (
+                    i, f.width, f.height, PL2_ACT1, bg), "cursor", background=bg)
+
+    # 语义映射的依据 = 原版件**自身的文件名**（`grasp` 抓握 / `buysell` 买卖）与
+    #   `策划/策划案/暗黑破坏神2参考规格.md` §3.3 行 14「悬停怪物/物品/NPC/门 → 切换光标帧」。
+    for stem, use in (("grasp", "拾取"), ("buysell", "交互")):
+        dc = read_dc6("data", "global", "ui", "CURSOR", stem + ".dc6")
+        if not dc:
+            continue
+        f = dc.frames[0]
+        bg = dc6.background_index(f)          # 两件都 = 0
+        one(f, out("UI", "Cursor", stem + ".png"), pal,
+            "原版 CURSOR/%s.dc6 帧 0（%s态光标 %dx%d，调色板 %s，透明孔 = 色号 %s）" % (
+                stem, use, f.width, f.height, PL2_ACT1, bg), "cursor", background=bg)
 
 
 GROUPS = {

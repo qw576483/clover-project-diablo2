@@ -20,15 +20,16 @@
 //
 // ── 形态 → 原版件（**逐态各一件**，不是一个尺寸套所有态）────────────────────
 //   原版 `data/global/ui/CURSOR/` 共 9 只：`buysell`(10 帧)/`protate`/`ppress`/`orotate`/`ohand`(8 帧)/
-//   `grasp`(8 帧)/`Gaunt`(1 帧 34×30)/`focus16`(20×20)/`Pentspin`。其中能对上本工程
-//   `Def.CursorKind` 语义的只有两只：
-//     · `Default` ← `ohand.dc6` 帧 0（32×26，工程内 `D2/UI/Cursor/Cursor.png` 就是这一帧，
+//   `grasp`(8 帧)/`Gaunt`(1 帧 34×30)/`focus16`(20×20)/`Pentspin`。本工程 5 个形态的取件：
+//     · `Default`  ← `ohand.dc6` 帧 0（32×26，工程内 `D2/UI/Cursor/Cursor.png` 就是这一帧，
 //       可见像素逐像素全等）；
-//     · `Attack`  ← `Gaunt.dc6`（34×30 单帧）。
-//   `Interact` / `Pickup` / `NoWalk` **原版没有对应件**（`buysell` 的 10 帧是金色钩/槌/钥匙一类
-//   图元，逐帧语义无可核出处；`grasp` 的"抓握"语义与本工程的 `Pickup` 触发点不重合）⇒ 这 3 态
-//   仍显示 `Default` 的图，并在**首次**切到时各打一条 Warn。缺口登记在 `client/资源欠缺清单.md` #24。
-//   ⛔ 缺口态**不自画**（skill §0「A 没有就不加」）。
+//     · `Attack`   ← `Gaunt.dc6`（34×30 单帧）；
+//     · `Pickup`   ← `grasp.dc6` 帧 0（32×30；件名 `grasp` = 抓握）；
+//     · `Interact` ← `buysell.dc6` 帧 0（32×40；件名 `buysell` = 买卖）；
+//     · `NoWalk`   → 与 `Default` 同一件：原版光标表（`D2Client.dll` 名字表
+//       `buysell/protate/ppress/orotate/ohand/grasp/Gaunt`）里没有"不可到达"语义的件。
+//   映射依据 = 原版件**自身的文件名** + `策划/策划案/暗黑破坏神2参考规格.md` §3.3 行 14
+//   （「悬停怪物 / 物品 / NPC / 门 → 切换光标帧」）。⛔ 一个件都不自画（skill §0「A 没有就不加」）。
 //
 // ── 只在**游戏内**接管（不是"到处接管"）──────────────────────────────────────
 //   菜单里没有可画的替代品，若把系统光标全局藏掉而贴图又没到位，用户会**连指针都看不见**
@@ -39,8 +40,8 @@
 //   「独立画布 + 跟随鼠标 + 显隐 + 系统光标接管」这一套机制由引擎件
 //   `CloverEngine.SoftwareCursorLayer` 提供（`clover-client-unity-engine/Runtime/Presentation/
 //   WorldOverlayWidgets.cs`）；本文件只剩：① 装配（自安装常驻对象 → 调引擎件建画布）；
-//   ② D2 取值（`UiLayoutGame.Cursor*` 全部常量、`ResPaths.Cursor` / `ResPaths.CursorAttack`）；
-//   ③ 形态分派、逐态尺寸与缺口 Warn；④ 事件订阅。屏幕点换算由引擎件统一走 `ScreenPointUtil`。
+//   ② D2 取值（`UiLayoutGame.Cursor*` 全部常量、`ResPaths.Cursor` / `CursorAttack` / `CursorPickup` /
+//      `CursorInteract`）；③ 形态分派与逐态尺寸；④ 事件订阅。屏幕点换算由引擎件统一走 `ScreenPointUtil`。
 //
 // ── 装配方式（为什么是自安装而不是挂在某个面板上）────────────────────────────────
 //   引擎面板必须走 `Resources/UI/{类名}` 预制体（`Runtime/Presentation/UI.cs:131-140`），
@@ -64,7 +65,7 @@ namespace Diablo2.UI
     /// <summary>
     /// 游戏内鼠标光标的**唯一消费方**：订阅 <c>Events.CursorChanged</c>（形态）+
     /// <c>StageEntered</c>/<c>StageLeft</c>（何时接管），把该形态的**原版件**贴在鼠标位置；
-    /// 原版没有对应件的形态显示默认态那张，并逐态报一次缺口。
+    /// 原版光标表里没有对应语义的形态（`NoWalk`）沿用默认那张。
     /// </summary>
     public class CursorView : MonoBehaviour
     {
@@ -74,9 +75,6 @@ namespace Diablo2.UI
 
         private static CursorView _instance;
 
-        /// <summary>已经 Warn 过缺口的形态位掩码（每种形态只报一次，不刷屏）。</summary>
-        private static int _gapLogged;
-
         /// <summary>已经 Warn 过"这张原版件取不到"的形态位掩码。</summary>
         private static int _spriteMissingLogged;
 
@@ -85,7 +83,6 @@ namespace Diablo2.UI
         private static void ResetStaticsForNewPlaySession()
         {
             _instance = null;
-            _gapLogged = 0;
             _spriteMissingLogged = 0;
         }
 
@@ -204,11 +201,18 @@ namespace Diablo2.UI
 
         /// <summary>该形态在工程里用哪张图（原版件路径见 `Core/ResPaths.cs`）。</summary>
         private static string PathFor(CursorKind kind)
-            => kind == CursorKind.Attack ? ResPaths.CursorAttack : ResPaths.Cursor;
+        {
+            switch (kind)
+            {
+                case CursorKind.Attack: return ResPaths.CursorAttack;
+                case CursorKind.Pickup: return ResPaths.CursorPickup;
+                case CursorKind.Interact: return ResPaths.CursorInteract;
+                default: return ResPaths.Cursor;          // Default / NoWalk
+            }
+        }
 
-        /// <summary>该形态**有没有原版件**（没有的形态显示默认态那张；见文件头的"形态 → 原版件"）。</summary>
-        private static bool HasOriginalArt(CursorKind kind)
-            => kind == CursorKind.Default || kind == CursorKind.Attack;
+        /// <summary>该形态**有没有自己的原版件**（`NoWalk` 没有 ⇒ 用默认态那张；见文件头的"形态 → 原版件"）。</summary>
+        private static bool HasOriginalArt(CursorKind kind) => kind != CursorKind.NoWalk;
 
         /// <summary>该形态当前能画哪张图（自己没有就退回默认态那张；都没有 ⇒ null）。</summary>
         private Sprite SpriteOf(CursorKind kind)
@@ -223,8 +227,8 @@ namespace Diablo2.UI
 
         /// <summary>
         /// 按需向 `Game.Res` 要图（异步；到位后若正是当前该画的那张就立刻换上）。
-        /// <para>原版没有对应件的形态要的就是**默认态那张** ⇒ 按 `Default` 取（不是把默认图灌进它自己的槽：
-        /// 那样日志会写成"形态 NoWalk 的图就位：…/Cursor"，读起来像 NoWalk 有自己的原版件）。</para>
+        /// <para>没有自己原版件的形态（`NoWalk`）要的就是**默认态那张** ⇒ 按 `Default` 取（不是把默认图灌进
+        /// 它自己的槽：那样日志会写成"形态 NoWalk 的图就位：…/Cursor"，读起来像 NoWalk 有自己的原版件）。</para>
         /// </summary>
         private void EnsureSprite(CursorKind kind)
         {
@@ -254,7 +258,7 @@ namespace Diablo2.UI
                 UiLog.Info($"[原版光标] {slot} 态的图就位：{path} = 素材 {sp.rect.width:0}×{sp.rect.height:0} 原生px" +
                            $" → 画布 {UiLayoutGame.CursorSizeOf(slot).x:0.#}×{UiLayoutGame.CursorSizeOf(slot).y:0.#}" +
                            $"（×{UiLayoutGame.K}），hot spot = 贴图左上角（pivot {UiLayoutGame.CursorHotspotPivot}）" +
-                           (slot == kind ? string.Empty : $"（{kind} 原版没有对应件 ⇒ 用它）"));
+                           (slot == kind ? string.Empty : $"（{kind} 没有自己的原版件 ⇒ 用它）"));
                 if (slot == _kind || !HasOriginalArt(_kind)) ApplyArt();
             });
         }
@@ -307,8 +311,9 @@ namespace Diablo2.UI
             _stageActive = true;
             EnsureSprite(_kind);
             ApplyArt();
-            UiLog.Info($"游戏内光标已接管（原版件：Default={ResPaths.Cursor} / Attack={ResPaths.CursorAttack}；" +
-                       "Interact/Pickup/NoWalk 原版没有对应件 ⇒ 显示默认态那张）");
+            UiLog.Info($"游戏内光标已接管（原版件：Default={ResPaths.Cursor} / Attack={ResPaths.CursorAttack} / " +
+                       $"Pickup={ResPaths.CursorPickup} / Interact={ResPaths.CursorInteract}；" +
+                       "NoWalk 原版没有该语义的件 ⇒ 沿用 Default）");
         }
 
         private void OnStageLeft()
@@ -318,19 +323,13 @@ namespace Diablo2.UI
             UiLog.Info("已离开游戏内 ⇒ 放开光标（系统光标恢复）");
         }
 
-        /// <summary>形态变化：换图 + 换尺寸；**原版没有对应件**的形态逐态 Warn 一次。</summary>
+        /// <summary>形态变化：换图 + 换尺寸（每个形态都有确定的原版件或明确的"与默认同件"，故无缺口分支）。</summary>
         private void OnCursorChanged(CursorKind kind)
         {
             if (kind == _kind) return;
             _kind = kind;
             EnsureSprite(kind);
             ApplyArt();
-
-            if (kind == CursorKind.Default)
-            {
-                UiLog.Info($"光标形态 = 普通（原版件 {ResPaths.Cursor} 帧 0）");
-                return;
-            }
 
             if (HasOriginalArt(kind))
             {
@@ -339,12 +338,7 @@ namespace Diablo2.UI
                 return;
             }
 
-            var bit = 1 << (int)kind;
-            if ((_gapLogged & bit) != 0) return;
-            _gapLogged |= bit;
-            UiLog.Warn($"光标形态切到「{kind}」（{Label(kind)}），但原版那套光标里**没有**与该语义对应的件" +
-                       "⇒ 仍显示默认态那张图：按 skill §0「A 没有就不加」**不自画**；" +
-                       "缺口登记在 client/资源欠缺清单.md #24");
+            UiLog.Info($"光标形态 = {kind}（{Label(kind)}）：原版光标表里没有该语义的件 ⇒ 沿用默认件 {ResPaths.Cursor}");
         }
 
         /// <summary>形态的中文名（日志用；越界不静默）。</summary>
