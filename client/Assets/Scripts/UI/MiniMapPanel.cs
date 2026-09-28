@@ -86,8 +86,7 @@ namespace Diablo2.UI
         /// <summary>
         /// 叠加层**底色不透明度**。**0 = 不建那一层**（`Build()` 里 `alpha &gt; 0` 才建满屏黑块）。
         /// <para>
-        /// **为什么不压暗**：用户报的 U46 原话是「tab 渲染地图不对，**背景不用压暗**」（登记见
-        /// `策划/自审对比/bug清单.md` 第 103 行，处置栏写的就是 `UI/MiniMapPanel.cs（BackdropAlpha=0）`）；
+        /// **为什么不压暗**：原版 automap 不压暗世界（口径 = 用户原话「tab 渲染地图不对，**背景不用压暗**」）；
         /// `tools/probes/hosts/uicheck` 的 U4 / ⑤ 两条断言据此要求本值 `== 0`。
         /// </para>
         /// <para>

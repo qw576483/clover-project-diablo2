@@ -198,9 +198,11 @@ namespace FullCheck
         public T Get<T>() where T : class, IUIPanel => null;
         public bool IsOpen<T>() where T : class, IUIPanel => false;
 
-        /// <summary>面板打开/关闭事件（`IUIManager` 契约成员；本宿主不派发，只保证签名齐备）。</summary>
+        /// <summary>面板打开/关闭事件的订阅与退订（`IUIManager` 契约成员；本宿主不派发，只保证签名齐备）。</summary>
         public void OnPanelOpened(Action<string> handler) { }
+        public void OffPanelOpened(Action<string> handler) { }
         public void OnPanelClosed(Action<string> handler) { }
+        public void OffPanelClosed(Action<string> handler) { }
 
         public void Toast(string text, float duration = 2f) => Console.WriteLine("  [TOAST] " + text);
 
