@@ -295,8 +295,11 @@ namespace Diablo2.UI
                 new Color(0.14f, 0.12f, 0.11f, 1f), UiArt.AccentColor, out _bgmBar, out _bgmText);
 
             // 音效
+            //   音量条的填充色与「背景音乐」条同取 `UiArt.AccentColor`：原版 Options 面板/滑块本机
+            //   **既无基准图也无素材** ⇒ 本面板两根同类音量条统一用项目既有出处常量，不另造色
+            //   （登记见 `策划/验收表.md` 的 E63 节）。
             BuildVolumeRow(1, Text.Sfx, UiLayoutFlow.Settings.Row2Y,
-                new Color(0.14f, 0.12f, 0.11f, 1f), new Color(0.30f, 0.55f, 0.85f, 1f), out _sfxBar, out _sfxText);
+                new Color(0.14f, 0.12f, 0.11f, 1f), UiArt.AccentColor, out _sfxBar, out _sfxText);
 
             // 全屏
             BuildToggleRow(Text.Fullscreen, UiLayoutFlow.Settings.Row3Y, OnToggleFullscreen, out _fullscreenButton);
