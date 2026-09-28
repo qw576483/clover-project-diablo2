@@ -223,6 +223,10 @@ namespace Diablo2.UI
 
             // ACT1 调色板（原版 `ACT1/Pal.PL2` 的 256×RGB；生成物给）
             _palette = CreatePalette();
+
+            // ④ 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   **最后建** ⇒ 画在本屏其余节点之上。
+            UiLayoutFlow.Brand.Attach(transform);
         }
 
         // ═════════════════════════════════════════════════════════════════════

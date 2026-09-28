@@ -1351,8 +1351,9 @@ namespace Diablo2.Module.View
         //   而 z 次级键**只在 sortingOrder 相等时**起作用，故**不可能改变任何既有的跨格/跨层次序**。
         //   取 +z（**远离相机**）而不是 -z：等 `sortingOrder` 时让地图瓦片（含 overlay 遮蔽层）仍然
         //   画在实体之上 —— 与"overlay = 遮蔽/迷雾应盖住实体"的既有意图一致（保守）。
-        // 原版口径：原版同格实体的绘制次序是**稳定的生成序号**（不是每帧重排）；这里把它落成
-        //   「类型档 → id」两级键，因此**重复调用结果恒定**（`mapcheck`/`movecheck` 有断言）。
+        // 本项目口径：同格实体的绘制次序 = **`EntityId` 升序的纯函数**（各原版表没有"同格绘制次序"
+        //   这一列 ⇒ 本项目自己定义，不是照搬任何生成序号）；落成「类型档 → id」两级键
+        //   ⇒ **重复调用结果恒定**（`mapcheck`/`movecheck` 有断言）。
         //
         // ① **第三键的口径有出处**（不是"我们用 z 当距离"的假设）：Unity 文档 `TransparencySortMode`
         //    原文 —— "By default, perspective cameras sort objects based on distance from camera

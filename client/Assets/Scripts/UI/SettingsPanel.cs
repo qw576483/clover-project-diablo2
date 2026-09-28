@@ -315,6 +315,10 @@ namespace Diablo2.UI
             UiLayoutFlow.FlowLabel.Create(screen, "Foot", Text.Foot, D2Text.D2Font.Font16,
                 TextAnchor.MiddleCenter, new Color(0.66f, 0.63f, 0.58f, 1f),
                 UiLayoutFlow.Orig(UiLayoutFlow.Settings.FootSize), UiLayoutFlow.Settings.FootPos);
+
+            // 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   **最后建** ⇒ 画在本屏所有内容之上。
+            UiLayoutFlow.Brand.Attach(screen);
         }
 
         /// <summary>一行音量：中文标签 + 「−」+ 数值（位图字体）+ 「+」+ 锚点宽度条。</summary>

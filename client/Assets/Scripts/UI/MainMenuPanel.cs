@@ -135,20 +135,9 @@ namespace Diablo2.UI
                 UiLayoutFlow.WideButtonOrig, UiLayoutFlow.Menu.ExitPos,
                 () => Game.Event.Emit(Events.QuitRequest));
 
-            //   `by clover-engine`，判据 = 实机截图可读。
-            //   与启动屏 `BootPanel` 的 `ByLine` **共用 `UiLayoutFlow.Brand` 的同一套几何**
-            //   （x=0 居中、y=-462、900×54、font24 档、色 0.78/0.76/0.72）⇒ 两个前面板的署名不可能错位。
-            //   节点名取 ByLine：`uicheck` 有一条「主菜单不再自画 logo / 页脚 / 提示行」的断言，
-            //   它按**带双引号的字面量**查 Logo / Footer / Tip 三个名字（那是原版 LogoPlaceholder
-            //   那一族的自画元素）；署名行不属那三类、也不是那三个名字 ⇒ 不会误撞。
-            //   （本行刻意**不写带引号的那三个词** —— 写成带引号就会被那条断言当成真元素命中。）
-            //   与启动屏同一口径加 `forceChi: true` —— 原版拉丁字模不分大小写
-            //   （`by clover-engine` 会被画成 `BY CLOVER-ENGINE`），逐字小写只有原版 `font24_chi` 能画。
-            //   见 `BootPanel` 里同一行的注释与 `D2Text.D2Label._forceChi`。
-            UiArt.Label(screen, "ByLine", UiLayoutFlow.Brand.ByLineText,
-                UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font24), TextAnchor.MiddleCenter,
-                UiLayoutFlow.Brand.ByLineColor, UiLayoutFlow.Brand.ByLineSize,
-                UiLayoutFlow.Brand.ByLinePos, forceChi: true);
+            // 常驻品牌署名 `by clover-engine`（居底居中；几何/字号/颜色 = `UiLayoutFlow.Brand` 的同一套常量，
+            //   与启动屏共用 ⇒ 两个前面板的署名不可能错位）。**最后建** ⇒ 画在按钮之上。
+            UiLayoutFlow.Brand.Attach(screen);
 
             WarmUpGamePanelsArt();
 

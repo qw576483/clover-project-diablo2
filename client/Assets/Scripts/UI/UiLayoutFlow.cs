@@ -354,6 +354,53 @@ namespace Diablo2.UI
             /// 署名行颜色 = 低调灰但**比版权行亮一档**（版权/版本行仍是 0.62,0.60,0.56）
             /// </summary>
             public static readonly Color ByLineColor = new Color(0.78f, 0.76f, 0.72f, 1f);
+
+            /// <summary>
+            /// 底部**有一排按钮**的两个职业屏（`CharSelectPanel` / `CharCreatePanel`）的署名行中心 y。
+            /// <para>默认的 <see cref="ByLinePos"/>（−462）与那一排按钮相交：按钮行 = 原版
+            /// `ClassSelectMenu.prefab` 的 `ExitButton`/`OkButton` (−300,−250) → 画布 (±540,−450)、
+            /// 高 63 ⇒ 底边 **−481.5**；署名行外框高 54 ⇒ 中心 −462 时顶边 −435，落在按钮行内。</para>
+            /// <para>本档把署名行整行挪到按钮行**下方**：中心 y = **−510** ⇒ 底边 −537
+            /// （画布底 −540 ⇒ 留白 3），顶边 −483（与按钮行底边 −481.5 不相交）。</para>
+            /// </summary>
+            public static readonly Vector2 ByLineLowPos = new Vector2(0f, -510f);
+
+            /// <summary>
+            /// HUD（游戏内）屏的署名行中心 y。
+            /// <para>HUD 底栏（`ControlPanel`）**内部没有空带** —— 球 / 左右技能格 / 6 格技能栏 /
+            /// 4 格腰带 / 经验条占满 −540..−290，居中放 −462 会压住技能格 ⇒ 署名贴在**底栏上沿之上**：
+            /// 底栏不透明区上沿 = <c>UiLayoutGame.HudBgPos.y + HudBgSize.y / 2</c> = **−290.34**
+            /// ⇒ 署名行底边贴该沿、中心 = −290.34 + 27 = **−263.34**（仍居底居中、不压任何 HUD 控件）。</para>
+            /// </summary>
+            public static readonly Vector2 ByLineHudPos =
+                new Vector2(0f, UiLayoutGame.HudBgPos.y + UiLayoutGame.HudBgSize.y * 0.5f + ByLineSize.y * 0.5f);
+
+            /// <summary>
+            /// 在 <paramref name="parent"/> 上挂常驻品牌署名 `by clover-engine`（居底居中；
+            /// 几何 / 字号 / 颜色 = 本节常量）。
+            /// <para>**在该屏所有内容都建完之后再调**：uGUI 里后建的兄弟画在上层 ⇒ 署名不被任何元素压住。</para>
+            /// </summary>
+            /// <param name="parent">挂点（该屏的内容容器；坐标 = 画布单位，同 <see cref="ByLinePos"/>）。</param>
+            /// <returns>署名行的 Text（挂点为空 ⇒ null）。</returns>
+            public static Text Attach(Transform parent) => Attach(parent, ByLinePos.y);
+
+            /// <inheritdoc cref="Attach(Transform)"/>
+            /// <param name="y">
+            /// 署名行中心 y（画布单位）—— 取值只许来自 <see cref="ByLinePos"/> /
+            /// <see cref="ByLineLowPos"/> / <see cref="ByLineHudPos"/> 的 y。
+            /// </param>
+            public static Text Attach(Transform parent, float y)
+            {
+                if (parent == null)
+                {
+                    UiLog.Error("[署名] 挂点为空 ⇒ `by clover-engine` 未上屏（调用方见 UiLayoutFlow.Brand.Attach）");
+                    return null;
+                }
+
+                return UiArt.Label(parent, "ByLine", ByLineText,
+                    ChineseFontSize(D2Text.D2Font.Font24), TextAnchor.MiddleCenter,
+                    ByLineColor, ByLineSize, new Vector2(ByLinePos.x, y), forceChi: true);
+            }
         }
 
         // ═════════════════════════════════════════════════════════════════════

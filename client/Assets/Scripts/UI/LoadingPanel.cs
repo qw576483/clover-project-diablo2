@@ -183,6 +183,10 @@ namespace Diablo2.UI
                 return;
             }
 
+            // 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   **最后建** ⇒ 画在本屏（黑底 + 居中读条图）之上。
+            UiLayoutFlow.Brand.Attach(transform);
+
             RequestFrames();
         }
 

@@ -189,6 +189,10 @@ namespace Diablo2.UI
             BuildSkillInfoText();
             BuildTabHit();
             BuildCloseButton();
+
+            // 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   画在面板下方空白带（面板底边 −388.8，署名行 −462）；**最后建** ⇒ 不被压住。
+            UiLayoutFlow.Brand.Attach(transform);
         }
 
         /// <summary>

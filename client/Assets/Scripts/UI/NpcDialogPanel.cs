@@ -397,6 +397,11 @@ namespace Diablo2.UI
                     + OptionOrigY(1).ToString("0.0") + " / " + OptionOrigY(2).ToString("0.0")
                     + "，与两雕槽（x 34..67 与 139..172、y 115..148）二维矩形不相交");
             }
+
+            // 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   石框下沿贴 HUD 底栏上沿（FrameBottom = −252）⇒ 署名行 −462 落在石框**下方**、不压石框；
+            //   **最后建** ⇒ 不被压住。
+            UiLayoutFlow.Brand.Attach(transform);
         }
 
         /// <summary>第 <paramref name="i"/> 个菜单项行心换算回**原版 y**（从底图顶沿往下量；对账/断言用）。</summary>

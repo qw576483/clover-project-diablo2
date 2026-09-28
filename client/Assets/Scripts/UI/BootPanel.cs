@@ -135,19 +135,6 @@ namespace Diablo2.UI
                 UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font16), TextAnchor.MiddleCenter, UiArt.ButtonText,
                 HintSize, new Vector2(0f, -120f));
 
-            //   色 (0.62,0.60,0.56) 在 1080p 实机图 `Screenshots/p29_r2_01_boot.png` 里几乎看不见，
-            //   用户据此判定"首界面没有 by clover-engine"（原话见 `UiLayoutFlow.Brand` 的注释）。
-            //   位置 (0,-462) 与框宽 900 不变（框高 36→54，见 `Brand.ByLineOrigSize` 的推导）。
-            //   2026 品牌署名轮：`forceChi: true` —— **原版拉丁字模不分大小写**，`by clover-engine`
-            //   经 `font24` 会画成 `BY CLOVER-ENGINE`（实测：`font24_98`＝小号 B、`font24_121`＝小号 Y，
-            //   且 g/p/q/y 无降部）。逐字小写只有原版 `font24_chi` 能画（实测 97＝真 a、121＝带降部 y）
-            //   ⇒ 这一行走 chi 档。字号/颜色/位置/节点名**一个数没动**（仍是 font24 档 43 画布px）。
-            UiArt.Label(screen, "ByLine",
-                UiLayoutFlow.Brand.ByLineText,
-                UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font24), TextAnchor.MiddleCenter,
-                UiLayoutFlow.Brand.ByLineColor, UiLayoutFlow.Brand.ByLineSize,
-                UiLayoutFlow.Brand.ByLinePos, forceChi: true);
-
             UiArt.Label(screen, "Copyright",
                 "原版素材版权归 Blizzard North / Blizzard Entertainment（非商用）",
                 UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font16), TextAnchor.MiddleCenter,
@@ -156,6 +143,10 @@ namespace Diablo2.UI
             UiArt.Label(screen, "Version", $"单机版 · 存档版本 v{GameConst.SaveVersion}",
                 UiLayoutFlow.ChineseFontSize(D2Text.D2Font.Font16), TextAnchor.MiddleLeft,
                 new Color(0.62f, 0.60f, 0.56f, 1f), VersionSize, new Vector2(-414f, -367.5f));
+
+            // 常驻品牌署名 `by clover-engine`（居底居中；几何/字号/颜色 = `UiLayoutFlow.Brand` 的同一套常量，
+            //   与主菜单共用 ⇒ 两个前面板的署名不可能错位）。**最后建** ⇒ 画在所有内容之上。
+            UiLayoutFlow.Brand.Attach(screen);
 
             UiLayoutFlow.LogTable(nameof(BootPanel));
         }

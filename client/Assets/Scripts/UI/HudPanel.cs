@@ -408,6 +408,10 @@ namespace Diablo2.UI
             BuildMiniPanel();           // 8  ImageMinipanel + 8 键
             BuildExpBar();              // 9  ExperienceBar + ExpBarOverlay（最后 = 最上层）
             BuildLevelEntryTitle();     // 10 ★ agent-a3 区域名（原版 LevelEntryTitle；建在最后 ⇒ 盖在 HUD 之上）
+
+            // 11 常驻品牌署名 `by clover-engine`（居底居中）。**最后建** ⇒ 画在 HUD 之上、不被压住。
+            //    y 用 `ByLineHudPos`：HUD 底栏内部无空带（球/技能格/腰带/经验条占满）⇒ 贴底栏上沿之上。
+            UiLayoutFlow.Brand.Attach(transform, UiLayoutFlow.Brand.ByLineHudPos.y);
         }
 
         /// <summary>

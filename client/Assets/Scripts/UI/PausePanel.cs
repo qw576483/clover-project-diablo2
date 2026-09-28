@@ -112,6 +112,10 @@ namespace Diablo2.UI
                 }, () => Log.Info("Ui", "暂停菜单：取消回主菜单")));
             UiLayoutFlow.BannerOnButton(screen, "ToMainArt", ResPaths.BannerPrevious,
                 148f, 54f, BannerInkHOrigPx, UiLayoutFlow.Pause.ToMainPos, BannerInkDyOrigPx);    // 前一選單
+
+            // 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   **最后建** ⇒ 画在本屏所有内容之上。
+            UiLayoutFlow.Brand.Attach(screen);
         }
     }
 }

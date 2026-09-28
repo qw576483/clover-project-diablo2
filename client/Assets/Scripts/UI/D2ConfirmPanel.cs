@@ -269,6 +269,10 @@ namespace Diablo2.UI
             _confirmButton = UiLayoutFlow.FlowButton.Create(screen, "Confirm", DefaultConfirm,
                 UiLayoutFlow.MediumButtonOrig, UiLayoutFlow.Confirm.ConfirmPos, () => Finish(true));
 
+            // 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   **最后建** ⇒ 画在窗框/按钮之上。
+            UiLayoutFlow.Brand.Attach(screen);
+
             UiLayoutFlow.LogTable(nameof(D2ConfirmPanel));
         }
     }

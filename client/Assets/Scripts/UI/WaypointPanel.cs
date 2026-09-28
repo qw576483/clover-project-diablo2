@@ -278,6 +278,10 @@ namespace Diablo2.UI
 
             UiLog.Info($"{nameof(WaypointPanel)} 已构建：窗框 {Layout.BoxSizeOrig.x:0.#}×{Layout.BoxSizeOrig.y:0.#} 原版px"
                 + $"（内容外接框派生）+ 原版中等按钮；行节奏 {Layout.RowStep:0.#}，最多 {MaxDests} 条目的地");
+
+            // 常驻品牌署名 `by clover-engine`（居底居中，几何/字号/颜色见 `UiLayoutFlow.Brand`）。
+            //   窗框下沿 −167 ⇒ 署名行 −462 落在窗框**下方**、不压窗框；**最后建** ⇒ 不被压住。
+            UiLayoutFlow.Brand.Attach(screen);
         }
 
         /// <summary>把打开参数写到界面上（列表为空 ⇒ 显示原版那句「尚未啟動其他傳送點」）。</summary>

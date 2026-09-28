@@ -1238,6 +1238,10 @@ namespace Diablo2.UI
             _okButton = UiLayoutFlow.FlowButton.Create(screen, "Confirm", Text.Ok, UiLayoutFlow.MediumButtonOrig,
                 UiLayoutFlow.ClassMenu.OkPos, OnConfirm);
             if (_okButton != null) _okButton.SetEnabled(false);   // 原版：进屏时「确定」置灰
+
+            // 常驻品牌署名 `by clover-engine`（居底居中）。本屏底部有原版按钮行（底边 −481.5）
+            //   ⇒ 用 `ByLineLowPos`（中心 −510）贴在按钮行下方；**最后建** ⇒ 画在本屏所有内容之上。
+            UiLayoutFlow.Brand.Attach(screen, UiLayoutFlow.Brand.ByLineLowPos.y);
         }
 
         /// <summary>
