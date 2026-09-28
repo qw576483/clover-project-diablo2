@@ -9,9 +9,8 @@
 //   ⇒ 约定：**App 在 `Events.StageEntered` 之后主动广播一次全量快照**（本文件），
 //     并在 `Events.PanelToggleRequest` 到达时**再补发一次对应快照**（HUD 打开面板时把缓存传进去）。
 //
-// 唯一没被这套机制覆盖的是 `MiniMapPanel`：HUD 对它传的是 `null`（`UI/HudPanel.cs` 里
-//   `Toggle<MiniMapPanel>(null)`），而面板是在 `OnOpen` 里才订阅 `MapGenerated`
-//   ⇒ 本次派发它收不到。本文件用「下一帧用 `AfterUnscaled` 再发一次」补齐，并已登记为**需返工**项。
+// `MiniMapPanel` 的输入由 HUD 负责：`UI/HudPanel.cs` 缓存 `MinimapArgs`，打开小地图时经
+//   `PanelToggleRequest` 触发本文件 case 里的当场补发（`EmitMapEcho` + `EmitExploredSnapshot`）。
 //
 // 只做搬运，不改任何模块状态（`Snapshot()` / `BuildTree()` / `BuildMinimap()` 都是只读快照）。
 //
@@ -61,8 +60,8 @@ namespace Diablo2.App
         /// 再播一次 `Events.MapExplored`。
         /// <para>
         /// 为什么必须有这一步：读档回灌（`App/AppProgress` → `Events.MapExploredRestore` → 渲染层位图）
-        /// 发生在**小地图面板存在之前** —— 面板是懒创建的（HUD 对它传 null，面板在 `OnOpen` 才订阅，
-        /// 见文件头 ），而 `Events.MapExplored` 是**增量**事件 ⇒ 面板收不到"读档带回来的那批格"，
+        /// 发生在**小地图面板存在之前** —— 面板由 HUD 缓存传参创建（见 `UI/HudPanel.cs`），
+        /// 而 `Events.MapExplored` 是**增量**事件 ⇒ 面板收不到"读档带回来的那批格"，
         /// 打开后只剩它自己的**半径 6 兜底**揭示（用户看到的就还是"地图没画出来"）。
         /// </para>
         /// <para>
@@ -86,11 +85,6 @@ namespace Diablo2.App
                 + $"小地图面板按 union 并入（读档带回来的记忆因此能画出来）");
         }
 
-        /// <summary>补发小地图快照的延迟（秒，走 `AfterUnscaled`）：0.05s = 下一帧，够面板走完 `OnOpen`。</summary>
-        private const float DeferredDelay = 0.05f;
-
-        private static long _deferredMapTimer;
-
         /// <summary>订阅「面板开关」事件（`Stage 进/出` 由 `AppWiring` 负责）。</summary>
         public static void Install(AppContext ctx)
         {
@@ -104,20 +98,11 @@ namespace Diablo2.App
 
         /// <summary>
         /// 新一局 Play 的静态复位（见 `Bootstrap` 的 `[RuntimeInitializeOnLoadMethod]`／skill P-3）：
-        /// 域不重载时待补发的定时器 id 与"回声进行中"标志会跨局残留。
+        /// 域不重载时"回声进行中"标志会跨局残留。
         /// </summary>
         internal static void ResetStaticForNewPlaySession()
         {
-            _deferredMapTimer = 0;
             EchoInFlight = false;
-        }
-
-        /// <summary>离场复位（停掉待补发的定时器）。</summary>
-        public static void Reset()
-        {
-            if (_deferredMapTimer == 0) return;
-            Game.Timer?.Stop(_deferredMapTimer);
-            _deferredMapTimer = 0;
         }
 
         /// <summary>广播进图全量快照（由 `AppWiring` 在 HUD 打开**之后**调用）。</summary>
@@ -188,21 +173,18 @@ namespace Diablo2.App
                     break;
 
                 case nameof(MiniMapPanel):
-                    // HUD 对小地图传的是 null ⇒ 刚创建的那个收不到本次派发（见文件头 ）
+                    // HUD 已缓存 `MinimapArgs` 并传给面板；此处再补发一次 = **面板打开时刷新快照（新鲜度）**。
+                    //   图心 / 揭示中心 = "玩家当前格" 由**源头**负责：`Module/Map/MapModule.BuildMinimap`
+                    //   的 `playerX/Y` 填 `_lastPlayerGrid`（契约见 `Module/Contracts.cs` 的「玩家所在格」），
+                    //   别在这里再修一次"中心/揭示"（那是重复修同一件事，源头已经承担）。
                     if (ctx.Map == null) { AppWiring.Missing("IMapModule"); break; }
                     if (!ctx.Map.IsGenerated)
                     {
                         Game.Logger.Warn(Tag, "小地图被请求打开，但地图未生成 ⇒ 面板会显示空白");
                         break;
                     }
-                    // 此时机的作用 = **面板打开时刷新一次快照（新鲜度）** —— 不是用来修正"图心"。
-                    //   图心 / 揭示中心 = "玩家当前格" 由**源头**负责：`Module/Map/MapModule.BuildMinimap`
-                    //   的 `playerX/Y` 填 `_lastPlayerGrid`（契约见 `Module/Contracts.cs` 的「玩家所在格」；
-                    //     也别在这里再修一次"中心/揭示"（那是重复修同一件事，源头已经承担）。
-                    //   下一帧的补发（`EmitDeferredMapSnapshot`）同理：补的是"刚创建的面板还没订完"。
                     EmitMapEcho(ctx.Map.BuildMinimap());
                     EmitExploredSnapshot("面板打开：MiniMapPanel");
-                    ScheduleDeferredMapSnapshot();
                     break;
 
                 case nameof(HudPanel):
@@ -216,28 +198,6 @@ namespace Diablo2.App
                     Game.Logger.Warn(Tag, $"`{Events.PanelToggleRequest}` 收到未知面板名「{panelName}」⇒ 未补发任何快照");
                     break;
             }
-        }
-
-        private static void ScheduleDeferredMapSnapshot()
-        {
-            if (Game.Timer == null)
-            {
-                Game.Logger.Warn(Tag, "Game.Timer 为 null（引擎未启动）⇒ 无法补发小地图快照（面板会空白）");
-                return;
-            }
-            if (_deferredMapTimer != 0) Game.Timer.Stop(_deferredMapTimer);
-            _deferredMapTimer = Game.Timer.AfterUnscaled(DeferredDelay, EmitDeferredMapSnapshot);
-        }
-
-        private static void EmitDeferredMapSnapshot()
-        {
-            _deferredMapTimer = 0;
-            var ctx = AppWiring.Ctx;
-            if (ctx?.Map == null || !ctx.Map.IsGenerated) return;
-            EmitMapEcho(ctx.Map.BuildMinimap());
-            Game.Logger.Info(Tag, $"小地图快照补发（下一帧）：刚打开的面板已订完 {Events.MapGenerated}，能收到");
-            //   顺序不能反：`ApplyMap` 会按新图重建 `_explored` 位图，先并格会被这次重建冲掉。
-            EmitExploredSnapshot("小地图面板下一帧补发");
         }
     }
 }

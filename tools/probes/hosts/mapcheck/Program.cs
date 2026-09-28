@@ -1367,13 +1367,14 @@ internal static class MapCheckProgram
         var chunkSize = MapView.ChunkSize;                        // public const 16（MapView.cs:57）
         var chunkCells = chunkSize * chunkSize;                   // 256
         const int nodesPerCellWithFog = 3;                        // 地面:488 + 物件:512 + 迷雾:527
-        const int nodesPerCellNoFog = 2;                          // 出货配置：迷雾从未开启（见 ③）
+        const int nodesPerCellNoFog = 2;                          // 不含迷雾的对照口径
         var capWithFog = chunkCells * nodesPerCellWithFog;         // 768
         var capNoFog = chunkCells * nodesPerCellNoFog;             // 512
         Console.WriteLine($"  每块 = {chunkSize}×{chunkSize} = {chunkCells} 格；块根节点 = 3 个" +
                           $"（MapView.cs:450-452）");
-        Console.WriteLine($"  ⇒ 每块节点上限 = {chunkCells}×3 + 3 = {capWithFog + 3}（含迷雾）/ " +
-                          $"{chunkCells}×2 + 3 = {capNoFog + 3}（出货配置，不含迷雾）");
+        Console.WriteLine($"  ⇒ 出货配置 = `MapView.ShowArea` 置 `_fogOn = true`（迷雾默认开）⇒ " +
+                          $"每块节点上限 = {chunkCells}×3 + 3 = {capWithFog + 3}（含迷雾；" +
+                          $"{chunkCells}×2 + 3 = {capNoFog + 3} 为不含迷雾的对照值）");
         Check(chunkCells == 256 && capWithFog == 768,
             $"单块节点**上限** = ChunkSize({chunkSize})² × {nodesPerCellWithFog} 层 = {capWithFog}" +
             $"（层数出处 = BuildCell 的三处 NewTile：地面 :488 / 物件 :512 / 迷雾 :527）");
@@ -1386,16 +1387,16 @@ internal static class MapCheckProgram
         Check(throttleField != null && throttle > 0f,
             $"节流常量可读且为正：ChunkRefreshInterval = {throttle} s（`Update:1094-1095` 用它限频）");
 
-        // ── ③ 出货配置下迷雾**从未开启** ⇒ 每格 2 个节点（不是 3）────────────────────
+        // ── ③ 迷雾**默认开**（`MapView.ShowArea` 置 `_fogOn = true`）⇒ 每格 3 个节点 ──────
         //   判据 = 全 `client/Assets/Scripts/**/*.cs` 里 `SetFogOfWar(` 的**调用点**数。
-        //   预期恰 1 个 = `MapModule.SetFogOfWar`（MapModule.cs:315）对 `MapView` 的**转发**，
-        //   App / UI / Flow 侧 0 命中 ⇒ `_fogOn` 恒 false ⇒ `BuildCell:517-518` 的 `CreateFog`
-        //   永不执行 ⇒ overlay 层只有空的块根节点。
+        //   预期恰 1 个 = `MapModule.SetFogOfWar`（MapModule.cs:315）对 `MapView` 的**转发**
+        //   （运行时开关；App / UI / Flow 侧 0 命中）—— 默认开启不经它，由 `ShowArea` 直接置 `_fogOn`。
+        //   ⇒ `BuildCell` 的 `CreateFog` 对每格执行 ⇒ overlay 层含迷雾节点（每格 3 个，不是 2）。
         var fogCallSites = CountFogOfWarCallSites();
         Check(fogCallSites == 1,
             $"`SetFogOfWar(` 在 `client/Assets/Scripts/**` 里只有 **1 个调用点**（= `MapModule.cs:315` " +
-            $"对 `MapView` 的转发；App/UI/Flow 侧 0 命中）⇒ 出货配置 `_fogOn` 恒 false ⇒ 每格 2 个节点" +
-            $"（实测调用点 {fogCallSites} 个；若 >1 说明有人真的开了迷雾，本步的 2 层上限要改回 3 层）");
+            $"对 `MapView` 的转发；App/UI/Flow 侧 0 命中）⇒ 迷雾默认开由 `MapView.ShowArea` 置 " +
+            $"`_fogOn = true` 承担 ⇒ 每格 3 个节点（实测调用点 {fogCallSites} 个）");
 
         // ── ④ 真实地图的「每块节点数」（照抄 BuildCell 的判定口径，逐块统计）──────────
         var wild = NewMap();
@@ -1447,10 +1448,11 @@ internal static class MapCheckProgram
         }
         Console.WriteLine($"  逐块实测（血腥荒野 25 块）：地面 {chunkCells} 格/块满铺（Void {voidCells} 格、" +
                           $"CaveWall {caveWallCells} 格）；每块 **{minPerChunk}~{maxPerChunk}** 个节点" +
-                          $"（均 {sumPerChunk / (double)countChunks:F1}），上限 {capNoFog + 3}");
+                          $"（均 {sumPerChunk / (double)countChunks:F1}），上限 {capWithFog + 3}");
         Check(caveWallCells == 0, $"野外没有 CaveWall 格（实测 {caveWallCells}）⇒ 物件层不适用 IsHiddenSolidInterior");
-        Check(maxPerChunk <= capNoFog + 3,
-            $"每块节点数**恒 ≤ 上限** {capNoFog + 3}（= {chunkCells}×2 + 3；实测最大 {maxPerChunk}）");
+        Check(maxPerChunk <= capWithFog + 3,
+            $"每块节点数**恒 ≤ 上限** {capWithFog + 3}（= {chunkCells}×3 + 3，含迷雾层；" +
+            $"本离线统计只数地面+物件+块根，实测最大 {maxPerChunk}）");
 
         // ── ⑤ 可见块范围（离线模拟 `ComputeVisibleChunkRange:410-444` 的口径）+ 单帧新增块数 ──
         //   两份输入都**从生产文件现读**（不抄字面量）：
@@ -1533,13 +1535,13 @@ internal static class MapCheckProgram
 
         // ── ⑥ 单帧新增节点数 + 尖峰频率（跨块周期 = ChunkSize / 跑速）────────────────
         var worstChunks = Math.Max(maxNewInOneRefreshX, maxNewInOneRefreshDiag);
-        var worstNodesCap = worstChunks * (capNoFog + 3);
+        var worstNodesCap = worstChunks * (capWithFog + 3);
         var worstNodesReal = worstChunks * maxPerChunk;
         var crossPeriod = chunkSize / GameConst.PlayerWalkSpeed;
-        Console.WriteLine($"  ⇒ 穿越尖峰单帧新增节点数：**上限 {worstNodesCap}**（{worstChunks} 块 × {capNoFog + 3}），" +
+        Console.WriteLine($"  ⇒ 穿越尖峰单帧新增节点数：**上限 {worstNodesCap}**（{worstChunks} 块 × {capWithFog + 3}），" +
                           $"血腥荒野实测规模 {worstNodesReal}（{worstChunks} 块 × {maxPerChunk}）");
         Console.WriteLine($"  ⇒ 对照 · R1-D 的整图重铺（`RebuildLayers`）单帧建的是**整个可见范围** " +
-                          $"= {maxRangeChunks} 块 ⇒ 上限 {maxRangeChunks * (capNoFog + 3)}，" +
+                          $"= {maxRangeChunks} 块 ⇒ 上限 {maxRangeChunks * (capWithFog + 3)}，" +
                           $"实测规模 {maxRangeChunks * maxPerChunk}（**比穿越尖峰大 {maxRangeChunks / (double)worstChunks:F1} 倍**）");
         Console.WriteLine($"  ⇒ 尖峰频率：跨块周期 = ChunkSize/跑速 = {chunkSize}/{GameConst.PlayerWalkSpeed}" +
                           $" = **{crossPeriod:F3} s** ⇒ {1f / crossPeriod:F4} 次/s（且只在大图模式；" +

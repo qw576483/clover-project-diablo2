@@ -319,8 +319,8 @@ namespace Diablo2.Core
 
         /// <summary>
         /// 玩家复活完成（无参）。
-        /// 发送方：`App/AppEventRouting.cs`（在 `Events.ReviveRequest` 被 `CombatModule` 处理完、
-        /// 且玩家已 `IsDead == false` 时广播）—— 因为 `CombatModule` / `PlayerModule` 都不发本事件。
+        /// 发送方：`Module/Combat/CombatModule.RevivePlayer`（`player.Revive()` 成功后广播；
+        /// 订阅方：`DeathPanel`（关死亡屏）/ `AudioHook`（复活音））。
         /// </summary>
         public const string Revived = "D2.Player.Revived";
 

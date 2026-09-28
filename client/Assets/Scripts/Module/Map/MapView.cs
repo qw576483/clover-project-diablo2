@@ -432,6 +432,10 @@ namespace Diablo2.Module.Map
                             "（相机此刻仍在旧区；建满交换后才发 Events.MapAreaReady）");
             }
 
+            // 战争迷雾默认开（原版野外有未探索暗区；走过按半径 6 揭开，见 `MarkExplored`；
+            //   读档的已探索集合经 `Events.MapExploredRestore` 回灌恢复）。`SetFogOfWar` 保留为运行时开关。
+            _fogOn = true;
+
             RebuildLayers();
             MapLog.Info($"MapView.ShowArea: area={area}({MapLog.AreaLabel(area)}) size={_map.Width}x{_map.Height} " +
                         $"分块={(_chunked ? "是" : "否")} 迷雾={(_fogOn ? "开" : "关")} 块数={BuiltChunkCount}");

@@ -574,6 +574,9 @@ namespace Diablo2.Module.Combat
 
             CombatLog.Info($"[死亡链] 玩家复活：位置 {before} → {player.Grid}，生命 {player.Life}/{player.MaxLife} " +
                            $"（死亡屏由 UI 关闭）");
+
+            // 复活完成：由本模块广播 `Revived`（`DeathPanel` 收到才关死亡屏，`AudioHook` 据此播复活音）。
+            Game.Event.Emit(Events.Revived);
         }
 
         // ═════════════════════════════════════════════════════════════════════

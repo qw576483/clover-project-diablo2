@@ -433,6 +433,9 @@ namespace UnityEngine
         /// <summary>`UI/UiArt.cs` 等的动画用。</summary>
         public static float unscaledTime => _unscaled;
 
+        /// <summary>`UiImageLoader` 的 Pending 超时重试判定用（单调秒，语义同 unscaled）。</summary>
+        public static float time => _unscaled;
+
         /// <summary>`Core/Log.cs` 的降频闸门用（本宿主另外会注入 `Log.Clock`）。</summary>
         public static float realtimeSinceStartup => _unscaled;
 

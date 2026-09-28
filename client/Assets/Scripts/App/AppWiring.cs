@@ -172,7 +172,6 @@ namespace Diablo2.App
         private static void OnStageLeft()
         {
             _stageActive = false;
-            AppSnapshots.Reset();
             AppDoorGuard.Reset();
             Game.UI?.Close<HudPanel>();
             Game.Logger.Info(Tag, $"[Stage] 已随 {Events.StageLeft} 关闭 HUD");

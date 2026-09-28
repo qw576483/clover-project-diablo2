@@ -32,9 +32,6 @@ namespace Diablo2.App
         /// <summary>最近一次已转发的技能 id（同一技能重复点击不再转发）。</summary>
         private static int _lastSelectedSkill = int.MinValue;
 
-        /// <summary>是否观察到过玩家死亡（用于判「复活」而不是「误解一次 ReviveRequest」）。</summary>
-        private static bool _deadObserved;
-
         public static void Install(AppContext ctx)
         {
             var bus = Game.Event;
@@ -49,11 +46,6 @@ namespace Diablo2.App
             bus.On<int>(Events.UnequipRequest, OnUnequipRequest);
             bus.On<int>(Events.ShopOpenRequest, OnShopOpenRequest);
             bus.On<int>(Events.MoveInInventoryRequest, OnMoveInInventoryRequest);
-
-            // `Revived` 的发送方：本类在「ReviveRequest 处理完之后」发（本类订阅晚于 CombatModule，
-            // 见 Install 的调用时序），并且**只有真的观测到死亡时才发**。
-            bus.On(Events.PlayerDied, OnPlayerDied);
-            bus.On(Events.ReviveRequest, OnReviveRequest);
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -91,7 +83,7 @@ namespace Diablo2.App
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 装备 / 背包 / 商店 / 复活
+        // 装备 / 背包 / 商店
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -153,64 +145,6 @@ namespace Diablo2.App
 
             Game.Logger.Warn(Tag, $"{Events.MoveInInventoryRequest}({fromAnchor} → {toAnchor}) 被拒绝：{reason}");
             if (!string.IsNullOrEmpty(reason)) Game.UI.Toast(reason);
-        }
-
-        private static void OnPlayerDied()
-        {
-            _deadObserved = true;
-        }
-
-        /// <summary>
-        /// `ReviveRequest` 由死亡面板发出、`CombatModule` 处理（`ICombatModule.RevivePlayer`）。
-        /// 若玩家确实不再 `IsDead`，就广播 `Events.Revived`（**`CombatModule` / `PlayerModule`
-        /// 都不发这个事件**，已登记为需返工项；本层是临时发送方）。
-        /// <para>
-        /// 本层 handler 在 `01:56:17.290` 跑、Combat 的复活在 `01:56:17.293` ⇒ 判 `IsDead` 时它**还是 true**
-        /// （用户看到"复活未完成，请重试"，点「繼續」后屏不自动关）。
-        /// </para>
-        /// <para>
-        /// 必须用 `AfterUnscaled`：死亡屏时 `Time.timeScale == 0`，`After` 永不触发（`constraints.md` #2）。
-        /// </para>
-        /// </summary>
-        private static void OnReviveRequest()
-        {
-            var ctx = AppWiring.Ctx;
-            if (ctx?.Player == null) { AppWiring.Missing("IPlayerModule"); return; }
-
-            if (!_deadObserved)
-            {
-                Game.Logger.Info(Tag, $"{Events.ReviveRequest}：本局未观测到死亡（按钮本应置灰）⇒ 不广播 {Events.Revived}");
-                return;
-            }
-
-            if (Game.Timer == null)
-            {
-                // 非预期分支：定时器拿不到 ⇒ 只能当场判（退化为旧行为），但要留痕
-                Game.Logger.Warn(Tag, $"Game.Timer 为 null ⇒ {Events.Revived} 的下一帧复查无法安排，当场判定");
-                CheckRevivedNow("当场");
-                return;
-            }
-
-            Game.Timer.AfterUnscaled(0f, () => CheckRevivedNow("下一帧复查"));
-        }
-
-        /// <summary>`ReviveRequest` 之后的实际判定（当场 / 下一帧共用，口径一致）。</summary>
-        private static void CheckRevivedNow(string how)
-        {
-            var ctx = AppWiring.Ctx;
-            if (ctx?.Player == null) { AppWiring.Missing("IPlayerModule"); return; }
-
-            if (ctx.Player.IsDead)
-            {
-                Game.Logger.Warn(Tag,
-                    $"{Events.ReviveRequest} 处理完毕（{how}）但玩家仍 IsDead ⇒ 复活未成功，" +
-                    $"不广播 {Events.Revived}（见 [Combat] 死亡链日志）");
-                return;
-            }
-
-            _deadObserved = false;
-            Game.Event.Emit(Events.Revived);
-            Game.Logger.Info(Tag, $"[Assert] 玩家已复活（IsDead=false，{how}）⇒ 广播 {Events.Revived}");
         }
     }
 }

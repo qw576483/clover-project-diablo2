@@ -8,7 +8,7 @@
 //   拾取     ← `Events.ItemPicked`（金币 / 普通物品两键）
 //   使用物品 ← `Events.ItemUsed`
 //   升级     ← `Events.LevelUp`
-//   复活     ← `Events.Revived`（**复活完成**；发送方 = `App/AppEventRouting.cs`，它保证只在真的复活后广播。
+//   复活     ← `Events.Revived`（**复活完成**；发送方 = `Module/Combat/CombatModule.RevivePlayer`，只在真的复活后广播。
 //              刻意**不**用 `Events.ReviveRequest` —— 那是"点击请求"，播放会早于真实复活）
 //   UI 点击  ← `Events.UiClick`（按钮点击）/ `Events.PanelToggleRequest` / `Events.DialogOptionChosen`
 //              / `Events.ShopBuyRequest` / `ShopSellRequest`
