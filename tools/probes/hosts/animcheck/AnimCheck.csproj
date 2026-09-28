@@ -71,6 +71,9 @@
          否则 CS0246。口径与上面两条 sunk-* 一致：每个宿主最多一行。 -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SortingLayers.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- `Module/View/PlayerLightMask.cs` 把渲染转发给引擎 `CloverEngine.WorldLightMask` ⇒ 本宿主
+         必须一并链入该引擎文件，否则 CS0246。每个宿主最多一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldLightMask.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />

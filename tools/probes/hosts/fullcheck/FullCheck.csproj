@@ -77,6 +77,9 @@
          否则 CS0246。口径与上面两条 sunk-* 一致：每个宿主最多一行。 -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SortingLayers.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- `Module/View/PlayerLightMask.cs` 把渲染转发给引擎 `CloverEngine.WorldLightMask` ⇒ 本宿主
+         必须一并链入该引擎文件，否则 CS0246。每个宿主最多一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldLightMask.cs" />
     <!-- ★ agent-33 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
          寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
