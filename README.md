@@ -54,8 +54,7 @@
 | `client/` | Unity 工程（复刻本体；`Library/` `Temp/` `Logs/` 等生成物不入库） |
 | `策划/` | 复刻规格（`策划案/暗黑破坏神2参考规格.md`）、验收表、原版数值文档（item / monster / skill / class / level 等 11 类，含 `xlsx` + `txt`）、自审对比 |
 | `tools/` | 判据与工具：探针宿主（`probes/hosts/`）、面板测量与切图脚本（`probes/measure/`）、打表配置、地图数据、项目级 skill（`ai-skill/`） |
-| `docs/` | 配表说明、步骤文档（总纲）、实机图（`images/`） |
-| `引擎问题.md` | 引擎缺口 / 引擎 bug / skill 问题登记 |
+| `docs/` | 项目总纲（`步骤文档.md`）、配表说明、实机图（`images/`） |
 
 ## 声明
 

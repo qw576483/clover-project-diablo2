@@ -41,7 +41,7 @@
 ⛔ **该判据不能全局套用**：它在「画面自身的暗色抖色填充」`MENU/buttontempok.DC6`#176、
 「整屏暗底图」`MENU/EndGame.dc6`#33、「100% 单色占位帧」`SPELLS/BaSkillicon.DC6`#132、
 「字形本身」`LOCAL/FONT/chi/font*.DC6` 帧 317（U+2588 全块）上也成立，那四类键掉会
-打洞 / 挖空底图 / 抹掉字形 ⇒ 一律保持索引 0 口径（实测见 `引擎问题.md` 的 skill 问题表）。
+打洞 / 挖空底图 / 抹掉字形 ⇒ 一律保持索引 0 口径。
 
 **逐帧口径**：除 `chifont` 外，每个源 DC6 的每一帧解出**一个 PNG**，文件名 = `{输出 stem}_{DC6 帧号}.png`，
 帧号从 0 起 —— 与 `python tools/d2codec/dc6.py png <源> <pl2> <临时目录> <stem>` 的产出**逐字节同名同内容**，
