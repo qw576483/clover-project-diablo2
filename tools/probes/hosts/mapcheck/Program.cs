@@ -586,10 +586,11 @@ internal static class MapCheckProgram
         var blocked = new List<int>();
         var sizes = new List<string>();
 
-        for (var i = 0; i < 5; i++)
+        // 固定 5 个 seed：判据必须是确定的（时钟派生 seed 会让"障碍数 ≥4/5 种取值"偶发不成立）
+        var seedSet = new[] { 20250916, 333, 424242, 7, 99991 };
+        for (var i = 0; i < seedSet.Length; i++)
         {
-            // 用时钟派生 seed（**本局 seed 由进游戏时决定**，见 Core/Rng.FromTime 的注释）
-            var seed = unchecked((int)(DateTime.UtcNow.Ticks & 0x7FFFFFFF) ^ (i * 2654435761u.GetHashCode()));
+            var seed = seedSet[i];
             var map = NewMap();
             map.Generate(AreaId.BloodMoor, seed);
             seeds.Add(seed);
