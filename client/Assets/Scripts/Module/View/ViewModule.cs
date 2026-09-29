@@ -73,9 +73,6 @@ using Diablo2.Core;
 using Diablo2.Def;
 //   区域光照口径（纯函数 + 官方表出处）在 Map 侧，见 `Module/Map/AreaLighting.cs` 文件头。
 using Diablo2.Module.Map;
-//   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
-//   用别名把裸 `Dir8` 钉死为**项目枚举**。
-using Dir8 = Diablo2.Def.Dir8;
 using UnityEngine;
 using AppContext = Diablo2.App.AppContext;
 

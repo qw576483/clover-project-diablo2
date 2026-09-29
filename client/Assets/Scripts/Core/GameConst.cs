@@ -118,9 +118,6 @@ namespace Diablo2.Core
         /// <summary>与 NPC 对话/交易的触发距离。</summary>
         public const float TalkRange = 2.4f;
 
-        /// <summary>踩到出入口 / 传送门触发距离。</summary>
-        public const float PortalRange = 1.2f;
-
         /// <summary>怪物发现玩家（进入仇恨）的距离。</summary>
         public const float MonsterAggroRange = 8f;
 
@@ -230,8 +227,30 @@ namespace Diablo2.Core
         /// <summary>设置项在 `Game.Setting` 里的键：全屏。</summary>
         public const string SettingKeyFullscreen = "video/fullscreen";
 
+        /// <summary>
+        /// 设置项在 `Game.Setting` 里的键：画质档位（int，取值 <c>0..<see cref="MaxQualityLevel"/></c>）。
+        /// <para>**设置键的唯一真源**：启动应用（`App/Bootstrap.ApplyStoredQuality`）与选项面板
+        /// （`UI/SettingsPanel`）都读这一份，⛔ 不许再就地定义字面量。</para>
+        /// </summary>
+        public const string SettingKeyQuality = "video/quality";
+
+        /// <summary>
+        /// 画质档位上限（`LOW/MED/HIGH` ⇒ <c>0..2</c>）。
+        /// <para>与引擎 `QualitySettings` 资产的实际档数取小（`Mathf.Min(names.Length - 1, 本值)`）：
+        /// 引擎档数少时钳到引擎上界，多时只用前三档。</para>
+        /// </summary>
+        public const int MaxQualityLevel = 2;
+
         /// <summary>自动存档间隔（秒）。</summary>
         public const float AutoSaveIntervalSeconds = 120f;
+
+        // ── 技能点 ───────────────────────────────────────────────────────────
+        /// <summary>
+        /// **本项目新增**：角色持有的技能点默认值 —— 创建角色时发放 / 旧档补齐时用同一个值。
+        /// <para>原版的技能点按等级发放（每级 +1，见 `Module/Player/PlayerModule.SkillPointsPerLevel`）；
+        /// 本项目改为开局即给 <b>99</b> 点，让 1 级角色就能把技能树点起来。</para>
+        /// </summary>
+        public const int DefaultSkillPoints = 99;
 
         // ── 商店 ─────────────────────────────────────────────────────────────
         /// <summary>

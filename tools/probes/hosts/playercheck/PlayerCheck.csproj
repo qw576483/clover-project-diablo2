@@ -49,6 +49,9 @@
                已写进回报的「未决」提醒主 agent）。 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <!-- Core/StageTimer.cs uses Game.Timer: the ITimer TYPE comes from this host's shim (a subset,
+         same shape as fullcheck's), NOT from linking engine Timer.cs (two ITimer in one assembly
+         would be CS0101). -->
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
     <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
     <!-- `Module/View/PlayerLightMask.cs` 把渲染转发给引擎 `CloverEngine.WorldLightMask` ⇒ 本宿主

@@ -73,6 +73,13 @@ namespace Diablo2.Module.Npc
         /// </summary>
         private int _pendingNpcId = (int)NpcId.None;
 
+        /// <summary>
+        /// 商店面板是否开着（由本模块发过 `ShopOpen` 且尚未收到 `ShopClose`）。
+        /// <para>用途 = 玩家走出对话范围时连同商店一起关掉（见 <see cref="CheckDialogRange"/>）。
+        /// 商店面板自己关（点关闭 / 引擎销毁后补发）时会发 `ShopClose`。</para>
+        /// </summary>
+        private bool _shopOpen;
+
         public NpcModule()
         {
             var bus = Game.Event;
@@ -249,6 +256,7 @@ namespace Diablo2.Module.Npc
                     return;
                 }
                 Log.Info("Npc", $"对话选项：{args.npcName} → 打开商店（{shop.stock.Count} 件商品）");
+                _shopOpen = true;
                 Game.Event?.Emit(Events.ShopOpen, shop);
                 return;
             }
@@ -461,11 +469,14 @@ namespace Diablo2.Module.Npc
             Log.Info("Npc", $"读档：NPC 模块就绪（所在区域 areaId={save.areaId}）");
         }
 
-        /// <summary>每帧推进（NPC 待机动画由 View 负责；这里只做"重建站位"与"走到就说话"）。</summary>
+        /// <summary>
+        /// 每帧推进（NPC 待机动画由 View 负责；这里只做"重建站位"、"走到就说话"与"走远就关面板"）。
+        /// </summary>
         public void Tick(float dt)
         {
             EnsureBuilt();
             TryAutoInteract();
+            CheckDialogRange();
         }
 
         /// <summary>
@@ -510,6 +521,32 @@ namespace Diablo2.Module.Npc
             Interact(id);
         }
 
+        /// <summary>
+        /// 玩家走出对话范围就自动关闭对话（连着商店一起关）。
+        /// <para>不变式：`_currentNpcId != None` 的区间 ⊂「玩家在 <see cref="InTalkRange"/> 内」——
+        /// 面板不会留在原地。距离判据复用 <see cref="InTalkRange"/>（与"走到就说话"同一阈值
+        /// `GameConst.TalkRange`），不新造常量。</para>
+        /// </summary>
+        private void CheckDialogRange()
+        {
+            if (_currentNpcId == (int)NpcId.None) return;
+
+            var def = Get(_currentNpcId);
+            if (def != null && InTalkRange(def)) return;
+
+            var who = def != null ? def.name : "#" + _currentNpcId;
+            Log.Info("Npc", $"玩家已走出「{who}」的对话范围（{GameConst.TalkRange:0.00} 格）"
+                + $"⇒ 自动关闭对话{(_shopOpen ? "与商店" : string.Empty)}");
+            _currentNpcId = (int)NpcId.None;
+
+            if (_shopOpen)
+            {
+                _shopOpen = false;
+                Game.Event?.Emit(Events.ShopClose);
+            }
+            Game.Event?.Emit(Events.DialogClose);
+        }
+
         /// <summary>玩家是否已经在某个 NPC 的对话范围内（`GameConst.TalkRange`）。</summary>
         private static bool InTalkRange(NpcDef def)
         {
@@ -531,6 +568,7 @@ namespace Diablo2.Module.Npc
             _builtArea = -1;
             _currentNpcId = (int)NpcId.None;
             _pendingNpcId = (int)NpcId.None;
+            _shopOpen = false;
             _shop.Build(null, 0, 1, null, 0);
             Log.Info("Npc", "NPC 模块已复位（定义清空、商店下架）");
         }
@@ -828,6 +866,7 @@ namespace Diablo2.Module.Npc
 
         private void OnShopClose()
         {
+            _shopOpen = false;
             Log.Info("Npc", "商店已关闭");
         }
 

@@ -864,6 +864,15 @@ namespace Uicheck
                 && NearV(SkillTreePanel.IconCellSize, UiLayoutGame.SkillIconCell),
                 SkillTreePanel.IconCellSize.ToString());
 
+            Check("技能树置灰判据：未学（等级 0）⇒ 灰化帧 + `UiArt.ArtDim`；已学 ⇒ 常态帧 + `UiArt.ArtFullBright`"
+                + "（两个 tint 必须不相等）",
+                SkillTreePanel.NodeDullFrameOf(0) && !SkillTreePanel.NodeDullFrameOf(1)
+                && SkillTreePanel.NodeTintOf(0) == UiArt.ArtDim
+                && SkillTreePanel.NodeTintOf(1) == UiArt.ArtFullBright
+                && SkillTreePanel.NodeTintOf(0) != SkillTreePanel.NodeTintOf(1),
+                $"未学 dull={SkillTreePanel.NodeDullFrameOf(0)} tint={SkillTreePanel.NodeTintOf(0)}"
+                + $" / 已学 dull={SkillTreePanel.NodeDullFrameOf(1)} tint={SkillTreePanel.NodeTintOf(1)}");
+
             Check("版面表：150 条（5 职业 × 3 系 × 每系 10）",
                 SkillTreeLayout.Cells.Length == 150, $"Cells={SkillTreeLayout.Cells.Length}");
 

@@ -33,6 +33,9 @@ namespace Diablo2.Module.Map
         private Transform _rootOverride;
         private bool _exploreSubscribed;
 
+        /// <summary>容器格快照的复用缓冲（发 `Events.ContainersChanged` 用，不每次分配）。</summary>
+        private readonly List<Vector2Int> _containerCells = new List<Vector2Int>();
+
         /// <summary>
         /// <para>**唯一权威仍是 `MapView._explored`**：本表只是"上次被问到时从渲染层抄下来的一份快照"，
         /// 任何可能改变已探索集合的操作（新格 / 换区 / 清场）都把它置脏
@@ -569,6 +572,19 @@ namespace Diablo2.Module.Map
             }
             Game.Event.Emit(Events.MapGenerated, BuildMinimap());
             Game.Event.Emit(Events.AreaChanged, _grid.Area);
+            EmitContainersChanged();
+        }
+
+        /// <summary>
+        /// 把当前**可破坏容器**的格坐标快照广播给输入层（`Events.ContainersChanged`，见事件常量注释）。
+        /// 发送时机：地图生成完成 / 每次破坏之后 / 退场清场。
+        /// </summary>
+        private void EmitContainersChanged()
+        {
+            if (Game.Event == null) return;
+            _containerCells.Clear();
+            ContainerBreak.CountContainers(_grid, _containerCells);
+            Game.Event.Emit<IReadOnlyCollection<Vector2Int>>(Events.ContainersChanged, _containerCells);
         }
 
         private void SubscribeExplore()
@@ -581,6 +597,8 @@ namespace Diablo2.Module.Map
             }
             Game.Event.On<Vector2Int>(Events.PlayerGridChanged, OnPlayerGridChanged);
             Game.Event.On<IReadOnlyCollection<Vector2Int>>(Events.MapExploredRestore, OnExploredRestore);
+            Game.Event.On<int>(Events.WorldClickRequest, OnWorldClick);
+            Game.Event.On<Def.ContainerArgs>(Events.ContainerBroken, OnContainerBroken);
             _exploreSubscribed = true;
         }
 
@@ -591,6 +609,8 @@ namespace Diablo2.Module.Map
             {
                 Game.Event.Off<Vector2Int>(Events.PlayerGridChanged, OnPlayerGridChanged);
                 Game.Event.Off<IReadOnlyCollection<Vector2Int>>(Events.MapExploredRestore, OnExploredRestore);
+                Game.Event.Off<int>(Events.WorldClickRequest, OnWorldClick);
+                Game.Event.Off<Def.ContainerArgs>(Events.ContainerBroken, OnContainerBroken);
             }
             _exploreSubscribed = false;
         }
@@ -638,6 +658,62 @@ namespace Diablo2.Module.Map
 
             if (Game.Event == null) return;   // 离线宿主：只记状态，不发事件（同 OnFirstExplored 口径）
             Game.Event.Emit<IReadOnlyCollection<Vector2Int>>(Events.MapExplored, fresh);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 可破坏容器（收 `Events.WorldClickRequest` / `Events.ContainerBroken`；判定/落地在 `ContainerBreak`）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 收 `Events.WorldClickRequest`（打包格 `x | (y &lt;&lt; 16)`）：点中的格若放着可破坏容器 ⇒ 转出去。
+        /// <para>本模块只答"这一格上有没有容器"（只有地图的 deco 登记表知道）；**走过去**这件事交给
+        /// `Module/Player`（只有它知道玩家在哪、怎么绕）⇒ 发 `Events.ContainerOperate`。不是容器 ⇒ 不插手。</para>
+        /// </summary>
+        private void OnWorldClick(int packed)
+        {
+            if (!_grid.Generated) return;
+
+            var cell = new Vector2Int(packed & 0xFFFF, (packed >> 16) & 0xFFFF);
+            if (!ContainerBreak.IsContainerAt(_grid, cell)) return;
+
+            if (Game.Event == null) return;      // 离线宿主：只做判定，不发事件
+            Game.Event.Emit(Events.ContainerOperate, packed);
+            MapLog.Info($"[容器] 点中 ({cell.x},{cell.y}) 的可破坏容器 ⇒ 转 {Events.ContainerOperate}" +
+                        "（由 Player 模块走到相邻格后发 ContainerBroken）");
+        }
+
+        /// <summary>
+        /// 收 `Events.ContainerBroken`（载荷 = `Def.ContainerArgs`：格 + 操作者等级）：容器真的被贴脸打碎了。
+        /// <para>本模块做两件事：清 deco 登记表 + 让画布重铺（`MapView.ClearDecoAt`）。
+        /// **掉落不在这里** —— `Module/Item` 收同一条事件后按 `Def.ContainerTc` 挑官方档位掉，
+        /// 两个收方共用一份载荷 ⇒ 画面与掉落不可能各说各话。</para>
+        /// </summary>
+        private void OnContainerBroken(Def.ContainerArgs args)
+        {
+            if (args == null) return;
+
+            var cell = args.cell;
+            var ok = ContainerBreak.TryBreak(_grid, cell,
+                c =>
+                {
+                    if (_view != null) _view.ClearDecoAt(c);
+                    else MapLog.WarnThrottled("map.container.noview",
+                        "[容器] 渲染层未铺装（ShowArea 未调用）⇒ 只清地图数据；画布上没有节点可摘");
+                },
+                out var why);
+
+            if (!ok)
+            {
+                MapLog.WarnThrottled("map.container.reject",
+                    $"[容器] ({cell.x},{cell.y}) 破坏失败：{why}（等级 {args.level}）");
+                return;
+            }
+
+            var tcName = Def.ContainerTc.NameOf(Def.ContainerTc.TierOf(args.level));
+            MapLog.Info($"[容器] ({cell.x},{cell.y}) 已破坏并重铺（操作者等级 {args.level} ⇒ 官方 TC「{tcName}」；"
+                        + "掉落由 Item 模块按同一条载荷处理）");
+
+            EmitContainersChanged();      // 输入层的"容器格快照"必须跟着变（否则光标还提示可交互）
         }
 
         /// <summary>

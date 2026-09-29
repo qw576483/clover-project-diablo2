@@ -239,6 +239,8 @@ namespace CloverEngine
         bool GetMouseButton(int button);
         bool GetMouseButtonDown(int button);
         Vector3 MousePosition { get; }
+        /// <summary>轴向读数（引擎 `Runtime/Core/Input.cs:161`；滚轮轴名见 `UI/CharSelectPanel`）。</summary>
+        float GetAxis(string axis, bool raw = false);
     }
 
     // ── 引导类 ──────────────────────────────────────────────────────────────

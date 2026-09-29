@@ -25,9 +25,10 @@
 //
 // 技能图标尺寸 = 原版**位图原生 48×48**（`UiLayoutGame.SkillIconCell` = 48×48 原版px → 86.4 画布px），
 //   中心 = 节点框（`SkillTreeCell.box`，L 形管线的外接矩形）的中心；`preserveAspect` 在正方形框里
-//   是恒等变换（不拉变形、不放大、不加色调 —— 原版没有色调）。
+//   是恒等变换（不拉变形、不放大）。
 //   尺寸口径 = 「控件矩形 == 原版像素 ×1.8」（出处见 `UiLayoutGame.SkillIconCell`）。
-//   「能不能学」用**原版灰化帧**表达（`D2Icon.SkillIconPath(def.id, dull:true)`），不画任何自绘标记。
+//   未学 / 已学的状态 = **原版灰化帧 + 项目既有压暗色调**（判据单点在 `NodeDullFrameOf` / `NodeTintOf`），
+//   不画任何自绘标记。
 //
 // 零 `using Diablo2.Module`（分层自检 ③；`conventions.md` 硬性）。
 // 本文件**不画**任何原版底图里已有的东西（边框 / 连线 / 底 / 标题条）。
@@ -387,6 +388,13 @@ namespace Diablo2.UI
                     continue;
                 }
 
+                var learned = _tree.learnedLevels != null && i < _tree.learnedLevels.Count
+                    ? _tree.learnedLevels[i] : 0;
+
+                //   图标按**该技能自己的已学等级**贴，与"当前显示哪一系"无关：换系只切 `SetActive`
+                //   ⇒ 本职业**所有**节点都有图标（"数节点 / 数图标"的读数不会把隐藏节点算成缺图）。
+                ApplyNodeIcon(node, def, learned);
+
                 if (cell.tree != _treeNo)
                 {
                     node.Hit.gameObject.SetActive(false);
@@ -397,11 +405,6 @@ namespace Diablo2.UI
                 node.Tree = cell.tree;
                 node.Hit.rectTransform.anchoredPosition = UiLayoutGame.SkillArtToPanel(
                     cell.box.x + cell.box.w * 0.5f, cell.box.y + cell.box.h * 0.5f);
-
-                var learned = _tree.learnedLevels != null && i < _tree.learnedLevels.Count
-                    ? _tree.learnedLevels[i] : 0;
-                var learnable = _tree.learnable != null && i < _tree.learnable.Count && _tree.learnable[i];
-                ApplyNodeIcon(node, def, learned, learnable);
                 placed++;
             }
 
@@ -450,14 +453,27 @@ namespace Diablo2.UI
         }
 
         /// <summary>
-        /// 技能图标 = **原版位图**（`D2/UI/SkillIcon/{cls}Skillicon_{帧}`）。
-        /// <para>"还学不了"用原版的**灰化帧**（同技能第 2 帧）表达 —— 原版就是这么区分状态的，
-        /// 因此这里**不加任何色调**（自绘暖色 / 灰化都偏离原版）。</para>
+        /// **未学（等级 0）⇒ 用原版灰化帧**；已学 ⇒ 用常态帧。纯函数（离线宿主直接断言）。
         /// </summary>
-        private static void ApplyNodeIcon(Node node, SkillDef def, int learned, bool learnable)
+        internal static bool NodeDullFrameOf(int learnedLevel) => learnedLevel <= 0;
+
+        /// <summary>
+        /// **未学节点的图标色调 = <see cref="UiArt.ArtDim"/>（项目已有的"压暗一档"）；已学 = <see cref="UiArt.ArtFullBright"/>**。
+        /// 纯函数（离线宿主直接断言两个取值）。
+        /// <para>灰化帧本身只比常态帧暗约 10%（实测 `amaSkillicon_0` 平均亮度 86.4 / `_1` 77.8）
+        /// ⇒ 单靠换帧在人眼下几乎看不出"置灰"，故在帧之上再套这一层既有色调。</para>
+        /// </summary>
+        internal static Color NodeTintOf(int learnedLevel)
+            => learnedLevel <= 0 ? UiArt.ArtDim : UiArt.ArtFullBright;
+
+        /// <summary>
+        /// 技能图标 = **原版位图**（`D2/UI/SkillIcon/{cls}Skillicon_{帧}`）+ 未学/已学的状态色调。
+        /// <para>两个判据都由 <see cref="NodeDullFrameOf"/> / <see cref="NodeTintOf"/> 单点给出：
+        /// 未学 ⇒ 灰化帧 + <see cref="UiArt.ArtDim"/>（暗），已学 ⇒ 常态帧 + 原版亮度（亮）。</para>
+        /// </summary>
+        private static void ApplyNodeIcon(Node node, SkillDef def, int learned)
         {
-            var dull = !learnable && learned == 0;
-            var path = D2Icon.SkillIconPath(def.id, dull);
+            var path = D2Icon.SkillIconPath(def.id, NodeDullFrameOf(learned));
 
             if (string.IsNullOrEmpty(path))
             {
@@ -468,9 +484,11 @@ namespace Diablo2.UI
             }
 
             if (node.IconPath == path) return;          // 同一张图，已在（或正在）加载
+
+            var tint = NodeTintOf(learned);
             node.IconPath = path;
-            node.Icon.color = Color.white;              // 原版亮度：不做任何色调
-            UiArt.SetArtTint(node.Icon, Color.white);
+            node.Icon.color = tint;
+            UiArt.SetArtTint(node.Icon, tint);
             UiArt.SetSprite(node.Icon, path);
         }
 

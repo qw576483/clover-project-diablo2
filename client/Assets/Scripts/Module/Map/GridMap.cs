@@ -304,6 +304,20 @@ namespace Diablo2.Module.Map
         }
 
         /// <summary>
+        /// 清掉一格的装饰物件（置 `-1`），返回**是否真的清掉了**（原本就没有 ⇒ false）。
+        /// <para>用途：容器被破坏后从地图数据里摘掉——表现层的节点回收由 `MapView.ClearDecoAt`
+        /// 走它的整图重铺入口（`PlanCell` 读的就是本登记表）。</para>
+        /// </summary>
+        public bool ClearDeco(int x, int y)
+        {
+            if (!InBounds(x, y) || _decoKinds == null) return false;
+            var i = y * Width + x;
+            if (_decoKinds[i] < 0) return false;
+            _decoKinds[i] = -1;
+            return true;
+        }
+
+        /// <summary>
         /// 取某格的装饰物件类下标（`-1` = 没有）。返回 <c>false</c> = 本图没有逐格覆盖
         /// （调用方按"无装饰物件"处理）。
         /// </summary>

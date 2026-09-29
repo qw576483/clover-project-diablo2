@@ -18,7 +18,7 @@ using Diablo2.Module.View;
 //   用来把 `Module/View/EquipVisual.HandOf` 与本来的槽位判定 `Module/Item/Equipment.SlotOf`
 using Diablo2.Module.Item;
 using Table;
-using Dir8 = Diablo2.Def.Dir8;
+using Dir8 = CloverEngine.Dir8;
 
 namespace AnimCheck
 {

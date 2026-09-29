@@ -177,8 +177,9 @@ namespace Diablo2.UI
         /// 依据 `ClassSelectMenu.prefab` 的 7 个热点 x 坐标 −299 / −99 / +1 / +122 / +226，
         /// 刺客/德鲁伊两槽本项目没有对应职业 ⇒ 空着）。
         /// <para>
-        /// 其余三个职业的**素材已删**（`Chars/{necromancer,paladin,sorceress}`、
-        /// `UI/FrontEnd/{...}`）⇒ 它们那三个槽位填 <see cref="NoClass"/>（该槽不显示、不可点）。
+        /// 本屏**只开放 Amazon + Barbarian 两个职业**（用户指令）：其余三个槽位填 <see cref="NoClass"/>
+        /// （该槽不显示、不可点）。素材现状：`Chars/{necromancer,paladin,sorceress}` 的装备外观仍在盘，
+        /// 只有前端素材 `UI/FrontEnd/**` 导入了两个职业。
         /// </para>
         /// <para>
         /// **为什么保留 5 个槽位、不做"2 个居中重排"**：这 5 个 x 坐标是**原版几何**
@@ -192,10 +193,10 @@ namespace Diablo2.UI
         private static readonly int[] SlotClassIds =
         {
             (int)PlayerClass.Amazon,       // 原版热点 #0（x 原版 −299）
-            NoClass,                       // 原版热点 #1 = Necromancer 位（用户决策：素材已删）
+            NoClass,                       // 原版热点 #1 = Necromancer 位（本屏不开放）
             (int)PlayerClass.Barbarian,    // 原版热点 #2（x 原版 +1）
-            NoClass,                       // 原版热点 #3 = Paladin 位（用户决策：素材已删）
-            NoClass,                       // 原版热点 #4 = Sorceress 位（用户决策：素材已删）
+            NoClass,                       // 原版热点 #3 = Paladin 位（本屏不开放）
+            NoClass,                       // 原版热点 #4 = Sorceress 位（本屏不开放）
         };
 
         private readonly List<ClassEntry> _classes = new List<ClassEntry>();
@@ -900,7 +901,8 @@ namespace Diablo2.UI
 
             var c = _classes[_classIndex];
 
-            //   （官方：1 级角色没有可花点数；每级 +5 由 `PlayerStats` 在升级时发放）。
+            //   （官方：1 级角色没有可分配**属性点**；每级 +5 由 `PlayerStats` 在升级时发放。
+            //     技能点不按等级发：本项目给新角色 `GameConst.DefaultSkillPoints` 点。）
             const int level = 1;
             var life = LifeOf(c, c.vit, level);
             var mana = ManaOf(c, c.eng, level);
@@ -921,7 +923,7 @@ namespace Diablo2.UI
                 mana = mana,
                 stamina = stamina,
                 statPoints = 0,
-                skillPoints = 0,
+                skillPoints = GameConst.DefaultSkillPoints,
                 gold = 0,
                 areaId = (int)AreaId.Town,   // 新角色从罗格营地开始
                 gridX = 0,
@@ -933,6 +935,7 @@ namespace Diablo2.UI
             Log.Info("Ui",
                 $"[创角] {name} 职业={c.name} 力{c.str}/敏{c.dex}/体{c.vit}/精{c.eng} " +
                 $"生命={life} 法力={mana} 耐力={stamina} 剩余点数={save.statPoints}（原版创角无属性分配）" +
+                $" 技能点={save.skillPoints}（= GameConst.DefaultSkillPoints）" +
                 $" → 发 {Events.CharCreateRequest}");
             Game.Event.Emit(Events.CharCreateRequest, save);
         }

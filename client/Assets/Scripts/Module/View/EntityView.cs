@@ -8,9 +8,6 @@
 
 using CloverEngine;
 using Diablo2.Def;
-//   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
-//   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
-using Dir8 = Diablo2.Def.Dir8;
 using UnityEngine;
 
 namespace Diablo2.Module.View

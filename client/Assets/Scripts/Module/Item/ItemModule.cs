@@ -90,6 +90,8 @@ namespace Diablo2.Module.Item
             }
             bus.On<int>(Events.UseBeltRequest, OnUseBeltRequest);
             bus.On<int>(Events.PickupRequest, OnPickupRequest);
+            // 可破坏容器（桶 / 箱）：被打碎时按官方档位掉落（与地图侧收同一条载荷，见事件常量注释）。
+            bus.On<Diablo2.Def.ContainerArgs>(Events.ContainerBroken, OnContainerBroken);
             bus.On<int>(Events.EquipToggleRequest, OnEquipToggleRequest);
             bus.On<int>(Events.ItemDropRequest, OnItemDropRequest);
             // 「点击地面物品 → 走过去 → 拾取」：当前**没有任何模块发 `Events.PickupRequest`**
@@ -941,6 +943,52 @@ namespace Diablo2.Module.Item
         private void OnUseBeltRequest(int index)
         {
             UseBeltSlot(index);
+        }
+
+        /// <summary>
+        /// 收 `Events.ContainerBroken`（载荷 = `Def.ContainerArgs`：格 + 操作者等级）：可破坏容器被打碎。
+        /// <para>档位 = `Def.ContainerTc`（官方 `TreasureClassEx.txt` 的 `Act 1 Chest A/B/C` 三行，
+        /// 按其 `level` 列 0/5/9 取）；落点 = 容器那一格；入口 = 与怪物掉落**同一个** `DropLoot`。</para>
+        /// <para>随机源 = 由「格 + 等级」派生的**确定性**序列：同一个容器一局只被打碎一次，
+        /// 用确定性序列可让"同一张图的可破坏容器掉落"复现，也不需要（更不该）去读时钟。</para>
+        /// </summary>
+        private void OnContainerBroken(Diablo2.Def.ContainerArgs args)
+        {
+            if (args == null) return;
+
+            var tier = Diablo2.Def.ContainerTc.TierOf(args.level);
+            var tcName = Diablo2.Def.ContainerTc.NameOf(tier);
+            var tcId = TreasureClassIdOf(tcName);
+            if (tcId <= 0)
+            {
+                Log.Warn("Item", $"容器掉落：官方 TC「{tcName}」不在 treasureclass_c 里（配表未导入？）" +
+                                 $"⇒ 本次无掉落（格 ({args.cell.x},{args.cell.y})，操作者等级 {args.level}）");
+                return;
+            }
+
+            var before = GroundItems != null ? GroundItems.Count : 0;
+            var rng = new CloverEngine.Rng(args.cell.x * 73856093 ^ args.cell.y * 19349663 ^ args.level * 83492791);
+            DropLoot(tcId, args.level, args.cell, rng);
+            var after = GroundItems != null ? GroundItems.Count : 0;
+
+            Log.Info("Item", $"[容器] ({args.cell.x},{args.cell.y}) 破坏掉落：档位 = 操作者等级 {args.level} ⇒ " +
+                             $"官方 TC「{tcName}」(id={tcId})，本次地上新增 {after - before} 件");
+        }
+
+        /// <summary>
+        /// TC 名 → `treasureClassId`（**与 `DeathFlow.TreasureClassIdOf` 同一口径**：
+        /// `Tables.Default.Treasureclass.All()` 的 1 基行序；0 = 不在表里）。本模块不 `using` Combat ⇒ 就地一份。
+        /// </summary>
+        private static int TreasureClassIdOf(string tcName)
+        {
+            if (string.IsNullOrEmpty(tcName)) return 0;
+            var all = Table.Tables.Default.Treasureclass.All();
+            if (all == null) return 0;
+            for (var i = 0; i < all.Count; i++)
+            {
+                if (all[i] != null && all[i].Name == tcName) return i + 1;
+            }
+            return 0;
         }
 
         private void OnPickupRequest(int groundItemId)

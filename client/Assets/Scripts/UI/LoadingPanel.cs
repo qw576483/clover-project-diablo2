@@ -101,6 +101,38 @@ namespace Diablo2.UI
         // 生命周期
         // ═════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// 把 10 帧读条图**先**放进 `Game.Res` 缓存（`App/Bootstrap` 在 `CloverRes.Init` 之后调一次）。
+        /// <para>引擎 `LoadAsset` 命中缓存时回调是**同步**的 ⇒ 预热门槛过后，Loading 站点打开时
+        /// <see cref="RequestFrames"/> 一轮就填满 `_frames`，第 1 帧在 `OnOpen` 里当场贴上；
+        /// 不预热则首帧要等异步回调，进图画面会先空一瞬。</para>
+        /// </summary>
+        public static void Prewarm()
+        {
+            if (Game.Res == null)
+            {
+                Log.Warn(Tag, "读条图预热跳过：Game.Res 未初始化（CloverRes.Init 未调用）");
+                return;
+            }
+
+            var total = ResPaths.FrameCountLoadingScreen;
+            var pending = total;
+            var ok = 0;
+            for (var i = 0; i < total; i++)
+            {
+                var path = ResPaths.Frame(ResPaths.MenuLoadingScreen, i);
+                Game.Res.LoadAsset<Sprite>(path, sp =>
+                {
+                    if (sp != null) ok++;
+                    if (--pending == 0)
+                    {
+                        Log.Info(Tag, $"[原版读条图] 预热完成 {ok}/{total} 帧已进 Game.Res 缓存"
+                            + " ⇒ Loading 站点打开时第 1 帧即刻就位");
+                    }
+                });
+            }
+        }
+
         /// <inheritdoc/>
         public override void OnOpen(object param)
         {

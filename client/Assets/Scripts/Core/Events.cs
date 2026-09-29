@@ -25,6 +25,38 @@ namespace Diablo2.Core
 
         public const string BootDone = "D2.Flow.BootDone";
 
+        /// <summary>
+        /// 世界左键点击落到"空地"上（参数 = 打包格 `x | (y &lt;&lt; 16)`）。
+        /// <para>发送方 = `Module/Player/PlayerModule.HandlePrimaryClick` 的最后一支（既不是怪、也不是 NPC）；
+        /// 收方 = `Module/Map/MapModule`（点中的格若放着**可破坏容器**，由它接管：走到相邻格再破坏）。
+        /// 与 <see cref="MoveCommand"/> 的分工：本事件只报"点了哪一格"，是否要改走位由收方决定
+        /// （收到后才发的 `MoveCommand` 覆盖发送方那条，见 `MapModule.OnWorldClick`）。</para>
+        /// </summary>
+        public const string WorldClickRequest = "D2.Map.WorldClick";
+
+        /// <summary>
+        /// 地图上**可破坏容器**的格集合快照（载荷 `IReadOnlyCollection&lt;Vector2Int&gt;`）。
+        /// <para>发送方 = `Module/Map/MapModule`（生成完成时、每次破坏后、退场清场时各一条）；
+        /// 收方 = `Module/Input/InputReader`（喂 `HoverPicker.ContainerAt` ⇒ 指针压在容器上时出"可交互"光标）。
+        /// 走快照而不让输入层直接查地图：输入层不 `using` 地图模块（分层自检 ②）。</para>
+        /// </summary>
+        public const string ContainersChanged = "D2.Map.Containers";
+
+        /// <summary>
+        /// 「点中的格是**可破坏容器**，请走过去操作」（参数 = 打包格 `x | (y &lt;&lt; 16)`）。
+        /// <para>发送方 = `Module/Map/MapModule`（只有它知道哪一格上有容器）；收方 =
+        /// `Module/Player/PlayerModule`（只有它知道玩家在哪、怎么绕过去）。</para>
+        /// </summary>
+        public const string ContainerOperate = "D2.Map.ContainerOperate";
+
+        /// <summary>
+        /// 「容器已被贴脸打碎」（载荷 = `Diablo2.Def.ContainerArgs`：格 + 操作者等级）。
+        /// <para>发送方 = `Module/Player/PlayerModule`（走到相邻格才发）；收方 =
+        /// `Module/Map/MapModule`（清 deco + 让画布重铺）与 `Module/Item/ItemModule`（按官方档位掉落）。
+        /// 两个收方收**同一条**载荷 ⇒ 画面上"桶没了"和"掉了东西"不可能各说各话。</para>
+        /// </summary>
+        public const string ContainerBroken = "D2.Map.ContainerBroken";
+
         public const string MoveCommand = "D2.Input.Move";
 
         public const string TargetChanged = "D2.Combat.TargetChanged";

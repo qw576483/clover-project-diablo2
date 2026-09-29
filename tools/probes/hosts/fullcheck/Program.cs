@@ -961,7 +961,7 @@ namespace FullCheck
             // melee-samecell 的**纯函数**判据（与 `combatcheck` 第 18 节同一把尺子；不改上一条断言）
             {
                 float sfx, sfy;
-                var nv2 = Iso.DirectionDelta(Diablo2.Def.Dir8.N);   // ⛔ 必须限定：本宿主同时可见 CloverEngine.Dir8
+                var nv2 = Iso.DirectionDelta(CloverEngine.Dir8.N);   // ⛔ 必须限定：本宿主同时可见 CloverEngine.Dir8
                 var solvable = MeleeShape.ToUnit(nv2.x, nv2.y, out sfx, out sfy);
                 const float sReach = 1.6f;
                 Check("纯函数：正前方 1.5 格 ⇒ 命中",

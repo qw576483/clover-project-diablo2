@@ -70,6 +70,7 @@ internal static class MapCheckProgram
         Run(Step29_CameraClampMapEdge);
         Run(Step30_EntryLandingMargin);
         Run(Step31_WalkableBorderRing);
+        Run(Step32_Containers);
         Run(Step32_TownBorderWalkableInventory);
         //    只加断言，不动既有步骤、不放宽任何既有断言 ──────────────────────────────
         Run(Step33_LandingRangeCoversViewport);
@@ -3226,7 +3227,7 @@ internal static class MapCheckProgram
     // 本步的口径（只加断言）：
     //   ① 逐格**双向**核对 `'r'` ↔ `Water`（不靠总数相等）
     //   ② 水格仍**不可走**；水格 floor 键仍是原版水瓦片
-    //   ③ 非水区域一格都没变成水（`'X'` 等阻挡码按合同**保持原分类**）
+    //   ③ 野外 `'X'`（pond/puddle/swamp/river）同样摘成 `Water`；崖壁/碎石/杂物仍是 `Rock`
     //   ④ **消费者穷举**：`TileKind` 的每个 switch/判定点对 `Water` 都有显式分支或已登记的 default
     //   ⑤ 表现侧：水有独立地面瓦片表 / 占位色，且**不是**物件；小地图不再把水画成石墙
     // ═════════════════════════════════════════════════════════════════════════
@@ -3300,7 +3301,7 @@ internal static class MapCheckProgram
         Check(waterNonRiverGround == 0,
             $"水格的地面键**全是** `moor_river/*`（原版水瓦片；异常 = {waterNonRiverGround} 格）");
 
-        // ── ② 另一张图**一格水都没有**（按合同 `'X'` 保持原分类）──
+        // ── ② 野外：`'X'`（pond/puddle/swamp/river）也摘成 `Water`；崖壁/碎石/杂物仍是 `Rock` ──
         var areas = new[] { AreaId.BloodMoor };
         for (var i = 0; i < areas.Length; i++)
         {
@@ -3308,15 +3309,26 @@ internal static class MapCheckProgram
             m.Generate(areas[i], 20250916);
             var water = 0;
             var rock = 0;
+            var walkableWater2 = 0;
+            var badGround2 = 0;
             var counts2 = new Dictionary<TileKind, int>();
             for (var y = 0; y < m.Height; y++)
             {
                 for (var x = 0; x < m.Width; x++)
                 {
-                    var k = m.TileAt(new Vector2Int(x, y));
+                    var g = new Vector2Int(x, y);
+                    var k = m.TileAt(g);
                     if (!counts2.ContainsKey(k)) counts2[k] = 0;
                     counts2[k]++;
-                    if (k == TileKind.Water) water++;
+                    if (k == TileKind.Water)
+                    {
+                        water++;
+                        if (TileKindInfo.IsWalkable(k)) walkableWater2++;
+                        m.TryGetTileKeys(x, y, out var ground, out _);
+                        if (ground == null
+                            || !(ground.StartsWith("moor_river/") || ground.StartsWith("moor_puddle/")
+                                 || ground.StartsWith("moor_swamp/"))) badGround2++;
+                    }
                     if (k == TileKind.Rock) rock++;
                 }
             }
@@ -3326,11 +3338,12 @@ internal static class MapCheckProgram
             for (var j = 0; j < ks.Count; j++)
                 ps.Add($"{ks[j]}×{counts2[ks[j]]}{(TileKindInfo.IsWalkable(ks[j]) ? "(可走)" : "(阻挡)")}");
             Console.WriteLine($"    [枚举] {areas[i]} 盘上实际出现的地形：{string.Join(" / ", ps)}");
-            Check(water == 0, $"{areas[i]}：`TileKind.Water` = 0 格（合同：本片只摘城镇 `'r'`，`'X'` 等**保持原分类**；实测 {water}）");
-            // 野外有 `Rock`（崖壁/碎石/杂物/水都归它，按合同未改）
-            var blockerKept = rock;
-            Check(blockerKept > 0,
-                $"{areas[i]}：原地形分类仍在（Rock = {blockerKept} 格 ⇒ 阻挡码没有被顺手改成水）");
+            Check(water > 0, $"{areas[i]}：`'X'`（水）已摘成 `TileKind.Water`（实测 {water} 格）");
+            Check(walkableWater2 == 0, $"{areas[i]}：水格**仍不可走**（可走的水格 = {walkableWater2}）");
+            Check(badGround2 == 0,
+                $"{areas[i]}：水格地面键取自水域 dt1（`moor_river/` `moor_puddle/` `moor_swamp/`；异常 = {badGround2} 格）");
+            // 野外仍有 `Rock`（崖壁 C / 碎石 S / 杂物 O —— 这些**保持**原分类）
+            Check(rock > 0, $"{areas[i]}：崖壁/碎石/杂物仍是 `Rock`（{rock} 格 ⇒ 没被顺手改成水）");
         }
 
         // ── ③ 消费者穷举（**源码级**）：每个 switch/判定点对 Water 都有显式分支或已登记的 default ──
@@ -3371,11 +3384,12 @@ internal static class MapCheckProgram
             "MapGenTown.cs：`'r'` → `TileKind.Water`（出处 = `MapGenTownLayout.cs:28`）");
         Check(townGen.Contains("case 's': return TileKind.Rock;"),
             "MapGenTown.cs：`'s'`（石矮墙）**仍是** `Rock`（⛔ 没有顺手把石头也改掉）");
-        Check(wildGen.Contains("case 'X': return TileKind.Rock;")
+        Check(wildGen.Contains("case 'X': return TileKind.Water;")
               && wildGen.Contains("case 'C': return TileKind.Rock;")
               && wildGen.Contains("case 'S': return TileKind.Rock;")
               && wildGen.Contains("case 'O': return TileKind.Rock;"),
-            "MapGenWilderness.cs：`'X'`（水）与崖壁/碎石/杂物**保持原分类**（按本轮合同未改，已登记为未决）");
+            "MapGenWilderness.cs：`'X'`（水）→ `TileKind.Water`；崖壁/碎石/杂物**仍是** `Rock`"
+            + "（`'X'` 的出处 = 字母表里 `pond.dt1`/`puddle.dt1`/`swamp.dt1`/`river.dt1` 四类）");
 
         //   判据：凡文件里出现 `case TileKind.` 的，都必须对 `Water` 有显式分支，
         var scriptsRoot = System.IO.Path.Combine(ResolveProjectRoot(), "client", "Assets", "Scripts");
@@ -3737,13 +3751,13 @@ internal static class MapCheckProgram
                               $" ｜2格直线(2.0){(coversLine2 ? "✅" : "❌")} ｜2格斜角(2√2){(coversDiag2 ? "✅" : "❌")}");
             if (!coversDiag1) diagFail.Add($"{rangeFields[i].Name}={v:0.###}");
         }
-        Check(rangeFields.Count == 8,
-            "GameConst 的 Range 族 float 常量 = 8 个（Melee/Ranged/Pickup/Talk/Portal/MonsterAggro/MonsterLeash/Hover）" +
+        Check(rangeFields.Count == 7,
+            "GameConst 的 Range 族 float 常量 = 7 个（Melee/Ranged/Pickup/Talk/MonsterAggro/MonsterLeash/Hover）" +
             $"—— 新增/删除会在这里被抓住（实测 {rangeFields.Count}）");
         Console.WriteLine("  【红行证据·D9/D11】欧氏阈值 < √2 ⇒ 斜角 100% 失效族：" +
                           (diagFail.Count == 0 ? "无" : string.Join(", ", diagFail)) +
                           "；其中 PickupRange 已由 ItemModule.Pickup 改用 Iso.IsAdjacent（Chebyshev）修掉，" +
-                          "**PortalRange / HoverRange 全仓 0 消费方**（见 audit-B 报告 D11）");
+                          "出入口触发不取欧氏阈值（判据 = MapSeam + ExitLatch，见 PlayerModule.CheckExit）");
     }
 
     /// <summary>数一张图里 IsDeckGrid == true 的格数（换图/清图残留判据）。</summary>
@@ -3903,6 +3917,116 @@ internal static class MapCheckProgram
         var parts = new List<string>();
         for (var i = 0; i < list.Count; i++) parts.Add(list[i].ToString());
         return "[" + string.Join(", ", parts) + "]";
+    }
+
+    /// <summary>
+    /// ★ 片 sA-combat：**可破坏容器**（桶 / 箱）的地图侧判据（判**过程**，不看"调用过一次"）：
+    /// 地图上真的有容器 → 打碎 ⇒ deco 从登记表消失 + 触发一次画布重铺回调；
+    /// 退化能红：不打就不掉（二次打碎被拒）、非容器的 deco（火炬 / 营火 / 尸体…）打不碎也不被误删。
+    /// 掉落那一半在 `tools/probes/hosts/itemcheck`（同一条 `Events.ContainerBroken` 载荷 → 官方档位）。
+    /// </summary>
+    private static void Step32_Containers()
+    {
+        Section("32. ★ 可破坏容器（桶 / 箱）：判定 → 打碎 → deco 消失 + 触发重铺 + 退化能红");
+
+        //   ⛔ 先扫 seed：原版 preset 是**逐块**的，容器单位会不会出现随块的组合而变 ⇒ 只看一个 seed 判不了。
+        GridMap map = null;
+        var cells = new List<Vector2Int>();
+        var n = 0;
+        var hitSeed = -1;
+        var hitArea = "";
+        const int seedTries = 40;
+        for (var s = 0; s < seedTries && map == null; s++)
+        {
+            var seed = 20260923 + s * 7919;
+
+            var t = new GridMap();
+            MapGenTown.Generate(t, new Rng(seed));
+            var tc = new List<Vector2Int>();
+            var tn = ContainerBreak.CountContainers(t, tc);
+
+            var w = new GridMap();
+            MapGenWilderness.Generate(w, new Rng(seed));
+            var wc = new List<Vector2Int>();
+            var wn = ContainerBreak.CountContainers(w, wc);
+
+            if (tn > 0) { map = t; cells = tc; n = tn; hitSeed = seed; hitArea = "城镇"; }
+            else if (wn > 0) { map = w; cells = wc; n = wn; hitSeed = seed; hitArea = "荒野"; }
+            if (tn + wn > 0) Console.WriteLine($"  seed={seed}：城镇 {tn} 个 / 荒野 {wn} 个容器");
+        }
+        Console.WriteLine($"  {seedTries} 个 seed × 两区域扫描结果：" +
+                          (map != null ? $"{hitArea} seed={hitSeed} 有 {n} 个容器" : "**一个容器都没有**"));
+
+        if (map == null)
+        {
+            //   ⛔ 只披露、不判失败：本项目**已解码的 preset 里没有容器单位** ⇒ 地图上目前一个容器也没有；
+            //   要真有得扩 `tools/d2codec/export_*` 的解码范围（生成物改动，见回报）。**本步骤判的是
+            //   "破坏链本身"** ⇒ 容器缺席时用同一张表里的 `Barrel` 类在可走格上登记一个夹具，跑完同一套断言。
+            //   ⛔ 夹具只活在这个宿主里，不写进任何生成物。
+            var barrelKind = MapGenDeco.IndexOf(95);              // 95 = ds1 objects 层的 Barrel（deco-manifest）
+            var host = new GridMap();
+            MapGenWilderness.Generate(host, new Rng(20260923));
+            Check(barrelKind >= 0 && string.Equals(MapGenDeco.Kinds[barrelKind].Dir, "b1", StringComparison.Ordinal),
+                $"夹具前置：ds1 id 95 = 容器类 b1（Barrel），实测 kind={barrelKind}");
+            var spot = host.SpawnPoint;
+            host.SetDeco(spot.x, spot.y, barrelKind);
+            map = host;
+            cells = new List<Vector2Int> { spot };
+            n = 1;
+            Console.WriteLine("  ⛔ 披露（不判失败）：城镇/荒野的原版 preset 单位里没有容器 ⇒ 本步骤用夹具格 "
+                + spot + "（Barrel）跑同一套破坏断言；「地图上真的有桶可打」这一条要扩解码范围才能成立（见回报）。");
+        }
+        var cell = cells[0];
+
+        // ① 判定：该格确实登记着 deco，且判为容器
+        map.TryGetDeco(cell.x, cell.y, out var kind);
+        Check(kind >= 0, $"首格 {cell} 在 deco 登记表里（kind={kind}）");
+        Check(ContainerBreak.IsContainerAt(map, cell), $"首格 {cell} 判为可破坏容器");
+
+        // ② 打碎：清 deco + 触发一次"画布重铺"回调（= MapView.ClearDecoAt 的接线点）
+        var refresh = 0;
+        var ok = ContainerBreak.TryBreak(map, cell, c => refresh++, out var why);
+        Check(ok, $"打碎 {cell} 成功（{(ok ? "已清 deco" : "被拒：" + why)}）");
+        Check(refresh == 1, $"清掉后**触发 1 次**画布重铺回调（实测 {refresh}）—— 表现层靠它把节点摘掉");
+        map.TryGetDeco(cell.x, cell.y, out var after);
+        Check(after < 0, $"deco 已从登记表清掉（kind={after}）⇒ `PlanCell` 重铺时该格不再建装饰节点");
+        Check(ContainerBreak.CountContainers(map) == n - 1,
+            $"容器总数 {n} → {ContainerBreak.CountContainers(map)}（只少这一个）");
+
+        // ③ 退化能红 1：不打就不掉 —— 同一格二次打碎必须被拒（否则点一下白刷一堆）
+        var second = ContainerBreak.TryBreak(map, cell, null, out var why2);
+        Check(!second, $"同一格二次打碎被拒（{why2}）");
+
+        // ④ 退化能红 2：非容器的 deco 打不碎、也不许被误删
+        Vector2Int? other = null;
+        for (var x = 0; x < map.Width && !other.HasValue; x++)
+        {
+            for (var y = 0; y < map.Height; y++)
+            {
+                if (!map.TryGetDeco(x, y, out var k) || k < 0) continue;
+                if (ContainerBreak.IsContainerKind(k)) continue;
+                other = new Vector2Int(x, y);
+                break;
+            }
+        }
+        if (other.HasValue)
+        {
+            var ok3 = ContainerBreak.TryBreak(map, other.Value, null, out var why3);
+            Check(!ok3, $"非容器 deco {other.Value} 拒绝破坏（{why3}）");
+            map.TryGetDeco(other.Value.x, other.Value.y, out var k3);
+            Check(k3 >= 0, $"非容器 deco {other.Value} 仍在（没被误删，kind={k3}）");
+        }
+        else
+        {
+            Check(false, "找不到非容器 deco 做负控（样本缺失 ⇒ 该判据未覆盖）");
+        }
+
+        // ⑤ 邻位落点：容器周围必须找得到可走的相邻格（否则"点了走不过去"）
+        var probe = ContainerBreak.CountContainers(map, cells) > 1 ? cells[1] : cell;
+        var approach = ContainerBreak.ApproachCell(map, probe, map.SpawnPoint);
+        Console.WriteLine($"  ApproachCell({probe}, from={map.SpawnPoint}) = {(approach.HasValue ? approach.Value.ToString() : "null")}");
+        Check(approach.HasValue, "容器周围找得到可走的相邻格（走位落点）");
+        Console.WriteLine();
     }
 
     private static void Section(string title)

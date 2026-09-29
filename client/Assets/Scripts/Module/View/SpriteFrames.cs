@@ -3,7 +3,7 @@
 // 逐帧动画的**帧键 + 贴图解析**层（素材唯一的出入口）。
 //
 // 帧键命名：`{动作}_{方向}_{帧号}`，例：`walk_s_0`、`attack_ne_3`、`death_s_7`
-//   方向：s / sw / w / nw / n / ne / e / se（与 `Def.Dir8` 同名小写，**序号沿用暗黑2**）
+//   方向：s / sw / w / nw / n / ne / e / se（与 `CloverEngine.Dir8` 同名小写，**序号沿用暗黑2**）
 // 目录：
 //   角色 → `Core.ResPaths.CharDir(PlayerClass)`  = `D2/Chars/{class}/`（class = amazon…）
 //   怪物 → `Core.ResPaths.MonsterDir(code)`       = `D2/Monsters/{code}/`
@@ -31,9 +31,6 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-//   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
-//   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
-using Dir8 = Diablo2.Def.Dir8;
 using UnityEngine;
 
 namespace Diablo2.Module.View

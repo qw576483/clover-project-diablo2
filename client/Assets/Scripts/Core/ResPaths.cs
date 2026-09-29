@@ -711,11 +711,11 @@ namespace Diablo2.Core
         /// </summary>
         public const float MissileFps = 16f;
 
-        /// <summary>方向名表（下标 = `Def.Dir8` 值；与导出器 `export_chars.DIR_NAMES` 同序同名）。</summary>
+        /// <summary>方向名表（下标 = `CloverEngine.Dir8` 值；与导出器 `export_chars.DIR_NAMES` 同序同名）。</summary>
         private static readonly string[] Dir8Names = { "s", "sw", "w", "nw", "n", "ne", "e", "se" };
 
         /// <summary>方向名（越界 ⇒ 报一次 Warn 并返回 "s" —— 不静默、也不抛）。</summary>
-        public static string Dir8Name(Dir8 dir)
+        public static string Dir8Name(CloverEngine.Dir8 dir)
         {
             var i = (int)dir;
             if (i >= 0 && i < Dir8Names.Length) return Dir8Names[i];
@@ -725,10 +725,10 @@ namespace Diablo2.Core
         }
 
         /// <summary>
-        /// 投射物帧路径，例：`MissileFrame("Firebolt", Dir8.SW, 2)` → `D2/Missiles/Firebolt/sw_2`。
+        /// 投射物帧路径，例：`MissileFrame("Firebolt", CloverEngine.Dir8.SW, 2)` → `D2/Missiles/Firebolt/sw_2`。
         /// <para>帧号上界见 `Module/Skill/MissileFrameCounts`（生成文件，与磁盘 PNG 同批产出）。</para>
         /// </summary>
-        public static string MissileFrame(string celFile, Dir8 dir, int frame)
+        public static string MissileFrame(string celFile, CloverEngine.Dir8 dir, int frame)
             => D2Missiles + celFile + "/" + Dir8Name(dir) + "_" + frame;
 
         /// <summary>音效路径，例：`Sfx("hit")` → `Sound/SFX/hit`。</summary>

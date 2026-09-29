@@ -68,6 +68,9 @@
          `FramePacing.Pin(...)`（R1-D 帧节奏口径）⇒ 不链它就 CS0103（本目录的编译清单是**白名单**，
          不是 glob，client 侧新增一个 Core 文件就会打断本宿主，实测 2026-09-20）。 -->
     <Compile Include="..\..\..\..\client\Assets\Scripts\Core\FramePacing.cs" />
+    <!-- 白名单同上：Core 侧新增的两个文件（画质档位唯一写点 / 舞台 unscaled 定时器登记簿） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\QualitySetting.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\StageTimer.cs" />
     <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
     <!-- ★ agent-35 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
          引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。

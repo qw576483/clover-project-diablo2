@@ -73,6 +73,21 @@ namespace Diablo2.UI
         private readonly List<UiLayoutFlow.FlowLabel> _rowLabels = new List<UiLayoutFlow.FlowLabel>();
         private bool _built;
 
+        /// <summary>本屏要显示的全部存档角色（`OnOpen` 时由 Flow 传入；滚动只改可见窗口，不改这份）。</summary>
+        private readonly List<Entry> _entries = new List<Entry>();
+
+        /// <summary>首个可见行在 <see cref="_entries"/> 里的下标（一屏装得下时恒 0）。</summary>
+        private int _firstRow;
+
+        /// <summary>滚轮档位累加器（不足一行的档位留到下一帧，避免"半个档跳一行"）。</summary>
+        private float _wheelAccum;
+
+        /// <summary>
+        /// 滚轮轴名。引擎 `Input.GetAxis` 认这个字面量（旧 InputManager 与 InputSystem 两个后端
+        /// 都是同一量纲，见 `Runtime/Presentation/Input.cs` 的 `ReadScrollWheel`）。
+        /// </summary>
+        private const string WheelAxis = "Mouse ScrollWheel";
+
         /// <summary>
         /// 层：<see cref="UILayer.Normal"/>（= 文件头「层：Normal」）。
         /// </summary>
@@ -97,10 +112,17 @@ namespace Diablo2.UI
 
         private void Rebuild(List<Entry> entries)
         {
-            ClearRows();
-
-            if (entries.Count == 0)
+            _entries.Clear();
+            for (var i = 0; i < entries.Count; i++)
             {
+                if (entries[i] != null) _entries.Add(entries[i]);
+            }
+            _firstRow = 0;
+            _wheelAccum = 0f;
+
+            if (_entries.Count == 0)
+            {
+                ClearRows();
                 //   —— 没有高亮项 ⇒ 留空（原版 `ClassSelectMenu.UpdateUi` 也是给 `string.Empty`）。
                 SetInfo(Text.NoSelection);
                 SetDesc(string.Empty);
@@ -109,34 +131,73 @@ namespace Diablo2.UI
                 return;
             }
 
-            if (entries.Count > UiLayoutFlow.Select.MaxRows)
-            {
-                Log.Warn("Ui", $"存档角色 {entries.Count} 个超过一屏可显示数 {UiLayoutFlow.Select.MaxRows}" +
-                               $"（原版行节奏 45 原版px，容器高 322.5 原版px）⇒ 只显示前 {UiLayoutFlow.Select.MaxRows} 个");
-            }
+            RenderRows();
+            //   —— 原版屏上没有这行（`Prefabs/Menu/ClassSelectMenu.prefab` 的那个文本框是
+            //   `ClassDescription` = 职业说明）。现在这一行改回原版语义：见 `Highlight`。
+            Log.Info("Ui", $"角色选择屏刷新：共 {_entries.Count} 个存档角色，一屏 {UiLayoutFlow.Select.MaxRows} 行"
+                + $"（首行下标 {_firstRow}；超出部分用滚轮翻）；说明行 = 高亮角色的职业说明"
+                + "（原版 ClassDescription 行的语义）");
+        }
 
-            var shown = Mathf.Min(entries.Count, UiLayoutFlow.Select.MaxRows);
+        /// <summary>
+        /// 按 <see cref="_firstRow"/> 重排可见行。
+        /// <para>行中心 y（相对容器中心）：首行顶边 = 容器顶边内侧 ⇒ 首行中心 = (容器高 − 行高)/2；
+        /// 步进 = 原版行节奏 45 原版px → ×1.8 = 81。**屏内下标** `0..MaxRows-1` ⇒ `RowY` 不变，
+        /// 滚动只换第一行是谁（几何逐行与原版一致）。</para>
+        /// </summary>
+        private void RenderRows()
+        {
+            ClearRows();
 
-            // 行中心 y（相对容器中心）：首行顶边 = 容器顶边内侧 ⇒ 首行中心 = (容器高 − 行高)/2；
-            //   步进 = 原版行节奏 45 原版px → ×1.8 = 81。
+            var shown = Mathf.Min(_entries.Count - _firstRow, UiLayoutFlow.Select.MaxRows);
             for (var i = 0; i < shown; i++)
             {
-                var e = entries[i];
-                if (e == null || string.IsNullOrEmpty(e.name))
+                var e = _entries[_firstRow + i];
+                if (string.IsNullOrEmpty(e.name))
                 {
-                    Log.Warn("Ui", $"角色卡片 #{i} 数据非法（name 为空），跳过");
+                    Log.Warn("Ui", $"角色卡片 #{_firstRow + i} 数据非法（name 为空），跳过");
                     continue;
                 }
-
                 BuildRow(i, e, UiLayoutFlow.Select.RowY(i));
             }
 
-            if (shown > 0) Highlight(entries[0]);
+            if (shown > 0) Highlight(_entries[_firstRow]);
             else SetInfo(Text.NoSelection);
-            //   —— 原版屏上没有这行（`Prefabs/Menu/ClassSelectMenu.prefab` 的那个文本框是
-            //   `ClassDescription` = 职业说明）。现在这一行改回原版语义：见 `Highlight`。
-            Log.Info("Ui", $"角色选择屏刷新：显示 {shown} 个存档角色（共 {entries.Count}）；" +
-                           $"说明行 = 高亮角色的职业说明（原版 ClassDescription 行的语义）");
+        }
+
+        /// <summary>
+        /// 一屏装不下时用滚轮翻行：正档 = 内容下移（看更早的行），负档 = 上移。
+        /// <para>轴名复用 <see cref="Diablo2.Module.Camera.CameraRig.ScrollWheelAxis"/>（不新造字面量）；
+        /// 1.0 档 = 一行（原版行节奏）。夹在 `[0, count − MaxRows]`，到端点不再动（不重排、不刷日志）。</para>
+        /// </summary>
+        public override void OnUpdate(float dt)
+        {
+            if (_entries.Count <= UiLayoutFlow.Select.MaxRows) return;
+
+            var input = Game.Input;
+            if (input == null || !input.Available) return;
+
+            var wheel = input.GetAxis(WheelAxis);
+            if (Mathf.Abs(wheel) <= 0.0001f) return;
+
+            _wheelAccum += wheel;
+            var steps = (int)_wheelAccum;
+            if (steps == 0) return;
+            _wheelAccum -= steps;
+            ScrollRows(-steps);
+        }
+
+        /// <summary>把首个可见行移动 <paramref name="delta"/> 行（夹在可见范围内）；真的变了才重排。</summary>
+        private void ScrollRows(int delta)
+        {
+            var maxFirst = _entries.Count - UiLayoutFlow.Select.MaxRows;
+            var next = Mathf.Clamp(_firstRow + delta, 0, maxFirst);
+            if (next == _firstRow) return;
+
+            _firstRow = next;
+            RenderRows();
+            Log.Info("Ui", $"角色列表滚动：首行下标 {_firstRow}/{(maxFirst > 0 ? maxFirst : 0)}"
+                + $"（共 {_entries.Count} 个，一屏 {UiLayoutFlow.Select.MaxRows} 行）");
         }
 
         /// <summary>

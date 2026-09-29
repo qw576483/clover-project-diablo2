@@ -167,6 +167,15 @@ namespace Diablo2.Module.Item
                 return;
             }
 
+            //   官方 `Picks` 的含义（出处：官方 `TreasureClassEx.txt` 的 `Picks` 列 + 社区 TC 解析
+            //   《暗黑2进阶——TreasureClassEx文件解析》：「Picks：宝藏挑选次数。正数为有放回的挑选，
+            //   负数为不放回的挑选。」）：
+            //     正数 N ⇒ 有放回抽 N 次（同一条目可被重复选中）；
+            //     负数 -N ⇒ **不放回**抽 N 次（选中的条目从候选里移除 ⇒ 同一 TC 的出项互不相同、
+            //              条目抽空后剩下的次数不再产出）。
+            //   两者的抽取次数都是 |Picks|；差别只在"放回/不放回"。官方 `Act 1 Champ=-2 / Unique=-3 /
+            //   Super=-4` 三族正是负值行。
+            var withoutReplacement = row.Picks < 0;
             var picks = Mathf.Abs(row.Picks);
             if (picks == 0) picks = 1;
 
@@ -195,6 +204,15 @@ namespace Diablo2.Module.Item
 
             for (var p = 0; p < picks; p++)
             {
+                if (withoutReplacement && weights.Count == 0)
+                {
+                    // 非预期分支：负 Picks 的候选已被抽空（条目数 < |Picks|）⇒ 剩下的次数不再产出
+                    WarnOnce("tc.picks.exhausted." + tcName,
+                        $"LootRoller：TC \"{tcName}\" 的 picks={row.Picks}（负值 = 不放回）已把候选抽空 ⇒ " +
+                        $"第 {p + 1}/{picks} 次起不再产出（官方该行条目数少于 |picks|）");
+                    break;
+                }
+
                 var idx = rng.PickWeighted(weights);
                 if (idx < 0 || idx >= tokens.Count)
                 {
@@ -202,9 +220,16 @@ namespace Diablo2.Module.Item
                     continue;
                 }
                 var token = tokens[idx];
+                var weight = weights[idx];
+                if (withoutReplacement)
+                {
+                    // 不放回：本次选中的槽位（含 NoDrop 槽）从候选移除，后续不再被选中
+                    tokens.RemoveAt(idx);
+                    weights.RemoveAt(idx);
+                }
                 if (string.IsNullOrEmpty(token)) continue;          // NoDrop
                 //   否则"抽中未导入 token"只能报出 token、报不出是谁的槽位、也报不出丢了多少权重。
-                Resolve(tcName, token, weights[idx], level, rng, depth, outList);
+                Resolve(tcName, token, weight, level, rng, depth, outList);
             }
         }
 

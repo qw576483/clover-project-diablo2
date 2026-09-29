@@ -36,7 +36,7 @@ namespace Diablo2.Module.Player
         private Vector2Int _grid;
         private Vector3 _world;
         private Vector2 _pos;                 // 连续格坐标（cell-center 空间）
-        private Dir8 _dir = Dir8.S;
+        private CloverEngine.Dir8 _dir = CloverEngine.Dir8.S;
 
         private List<Vector2Int> _path;
         private int _pathIndex;
@@ -58,7 +58,7 @@ namespace Diablo2.Module.Player
         public Vector3 World => _world;
 
         /// <summary>当前朝向。</summary>
-        public Dir8 Dir => _dir;
+        public CloverEngine.Dir8 Dir => _dir;
 
         /// <summary>是否正在沿路径移动。</summary>
         public bool IsMoving => _path != null && _pathIndex < _path.Count;
@@ -267,7 +267,7 @@ namespace Diablo2.Module.Player
             _grid = Vector2Int.zero;
             _pos = CellCenter(Vector2Int.zero);
             _world = Iso.GridToWorld(Vector2Int.zero);
-            _dir = Dir8.S;
+            _dir = CloverEngine.Dir8.S;
             _path = null;
             _pathIndex = 0;
             _hasTarget = false;

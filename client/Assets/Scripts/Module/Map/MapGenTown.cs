@@ -254,6 +254,14 @@ namespace Diablo2.Module.Map
             // 不变量：可达 == 可走（营地是围栏围起来的，正常不会填到任何格；填到了说明有死地）
             map.FillUnreachablePockets(map.SpawnPoint, TileKind.Wall);
 
+            //   B：连通性修整只改 `TileKind`（→ `Wall`），**不给物件瓦片** ⇒ 这些格在画面上
+            //      什么都不画却挡路（"撞得上却看不见"）。边界带这一圈在画面上必须是**看得见的
+            //      边界**（原版是树线/崖壁/河岸）⇒ 用本区域自身的 't' 物件键补上。
+            //      只在边界带上做（营地内框不碰）；不改可走性、不动水面、已有原版物件瓦片的不动。
+            var rekeyed = RekeyInvisibleBlockers(map);
+            MapLog.Info($"MapGenTown: 补键 {rekeyed} 格（**营地内框以外、本就不可走但缺物件瓦片** ⇒ 否则是" +
+                        "「看得见却走不过去」的空气墙；补本区域原版 't' 物件键，不改可走性、不动水面）");
+
             MapLog.Info($"MapGenTown: 原版罗格营地布局已铺（源 {Sources()} 关卡尺寸 {w}x{h}" +
                         $"（出处 {MapGenTownLayout.SizeSource}））：" +
                         $"栅栏 {Count(counts, 'f')} / 摊位·帐篷 {Count(counts, 'o')} / 树 {Count(counts, 't')} / " +
@@ -329,6 +337,52 @@ namespace Diablo2.Module.Map
                 if (map.Exits[i] == g) return true;         // 出城口 3 格（玩家从那里出门）
             }
             return map.IsRequiredTarget(g);                 // NPC / 传送点 / 出生点
+        }
+
+        /// <summary>
+        /// 给**营地内框以外、本就不可走、却没有物件瓦片**的格补上本区域原版 't' 物件键。
+        /// <para>成因：连通性修整（`FillUnreachablePockets` → `Wall`）与布局里少数阻挡格只定
+        /// `TileKind`、没有 wall 层瓦片；渲染层对"没有物件键的阻挡格"什么都不画 ⇒ 撞得上却看不见
+        /// （玩家站在营地围栏边看这一圈草地，就是"看着能走却走不过去"）。</para>
+        /// <para>这一圈本身就是原版的**围栏之外的边界地**（树线 / 河岸）⇒ 补上 't' 物件键即可
+        /// 与原版同貌，不新增素材。</para>
+        /// <para>不动：`TileKind.Void`、水面（水面本身就是「不可走」的画面）、**地面键也为空**的格
+        /// （原版那格本来就不画 = 黑虚空，补了就是凭空长树）、已有物件键的格、营地内框、受保护格
+        /// （出城口 / 桥面 / NPC / 传送点 / 出生点）。**不改可走性**。</para>
+        /// </summary>
+        /// <returns>补键的格数。</returns>
+        private static int RekeyInvisibleBlockers(GridMap map)
+        {
+            var keys = ObjectKeysOf('t');
+            if (keys.Length == 0)
+            {
+                MapLog.Error("MapGenTown: 布局表里找不到任何 't'（树）格的原版物件键 ⇒ 不改键" +
+                             "（用纯色块补就是『占位图』⇒ 属非预期分支；请复核 MapGenTownLayout）");
+                return 0;
+            }
+
+            var rekeyed = 0;
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var g = new Vector2Int(x, y);
+                    if (map.Walkable(g)) continue;
+                    if (map.Get(g) == TileKind.Void) continue;        // 原版本来就不画的格（黑虚空）：一律不补
+                    if (map.Get(g) == TileKind.Water) continue;
+                    if (IsCampInterior(g)) continue;
+                    if (IsSealProtected(map, g)) continue;
+                    if (!map.TryGetTiles(x, y, out var ground, out var objectKey)) continue;
+                    //   判据用**地面键**：有地面、没物件 = 看得见的空气墙（要补）；
+                    //   地面键也空 = 原版那格什么都不画（黑虚空），补了就是凭空长出一棵树。
+                    if (string.IsNullOrEmpty(ground)) continue;
+                    if (!string.IsNullOrEmpty(objectKey)) continue;
+
+                    map.SetTiles(x, y, ground, keys[(x * 7 + y) % keys.Length]);
+                    rekeyed++;
+                }
+            }
+            return rekeyed;
         }
 
         /// <summary>布局表里字符 <paramref name="c"/> 的格引用到的**原版物件键**（去重，轮换用）。</summary>

@@ -3,7 +3,7 @@
 // **全项目唯一读输入的地方**（内部助手，不是门面接口 —— 契约只有 12 个门面，不许新增）。
 //
 // 职责：把「鼠标左键点击地面 / 按住左键持续走 / 悬停格 / 键盘快捷键」翻译成**格坐标与意图**，
-// 交给 `Module/Player` 使用；`Module/Camera` 若开启可选缩放/边缘滚动也走这里读轴。
+// 交给 `Module/Player` 使用。鼠标滚轮**不读**：原版 D2 没有滚轮动作（缩放/边缘滚动两者都没有）。
 //
 // 一律走 `Game.Input`（引擎封装：旧 InputManager / 新 InputSystem 双后端都能用）。
 // 屏幕 → 地面反投影**必须**用 `Core/Iso.ScreenToWorldOnGround`（`constraints.md` #6：
@@ -46,12 +46,6 @@ namespace Diablo2.Module
         /// <summary>日志 tag。</summary>
         private const string Tag = "Input";
 
-        /// <summary>滚轮轴名（与引擎自带的 `Runtime/Presentation/CloverThirdPersonCamera.cs:221` 同口径
-        /// —— 该处处说明「滚轮轴（"Mouse ScrollWheel"）两个后端都已支持」，用点在 `:238` 的
-        /// `input.GetAxis("Mouse ScrollWheel")`；轴名换算见 `Runtime/Presentation/Input.cs:544/563`。
-        /// `CloverThirdPersonCamera.cs`）⇒ 由 audit-C-logic-num §13 的引用可达性复核抓出，本行按现盘更正）。</summary>
-        public const string ScrollWheelAxis = "Mouse ScrollWheel";
-
         /// <summary>左键的鼠标键号（原版「左键 = 左手技能」，`Game.Input.GetMouseButton*(0)`）。</summary>
         public const int PrimaryMouseButton = 0;
 
@@ -68,7 +62,6 @@ namespace Diablo2.Module
         private bool _secDown;
         private bool _secHeld;
         private bool _secUp;
-        private float _wheel;
         private Camera _cam;
 
         /// <summary>原生相机 API 在本进程不可用（离线宿主）⇒ 不再重试（只报一次）。</summary>
@@ -95,10 +88,36 @@ namespace Diablo2.Module
         /// </summary>
         public Func<bool> PointerOverUi { get; set; }
 
-        /// <summary>装上默认的 UI 命中判定源（见 <see cref="PointerOverUi"/>）。</summary>
+        /// <summary>装上默认的 UI 命中判定源（见 <see cref="PointerOverUi"/>）+ 容器格快照订阅。</summary>
         public InputReader()
         {
             PointerOverUi = UiPointerProbe.PointerOverUi;
+
+            //   可破坏容器（桶 / 箱）"在哪一格"由地图广播（`Events.ContainersChanged`）——输入层不 `using`
+            //   地图模块，故只收快照并转喂 `HoverPicker.ContainerAt`（指针压上去时出「可交互」光标）。
+            _picker.ContainerAt = cell => _containers.Contains(cell);
+            if (Game.Event != null)
+            {
+                Game.Event.On<System.Collections.Generic.IReadOnlyCollection<Vector2Int>>(
+                    Events.ContainersChanged, OnContainersChanged);
+            }
+            else
+            {
+                Log.Warn(Tag, "InputReader：Game.Event 为 null（Game.Launch 未调用？）⇒ 容器格快照不订阅；"
+                    + "指针压在桶/箱上不会出「可交互」光标，点击破坏不受影响（那条走 Events.WorldClickRequest）");
+            }
+        }
+
+        /// <summary>可破坏容器格快照（收 `Events.ContainersChanged`；喂 `HoverPicker.ContainerAt`）。</summary>
+        private readonly System.Collections.Generic.HashSet<Vector2Int> _containers
+            = new System.Collections.Generic.HashSet<Vector2Int>();
+
+        /// <summary>`Events.ContainersChanged` 的收方：**整表替换**（快照语义，不做增量）。</summary>
+        private void OnContainersChanged(System.Collections.Generic.IReadOnlyCollection<Vector2Int> cells)
+        {
+            _containers.Clear();
+            if (cells == null) return;
+            foreach (var c in cells) _containers.Add(c);
         }
         private HoverTarget _hover = new HoverTarget { hasTarget = false, cursor = CursorKind.Default, id = -1 };
         private bool _hoverLogged;
@@ -138,9 +157,6 @@ namespace Diablo2.Module
         /// <summary>最近一次解析出的悬停目标（= `Events.HoverTargetChanged` 的载荷）。</summary>
         public HoverTarget CurrentHover => _hover;
 
-        /// <summary>当前光标形态（= `Events.CursorChanged` 的载荷）。</summary>
-        public CursorKind CurrentCursor => _hover != null ? _hover.cursor : CursorKind.Default;
-
         /// <summary>本帧左键是否按下（`Game.Input.GetMouseButtonDown(0)`）。</summary>
         public bool PrimaryDown => _down;
 
@@ -163,9 +179,6 @@ namespace Diablo2.Module
         /// <summary>本帧右键是否抬起。</summary>
         public bool SecondaryUp => _secUp;
 
-        /// <summary>本帧滚轮轴值（未 `Poll` 时为 0）。</summary>
-        public float ScrollWheel => _wheel;
-
         /// <summary>输入后端是否可用（不可用时全部读取返回默认值，绝不抛异常）。</summary>
         public bool Available => Game.Input != null && Game.Input.Available;
 
@@ -179,7 +192,6 @@ namespace Diablo2.Module
         public void Poll()
         {
             _down = _held = _up = false;
-            _wheel = 0f;
 
             var input = Game.Input;
             if (input == null || !input.Available)
@@ -200,7 +212,6 @@ namespace Diablo2.Module
             _secDown = input.GetMouseButtonDown(SecondaryMouseButton);
             _secHeld = input.GetMouseButton(SecondaryMouseButton);
             _secUp = input.GetMouseButtonUp(SecondaryMouseButton);
-            _wheel = input.GetAxis(ScrollWheelAxis);
 
             var cam = ResolveCamera();
             if (cam != null)
@@ -552,7 +563,6 @@ namespace Diablo2.Module
         {
             _down = _held = _up = false;
             _secDown = _secHeld = _secUp = false;
-            _wheel = 0f;
             _labelsPrev.Clear();
             _labelsAltPrev = false;
             HoverGrid = Vector2Int.zero;

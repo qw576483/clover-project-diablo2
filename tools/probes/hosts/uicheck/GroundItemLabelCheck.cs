@@ -35,6 +35,7 @@ namespace Uicheck
         public static void Run()
         {
             CheckRaycastTable();
+            CheckOutsideClickSemantics();
             CheckNameplateRules();
             CheckNameplateWiring();
         }
@@ -200,6 +201,80 @@ namespace Uicheck
                 && actual["HudPanel.cs"].Contains("MiniPanel#f"),
                 "ControlPanel#f + MiniPanel#f（未改，见回报）");
             Console.WriteLine();
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ㉓ S-68：「点面板外」口径全表 —— 逐文件、双向、带非空守卫。
+        //     非模态游戏内面板（I 背包 / C 人物 / T 技能树 / 商店 / 对话 / Tab 小地图）：
+        //       面板外**没有**满屏吃射线的遮罩 ⇒ 点面板外照旧落到地面（原版：点地面 = 走路，面板不关）。
+        //     模态面板（设置 / 暂停 / 确认 / 传送 / 死亡）：
+        //       面板外**必须**有满屏吃射线的遮罩 ⇒ 点面板外不落到地面（不该"点一下就走"）。
+        //     非空守卫：每个文件必须至少有一个 `UiArt.Panel(` 调用点 —— 否则"文件没读到"会被当成绿。
+        // ═════════════════════════════════════════════════════════════════════
+        private static void CheckOutsideClickSemantics()
+        {
+            Console.WriteLine("── ㉓ S-68：面板外点击口径（非模态=穿透到地面 / 模态=满屏遮罩吃掉）──");
+
+            var nonModal = new[]
+            {
+                "InventoryPanel.cs", "CharacterPanel.cs", "SkillTreePanel.cs",
+                "ShopPanel.cs", "NpcDialogPanel.cs", "MiniMapPanel.cs",
+            };
+            var modal = new[]
+            {
+                "SettingsPanel.cs", "PausePanel.cs", "D2ConfirmPanel.cs",
+                "WaypointPanel.cs", "DeathPanel.cs",
+            };
+
+            var fullEater = new Regex(@"UiArt\.FullPanel\s*\([^)]*,\s*true\s*\)");
+            var panelCall = new Regex(@"UiArt\.Panel\s*\(");
+
+            var bad = new List<string>();
+            var scanned = 0;
+            for (var i = 0; i < nonModal.Length; i++)
+            {
+                var src = ReadUi(nonModal[i]);
+                if (!panelCall.IsMatch(src)) { bad.Add(nonModal[i] + "：0 个 `UiArt.Panel(`（文件没读到？）"); continue; }
+                scanned++;
+                if (fullEater.IsMatch(src)) bad.Add(nonModal[i] + "：出现满屏吃射线遮罩 ⇒ 面板外点击被吃掉");
+            }
+            Program.Check($"㉓-1 六个非模态面板（I/C/T/商店/对话/Tab）都**没有**满屏吃射线遮罩 "
+                + "⇒ 点面板外照旧落到地面（原版：面板外点地面 = 走路，面板不关）",
+                bad.Count == 0 && scanned == nonModal.Length,
+                bad.Count == 0 ? $"{scanned}/{nonModal.Length} 个文件全过" : string.Join("；", bad.ToArray()));
+
+            var missModal = new List<string>();
+            for (var i = 0; i < modal.Length; i++)
+            {
+                if (!fullEater.IsMatch(ReadUi(modal[i]))) missModal.Add(modal[i]);
+            }
+            Program.Check($"㉓-2 五个模态面板（设置/暂停/确认/传送/死亡）**都有**满屏吃射线遮罩 "
+                + "⇒ 点面板外不落到地面",
+                missModal.Count == 0,
+                missModal.Count == 0 ? $"{modal.Length}/{modal.Length} 个文件全过" : "缺遮罩：" + string.Join("；", missModal.ToArray()));
+
+            // Q（原版任务日志）：本项目**没有**这个面板 —— 钉成"没有"，不是"漏了一个"。
+            var questPanels = Directory.GetFiles(Program.UiDir, "*Panel.cs", SearchOption.TopDirectoryOnly);
+            var hasQuestPanel = false;
+            for (var i = 0; i < questPanels.Length; i++)
+            {
+                if (Path.GetFileName(questPanels[i]).StartsWith("Quest", StringComparison.Ordinal)) hasQuestPanel = true;
+            }
+            var keySrc = File.ReadAllText(Path.Combine(Program.ProjectRoot, "client", "Assets", "Scripts",
+                "Def", "GameKeyAlias.cs"));
+            var hasQuestKey = Regex.IsMatch(keySrc, @"GameKey\.Q\b");
+            Program.Check("㉓-3 Q（原版任务日志）在本项目**没有面板也没有键位** ⇒ 本表的 6 行 = "
+                + "I/C/T/商店/对话/Tab（不是漏了一个面板）",
+                !hasQuestPanel && !hasQuestKey,
+                $"UI/Quest*Panel.cs={hasQuestPanel}，GameKey.Q 键位={hasQuestKey}");
+            Console.WriteLine();
+        }
+
+        /// <summary>读一个 `UI/*.cs` 并去注释（读不到 ⇒ 空串，交由调用方的非空守卫判红）。</summary>
+        private static string ReadUi(string fileName)
+        {
+            var p = Path.Combine(Program.UiDir, fileName);
+            return File.Exists(p) ? StripComments(File.ReadAllText(p)) : string.Empty;
         }
 
         /// <summary>

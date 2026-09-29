@@ -432,6 +432,27 @@ namespace Diablo2.Module.Map
                         $"分块={(_chunked ? "是" : "否")} 迷雾={(_fogOn ? "开" : "关")} 块数={BuiltChunkCount}");
         }
 
+        /// <summary>
+        /// 清掉一格的装饰物件并让它**从画布上消失**（容器被破坏后调）。
+        /// <para>落地方式：先改地图登记表（`GridMap.ClearDeco`），再走**既有的整图重铺入口**
+        /// `RebuildLayers()` —— 重铺是分帧双缓冲的（新图建在隐藏缓冲集、建满一帧切换），
+        /// 中间帧要么完整旧图要么完整新图 ⇒ 不会闪黑；旧块的节点经 `RecycleChunk` 归还池时，
+        /// 那一格的装饰物件节点自然被摘掉（`PlanCell` 读的已是清空后的登记表）。
+        /// `_explored` / 迷雾态不受影响（`RebuildLayers` 只登记建缓冲集，`areaChanged` 才重置）。</para>
+        /// <para>返回 <c>false</c> = 没有可清的装饰物件（或视图未在显示）⇒ 不重铺。</para>
+        /// </summary>
+        public bool ClearDecoAt(Vector2Int cell)
+        {
+            if (_map == null || !_showing) return false;
+
+            // 幂等：数据层若已被调用方摘掉（`ContainerBreak.TryBreak` 先摘后重铺）⇒ 这里返回 false 也无害
+            _map.ClearDeco(cell.x, cell.y);
+
+            RebuildLayers();
+            MapLog.Info($"[容器] 装饰物件已从 ({cell.x},{cell.y}) 清掉 ⇒ 触发整图重铺（分帧双缓冲）");
+            return true;
+        }
+
         /// <summary>迷雾开关（战争迷雾：未探索区域盖一层暗色）。已探索记录保留。</summary>
         public void SetFogOfWar(bool on)
         {

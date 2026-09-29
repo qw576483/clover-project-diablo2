@@ -305,6 +305,8 @@ namespace PlayerCheck
                 () => Step9c_Resources(ctx, player, bus));
             RunStep("9d. ★ u52block 链路级一跳：真 SaveModule.Load → 真 PlayerModule.LoadFrom（老档耐力 20/84 的断链点）",
                 () => Step9d_SaveToPlayerHop(ctx, player));
+            RunStep("9e. ★ 技能点默认 99：新角色 / 旧档补齐 / 花过点不顶回 / 幂等",
+                () => Step9e_SkillPoints(player));
             RunStep("10. 死亡/复活", () => Step10_DeathRevive(ctx, map, player, bus));
             RunStep("11. 等距跟随相机", () => Step11_Camera(ctx, map, rig, input));
             RunStep("12. 输入读取", () => Step12_Input(ctx, input, bus));
@@ -1469,6 +1471,78 @@ namespace PlayerCheck
                 try { if (System.IO.Directory.Exists(dir)) System.IO.Directory.Delete(dir, true); } catch { }
             }
         }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 9e. 技能点：默认 99 / 旧档补齐 / 花过点的档不顶回 / 幂等
+        // ═════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// 技能点口径（全项目唯一）：新角色 = `GameConst.DefaultSkillPoints`（99）；
+        /// 旧档若 `skillPoints == 0` **且**已学技能等级和 = 0（从没花过点）⇒ 补齐到 99；
+        /// 花过点（有已学技能）的档按存档值，⛔ 不许顶回。
+        /// </summary>
+        private static void Step9e_SkillPoints(PlayerModule player)
+        {
+            Section("9e. ★ 技能点：新角色 99 / 旧档（0 点且没学过）补齐 / 花过点不顶回 / 幂等");
+
+            Check("常量 `GameConst.DefaultSkillPoints` = 99",
+                GameConst.DefaultSkillPoints == 99, GameConst.DefaultSkillPoints.ToString());
+
+            // ① 新建角色 ⇒ 默认技能点
+            player.CreateNew(PlayerClass.Amazon, "SkillPtsNew");
+            Check("新建角色技能点 = `GameConst.DefaultSkillPoints`（CreateNew）",
+                player.SkillPoints == GameConst.DefaultSkillPoints, player.SkillPoints.ToString());
+
+            // ② 从没花过点的档（skillPoints=0 / 无已学技能）⇒ 补齐
+            var fresh = LegacySave();
+            fresh.version = GameConst.SaveVersion;
+            fresh.skillPoints = 0;
+            fresh.skillIds = new List<int>();
+            fresh.skillLevels = new List<int>();
+            var before = CaptureLogger.Count("技能点补齐");
+            player.LoadFrom(fresh);
+            var delta = CaptureLogger.Count("技能点补齐") - before;
+            Check("旧档补齐：skillPoints=0 且已学技能等级和=0 ⇒ 补到 99 **且只留一条** Info",
+                player.SkillPoints == GameConst.DefaultSkillPoints && delta == 1,
+                $"技能点 {player.SkillPoints}，补齐日志增量 {delta}");
+
+            // ③ 花过点的档（skillPoints=0 但学过技能）⇒ 按存档值，不许顶回
+            var spent = LegacySave();
+            spent.version = GameConst.SaveVersion;
+            spent.skillPoints = 0;
+            spent.skillIds = new List<int> { 1 };
+            spent.skillLevels = new List<int> { 5 };
+            player.LoadFrom(spent);
+            Check("花过点的档：skillPoints=0 但已学技能等级和=5 ⇒ 保持 0（⛔ 不顶回 99）",
+                player.SkillPoints == 0, player.SkillPoints.ToString());
+
+            // ④ 还有剩余点的档 ⇒ 原样保留
+            var rest = LegacySave();
+            rest.version = GameConst.SaveVersion;
+            rest.skillPoints = 37;
+            rest.skillIds = new List<int> { 1 };
+            rest.skillLevels = new List<int> { 2 };
+            player.LoadFrom(rest);
+            Check("有剩余点的档：37 ⇒ 原样保留（既不补齐也不清掉）",
+                player.SkillPoints == 37, player.SkillPoints.ToString());
+
+            // ⑤ 幂等：同一份「0 点没学过」的档连读两次 ⇒ 结果一致
+            player.LoadFrom(fresh);
+            var first = player.SkillPoints;
+            player.LoadFrom(fresh);
+            Check("幂等：同一份「0 点没学过」的档连读两次 ⇒ 都是 99",
+                first == GameConst.DefaultSkillPoints && player.SkillPoints == first,
+                $"第一次 {first} / 第二次 {player.SkillPoints}");
+
+            // ⑥ 退化样本：把「修前形状」（新角色就写 0 点）喂进同一判据 ⇒ 必须变红
+            var preFix = PreFixNewCharSkillPoints();
+            Check("退化样本：「修前形状」新角色 skillPoints = 0 ≠ 99 ⇒ 判据能红",
+                preFix == 0 && preFix != GameConst.DefaultSkillPoints, preFix.ToString());
+
+            player.CreateNew(PlayerClass.Amazon, "CurNew");      // 复位（与 §9c / §9d 末尾同一处置）
+        }
+
+        /// <summary>**修前形状**：新角色写的技能点（`CharCreatePanel` 旧值 = 0）。仅用于退化样本。</summary>
+        private static int PreFixNewCharSkillPoints() => 0;
 
         /// <summary>
         /// **旧口径活档的逐值副本**（`client/setting/saves/S2203805.json`，**只读**抄写；

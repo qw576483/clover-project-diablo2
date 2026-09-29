@@ -13,7 +13,7 @@ using System.Reflection;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-using Dir8 = Diablo2.Def.Dir8;
+using Dir8 = CloverEngine.Dir8;
 using Diablo2.Module;
 using Diablo2.Module.Combat;
 using Diablo2.Module.Map;
@@ -2290,6 +2290,37 @@ namespace CombatCheck
             Check("「重击」= 官方 Bash，被识别为武器伤害类", hasBash, "skill_c.code=Bash");
             Check("★ R2：次要投射物槽 missile_a/b/c 已导出 = 31 行（旧表 0 行）",
                 slotRows == 31, slotRows.ToString());
+
+            // ── 17.1b 负 ED%（官方 `calc1` 的 `Param1<0`，如 Jab=-15%）必须走**有符号**入口 ──────
+            //   `DamageFormula.PhysicalDamage` 是"倍率比"入口：对 `skillMultiplier ≤ 0` 会 Warn 后按 1
+            //   计算 ⇒ 它**不能**用来结算 ED%，-100% 及更低的 ED 折成倍率比 ≤ 0 会被夹成 +0%。
+            //   负 ED 的唯一合法入口 = `PhysicalDamageEd`（有符号整数百分比，截断口径同官方）。
+            var negEdRows = new List<Table.BaseSkillRow>();
+            for (var i = 0; i < srcRows.Count; i++)
+            {
+                if (srcRows[i].DmgPctParsed != 0 && srcRows[i].DmgPctBase < 0) negEdRows.Add(srcRows[i]);
+            }
+            Check("官方存在负 ED% 的技能行（dmg_pct_base<0，如 Jab=-15%）", negEdRows.Count > 0,
+                negEdRows.Count + " 行");
+
+            var negClamped = 0;
+            var negNotLower = 0;
+            for (var i = 0; i < negEdRows.Count; i++)
+            {
+                var r = negEdRows[i];
+                const int probeRoll = 100;
+                var viaEd = DamageFormula.PhysicalDamageEd(probeRoll, 0, 0, 0, 0, r.DmgPctBase);
+                var expect = probeRoll + probeRoll * r.DmgPctBase / 100;
+                if (viaEd == probeRoll) negClamped++;
+                if (!(viaEd < probeRoll)) negNotLower++;
+                Console.WriteLine($"  负 ED 对照：{r.Name}#{r.Id} base={r.DmgPctBase}% ⇒ " +
+                                  $"PhysicalDamageEd(100)={viaEd}（期望 {expect}）");
+            }
+            Check("负 ED% 经 PhysicalDamageEd 真的减伤（未被夹成 +0%）",
+                negClamped == 0 && negNotLower == 0, $"被夹 {negClamped} 行 / 未减伤 {negNotLower} 行");
+            Console.WriteLine($"  倍率比入口对照：PhysicalDamage(100, 倍率=0)=" +
+                              $"{DamageFormula.PhysicalDamage(100, 0, 0, 0, 0, 0f)}（≤0 的倍率按 1 算 ⇒ 只能接 >0 的倍率）；" +
+                              $"PhysicalDamageEd(100, ED=0)={DamageFormula.PhysicalDamageEd(100, 0, 0, 0, 0, 0)}");
 
             // ── 17.2 生产入口公式（21 行 × 真实武器）──────────────────────────
             var items = Table.Tables.Default.Item.All();

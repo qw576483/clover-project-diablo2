@@ -272,7 +272,8 @@ namespace Diablo2.UI
             Redraw();
 
             UiLog.Info($"自动地图画法：原版 `MaxiMap.dc6` 逐格 cel（{AutoMapCel.W}×{AutoMapCel.H}，"
-                       + $"帧数 {AutoMapCel.FrameCount}）+ ACT1 调色板（`ACT1/Pal.PL2` 256 色）"
+                       + $"帧数 {AutoMapCel.FrameCount}）+ ACT1 调色板（`ACT1/Pal.PL2` 256 色 × 线色增益 "
+                       + $"{LineGain:0.00}；出处 = 原版实机基线图自动地图区亮线灰度均值 116.8 / 直读 68.7）"
                        + $"，比例 1/{AutoMapCel.ScaleDen}（格 = 16×8 菱形），贴图 {_texW}×{_texH} 原版px"
                        + $" × {UiLayoutGame.K} 画布px；已探索 = **记忆式**（访问过即记忆，半径 {RevealRadius} 格的"
                        + "可通行 BFS + 相邻墙轮廓；与「原版按房间揭示」的差异仍登记 E23 ④）");
@@ -587,17 +588,47 @@ namespace Diablo2.UI
             return written;
         }
 
-        /// <summary>ACT1 调色板（原版 `ACT1/Pal.PL2` 的 256×RGB；索引 0 = 透明）。实例与离线宿主共用。</summary>
+        /// <summary>
+        /// 自动地图**线色增益**：把 `ACT1/Pal.PL2` 的直读色提到**原版实机同一档**。
+        /// <para>
+        /// 取值出处 = **在盘的原版实机基线图逐像素实测**（`策划/基线图/原版_实机_HUD+automap_20260923.png`，
+        /// 甲方资产）：自动地图区**亮线像素**（该区最亮 1%，n=895）灰度均值 = **116.8**、p97 = 68.3、最大 193；
+        /// 而逐 cel 直读 `Pal.PL2`（`AutoMapCel.CelPixels` = 26 个索引 / 269 像素）的**加权灰度均值 = 68.7**
+        /// （中位 62.7、p90 108.7）⇒ 直读色比原版暗 **116.8 / 68.7 = 1.70** 倍。
+        /// 复算方法：① 基线图自动地图区取最亮 1% 像素求灰度均值；② 把 `AutoMapCel.CelPixels` 用
+        /// `read_pl2` 出来的 256 色求加权灰度均值；两者相除即本常数。
+        /// </para>
+        /// <para>
+        /// **只提线色、不压暗世界**：`BackdropAlpha` 保持 0（口径 = 用户「tab 渲染地图不对，背景不用压暗」）。
+        /// 所以"线 / 底衬"对比度在**明亮场景**（罗格营地草地）里拿不到原版那张**地牢**基准的 6.73 倍 ——
+        /// 本增益只负责"线本身亮到原版同档"，不靠压暗世界去凑对比度。
+        /// </para>
+        /// </summary>
+        public const float LineGain = 1.7f;
+
+        /// <summary>
+        /// ACT1 调色板（原版 `ACT1/Pal.PL2` 的 256×RGB × <see cref="LineGain"/>；索引 0 = 透明）。
+        /// 实例与离线宿主共用；增益的出处与复算方法见 <see cref="LineGain"/>。
+        /// </summary>
         public static Color32[] CreatePalette()
         {
             var p = new Color32[256];
             for (var i = 0; i < 256; i++)
             {
-                p[i] = new Color32(AutoMapCel.PaletteRgb[i * 3],
-                    AutoMapCel.PaletteRgb[i * 3 + 1], AutoMapCel.PaletteRgb[i * 3 + 2], 255);
+                p[i] = new Color32(
+                    Gamma(AutoMapCel.PaletteRgb[i * 3], LineGain),
+                    Gamma(AutoMapCel.PaletteRgb[i * 3 + 1], LineGain),
+                    Gamma(AutoMapCel.PaletteRgb[i * 3 + 2], LineGain), 255);
             }
             p[0] = new Color32(0, 0, 0, 0);
             return p;
+        }
+
+        /// <summary>单通道乘增益并夹到 255（<see cref="LineGain"/> 的执行面）。</summary>
+        private static byte Gamma(byte v, float gain)
+        {
+            var x = v * gain;
+            return x >= 255f ? (byte)255 : (byte)(x + 0.5f);
         }
 
         /// <summary>

@@ -334,6 +334,21 @@ namespace CloverEngine
     /// `Logger` / `Event` / `Res` / `Input` / `Setting`（**不编** `UI/**` 与 `App/Bootstrap`，
     /// 原因见 `PlayerCheck.csproj` 里的说明）。
     /// </summary>
+    /// <summary>
+    /// `Runtime/Core/Timer.cs:11`（子集：`Core/StageTimer.cs` 只用到 AfterUnscaled / EveryUnscaled / Stop）。
+    /// 与 fullcheck 那份替身同形；本宿主**不链**引擎 `Timer.cs`（同一程序集里两份 `ITimer` 会 CS0101）。
+    /// </summary>
+    public interface ITimer
+    {
+        long After(float delay, System.Action callback);
+        long AfterUnscaled(float delay, System.Action callback);
+        long Every(float interval, System.Action callback);
+        long EveryUnscaled(float interval, System.Action callback);
+        void Stop(long id);
+        void StopAll();
+        void Tick(float dt);
+    }
+
     public static class Game
     {
         public static ILogger Logger = new CaptureLogger();
@@ -341,6 +356,12 @@ namespace CloverEngine
         public static IResourceManager Res = new EmptyResourceManager();
         public static IInputManager Input = new ScriptedInput();
         public static ISetting Setting = new MemSetting();
+        /// <summary>
+        /// `Game.Timer`（真引擎 `Runtime/Core/Game.cs:164` `public static ITimer Timer { get; private set; }`）。
+        /// 离线宿主不驱动定时器 ⇒ 恒 `null`（`Core/StageTimer.cs` 已按 null 走安全空操作）。
+        /// 类型 = 本文件声明的 `ITimer` 子集（与 fullcheck 那份同形，⛔ 不链引擎 `Timer.cs`，否则 CS0101）。
+        /// </summary>
+        public static ITimer Timer = null;
         /// <summary>
         /// u52block 新增：`Game.Config`（真引擎 `Runtime/Core/Game.cs:341`
         /// `public static GameConfig Config { get; private set; }`）。

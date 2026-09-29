@@ -1277,7 +1277,7 @@ namespace P2MF
             try
             {
                 return Diablo2.Module.View.SpriteFrames.Keys(PlayerClass.Amazon,
-                    Diablo2.Module.View.ViewAnim.Death, Diablo2.Def.Dir8.S).Length;
+                    Diablo2.Module.View.ViewAnim.Death, CloverEngine.Dir8.S).Length;
             }
             catch (Exception ex)
             {
@@ -1494,7 +1494,7 @@ namespace P2MF
             try
             {
                 var p = P();
-                var dir = p != null ? p.Dir : Diablo2.Def.Dir8.S;
+                var dir = p != null ? p.Dir : CloverEngine.Dir8.S;
                 var keys = Diablo2.Module.View.SpriteFrames.Keys(PlayerClass.Amazon,
                     Diablo2.Module.View.ViewAnim.Death, dir);
                 var t1 = sw.Elapsed.TotalMilliseconds;

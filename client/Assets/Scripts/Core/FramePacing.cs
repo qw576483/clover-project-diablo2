@@ -7,8 +7,10 @@
 //     · 口径常量（60 / 0）与"为什么是 60"的论据；
 //     · 留痕（成功一条 Info、失败/未生效各一条 Warn，均只报一次）；
 //     · `Describe(...)` 的**业务尾注**（动画复位口径 / 移动积分口径）。
-//   本文件**不再**出现 `Application.targetFrameRate =` / `QualitySettings.vSyncCount =`
-//      这种原生写入 —— 全工程唯一写点 = `CloverEngine.FramePacingPolicy.Pin`。
+//   本文件**不出现** `Application.targetFrameRate =` / `QualitySettings.vSyncCount =`
+//      这种原生写入 —— 帧节奏的全工程唯一写点 = `CloverEngine.FramePacingPolicy.Pin`。
+//   画质档位应用（唯一调用点 = `Core/QualitySetting.cs`）会按档位把 `vSyncCount` 重置（Unity 语义）
+//      ⇒ 那条路径**应用后立刻**调 `Pin` 重钉一次，帧节奏的最终值因此始终只由这里决定。
 //
 //   全工程**从未**设过 `Application.targetFrameRate`（引擎里唯一写点是
 //   `Runtime/Presentation/Quality.cs:179-181`，由 `Game.Quality.SetLevel` 触发；

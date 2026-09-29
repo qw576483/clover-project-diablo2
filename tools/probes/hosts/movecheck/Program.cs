@@ -13,6 +13,7 @@ using Diablo2.Module;
 using Diablo2.Module.Monster;
 using Diablo2.Module.View;
 using Vector2Int = UnityEngine.Vector2Int;
+using Dir8 = CloverEngine.Dir8;
 
 namespace MoveCheck
 {

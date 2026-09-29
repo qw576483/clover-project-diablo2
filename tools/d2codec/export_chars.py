@@ -9,7 +9,7 @@ Point / Single / PPU=64 / 无压缩 / 无 mipmap / **轴心 = (0.5, 0.5)**）：
 
 **帧键约定**（与 `Module/View/SpriteFrames.cs` 的文件头契约逐字一致）：
     `{动作}_{方向}_{帧号}`，动作 = idle/walk/attack/cast/hit/death（+ **run**，见 `ACTIONS`），
-    方向 = s/sw/w/nw/n/ne/e/se（`Def.Dir8` 名小写），帧号从 0 起。
+    方向 = s/sw/w/nw/n/ne/e/se（`CloverEngine.Dir8` 名小写），帧号从 0 起。
 
 **轴心（"不许浮空"的关键）** —— 每个单位一张**定尺寸画布**，其**几何中心 = D2 的单位原点
 （脚下）**：
@@ -29,7 +29,7 @@ Point / Single / PPU=64 / 无压缩 / 无 mipmap / **轴心 = (0.5, 0.5)**）：
      `k=0 南(S) · 4 西南(SW) · 8 西(W) · 12 西北(NW) · 16 北(N) · 20 东北(NE) · 24 东(E) · 28 东南(SE)`。
   ② **8 向逻辑序号 `j = k/4`**：`COFRenderer.cs:106`
      `cofDirection = direction * cof.directionCount / Unit.DirectionCount`，而
-     `Unit.cs:13` `Unit.DirectionCount = 32` ⇒ `j` 的顺序 **就是**本项目 `Def.Dir8` 的顺序
+     `Unit.cs:13` `Unit.DirectionCount = 32` ⇒ `j` 的顺序 **就是**本项目 `CloverEngine.Dir8` 的顺序
      `S, SW, W, NW, N, NE, E, SE`（也就是文件名里 `DIR_NAMES[j]` 的那个下标）。
   ③ **`.dcc` 文件内的方向槽位 ≠ 逻辑序号**：`Engine/IO/D2Formats/DCC.cs:555`
      `internalIndex = DirectionMapping.MapToInternal(header.directionCount, directionIndex)`
@@ -145,7 +145,7 @@ ACTIONS = cofmod.VIEW_ANIM_MODES + (('run', 'RN'),)
 #: 生成 `SpriteFrameCounts.cs` 用的动作表。
 CS_ACTIONS = ACTIONS
 
-#: 本项目 `Def.Dir8` 的 8 个方向名（小写，下标 = 枚举值）—— 与 `SpriteFrames.Keys` 的拼法一致。
+#: 本项目 `CloverEngine.Dir8` 的 8 个方向名（小写，下标 = 枚举值）—— 与 `SpriteFrames.Keys` 的拼法一致。
 DIR_NAMES = ('s', 'sw', 'w', 'nw', 'n', 'ne', 'e', 'se')
 
 #: 逻辑方向序号（下标）→ `.dcc` **文件内的方向槽位**（值）。
@@ -163,12 +163,12 @@ DIR_MAP = {
          6, 24, 12, 25, 2, 26, 13, 27, 7, 28, 14, 29, 3, 30, 15, 31],
 }
 
-#: 逻辑方向（`Def.Dir8`）的个数 —— 文件名里的 8 个方向名就是这 8 个逻辑序号。
+#: 逻辑方向（`CloverEngine.Dir8`）的个数 —— 文件名里的 8 个方向名就是这 8 个逻辑序号。
 LOGICAL_DIRS = 8
 
 
 def to_file_slot(dirs, logical_dir):
-    """逻辑方向序号（0..7，顺序同 `Def.Dir8`）→ `.dcc` 文件内的方向槽位。
+    """逻辑方向序号（0..7，顺序同 `CloverEngine.Dir8`）→ `.dcc` 文件内的方向槽位。
 
     ⛔ 三处**不许**简化：
       · `dirs` 不在 `DIR_MAP` 里 ⇒ 抛 `ValueError`（**不许静默退回 0**：那会让 8 个方向的图全一样）；
@@ -529,7 +529,7 @@ def plan_layers(arch, unit, cof, mode):
 def measure(arch, unit, mode, cof, sources):
     """量出该 (单位, 动作) 下所有**逻辑方向**的合成包围盒（只读帧头，不解像素）。
 
-    `d` = **逻辑方向序号**（0..7，顺序 = `Def.Dir8` = `DIR_NAMES` 的下标）；
+    `d` = **逻辑方向序号**（0..7，顺序 = `CloverEngine.Dir8` = `DIR_NAMES` 的下标）；
     文件内的方向槽位由 `to_file_slot(dirs, d)` 换算（**不许**再拿 `d` 当槽位用 —— 那是历史缺陷）。
     """
     info = {}
@@ -681,7 +681,7 @@ def export_unit(arch, unit, out_root, palette):
         fpd = cof.frames_per_dir
         frames_written = None
         for d in range(LOGICAL_DIRS):
-            # `d` = **逻辑方向序号**（0..7，顺序 = `Def.Dir8` = `DIR_NAMES`）：
+            # `d` = **逻辑方向序号**（0..7，顺序 = `CloverEngine.Dir8` = `DIR_NAMES`）：
             #   文件名用它、COF 的 priority 用它；**DCC 的文件槽位**由 `to_file_slot` 单独换算。
             union = per_dir.get(d)
             if union is None:

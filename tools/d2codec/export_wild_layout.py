@@ -473,7 +473,7 @@ HEADER = '''// ─────────────────────�
 //     kind ：' ' = 原版这格没有 floor（图外）/ '.' = 可走地面 / '#' = 阻挡
 //     class：阻挡物的种类（给 C# 侧定 `TileKind`，按**该格用到的 dt1 名**判定）
 //            T=树(Tree) / F=栅栏(Fence) / W=石墙·废墟·村舍(Wall) / C=崖壁(Rock)
-//            S=碎石(Rock) / O=杂物(Rock) / X=水(Rock) / R=其它阻挡(Rock) / .=非阻挡
+//            S=碎石(Rock) / O=杂物(Rock) / X=水(Water) / R=其它阻挡(Rock) / .=非阻挡
 //     ground6 / object6 = `<packId:3><tileIdx:3>`；`------` = 该层没有瓦片
 //   `GrassTiles` / `DirtTiles` = 原版野外地面瓦片（`TOWN/floor.dt1`，按像素均值色分档）
 //

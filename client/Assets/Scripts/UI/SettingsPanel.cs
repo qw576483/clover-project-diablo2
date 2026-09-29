@@ -11,7 +11,7 @@
 // 职责（验收表 #42「暂停与设置」）：选项**真能改**且**重进后仍在**：
 //   · BGM / 音效音量 → `Game.Sound.SetVolume` + 写 `Game.Setting` + `Save()`
 //   · 全屏          → `Screen.fullScreen` + 写 `Game.Setting`
-//   · 画质          → `QualitySettings.SetQualityLevel` + 写 `Game.Setting`
+//   · 画质          → `Core/QualitySetting.Apply` + 写 `Game.Setting`
 //   改完立刻 `Game.Setting.Save()`（落盘 settings.json）⇒ 重进仍在。
 // **没有**「方向键移动开关」那一行：原版 D2 只有鼠标点地面移动 ⇒ 该行与它读的设置项一并删除
 // 打开/关闭由兄弟面板直接 `Game.UI.Open/Close<SettingsPanel>()`（菜单类站点共用一个 UI 场景），
@@ -44,13 +44,6 @@ namespace Diablo2.UI
             public const string Quality = "画质";
             public const string Foot = "设置写入 Game.Setting，重进仍在。";
         }
-
-        /// <summary>
-        /// 画质档位的设置键（`Game.Setting`）。
-        /// <para>为什么键名写在这里而不是 `Core/GameConst.cs`：`Core/` 是冻结层，
-        /// ——与 `GameConst.SettingKeyFullscreen` = `"video/fullscreen"` 同构。</para>
-        /// </summary>
-        private const string KeyQuality = "video/quality";
 
         /// <summary>画质档位的按钮文案（拉丁串 ⇒ 走原版位图字体，与 ON/OFF 同口径）。</summary>
         private static readonly string[] QualityLabels = { "LOW", "MED", "HIGH" };
@@ -115,49 +108,39 @@ namespace Diablo2.UI
             _fullscreen = Game.Setting.Get<bool>(GameConst.SettingKeyFullscreen, Cfg.Fullscreen);
 
             // 画质：缺项默认取引擎当前档位（前一次会话存过的值优先 ⇒ 「重进仍在」）。
-            var engineLevel = QualitySettings.GetQualityLevel();
+            var engineLevel = QualitySetting.Current;
             var fallback = Mathf.Clamp(engineLevel, 0, QualityLabels.Length - 1);
-            _quality = Mathf.Clamp(Game.Setting.Get<int>(KeyQuality, fallback), 0, QualityLabels.Length - 1);
+            _quality = Mathf.Clamp(Game.Setting.Get<int>(GameConst.SettingKeyQuality, fallback),
+                0, QualityLabels.Length - 1);
 
             // 读到的值当场应用到引擎（否则"改过又重进"时画面仍是引擎默认档 ⇒ 设置等于没生效）
             ApplyQualityToEngine();
 
-            Log.Info("Ui", $"[设置] 画质读自 Game.Setting[\"{KeyQuality}\"] = {_quality}"
+            Log.Info("Ui", $"[设置] 画质读自 Game.Setting[\"{GameConst.SettingKeyQuality}\"] = {_quality}"
                 + $"（{QualityNames[_quality]}；引擎 QualitySettings.GetQualityLevel()={engineLevel}，"
                 + $"可用档位 {QualitySettings.names.Length} 档）");
         }
 
-        /// <summary>把 <see cref="_quality"/> 应用到引擎（档位越界 ⇒ 钳制并 Warn，不静默）。</summary>
+        /// <summary>
+        /// 把 <see cref="_quality"/> 应用到引擎（档位越界 ⇒ 钳制并 Warn，不静默）。
+        /// <para>机制全在 `Core/QualitySetting.Apply` —— 全工程**唯一**调 `QualitySettings.SetQualityLevel`
+        /// 的地方，它在按档位重置 `vSyncCount` 之后立刻重钉帧节奏（唯一写点 = `Core/FramePacing.Pin`）。
+        /// 本面板只提示"值被钳过"，⛔ 不自己写 targetFrameRate/vSync 字面量，也不碰阴影/分辨率缩放/LOD。</para>
+        /// </summary>
         private void ApplyQualityToEngine()
         {
-            var max = QualitySettings.names.Length - 1;
-            if (max < 0)
+            var actual = QualitySetting.Apply(_quality, $"选项面板应用画质档位 {_quality}", out var clamped);
+
+            if (clamped)
             {
-                Log.Warn("Ui", "[设置] 引擎没有质量档位（QualitySettings.names 为空）⇒ 画质设置只落盘、不应用");
-                return;
+                Log.Warn("Ui", $"[设置] 画质档位 {_quality} 超出可用范围 0..{QualitySetting.Ceiling}"
+                    + $"（引擎 {QualitySettings.names.Length} 档）⇒ 钳制后应用（设置值仍按原样落盘）");
             }
 
-            var level = Mathf.Clamp(_quality, 0, Mathf.Min(max, QualityLabels.Length - 1));
-            if (level != _quality)
+            if (actual < 0)
             {
-                Log.Warn("Ui", $"[设置] 画质档位 {_quality} 超出引擎档位范围 0..{max} ⇒ 钳制为 {level}（设置值仍按原样落盘）");
-                return;
+                Log.Warn("Ui", "[设置] 画质设置只落盘、未应用到引擎（原因见上一条 `[设置]` 日志）");
             }
-
-            try
-            {
-                QualitySettings.SetQualityLevel(level, false);
-            }
-            catch (System.Exception e)
-            {
-                Log.Warn("Ui", $"[设置] 应用画质档位 {level} 失败：{e.Message}（设置值已保存，下次启动生效）");
-            }
-
-            // 「人物移动抖动」候选①——`QualitySettings.SetQualityLevel` 会**按档位把
-            //   `vSyncCount` 重置**（Very Low/Low = 0 不封顶、Medium/High = 1 垂直同步）⇒ 帧率上限会
-            //   口径定义在 `Core/FramePacing.cs`（本面板只调它，不自己写 targetFrameRate/vSync 字面量，
-            //   也不碰阴影/分辨率缩放/LOD 等画质内容）。
-            FramePacing.Pin($"选项面板应用画质档位 {level}");
         }
 
         private void Refresh()
@@ -220,13 +203,14 @@ namespace Diablo2.UI
         private void OnCycleQuality()
         {
             _quality = (_quality + 1) % QualityLabels.Length;
-            Game.Setting.Set(KeyQuality, _quality);
+            Game.Setting.Set(GameConst.SettingKeyQuality, _quality);
             Game.Setting.Save();
             ApplyQualityToEngine();
             Refresh();
             Log.Info("Ui", $"[设置] 画质 = {QualityLabels[_quality]}（{QualityNames[_quality]}，档位 {_quality}）"
-                + $" → QualitySettings.SetQualityLevel({_quality}) + 写 \"{KeyQuality}\" 并 Save()"
-                + $"（引擎现读回 {QualitySettings.GetQualityLevel()}）");
+                + $" → QualitySetting.Apply（`QualitySettings.SetQualityLevel` 的唯一写点）"
+                + $" + 写 \"{GameConst.SettingKeyQuality}\" 并 Save()"
+                + $"（引擎现读回 {QualitySetting.Current}）");
         }
 
         /// <summary>把音量应用到引擎音频 + 落盘 + 通知 Audio 模块。</summary>

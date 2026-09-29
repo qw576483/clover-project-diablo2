@@ -992,6 +992,21 @@ namespace Uicheck
             Program.Check($"{pageN} 个技能树**拼装后整页**文件（`Panel/skltree_*_back_{0..3}.png`）："
                           + "IHDR == 320×432 且 == 面板矩形 ÷1.8", pageBad.Count == 0,
                 pageBad.Count == 0 ? "0 例外（5 职业 × 4 页）" : string.Join("；", pageBad.ToArray()));
+
+            // ⑤ 技能图标帧族：每职业 0..59 全部在盘
+            //    帧号域出处 = `D2Icon.SkillIconPath`：帧 = `(official_id − (6 + 30×(class−1))) × 2`，
+            //    +1 = 灰化帧；`Skill.tsv` 的 official_id 域 = 6..155（5 职业 × 30）⇒ 用到的帧号 = 0..59。
+            var iconBad = new List<string>();
+            var iconN = 0;
+            foreach (var letter in new[] { "ama", "sor", "nec", "pal", "bar" })
+                for (var i = 0; i < 60; i++)
+                {
+                    if (!PngFile(ResPaths.SkillIcon(letter, i), out _)) { iconBad.Add(letter + "#" + i + " 缺"); continue; }
+                    iconN++;
+                }
+            Program.Check($"{iconN} 个技能图标帧（5 职业 × 60 帧）：0..59 全部在盘"
+                          + "（⇒ 任意技能的常态帧与灰化帧都取得到，不存在「帧号出界」）",
+                iconBad.Count == 0, iconBad.Count == 0 ? "0 例外（300 帧）" : string.Join("；", iconBad.ToArray()));
         }
 
         /// <summary>

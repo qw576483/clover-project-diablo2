@@ -97,20 +97,19 @@ namespace Diablo2.Def
         TownFloor = 11,  // 城镇地面（可走）
 
         /// <summary>
-        /// 水（河 / 水塘 / 水域地面）—— **不可走**（原版不可涉水）。
+        /// 水（河 / 水塘 / 水洼 / 沼泽 / 城镇水域地面）—— **不可走**（原版不可涉水）。
         /// <para>
-        /// （`MapGenTown.KindOf('r')` / `MapGenWilderness.KindOf('X')`），于是「水」在
-        /// `TileKind` 层**没有语义**。本值把**城镇布局的 `'r'`**（= 原版 `Levels.txt` /
-        /// `LvlTypes.txt` 的水域地形）单独摘出来。
+        /// 生成侧的两个入口：城镇布局的 `'r'`（`MapGenTownLayout.cs` 的地图键，= 原版
+        /// `Levels.txt` / `LvlTypes.txt` 的水域地形）与野外布局的种类码 `'X'`
+        /// （`MapGenWildLayout.cs` 的字母表，按该格用到的 dt1 名判定：`pond.dt1` / `puddle.dt1` /
+        /// `swamp.dt1` / `river.dt1`）—— 两者都归到本值。
         /// </para>
         /// <para>
-        /// 出处：① `MapGenTownLayout.cs:28` 的地图键 —— `'r'` = **水（阻挡）**（生成物，
-        /// 源 `data/global/tiles/ACT1/TOWN/*.ds1`）；② 水格的 floor 键全是 `moor_river/*`
-        /// （`Tiles/moor_river` = `ACT1/OUTDOORS/river.dt1` 解出的**水瓦片**，
-        /// 见 `tools/d2codec/export_water_frames.py` 的循环色段取色与帧图产出）；③ 原版水**不可涉水**
-        /// ⇒ 可走性必须保持 `false`（`TileKindInfo.IsWalkable`）。
-        /// </para>
-        /// <para>
+        /// 出处：① 城镇 `'r'` 键的生成物 = 源 `data/global/tiles/ACT1/TOWN/*.ds1`；
+        /// ② 水格的 floor 键取自水域 dt1（`moor_river/*` / `moor_puddle/*` / `moor_swamp/*`，
+        /// 见 `MapView.IsWaterGroundKey`）；`moor_river` 的帧图与循环色段取色见
+        /// `tools/d2codec/export_water_frames.py`；③ 原版水**不可涉水** ⇒ 可走性必须保持
+        /// `false`（`TileKindInfo.IsWalkable`）。
         /// </para>
         /// </summary>
         Water = 12,
@@ -181,22 +180,6 @@ namespace Diablo2.Def
         Interact = 2,   // 可交互（NPC / 门 / 出口）
         Pickup = 3,     // 可拾取（地面物品）
         NoWalk = 4,     // 不可到达
-    }
-
-    /// <summary>
-    /// 8 方向朝向。**编号沿用暗黑2 的顺时针序（0 = 南）**，
-    /// 逻辑含义见 <c>Core/Iso.DirectionTo</c> 的方向 ↔ 格增量映射表。
-    /// </summary>
-    public enum Dir8
-    {
-        S = 0,    // 南（格增量 +gy）
-        SW = 1,   // 西南
-        W = 2,    // 西
-        NW = 3,   // 西北
-        N = 4,    // 北（格增量 -gy）
-        NE = 5,   // 东北
-        E = 6,    // 东
-        SE = 7,   // 东南
     }
 
     /// <summary>

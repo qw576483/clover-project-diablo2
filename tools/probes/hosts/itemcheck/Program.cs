@@ -25,7 +25,7 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-using Dir8 = Diablo2.Def.Dir8;
+using Dir8 = CloverEngine.Dir8;
 using Diablo2.Module;
 using Diablo2.Module.Save;
 using UnityEngine;
@@ -715,6 +715,97 @@ namespace ItemCheck
                 $"champ=\"{(m1 == null ? "" : m1.TreasureClassChamp)}\"(id={champTcId}) items={champItems}；"
                 + $"unique=\"{(m1 == null ? "" : m1.TreasureClassUnique)}\"(id={uniqueTcId})");
             item.Reset();
+
+            // ── 3c. 负 Picks = 不放回（官方 `Act 1 Champ=-2` / `Unique=-3` / `Super=-4`）─────
+            Section("3c) 负 Picks：不放回抽取（|picks| 次，选中的条目从候选移除）");
+            var negRows = new List<Table.BaseTreasureclassRow>();
+            for (var i = 0; i < tcAll.Count; i++)
+            {
+                if (tcAll[i] != null && tcAll[i].Picks < 0) negRows.Add(tcAll[i]);
+            }
+            var negNames = new System.Text.StringBuilder();
+            for (var i = 0; i < negRows.Count; i++)
+                negNames.Append(negRows[i].Name + "(" + negRows[i].Picks + ") ");
+            Check("R7 官方 Act 1 Champ/Unique/Super 共 12 个负 picks 行", negRows.Count == 12, negNames.ToString());
+
+            //   不放回的**可观测后果**：条目数 < |picks| 时候选被抽空 ⇒ 第 |picks| 次起留下限频日志。
+            //   「Act 1 Unique A」picks=-3 而 drops 只有 2 条 ⇒ 必然触发；正 picks 的行不得触发（负控）。
+            var uniqueA = TcIdOfName("Act 1 Unique A");
+            Check("R7 前置：TC \"Act 1 Unique A\"（picks=-3 / 2 个条目）在表里", uniqueA > 0, "id=" + uniqueA);
+            var exhaustedBefore = _log.CountOf("Item", "已把候选抽空");
+            var rngNeg = new Rng(31337);
+            for (var t = 0; t < 60; t++)
+            {
+                var cell = _map.RandomWalkableTile(rngNeg);
+                item.DropLoot(uniqueA, 1, cell, rngNeg);
+                ClearGround(item, item.GroundItems);
+            }
+            var exhaustedNeg = _log.CountOf("Item", "已把候选抽空") - exhaustedBefore;
+            Check("R7 负 picks 按不放回抽（候选抽空 ⇒ 留下限频日志）", exhaustedNeg > 0,
+                $"抽空日志 {exhaustedNeg} 条（有放回的实现恒为 0 条）");
+
+            var exhaustedBase = _log.CountOf("Item", "已把候选抽空");
+            var rngPos = new Rng(4242);
+            for (var t = 0; t < 60; t++)
+            {
+                var cell = _map.RandomWalkableTile(rngPos);
+                item.DropLoot(jewelryId, 1, cell, rngPos);
+                ClearGround(item, item.GroundItems);
+            }
+            Check("R7 负控：正 picks 的 TC（\"Jewelry A\"）不走不放回分支",
+                _log.CountOf("Item", "已把候选抽空") == exhaustedBase,
+                "抽空日志 +" + (_log.CountOf("Item", "已把候选抽空") - exhaustedBase));
+            item.Reset();
+
+            // ── 3d. 可破坏容器：同一条 `Events.ContainerBroken` 载荷 ⇒ 官方 `Act 1 Chest A/B/C` 档位 ──
+            Section("3d) 可破坏容器：ContainerBroken 载荷 ⇒ 官方 Act 1 Chest A/B/C 档位掉落");
+            Check("官方档位门限（0/5/9）映射：等级 4/5/8/9 ⇒ A/B/B/C",
+                Diablo2.Def.ContainerTc.TierOf(4) == 0 && Diablo2.Def.ContainerTc.TierOf(5) == 1
+                && Diablo2.Def.ContainerTc.TierOf(8) == 1 && Diablo2.Def.ContainerTc.TierOf(9) == 2,
+                $"4⇒{Diablo2.Def.ContainerTc.TierOf(4)} 5⇒{Diablo2.Def.ContainerTc.TierOf(5)} " +
+                $"8⇒{Diablo2.Def.ContainerTc.TierOf(8)} 9⇒{Diablo2.Def.ContainerTc.TierOf(9)}");
+
+            var tierNames = new[] { "Act 1 Chest A", "Act 1 Chest B", "Act 1 Chest C" };
+            var tierIds = new List<int>();
+            for (var t = 0; t < tierNames.Length; t++)
+            {
+                var id = TcIdOfName(tierNames[t]);
+                tierIds.Add(id);
+                Check($"官方 TC「{tierNames[t]}」在 treasureclass_c 里（id>0）", id > 0, "id=" + id);
+            }
+            Check("三档是**三个不同的表行**（不是同一个 TC 换个名字）",
+                tierIds[0] > 0 && tierIds[1] > 0 && tierIds[2] > 0
+                && tierIds[0] != tierIds[1] && tierIds[1] != tierIds[2] && tierIds[0] != tierIds[2],
+                string.Join(",", tierIds));
+
+            //   每档抽 20 次：官方 `Act 1 Chest *` 自带 `nodrop=100`（占权重 ~68%）⇒ **单次无掉落是正常配表行为**，
+            //   断言只要求"20 次里出过东西"（与 itemcheck 抽怪物 TC 那两条同一口径）。
+            var containerLogsBefore = _log.CountOf("Item", "[容器]");
+            var levels = new[] { 1, 6, 12 };          // 门限 0/5/9 ⇒ A / B / C
+            var dropFails = 0;
+            const int tries = 20;
+            for (var t = 0; t < levels.Length; t++)
+            {
+                var total = 0;
+                for (var k = 0; k < tries; k++)
+                {
+                    var cell = _map.RandomWalkableTile(new Rng(600 + t * 100 + k));
+                    var cargs = new Diablo2.Def.ContainerArgs { cell = cell, level = levels[t] };
+                    var before = item.GroundItems != null ? item.GroundItems.Count : 0;
+                    Game.Event.Emit(Diablo2.Core.Events.ContainerBroken, cargs);
+                    var after = item.GroundItems != null ? item.GroundItems.Count : 0;
+                    total += after - before;
+                    ClearGround(item, item.GroundItems);
+                }
+                Console.WriteLine($"  容器等级 {levels[t]} ⇒ TC「{Diablo2.Def.ContainerTc.NameOf(Diablo2.Def.ContainerTc.TierOf(levels[t]))}」" +
+                                  $"{tries} 次破坏共掉 {total} 件");
+                if (total <= 0) dropFails++;
+            }
+            Check("三档容器各 20 次破坏都有产出（走 `IItemModule.DropLoot` 这条生产入口）", dropFails == 0,
+                $"零产出 {dropFails} 档");
+            Check("容器破坏每次都留了可定位日志（`[容器]`；⛔ 不是静默掉落）",
+                _log.CountOf("Item", "[容器]") - containerLogsBefore >= levels.Length * tries,
+                $"新增日志 {_log.CountOf("Item", "[容器]") - containerLogsBefore} 条");
 
             // ── 3b. 掉落 1000 次：品质分布 + 金币 + 掉落格可走 ────────────────────
             Section("3b) 掉落 1000 次（monster_c 的 TC 列 → treasureclass_c 递归）");

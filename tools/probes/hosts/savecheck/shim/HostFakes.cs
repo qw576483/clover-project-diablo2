@@ -98,8 +98,8 @@ namespace SaveCheck
         public int Gold { get; private set; }
         public Vector2Int Grid { get; private set; } = new Vector2Int(10, 10);
         public Vector3 World => new Vector3(Grid.x, Grid.y, 0);
-        /// <summary>必须写全名：`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` 同时可见 ⇒ 裸 `Dir8` 是 CS0104。</summary>
-        public Diablo2.Def.Dir8 Dir => Diablo2.Def.Dir8.S;
+        /// <summary>朝向 = 引擎 `CloverEngine.Dir8`（全项目唯一枚举）。</summary>
+        public CloverEngine.Dir8 Dir => CloverEngine.Dir8.S;
         public bool IsMoving => false;
         public bool IsRunning => true;
         public bool IsDead => _life <= 0;

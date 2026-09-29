@@ -91,14 +91,13 @@ namespace Diablo2.Module.Monster
 
         /// <summary>
         /// 当前朝向（8 方向）。
-        /// <para>引擎 `CloverEngine.Dir8` 与项目 `Diablo2.Def.Dir8` 是**逐值直转**的两个枚举
-        /// （顺序同为 `S=0 SW=1 W=2 NW=3 N=4 NE=5 E=6 SE=7`，见 `Core/Iso.cs` 的映射说明）——
-        /// 这里只转值，不做任何档位偏移。</para>
+        /// <para>朝向枚举 = 引擎 `CloverEngine.Dir8`（顺序 `S=0 SW=1 W=2 NW=3 N=4 NE=5 E=6 SE=7`，
+        /// 见 `Core/Iso.cs` 的映射说明）⇒ 直接转发给 `PathFollower.Dir`，不做档位偏移。</para>
         /// </summary>
-        public Dir8 Dir
+        public CloverEngine.Dir8 Dir
         {
-            get { return (Dir8)(int)_follow.Dir; }
-            set { _follow.Dir = (CloverEngine.Dir8)(int)value; }
+            get { return _follow.Dir; }
+            set { _follow.Dir = value; }
         }
 
         // ── 路径（走 `IMapModule.FindPath`，本类只**沿路走**；存储与推进在引擎件里）──────

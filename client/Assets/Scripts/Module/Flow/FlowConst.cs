@@ -13,6 +13,9 @@ namespace Diablo2.Module.Flow
         /// 舞台内定时器统一打的 scope（`Game.Timer.After/Every(..., scope)` 用这个值），
         /// 离场时 `Game.Timer.StopScope(StageScope)` 一次清干净。
         /// 其它模块在 Stage 内注册定时器时也用这个 scope。
+        /// <para>**覆盖不到的**：引擎的 `AfterUnscaled` / `EveryUnscaled` 两个入口**没有 scope 形参**
+        /// （只能按 id `Stop`）⇒ 舞台内的 unscaled 定时器一律走 `Core/StageTimer`（它替这两个入口记账，
+        /// 离场时 `StageTimer.StopAll()` 与 `StopScope` 同一处一次清干净）。</para>
         /// </summary>
         public const string StageScope = "stage";
 

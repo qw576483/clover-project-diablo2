@@ -27,12 +27,6 @@ using CloverEngine;
 using Diablo2.Def;
 using UnityEngine;
 
-// 必须留这个别名：`CloverEngine` 与 `Diablo2.Def` **都有一个 `Dir8`**（引擎自带的那份见
-//    `Runtime/Core/Dir8.cs`），同时 `using` 两个命名空间会让裸 `Dir8` 变成 CS0104 二义。
-//    用别名把裸 `Dir8` 定为**项目枚举**，
-//    引擎枚举一律写成 `CloverEngine.Dir8`（只在下面 `DirectionDelta` 的转发里出现一次）。
-using Dir8 = Diablo2.Def.Dir8;
-
 namespace Diablo2.Core
 {
     /// <summary>等距投影正/逆变换、深度排序、屏幕取格（**薄门面**，实现在 <see cref="IsoLayout"/>）。</summary>
@@ -148,19 +142,16 @@ namespace Diablo2.Core
         /// ⇒ `Δworld = ((Δgx−Δgy)·HalfW, −(Δgx+Δgy)·HalfH)`，故 `(0,+1)` 是左下(SW)、`(+1,+1)` 才是正下(S)。
         /// <para>增量取符号后比较，故 (3, 7) 与 (1, 1) 结果相同。</para>
         /// <para>自洽判据：<c>DirectionDelta(DirectionTo(delta))</c> 与 <c>delta</c> 的**符号方向一致**。</para>
-        /// <para>**枚举映射**：算法在引擎 <see cref="IsoLayout.DirectionTo(Vector2Int)"/>，
-        /// 返回引擎 <see cref="CloverEngine.Dir8"/>。这里做的是**逐值直转**
-        /// （`CloverEngine.Dir8` 与 `Diablo2.Def.Dir8` **必须同序同值**：
-        /// `S=0 SW=1 W=2 NW=3 N=4 NE=5 E=6 SE=7`）——
-        /// 两枚举只要有一项错位，朝向就会整体错位**且不会报错**（表现为「人物朝向看着别扭」）。
-        /// 新增方向时**两个枚举都要改**，改完到本行确认顺序。</para>
+        /// <para>**枚举映射**：算法与枚举都在引擎（<see cref="IsoLayout.DirectionTo(Vector2Int)"/>、
+        /// <see cref="CloverEngine.Dir8"/>），本类只转发、不做换算。引擎口径：
+        /// `S=0 SW=1 W=2 NW=3 N=4 NE=5 E=6 SE=7`（`Runtime/Core/Dir8.cs`）。</para>
         /// </summary>
-        public static Dir8 DirectionTo(Vector2Int delta) => (Dir8)(int)Layout.DirectionTo(delta);
+        public static Dir8 DirectionTo(Vector2Int delta) => Layout.DirectionTo(delta);
 
         /// <summary>从 <paramref name="from"/> 指向 <paramref name="to"/> 的 8 方向（同格按 S）。</summary>
-        public static Dir8 DirectionTo(Vector2Int from, Vector2Int to) => (Dir8)(int)Layout.DirectionTo(from, to);
+        public static Dir8 DirectionTo(Vector2Int from, Vector2Int to) => Layout.DirectionTo(from, to);
 
         /// <summary>朝向 → 格增量（<see cref="DirectionTo(Vector2Int)"/> 的逆，用于「朝前移动一格」）。</summary>
-        public static Vector2Int DirectionDelta(Dir8 dir) => Layout.DirectionDelta((CloverEngine.Dir8)(int)dir);
+        public static Vector2Int DirectionDelta(Dir8 dir) => Layout.DirectionDelta(dir);
     }
 }

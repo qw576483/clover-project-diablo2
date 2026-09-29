@@ -23,9 +23,6 @@ using Diablo2.Core;
 using Diablo2.Def;
 using Diablo2.Module.View;
 using UnityEngine;
-//   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义（引擎也有一个 Dir8）。
-//   用别名把裸 `Dir8` 钉死为**项目枚举**（与 `Core/Iso.cs` 同一做法）。
-using Dir8 = Diablo2.Def.Dir8;
 
 namespace Diablo2.Module.Skill
 {
@@ -160,7 +157,7 @@ namespace Diablo2.Module.Skill
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 该投射物的**朝向**（`Def.Dir8`）：由**格空间单位向量** `Projectile.dir` 的符号取得。
+        /// 该投射物的**朝向**（`CloverEngine.Dir8`）：由**格空间单位向量** `Projectile.dir` 的符号取得。
         /// <para>走 `Iso.DirectionTo`（本项目"格增量 → 屏幕朝向"的**唯一**出处），
         /// ⛔ 不自己写 `switch (sign...)` 的第二份映射 —— 那正是"朝向整体错位且不报错"的成因。</para>
         /// <para>分量取整到符号：方位只有 8 档，`dir` 的小数部分不参与判定。</para>

@@ -16,7 +16,7 @@ using System.Collections.Generic;
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-using Dir8 = Diablo2.Def.Dir8;
+using Dir8 = CloverEngine.Dir8;
 using Diablo2.Module;
 using UnityEngine;
 
@@ -206,6 +206,7 @@ namespace CombatCheck
         public bool GetMouseButton(int button) => false;
         public bool GetMouseButtonDown(int button) => false;
         public Vector3 MousePosition => Vector3.zero;
+        public float GetAxis(string axis, bool raw = false) => 0f;   // 离线宿主不做滚轮输入
     }
 
     internal sealed class FakeSound : CloverEngine.ISoundManager

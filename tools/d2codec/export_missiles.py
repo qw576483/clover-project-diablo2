@@ -12,7 +12,7 @@
   2. **调色板 = `data\\global\\palette\\units\\Pal.dat`**（与 `export_chars.py` 同源：
      单位 / 怪物 / 飞行体共用单位调色板；`.dat` = B,G,R 反序，见 `dcc.read_pl2`）。
   3. **方向口径 = `export_chars.DIR_NAMES` + `export_chars.to_file_slot`**（**同一套**，
-     不另立一份）：文件名 `{方向名}_{帧号}.png`，方向名 = 本项目 `Def.Dir8`
+     不另立一份）：文件名 `{方向名}_{帧号}.png`，方向名 = 本项目 `CloverEngine.Dir8`
      （`s/sw/w/nw/n/ne/e/se`），槽位换算走 Diablerie `DirectionMapping`。
   4. **画布 = 全方向包围盒的对称外扩**，原点恒在画布正中 ⇒ pivot 恒 (0.5, 0.5)。
      理由：`ProjectileView` 按"节点位置 = 飞行体中心"贴图，各方向共用一张画布才不会

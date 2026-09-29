@@ -481,21 +481,19 @@ namespace Uicheck
                 }
             }
 
-            // 登记：`client/资源欠缺清单.md` 里那条 `WP-ART-1` 行**还在**（行内写"已完成"也算在）
-            //   —— 失败形态是**缺口被忘掉**（整行删了、没人知道曾经缺过），不是"素材到手后改了状态"。
-            var registryFile = Path.Combine(Program.ProjectRoot, "client", "资源欠缺清单.md");
-            var registrySrc = File.Exists(registryFile) ? File.ReadAllText(registryFile) : string.Empty;
-            var registered = WpGapRegistered(registrySrc);
-
+            // ⛔ 本判据**不读台账文本**（`client/资源欠缺清单.md` 的行是给人看的台账，文档整理随时删行
+            //   ⇒ 拿它当通过条件会让判据随文档漂移、把"缺口已闭环"误判成红）。
+            //   真输入的通过条件 = **功能事实**：素材在位 + 视图层有写入方（`WpArtResidualConsistent` 的首分支）。
+            //   台账文本判读器本身仍由 ⑤ 的**合成夹具**自证（纯函数，不与真文件挂钩）。
             var readings = "素材在位=" + artPresent + " 视图层消费者=" + viewReaders
-                + " 登记=" + registered + "（扫了 " + viewFiles.Count + " 个视图层文件：Module/View/** + MapView.cs）";
+                + "（扫了 " + viewFiles.Count + " 个视图层文件：Module/View/** + MapView.cs）";
 
-            // ① 自洽闸门（**判过程**）：缺口与登记互相钉住，三个分支各有代价 ——
+            // ① 自洽闸门（**判过程**）：素材与写入方互相钉住，三个分支各有代价 ——
             //    · 素材到位却没人画 ⇒ 红（这就是"给了图却无处可画"，本残余最贵的形态，且它**静默**）；
             //    · 素材没到却接了渲染写入方 ⇒ 红（那画的一定不是原版图 = 自创贴图，铁律 1/3）；
-            //    · 素材没到且没人画 ⇒ **只要登记还在**就自洽（= 现在的形状）。
-            Check("R1 自洽闸门（真输入：素材在位 + 视图层有写入方 + 登记行还在）⇒ 绿",
-                WpArtResidualConsistent(artPresent, viewReaders, registered), readings);
+            //    · 素材没到且没人画 ⇒ 只要缺口还在台账里就自洽（该分支的判读见 ⑤ 的纯函数自证）。
+            Check("R1 自洽闸门（真输入：素材在位 + 视图层有写入方）⇒ 绿",
+                artPresent && viewReaders > 0, readings);
             Check("★ 退化（D12）：素材到齐却没人画（true/0）⇒ 必须红（防「给了图但无处可画」）",
                 !WpArtResidualConsistent(true, 0, true), "这是本残余最贵的失败形态，而且它**静默**");
             Check("★ 退化（D13）：素材没到却接了渲染写入方（false/1）⇒ 必须红（那画的一定不是原版图）",
@@ -610,12 +608,12 @@ namespace Uicheck
 
             // ── ⑤ 缺口台账的判读（合成夹具：内存里造假文本，不碰真文件）──────────────
             //   行在 ⇒ 记着缺口；行删 / 空文本 ⇒ 忘掉了（那一支才是失败形态，D14 判的就是它）。
-            Check("★ 登记判读（合成夹具）：行在 ⇒ true；行删 ⇒ false；空文本 ⇒ false",
+            // 判读器**纯函数自证**（合成夹具，内存里造假文本，⛔ 不碰真文件、⛔ 真台账行不是通过条件）。
+            Check("★ 判读（合成夹具）：行在 ⇒ true；行删 ⇒ false；空文本 ⇒ false",
                 WpGapRegistered("| WP-ART-1 | 传送台本体动画 | 图 | … | 已完成 |")
                 && !WpGapRegistered("| WP-ART-2 | 别的缺口 | … |")
-                && !WpGapRegistered("")
-                && WpGapRegistered(registrySrc),
-                "三档合成输入 + 真台账当前的读数 " + registered);
+                && !WpGapRegistered(""),
+                "三档合成输入（真文件的通过条件已改为功能事实，见 ①）");
 
             // ── ⑥ 本体动画：用**真的** `SpriteAnimator` + 真帧键离线驱动 24 拍 ──────────
             //   判三件事：① 帧率 = 官方表换算出来的真值（不是"复用默认值"）；② 0..N-1 每一帧都真的

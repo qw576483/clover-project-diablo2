@@ -1577,7 +1577,7 @@ namespace Diablo2.Module.Flow
         // ═════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 离开舞台：7 项清场（面板 / 实体 / 对象池 / 定时器 / 音效 / 事件订阅 / 模块状态）。
+        /// 离开舞台：8 项清场（面板 / 实体 / 对象池 / 定时器 / 音效 / 资源缓存 / 事件订阅 / 模块状态）。
         /// 幂等：不在 Stage 时直接返回。
         /// </summary>
         private void LeaveStage()
@@ -1610,11 +1610,18 @@ namespace Diablo2.Module.Flow
             // ③ 对象池
             Game.Pool?.ClearAll();
 
-            // ④ 定时器（舞台内统一 scope）
+            // ④ 定时器（舞台内统一 scope）+ 舞台内 unscaled 定时器（引擎那两个入口没有 scope 形参，
+            //    由 `Core/StageTimer` 记账，见其文件头）
             Game.Timer?.StopScope(FlowConst.StageScope);
+            StageTimer.StopAll();
 
             // ⑤ 音效 / BGM
             Game.Sound?.StopAll();
+
+            // ⑧ 资源缓存：只回收**引用已归零**的条目（实体视图的贴图/动画引用已随 ② 归还）；
+            //    仍被引用的条目照旧留着 —— 引擎 `ResourceManager.UnloadAll` 在还有被引用条目 /
+            //    在途加载时**跳过**后端整体卸载并 Warn（宁可不释放，也不把在用的资源卸掉）。
+            Game.Res?.UnloadAll();
 
             // ⑥ 事件订阅（**同一方法引用**；Flow 常驻，只有舞台级订阅需要注销）
             Game.Event.Off<AreaId>(Events.ExitEntered, OnExitEntered);
@@ -1630,7 +1637,8 @@ namespace Diablo2.Module.Flow
             _area = AreaId.Town;
 
             Log.Info(FlowLog.Tag,
-                $"清场完成：实体 {before} → {CountEntities()}，对象池/scope \"{FlowConst.StageScope}\" 定时器/音效/订阅 已清");
+                $"清场完成：实体 {before} → {CountEntities()}，对象池/scope \"{FlowConst.StageScope}\" 定时器"
+                + "/unscaled 定时器/音效/资源缓存/订阅 已清");
 
             Game.Event.Emit(Events.StageLeft);
         }

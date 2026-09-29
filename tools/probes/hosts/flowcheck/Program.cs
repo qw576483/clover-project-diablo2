@@ -9,7 +9,7 @@
 //   · 站点迁移：Boot → MainMenu → CharSelect → CharCreate → CharSelect → Loading → Stage
 //              → MainMenu → CharSelect → Loading → Stage（**能再进一次**）
 //   · 读条进度真来自 `Game.Scene.Load` 的 progress 回调（本宿主同步回调 0.3/0.7/1.0）
-//   · 离场清场 7 项（面板/实体/池/定时器 scope/音效/事件注销/模块复位）逐条断言
+//   · 离场清场 8 项（面板/实体/池/定时器 scope+unscaled/音效/资源缓存/事件注销/模块复位）逐条断言
 //   · 配表 class_c 真读（走 `Table.TableLoader`，与 Bootstrap 同一条链路）
 //   · 模块未接入（AppContext.* = null）时的 **null 容忍 + Warn 降级**
 // 不覆盖（需要 Unity 原生）：Pause 站点（`Time.timeScale`）、面板内部构件与像素布局。
@@ -188,6 +188,7 @@ namespace FlowCheck
         public bool GetMouseButton(int button) => false;
         public bool GetMouseButtonDown(int button) => false;
         public Vector3 MousePosition => Vector3.zero;
+        public float GetAxis(string axis, bool raw = false) => 0f;      // 离线宿主不做滚轮输入
     }
 
     internal sealed class FakeSound : ISoundManager
@@ -247,7 +248,11 @@ namespace FlowCheck
         public T TryGet<T>(string path) where T : UnityEngine.Object => null;
 
         public void Release(string path) { }
-        public void UnloadAll() { }
+
+        /// <summary>`UnloadAll` 的调用次数（★S-07：离场清场第 ⑧ 项）。</summary>
+        public int UnloadAllCount;
+
+        public void UnloadAll() { UnloadAllCount++; Program.Tape.Add("UnloadAll"); }
 
         /// <summary>预加载：无素材 ⇒ 立刻报"全部完成"（引擎契约：空列表也必定回调）。</summary>
         public void Preload(List<string> paths, Action onDone, Action<float> progress = null)
@@ -380,7 +385,8 @@ namespace FlowCheck
             Game.Entity = entities;
             Game.Pool = pool;
             Game.Timer = timer;
-            Game.Res = new MissRes();
+            var res = new MissRes();
+            Game.Res = res;
             Game.IsRunning = true;
 
             // 站点迁移日志（与生产同一出口：Fsm.OnChange）—— 用于断言"序列完整"
@@ -575,12 +581,13 @@ namespace FlowCheck
             var scopeBeforeSwitch = timer.StoppedScopes.Count;
             var loadsBeforeSwitch = scene.LoadedScenes.Count;
             var cleanedBeforeSwitch = ConsoleLogger.CountOf("清场完成：");
+            var unloadBeforeSwitch = res.UnloadAllCount;
 
             ctx.Flow.GoStage(AreaId.Town);          // 已在 Stage（BloodMoor）⇒ 必须走「先清场再进图」的正规路径
 
             var tape = Tape.GetRange(tapeFrom, Tape.Count - tapeFrom);
-            Check("★§A-② 不同区进图：清场 ①~⑤ 在 Scene.Load **之前**按序各执行一次（顺序磁带）",
-                string.Join("|", tape) == "CloseAll|ClearAll|PoolClear|StopScope:stage|StopAll|Load:Stage",
+            Check("★§A-② 不同区进图：清场 ①~⑤ + ⑧（资源缓存）在 Scene.Load **之前**按序各执行一次（顺序磁带）",
+                string.Join("|", tape) == "CloseAll|ClearAll|PoolClear|StopScope:stage|StopAll|UnloadAll|Load:Stage",
                 "tape=" + string.Join("|", tape));
             Check("★§A-② 清场各项计数各 +1（面板/实体/对象池/定时器 scope/音效）",
                 ui.CloseAllCount == closeAllBeforeSwitch + 1 &&
@@ -591,6 +598,23 @@ namespace FlowCheck
                 $"CloseAll={closeAllBeforeSwitch}→{ui.CloseAllCount} Entity={clearAllBeforeSwitch}→{entities.ClearAllCount} " +
                 $"Pool={poolBeforeSwitch}→{pool.ClearAllCount} Timer={scopeBeforeSwitch}→{timer.StoppedScopes.Count} " +
                 $"Sound={soundBeforeSwitch}→{sound.StopAllCount}");
+
+            // ★S-07：资源缓存随清场一起收（引擎只回收"引用已归零"的条目；仍被引用的照旧留着）
+            Check("★S-07 清场 ⑧：不同区进图 ⇒ `Game.Res.UnloadAll()` 恰 +1（与清场同一条路径）",
+                res.UnloadAllCount == unloadBeforeSwitch + 1,
+                $"UnloadAll={unloadBeforeSwitch}→{res.UnloadAllCount}");
+
+            //   反向（退化能红）：Stage 存活期间资源**正在被使用** ⇒ 那一刻 `UnloadAll` 调用数必须为 0。
+            //   把这次调用挪到进图 / 每帧 / 或"只在某些离场路径上补调" ⇒ 调用数 ≠「清场完成」条数 ⇒ 本条红。
+            Check("★S-07 反向（退化能红）：`Game.Res.UnloadAll()` 只在离场清场里被调 —— "
+                + "调用数恒等于「清场完成」条数（挪到进图/每帧 ⇒ 红）",
+                res.UnloadAllCount == ConsoleLogger.CountOf("清场完成："),
+                $"UnloadAll={res.UnloadAllCount} vs 清场完成={ConsoleLogger.CountOf("清场完成：")}");
+
+            // ★S-52：舞台内 unscaled 定时器（引擎那两个入口没有 scope 形参）随清场一起清
+            Check("★S-52 离场清场同时清舞台内 unscaled 定时器（`Core/StageTimer.StopAll()`）："
+                + "清场后 `StageTimer.Count` 归零",
+                StageTimer.Count == 0, $"StageTimer.Count={StageTimer.Count}");
             Check("★§A-② 清场 ⑦（模块状态复位）也跑过：清场完成日志 +1（该行在 ResetModules 之后）",
                 ConsoleLogger.CountOf("清场完成：") == cleanedBeforeSwitch + 1,
                 $"cleaned={cleanedBeforeSwitch}→{ConsoleLogger.CountOf("清场完成：")}");

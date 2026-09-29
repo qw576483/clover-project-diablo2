@@ -29,9 +29,6 @@ namespace Diablo2.App
         /// <summary>`SkillSelected` 的防回灌标记（`SkillModule.SelectSkill` 自己也会 Emit 它）。</summary>
         private static bool _forwardingSkillSelected;
 
-        /// <summary>最近一次已转发的技能 id（同一技能重复点击不再转发）。</summary>
-        private static int _lastSelectedSkill = int.MinValue;
-
         public static void Install(AppContext ctx)
         {
             var bus = Game.Event;
@@ -66,6 +63,8 @@ namespace Diablo2.App
         /// <summary>
         /// 技能树面板右键「设为按钮技能」→ `ISkillModule.SelectSkill`。
         /// `SelectSkill` 内部会 Emit `SkillSelected` ⇒ 必须防回灌（否则无限递归）。
+        /// <para>幂等判据取**模块当前的右键技能**（`SelectedSkillId`），不是"上次转发过的 id"：
+        /// 后者会把「先右键一个还没学的技能（转发过、被模块拒），学会之后再右键它」误判成重复而整个丢掉。</para>
         /// </summary>
         private static void OnSkillSelected(int skillId)
         {
@@ -74,9 +73,8 @@ namespace Diablo2.App
             var ctx = AppWiring.Ctx;
             if (ctx?.Skill == null) { AppWiring.Missing("ISkillModule"); return; }
 
-            if (skillId == _lastSelectedSkill) return;          // 同一技能重复点击：状态没变
+            if (ctx.Skill.SelectedSkillId == skillId) return;   // 已经是当前右键技能：状态没变
 
-            _lastSelectedSkill = skillId;
             _forwardingSkillSelected = true;
             try { ctx.Skill.SelectSkill(skillId); }
             finally { _forwardingSkillSelected = false; }

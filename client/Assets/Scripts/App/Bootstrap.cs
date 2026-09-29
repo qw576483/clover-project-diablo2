@@ -121,6 +121,11 @@ namespace Diablo2.App
             //    ⇒ 挂钩侧刻意把"资源未就绪"的 Text 寄存起来，等这一行。
             Diablo2.UI.D2EngineTextHook.FlushPending();
 
+            // ②c 预热原版读条图 10 帧：此刻离 Loading 站点还有主菜单 / 创角 / 读档三段流程，
+            //     素材先进 `Game.Res` 缓存 ⇒ 开屏时 `LoadAsset` 回调**同步**触发，第 1 帧当场贴上
+            //     （不预热则首帧要等异步回调，进图画面会先空一瞬）。
+            Diablo2.UI.LoadingPanel.Prewarm();
+
             // ③ 输入 + EventSystem（必须在建 UI 之前）
             CloverInput.Init();
 
@@ -130,7 +135,7 @@ namespace Diablo2.App
             ApplyStoredSettings();
 
             //     顺序**必须**在 `ApplyStoredSettings` **之后**：它内部的
-            //     `QualitySettings.SetQualityLevel` 会按档位把 `vSyncCount` 重置成 0/1
+            //     `Core/QualitySetting.Apply` 会调 `QualitySettings.SetQualityLevel`，按档位把 `vSyncCount` 重置
             //     U27：档位不再写死 —— `Pin` 内部走引擎 `FramePacingPolicy.Recommend()`
             //     （刷新率可读 ⇒ vSync=1 帧交付锁到刷新率；读不到 ⇒ 兜底 60/0）。本行语义/顺序不变。
             FramePacing.Pin("启动");
@@ -181,12 +186,6 @@ namespace Diablo2.App
             Game.Logger.Info("Table", $"配表已加载：{Table.TableLoader.LastDir}");
         }
 
-        /// <summary>画质档位的设置键（须与 `UI/SettingsPanel.cs` 的 `KeyQuality` **逐字一致**；`Core/` 是冻结层，故不放进 `GameConst`）。</summary>
-        private const string SettingKeyQuality = "video/quality";
-
-        /// <summary>画质档位上限（`LOW/MED/HIGH` ⇒ 0..2；与 `UI/SettingsPanel` 的 `QualityLabels` 同口径）。</summary>
-        private const int MaxQualityLevel = 2;
-
         /// <summary>把 `Game.Setting` 里的持久化设置应用到引擎（缺项用 `Cfg` 默认值）。</summary>
         private static void ApplyStoredSettings()
         {
@@ -217,23 +216,35 @@ namespace Diablo2.App
                 $"[设置] 已应用持久化设置：bgm={bgm:0.00} sfx={sfx:0.00} fullscreen={fullscreen} quality={quality}");
         }
 
-        /// <summary>把 `video/quality` 应用到引擎档位（口径同 `UI/SettingsPanel`；无档位 / 越界钳制 / 应用失败 / 读回不一致 一律 Warn）。返回引擎最终档位，`-1` = 未应用。</summary>
+        /// <summary>
+        /// 把 `video/quality` 应用到引擎档位（口径同 `UI/SettingsPanel`：**唯一写点** = `Core/QualitySetting.Apply`，
+        /// 它按档位重置 `vSyncCount` 后立刻重钉帧节奏）。
+        /// 返回引擎最终档位，`-1` = 未应用。
+        /// </summary>
         private static int ApplyStoredQuality()
         {
-            var max = QualitySettings.names.Length - 1;
-            if (max < 0) { Game.Logger.Warn("App", "[设置] 引擎没有质量档位（QualitySettings.names 为空）⇒ video/quality 不应用"); return -1; }
+            var ceiling = QualitySetting.Ceiling;
+            if (ceiling < 0)
+            {
+                Game.Logger.Warn("App", "[设置] 引擎没有质量档位（QualitySettings.names 为空）⇒ video/quality 不应用");
+                return -1;
+            }
 
-            var ceiling = Mathf.Min(max, MaxQualityLevel);
-            var stored = Game.Setting.Get<int>(SettingKeyQuality, Mathf.Clamp(QualitySettings.GetQualityLevel(), 0, ceiling));
-            var level = Mathf.Clamp(stored, 0, ceiling);
-            if (level != stored) Game.Logger.Warn("App", $"[设置] video/quality={stored} 超出可用档位 0..{ceiling}（引擎 {QualitySettings.names.Length} 档）⇒ 钳制为 {level}");
+            var fallback = Mathf.Clamp(QualitySetting.Current, 0, ceiling);
+            var stored = Game.Setting.Get<int>(GameConst.SettingKeyQuality, fallback);
+            if (stored < 0 || stored > ceiling)
+            {
+                Game.Logger.Warn("App", $"[设置] video/quality={stored} 超出可用档位 0..{ceiling}"
+                    + $"（引擎 {QualitySettings.names.Length} 档）⇒ 钳制为 {Mathf.Clamp(stored, 0, ceiling)}");
+            }
 
-            try { QualitySettings.SetQualityLevel(level, false); }
-            catch (System.Exception e) { Game.Logger.Warn("App", $"[设置] 应用画质档位 {level} 失败：{e.Message}"); return -1; }
+            var actual = QualitySetting.Apply(stored, "启动应用画质档位");
+            if (actual >= 0)
+            {
+                Game.Logger.Info("App", $"[设置] 画质已应用：video/quality={stored} → QualitySetting.Apply"
+                    + $"（引擎现读回 {actual}）");
+            }
 
-            var actual = QualitySettings.GetQualityLevel();
-            if (actual != level) Game.Logger.Warn("App", $"[设置] 画质未生效：期望档位={level}，引擎实际读回={actual}");
-            Game.Logger.Info("App", $"[设置] 画质已应用：video/quality={stored} → QualitySettings.SetQualityLevel({level})（引擎现读回 {actual}）");
             return actual;
         }
     }

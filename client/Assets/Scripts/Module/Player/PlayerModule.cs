@@ -46,9 +46,6 @@ using System.Collections.Generic;      // MoveTo 的最近可走格回退要用 
 using CloverEngine;
 using Diablo2.Core;
 using Diablo2.Def;
-//   本文件同时 `using CloverEngine;` ⇒ 裸 `Dir8` 会变成 CS0104 二义。
-//   用别名把裸 `Dir8` 钉死为**项目枚举**（语义与序号和改动前**完全一致**）。
-using Dir8 = Diablo2.Def.Dir8;
 using UnityEngine;
 // 别名：`AppContext` 与 BCL 的 `System.AppContext` 同名（同时 using System 会 CS0104）。
 using AppContext = Diablo2.App.AppContext;
@@ -137,6 +134,9 @@ namespace Diablo2.Module.Player
 
         private IMapModule _mapOverride;          // 非契约入口（集成/离线自检）注入的地图
         private Vector2Int? _holdTarget;          // 按住左键时上一次下发的目标格
+
+        /// <summary>待打碎的容器格（`null` = 没有待办）；贴上后发 `Events.ContainerBroken`。</summary>
+        private Vector2Int? _pendingContainer;
         private bool _running = true;             // 跑/走切换（原版默认跑；R 键切换）
         private int _lastAttackTargetId = int.MinValue;   // 上一次打日志的攻击目标（防按住时刷屏）
         private int _engageTargetId = int.MinValue;       // 单击点怪后的持续交战目标（原版：点一下 = 走过去打到死或换目标）
@@ -187,9 +187,11 @@ namespace Diablo2.Module.Player
             Game.Event.On<StatAllocArgs>(Events.StatAllocateRequest, OnStatAllocateRequest);
             // Combat / UI 也能借此让角色走位（例如「点怪 → 走过去」）；`MoveTo` 本身**不再回发**本事件（防环）。
             Game.Event.On<Vector2Int>(Events.MoveCommand, OnMoveCommand);
+            // 容器：地图判定"这一格上有可破坏容器" ⇒ 本模块走过去、贴上后打碎（见 OnContainerOperate）。
+            Game.Event.On<int>(Events.ContainerOperate, OnContainerOperate);
             _equipSubscribed = true;
             PlayerLog.Info($"PlayerModule 已装配：订阅 {Events.EquipChanged} / {Events.StatAllocateRequest} / " +
-                           $"{Events.MoveCommand}，派生属性公式见 PlayerStats.Recompute");
+                           $"{Events.MoveCommand} / {Events.ContainerOperate}，派生属性公式见 PlayerStats.Recompute");
         }
 
         // ═════════════════════════════════════════════════════════════════════
@@ -341,7 +343,7 @@ namespace Diablo2.Module.Player
 
             _exp = 0;
             _statPoints = _stats.Row != null ? _stats.Row.StatPerLvl : 0;
-            _skillPoints = 0;
+            _skillPoints = GameConst.DefaultSkillPoints;
             _gold = 0;
             _life = _stats.MaxLife;
             _mana = _stats.MaxMana;
@@ -364,7 +366,7 @@ namespace Diablo2.Module.Player
                 $"力{_stats.Str}/敏{_stats.Dex}/体{_stats.Vit}/精{_stats.Eng} " +
                 $"生命={_life}/{_stats.MaxLife} 法力={_mana}/{_stats.MaxMana} 耐力={_stamina}/{_stats.MaxStamina} " +
                 $"防御={_stats.Defense} AR={_stats.AttackRating} 可分配属性点={_statPoints} " +
-                $"经验 0/{ExpNext}（升级阈值来自 experience_c）");
+                $"技能点={_skillPoints} 经验 0/{ExpNext}（升级阈值来自 experience_c）");
             EmitStats();
         }
 
@@ -390,6 +392,7 @@ namespace Diablo2.Module.Player
             _exp = save.exp;
             _statPoints = save.statPoints;
             _skillPoints = save.skillPoints;
+            EnsureDefaultSkillPoints(save);
             _gold = save.gold;
             _dead = false;
             _created = true;
@@ -445,6 +448,33 @@ namespace Diablo2.Module.Player
                 $"防御={_stats.Defense} AR={_stats.AttackRating} 金币={_gold} " +
                 $"落位=({_motor.Grid.x},{_motor.Grid.y})（存档位置 ({saved.x},{saved.y})，seed={save.mapSeed}）");
             EmitStats();
+        }
+
+        /// <summary>
+        /// 旧档技能点补齐：`save.skillPoints == 0` 且**一个技能都没学过**（`save.skillLevels` 各项之和 = 0）
+        /// ⇒ 按 <see cref="GameConst.DefaultSkillPoints"/> 补齐，并留一条 Info。
+        /// <para>**花过点的档一律按存档值**（学过技能 ⇒ 不补，不许把点花光的角色顶回满点）；
+        /// 幂等（只看这两个条件，重复读档结果一致）。判据取存档自己的 `skillLevels`，
+        /// 不依赖 `ISkillModule` 是否已接入。</para>
+        /// </summary>
+        private void EnsureDefaultSkillPoints(CharacterSave save)
+        {
+            if (save.skillPoints != 0) return;
+
+            var learnedLevels = 0;
+            var levels = save.skillLevels;
+            if (levels != null)
+            {
+                for (var i = 0; i < levels.Count; i++)
+                {
+                    if (levels[i] > 0) learnedLevels += levels[i];
+                }
+            }
+            if (learnedLevels > 0) return;
+
+            _skillPoints = GameConst.DefaultSkillPoints;
+            PlayerLog.Info($"[Load] 技能点补齐：档里 skillPoints=0 且已学技能等级和=0（从没花过点）" +
+                           $"⇒ 补到 {_skillPoints}（GameConst.DefaultSkillPoints）");
         }
 
         /// <inheritdoc />
@@ -762,6 +792,14 @@ namespace Diablo2.Module.Player
         /// </summary>
         private void HandleMoveIntent(IMapModule map)
         {
+            // ⓪ 待打碎的容器：走到**相邻格**（含同格）就是原版说的"贴上去了" ⇒ 打碎
+            if (_pendingContainer.HasValue && _motor != null)
+            {
+                var pc = _pendingContainer.Value;
+                var pg = _motor.Grid;
+                if (Mathf.Max(Mathf.Abs(pg.x - pc.x), Mathf.Abs(pg.y - pc.y)) <= 1) BreakContainer(pc);
+            }
+
             // ① 左键单击（本帧按下）：优先判「点怪」，否则移动意图
             if (_input.TryGetGroundClick(out var click))
             {
@@ -867,6 +905,12 @@ namespace Diablo2.Module.Player
             _holdTarget = grid;
             _engageTargetId = int.MinValue;         // 点地面移动 = 新意图 ⇒ 持续交战结束
             Emit(Events.MoveCommand, grid);            // 契约事件（本类的 OnMoveCommand 会执行 MoveTo）
+
+            //   再报一次"点了哪一格"给地图层：点中的格若放着可破坏容器（桶 / 箱），由 `Module/Map`
+            //   接管（走到相邻格 → 破坏 → 掉落，见 `Events.WorldClickRequest` 与 `ContainerBreak`）。
+            //   顺序刻意如此：地图收到后若补发一条 `Events.MoveCommand`（走到相邻格），它比上面那条**晚发**
+            //   ⇒ 覆盖它（容器格本身不可走，硬走下去只会卡在边上没有后果）。
+            Emit(Events.WorldClickRequest, grid.x | (grid.y << 16));
         }
 
         /// <summary>
@@ -948,6 +992,49 @@ namespace Diablo2.Module.Player
                 PlayerLog.Warn("右键按下，但右键技能格未绑定技能、指针下也没有怪物 ⇒ 本次右键无动作"
                     + "（原版左右键默认都是普通攻击；可用技能树右键设技能，或按 F5~F8 绑定已学技能；只报一次）");
             }
+        }
+
+        /// <summary>
+        /// 收 `Events.ContainerOperate`（打包格 `x | (y &lt;&lt; 16)`）：地图确认"这一格上放着可破坏容器"。
+        /// <para>原版语义 = 左键点容器 ⇒ 走过去把它打碎。走位复用本模块既有的走位口径
+        /// （`ApproachGrid` + `Events.MoveCommand`，与"点怪走过去"同一条路），贴上后发
+        /// `Events.ContainerBroken` ⇒ 地图清 deco、物品按官方档位掉落。</para>
+        /// </summary>
+        private void OnContainerOperate(int packed)
+        {
+            if (_dead) return;
+
+            var map = MapOrNull();
+            if (map == null || !map.IsGenerated || _motor == null) return;
+
+            var cell = new Vector2Int(packed & 0xFFFF, (packed >> 16) & 0xFFFF);
+            var from = _motor.Grid;
+
+            // 已经贴上了：不必再走
+            if (Mathf.Max(Mathf.Abs(from.x - cell.x), Mathf.Abs(from.y - cell.y)) <= 1)
+            {
+                BreakContainer(cell);
+                return;
+            }
+
+            var approach = ApproachGrid(map, cell);
+            _pendingContainer = cell;
+            _holdTarget = approach;
+            _engageTargetId = int.MinValue;                 // 新交互意图顶掉持续交战
+            Emit(Events.MoveCommand, approach);
+            PlayerLog.Info($"[容器] 点中 ({cell.x},{cell.y}) 的可破坏容器（玩家在 {from}）⇒ 走到相邻格 {approach}，" +
+                           $"贴上后发 {Events.ContainerBroken}（走过去打碎，不做「隔着屏幕打碎」）");
+        }
+
+        /// <summary>
+        /// 发 `Events.ContainerBroken`（容器已被贴脸打碎）。载荷 = `Def.ContainerArgs`（格 + 等级）：
+        /// 地图侧与物品侧收的是**同一条**载荷 ⇒ "桶没了"和"掉了东西"不会各说各话。
+        /// </summary>
+        private void BreakContainer(Vector2Int cell)
+        {
+            _pendingContainer = null;
+            Emit(Events.ContainerBroken, new Diablo2.Def.ContainerArgs { cell = cell, level = Level });
+            PlayerLog.Info($"[容器] ({cell.x},{cell.y}) 已贴上并打碎 ⇒ 发 {Events.ContainerBroken}（操作者等级 {Level}）");
         }
 
         /// <summary>该悬停目标是否"可攻击"（怪物）。</summary>

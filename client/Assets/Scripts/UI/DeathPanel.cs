@@ -45,8 +45,10 @@
 //
 // 定时器必须用 `*Unscaled`（`constraints.md` #2）：死亡常伴随 `Time.timeScale = 0`
 //   （例如暂停中被毒死、或结算流程压了时间缩放），此时引擎 `Game.Timer.After/Every`
-//   永不触发、**零报错**。本面板的「淡入 → 点亮按钮」用 `Game.Timer.AfterUnscaled`，
-//   并在 `OnClose` 里 `Stop(id)`（面板提前关闭时不留悬挂回调）。
+//   永不触发、**零报错**。本面板的「淡入 → 点亮按钮」与复活看门狗走 `Core/StageTimer`
+//   （引擎 `AfterUnscaled`/`EveryUnscaled` 没有 scope 形参，那几个入口由它记账 ⇒
+//   离场清场时与 `StopScope(舞台 scope)` 一次清干净）；`OnClose` 里仍按 id `Stop` 一次
+//   （面板提前关闭时不留悬挂回调）。
 // 打开方式：HUD 收到 `Events.PlayerDied` 后 `Game.UI.Open<DeathPanel>()`（HUD 是 Stage 常驻面板）；
 //   本面板自己也订阅 `PlayerDied`（重复收到就重置倒计时），并订阅 `StageLeft` 兜底关闭。
 // 复活请求：`Events.ReviveRequest`（无参）⇒ 由 `ICombatModule.RevivePlayer()` 负责回城 + 恢复生命。
@@ -193,7 +195,7 @@ namespace Diablo2.UI
                 return;
             }
 
-            _timerId = Game.Timer.AfterUnscaled(ReviveDelaySeconds, OnReviveReady);
+            _timerId = StageTimer.AfterUnscaled(ReviveDelaySeconds, OnReviveReady);
         }
 
         private void StopTimer()
@@ -236,7 +238,7 @@ namespace Diablo2.UI
                 UiLog.Warn("Game.Timer 为 null（引擎未启动）⇒ 复活看门狗未启动（收到 Revived 仍会关闭）");
                 return;
             }
-            _watchdogId = Game.Timer.AfterUnscaled(ReviveWaitSeconds, OnReviveTimeout);
+            _watchdogId = StageTimer.AfterUnscaled(ReviveWaitSeconds, OnReviveTimeout);
         }
 
         private void StopWatchdog()

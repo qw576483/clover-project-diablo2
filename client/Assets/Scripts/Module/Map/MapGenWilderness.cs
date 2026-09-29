@@ -723,7 +723,7 @@ namespace Diablo2.Module.Map
                 case 'C': return TileKind.Rock;      // 崖壁
                 case 'S': return TileKind.Rock;      // 碎石
                 case 'O': return TileKind.Rock;      // 野外杂物
-                case 'X': return TileKind.Rock;      // 水（原版水是阻挡）
+                case 'X': return TileKind.Water;     // 水（河 / 水塘 / 水洼 / 沼泽；原版水是阻挡）
                 case 'R': return TileKind.Rock;      // 其它阻挡
                 default:
                     MapLog.WarnThrottled("wild.kind." + (int)classChar,

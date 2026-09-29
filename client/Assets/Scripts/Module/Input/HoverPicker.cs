@@ -51,6 +51,9 @@ namespace Diablo2.Module
         /// <summary>`[Input]` 的「怪物贴图矩形查询异常」只报一次（见 `Resolve` 的 ①b）。</summary>
         private bool _noSpriteRectLogged;
 
+        /// <summary>`[Input]` 的「容器格查询异常」只报一次（见 `Resolve` 的 ③c）。</summary>
+        private bool _noContainerProbeLogged;
+
         /// <summary>
         /// 「某格上是哪个地面物品」查询（**本项目新增的非契约注入点**）。
         /// 默认 = <see cref="GroundItemAtViaView"/>；离线宿主可整体替换。
@@ -101,6 +104,18 @@ namespace Diablo2.Module
         /// ⇒ **退回脚下格口径**（只认 NPC 所在格），不做任何"猜一个矩形"的兜底。</para>
         /// </summary>
         public Func<int, Rect?> NpcSpriteRect { get; set; }
+
+        /// <summary>
+        /// 「这一格是不是**可破坏容器**（桶 / 箱）」查询（**本项目新增的非契约注入点**；
+        /// 与 <see cref="GroundItemAt"/> 完全同一套：默认 null + 调用方可整体替换）。
+        /// <para>为什么要有它：容器是原版 `Objects.txt` 的预设单位（`b1` / `cx` / `cu` / `cy`），
+        /// "这一格上有没有"只有地图数据知道，而输入层不 `using` 地图模块（分层自检 ②）
+        /// ⇒ 由 `InputReader` 把 `Events.ContainersChanged` 的快照喂进来。</para>
+        /// <para>命中时的语义 = **只有光标**（`CursorKind.Interact`，"可交互"），
+        /// 且 <c>hasTarget</c> 保持 false、`id` 保持 -1：容器不是实体（没有 id），
+        /// 借 `hasTarget` 会让顶部条 / 名字牌把容器当成 NPC 或怪显示出来。</para>
+        /// </summary>
+        public Func<Vector2Int, bool> ContainerAt { get; set; }
 
         /// <summary>构造：装上默认的地面物品 / 贴图矩形查询实现。</summary>
         public HoverPicker()
@@ -324,6 +339,34 @@ namespace Diablo2.Module
                         t.name = best.name;
                         return t;
                     }
+                }
+            }
+
+            // ③c 可破坏容器（桶 / 箱，原版 `Objects.txt` 的预设单位）：只换光标，不产生"悬停目标"
+            var containerProbe = ContainerAt;
+            if (containerProbe != null)
+            {
+                var isContainer = false;
+                try
+                {
+                    isContainer = containerProbe(grid);
+                }
+                catch (Exception e)
+                {
+                    // 注入方出问题不该让输入层炸掉：只报一次，并按"不是容器"处理
+                    if (!_noContainerProbeLogged)
+                    {
+                        _noContainerProbeLogged = true;
+                        Log.Warn(Tag, $"容器格查询抛异常（{e.GetType().Name}: {e.Message}）⇒ 本格按非容器处理（只报一次）");
+                    }
+                }
+
+                if (isContainer)
+                {
+                    t.cursor = CursorKind.Interact;
+                    t.name = string.Empty;
+                    t.id = -1;
+                    return t;
                 }
             }
 

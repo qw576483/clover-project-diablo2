@@ -366,10 +366,9 @@ namespace Diablo2.Module.Combat
         /// </para>
         /// 形状口径只在 `MeleeShape` 里（这儿不复制常量）；逐例判据 = `combatcheck` 第 18 节。
         /// </summary>
-        //    `Iso.DirectionDelta` 加了 `using CloverEngine;` ⇒ **两个命名空间都有 `Dir8`** ⇒ CS0104 歧义，
-        //    整棵树编不过（4 个并行片全部因它无法进 Play）。这里显式限定为**项目自己的** `Diablo2.Def.Dir8`
-        //    （`Iso.DirectionDelta` 签名要的也是它），语义零改动。
-        private static string ShapeGate(Diablo2.Def.Dir8 dir, Vector2Int from, Vector2Int to, float reach)
+        //    朝向枚举 = 引擎 `CloverEngine.Dir8`（全项目唯一）：这里写全名，与
+        //    `Iso.DirectionDelta` 的签名同类型。
+        private static string ShapeGate(CloverEngine.Dir8 dir, Vector2Int from, Vector2Int to, float reach)
         {
             // 朝向 → 格增量：走引擎权威表 `Iso.DirectionDelta`（不在 MeleeShape 里另写一份映射）
             var dv = Iso.DirectionDelta(dir);

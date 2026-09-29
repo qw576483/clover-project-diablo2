@@ -43,8 +43,8 @@ namespace PENT
     using Diablo2.Def;
     using Diablo2.Module;
     using UnityEngine;
-    // using CloverEngine and Diablo2.Def together makes bare Dir8 ambiguous (CS0104).
-    using Dir8 = Diablo2.Def.Dir8;
+    // Dir8 alias pinned to the engine enum (CloverEngine.Dir8).
+    using Dir8 = CloverEngine.Dir8;
 
     /// <summary>Log / shot / reflection helpers.</summary>
     public static class L
