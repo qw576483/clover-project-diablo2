@@ -1,0 +1,42 @@
+{
+ "cel": "MeteorTargetIndicator",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\MeteorTargetIndicator.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 1,
+ "framesPerDir": 17,
+ "officialAnimLen": [
+  17
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 0,
+  "nw": 0,
+  "n": 0,
+  "ne": 0,
+  "e": 0,
+  "se": 0
+ },
+ "canvas": {
+  "w": 112,
+  "h": 86,
+  "originX": 56,
+  "originY": 43,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 136
+}

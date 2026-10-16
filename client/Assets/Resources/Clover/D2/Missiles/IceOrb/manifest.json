@@ -1,0 +1,42 @@
+{
+ "cel": "IceOrb",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\IceOrb.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 1,
+ "framesPerDir": 16,
+ "officialAnimLen": [
+  16
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 0,
+  "nw": 0,
+  "n": 0,
+  "ne": 0,
+  "e": 0,
+  "se": 0
+ },
+ "canvas": {
+  "w": 54,
+  "h": 142,
+  "originX": 27,
+  "originY": 71,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 128
+}

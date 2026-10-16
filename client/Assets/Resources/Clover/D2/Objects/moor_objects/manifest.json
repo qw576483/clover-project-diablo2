@@ -1,0 +1,136 @@
+{
+ "pack": "moor_objects",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/objects.dt1",
+ "kind": "Objects",
+ "note": "帐篷 / 营地杂物（原版城镇的帐篷就在这张表里）",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 7,
+ "tiles": [
+  {
+   "idx": 8,
+   "file": "008.png",
+   "w": 128,
+   "h": 192,
+   "main": 5,
+   "sub": 1,
+   "orientation": 12,
+   "compositeIndex": 10284,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    35,
+    98,
+    177
+   ]
+  },
+  {
+   "idx": 9,
+   "file": "009.png",
+   "w": 160,
+   "h": 192,
+   "main": 5,
+   "sub": 0,
+   "orientation": 12,
+   "compositeIndex": 10252,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    44,
+    53,
+    159,
+    173
+   ]
+  },
+  {
+   "idx": 37,
+   "file": "037.png",
+   "w": 160,
+   "h": 192,
+   "main": 6,
+   "sub": 3,
+   "orientation": 2,
+   "compositeIndex": 12386,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    2,
+    35,
+    159,
+    170
+   ]
+  },
+  {
+   "idx": 38,
+   "file": "038.png",
+   "w": 160,
+   "h": 192,
+   "main": 6,
+   "sub": 2,
+   "orientation": 2,
+   "compositeIndex": 12354,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    15,
+    60,
+    159,
+    189
+   ]
+  },
+  {
+   "idx": 39,
+   "file": "039.png",
+   "w": 160,
+   "h": 160,
+   "main": 6,
+   "sub": 2,
+   "orientation": 12,
+   "compositeIndex": 12364,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    33,
+    151,
+    141
+   ]
+  },
+  {
+   "idx": 40,
+   "file": "040.png",
+   "w": 160,
+   "h": 192,
+   "main": 6,
+   "sub": 1,
+   "orientation": 2,
+   "compositeIndex": 12322,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    4,
+    32,
+    159,
+    172
+   ]
+  },
+  {
+   "idx": 41,
+   "file": "041.png",
+   "w": 160,
+   "h": 224,
+   "main": 6,
+   "sub": 0,
+   "orientation": 2,
+   "compositeIndex": 12290,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    37,
+    47,
+    159,
+    172
+   ]
+  }
+ ]
+}

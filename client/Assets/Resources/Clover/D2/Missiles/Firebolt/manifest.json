@@ -1,0 +1,42 @@
+{
+ "cel": "Firebolt",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\Firebolt.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 16,
+ "framesPerDir": 5,
+ "officialAnimLen": [
+  5
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 4,
+  "sw": 0,
+  "w": 5,
+  "nw": 1,
+  "n": 6,
+  "ne": 2,
+  "e": 7,
+  "se": 3
+ },
+ "canvas": {
+  "w": 116,
+  "h": 152,
+  "originX": 58,
+  "originY": 76,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 40
+}

@@ -1,0 +1,86 @@
+{
+ "unit": "Monsters/si",
+ "kind": "monster",
+ "token": "si",
+ "sourceMpq": "d2data.mpq",
+ "sourcePath": "data/global/monsters/si/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 96,
+  "h": 94,
+  "originX": 48,
+  "originY": 47,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -48,
+   "right": 48,
+   "up": -47,
+   "down": 24
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 9,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "attack": {
+   "mode": "A1",
+   "frames": 16,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "hit": {
+   "mode": "GH",
+   "frames": 6,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "death": {
+   "mode": "DT",
+   "frames": 14,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": [
+    "layer#0(S8,wc=hth)：不画（monstats 标志=0（该怪没有这一层）；文件存在）"
+   ]
+  }
+ },
+ "pngCount": 424
+}

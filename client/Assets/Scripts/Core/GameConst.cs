@@ -1,0 +1,337 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Diablo2 · Core/GameConst.cs
+// 全项目**唯一**的常量来源（项目约定「常量类：静态类 + const，不写裸字面量」）。
+//
+//    本文件只放「手感参数且永不增长的」常量；**同质化数值一律走配表**（不在此处硬编码）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace Diablo2.Core
+{
+    /// <summary>项目级常量（格子 / 投影 / 速度 / 背包尺寸 / 距离 / 排序 / id 约定）。</summary>
+    public static class GameConst
+    {
+        /// <summary>契约：逻辑格子边长 = 1 世界单位。</summary>
+        public const int TileSize = 1;
+
+        /// <summary>契约：等距菱形瓦片宽（像素）。</summary>
+        public const int IsoTilePxW = 128;
+
+        /// <summary>契约：等距菱形瓦片高（像素）。</summary>
+        public const int IsoTilePxH = 64;
+
+        /// <summary>契约：精灵 PPU。</summary>
+        public const int PixelsPerUnit = 64;
+
+        /// <summary>
+        /// <para>出处（上游参考工程原文，逐字核过）：</para>
+        /// <list type="bullet">
+        /// <item>`unit.runSpeed = 15`（**map 单位/秒**）：
+        /// `Diablerie/Engine/Player.cs:48-49` 的 `unit.walkSpeed = 7; unit.runSpeed = 15;`
+        /// （`https://cdn.jsdelivr.net/gh/mofr/Diablerie@master/Assets/Scripts/Diablerie/Engine/Player.cs`）；
+        /// 消费点 = `Engine/Entities/Unit.cs:324-325` 的 `speed = run ? runSpeed : walkSpeed;
+        /// distance = speed * Time.deltaTime;`（路径步长就是 map 单位）。</item>
+        /// <item>**1 格 = 5 map 单位**：`Engine/Iso.cs:9-12` 的
+        /// `SubTileCount = 5` + `pixelsPerUnit = 80` + `tileSize = 0.2f` + `tileSizeY = tileSize / 2`；
+        /// 换算点 = `Engine/World/LevelBuilder.cs:245/328/508` 的 `* Iso.SubTileCount`
+        /// （DS1 格坐标 ×5 ⇒ map 单位）。</item>
+        /// <item>⇒ 15 ÷ 5 = **3.0 格/秒**（对应的走速见 <see cref="PlayerWalkSpeedFactor"/>）。</item>
+        /// </list>
+        /// </summary>
+        public const float PlayerWalkSpeed = 3.0f;
+
+        /// <summary>
+        /// 玩家**走**速倍率 = 原版 `walkSpeed / runSpeed` = `7 / 15`。
+        /// <para>出处：`Diablerie/Engine/Player.cs:48-49` 的 `unit.walkSpeed = 7; unit.runSpeed = 15;`
+        /// ⇒ 走速 = <see cref="PlayerWalkSpeed"/> × 7/15 = 3.0 × 7/15 = **1.4 格/秒**
+        /// （原版"走"的绝对速度）。</para>
+        /// <para>全项目只保留这一份字面量（`PlayerModule` 引用它）。</para>
+        /// </summary>
+        public const float PlayerWalkSpeedFactor = 7f / 15f;
+
+        /// <summary>契约：背包列数。</summary>
+        public const int InventoryCols = 10;
+
+        /// <summary>契约：背包行数。</summary>
+        public const int InventoryRows = 4;
+
+        /// <summary>契约：腰带格数。</summary>
+        public const int BeltSlots = 4;
+
+        // ── 由契约常量派生（**禁止再写第二份字面量**）─────────────────────────
+        /// <summary>瓦片半宽（像素）= 64。</summary>
+        public const float HalfTilePxW = IsoTilePxW * 0.5f;
+
+        /// <summary>瓦片半高（像素）= 32。</summary>
+        public const float HalfTilePxH = IsoTilePxH * 0.5f;
+
+        /// <summary>等距投影 X 轴半格（世界单位）= 1.0 —— `Iso.GridToWorld` 用。</summary>
+        public const float IsoHalfW = HalfTilePxW / PixelsPerUnit;
+
+        /// <summary>等距投影 Y 轴半格（世界单位）= 0.5 —— `Iso.GridToWorld` 用。</summary>
+        public const float IsoHalfH = HalfTilePxH / PixelsPerUnit;
+
+        /// <summary>背包总格数（10×4 = 40）。</summary>
+        public const int InventoryCellCount = InventoryCols * InventoryRows;
+
+        // ── 地图尺寸范围（格）─────────────────────────────────────────────────
+        /// <summary>
+        /// 罗格营地（固定布局）**宽** = 原版关卡尺寸 **56**。
+        /// <para>出处：原版 `Levels.txt`「Act 1 - Town」（LevelName = Rogue Encampment）的
+        /// `SizeX`（`原版资源/d2raw/data/global/excel/Levels.txt`）；生成物
+        /// `Module/Map/MapGenTownLayout.Width` 由 `tools/d2codec/export_town_layout.py`
+        /// 直接读那一行得出 ⇒ 两者**必须相等**（`MapGenTown` 不一致时直接报错，见该文件）。</para>
+        /// <para>取值必须覆盖整关：只取营地本体再裁小会把营地外的河切掉。</para>
+        /// </summary>
+        public const int TownWidth = 56;
+
+        /// <summary>罗格营地（固定布局）**高** = 原版关卡尺寸 **40**；出处同 <see cref="TownWidth"/>。</summary>
+        public const int TownHeight = 40;
+
+        /// <summary>血腥荒野随机尺寸下限。</summary>
+        public const int WildernessMinSize = 48;
+
+        /// <summary>血腥荒野随机尺寸上限。</summary>
+        public const int WildernessMaxSize = 80;
+
+        /// <summary>任意区域尺寸硬下限（越小越可能生成失败，低于此值拒绝生成并报错）。</summary>
+        public const int MapMinSize = 24;
+
+        /// <summary>任意区域尺寸硬上限（超过会拖慢瓦片铺装）。</summary>
+        public const int MapMaxSize = 96;
+
+        /// <summary>随机生成失败后的重试次数上限（连通性校验不过 ⇒ 换 seed 重生成）。</summary>
+        public const int MapGenMaxRetry = 8;
+
+        // ── 距离常量（**单位：格**）───────────────────────────────────────────
+        /// <summary>点击移动时判定「已到达路径点」的距离。</summary>
+        public const float ArriveEpsilon = 0.08f;
+
+        /// <summary>近战攻击距离。</summary>
+        public const float MeleeRange = 1.6f;
+
+        /// <summary>远程/施法攻击距离上限。</summary>
+        public const float RangedRange = 8f;
+
+        /// <summary>拾取地面物品的距离。</summary>
+        public const float PickupRange = 1.4f;
+
+        /// <summary>与 NPC 对话/交易的触发距离。</summary>
+        public const float TalkRange = 2.4f;
+
+        /// <summary>怪物发现玩家（进入仇恨）的距离。</summary>
+        public const float MonsterAggroRange = 8f;
+
+        /// <summary>怪物放弃追击的距离（超过即脱战回原位）。</summary>
+        public const float MonsterLeashRange = 14f;
+
+        /// <summary>鼠标悬停可交互物件的最大距离（超距离光标不变）。</summary>
+        public const float HoverRange = 10f;
+
+        // ── 深度排序（`constraints.md` #5：sortingOrder 必须随格子变化）──────
+        /// <summary>每格的排序步长（同格内再按层加偏移）。</summary>
+        public const int SortOrderStep = 4;
+
+        /// <summary>排序基准值（保证 > 背景层排序）。</summary>
+        public const int SortOrderBase = 100;
+
+        /// <summary>地面层偏移。</summary>
+        public const int LayerOffsetGround = 0;
+
+        /// <summary>物件层偏移（建筑 / 树 / 岩石）。</summary>
+        public const int LayerOffsetObject = 1;
+
+        /// <summary>实体层偏移（角色 / 怪物 / 地面物品）。</summary>
+        public const int LayerOffsetEntity = 2;
+
+        /// <summary>遮蔽层偏移（屋顶 / 树冠，半透明遮挡）。</summary>
+        public const int LayerOffsetOverlay = 3;
+
+        /// <summary>
+        /// **deck（桥面 / 平台 / 甲板）格上实体的排序档位** —— 与普通实体档
+        /// <see cref="LayerOffsetEntity"/> **同值**（桥面格不单独抬档）；判定走
+        /// `IMapModule.IsDeckGrid`（登记见 `Module/Map/DeckTiles` + `GridMap.SetTiles`）。
+        ///
+        /// <para><b>为什么不抬档</b>（原版口径 = 逐 y 排序：格 y 越大越靠前）：罗格营地出城那座桥的
+        /// 桥面**南行**（y=27）在 `bridge.dt1` 里是阻挡压边行的北邻，它正南一格（y=28）就压着桥栏杆；
+        /// 栏杆的不透明像素自本格底边向上 79 px（量法 = 取该物件瓦片逐像素量其相对格底边的跨度，
+        /// 见 `moor_bridge/012` 那类 160×192 瓦片）⇒ 站南行的实体腿脚被 `4(D+1)+101 = 4D+105`
+        /// 盖住 = 正常遮挡；站北行（y=26）时栏杆在本格（`4D+101`，先画）⇒ 实体在栏杆之前。
+        /// 抬档会把这条正常遮挡反过来画成"人物压在石头栏杆上"。</para>
+        ///
+        /// <para><b>数值</b>（D = gx+gy）：本档 = <see cref="LayerOffsetEntity"/> = 2 ⇒ 桥面实体
+        /// `4D+102`；正南一格物件层 `4(D+1)+101 = 4D+105`；正南两格物件层 `4(D+2)+101 = 4D+109`。
+        /// `mapcheck` §21 逐桥面格守着这条。</para>
+        /// </summary>
+        public const int LayerOffsetDeckEntity = LayerOffsetEntity;
+
+        // ── 实体 id 约定（**全项目唯一**）────────────────────────────────────
+        /// <summary>玩家实体 id（`DamageArgs.targetId` 用它表示玩家）。</summary>
+        public const int PlayerEntityId = 1;
+
+        /// <summary>怪物实体 id 起点（`GameConst.MonsterIdBase + 递增序号`）。</summary>
+        public const int MonsterIdBase = 1000;
+
+        /// <summary>地面物品实体 id 起点。</summary>
+        public const int GroundItemIdBase = 100000;
+
+        /// <summary>是否为本项目怪物 id。</summary>
+        public static bool IsMonsterId(int id) => id >= MonsterIdBase && id < GroundItemIdBase;
+
+        // ── 存档 ─────────────────────────────────────────────────────────────
+        /// <summary>
+        /// 存档格式版本（`CharacterSave.version` 应写本值；版本不一致时按需迁移）。
+        /// <para>1 级"生命/法力/耐力"的**起始量**口径 = `PlayerStats.Max*` ← `class_c.hp_add` /
+        /// `base_stamina` ← 官方 `charstats.txt`（更早存的档 `life=60 / mana=22 / stamina=20` 与它不同源，
+        /// 例见 `client/setting/saves/S2203805.json`）。
+        /// **消费方**：`Module/Player/PlayerModule.LoadFrom` —— `save.version &lt; 本值` ⇒ 三资源按当前口径补满
+        /// （否则实机出现「耐力 cur = 20 / max = 84」）。</para>
+        /// <para>**旧客户端读新档**：走既有"降级处理"（`fileVersion != SaveVersion` ⇒ Warn + 尽力读）。
+        /// 版本号只影响三资源起始量的补齐，不增删字段 ⇒ 旧客户端读到的是完整数据
+        /// （`itemcheck §11` 的 `version:99` 用例覆盖该路径）。</para>
+        /// </summary>
+        public const int SaveVersion = 2;
+
+        /// <summary>
+        /// 存档的键前缀（`char/{角色名}`）。
+        /// <para>**角色档 = 「一角色一文件」**（`&lt;SettingDir&gt;/saves/&lt;角色名&gt;.json`，
+        /// 走引擎 `CloverEngine.FileSlotStore`）⇒ 这个前缀现在**只用于旧档懒迁移与清理**
+        /// （见 `SaveModule.ReadRaw`：读到老键才搬进槽位，**搬成功就删旧键**）。</para>
+        /// </summary>
+        public const string SaveKeyPrefix = "char/";
+
+        /// <summary>
+        /// 存档**创建先后**索引键（角色名清单）。
+        /// <para>它只表达「选角屏的排列顺序」、**不再是"有哪些角色"的权威来源**（权威 = 槽位目录里的文件）：
+        /// 引擎 `FileSlotStore.List()` 是**字典序**、不是插入序（其文件头已裁决"要创建先后就自己维护索引键"），
+        /// 而选角屏卡片顺序是**可见行为** ⇒ 顺序仍留在这里维护。</para>
+        /// </summary>
+        public const string SaveIndexKey = "char/index";
+
+        /// <summary>设置项在 `Game.Setting` 里的键：BGM 音量。</summary>
+        public const string SettingKeyBgmVolume = "audio/bgm_volume";
+
+        /// <summary>设置项在 `Game.Setting` 里的键：音效音量。</summary>
+        public const string SettingKeySfxVolume = "audio/sfx_volume";
+
+        /// <summary>
+        /// 设置项在 `Game.Setting` 里的键：**BGM 静音**（bool）。
+        /// <para>语义 = 与 <see cref="SettingKeyBgmVolume"/> **两个维度、互不覆盖**：音量为 0 与静音是两回事，
+        /// 取消静音要能还原到静音前的音量（原版设置界面就是这么做的）。</para>
+        /// <para>键名与既有口径同构（`audio/{项}`，对照 <see cref="SettingKeyBgmVolume"/> / <see cref="SettingKeySfxVolume"/>）。</para>
+        /// </summary>
+        public const string SettingKeyBgmMute = "audio/bgm_mute";
+
+        /// <summary>设置项在 `Game.Setting` 里的键：**音效静音**（bool）；语义同 <see cref="SettingKeyBgmMute"/>。</summary>
+        public const string SettingKeySfxMute = "audio/sfx_mute";
+
+        /// <summary>设置项在 `Game.Setting` 里的键：全屏。</summary>
+        public const string SettingKeyFullscreen = "video/fullscreen";
+
+        /// <summary>
+        /// 设置项在 `Game.Setting` 里的键：画质档位（int，取值 <c>0..<see cref="MaxQualityLevel"/></c>）。
+        /// <para>**设置键的唯一真源**：启动应用（`App/Bootstrap.ApplyStoredQuality`）与选项面板
+        /// （`UI/SettingsPanel`）都读这一份，⛔ 不许再就地定义字面量。</para>
+        /// </summary>
+        public const string SettingKeyQuality = "video/quality";
+
+        /// <summary>
+        /// 画质档位上限（`LOW/MED/HIGH` ⇒ <c>0..2</c>）。
+        /// <para>与引擎 `QualitySettings` 资产的实际档数取小（`Mathf.Min(names.Length - 1, 本值)`）：
+        /// 引擎档数少时钳到引擎上界，多时只用前三档。</para>
+        /// </summary>
+        public const int MaxQualityLevel = 2;
+
+        /// <summary>自动存档间隔（秒）。</summary>
+        public const float AutoSaveIntervalSeconds = 120f;
+
+        // ── 技能点 ───────────────────────────────────────────────────────────
+        /// <summary>
+        /// **本项目新增**：角色持有的技能点默认值 —— 创建角色时发放 / 旧档补齐时用同一个值。
+        /// <para>原版的技能点按等级发放（每级 +1，见 `Module/Player/PlayerModule.SkillPointsPerLevel`）；
+        /// 本项目改为开局即给 <b>99</b> 点，让 1 级角色就能把技能树点起来。</para>
+        /// </summary>
+        public const int DefaultSkillPoints = 99;
+
+        // ── 商店 ─────────────────────────────────────────────────────────────
+        /// <summary>
+        /// **卖出价系数**：卖出价 = 物品标价（配表 `item_c.price`）× 本系数，至少 1。
+        /// <para>结算（`NpcModule.Sell`）与商店面板悬停时的价格显示**共用这一份**
+        /// （`GameConst.SellPriceOf`），⛔ 两边不许各写一份字面量。</para>
+        /// </summary>
+        public const float SellPriceRatio = 0.25f;
+
+        /// <summary>
+        /// 卖出价 = <paramref name="basePrice"/> × <see cref="SellPriceRatio"/>（至少 1；`basePrice ≤ 0` ⇒ 0）。
+        /// </summary>
+        public static int SellPriceOf(int basePrice)
+            => basePrice <= 0 ? 0 : UnityEngine.Mathf.Max(1, UnityEngine.Mathf.RoundToInt(basePrice * SellPriceRatio));
+
+        // ── UI ───────────────────────────────────────────────────────────────
+        /// <summary>
+        /// UI 参考分辨率宽 = **1920**（`CanvasScaler` ScaleWithScreenSize, match 0.5）。
+        /// <para>**出处（不是估的，是引擎写死的）**：引擎 `UIManager` 构造函数里
+        /// `scaler.referenceResolution = new Vector2(1920f, 1080f)` 且 `matchWidthOrHeight = 0.5f`
+        /// —— `clover-client-unity-engine/Runtime/Presentation/UI.cs:52-56`。
+        /// 引擎**不接受业务覆盖** ⇒ 项目侧若按 1280×720 布点，所有面板在真机上整体放大 1.5 倍并错位。</para>
+        /// <para>⇒ **一律按 1920×1080 写布局**（`UI/UiArt.cs` 已提供 `RefWidth/RefHeight`）。</para>
+        /// </summary>
+        public const int UiReferenceWidth = 1920;
+
+        /// <summary>UI 参考分辨率高 = **1080**；出处同 <see cref="UiReferenceWidth"/>。</summary>
+        public const int UiReferenceHeight = 1080;
+
+        /// <summary>Toast 默认停留秒数。</summary>
+        public const float ToastDuration = 2f;
+
+        /// <summary>伤害飘字默认停留秒数。</summary>
+        public const float FloatTextDuration = 1.2f;
+
+        // ── 帧节奏 ─────────────────────────────────────────────────────────
+        /// <summary>
+        /// 动画的**基准播放帧率** = 25 fps（原版 D2 的逐帧动画按它推进：动画时长 = 帧数 ÷ 25）。
+        /// <para>出处（三条都在本机可查）：</para>
+        /// <list type="bullet">
+        /// <item>① 原版逻辑帧率 25：`Module/Monster/MonsterTuning.LogicFps` 的注释
+        /// （参考实现 `gameserver.zig:675` 原文 "the real 25-fps per-game server loop"）。</item>
+        /// <item>② 官方表的帧率换算以 25 为基准：`Core/ResPaths.WaypointFrameFps`
+        /// = `25 × FrameDelta / 256`（官方 `Objects.txt` 的 `Id=119 / Token=wp` 行
+        /// `FrameDelta2 = 200` ⇒ 19.53125 fps）。</item>
+        /// <item>③ 参考工程的动画播放器也用 25：`Core/ResPaths.Portrait.TransitionFps`
+        /// （`ClassSelector.cs:218/232` 的 `Fps = 25`）。</item>
+        /// </list>
+        /// <para>它是**原版帧率公式的基准项**：逐单位逐动作的播放帧率 =
+        /// `AnimBaseFps × AnimData.speed / 256 × 规范帧数 / 实际帧数`
+        /// （`SpriteFrames.CorrectedFpsOf`，口径来源 = 上游 `AnimData.GetCorrectedFrameDuration`）。
+        /// **式子里没有移动速度** ⇒ 走 / 跑也由它推，不随角色跑多快变。</para>
+        /// </summary>
+        public const float AnimBaseFps = 25f;
+
+        // ── 战斗节奏 ─────────────────────────────────────────────────────────
+        /// <summary>
+        /// 玩家普通攻击间隔的**基准**（秒）—— `item_c.speed = 0` 时的值（手感参数，不随等级增长）。
+        /// <para>实际间隔 = 本值 × (1 + 武器 speed / 100)（`CombatModule.AttackIntervalSeconds`）：
+        /// 官方 `Weapons.txt` 的 `speed` 列 = "base speed of item，-ve = faster / +ve = slower"，
+        /// 每 10 点一档（−20 ⇒ 0.44s、+20 ⇒ 0.66s）。审计 R 项修复前该列**零消费点**
+        /// ⇒ 匕首与双手剑一样快。</para>
+        /// </summary>
+        public const float PlayerAttackInterval = 0.55f;
+
+        /// <summary>武器攻速修正能把攻击间隔压到的**下限**（秒）——防怪值/极端配表。</summary>
+        public const float PlayerAttackIntervalMin = 0.25f;
+
+        /// <summary>武器攻速修正能把攻击间隔抬到的**上限**（秒）——防怪值/极端配表。</summary>
+        public const float PlayerAttackIntervalMax = 1.50f;
+
+        /// <summary>命中率上下限（官方公式：5%~95%）。</summary>
+        public const float MinHitChance = 0.05f;
+
+        /// <summary>命中率上限（官方公式）。</summary>
+        public const float MaxHitChance = 0.95f;
+
+        /// <summary>死亡后可在城内复活的等待秒数。</summary>
+        public const float ReviveDelaySeconds = 0f;
+
+        /// <summary>尸体/掉落保留时间（秒）。</summary>
+        public const float GroundItemLifetimeSeconds = 600f;
+    }
+}

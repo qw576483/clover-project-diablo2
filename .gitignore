@@ -1,0 +1,38 @@
+# Unity 派生 / 缓存（可重建，禁止入仓）
+client/Library/
+client/Temp/
+client/obj/
+client/Logs/
+client/Build/
+client/Builds/
+client/UserSettings/
+client/setting/
+# IDE / Rider 生成物
+*.csproj
+*.sln
+*.slnx
+.vsconfig
+.vs/
+.idea/
+*.DotSettings.user
+# Python
+__pycache__/
+*.pyc
+# 判据资产（tools/probes/hosts）跑 dotnet run 会在原地生成构建产物
+tools/probes/hosts/**/obj/
+tools/probes/hosts/**/bin/
+# fullcheck 跑一次会在宿主目录留一份本地日志（FullCheck 的 LogPath），同样不进仓
+tools/probes/hosts/fullcheck/_last_run.log
+# ★ AI 临时目录：一次性测试文件写这里，用完删
+.ai-tmp/
+# ★ 原版资源：下载/解包素材唯一来源，体积大 + 版权物，不进 git
+原版资源/
+
+# 判据宿主工程文件必须入仓（否则 dotnet run 无工程可跑）
+!tools/probes/hosts/**/*.csproj
+
+# ★ 本机引擎联调覆盖（只在本机存在，不进仓库）：
+#   client/Packages/ 下的 embedded 包指向工作区里的 clover-client-unity-engine，
+#   优先级高于 manifest.json 里的 git 依赖 ⇒ 本机改引擎源码即时生效、且不用联网克隆。
+#   删掉这个链接 = 回到「按 manifest 从 GitHub 拉取引擎」，外人 clone 后的行为不受影响。
+client/Packages/com.clover.unity-engine/

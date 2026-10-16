@@ -1,0 +1,42 @@
+{
+ "cel": "CurseArea",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\CurseArea.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 16,
+ "framesPerDir": 20,
+ "officialAnimLen": [
+  20
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 4,
+  "sw": 0,
+  "w": 5,
+  "nw": 1,
+  "n": 6,
+  "ne": 2,
+  "e": 7,
+  "se": 3
+ },
+ "canvas": {
+  "w": 26,
+  "h": 100,
+  "originX": 13,
+  "originY": 50,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 160
+}

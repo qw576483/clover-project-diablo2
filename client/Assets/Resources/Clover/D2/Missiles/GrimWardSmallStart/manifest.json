@@ -1,0 +1,42 @@
+{
+ "cel": "GrimWardSmallStart",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\GrimWardSmallStart.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 4,
+ "framesPerDir": 5,
+ "officialAnimLen": [
+  5
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 1,
+  "nw": 1,
+  "n": 2,
+  "ne": 2,
+  "e": 3,
+  "se": 3
+ },
+ "canvas": {
+  "w": 56,
+  "h": 60,
+  "originX": 28,
+  "originY": 30,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 40
+}

@@ -1,0 +1,1850 @@
+// ═════════════════════════════════════════════════════════════════════════════
+// Diablo2 · Module/Contracts.cs  全模块契约（**冻结**）
+//
+// 本文件 = 后续开发的**唯一接口依据**：只放 `public interface` 与可序列化 DTO，
+// **不含任何实现**（实现分别落在 `Module/{Flow,Map,Player,Combat,Monster,Skill,Item,Npc,
+// Camera,View,Audio,Save}/`，按 模块注册表 的模块表）。
+//
+// ── 命名空间划分（**故意分成两个**，改动前先读这段）──────────────────────────
+//   `Diablo2.Module`  模块门面接口（模块之间 + App 装配用）
+//   `Diablo2.Def`     DTO（纯数据）—— 放在 Def 而不是 Module，有三条硬理由：
+//     ① 分层自检 ③ 要求 `UI/**` **不许** `using Diablo2.Module`，而面板必须收发 DTO
+//        （`Game.UI.Open<T>(param)` 的参数就是 DTO）⇒ DTO 若在 `Diablo2.Module` 里，
+//        面板只有两个选择：违规，或写 `object` 强转（都不行）；
+//     ② `Diablo2.Def` 的定位就是「枚举与**纯数据**定义」，DTO 正是纯数据；
+//     ③ 为保住「Def 无 Unity 依赖」，**所有 DTO 字段只用 int/float/string/enum/List<T>**，
+//        不出现 `Vector2Int`/`Vector3`（格坐标用 `gridX/gridY`，世界坐标用 `worldX/Y/Z`）。
+//   ⇒ 模块实现：`using Diablo2.Def;` + `using Diablo2.Core;`（`Diablo2.Module` 由所在命名空间自动可见）
+//   ⇒ UI 面板：只需 `using Diablo2.Def;` + `using Diablo2.Core;`
+//   ⇒ App 装配（AppContext）：`using Diablo2.Module;`
+//
+// ── 冻结声明 ────────────────────────────────────────────────────────────────
+// 接口签名与 DTO 字段名**即契约**：后续实现照它做，**写好后不许改**。
+//    契约有问题时不许单方面改（改契约 = 改其它模块的编译前提）。
+//    不许改字段名与语义（事件名与参数类型见 `Core/Events.cs`）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+using System;
+using System.Collections.Generic;
+using CloverEngine;
+using Diablo2.Core;
+using Diablo2.Def;
+using UnityEngine;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DTO（命名空间 = Diablo2.Def，纯数据、无 Unity 类型）
+// ═════════════════════════════════════════════════════════════════════════════
+namespace Diablo2.Def
+{
+    /// <summary>物品魔法词缀（配表 `affix_c` 的一条实例化结果）。</summary>
+    [Serializable]
+    public class ItemAffix
+    {
+        /// <summary>`affix_c` 主键。</summary>
+        public int affixId;
+
+        /// <summary>前缀 / 后缀。</summary>
+        public AffixKind kind;
+
+        /// <summary>显示名（如「+5 力量的」）。</summary>
+        public string name;
+
+        /// <summary>加成对象（配表 `affix_c.mod` 列，如 `str` / `maxhp` / `fireres`）。</summary>
+        public string mod;
+
+        /// <summary>数值下限。</summary>
+        public int min;
+
+        /// <summary>数值上限。</summary>
+        public int max;
+
+        /// <summary>本次生成实际取到的数值（min~max 之间）。</summary>
+        public int value;
+    }
+
+    /// <summary>
+    /// 叠放：`count &gt; 1` 表示同 id 叠加（药水/卷轴/金币）。
+    /// </summary>
+    [Serializable]
+    public class ItemStack
+    {
+        /// <summary>`item_c` 主键（0 = 空/无效）。</summary>
+        public int itemId;
+
+        /// <summary>显示名（含词缀前缀/后缀后的完整名）。</summary>
+        public string name;
+
+        /// <summary>物品大类。</summary>
+        public ItemType type;
+
+        /// <summary>品质（决定名字颜色与 tooltip 配色）。</summary>
+        public ItemQuality quality;
+
+        /// <summary>叠加数量（≥1）。</summary>
+        public int count = 1;
+
+        /// <summary>占格宽（配表 `item_c.grid_w`）。</summary>
+        public int gridW = 1;
+
+        /// <summary>占格高（配表 `item_c.grid_h`）。</summary>
+        public int gridH = 1;
+
+        /// <summary>等级需求。</summary>
+        public int lvlReq;
+
+        /// <summary>力量需求。</summary>
+        public int strReq;
+
+        /// <summary>基础最小伤害（武器）。</summary>
+        public int dmgMin;
+
+        /// <summary>基础最大伤害（武器）。</summary>
+        public int dmgMax;
+
+        /// <summary>
+        /// **双手伤害下限**（官方 `Weapons.txt` 的 `2handmindam` = `item_c.dmg2_min`）。
+        /// <para>仅 <see cref="twoHanded"/> 的武器有效；tooltip 的「雙手傷害：」行取它
+        /// （单手伤害仍走 <see cref="dmgMin"/>/<see cref="dmgMax"/>）。0 = 该武器无双手形态。</para>
+        /// <para>**向后兼容**：旧档缺该字段 ⇒ 默认 0，tooltip 回退用单手数值（同
+        /// <see cref="unidentified"/> 的"加性与不参与 SaveVersion"口径）。</para>
+        /// </summary>
+        public int dmg2Min;
+
+        /// <summary>**双手伤害上限**（官方 `2handmaxdam` = `item_c.dmg2_max`）。见 <see cref="dmg2Min"/>。</summary>
+        public int dmg2Max;
+
+        /// <summary>
+        /// **仅双手**（官方 `2handed=1` = `item_c.two_handed`）。
+        /// <para>tooltip 显示「雙手傷害：」行；配合 <see cref="oneOrTwo"/> 决定是否**两行都出**
+        /// （原版口径：1 手 1 行、仅双手 1 行、可单可双 2 行）。</para>
+        /// </summary>
+        public bool twoHanded;
+
+        /// <summary>**可单手可双手**（官方 `1or2handed=1` = `item_c.one_or_two`；如双手剑）。见 <see cref="twoHanded"/>。</summary>
+        public bool oneOrTwo;
+
+        /// <summary>基础最小防御（防具）。</summary>
+        public int defMin;
+
+        /// <summary>基础最大防御（防具）。</summary>
+        public int defMax;
+
+        /// <summary>商店价（买卖折算比例由 Npc 模块定）。</summary>
+        public int price;
+
+        /// <summary>词缀列表（普通物品为空列表）。</summary>
+        public List<ItemAffix> affixes = new List<ItemAffix>();
+
+        /// <summary>耐久（0 = 不适用/不损坏）。</summary>
+        public int durability;
+
+        /// <summary>耐久上限。</summary>
+        public int maxDurability;
+
+        /// <summary>是否为金币袋（拾取时直接加金币、不进背包）。</summary>
+        public bool isGold;
+
+        /// <summary>是否为任务物品（不可丢弃/不可出售）。</summary>
+        public bool isQuestItem;
+
+        /// <summary>
+        /// **是否尚未鉴定**（原版 `Misc.txt` 的 Identify Scroll / Identify Book 的作用对象）。
+        /// <para>
+        /// 原版口径：**魔法及以上**的装备有概率带着「未鉴定」掉落（普通物品永不带）；
+        /// 名字只显示基础类型名（不带词缀前缀/后缀）、品质色按**普通白**显示，
+        /// 用鉴定卷轴/鉴定之书后词缀才现形。
+        /// </para>
+        /// <para>
+        /// **向后兼容**：`[Serializable]` 的 JSON 存档缺该字段时默认 <c>false</c>（= 已鉴定），
+        /// 旧档读出来不会变成"全是未鉴定"，且不参与 `GameConst.SaveVersion`
+        /// （同 `CharacterSave.activeWeaponIndex` 的口径）。
+        /// </para>
+        /// </summary>
+        public bool unidentified;
+
+        /// <summary>
+        /// **基础类型名**（官方 `item_c.name`，不带词缀前缀/后缀）。
+        /// <para>未鉴定物品显示的就是它（原版口径：未鉴定只显示类型名）。由物品模块在
+        /// `ItemFactory` 生成 / 鉴定时写入；**UI 层直接读它，不查 `item_c`**
+        /// （`UI/**` 不许依赖 `Table`，见 `UI/ItemTooltip.Show`）。</para>
+        /// </summary>
+        public string baseName;
+
+        /// <summary>
+        /// 该物品是否是装备（可穿戴）。
+        /// <para>未鉴定物品**仍按装备算**（能穿、能卖，只是属性词缀尚未生效显示）。</para>
+        /// </summary>
+        public bool IsEquipment => type == ItemType.Weapon || type == ItemType.Armor;
+    }
+
+    /// <summary>
+    /// 背包的一格。多格物品占用多格：**锚点格**（`IsAnchor`）持有 <see cref="item"/>，
+    /// 其余被占用的格 <c>occupied = true</c> 且 <c>item = null</c>。
+    /// </summary>
+    [Serializable]
+    public class InventorySlot
+    {
+        /// <summary>线性索引（行优先）：`index = y * GameConst.InventoryCols + x`，范围 0..39。</summary>
+        public int index;
+
+        /// <summary>列（0..9）。</summary>
+        public int x;
+
+        /// <summary>行（0..3）。</summary>
+        public int y;
+
+        /// <summary>本格是否被物品占用。</summary>
+        public bool occupied;
+
+        /// <summary>本格是否为物品锚点（左上角格）。</summary>
+        public bool isAnchor;
+
+        /// <summary>物品（仅锚点格非 null；其余占用格为 null）。</summary>
+        public ItemStack item;
+
+        /// <summary>锚点格的线性索引（非占用格为 -1）。</summary>
+        public int anchorIndex = -1;
+    }
+
+    /// <summary>
+    /// 飘字位置取 <see cref="worldX"/> / <see cref="worldY"/> / <see cref="worldZ"/>。
+    /// </summary>
+    [Serializable]
+    public class DamageArgs
+    {
+        /// <summary>攻击者实体 id（玩家 = `GameConst.PlayerEntityId`；-1 = 环境伤害）。</summary>
+        public int attackerId;
+
+        /// <summary>受击者实体 id（怪物 id，或 `GameConst.PlayerEntityId`）。</summary>
+        public int targetId;
+
+        /// <summary>结算前伤害（未减抗/未减防）。</summary>
+        public int raw;
+
+        /// <summary>结算后实际扣除的血量（0 = 未命中/被完全免疫）。</summary>
+        public int amount;
+
+        /// <summary>伤害类型。</summary>
+        public DamageType type;
+
+        /// <summary>受击者是否为玩家。</summary>
+        public bool targetIsPlayer;
+
+        /// <summary>是否命中（false = 未命中/被闪避）。</summary>
+        public bool hit;
+
+        /// <summary>是否致命一击（暴击）。</summary>
+        public bool critical;
+
+        /// <summary>是否为持续伤害（毒素等）。</summary>
+        public bool overTime;
+
+        /// <summary>受击者剩余血量（结算后）。</summary>
+        public int targetHpAfter;
+
+        /// <summary>是否因此击杀。</summary>
+        public bool killed;
+
+        /// <summary>飘字/命中特效的世界坐标 X（2D 平面，z 恒 0）。</summary>
+        public float worldX;
+
+        /// <summary>飘字/命中特效的世界坐标 Y。</summary>
+        public float worldY;
+
+        /// <summary>飘字/命中特效的世界坐标 Z。</summary>
+        public float worldZ;
+    }
+
+    /// <summary>
+    /// 由 `MonsterModule` 原地更新（引用类型，视图侧不要缓存副本）。
+    /// </summary>
+    [Serializable]
+    public class MonsterState
+    {
+        /// <summary>实体 id（≥ `GameConst.MonsterIdBase`）。</summary>
+        public int id;
+
+        /// <summary>`monster_c` 主键（怪物种类）。</summary>
+        public int kindId;
+
+        /// <summary>显示名（含精英前缀，如「堕落者」/「尖刺鼠」）。</summary>
+        public string name;
+
+        /// <summary>怪物等级（区域等级 × 种类修正后）。</summary>
+        public int level;
+
+        /// <summary>当前生命。</summary>
+        public int hp;
+
+        /// <summary>生命上限。</summary>
+        public int maxHp;
+
+        /// <summary>所在格 X。</summary>
+        public int gridX;
+
+        /// <summary>所在格 Y。</summary>
+        public int gridY;
+
+        /// <summary>世界坐标 X（视图用）。</summary>
+        public float worldX;
+
+        /// <summary>世界坐标 Y。</summary>
+        public float worldY;
+
+        /// <summary>世界坐标 Z。</summary>
+        public float worldZ;
+
+        /// <summary>AI 类型。</summary>
+        public MonsterAI ai;
+
+        /// <summary>是否存活（false 后仍可保留尸体信息）。</summary>
+        public bool alive = true;
+
+        /// <summary>是否精英怪（带 `monumod_c` 词缀）。</summary>
+        public bool isChampion;
+
+        /// <summary>`monumod_c` 主键（0 = 无精英词缀）。</summary>
+        public int modId;
+
+        /// <summary>精英词缀名（用于头顶显示）。</summary>
+        public string modName;
+
+        /// <summary>最小伤害。</summary>
+        public int damageMin;
+
+        /// <summary>最大伤害。</summary>
+        public int damageMax;
+
+        /// <summary>防御（被命中判定用）。</summary>
+        public int defense;
+
+        /// <summary>命中（AR）。</summary>
+        public int attackRating;
+
+        /// <summary>击杀经验。</summary>
+        public int exp;
+
+        /// <summary>当前朝向。</summary>
+        public Dir8 dir = Dir8.S;
+
+        /// <summary>尸体是否可被利用（萨满复活 / 死灵技能）。</summary>
+        public bool corpseUsable;
+
+        /// <summary>是否已被标记为「正在攻击」（视图播攻击动画用）。</summary>
+        public bool attacking;
+
+        /// <summary>是否处于受击硬直（视图播 Hit 动画用）。</summary>
+        public bool hitStun;
+    }
+
+    /// <summary>NPC 静态定义（城镇布局 + 商店能力）。</summary>
+    [Serializable]
+    public class NpcDef
+    {
+        /// <summary>NPC id（见 <see cref="NpcId"/>）。</summary>
+        public int id;
+
+        /// <summary>显示名（中文）。</summary>
+        public string name;
+
+        /// <summary>所在格 X（罗格营地固定布局）。</summary>
+        public int gridX;
+
+        /// <summary>所在格 Y。</summary>
+        public int gridY;
+
+        /// <summary>所在区域（见 <see cref="AreaId"/>）。</summary>
+        public int areaId;
+
+        /// <summary>是否有商店（可买卖）。</summary>
+        public bool hasShop;
+
+        /// <summary>是否提供修理。</summary>
+        public bool canRepair;
+
+        /// <summary>是否为铁匠（武器/防具）。</summary>
+        public bool isBlacksmith;
+    }
+
+    /// <summary>技能静态定义（技能树面板 + 施放参数）。</summary>
+    [Serializable]
+    public class SkillDef
+    {
+        /// <summary>`skill_c` 主键。</summary>
+        public int id;
+
+        /// <summary>所属职业。</summary>
+        public PlayerClass cls;
+
+        /// <summary>技能树分支序号（0/1/2 = 该职业的三系）。</summary>
+        public int tree;
+
+        /// <summary>技能树面板列（0 起）。</summary>
+        public int slotCol;
+
+        /// <summary>技能树面板行（0 起）。</summary>
+        public int slotRow;
+
+        /// <summary>技能名（中文）。</summary>
+        public string name;
+
+        /// <summary>原版说明文本（配表 `skill_c.desc` = 官方 `SkillDesc.txt` 的 `str long` 串逐字；
+        /// 段序 = 显示序，**字面 `\n`**（反斜杠 + n）分段。消费见 `Module/Skill/SkillModule.DescLinesOf`）。</summary>
+        public string desc;
+
+        /// <summary>
+        /// 说明窗的**字段行**（原版逐行形制；**Skill 模块算好、UI 侧照原样画**）。
+        /// <para>每行 = 原版串表 `chi_string.txt:4253-4260` 的字段名 + **当前等级**的值，
+        /// 值一律走既有生产函数（`Combat.DamageFormula.SkillManaCost` / `SkillDamageRange`）；
+        /// 算不出来的字段**不产生行**（不写占位符）。字段名**单独一行**、值另起一行：
+        /// 可见区只有 78 art 宽（= 7 个 font8 汉字），而"标签 + 值"要 ≥ 88 art ⇒ 同一行放不下
+        /// （见 `UI/SkillTreePanel.BuildSkillInfoText`）。</para>
+        /// <para>**写者** = `Module/Skill/SkillModule.BuildTree`；**读者** = `UI/SkillTreePanel`（只拼行画字，
+        /// 不解析、不补默认值 —— UI 不 `using Diablo2.Module`）。</para>
+        /// </summary>
+        public List<string> descLines = new List<string>();
+
+        /// <summary>需求等级。</summary>
+        public int reqLevel;
+
+        /// <summary>前置技能 id（0 = 无）。</summary>
+        public int reqSkill;
+
+        /// <summary>前置技能需求等级（reqSkill != 0 时生效）。</summary>
+        public int reqSkillLevel;
+
+        /// <summary>技能等级上限（含加成）。</summary>
+        public int maxLevel = 20;
+
+        /// <summary>基础法力消耗（随等级线性增长的增量由 Skill 模块按公式算）。</summary>
+        public int manaCost;
+
+        /// <summary>冷却（毫秒）。</summary>
+        public int delayMs;
+
+        /// <summary>最小伤害。</summary>
+        public int dmgMin;
+
+        /// <summary>最大伤害。</summary>
+        public int dmgMax;
+
+        /// <summary>伤害类型。</summary>
+        public DamageType dmgType;
+
+        /// <summary>目标类型（决定施放时怎么用目标格）。</summary>
+        public SkillTarget target;
+    }
+
+    /// <summary>
+    /// 单个角色的存档数据（**多角色**：`Game.Setting` 里键 = `char/{name}`）。
+    /// 字段即存档格式；`version` 不匹配时由 Save 模块决定迁移或拒绝（并打日志）。
+    /// </summary>
+    [Serializable]
+    public class CharacterSave
+    {
+        /// <summary>存档格式版本（写 `GameConst.SaveVersion`）。</summary>
+        public int version;
+
+        /// <summary>角色名（**唯一键**；空名不合法）。</summary>
+        public string name;
+
+        /// <summary>职业。</summary>
+        public PlayerClass cls;
+
+        /// <summary>等级。</summary>
+        public int level = 1;
+
+        /// <summary>当前经验。</summary>
+        public long exp;
+
+        /// <summary>力量。</summary>
+        public int str;
+
+        /// <summary>敏捷。</summary>
+        public int dex;
+
+        /// <summary>体力。</summary>
+        public int vit;
+
+        /// <summary>精力。</summary>
+        public int eng;
+
+        /// <summary>当前生命（恢复用）。</summary>
+        public int life;
+
+        /// <summary>当前法力。</summary>
+        public int mana;
+
+        /// <summary>当前耐力。</summary>
+        public int stamina;
+
+        /// <summary>未分配属性点。</summary>
+        public int statPoints;
+
+        /// <summary>未分配技能点。</summary>
+        public int skillPoints;
+
+        /// <summary>金币。</summary>
+        public int gold;
+
+        /// <summary>
+        /// 双武器组：**生效**武器组下标（0 = Ⅰ组 / 1 = Ⅱ组）—— 原版 <c>W</c> 键切出来的那一套。
+        /// <para>
+        /// **向后兼容口径（硬要求）**：这是**新加**字段，旧档 JSON 里没有它
+        /// ⇒ `SaveJson.TryParse` 读缺字段时取默认值 **0（= Ⅰ组）**，不抛异常、读档照常成功
+        /// （`ItemModule` 会在读档摘要里留一条 Info 说明该口径）。写档时由
+        /// `ItemModule.WriteTo` 写入当前生效组 ⇒ "存档往返一致"可离线断言。
+        /// </para>
+        /// <para>不参与 `GameConst.SaveVersion`：新增带默认值的字段不改变旧档可读性，
+        /// 升版本反而会让所有旧档走"版本不符降级"分支（`SaveModule.Load` 的 Warn）。</para>
+        /// </summary>
+        public int activeWeaponIndex;
+
+        /// <summary>所在区域（见 <see cref="AreaId"/>）。</summary>
+        public int areaId;
+
+        /// <summary>所在格 X。</summary>
+        public int gridX;
+
+        /// <summary>所在格 Y。</summary>
+        public int gridY;
+
+        /// <summary>本局地图 seed（**必须存**：读档后同 seed 生成同一张图）。</summary>
+        public int mapSeed;
+
+        /// <summary>
+        /// <para>
+        /// `App/AppWaypoint.cs:47` 的**进程内 static** `Visited`（只由 `StageEntered` / `AreaChanged` 增），
+        /// **从不落盘** ⇒ 读档后传送面板永远只认"当前区域"，其余目的地全灰（「传送点没效果」的另一半）。
+        /// </para>
+        /// <para>
+        /// **向后兼容口径（硬要求，同 `activeWeaponIndex`）**：新加字段 ⇒ 旧档 JSON 里没有它
+        /// ⇒ `SaveJson.TryParse` 读缺字段时给**空列表**（不抛、读档照常成功）；
+        /// 空列表 = 「本档没有记录过已激活传送点」⇒ 面板显示原版字串「尚未啟動其他傳送點」。
+        /// 不参与 `GameConst.SaveVersion`（新增带默认值的字段不改变旧档可读性）。
+        /// </para>
+        /// </summary>
+        public List<int> visitedWaypoints = new List<int>();
+
+        /// <summary>
+        /// <para>
+        /// 缺口：已探索格的权威持有者是渲染层 `Module/Map/MapView._explored`（作用域 = 当前区域、本局内累积）
+        /// ⇒ 从不落盘 ⇒ 读档后 automap 的"记忆"全空。
+        /// </para>
+        /// <para>
+        /// **为什么是"每个区域一条"而不是一个合并集合**：格坐标是**区域局部**的
+        /// （`IMapModule.ExploredCells` 注释原文：「跨区域合并成一个集合在语义上是错的」）
+        /// ⇒ 每条记录自带 `w/h` + 区域号（见 `ExploredAreaDto`）。
+        /// </para>
+        /// <para>旧档兼容同 <see cref="visitedWaypoints"/>：缺字段 ⇒ 空列表、不抛、读档成功。</para>
+        /// </summary>
+        public List<ExploredAreaDto> exploredByArea = new List<ExploredAreaDto>();
+
+        /// <summary>已学技能 id（与 <see cref="skillLevels"/> 一一对应）。</summary>
+        public List<int> skillIds = new List<int>();
+
+        /// <summary>已学技能等级（与 <see cref="skillIds"/> 一一对应）。</summary>
+        public List<int> skillLevels = new List<int>();
+
+        /// <summary>左右键绑定的技能 id（`[-1] = 普通攻击`）。下标 0 = 左键，1 = 右键。</summary>
+        public List<int> buttonSkills = new List<int> { -1, -1 };
+
+        /// <summary>
+        /// 技能热键（原版 `F1`~`F8`）各自记住的技能 id（长度 = <c>GameKeyAlias.SkillSlotCount</c>）。
+        /// <para>取值：`-1` = 普通攻击、`&gt;= 0` = 技能 id、**`-2` = 该热键还没设置**
+        /// （原版口径：没设过的热键按下去不生效 —— 见 `Events.SkillHotkeyRequest`）。</para>
+        /// <para>原版把热键存在角色的配置里（不是物品/等级），故与 <see cref="buttonSkills"/> 同族：**按角色存**。
+        /// 旧档兼容：缺字段 ⇒ 空列表 ⇒ 全部按"未设置"起步（不抛、读档成功）。</para>
+        /// </summary>
+        public List<int> skillHotkeys = new List<int>();
+
+        /// <summary>背包格（长度 = `GameConst.InventoryCellCount`）。</summary>
+        public List<InventorySlot> inventory = new List<InventorySlot>();
+
+        /// <summary>已装备物品。</summary>
+        public List<ItemStack> equip = new List<ItemStack>();
+
+        /// <summary>腰带（长度 = `GameConst.BeltSlots`，空位为 null）。</summary>
+        public List<ItemStack> belt = new List<ItemStack>();
+
+        /// <summary>存档时间（`DateTime.UtcNow.Ticks`，0 = 未知）。</summary>
+        public long savedAtTicks;
+
+        /// <summary>累计游戏时长（秒）。</summary>
+        public float playedSeconds;
+    }
+
+    /// <summary>
+    /// 玩家属性快照（HUD 与人物属性面板共用）。
+    /// </summary>
+    [Serializable]
+    public class PlayerStatsDto
+    {
+        /// <summary>角色名。</summary>
+        public string name;
+
+        /// <summary>职业。</summary>
+        public PlayerClass cls;
+
+        /// <summary>等级。</summary>
+        public int level;
+
+        /// <summary>当前经验。</summary>
+        public long exp;
+
+        /// <summary>升到下一级所需经验（已满级时 = 0）。</summary>
+        public long expNext;
+
+        /// <summary>力量。</summary>
+        public int str;
+
+        /// <summary>敏捷。</summary>
+        public int dex;
+
+        /// <summary>体力。</summary>
+        public int vit;
+
+        /// <summary>精力。</summary>
+        public int eng;
+
+        /// <summary>当前生命。</summary>
+        public int life;
+
+        /// <summary>生命上限。</summary>
+        public int maxLife;
+
+        /// <summary>当前法力。</summary>
+        public int mana;
+
+        /// <summary>法力上限。</summary>
+        public int maxMana;
+
+        /// <summary>当前耐力。</summary>
+        public int stamina;
+
+        /// <summary>耐力上限。</summary>
+        public int maxStamina;
+
+        /// <summary>防御。</summary>
+        public int defense;
+
+        /// <summary>命中（AR）。</summary>
+        public int attackRating;
+
+        /// <summary>格挡率（%）。</summary>
+        public int blockChance;
+
+        /// <summary>火焰抗性（%）。</summary>
+        public int fireResist;
+
+        /// <summary>冰冷抗性（%）。</summary>
+        public int coldResist;
+
+        /// <summary>闪电抗性（%）。</summary>
+        public int lightResist;
+
+        /// <summary>毒素抗性（%）。</summary>
+        public int poisonResist;
+
+        /// <summary>未分配属性点。</summary>
+        public int statPoints;
+
+        /// <summary>未分配技能点。</summary>
+        public int skillPoints;
+
+        /// <summary>金币。</summary>
+        public int gold;
+
+        /// <summary>当前右键技能 id（-1 = 普通攻击）。</summary>
+        public int selectedSkillId = -1;
+
+        /// <summary>腰带各格物品数量（长度 = `GameConst.BeltSlots`）。</summary>
+        public List<int> beltCounts = new List<int>();
+    }
+
+    [Serializable]
+    public class NpcDialogArgs
+    {
+        /// <summary>NPC id。</summary>
+        public int npcId;
+
+        /// <summary>NPC 名。</summary>
+        public string npcName;
+
+        /// <summary>对话正文。</summary>
+        public string text;
+
+        /// <summary>可选项文本（下标即 `Events.DialogOptionChosen` 的参数；空 = 只能关闭）。</summary>
+        public List<string> options = new List<string>();
+
+        /// <summary>是否有商店入口。</summary>
+        public bool hasShop;
+    }
+
+    /// <summary>商店里的一条商品。</summary>
+    [Serializable]
+    public class ShopEntry
+    {
+        /// <summary>本店内的商品下标（买卖请求用它定位）。</summary>
+        public int index;
+
+        /// <summary>物品的 `item_c` 主键。</summary>
+        public int itemId;
+
+        /// <summary>显示名。</summary>
+        public string name;
+
+        /// <summary>品质。</summary>
+        public ItemQuality quality;
+
+        /// <summary>售价（买入价）。</summary>
+        public int price;
+
+        /// <summary>
+        /// 物品**占格宽**（原版 `item_c.grid_w` = 官方 `invwidth`；1 = 单格）。
+        /// <para>买卖界面的格区**按物品自身占格摆放**。</para>
+        /// <para>口径与背包**同源**：`ItemFactory` 造物时已从 `item_c` 填进 `ItemStack.gridW/gridH`
+        /// （见 `Module/Item/ItemFactory.cs` 的赋值与 `Inventory.TryPlace` 的占格算法）——
+        /// 商店只是把同一个值搬过来，不许在商店链路里另算一份。</para>
+        /// </summary>
+        public int gridW = 1;
+
+        /// <summary>物品**占格高**（原版 `item_c.grid_h` = 官方 `invheight`）。见 <see cref="gridW"/>。</summary>
+        public int gridH = 1;
+
+        /// <summary>剩余数量（-1 = 无限）。</summary>
+        public int count = -1;
+
+        /// <summary>玩家是否买得起。</summary>
+        public bool affordable = true;
+
+        /// <summary>
+        /// **这格货物的完整物品**（`NpcShop.AddEntry` 传入的那一件，与结算用的 `_items[i]` 同一实例）。
+        /// <para>为什么透传：原版**买入页 tooltip 显示完整属性**（伤害/防御/耐久/需求/词缀），
+        /// 而上面那几个字段只够画格子。之前 tooltip 只列名称+价格，就是被"载荷没透传"卡住的
+        /// （审计 #9；UI 层不许查 `Table`，所以也不许按 itemId 回查配表）。</para>
+        /// <para>⛔ 只读用（tooltip 展示）；**结算/扣除仍走 `index` + 模块内部 `_items`**，
+        /// 不许拿这个引用改状态。</para>
+        /// </summary>
+        public ItemStack item;
+    }
+
+    [Serializable]
+    public class ShopOpenArgs
+    {
+        /// <summary>NPC id。</summary>
+        public int npcId;
+
+        /// <summary>商店名 / NPC 名。</summary>
+        public string npcName;
+
+        /// <summary>是否提供修理。</summary>
+        public bool canRepair;
+
+        /// <summary>玩家当前金币。</summary>
+        public int playerGold;
+
+        /// <summary>可购买清单。</summary>
+        public List<ShopEntry> stock = new List<ShopEntry>();
+
+        /// <summary>玩家可出售的背包物品（锚点格索引 + 物品）。</summary>
+        public List<InventorySlot> playerItems = new List<InventorySlot>();
+
+        /// <summary>修理全部的费用（canRepair 时有效）。</summary>
+        public int repairAllCost;
+    }
+
+    /// <summary>一次买卖/修理请求的参数（UI → Npc 模块）。</summary>
+    [Serializable]
+    public class ShopTradeArgs
+    {
+        /// <summary>NPC id。</summary>
+        public int npcId;
+
+        /// <summary>商品/物品下标（`ShopEntry.index` 或背包锚点格索引；修理全部时 &lt; 0）。</summary>
+        public int index;
+
+        /// <summary>数量（≥1）。</summary>
+        public int count = 1;
+    }
+
+    /// <summary>分配属性点请求的参数（UI → Player 模块）。</summary>
+    [Serializable]
+    public class StatAllocArgs
+    {
+        /// <summary>哪一维。</summary>
+        public StatKind kind;
+
+        /// <summary>增量（可负，用于「点多了撤回」）。</summary>
+        public int delta;
+    }
+
+    /// <summary>
+    /// 面板收到后在 <c>OnOpen/事件回调</c> 里整体重绘（UI 不持有 <c>IItemModule</c>）。
+    /// </summary>
+    [Serializable]
+    public class InventoryChangedArgs
+    {
+        /// <summary>当前金币。</summary>
+        public int gold;
+
+        /// <summary>背包格（长度 = `GameConst.InventoryCellCount`）。</summary>
+        public List<InventorySlot> inventory = new List<InventorySlot>();
+
+        /// <summary>已装备物品。</summary>
+        public List<ItemStack> equip = new List<ItemStack>();
+
+        /// <summary>腰带（长度 = `GameConst.BeltSlots`，空位为 null）。</summary>
+        public List<ItemStack> belt = new List<ItemStack>();
+    }
+
+    /// <summary>技能树快照（UI → 技能面板）。</summary>
+    [Serializable]
+    public class SkillTreeArgs
+    {
+        /// <summary>职业。</summary>
+        public PlayerClass cls;
+
+        /// <summary>未分配技能点。</summary>
+        public int skillPoints;
+
+        /// <summary>本职业全部技能定义。</summary>
+        public List<SkillDef> skills = new List<SkillDef>();
+
+        /// <summary>与 <see cref="skills"/> 对齐的已学等级（0 = 未学）。</summary>
+        public List<int> learnedLevels = new List<int>();
+
+        /// <summary>与 <see cref="skills"/> 对齐的「当前是否可学」。</summary>
+        public List<bool> learnable = new List<bool>();
+    }
+
+    /// <summary>
+    /// 小地图快照。**契约**：`Events.MapGenerated` 的参数。
+    /// `tiles` 用行优先一维数组（`index = y * width + x`），取值见本类的 `Tile*` 常量。
+    /// 已探索区域由面板**自己**按玩家走过的格累积（`Events.PlayerGridChanged`）。
+    /// </summary>
+    [Serializable]
+    public class MinimapArgs
+    {
+        /// <summary>不可见/图外。</summary>
+        public const byte TileVoid = 0;
+
+        /// <summary>可走地面。</summary>
+        public const byte TileWalkable = 1;
+
+        /// <summary>障碍（岩石/树/墙）。</summary>
+        public const byte TileBlocking = 2;
+
+        /// <summary>出入口 / 洞穴入口。</summary>
+        public const byte TileExit = 3;
+
+        /// <summary>建筑/NPC 等可交互点。</summary>
+        public const byte TileInteractable = 4;
+
+        /// <summary>区域（见 <see cref="AreaId"/>）。</summary>
+        public int areaId;
+
+        /// <summary>宽（格）。</summary>
+        public int width;
+
+        /// <summary>高（格）。</summary>
+        public int height;
+
+        /// <summary>地图 seed（便于复现现场）。</summary>
+        public int seed;
+
+        /// <summary>地形码（行优先，长度 = width*height）。</summary>
+        public List<byte> tiles = new List<byte>();
+
+        /// <summary>玩家所在格 X。</summary>
+        public int playerX;
+
+        /// <summary>玩家所在格 Y。</summary>
+        public int playerY;
+
+        /// <summary>标记点 X（出口 / 洞穴入口 / NPC）。</summary>
+        public List<int> markerX = new List<int>();
+
+        /// <summary>标记点 Y（与 <see cref="markerX"/> 对齐）。</summary>
+        public List<int> markerY = new List<int>();
+
+        /// <summary>标记点类型（与 <see cref="markerX"/> 对齐；取 `MinimapArgs.Tile*` 常量）。</summary>
+        public List<byte> markerKind = new List<byte>();
+
+        // # contract: 增补字段（`MinimapArgs` 允许新增逐格 Cel 字段这类契约增补）。
+        //   口径 = 原版 `data/global/excel/AutoMap.txt` 的 `CelN`
+        //   = `data/global/ui/AUTOMAP/MaxiMap.dc6` 的**帧序号**（实测 1260 帧 × 16×32）；
+        //   索引方式 = (LevelName = `<act> <LevelType>`、Style = DS1 格 `prop3 & 0x0F`、
+        //   Sequence = DS1 格 `prop2`) ⇒ 值由 `Core/AutoMapCel.generated.cs`（生成物）给。
+        //   语义：**不是**"地形码换色"，是原版那一格的 automap 图块号；`< 0` = 原版这一格不画。
+
+        /// <summary>逐格 automap Cel（**地面层**；行优先，与 <see cref="tiles"/> 对齐；`-1` = 该格原版不画）。</summary>
+        public List<short> cels = new List<short>();
+
+        /// <summary>逐格 automap Cel（**物件/墙层**；行优先，与 <see cref="tiles"/> 对齐；`-1` = 该格原版不画）。</summary>
+        public List<short> celsOver = new List<short>();
+
+        /// <summary>取某格的 automap Cel（越界返回 -1）。</summary>
+        public short CelAt(int x, int y, bool objectLayer)
+        {
+            if (x < 0 || y < 0 || x >= width || y >= height) return -1;
+            var i = y * width + x;
+            var list = objectLayer ? celsOver : cels;
+            return i < list.Count ? list[i] : (short)-1;
+        }
+
+        /// <summary>取某格的地形码（越界返回 <see cref="TileVoid"/>）。</summary>
+        public byte TileAt(int x, int y)
+        {
+            if (x < 0 || y < 0 || x >= width || y >= height) return TileVoid;
+            var i = y * width + x;
+            return i < tiles.Count ? tiles[i] : TileVoid;
+        }
+    }
+
+    /// <summary>鼠标悬停目标快照（`Events.HoverTargetChanged` 的参数）。</summary>
+    [Serializable]
+    public class HoverTarget
+    {
+        /// <summary>是否悬停在可交互对象上。</summary>
+        public bool hasTarget;
+
+        /// <summary>应该显示的光标形态。</summary>
+        public CursorKind cursor = CursorKind.Default;
+
+        /// <summary>目标实体/物品 id（无目标时 -1）。</summary>
+        public int id = -1;
+
+        /// <summary>目标名（用于 tooltip / 地面物品名；无目标时空串）。</summary>
+        public string name;
+
+        /// <summary>目标格 X。</summary>
+        public int gridX;
+
+        /// <summary>目标格 Y。</summary>
+        public int gridY;
+    }
+
+    /// <summary>音量参数（`Events.VolumeChanged` 的参数）。</summary>
+    [Serializable]
+    public class AudioVolumeArgs
+    {
+        /// <summary>BGM 音量 0~1。</summary>
+        public float bgm = 0.7f;
+
+        /// <summary>音效音量 0~1。</summary>
+        public float sfx = 0.8f;
+
+        /// <summary>BGM 是否静音。</summary>
+        public bool bgmMute;
+
+        /// <summary>音效是否静音。</summary>
+        public bool sfxMute;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // DTO（**只增不改**：既有类型与字段逐字未动）
+    //
+    // 为什么加在 `Diablo2.Def` 而不是别的命名空间：分层自检 ③ 要求 `UI/**` 不许
+    // `using Diablo2.Module`，而下面这两个载荷的收方就是 HUD（UI 层）⇒ 只能在 Def。
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 左右键技能格绑定的技能快照（事件 `Events.SkillButtonsChanged` 的参数）。
+    /// <para>发送方 = `Module/Skill/SkillModule`（`SelectSkill` / `AssignToButton` 改绑时发）；
+    /// 收方 = `UI/HudPanel`（把 HUD 上的 `LeftSkill` / `RightSkill` 两格换成对应技能图标）。</para>
+    /// </summary>
+    [Serializable]
+    public class SkillButtonsArgs
+    {
+        /// <summary>左键技能 id（-1 = 普通攻击）。</summary>
+        public int leftId = -1;
+
+        /// <summary>右键技能 id（-1 = 普通攻击）。</summary>
+        public int rightId = -1;
+
+        /// <summary>左键技能显示名（-1 时为「普通攻击」）。</summary>
+        public string leftName;
+
+        /// <summary>右键技能显示名（-1 时为「普通攻击」）。</summary>
+        public string rightName;
+    }
+
+    /// <summary>
+    /// 技能速度棒（原版 `S`）的开/关与悬停快照（事件 `Events.SkillSpeedBarChanged` 的参数）。
+    /// <para>发送方 = `UI/HudPanel`（打开 / 关闭 / 指针换格时发）；收方 = `Module/Skill/SkillModule`
+    /// （用它区分 `F1`~`F8` 的两种含义：**设**热键 vs **切**技能，见 `Events.SkillHotkeyRequest`）。</para>
+    /// </summary>
+    [Serializable]
+    public class SkillSpeedBarArgs
+    {
+        /// <summary>速度棒当前是否打开。</summary>
+        public bool open;
+
+        /// <summary>指针停在哪个技能上（`-2` = 没停在任何格上；`-1` = 普通攻击；`&gt;= 0` = 技能 id）。</summary>
+        public int hoverSkillId = -2;
+
+        /// <summary>本次打开时点的是哪只手（`-1` = 用 `S` 打开的、没有指定手；0 = 左键；1 = 右键）。</summary>
+        public int targetButton = -1;
+    }
+
+    /// <summary>
+    /// 技能热键表快照（事件 `Events.SkillHotkeysChanged` 的参数）。
+    /// <para>发送方 = `Module/Skill/SkillModule`（设热键 / 读档还原后）；收方 = `UI/HudPanel`
+    /// （技能速度棒里给已设热键的技能图标左上角贴 `F1`~`F8` 标签）。</para>
+    /// </summary>
+    [Serializable]
+    public class SkillHotkeysArgs
+    {
+        /// <summary>8 个热键各自的技能 id；`-2` = 未设置、`-1` = 普通攻击、`&gt;= 0` = 技能 id。</summary>
+        public List<int> ids = new List<int>();
+
+        /// <summary>热键个数（= `GameKeyAlias.SkillSlotCount`；单独带一份，UI 不 `using Def` 也能判长度）。</summary>
+        public int count;
+    }
+
+    /// <summary>地面物品名牌的一条（`Events.GroundItemLabelsChanged` 的载荷元素）。</summary>
+    [Serializable]
+    public class GroundItemLabel
+    {
+        /// <summary>地面物品实例 id（`GameConst.GroundItemIdBase` 起）。</summary>
+        public int id = -1;
+
+        /// <summary>显示名（原版地面物品名；品质配色由 <see cref="quality"/> 决定）。</summary>
+        public string name;
+
+        /// <summary>品质（决定名牌颜色，见 `UI/ItemTooltip.cs` 的 `ItemQualityColor`）。</summary>
+        public ItemQuality quality = ItemQuality.Normal;
+
+        /// <summary>所在格 X。</summary>
+        public int gridX;
+
+        /// <summary>所在格 Y。</summary>
+        public int gridY;
+    }
+
+    /// <summary>
+    /// 地面物品名牌集合（事件 `Events.GroundItemLabelsChanged` 的参数）。
+    /// <para>发送方 = `Module/Input/InputReader`（消费 `InputReader.ShowGroundItems` = 原版 `Alt`，
+    /// 以及 `Events.HoverTargetChanged` 的当前悬停格）；收方 = `UI/GroundItemLabelView`。</para>
+    /// <para>语义：<see cref="altHeld"/> = true ⇒ <see cref="labels"/> 是**当前区域全部**地面物品
+    /// （原版按 Alt 常显）；false ⇒ 只含**当前悬停的那一件**（原版悬停显示单件名牌）。</para>
+    /// </summary>
+    [Serializable]
+    public class GroundItemLabelsArgs
+    {
+        /// <summary>是否按住 Alt（原版「常显地面物品名」）。</summary>
+        public bool altHeld;
+
+        /// <summary>要显示名牌的地面物品（可能为空列表 = 不显示任何名牌）。</summary>
+        public List<GroundItemLabel> labels = new List<GroundItemLabel>();
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // 为什么加在 `Diablo2.Def`：分层自检 ③ 要求 `UI/**` 不许 `using Diablo2.Module`，
+    // 而下面这两个载荷的收方就是传送面板（UI 层）⇒ 只能在 Def。
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// <summary>传送面板里的一条目的地（`UI/WaypointPanel` 的列表项）。</summary>
+    [Serializable]
+    public class WaypointDest
+    {
+        /// <summary>目标区域（`(int)Def.AreaId`）。</summary>
+        public int area;
+
+        /// <summary>显示名（= 本工程区域名；本项目只做 Act I 的三张图，见 `registry.md`）。</summary>
+        public string name;
+    }
+
+    /// <summary>
+    /// <para>
+    /// 语义 = 原版传送面板（`Objects.txt` Id=119 Token=wp，原版字串见
+    /// `原版资源/d2text/chi_string.txt`：标题「傳送點」/ 提示「選擇你的目的地」/
+    /// 空列表「尚未啟動其他傳送點」）：只列**已激活**的目的地。
+    /// </para>
+    /// <para>目的地的**集合口径在下游**（`App/AppWaypoint` 记的"已去过区域"），本 DTO 只是搬运。</para>
+    /// </summary>
+    [Serializable]
+    public class WaypointArgs
+    {
+        /// <summary>面板标题（缺省 = 原版字串「傳送點」）。</summary>
+        public string title;
+
+        /// <summary>列表上方的提示（缺省 = 原版字串「選擇你的目的地」）。</summary>
+        public string hint;
+
+        /// <summary>列表为空时的提示（缺省 = 原版字串「尚未啟動其他傳送點」）。</summary>
+        public string empty;
+
+        /// <summary>已激活的目的地（可能为空 = 原版那一句"尚未啟動其他傳送點"）。</summary>
+        public List<WaypointDest> dests = new List<WaypointDest>();
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 模块门面接口（命名空间 = Diablo2.Module）
+//
+// 实现规则（项目约定）：
+//   · 门面 = `I{名}` 接口 + `{名}Module` 实现，**实现 internal**；
+//   · `Module/A` 不许 `using Module/B` 的**具体类型** —— 依赖别的模块一律经
+//     `AppContext` 注入的**接口**（本文件）或 `Core/Events.cs` 的事件；
+//   · 一个 `.cs` 一个类。
+// ═════════════════════════════════════════════════════════════════════════════
+namespace Diablo2.Module
+{
+    /// <summary>
+    /// 格子地图门面（`Module/Map/MapModule.cs`）。
+    /// 三处区域：罗格营地（固定）/ 血腥荒野（随机）/ 邪恶洞穴（随机）。
+    /// </summary>
+    public interface IMapModule
+    {
+        /// <summary>当前地图宽（格）。未生成时 = 0。</summary>
+        int Width { get; }
+
+        /// <summary>当前地图高（格）。未生成时 = 0。</summary>
+        int Height { get; }
+
+        /// <summary>当前区域。</summary>
+        AreaId Area { get; }
+
+        /// <summary>当前地图 seed（日志与存档要打它）。</summary>
+        int Seed { get; }
+
+        /// <summary>障碍格总数（自证/日志用）。</summary>
+        int BlockedCount { get; }
+
+        /// <summary>可走格总数（自证/日志用）。</summary>
+        int WalkableCount { get; }
+
+        /// <summary>地图是否已生成。</summary>
+        bool IsGenerated { get; }
+
+        /// <summary>出生点（玩家进图位置）。未生成时为 (0,0)。</summary>
+        Vector2Int SpawnPoint { get; }
+
+        /// <summary>出入口格（`TileKind.Exit`），城镇的出城口 / 野外的洞穴入口。</summary>
+        IReadOnlyList<Vector2Int> Exits { get; }
+
+        /// <summary>城镇 NPC 站位（下标 = `Def.NpcId` 的整数值；非城镇区域为空列表）。</summary>
+        IReadOnlyList<Vector2Int> NpcPoints { get; }
+
+        /// <summary>怪物刷新点（洞穴生成时产出；野外为空列表）。</summary>
+        IReadOnlyList<Vector2Int> MonsterSpawns { get; }
+
+        /// <summary>
+        /// <para>
+        /// 口径 = 原版 `Objects.txt` Id=119（`Name=Waypoint` / `Token=wp` / `SizeX=SizeY=5` 子格
+        /// = 1 格的交互锚点）在**关卡坐标**上的位置；本工程目前只有罗格营地有（`Levels.txt`
+        /// 「Act 1 - Town」的 `Waypoint` 列 = 0 = 本关传送点编号 0），其它区域为空列表。
+        /// </para>
+        /// <para>
+        /// 数据来源（不许在 UI/交互层硬编码坐标）：`Module/Map/MapGenTown` 里逐条写了出处 ——
+        /// 原版城镇块 DS1 里钉在五芒星石台（`town_floor/000..003`，落 (33..34,18..19)）上的
+        /// `kind=2` 预设单位，折算成关卡坐标后取最近格 = (34,19)。
+        /// </para>
+        /// </summary>
+        IReadOnlyList<Vector2Int> WaypointPoints { get; }
+
+        /// <summary>
+        /// <para>
+        /// 口径（原版自动地图）：**访问过即记住、本局内持续累积** —— 玩家走过的格一旦被记为已探索
+        /// 就不再撤销（**不是**"当前视野 / 8 邻域"那套，那是本项目已登记的旧近似口径 `E23④`）。
+        /// 与 `Events.PlayerGridChanged` 一一对应：玩家每换一格 ⇒ 该格被记为已探索。
+        /// </para>
+        /// <para>
+        /// **数据源唯一**：渲染层 <c>Module/Map/MapView</c> 的 <c>_explored</c> 位图
+        /// （`MarkExplored` / `CollectExplored` / `IsExplored` 都在那里）—— 本属性只是它的**投影**，
+        /// </para>
+        /// <para>
+        /// **作用域 = 当前区域**：换区时 <c>MapView.ShowArea</c> 会按新图尺寸重建已探索位图
+        /// （原版每张图的 automap 也是各自记忆的）；且格坐标是**区域局部**的
+        /// ⇒ 跨区域合并成一个集合在语义上是错的（不同区域的 (x,y) 不可比）。
+        /// </para>
+        /// <para>未生成 / 未铺装（`ShowArea` 未调用）⇒ 返回空集合（不抛）。</para>
+        /// </summary>
+        IReadOnlyCollection<Vector2Int> ExploredCells { get; }
+
+        /// <summary>是否在图内（不判可走）。</summary>
+        bool InBounds(Vector2Int g);
+
+        /// <summary>该格是否可走（图外 = false；**唯一判定走 `Def.TileKindInfo.IsWalkable`**）。</summary>
+        bool Walkable(Vector2Int g);
+
+        /// <summary>
+        /// 该格是否是**"可走上方的结构"**（桥面 / 平台 / 甲板；本项目目前只有罗格营地出城那座桥）。
+        /// <para><b>谁在用</b>：① 桥上的传送接缝判定 —— 关卡**东边界列**上的桥面格 =
+        /// 城镇与野外的共享边列（`Module/Map/MapSeam`，`Module/Player` 据此触发换区）；
+        /// ② 实体排序 —— 桥面格与普通实体格**同档**（`Iso.EntitySortOrder`，见
+        /// `GameConst.LayerOffsetDeckEntity`），遮挡由"格 y 越大越靠前"决定：站桥面南行
+        /// （y=27）的实体腿脚被正南一格（y=28）的栏杆 `4(D+1)+101 = 4D+105` 盖住。</para>
+        /// <para><b>数据来源</b>：由 `Module/Map` 在生成/铺图时登记（桥面 = 地砖取自 deck 类包，
+        /// 见 `MapGenTownLayout` 的桥面行与 `Packs` 表）—— 视图层不许自己去猜几何。</para>
+        /// <para>图外 / 未生成 ⇒ 返回 false（与 <see cref="Walkable"/> 的越界口径一致）。</para>
+        /// </summary>
+        bool IsDeckGrid(Vector2Int g);
+
+        /// <summary>该格地形（图外返回 <see cref="TileKind.Void"/>）。</summary>
+        TileKind TileAt(Vector2Int g);
+
+        /// <summary>
+        /// 生成地图。**同 seed ⇒ 同地图**（可复现）。
+        /// 生成后必须做连通性自检（出生点可达 Exit / 洞穴入口 / 所有房间），
+        /// 不可达则重生成（最多 `GameConst.MapGenMaxRetry` 次）并打日志。
+        /// </summary>
+        void Generate(AreaId area, int seed);
+
+        /// <summary>清空地图（退出 Stage 时调用）。</summary>
+        void Clear();
+
+        /// <summary>
+        /// 求路径（逐格，含起终点）。**不可达返回 null**（已打日志）。
+        /// 内部复用 `CloverEngine.AStar.Find`，不许另写一份寻路。
+        /// </summary>
+        List<Vector2Int> FindPath(Vector2Int from, Vector2Int to);
+
+        /// <summary>在世界坐标里取一个随机可走格（掉落/怪物出生用）。无可用格时返回出生点并打日志。</summary>
+        Vector2Int RandomWalkableTile(Rng rng);
+
+        /// <summary>把地图渲染出来（一次性铺三层，不要每帧重建）。</summary>
+        void ShowArea(AreaId area);
+
+        /// <summary>把格子数据打成快照交给小地图（`Events.MapGenerated` 的参数）。</summary>
+        MinimapArgs BuildMinimap();
+    }
+
+    /// <summary>
+    /// 主角门面（`Module/Player/PlayerModule.cs`）。
+    /// 位置由**本模块**本地解算（原版点击移动语义），**不许被任何外部权威位置逐帧覆盖**。
+    /// </summary>
+    public interface IPlayerModule
+    {
+        /// <summary>职业。</summary>
+        PlayerClass Class { get; }
+
+        /// <summary>角色名。</summary>
+        string Name { get; }
+
+        /// <summary>等级。</summary>
+        int Level { get; }
+
+        /// <summary>力量（含装备加成）。</summary>
+        int Str { get; }
+
+        /// <summary>敏捷（含装备加成）。</summary>
+        int Dex { get; }
+
+        /// <summary>体力（含装备加成）。</summary>
+        int Vit { get; }
+
+        /// <summary>精力（含装备加成）。</summary>
+        int Eng { get; }
+
+        /// <summary>当前生命。</summary>
+        int Life { get; }
+
+        /// <summary>生命上限。</summary>
+        int MaxLife { get; }
+
+        /// <summary>当前法力。</summary>
+        int Mana { get; }
+
+        /// <summary>法力上限。</summary>
+        int MaxMana { get; }
+
+        /// <summary>当前耐力。</summary>
+        int Stamina { get; }
+
+        /// <summary>耐力上限。</summary>
+        int MaxStamina { get; }
+
+        /// <summary>当前经验。</summary>
+        long Exp { get; }
+
+        /// <summary>升到下一级所需经验（已满级时 = 0）。</summary>
+        long ExpNext { get; }
+
+        /// <summary>未分配属性点。</summary>
+        int StatPoints { get; }
+
+        /// <summary>未分配技能点。</summary>
+        int SkillPoints { get; }
+
+        /// <summary>金币。</summary>
+        int Gold { get; }
+
+        /// <summary>当前格。</summary>
+        Vector2Int Grid { get; }
+
+        /// <summary>当前世界坐标（渲染插值后的实际位置，精灵视图跟它）。</summary>
+        Vector3 World { get; }
+
+        /// <summary>当前朝向。</summary>
+        Dir8 Dir { get; }
+
+        /// <summary>是否正在沿路径移动。</summary>
+        bool IsMoving { get; }
+
+        /// <summary>
+        /// 是否处于**跑**状态（false = 走）。
+        /// <para>原版玩家有**走/跑两套移动动画**
+        /// （`.cof` 的 `WL` / `RN`，见 `Engine/IO/D2Formats/AnimData.cs` 的动作代号），
+        /// 表现层要按这个状态选 `ViewAnim.Run` / `ViewAnim.Walk`（`Module/View/ViewModule.cs`），
+        /// 否则只能一直播走路动画 ⇒ "飘着走"。</para>
+        /// <para>实现方（`Module/Player/PlayerModule.cs`）用已有的 `_running` 字段（原版 R 键切换）。</para>
+        /// </summary>
+        bool IsRunning { get; }
+
+        /// <summary>是否已死亡。</summary>
+        bool IsDead { get; }
+
+        /// <summary>防御（含装备）。</summary>
+        int Defense { get; }
+
+        /// <summary>命中（AR，含装备）。</summary>
+        int AttackRating { get; }
+
+        /// <summary>某系抗性（%，可为负，上限 75）。</summary>
+        int GetResist(DamageType type);
+
+        PlayerStatsDto Snapshot();
+
+        /// <summary>建新角色（创角时由 Flow 调用；初始化四维/生命/法力/等级 1）。</summary>
+        void CreateNew(PlayerClass cls, string name);
+
+        /// <summary>按存档恢复（读档时由 Flow 调用）。</summary>
+        void LoadFrom(CharacterSave save);
+
+        /// <summary>把当前状态写回存档对象（存档时由 Save 模块调用）。</summary>
+        void WriteTo(CharacterSave save);
+
+        /// <summary>复位（回主菜单时调用，清空角色）。</summary>
+        void Reset();
+
+        /// <summary>移动到目标格（内部 A* 寻路；不可达时打日志并停在原地）。</summary>
+        void MoveTo(Vector2Int target);
+
+        /// <summary>停止移动（清空路径）。</summary>
+        void Stop();
+
+        /// <summary>直接落到某格（传送/进图/读档用，不做寻路）。</summary>
+        void TeleportTo(Vector2Int grid);
+
+        /// <summary>
+        /// 原地转向目标格（只改朝向，不清路径、不打断移动；同格保持原朝向）。
+        /// 原版语义：点怪出手前角色先面向目标（`ICombatModule` 出手前调用）。
+        /// </summary>
+        void FaceTo(Vector2Int grid);
+
+        /// <summary>每帧推进（由 AppContext 转发）。</summary>
+        void Tick(float dt);
+
+        /// <summary>
+        /// 受到伤害（走抗性/防御结算）。返回**是否因此死亡**。
+        /// 怪物攻击玩家的结算入口（由 `ICombatModule` 调用）。
+        /// </summary>
+        bool ApplyDamage(int amount, DamageType type);
+
+        /// <summary>回复生命（药水/技能）。</summary>
+        void Heal(int amount);
+
+        /// <summary>回复法力。</summary>
+        void RestoreMana(int amount);
+
+        /// <summary>
+        /// 扣减法力（技能/消耗品的**消耗**入口）。成功扣减返回 <c>true</c>；
+        /// <paramref name="amount"/> ≤ 0 或当前法力不足时返回 <c>false</c> 且**不改值**。
+        /// <para>契约里只有
+        /// <see cref="RestoreMana"/>，且实现方对非正数一律忽略 ⇒ 技能侧用
+        /// <c>RestoreMana(-cost)</c> 扣蓝会被静默钳掉。
+        /// 扣蓝是**消耗**语义，与回复是两件事，故给独立入口。</para>
+        /// <para>**不改 <see cref="RestoreMana"/> 既有语义**：它对负数/0 仍按「非正数 ⇒ 忽略」处理
+        /// （那是对的，别为省事让它扣蓝）。</para>
+        /// </summary>
+        bool TrySpendMana(int amount);
+
+        /// <summary>回复耐力。</summary>
+        void RestoreStamina(int amount);
+
+        /// <summary>增加经验（到达阈值自动升级）。</summary>
+        void AddExp(int amount);
+
+        /// <summary>增减金币（负数扣除；余额不足返回 false 并不改值）。</summary>
+        bool AddGold(int amount);
+
+        /// <summary>增减技能点。</summary>
+        void AddSkillPoint(int delta);
+
+        /// <summary>分配属性点（校验点数与合法性；非法则打日志并返回 false）。</summary>
+        bool AllocateStat(StatKind kind, int delta);
+
+        /// <summary>复活（死亡流程用；回城并恢复一部分生命）。</summary>
+        void Revive();
+
+        /// <summary>死亡处理（清零生命、发事件、记日志）。一般由 <see cref="ApplyDamage"/> 内部调用。</summary>
+        void Kill();
+    }
+
+    /// <summary>
+    /// 怪物门面（`Module/Monster/MonsterModule.cs`）：生成 / AI / 精英词缀 / 受击。
+    /// </summary>
+    public interface IMonsterModule
+    {
+        /// <summary>全场存活怪物数。</summary>
+        int AliveCount { get; }
+
+        /// <summary>全部怪物（含尸体，`alive=false` 仍保留直到清理）。</summary>
+        IReadOnlyList<MonsterState> All { get; }
+
+        /// <summary>某区域内的存活怪物数。</summary>
+        int CountInArea(AreaId area);
+
+        /// <summary>按 id 取怪物状态；不存在返回 null 并限频告警。</summary>
+        MonsterState Get(int monsterId);
+
+        /// <summary>该怪物是否存活。</summary>
+        bool IsAlive(int monsterId);
+
+        /// <summary>按区域刷怪（读 `level_c` 的密度与 `monster_c` 属性；用 `IMapModule.MonsterSpawns` 定位）。</summary>
+        void SpawnArea(AreaId area);
+
+        /// <summary>清掉全部怪物（退出 Stage 时调用）。</summary>
+        void DespawnAll();
+
+        /// <summary>移除一具尸体（尸体保留时间到期 / 视图回收）。</summary>
+        void RemoveCorpse(int monsterId);
+
+        /// <summary>每帧推进 AI（由 AppContext 转发）。</summary>
+        void Tick(float dt);
+
+        /// <summary>扣血（含抗性结算；死亡会发 `Events.MonsterKilled` 并留尸体）。</summary>
+        /// <param name="resistReduction">本次伤害附带的**抗性削减**（百分点；仅对
+        /// <see cref="DamageType.Cold"/> 生效，来自法师冰冷精通）——在怪物自身抗性之上先减，
+        /// 再夹到抗性下限 <see cref="Skill.SkillTuning.ColdMasteryResistFloor"/>。
+        /// 0 = 无削减（普攻 / 非冰冷技能）。</param>
+        void ApplyDamage(int monsterId, int amount, DamageType type, int resistReduction = 0);
+
+        /// <summary>被玩家攻击（切换到仇恨状态）。</summary>
+        void NotifyAttacked(int monsterId);
+
+        /// <summary>UI 悬停到某怪物（不做 AI 决策，仅更新「当前悬停」）。</summary>
+        void SetHovered(int monsterId);
+
+        /// <summary>使用尸体（萨满复活 / 死灵技能）。成功返回 true。</summary>
+        bool ConsumeCorpse(int monsterId);
+    }
+
+    /// <summary>
+    /// 战斗结算门面（`Module/Combat/CombatModule.cs`）：命中判定 / 伤害公式 / 抗性 / 击杀 / 复活。
+    /// 怪物 AI 与玩家/怪物模块之间**只经本门面**结算伤害，禁止各自算一遍。
+    /// </summary>
+    public interface ICombatModule
+    {
+        /// <summary>当前攻击目标 id（-1 = 无）。</summary>
+        int CurrentTargetId { get; }
+
+        /// <summary>距离下次可攻击的剩余秒数（HUD 可显示）。</summary>
+        float AttackCooldownRemain { get; }
+
+        /// <summary>请求攻击指定怪物（左键点怪 / 自动攻击）：闸门（冷却 / 距离 / 判定形状）过 ⇒
+        /// 挥击起手并扣冷却，命中/伤害在 A1 接触帧（官方 `AnimData.d2` trigger frame）结算。</summary>
+        void RequestAttack(int monsterId);
+
+        /// <summary>怪物挥击的**接触帧结算**入口（怪物 AI 在出手时排期；到接触帧由本模块按当时的
+        /// 格距/视线重判后做命中与伤害结算，玩家已跑出近战格的 ⇒ 空挥）。</summary>
+        void RequestMonsterAttack(int monsterId);
+
+        /// <summary>设置当前目标（不改移动意图）。</summary>
+        void SetTarget(int monsterId);
+
+        /// <summary>清除当前目标。</summary>
+        void ClearTarget();
+
+        /// <summary>玩家死亡后的复活流程（回城、恢复生命、发事件）。</summary>
+        void RevivePlayer();
+
+        /// <summary>每帧推进（攻击节奏/持续伤害）。</summary>
+        void Tick(float dt);
+
+        /// <summary>复位（回主菜单时调用）。</summary>
+        void Reset();
+    }
+
+    /// <summary>
+    /// 技能门面（`Module/Skill/SkillModule.cs`）：技能树 / 学习 / 左右键绑订 / 施放 / 冷却 / 投射物。
+    /// </summary>
+    public interface ISkillModule
+    {
+        /// <summary>当前职业。</summary>
+        PlayerClass Class { get; }
+
+        /// <summary>当前选中的右键技能 id（-1 = 普通攻击）。</summary>
+        int SelectedSkillId { get; }
+
+        /// <summary>本职业全部技能定义（技能面板用）。</summary>
+        IReadOnlyList<SkillDef> Available { get; }
+
+        /// <summary>已学等级（0 = 未学）。</summary>
+        int GetLevel(int skillId);
+
+        /// <summary>是否满足学习条件（等级/前置/技能点）。</summary>
+        bool CanLearn(int skillId);
+
+        /// <summary>
+        /// 学习一级（不满足条件返回 false 并打日志）。
+        /// UI 入口：`Events.SkillLearnRequest`（int skillId）—— 本模块**不订阅任何事件**，
+        /// </summary>
+        bool Learn(int skillId);
+
+        /// <summary>选择右键技能（-1 = 普通攻击）。</summary>
+        void SelectSkill(int skillId);
+
+        /// <summary>把技能绑到某个键（0 = 左键，1 = 右键）。</summary>
+        void AssignToButton(int button, int skillId);
+
+        /// <summary>取某个键绑定的技能 id（-1 = 普通攻击）。</summary>
+        int GetButtonSkill(int button);
+
+        /// <summary>施放（校验法力/冷却/目标；成功则扣蓝并触发效果）。</summary>
+        bool TryCast(int skillId, Vector2Int targetGrid);
+
+        /// <summary>冰冷精通**降低怪物冰冷抗性**的百分点（未学 ⇒ 0）。
+        /// <para>官方 `Cold Mastery`（`skills.txt` Id=65）的机制与另两系精通不同：不是加技能伤害，
+        /// 而是 reduces the cold resistances of monsters（下限 −100%）。结算方
+        /// `Module/Combat/DamagePipeline` 在怪物抗性结算前取本值并传给
+        /// <see cref="IMonsterModule.ApplyDamage"/> 的 <c>resistReduction</c>。</para></summary>
+        int ColdMasteryResistReduction();
+
+        /// <summary>剩余冷却秒数（0 = 可用）。</summary>
+        float GetCooldownRemain(int skillId);
+
+        /// <summary>技能树快照（技能面板用）。</summary>
+        SkillTreeArgs BuildTree();
+
+        /// <summary>每帧推进（冷却/投射物飞行）。</summary>
+        void Tick(float dt);
+
+        /// <summary>切换职业（创角/读档时调用，重建技能树状态）。</summary>
+        void ResetForClass(PlayerClass cls, CharacterSave save);
+    }
+
+    /// <summary>
+    /// 物品门面（`Module/Item/ItemModule.cs`）：掉落 / 拾取 / 背包 / 装备 / 腰带 / 金币 / 词缀生成。
+    /// 物品尺寸来自配表 `item_c.grid_w/grid_h`（不硬编码）。
+    /// </summary>
+    public interface IItemModule
+    {
+        /// <summary>当前金币。</summary>
+        int Gold { get; }
+
+        /// <summary>背包格快照（长度 = `GameConst.InventoryCellCount`）。</summary>
+        IReadOnlyList<InventorySlot> Inventory { get; }
+
+        /// <summary>
+        /// <para>
+        /// 为什么要收紧（T0 缺口 2 的另一半）：原语义 = "全部已装备物品"，而唯一的生产消费方
+        /// `Module/Combat/CombatModule.GetWeaponDamage`（`CombatModule.cs:222-230`）会把集合里
+        /// **每把**武器的 `dmgMin/dmgMax` **相加** ⇒ 装备两把武器时基础伤害是两把之和、切武器组
+        /// 也**不会**变。原版只有当前那一套武器生效 ⇒ 这里改为"生效集"。
+        /// </para>
+        /// <para>配套口径：`CharacterSave.equip` 与 `ItemModule.WriteTo` 仍写**全集**（两套都存）、
+        /// `IItemModule.GetRepairAllCost` 仍按**全集**算（备用组也能修）⇒ 只有"生效/数值"这一面被收窄。</para>
+        /// </summary>
+        IReadOnlyList<ItemStack> Equipment { get; }
+
+        /// <summary>腰带（长度 = `GameConst.BeltSlots`，空位为 null）。</summary>
+        IReadOnlyList<ItemStack> Belt { get; }
+
+        /// <summary>地面物品（锚点格索引 → 物品）。视图用它建地面图标。</summary>
+        IReadOnlyList<KeyValuePair<int, ItemStack>> GroundItems { get; }
+
+        /// <summary>背包是否已满（放不下任何 1×1 物品）。</summary>
+        bool IsFull { get; }
+
+        InventoryChangedArgs Snapshot();
+
+        /// <summary>按等级随机生成一件物品（走配表 TC + 品质判定 + 词缀）。</summary>
+        ItemStack CreateRandom(int level, Rng rng);
+
+        /// <summary>按掉落表生成一批掉落（怪物死亡时由 Combat 调用）。</summary>
+        void DropLoot(int treasureClassId, int monsterLevel, Vector2Int grid, Rng rng);
+
+        /// <summary>把一件物品直接放到地面。</summary>
+        void DropToGround(ItemStack item, Vector2Int grid);
+
+        /// <summary>拾取（距离校验；背包满返回 false 且**物品留在原地**并打日志）。</summary>
+        bool Pickup(int groundItemId);
+
+        /// <summary>拾取离某格最近的物品（-1 表示不限 id）。</summary>
+        bool PickupNearest(Vector2Int grid, float maxRange);
+
+        /// <summary>放入背包（自动找位；放不下返回 false）。</summary>
+        bool AddToInventory(ItemStack item);
+
+        /// <summary>从背包移除某锚点格上的物品。</summary>
+        bool RemoveFromInventory(int anchorIndex);
+
+        /// <summary>装备背包里某锚点格的物品（换下的回背包；失败返回 false）。</summary>
+        bool EquipFromInventory(int anchorIndex);
+
+        /// <summary>
+        /// 卸下某槽位（戒指/武器组按 <paramref name="slotIndex"/> 区分同槽多件）。
+        /// UI 入口：`Events.UnequipRequest`（参数 = `((int)slot &amp; 0xFF) | (slotIndex &lt;&lt; 8)`）
+        /// </summary>
+        bool Unequip(ItemSlot slot, int slotIndex);
+
+        /// <summary>
+        /// **背包内移动/交换**：把某锚点格上的物品移到另一个锚点格；目标格有物品 ⇒ **两件互换**。
+        /// <para>
+        /// （参数 = `fromAnchor | (toAnchor &lt;&lt; 16)`，口径见 `Core/Events.cs` 该常量的注释），
+        /// 由 `App/AppEventRouting.cs` 转发到本方法（UI 不许 `using Diablo2.Module`）。
+        /// </para>
+        /// <para>
+        /// 失败返回 false 且**不改动任何格**（物品留在原处），<paramref name="failReason"/> 给出
+        /// **可直接展示的中文文案**（调用方拿它做 Toast）——不许"假装成功"、也不许只返回 false 不给原因。
+        /// </para>
+        /// </summary>
+        /// <param name="fromAnchor">拖起的物品锚点格（线性下标）。</param>
+        /// <param name="toAnchor">落点格（线性下标；被占用时按该格所属物品的锚点处理）。</param>
+        /// <param name="failReason">失败原因（成功 = null）。</param>
+        bool MoveItem(int fromAnchor, int toAnchor, out string failReason);
+
+        /// <summary>使用某锚点格的物品（药水/卷轴）。</summary>
+        bool UseItem(int anchorIndex);
+
+        /// <summary>腰带格喝药（0..3）。</summary>
+        bool UseBeltSlot(int index);
+
+        /// <summary>把物品放进腰带（指定格或自动找位；index &lt; 0 = 自动）。</summary>
+        bool AddToBelt(ItemStack item, int index);
+
+        /// <summary>增减金币（余额不足返回 false）。</summary>
+        bool AddGold(int amount);
+
+        /// <summary>修理（锚点格索引；&lt; 0 = 全部）。返回修理费，-1 = 失败。</summary>
+        int Repair(int anchorIndex);
+
+        /// <summary>总修理费（商店面板显示用）。</summary>
+        int GetRepairAllCost();
+
+        /// <summary>按存档恢复背包/装备/腰带/金币。</summary>
+        void LoadFrom(CharacterSave save);
+
+        /// <summary>写回存档对象。</summary>
+        void WriteTo(CharacterSave save);
+
+        /// <summary>每帧推进（尸体/地面物品超时回收）。</summary>
+        void Tick(float dt);
+
+        /// <summary>复位（回主菜单时调用）。</summary>
+        void Reset();
+    }
+
+    /// <summary>
+    /// NPC 门面（`Module/Npc/NpcModule.cs`）：5 个 NPC 的定义 / 对话文本 / 商店 / 修理。
+    /// </summary>
+    public interface INpcModule
+    {
+        /// <summary>全部 NPC 定义（罗格营地 5 个）。</summary>
+        IReadOnlyList<NpcDef> All { get; }
+
+        /// <summary>按 id 取定义；不存在返回 null 并限频告警。</summary>
+        NpcDef Get(int npcId);
+
+        /// <summary>取离某格最近、且在 `GameConst.TalkRange` 内的 NPC；没有返回 null。</summary>
+        NpcDef FindNearest(Vector2Int grid);
+
+        /// <summary>交互（无商店时发 `Events.DialogOpen`；有商店时先对话）。成功返回 true。</summary>
+        bool Interact(int npcId);
+
+        /// <summary>取当前对话内容（**文本随任务阶段变化**）。参数用于面板 `OnOpen(param)`。</summary>
+        NpcDialogArgs GetDialog(int npcId);
+
+        /// <summary>推进对话（选项下标；0 = 关闭）。</summary>
+        void ChooseOption(int npcId, int optionIndex);
+
+        /// <summary>
+        /// 取商店快照（`Events.ShopOpen` 的参数）。没有商店返回 null 并打日志。
+        /// UI 入口：`Events.ShopOpenRequest`（int npcId）—— 由 `App/AppEventRouting.cs`
+        /// </summary>
+        ShopOpenArgs GetShop(int npcId);
+
+        /// <summary>买入（金币结算 + 背包空间校验）。</summary>
+        bool Buy(int npcId, int index, int count);
+
+        /// <summary>卖出背包某锚点格的物品。</summary>
+        bool Sell(int npcId, int anchorIndex);
+
+        /// <summary>修理（锚点格索引 &lt; 0 = 全部）。</summary>
+        int Repair(int npcId, int anchorIndex);
+
+        /// <summary>按存档恢复（任务阶段影响对话）。</summary>
+        void LoadFrom(CharacterSave save);
+
+        /// <summary>每帧推进（NPC 待机动画由 View 负责；本方法供朝向/时序用）。</summary>
+        void Tick(float dt);
+
+        /// <summary>复位（回主菜单时调用）。</summary>
+        void Reset();
+    }
+
+    /// <summary>
+    /// 等距跟随相机（`Module/Camera/CameraRig.cs`）。
+    /// 原版相机：**固定等距角度、不旋转、不缩放**，平滑跟随主角（只有局部滚动）。
+    /// </summary>
+    public interface ICameraRig
+    {
+        /// <summary>跟随目标（持续跟随该 Transform 的世界坐标）。</summary>
+        void Follow(Transform target);
+
+        /// <summary>取消跟随。</summary>
+        void Unfollow();
+
+        /// <summary>直接吸附到目标位置（进图/传送后不要平滑，避免看它「飞过去」）。</summary>
+        void SnapToTarget();
+
+        /// <summary>设置跟随目标格（不持有 Transform 时的便捷入口）。</summary>
+        void SetTargetGrid(Vector2Int grid);
+
+        /// <summary>镜头震动（命中/受击）。</summary>
+        void Shake(float amplitude, float duration);
+
+        /// <summary>每帧推进（由 AppContext 转发）。</summary>
+        void Tick(float dt);
+
+        /// <summary>复位（回主菜单时调用）。</summary>
+        void Reset();
+    }
+
+    /// <summary>
+    /// 精灵视图门面（`Module/View/ViewModule.cs`）：创建/更新实体视图、朝向动画、头顶血条、飘字。
+    /// UI 飘字可直接用引擎 `Game.UI.FloatText`；本门面负责**世界空间**（头顶血条等）。
+    /// </summary>
+    public interface IViewModule
+    {
+        /// <summary>创建/更新玩家视图（切职业时重建）。</summary>
+        void CreatePlayer(PlayerClass cls);
+
+        /// <summary>创建怪物视图。</summary>
+        void CreateMonster(MonsterState state);
+
+        /// <summary>同步怪物视图（位置/朝向/血量/动画）。</summary>
+        void UpdateMonster(MonsterState state);
+
+        /// <summary>移除怪物视图。</summary>
+        void RemoveMonster(int monsterId);
+
+        /// <summary>清除全部怪物视图。</summary>
+        void ClearMonsters();
+
+        /// <summary>创建地面物品视图。</summary>
+        void CreateGroundItem(int groundItemId, ItemStack item, Vector2Int grid);
+
+        /// <summary>移除地面物品视图。</summary>
+        void RemoveGroundItem(int groundItemId);
+
+        /// <summary>播放受击表现（闪白 + Hit 动画）。</summary>
+        void PlayHit(int entityId);
+
+        /// <summary>播放死亡表现（Death 动画后隐藏，保留尸体）。</summary>
+        void PlayDeath(int entityId);
+
+        /// <summary>显示世界空间飘字（伤害数字等）。颜色用 ARGB 打包（避免 DTO 依赖 Unity 类型）。</summary>
+        void ShowFloatingText(float worldX, float worldY, float worldZ, string text, uint argb);
+
+        /// <summary>取某实体的视图 GameObject（拿不到返回 null 并限频告警）。</summary>
+        GameObject GetView(int entityId);
+
+        /// <summary>每帧推进（朝向/动画状态）。</summary>
+        void Tick(float dt);
+
+        /// <summary>清场（退出 Stage 时调用）。</summary>
+        void Clear();
+    }
+
+    /// <summary>
+    /// 音效门面（`Module/Audio/AudioModule.cs`）：音效触发点的统一出口。
+    /// **音效键就是资源名**（见 `ResPaths.Sfx` / `ResPaths.Bgm`，路径由引擎约定）。
+    /// </summary>
+    public interface IAudioModule
+    {
+        /// <summary>当前 BGM 音量 0~1。</summary>
+        float BgmVolume { get; }
+
+        /// <summary>当前音效音量 0~1。</summary>
+        float SfxVolume { get; }
+
+        /// <summary>播放 2D 音效（UI / 拾取 / 升级）。</summary>
+        void Sfx(string key);
+
+        /// <summary>在指定世界坐标播放音效（挥砍 / 命中 / 怪物叫声）。</summary>
+        void SfxAt(string key, float worldX, float worldY, float worldZ);
+
+        /// <summary>切换 BGM（空串 = 停止）。</summary>
+        void Bgm(string key);
+
+        /// <summary>停止 BGM。</summary>
+        void StopBgm();
+
+        /// <summary>设置音量（0~1；会写入 `Game.Setting` 并在重进后保持）。</summary>
+        void SetVolume(float bgm, float sfx);
+
+        /// <summary>静音开关。</summary>
+        void SetMute(bool bgmMute, bool sfxMute);
+
+        /// <summary>取音量快照（设置面板用）。</summary>
+        AudioVolumeArgs GetVolume();
+
+        /// <summary>每帧推进（脚步节流等）。</summary>
+        void Tick(float dt);
+
+        /// <summary>复位（回主菜单时调用：停 BGM、清空节流状态）。</summary>
+        void Reset();
+    }
+
+    /// <summary>
+    /// 存档门面（`Module/Save/SaveModule.cs`）：多角色存档，**一角色一文件**（档在引擎 `FileSlotStore` 槽位里）。
+    /// 档位：`&lt;SettingDir&gt;/saves/&lt;角色名&gt;.json`；`char/index`（`GameConst.SaveIndexKey`）只留**创建先后**（选角屏顺序）；
+    /// `char/{角色名}`（`GameConst.SaveKeyPrefix`）只留旧档懒迁移。
+    /// 槽位里存的仍是**字符串 JSON**（由 `SaveJson` 编解码）
+    ///    —— **不要**往槽位里塞对象本身（反序列化 `object` 会丢类型，见上面契约注释）。
+    /// </summary>
+    public interface ISaveModule
+    {
+        /// <summary>最近一次失败原因（成功时为空串）。</summary>
+        string LastError { get; }
+
+        /// <summary>存档目录/键是否就绪。</summary>
+        bool Ready { get; }
+
+        /// <summary>把当前游戏状态存成角色存档（名字取 `IPlayerModule.Name`）。</summary>
+        bool Save();
+
+        /// <summary>存一份指定数据（创角时先把角色写进去）。</summary>
+        bool Save(CharacterSave data);
+
+        /// <summary>读某个角色的存档；不存在返回 null 并打日志。</summary>
+        CharacterSave Load(string name);
+
+        /// <summary>读存档（不存在的返回 false，不抛异常）。</summary>
+        bool TryLoad(string name, out CharacterSave data);
+
+        /// <summary>删除某个角色存档。</summary>
+        bool Delete(string name);
+
+        /// <summary>全部存档角色名（主菜单「继续」与选角屏用）。</summary>
+        List<string> List();
+
+        /// <summary>全部存档（带等级/职业，选角屏卡片用）。</summary>
+        List<CharacterSave> ListAll();
+
+        /// <summary>是否存在该角色的存档。</summary>
+        bool Exists(string name);
+
+        /// <summary>是否存在任意存档（主菜单「继续」按钮可用性）。</summary>
+        bool HasAny { get; }
+
+        /// <summary>把存档数据装配回各模块（Player / Skill / Item / Npc）。</summary>
+        void ApplyToModules(CharacterSave data);
+    }
+}

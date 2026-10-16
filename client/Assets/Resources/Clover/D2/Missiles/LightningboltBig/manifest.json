@@ -1,0 +1,42 @@
+{
+ "cel": "LightningboltBig",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\LightningboltBig.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 1,
+ "framesPerDir": 8,
+ "officialAnimLen": [
+  8
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 0,
+  "nw": 0,
+  "n": 0,
+  "ne": 0,
+  "e": 0,
+  "se": 0
+ },
+ "canvas": {
+  "w": 36,
+  "h": 212,
+  "originX": 18,
+  "originY": 106,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 64
+}

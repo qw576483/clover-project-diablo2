@@ -1,0 +1,57 @@
+{
+ "unit": "Monsters/gh",
+ "kind": "npc",
+ "token": "gh",
+ "sourceMpq": "d2data.mpq",
+ "sourcePath": "data/global/monsters/gh/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "hth",
+ "canvas": {
+  "w": 38,
+  "h": 124,
+  "originX": 19,
+  "originY": 62,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -19,
+   "right": 19,
+   "up": -62,
+   "down": 6
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": []
+  }
+ },
+ "pngCount": 128
+}

@@ -1,0 +1,659 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Diablo2 · Core/Events.cs
+// 事件名 / 状态机站点名 / 触发器名**唯一来源**。
+// `Game.Event.On/Emit/Off` 一律传本文件的常量，**禁止裸字符串**
+//
+// 命名法：`D2.{域}.{动作}`（项目约定「事件名」）。
+//
+//    其余为增补项（可增补、不许改已有的）。
+//
+// 参数约定（订阅方按此写 `Action<T>`）：
+//   无参          → `Game.Event.On(name, handler)`
+//   T             → `Game.Event.On<T>(name, handler)`
+//   `Game.Event` **没有句柄**：注销必须用**同一个方法引用**，长驻模块禁止用匿名 lambda。
+// ─────────────────────────────────────────────────────────────────────────────
+
+using UnityEngine;
+
+namespace Diablo2.Core
+{
+    /// <summary>事件名常量 + 流程状态机站点/触发器名常量。</summary>
+    public static class Events
+    {
+        // ═════════════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════════════
+
+        public const string BootDone = "D2.Flow.BootDone";
+
+        /// <summary>
+        /// 世界左键点击落到"空地"上（参数 = 打包格 `x | (y &lt;&lt; 16)`）。
+        /// <para>发送方 = `Module/Player/PlayerModule.HandlePrimaryClick` 的最后一支（既不是怪、也不是 NPC）；
+        /// 收方 = `Module/Map/MapModule`（点中的格若放着**可破坏容器**，由它接管：走到相邻格再破坏）。
+        /// 与 <see cref="MoveCommand"/> 的分工：本事件只报"点了哪一格"，是否要改走位由收方决定
+        /// （收到后才发的 `MoveCommand` 覆盖发送方那条，见 `MapModule.OnWorldClick`）。</para>
+        /// </summary>
+        public const string WorldClickRequest = "D2.Map.WorldClick";
+
+        /// <summary>
+        /// 地图上**可破坏容器**的格集合快照（载荷 `IReadOnlyCollection&lt;Vector2Int&gt;`）。
+        /// <para>发送方 = `Module/Map/MapModule`（生成完成时、每次破坏后、退场清场时各一条）；
+        /// 收方 = `Module/Input/InputReader`（喂 `HoverPicker.ContainerAt` ⇒ 指针压在容器上时出"可交互"光标）。
+        /// 走快照而不让输入层直接查地图：输入层不 `using` 地图模块（分层自检 ②）。</para>
+        /// </summary>
+        public const string ContainersChanged = "D2.Map.Containers";
+
+        /// <summary>
+        /// 「点中的格是**可破坏容器**，请走过去操作」（参数 = 打包格 `x | (y &lt;&lt; 16)`）。
+        /// <para>发送方 = `Module/Map/MapModule`（只有它知道哪一格上有容器）；收方 =
+        /// `Module/Player/PlayerModule`（只有它知道玩家在哪、怎么绕过去）。</para>
+        /// </summary>
+        public const string ContainerOperate = "D2.Map.ContainerOperate";
+
+        /// <summary>
+        /// 「点中的格是**可交互场景物**（神殿 / 篝火 / 玩家回城门），请走过去操作」
+        /// （参数 = 打包格 `x | (y &lt;&lt; 16)`）。
+        /// <para>发送方 = `Module/Map/MapModule`（只有它知道哪一格上有这三类物件）；
+        /// 收方 = `Module/Player/PlayerModule`（只有它知道玩家在哪、怎么绕过去）——
+        /// 与 <see cref="ContainerOperate"/> 同形。</para>
+        /// </summary>
+        public const string SceneOperate = "D2.Map.SceneOperate";
+
+        /// <summary>
+        /// 「已经贴脸操作了某个可交互场景物」（参数 = `Def.SceneInteractArgs`）。
+        /// <para>发送方 = `Module/Player/PlayerModule`（走到 8 邻之后）；
+        /// 收方 = `Module/Map/MapModule`（神殿：掷官方 `Shrines.txt` 那一行 → 清 deco / 让画布重铺；
+        /// 回城门：切回城镇；篝火：只留日志）。</para>
+        /// <para>载荷里带着**神殿那一行的全部官方取值**（行号 + Effect/Arg0/Arg1/Duration），
+        /// 所以掷选只发生一次，画面 / 数值 / 日志三者必然同一行。</para>
+        /// </summary>
+        public const string SceneOperated = "D2.Map.SceneOperated";
+
+        /// <summary>
+        /// 「使用回城卷轴 ⇒ 在脚下开一座回城门」（参数 = 打包格 `x | (y &lt;&lt; 16)`）。
+        /// <para>发送方 = `Module/Item/ItemModule`（`UseItem` 认到物品码 `tsc` = 官方
+        /// `Misc.txt` 的 `Town Portal Scroll`）；收方 = `Module/Map/MapModule`
+        /// （登记回城门 + 让画布重铺）。</para>
+        /// </summary>
+        public const string TownPortalRequest = "D2.Item.TownPortalRequest";
+
+        /// <summary>
+        /// 「走进玩家自己开的回城门 ⇒ 回城」（参数 = 打包格 `x | (y &lt;&lt; 16)`，**发起点**不是那格而是相邻格）。
+        /// <para>发送方 = `Module/Map/MapModule`（点中回城门那一格时判出来，与
+        /// <see cref="WorldClickRequest"/> 同一条点选链路）；走位/到站由 `Module/Player`
+        /// 执行；真正切区仍只走 <see cref="ExitEntered"/>（`AppFlow.EnterArea` 是唯一实现）。
+        /// 见 <see cref="TownPortalEntered"/>。</para>
+        /// </summary>
+        public const string TownPortalEnterRequest = "D2.Map.TownPortalEnterRequest";
+
+        /// <summary>
+        /// 「玩家已站上回城门 ⇒ 真的切区」（参数 = 目标 <see cref="Diablo2.Def.AreaId"/>，
+        /// 恒为 <c>AreaId.Town</c>）。
+        /// <para>发送方 = `Module/Player/PlayerModule`（走到回城门相邻格并贴上那一刻）；
+        /// 收方 = `App/AppDoorGuard` —— **转成同型的 <see cref="ExitEntered"/>(AreaId) 发出去**，
+        /// 于是过门计数 / 传送音效 / `AppFlow.EnterArea` 全都自动生效（不另开一条换区旁路）。
+        /// </para>
+        /// </summary>
+        public const string TownPortalEntered = "D2.Map.TownPortalEntered";
+
+        /// <summary>
+        /// 「容器已被贴脸打碎」（载荷 = `Diablo2.Def.ContainerArgs`：格 + 操作者等级）。
+        /// <para>发送方 = `Module/Player/PlayerModule`（走到相邻格才发）；收方 =
+        /// `Module/Map/MapModule`（清 deco + 让画布重铺）与 `Module/Item/ItemModule`（按官方档位掉落）。
+        /// 两个收方收**同一条**载荷 ⇒ 画面上"桶没了"和"掉了东西"不可能各说各话。</para>
+        /// </summary>
+        public const string ContainerBroken = "D2.Map.ContainerBroken";
+
+        public const string MoveCommand = "D2.Input.Move";
+
+        public const string TargetChanged = "D2.Combat.TargetChanged";
+
+        public const string DamageDealt = "D2.Combat.Damage";
+
+        public const string MonsterKilled = "D2.Combat.Killed";
+
+        public const string ItemPicked = "D2.Item.Picked";
+
+        public const string InventoryChanged = "D2.Item.InventoryChanged";
+
+        public const string LevelUp = "D2.Player.LevelUp";
+
+        public const string DialogOpen = "D2.Npc.DialogOpen";
+
+        public const string ShopOpen = "D2.Npc.ShopOpen";
+
+        public const string PlayerDied = "D2.Player.Died";
+
+        public const string HudDirty = "D2.Ui.HudDirty";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 流程（Flow）—— 增补
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>流程站点切换（参数 <see cref="string"/> 站点名，见 <see cref="Fsm"/>）。</summary>
+        public const string FlowStationChanged = "D2.Flow.StationChanged";
+
+        /// <summary>UI 请求创建角色（参数 <c>Def.CharacterSave</c>：已填名字/职业/初始四维）。</summary>
+        public const string CharCreateRequest = "D2.Flow.CharCreateRequest";
+
+        /// <summary>UI 请求选择角色（参数 <see cref="string"/> 角色名）。</summary>
+        public const string CharSelectRequest = "D2.Flow.CharSelectRequest";
+
+        /// <summary>UI 请求删除角色（参数 <see cref="string"/> 角色名）。</summary>
+        public const string CharDeleteRequest = "D2.Flow.CharDeleteRequest";
+
+        /// <summary>UI 请求暂停（无参）。</summary>
+        public const string PauseRequest = "D2.Flow.PauseRequest";
+
+        /// <summary>UI 请求继续（无参）。</summary>
+        public const string ResumeRequest = "D2.Flow.ResumeRequest";
+
+        /// <summary>UI 请求保存并退出（存档）（无参）。</summary>
+        public const string SaveAndExitRequest = "D2.Flow.SaveAndExitRequest";
+
+        /// <summary>UI 请求回主菜单（无参）。</summary>
+        public const string ToMainMenuRequest = "D2.Flow.ToMainMenuRequest";
+
+        /// <summary>UI 请求退出游戏（无参）。</summary>
+        public const string QuitRequest = "D2.Flow.QuitRequest";
+
+        /// <summary>多人游戏入口被点击（无参）——本项目未实装联机，收方给 Toast + Warn。</summary>
+        public const string MultiplayerUnavailable = "D2.Flow.MultiplayerUnavailable";
+
+        /// <summary>已进入 Stage 场景并装配完毕（无参）。</summary>
+        public const string StageEntered = "D2.Flow.StageEntered";
+
+        /// <summary>已离开 Stage 场景（清场完毕）（无参）。</summary>
+        public const string StageLeft = "D2.Flow.StageLeft";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 地图（Map）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>地图生成完成（参数 <c>Def.MinimapArgs</c>，小地图用）。</summary>
+        public const string MapGenerated = "D2.Map.Generated";
+
+        /// <summary>当前区域切换（参数 <c>Def.AreaId</c>）。</summary>
+        public const string AreaChanged = "D2.Map.AreaChanged";
+
+        /// <summary>玩家所在格变化（参数 <see cref="Vector2Int"/> 格坐标）。</summary>
+        public const string PlayerGridChanged = "D2.Map.PlayerGridChanged";
+
+        /// <summary>
+        /// 有新格**首次**被记为已探索（参数 <c>IReadOnlyCollection&lt;Vector2Int&gt;</c> = 本次新增的格集合）。
+        /// <para>
+        /// **发方 = `Module/Map/MapModule.OnPlayerGridChanged`**（唯一发方），
+        /// **只在 `MapView.MarkExplored` 回"这一格确实是第一次"时发**（重复走过同一格 **0 次**发出）
+        /// ⇒ 不是每帧发、也不是每次 `PlayerGridChanged` 都发。
+        /// 载荷是"本次新增的格"（一个集合：首次走到时半径 6 揭开的那一片 + 墙轮廓，
+        /// 每批一个新 List 引用 ⇒ 收方可以安全持有该引用）。
+        /// </para>
+        /// <para>
+        /// `MiniMapPanel.cs:678` 订阅本事件 / `:719-721` 转 `ApplyExplored(...)` / `:687` 注销。
+        /// 接管后 `ExploredInjected == true`，面板**不再**自行揭示（接管前保留它自己的兜底口径）。
+        /// </para>
+        /// <para>口径 = 访问过即记忆、本局内累积、作用域为当前区域（详见 `IMapModule.ExploredCells`）。</para>
+        /// <para>
+        /// "面板打开前补发"（`MiniMapPanel` 那一条）时会把**当前权威集合**（`IMapModule.ExploredCells`）再播一次。
+        /// 为什么必须：小地图面板是**懒创建**的（HUD 对它传 null + 面板在 `OnOpen` 才订阅），读档回灌发生在
+        /// 面板存在之前 ⇒ 只靠增量事件它永远收不到"读档带回来的那批格"，automap 会退回"半径 6 兜底"口径。
+        /// 收方语义 = **并入（union）** ⇒ 重播全量是幂等的（收方不得把本事件当"清空/替换"用）。
+        /// </para>
+        /// </summary>
+        public const string MapExplored = "D2.Map.Explored";
+
+        /// <summary>玩家踩到出入口（参数 <c>Def.AreaId</c> 目标区域）。</summary>
+        public const string ExitEntered = "D2.Map.ExitEntered";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 输入/交互（Input）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>悬停目标变化（参数 <c>Def.HoverTarget</c>）。</summary>
+        public const string HoverTargetChanged = "D2.Input.HoverChanged";
+
+        /// <summary>光标形态变化（参数 <c>Def.CursorKind</c>）。</summary>
+        public const string CursorChanged = "D2.Input.CursorChanged";
+
+        /// <summary>请求使用腰带格（参数 <see cref="int"/> 0..3）。</summary>
+        public const string UseBeltRequest = "D2.Input.UseBelt";
+
+        /// <summary>请求拾取地面物品（参数 <see cref="int"/> 地面物品 id；-1 = 最近一个）。</summary>
+        public const string PickupRequest = "D2.Input.Pickup";
+
+        /// <summary>
+        /// 请求切换武器组（**无参**）—— 原版 <c>W</c> 键（`Def/GameKeyAlias.KeySwapWeapon`）。
+        /// <para>
+        /// 发送方：`Module/Player/PlayerModule.RequestSwapWeapon`（读键的唯一入口
+        /// `Module/Input/InputReader.SwapWeaponPressed`）。
+        /// 收方：`Module/Item/ItemModule`（订阅后切 `Equipment` 的生效武器组）；
+        /// 与 `Events.UseBeltRequest` 同一条"读键 → 发请求 → Item 侧改状态"的路子。
+        /// </para>
+        /// </summary>
+        public const string SwapWeaponRequest = "D2.Item.SwapWeaponRequest";
+
+        /// <summary>请求与 NPC 交互/对话（参数 <see cref="int"/> 见 <c>Def.NpcId</c>）。</summary>
+        public const string NpcInteractRequest = "D2.Input.NpcInteract";
+
+        /// <summary>请求切换面板（参数 <see cref="string"/> 面板类名）。</summary>
+        public const string PanelToggleRequest = "D2.Ui.PanelToggle";
+
+        /// <summary>
+        /// 一次 **UI 按钮点击**（无参）。收方 = `Module/Audio/AudioHook` ⇒ 播原版
+        /// `cursor\button.wav`（键 `ui_click`，登记见 `Module/Audio/SoundMap.md`）。
+        /// <para>发送方 = 那些**点击不走任何业务事件**的按钮（主菜单 / 暂停菜单 / 设置 / 选角 / 创角），
+        /// 它们点下去既没有 `PanelToggleRequest`、也没有 `DialogOptionChosen` ⇒ 不出声。
+        /// 已经会触发 `ui_click` 的链路（面板开关 / 对话选项 / 买卖）**不再**发本事件，避免同帧两声。</para>
+        /// </summary>
+        public const string UiClick = "D2.Ui.Click";
+
+        /// <summary>
+        /// 地面物品名牌变化（参数 <c>Def.GroundItemLabelsArgs</c>）。
+        /// <para>发送方 = `Module/Input/InputReader.UpdateHover`
+        /// （消费 `InputReader.ShowGroundItems` = 原版 `Alt` 常显，以及当前悬停格）；
+        /// 收方 = `UI/GroundItemLabelView`（HUD 持有的名牌层）。</para>
+        /// <para>为什么需要它：原版 D2 悬停地面物品会显示该物品的名牌、按住 `Alt` 则常显全部
+        /// 地面物品名 —— 改动前 `InputReader.ShowGroundItems` 与 `HoverTargetChanged` **都没有消费方**，
+        /// 这两条表现完全缺失（审计 R5）。载荷放 `Diablo2.Def` 是为了让 UI 层能合法消费
+        /// （分层自检 ③：`UI/**` 不许 `using Diablo2.Module`）。</para>
+        /// <para>只在**内容真的变化**时发（按 id/格/Alt 态去重），不是逐帧刷。</para>
+        /// </summary>
+        public const string GroundItemLabelsChanged = "D2.Input.GroundItemLabels";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 战斗（Combat）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>请求攻击指定怪物（参数 <see cref="int"/> monsterId）。</summary>
+        public const string AttackRequest = "D2.Combat.AttackRequest";
+
+        /// <summary>
+        /// 玩家**真的挥出了一刀**（参数 <see cref="int"/> monsterId）。
+        /// <para>语义 = "这一次挥击已经起手"（冷却已扣、距离已够；**命中与未命中都算一次挥击**；
+        /// 伤害在 A1 接触帧结算），
+        /// 与 <see cref="AttackRequest"/> 的区别：那个是"请求"（会被冷却/超距丢弃，按住左键时每帧都发），
+        /// 本事件只在真的出手时发一次 ⇒ 视图侧据此播**挥击动作**。</para>
+        /// <para>发送方：`Module/Combat/CombatModule.PlayerBasicAttack`（玩家普攻的唯一起手入口）；
+        /// 收方：`Module/View/ViewModule`（`OnPlayerAttacked` ⇒ 播原版 `attack` 动作，
+        /// 时长 = <c>GameConst.PlayerAttackInterval</c>）。</para>
+        /// </summary>
+        public const string PlayerAttacked = "D2.Combat.PlayerAttacked";
+
+        /// <summary>玩家受伤（参数 <c>Def.DamageArgs</c>）。</summary>
+        public const string PlayerDamaged = "D2.Combat.PlayerDamaged";
+
+        /// <summary>怪物出生（参数 <c>Def.MonsterState</c>）。</summary>
+        public const string MonsterSpawned = "D2.Combat.MonsterSpawned";
+
+        /// <summary>怪物状态变化（参数 <c>Def.MonsterState</c>，限频刷新视图）。</summary>
+        public const string MonsterChanged = "D2.Combat.MonsterChanged";
+
+        /// <summary>玩家请求复活（无参）。</summary>
+        public const string ReviveRequest = "D2.Combat.ReviveRequest";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 角色（Player）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>角色属性/派生属性变化（参数 <c>Def.PlayerStatsDto</c>）。</summary>
+        public const string PlayerStatsChanged = "D2.Player.StatsChanged";
+
+        /// <summary>金币变化（参数 <see cref="int"/> 当前金币）。</summary>
+        public const string GoldChanged = "D2.Player.GoldChanged";
+
+        /// <summary>请求分配属性点（参数 <c>Def.StatAllocArgs</c>）。</summary>
+        public const string StatAllocateRequest = "D2.Player.StatAllocate";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 技能（Skill）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>请求学习技能（参数 <see cref="int"/> skillId）。</summary>
+        public const string SkillLearnRequest = "D2.Skill.LearnRequest";
+
+        /// <summary>技能学会（参数 <see cref="int"/> skillId）。</summary>
+        public const string SkillLearned = "D2.Skill.Learned";
+
+        /// <summary>技能树数据变化（参数 <c>Def.SkillTreeArgs</c>，技能面板刷新）。</summary>
+        public const string SkillTreeChanged = "D2.Skill.TreeChanged";
+
+        /// <summary>当前右键技能变化（参数 <see cref="int"/> skillId；-1 = 普通攻击）。</summary>
+        public const string SkillSelected = "D2.Skill.Selected";
+
+        /// <summary>技能施放（参数 <see cref="int"/> skillId）。</summary>
+        public const string SkillCast = "D2.Skill.Cast";
+
+        /// <summary>技能冷却就绪（参数 <see cref="int"/> skillId）。</summary>
+        public const string SkillReady = "D2.Skill.Ready";
+
+        /// <summary>
+        /// 按下技能热键（原版 `F1`~`F8`；参数 <see cref="int"/> = 热键号 **1..8**）。
+        /// <para><b>原版语义 =「读（readies）/ 设（or sets）关联的鼠标键技能」</b>，同一组键两种含义，
+        /// 由"技能速度棒是否开着、指针是否停在某个技能图标上"区分（出处见 `Def/GameKeyAlias.cs`
+        /// 的技能热键段：串表 4205 + 凯恩之角 + Wowhead）：</para>
+        /// <list type="number">
+        /// <item>速度棒打开且指针悬停在某技能图标上 ⇒ **设置**：把该技能记到这个热键上；</item>
+        /// <item>否则 ⇒ **切换**：把这个热键记住的技能 ready 成**右键**技能（施放仍要点鼠标）。</item>
+        /// </list>
+        /// <para>⛔ 旧口径「按 `F` 键 = 把**已学技能表里第 N 个**绑到左/右键」（`F1`~`F4` 左 / `F5`~`F8` 右）
+        /// **没有出处**，已删除：原版既没有"第 N 个已学技能"这种键位语义，也没有"F 键分左右两半"的说法
+        ///。</para>
+        /// <para>发送方 = `Module/Input/InputReader.PollHotkeys`（读键的唯一入口；键位单一来源 =
+        /// `Def/GameKeyAlias.cs` 的 `SkillSlotKey(int)`）；收方 = `Module/Skill/SkillModule`
+        /// （按上面两条分支解析并调契约的 `ISkillModule.AssignToButton`）。
+        /// 为什么用事件而不是新增契约方法：`ISkillModule` 是**冻结契约**不许改。</para>
+        /// <para>热键表经 `CharacterSave.skillHotkeys` 落档（读档时还原），并经
+        /// <see cref="SkillHotkeysChanged"/> 通知 HUD 的技能速度棒刷新标签。</para>
+        /// </summary>
+        public const string SkillHotkeyRequest = "D2.Skill.HotkeyRequest";
+
+        /// <summary>
+        /// 鼠标滚轮切换右键技能（参数 <see cref="int"/> = **+1 = 前一项 / -1 = 下一项**）。
+        /// <para>原版出处：原版手册「Mouse wheel up/down – Scrolls through all hotkeyed skills in the
+        /// Right Mouse Button slot」+ 官方中文字串表 `chi_string.txt:3944/3945`
+        /// 「選擇前一項技能 / 選擇下一項技能」（「选项 → 指令」表里的两条命令）。
+        /// ⇒ 候选集 = **已设热键的技能**（不含"当前右键技能"），按热键号 1→8 循环。</para>
+        /// <para>发送方 = `Module/Input/InputReader.PollHotkeys`（键位见 `GameKeyAlias.KeySkillPrev/Next`）；
+        /// 收方 = `Module/Skill/SkillModule`。</para>
+        /// </summary>
+        public const string SkillWheelRequest = "D2.Skill.WheelRequest";
+
+        /// <summary>
+        /// 技能速度棒（原版 `S`）的**开/关与悬停**状态（参数 `Def.SkillSpeedBarArgs`）。
+        /// <para>为什么必须让技能模块知道：`F1`~`F8` 的两种含义（设置 / 切换）就靠"速度棒开着 + 指针停在
+        /// 哪个技能上"区分（见 <see cref="SkillHotkeyRequest"/>）。面板在 UI 层（`UI/HudPanel`），
+        /// 解析在技能模块 ⇒ 用本事件把状态送过去（`UI` 不 `using Diablo2.Module`）。</para>
+        /// <para>发送方 = `UI/HudPanel`（打开 / 关闭 / 指针移到别的格子时发）；收方 = `Module/Skill/SkillModule`。</para>
+        /// </summary>
+        public const string SkillSpeedBarChanged = "D2.Skill.SpeedBarChanged";
+
+        /// <summary>
+        /// 技能热键表发生变化（参数 `Def.SkillHotkeysArgs`：8 个热键各自的技能 id）。
+        /// <para>发送方 = `Module/Skill/SkillModule`（设置热键 / 读档还原后）；收方 = `UI/HudPanel`
+        /// （技能速度棒里每个技能格左上角的热键标签 `F1`~`F8` 按本事件刷新；未设热键的技能不显示标签）。</para>
+        /// </summary>
+        public const string SkillHotkeysChanged = "D2.Skill.HotkeysChanged";
+
+        /// <summary>
+        /// 左右键技能格的绑定发生变化（参数 <c>Def.SkillButtonsArgs</c>）。
+        /// <para>发送方 = `Module/Skill/SkillModule`
+        /// （`SelectSkill` / `AssignToButton` / `ResetForClass` 之后）；
+        /// 收方 = `UI/HudPanel`（把 `LeftSkill` / `RightSkill` 两格的图标换成绑定技能的图标）。</para>
+        /// <para>与既有的 <see cref="SkillSelected"/> 的区别：那个只带**右键**技能 id、只表达
+        /// "当前选中的施放技能"（战斗/HUD 语义）；本事件同时带左右两格 + 显示名，专供 HUD 换图。</para>
+        /// </summary>
+        public const string SkillButtonsChanged = "D2.Skill.ButtonsChanged";
+
+        /// <summary>
+        /// 请求把**某个具体技能 id** 绑到左/右键技能格（参数 <see cref="int"/> =
+        /// <c>button(0/1) | (skillId &lt;&lt; 1)</c>）。
+        /// <para>三个发送方，都是**原版口径的同一件事**（"选一个技能装到那只手上"）：
+        /// ① `UI/HudPanel` 的**技能速度棒**里点某个技能图标 ⇒ 装到当前目标那只手
+        /// （原版手册：「Left-clicking on an Action Icon displays a pop-up menu of skill icons. Click on a
+        /// skill icon to assign it to that mouse button.」）；
+        /// ② `UI/SkillTreePanel`（**从技能树把技能图标拖到 HUD 左/右技能格上松开**，
+        /// 要求：技能要拖动—— 拖动是本项目**扩展**，原版没有）；
+        /// ③ 速度棒里点技能图标且无目标手（`S` 打开）⇒ 默认装到**右键**
+        /// （Diablo I 手册的 Speedbook 同口径：「left-click on the icon … that spell/skill will be
+        /// readied for use」；凯恩之角：「左键点击该图标选中它，你就可以通过鼠标右键来施放这种技能了」）。</para>
+        /// <para>收方 = `Module/Skill/SkillModule`（解包后调契约的 `ISkillModule.AssignToButton`）。</para>
+        /// <para>校验在技能模块：须**已学**、**非被动**、且**左键只能放原版 `leftskill=1` 的技能**
+        /// （官方 `skills.txt` 的 `leftskill` 列，见 `SkillCatalog.CanLeftCast`）；被拒时模块给 Toast，不静默。</para>
+        /// <para>旧口径（点 HUD 左右技能格 = **循环切换**）**没有出处**，已删除：原版点那两格是**弹列表**，
+        /// 本项目改由技能速度棒承担这个列表。</para>
+        /// </summary>
+        public const string SkillSlotBindRequest = "D2.Skill.SlotBindRequest";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 物品（Item）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>地面掉落新物品（参数 <c>Def.ItemStack</c>）。</summary>
+        public const string ItemDropped = "D2.Item.Dropped";
+
+        /// <summary>地面物品被移除（参数 <see cref="int"/> 地面物品 id）。</summary>
+        public const string GroundItemRemoved = "D2.Item.GroundRemoved";
+
+        /// <summary>使用物品（药水/卷轴）（参数 <c>Def.ItemStack</c>）。</summary>
+        public const string ItemUsed = "D2.Item.Used";
+
+        /// <summary>装备变化（参数 <c>Def.InventoryChangedArgs</c>）。</summary>
+        public const string EquipChanged = "D2.Item.EquipChanged";
+
+        /// <summary>请求装备/卸下背包物品（参数 <see cref="int"/> 背包锚点格索引）。</summary>
+        public const string EquipToggleRequest = "D2.Item.EquipToggle";
+
+        /// <summary>请求从背包移出/丢弃物品（参数 <see cref="int"/> 背包锚点格索引）。</summary>
+        public const string ItemDropRequest = "D2.Item.DropRequest";
+
+        /// <summary>
+        /// 请求**使用**背包某格的物品（参数 <see cref="int"/> 背包锚点格索引）—— 药水/卷轴。
+        /// <para>
+        /// 发送方 = `UI/InventoryPanel.OnPointerClick` 的**右键**分支（原版口径：
+        /// 右键背包物品 = 使用；丢弃 = 拖到背包栏外面，见 `ItemDropRequest`）。
+        /// 收方：`App/AppEventRouting.cs` → `IItemModule.UseItem(int)`。
+        /// </para>
+        /// </summary>
+        public const string ItemUseRequest = "D2.Item.UseRequest";
+
+        /// <summary>背包已满（无参）——收方 Toast「背包已满」。</summary>
+        public const string InventoryFull = "D2.Item.InventoryFull";
+
+
+        /// <summary>
+        /// 请求卸下某装备槽。
+        /// 参数 <see cref="int"/> = `((int)Diablo2.Def.ItemSlot &amp; 0xFF) | (slotIndex &lt;&lt; 8)`
+        /// （单槽位 slotIndex = 0；**戒指/武器组等同槽多件**用高位区分）。
+        /// 收方：`App/AppEventRouting.cs` → `IItemModule.Unequip(ItemSlot, int)`。
+        /// </summary>
+        public const string UnequipRequest = "D2.Item.UnequipRequest";
+
+        /// <summary>
+        /// 请求在背包内移动/交换物品。
+        /// 参数 <see cref="int"/> = `fromAnchor | (toAnchor &lt;&lt; 16)`（两个背包锚点格索引）。
+        /// <para>
+        /// `App/AppEventRouting.cs` → `IItemModule.MoveItem(from, to, out reason)`
+        /// （`Module/Item/ItemModule.cs`，落格实现 = `Inventory.Move`：空格放下 / 与另一件交换 /
+        /// 大件放小空位 ⇒ 拒绝并把可直接展示的中文原因回给 UI 做 Toast）。
+        /// 发送方 = `UI/InventoryPanel.OnEndDrag`（`PlanDrop` 判出 `DropKind.Move`；落面板外走
+        /// `ItemDropRequest` = 丢地上）。
+        /// </para>
+        /// </summary>
+        public const string MoveInInventoryRequest = "D2.Item.MoveInInventoryRequest";
+
+        /// <summary>
+        /// 玩家复活完成（无参）。
+        /// 发送方：`Module/Combat/CombatModule.RevivePlayer`（`player.Revive()` 成功后广播；
+        /// 订阅方：`DeathPanel`（关死亡屏）/ `AudioHook`（复活音））。
+        /// </summary>
+        public const string Revived = "D2.Player.Revived";
+
+        /// <summary>
+        /// 请求打开商店（参数 <see cref="int"/> = `Def.NpcId`）。
+        /// 收方：`App/AppEventRouting.cs` → `INpcModule.GetShop(npcId)` 后发 `Events.ShopOpen`（面板/HUD 订阅它）。
+        /// </summary>
+        public const string ShopOpenRequest = "D2.Npc.ShopOpenRequest";
+
+        // ═════════════════════════════════════════════════════════════════════
+        //
+        // 契约（**只增不改**）：
+        //   · 锚点数据 = `IMapModule.WaypointPoints`（罗格营地 1 个，坐标出自原版表）；
+        //   · "点它 ⇒ 面板开" 不走事件：`App/AppWaypoint.cs` 自己判点击 + 就近到达后
+        //     `Game.UI.Open<WaypointPanel>(args)`（与 `NpcModule` 的"点 NPC 走过去说话"同形）；
+        //   · 本事件 = **面板里选了目的地**那一步，见下。
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 请求传送到某个区域（参数 <see cref="int"/> = `(int)Def.AreaId`）。
+        /// <para>
+        /// 发送方 = `UI/WaypointPanel.cs`（点列表里的一条目的地）。收方 = `App/AppWaypoint.cs`：
+        /// 校验"该区域确实是已激活的目的地"后，转发 `Events.ExitEntered`（切区域那条既有链路
+        /// `AppFlow.EnterArea`）——本事件**不绕过** `ExitEntered`，因为区域切换（重生成地图 /
+        /// 移怪 / 挪玩家 / 关所有面板）的唯一实现就在那条链上。
+        /// </para>
+        /// <para>非法请求（未激活 / 就是当前区域 / 地图未生成）⇒ 收方点名 Warn 并拒绝，不静默。</para>
+        /// </summary>
+        public const string WaypointTravelRequest = "D2.Map.WaypointTravelRequest";
+
+        /// <summary>
+        /// 换区那次整图重铺**建满并已切换**（无参数）。travel-black 新增。
+        /// <para>
+        /// 发送方 = `Module/Map/MapView.cs`（只在"这次重铺是**换区**触发的"那一次切换/保底铺完后发一次；
+        /// 贴图到位重铺 / 迷雾开关重铺**不发**）。收方 = `Module/Flow/AppFlow.cs`。
+        /// </para>
+        /// <para>
+        /// 为什么需要它：换区时玩家/相机要**等新区域的地砖建好**再落位 —— 否则相机已经跳到落点、
+        /// 而生效集还是**旧区**那张图（落点超出旧图范围 ⇒ 屏上零地砖 = 落地整屏黑；实机逐帧量到
+        /// ≈1.84 s）。所以 `AppFlow.EnterArea` 拆成两拍：
+        /// ① 生成 + 登记重铺（相机**留在旧区**，旧图仍完整可见）→ ② 收到本事件才挪玩家/相机/怪 + 关读条屏。
+        /// </para>
+        /// </summary>
+        public const string MapAreaReady = "D2.Map.AreaReady";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // NPC / 商店（Npc）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>请求推进对话（参数 <see cref="int"/> 选项下标；0 = 关闭）。</summary>
+        public const string DialogOptionChosen = "D2.Npc.DialogOption";
+
+        /// <summary>关闭对话（无参）。</summary>
+        public const string DialogClose = "D2.Npc.DialogClose";
+
+        /// <summary>请求购买（参数 <c>Def.ShopTradeArgs</c>）。</summary>
+        public const string ShopBuyRequest = "D2.Npc.Buy";
+
+        /// <summary>请求出售（参数 <c>Def.ShopTradeArgs</c>）。</summary>
+        public const string ShopSellRequest = "D2.Npc.Sell";
+
+        /// <summary>请求修理（参数 <c>Def.ShopTradeArgs</c>；index &lt; 0 = 全部修理）。</summary>
+        public const string ShopRepairRequest = "D2.Npc.Repair";
+
+        /// <summary>交易完成（参数 <c>Def.ShopOpenArgs</c>，商店面板刷新）。</summary>
+        public const string ShopChanged = "D2.Npc.ShopChanged";
+
+        /// <summary>关闭商店（无参）。</summary>
+        public const string ShopClose = "D2.Npc.ShopClose";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 存档（Save）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>存档完成（参数 <see cref="bool"/> 是否成功）。</summary>
+        public const string SaveDone = "D2.Save.Done";
+
+        /// <summary>读档完成（参数 <c>Def.CharacterSave</c>；null = 失败）。</summary>
+        public const string LoadDone = "D2.Save.LoadDone";
+
+        /// <summary>
+        /// <para>
+        /// 为什么需要它（链条断在哪）：`Module/Save/SaveModule.Save()`（无参）在**新造**的 `CharacterSave` 上
+        /// 逐字段从 Live 收集（`Player.WriteTo` / `Item.WriteTo` / `WriteSkills` / Map 分支）；
+        /// 而「传送点已激活列表」（`App/AppWaypoint.Visited`）与「小地图已探索格」（渲染层 `MapView._explored`
+        /// 经 `IMapModule.ExploredCells`）的**持有者在 App / 渲染层**，模块侧拿不到
+        /// </para>
+        /// <para>
+        /// 发方 = `Module/Save/SaveModule.Save()`（**与 `mapSeed`/`areaId` 同一个收集分支**，不另开一条路）；
+        /// 收方 = `App/AppProgress.cs`（把 `AppWaypoint.Visited` 与"每区域已探索格"填进
+        /// `visitedWaypoints` / `exploredByArea`）。
+        /// </para>
+        /// <para>
+        /// 语义边界：本事件**只填两个"App 层持有"的字段**，不改其它字段（Player/Item/Skill
+        /// 的收集仍在 `SaveModule` 自己那几条写者里）；收方收到时 `data` 已基本填好，只负责补自己的两块。
+        /// 无订阅者（离线宿主 / App 未接线）⇒ `SaveModule` 留一条 Warn、这两个字段保持空集合**照常存档**。
+        /// </para>
+        /// </summary>
+        public const string SaveCollect = "D2.Save.Collect";
+
+        /// <summary>
+        /// <para>
+        /// 发方 = `App/AppProgress.cs`（读档进图 / 换区铺装完成后，用存档里的 `exploredByArea` 解出来的格）；
+        /// 收方 = `Module/Map/MapModule.cs`（把每格并进渲染层的已探索位图 —— 该位图是
+        /// `IMapModule.ExploredCells` 的唯一权威，见 `MapView.MarkExplored`）。
+        /// </para>
+        /// <para>
+        /// **方向与 <see cref="MapExplored"/> 相反**（那条是 Map → 收方报"新增了哪几格"；本条是收方 → Map
+        /// 要求"把这批格记为已探索"）⇒ 不合并、不复用同一条常量。
+        /// 收方语义 = **并入（幂等）**：已经探索过的格**不重复计数**、也不重复发 `MapExplored`；
+        /// 只有真的新增了格才发**一条** `MapExplored`（载荷 = 本次新增的格）⇒ automap 侧照常按增量并入。
+        /// </para>
+        /// <para>载荷为空 / 渲染层未铺装 ⇒ 收方点名 Warn 并忽略（不静默）。</para>
+        /// </summary>
+        public const string MapExploredRestore = "D2.Map.ExploredRestore";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 音频（Audio）—— 音效触发点由各模块 Emit，Audio 模块统一收
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>播放 2D 音效（参数 <see cref="string"/> 音效键，见 `ResPaths.Sfx`）。</summary>
+        public const string PlaySfx = "D2.Audio.PlaySfx";
+
+        /// <summary>切换 BGM（参数 <see cref="string"/> BGM 键，见 `ResPaths.Bgm`；空串 = 停）。</summary>
+        public const string PlayBgm = "D2.Audio.PlayBgm";
+
+        /// <summary>音量变化（参数 <c>Def.AudioVolumeArgs</c>）。</summary>
+        public const string VolumeChanged = "D2.Audio.VolumeChanged";
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 流程状态机站点名 / 触发器名（`Game.Fsm` 用；避免裸字符串）
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// `Game.Fsm.RegisterState` / `AddTransition` / `Force` 用的站点名与触发器名。
+        /// </summary>
+        public static class Fsm
+        {
+            // 站点（registerState / Force）
+            /// <summary>启动画面。</summary>
+            public const string StateBoot = "Boot";
+
+            /// <summary>主菜单（设置是其子面板，仍停在本站点）。</summary>
+            public const string StateMainMenu = "MainMenu";
+
+            /// <summary>角色选择。</summary>
+            public const string StateCharSelect = "CharSelect";
+
+            /// <summary>创建角色。</summary>
+            public const string StateCharCreate = "CharCreate";
+
+            /// <summary>读条进图。</summary>
+            public const string StateLoading = "Loading";
+
+            /// <summary>游戏内。</summary>
+            public const string StateStage = "Stage";
+
+            /// <summary>暂停。</summary>
+            public const string StatePause = "Pause";
+
+            // 触发器（AddTransition / Trigger）——顺序与迁移图一致
+            /// <summary>Boot → MainMenu。</summary>
+            public const string TriggerBootDone = "BootDone";
+
+            /// <summary>MainMenu → CharSelect（新游戏）。</summary>
+            public const string TriggerNewGame = "NewGame";
+
+            /// <summary>MainMenu → CharSelect（继续）。</summary>
+            public const string TriggerContinue = "Continue";
+
+            /// <summary>CharSelect → CharCreate（无角色）。</summary>
+            public const string TriggerNeedCreate = "NeedCreate";
+
+            /// <summary>CharCreate → CharSelect（建角完成）。</summary>
+            public const string TriggerCreated = "Created";
+
+            /// <summary>CharSelect → Loading。</summary>
+            public const string TriggerEnterStage = "EnterStage";
+
+            /// <summary>Loading → Stage。</summary>
+            public const string TriggerStageReady = "StageReady";
+
+            /// <summary>Stage → Pause。</summary>
+            public const string TriggerPause = "Pause";
+
+            /// <summary>Pause → Stage。</summary>
+            public const string TriggerResume = "Resume";
+
+            /// <summary>Pause → MainMenu。</summary>
+            public const string TriggerToMain = "ToMain";
+        }
+    }
+}

@@ -1,0 +1,28 @@
+{
+ "pack": "moor_river",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/river.dt1",
+ "kind": "Objects",
+ "note": "河/水边（原版野外与城镇边界都用）",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 1,
+ "tiles": [
+  {
+   "idx": 28,
+   "file": "028.png",
+   "w": 160,
+   "h": 128,
+   "main": 5,
+   "sub": 0,
+   "orientation": 1,
+   "compositeIndex": 10241,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    48,
+    159,
+    126
+   ]
+  }
+ ]
+}

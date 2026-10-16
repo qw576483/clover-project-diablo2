@@ -1,0 +1,731 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Diablo2 · Module/Combat/CombatModule.cs
+// `ICombatModule` 的**唯一实现**（门面，internal，无参构造 ⇒ 能被 `AppContext.AutoWire` 反射创建）。
+//
+// 职责：命中判定 → 伤害结算 → 受击/死亡 → 复活；并**主持** `DeathFlow`（击杀链）与
+// `DamagePipeline`（唯一结算函数）。
+//
+// 数据来源（**不硬编码**）：
+//   · 玩家方：`IPlayerModule`（等级/力量/敏捷/生命/AR/防御/抗性）+ `IItemModule.Equipment`
+//             （武器的 `ItemStack.dmgMin/dmgMax` ← 官方 `Weapons.txt`）
+//   · 怪物方：`MonsterState`（level / defense / attackRating / damageMin / damageMax ← 官方 `MonStats.txt`
+//             × `MonLvl.txt`，由 `MonsterModule` 在刷怪时填入）
+//   · 公式：`DamageFormula`（官方公式，出处见该文件头）
+//
+// 本文件**不**碰引擎的网络类门面（`Game` 的 Net / Sync / Http / Alert 等，单机下全为 null，
+//    见 实现约束 #8）。
+// 随机一律注入式 `CloverEngine.Rng`（**本局地图 seed 派生**，同 seed 可复现）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+using System;
+using CloverEngine;
+using Diablo2.Core;
+using Diablo2.Def;
+using UnityEngine;
+using AppContext = Diablo2.App.AppContext;
+
+namespace Diablo2.Module.Combat
+{
+    /// <summary>战斗结算门面实现。</summary>
+    internal sealed class CombatModule : ICombatModule
+    {
+        /// <summary>战斗随机流 salt（与掉落流区分开，保证「同 seed ⇒ 同命中序列」）。</summary>
+        private const int CombatSeedSalt = 0x00C0FFEE;
+
+        /// <summary>致命一击主动技能代码（官方 `skills.txt` 的 skill 名）。</summary>
+        private const string CriticalStrikeCode = "Critical Strike";
+
+        private readonly DeathFlow _death;
+
+        private int _targetId = -1;
+        private float _attackCd;
+        /// <summary>已起手、等待接触帧结算的挥击目标（-1 = 无待结算挥击）。</summary>
+        private int _pendingSwingId = -1;
+        /// <summary>到接触帧的剩余秒数（配合 <see cref="_pendingSwingId"/>）。</summary>
+        private float _pendingSwingTimer;
+        private Rng _rng;
+        private int _critSkillId;
+        private bool _critSkillResolved;
+
+        /// <summary>构造即订阅（`Events.AttackRequest` / `Events.ReviveRequest` 由 Input/UI 侧发出）。</summary>
+        public CombatModule()
+        {
+            _death = new DeathFlow();
+
+            if (Game.Event == null)
+            {
+                CombatLog.Error("CombatModule 构造时 Game.Event 为 null（Game.Launch 未调用？）" +
+                                "⇒ 攻击/复活请求不会到达本模块");
+                return;
+            }
+
+            Game.Event.On<int>(Events.AttackRequest, OnAttackRequest);
+            Game.Event.On(Events.ReviveRequest, OnReviveRequest);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ICombatModule：只读状态
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public int CurrentTargetId { get { return _targetId; } }
+
+        /// <inheritdoc />
+        public float AttackCooldownRemain { get { return _attackCd < 0f ? 0f : _attackCd; } }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ICombatModule：目标
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void SetTarget(int monsterId)
+        {
+            if (_targetId == monsterId) return;
+
+            var from = _targetId;
+            _targetId = monsterId;
+            if (Game.Event != null) Game.Event.Emit(Events.TargetChanged, monsterId);
+            CombatLog.Info($"目标变化：{from} → {monsterId}（-1 = 无目标）");
+        }
+
+        /// <inheritdoc />
+        public void ClearTarget()
+        {
+            SetTarget(-1);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ICombatModule：玩家攻击
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void RequestAttack(int monsterId)
+        {
+            SetTarget(monsterId);
+
+            if (_attackCd > 0f)
+            {
+                // 输入模块按住左键时会**每帧**调用 ⇒ 必须降频（真实手感：原版攻击间隔 ~0.5s，
+                //   且随武器 speed 变，见 AttackIntervalSeconds）
+                CombatLog.WarnThrottled("atk.cooldown",
+                    $"攻击请求被丢弃：冷却中（剩 {_attackCd:0.00}s / 间隔 {AttackIntervalSeconds():0.00}s）");
+                return;
+            }
+
+            PlayerBasicAttack(monsterId);
+        }
+
+        /// <summary>
+        /// 玩家**普通攻击**（左键）：闸门（冷却 / 距离 / 判定形状）→ 起手（扣冷却 + 挥击事件）→
+        /// **接触帧结算**（<see cref="SettlePlayerSwing"/>，排期由 <see cref="Tick"/> 推进）。
+        /// </summary>
+        private void PlayerBasicAttack(int monsterId)
+        {
+            var ctx = AppContext.I;
+            if (ctx == null)
+            {
+                CombatLog.WarnOnce("atk.ctx.null", "RequestAttack: AppContext.I 为 null（Bootstrap 未装配）⇒ 攻击无效");
+                return;
+            }
+
+            var monster = ctx.Monster;
+            if (monster == null)
+            {
+                CombatLog.WarnOnce("atk.monster.missing",
+                    "RequestAttack: IMonsterModule 未接入（AppContext.Monster == null）⇒ 攻击无效");
+                return;
+            }
+
+            var state = monster.Get(monsterId);
+            if (state == null || !state.alive)
+            {
+                CombatLog.WarnThrottled("atk.target.gone",
+                    $"RequestAttack: 目标 m#{monsterId} 不存在或已死 ⇒ 清目标");
+                ClearTarget();
+                return;
+            }
+
+            var player = ctx.Player;
+            if (player == null)
+            {
+                CombatLog.WarnOnce("atk.player.missing",
+                    "RequestAttack: IPlayerModule 未接入（AppContext.Player == null）⇒ 攻击无效");
+                return;
+            }
+
+            var monsterGrid = new Vector2Int(state.gridX, state.gridY);
+            var dist = Iso.GridDistanceEuclidean(player.Grid, monsterGrid);
+            if (dist > GameConst.MeleeRange)
+            {
+                // 距离不够 ⇒ **不消耗冷却**（否则"点远了也白打一轮"），由 Input/Player 先走过去
+                CombatLog.WarnThrottled("atk.outofrange",
+                    $"RequestAttack: 目标 m#{monsterId} 距离 {dist:0.00} > 近战范围 {GameConst.MeleeRange:0.00}" +
+                    " ⇒ 本次不结算（先靠近）");
+                return;
+            }
+
+            //   原版语义：点怪 ⇒ 角色先**面向目标** ⇒ 出手。朝向来源 = 引擎 `Iso` 方向表
+            //   （`PlayerMotor.FaceTo` 内部走 `Iso.DirectionTo`），只改朝向、不打断移动/交战。
+            player.FaceTo(monsterGrid);
+
+            //   判定 = **正面扇形（±60°）+ 以朝向为轴的矩形走廊 + 线段不得被地形阻断**，三关都过才结算
+            //   （不是纯半径：背后的 / 正侧方的 / 隔着墙水的目标即使在同一半径内也不结算）。
+            //   形状函数唯一出处 = `Module/Combat/MeleeShape.cs`（纯函数，`combatcheck` 第 18 节逐例驱动）。
+            //   不消耗冷却（不合格 = 没挥出去，与"超距"同一口径）：由 Player/Input 先转身/靠近。
+            //   同格命中的出处 = 原版触及按距离比（`Weapons.txt` rangeadder / `MonStats2.txt` MeleeRng），
+            //   0 ≤ reach 恒真 ⇒ 零偏移必命中（见 `MeleeShape` 文件头）。
+            var shape = ShapeGate(player.Dir, player.Grid, monsterGrid, GameConst.MeleeRange);
+            if (shape != null)
+            {
+                CombatLog.WarnThrottled("atk.shape",
+                    $"RequestAttack: 目标 m#{monsterId} 被**判定形状**拒绝：{shape}" +
+                    $"（玩家朝向={player.Dir} 偏移=({monsterGrid.x - player.Grid.x},{monsterGrid.y - player.Grid.y})" +
+                    $" 距离 {dist:0.00} ≤ 近战范围 {GameConst.MeleeRange:0.00}）" +
+                    " ⇒ 本次不结算（转身/靠近后重试）");
+                return;
+            }
+
+            // 攻击间隔随当前生效武器的 `item_c.speed`（官方 Weapons.txt speed 列；见 AttackIntervalSeconds）
+            _attackCd = AttackIntervalSeconds();
+            monster.NotifyAttacked(monsterId);         // 官方：被打的怪立刻转入仇恨
+
+            //   位置刻意放在"冷却已扣、距离已够"之后：命中与未命中都算一次**真的挥了**，
+            //   而超距/冷却丢弃的请求**不算**（那种情况角色并没有出手）⇒ 视图不会空挥。
+            if (Game.Event != null) Game.Event.Emit(Events.PlayerAttacked, monsterId);
+            else CombatLog.WarnOnce("atk.event.null",
+                "Game.Event 为 null（Game.Launch 未调用？）⇒ 挥击动画事件未派发（伤害结算不受影响）");
+
+            // 接触帧结算：挥击已起手，命中/伤害排期到 A1 的官方触发帧
+            // （`AnimData.d2` 的 trigger frame ⇒ `View.ViewModule.PlayerAttackContactSeconds`），
+            // 到点由 `Tick` 调 `SettlePlayerSwing`，按那时的格距/形状重判（原版：动画打到才扣血）。
+            // 官方表无触发帧 ⇒ 立即结算。
+            var contact = View.ViewModule.PlayerAttackContactSeconds(player.Class);
+            if (contact > 0f)
+            {
+                if (_pendingSwingId >= 0)
+                {
+                    CombatLog.Warn($"[普攻] 上一刀 m#{_pendingSwingId} 尚未到接触帧就被下一刀顶掉" +
+                                   " ⇒ 按挥击被打断处理（上一刀不结算）");
+                }
+                _pendingSwingId = monsterId;
+                _pendingSwingTimer = contact;
+                CombatLog.Info($"[普攻] 出手 m#{monsterId} {state.name}（距离 {dist:0.00}）" +
+                               $" ⇒ 挥击起手，接触帧 {contact:0.00}s 后结算");
+                return;
+            }
+
+            SettlePlayerSwing(monsterId);
+        }
+
+        /// <summary>
+        /// 挥击的**接触帧结算**：按当时的存活 / 距离 / 判定形状**重判**后掷命中与伤害
+        /// （原版语义：出手动画播到接触帧才结算；目标已脱手 / 已死 ⇒ 挥空）。
+        /// </summary>
+        private void SettlePlayerSwing(int monsterId)
+        {
+            var ctx = AppContext.I;
+            if (ctx == null || ctx.Monster == null || ctx.Player == null)
+            {
+                CombatLog.WarnOnce("swing.ctx.null",
+                    "SettlePlayerSwing: AppContext/IMonsterModule/IPlayerModule 未就绪 ⇒ 本次挥击结算丢弃");
+                return;
+            }
+
+            var player = ctx.Player;
+            if (player.IsDead)
+            {
+                CombatLog.Info("[普攻] 接触帧：玩家已死 ⇒ 挥击中断，不结算");
+                return;
+            }
+
+            var state = ctx.Monster.Get(monsterId);
+            if (state == null || !state.alive)
+            {
+                CombatLog.Info($"[普攻] 接触帧：目标 m#{monsterId} 已死或已离场 ⇒ 本次挥击落空");
+                return;
+            }
+
+            var monsterGrid = new Vector2Int(state.gridX, state.gridY);
+            var dist = Iso.GridDistanceEuclidean(player.Grid, monsterGrid);
+            if (dist > GameConst.MeleeRange)
+            {
+                CombatLog.Info($"[普攻] 接触帧：目标 m#{monsterId} 已脱手（距离 {dist:0.00}" +
+                               $" > 近战范围 {GameConst.MeleeRange:0.00}）⇒ 挥空");
+                DamagePipeline.ReportMiss(GameConst.PlayerEntityId, monsterId, false, 0, DamageType.Physical,
+                    state.worldX, state.worldY, state.worldZ, "普攻");
+                return;
+            }
+
+            var shape = ShapeGate(player.Dir, player.Grid, monsterGrid, GameConst.MeleeRange);
+            if (shape != null)
+            {
+                CombatLog.Info($"[普攻] 接触帧：目标 m#{monsterId} 被**判定形状**拒绝：{shape} ⇒ 挥空");
+                DamagePipeline.ReportMiss(GameConst.PlayerEntityId, monsterId, false, 0, DamageType.Physical,
+                    state.worldX, state.worldY, state.worldZ, "普攻");
+                return;
+            }
+
+            // ── 伤害（官方公式，见 DamageFormula 文件头）──
+            int wMin, wMax, wStrBonus, wDexBonus;
+            GetWeaponDamage(ctx, out wMin, out wMax, out wStrBonus, out wDexBonus);
+            var roll = DamageFormula.RollWeaponDamage(wMin, wMax, CombatRng());
+            var raw = DamageFormula.PhysicalDamage(roll, player.Str, player.Dex, wStrBonus, wDexBonus,
+                                                   SkillMultiplier());
+
+            // 致命一击（官方被动 Critical Strike ⇒ 伤害翻倍）
+            var critLevel = CritSkillLevel(ctx);
+            var critical = raw > 0 && CombatRng().Chance(DamageFormula.CriticalStrikeChance(critLevel));
+            if (critical) raw *= 2;
+
+            var chance = DamageFormula.HitChance(player.Level, state.level, player.AttackRating, state.defense);
+            var hit = CombatRng().Chance(chance);
+
+            CombatLog.Info($"[普攻] m#{monsterId} {state.name}：武器 {wMin}-{wMax} 掷={roll} "
+                           + $"力量={player.Str} 敏捷={player.Dex} 武器bonus={wStrBonus}/{wDexBonus} " +
+                           $"⇒ raw={raw}{(critical ? "（暴击 ×2）" : "")}；命中率={chance * 100f:0.0}% " +
+                           $"ALvl={player.Level} DLvl={state.level} AR={player.AttackRating} DR={state.defense} " +
+                           $"⇒ {(hit ? "命中" : "未命中")}（距离 {dist:0.00}）");
+
+            if (!hit)
+            {
+                DamagePipeline.ReportMiss(GameConst.PlayerEntityId, monsterId, false, raw, DamageType.Physical,
+                    state.worldX, state.worldY, state.worldZ, "普攻");
+                return;
+            }
+
+            DamagePipeline.ApplyToMonster(GameConst.PlayerEntityId, state, raw, DamageType.Physical, critical, "普攻");
+
+            // ── 附魔（`Enchant`）：近战**附加火焰伤害** ──────────────────────────────
+            //   出处：官方 `Enchant` 给武器附加 fire damage（1 级 3-6 起、逐级增长），
+            //   **命中时才结算**（未命中不结算 —— 与上面同一次 `hit` 判定，不另掷命中率）。
+            //   数值来自跨模块**只读**口 `SkillBuffs`（写方只有 `SkillModule`；本模块不持有该增益，
+            //   也不得反写 ⇒ 契约冻结的前提下"增益影响普攻"的唯一合法通道）。
+            //   走同一条 `DamagePipeline.ApplyToMonster`（抗性只在那里减一次）⇒ 飘字/受击/击杀链
+            //   与物理那一下完全一致。**不共用 `critical`**：原版附魔的火焰部分不吃致命一击。
+            if (Diablo2.Module.Skill.SkillBuffs.HasMeleeFire && state.alive)
+            {
+                var fire = DamageFormula.RollWeaponDamage(
+                    Diablo2.Module.Skill.SkillBuffs.MeleeFireMin,
+                    Diablo2.Module.Skill.SkillBuffs.MeleeFireMax, CombatRng());
+                if (fire > 0)
+                {
+                    DamagePipeline.ApplyToMonster(GameConst.PlayerEntityId, state, fire, DamageType.Fire, false, "附魔");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 玩家武器伤害区间 + **该武器的官方加成系数**（所有已装备武器之和；无武器 ⇒ 官方空手 1~2）。
+        /// <para>
+        /// `item_c` 的 `str_bonus` / `dex_bonus` 读（打表来源 = 官方 `Weapons.txt` 的
+        /// `StrBonus` / `DexBonus`）。近战多为 `100/0`、**弓弩为 `0/100`**；空手按官方近战口径 `100/0`。
+        /// </para>
+        /// <para>
+        /// 调用点 = `Module/Skill/SkillModule.RollWeaponSkillDamage`。不许在 Skill 侧另写一份。
+        /// </para>
+        /// </summary>
+        internal static void GetWeaponDamage(AppContext ctx, out int min, out int max,
+                                            out int strBonus, out int dexBonus)
+        {
+            min = 0;
+            max = 0;
+            strBonus = 0;
+            dexBonus = 0;
+
+            var item = ctx != null ? ctx.Item : null;
+            if (item != null)
+            {
+                var equip = item.Equipment;
+                if (equip != null)
+                {
+                    for (var i = 0; i < equip.Count; i++)
+                    {
+                        var e = equip[i];
+                        if (e == null || e.type != ItemType.Weapon) continue;
+                        if (e.dmgMin > 0) min += e.dmgMin;
+                        if (e.dmgMax > 0) max += e.dmgMax;
+
+                        // 逐武器取官方系数（多把时取较大者；本工程为主手单武器）
+                        var row = Table.Tables.Default.Item.Get(e.itemId);
+                        if (row == null)
+                        {
+                            CombatLog.WarnThrottled("atk.itembonus.miss",
+                                $"GetWeaponDamage: item_c 查不到 itemId={e.itemId} ⇒ 该武器按默认 100/0 计" +
+                                "（配表未加载或 itemId 越界）");
+                            continue;
+                        }
+                        if (row.StrBonus > strBonus) strBonus = row.StrBonus;
+                        if (row.DexBonus > dexBonus) dexBonus = row.DexBonus;
+                    }
+                }
+            }
+            else
+            {
+                CombatLog.WarnThrottled("atk.noitem",
+                    "GetWeaponDamage: IItemModule 未接入（AppContext.Item == null）⇒ 按空手结算");
+            }
+
+            if (max <= 0)
+            {
+                min = DamageFormula.UnarmedMinDamage;
+                max = DamageFormula.UnarmedMaxDamage;
+                // 官方空手（fists）走近战口径 ⇒ StrBonus = 100 / DexBonus = 0
+                strBonus = DamageFormula.MeleeStrBonus;
+                dexBonus = 0;
+                CombatLog.WarnThrottled("atk.unarmed",
+                    $"GetWeaponDamage: 没有装备武器 ⇒ 按官方空手 {min}-{max} 结算（加成 100/0）");
+            }
+            if (min > max) min = max;
+        }
+
+        /// <summary>
+        /// 玩家普通攻击间隔（秒）—— **随当前生效武器的 `item_c.speed` 变化**
+        /// <para>口径：`GameConst.PlayerAttackInterval × (1 + speed / 100)`，夹在
+        /// [`GameConst.PlayerAttackIntervalMin`, `GameConst.PlayerAttackIntervalMax`]。</para>
+        /// <para>出处：官方 `Weapons.txt` 的 `speed` 列（Phrozen Keep 指南原文
+        /// "determines base speed of item. -ve values indicate faster speeds, +ve value
+        /// indicate slower speed"，每 10 点一档、0 = 基准）⇒ 本项目按档做**线性近似**
+        /// （官方真实换算是 EIAS → 帧数档位的非线性表，依赖 `AnimData` 的逐武器 A1 帧数，
+        /// 本项目无该表 ⇒ 用可校准线性式；每 10 点 ≈ 10% 与"一档 SIAS"量级一致）。</para>
+        /// <para>多把生效武器时取 **speed 最小（最快）** 的一把（与 <see cref="GetWeaponDamage"/>
+        /// "逐武器取较大加成"同族：这一击都按最好的算）；空手 / 无 Item 门面 ⇒ speed=0（基准）。</para>
+        /// <para>本实例方法 = 取 `AppContext.I.Item` 后调 <see cref="AttackIntervalSecondsOf"/>；
+        /// 挥击动作保持时长（`ViewModule.AttackActionSeconds`）走**静态版**（跨模块全限定名引用，
+        /// 与 `MonsterAi` 取 <see cref="AttackLineClear"/> 同一写法，不带 using）。</para>
+        /// </summary>
+        internal float AttackIntervalSeconds()
+        {
+            var ctx = AppContext.I;
+            return AttackIntervalSecondsOf(ctx != null ? ctx.Item : null);
+        }
+
+        /// <summary>
+        /// 玩家普攻间隔（秒）的**唯一算式**（静态纯查询 —— 结算闸门 `_attackCd` 与
+        /// 挥击动作保持时长 `ViewModule.AttackActionSeconds` 共用，不各算一份）。
+        /// <para>算式与出处的完整说明见 <see cref="AttackIntervalSeconds"/>（唯一口径说明点）。</para>
+        /// </summary>
+        /// <param name="item">物品门面（可为 null ⇒ 按空手 = 基准间隔）。</param>
+        internal static float AttackIntervalSecondsOf(IItemModule item)
+        {
+            var speed = 0;
+            var found = false;
+            var equip = item != null ? item.Equipment : null;
+            if (equip != null)
+            {
+                for (var i = 0; i < equip.Count; i++)
+                {
+                    var e = equip[i];
+                    if (e == null || e.type != ItemType.Weapon) continue;
+                    var row = Table.Tables.Default.Item.Get(e.itemId);
+                    if (row == null) continue;
+                    if (!found || row.Speed < speed)
+                    {
+                        speed = row.Speed;
+                        found = true;
+                    }
+                }
+            }
+
+            var interval = GameConst.PlayerAttackInterval * (1f + speed / 100f);
+            if (interval < GameConst.PlayerAttackIntervalMin) interval = GameConst.PlayerAttackIntervalMin;
+            if (interval > GameConst.PlayerAttackIntervalMax) interval = GameConst.PlayerAttackIntervalMax;
+            return interval;
+        }
+
+        /// <summary>
+        /// 玩家近战**判定形状**闸门（C3）。返回 null = 通过；否则返回可读的拒绝原因。
+        /// <para>
+        /// 三关：① **正面扇形**（±`FrontConeHalfAngleDeg`）② **以朝向为轴的矩形走廊**
+        /// （长 = `reach`，半宽 = `MeleeShape.MeleeHalfWidth`）③ **线段不得被不可走地形阻断**。
+        /// </para>
+        /// 形状口径只在 `MeleeShape` 里（这儿不复制常量）；逐例判据 = `combatcheck` 第 18 节。
+        /// </summary>
+        //    朝向枚举 = 引擎 `CloverEngine.Dir8`（全项目唯一）：这里写全名，与
+        //    `Iso.DirectionDelta` 的签名同类型。
+        private static string ShapeGate(CloverEngine.Dir8 dir, Vector2Int from, Vector2Int to, float reach)
+        {
+            // 朝向 → 格增量：走引擎权威表 `Iso.DirectionDelta`（不在 MeleeShape 里另写一份映射）
+            var dv = Iso.DirectionDelta(dir);
+            float fx, fy;
+            if (!MeleeShape.ToUnit(dv.x, dv.y, out fx, out fy))
+                return $"玩家朝向不可解（Dir={dir}）";
+
+            var dx = (float)(to.x - from.x);
+            var dy = (float)(to.y - from.y);
+            if (!MeleeShape.InFrontCone(fx, fy, dx, dy, MeleeShape.FrontConeCos))
+                return $"不在正面扇形内（锥半角 {MeleeShape.FrontConeHalfAngleDeg:0}°）";
+            if (!MeleeShape.InMeleeRect(fx, fy, dx, dy, reach, MeleeShape.MeleeHalfWidth))
+                return $"不在矩形走廊内（长 {reach:0.00} / 半宽 {MeleeShape.MeleeHalfWidth:0.00}）";
+            if (!MeleeShape.LineClear(WalkableProbe, from, to))
+                return "线段被不可走地形阻断（不许隔墙 / 隔水挥到）";
+            return null;
+        }
+
+        /// <summary>
+        /// **「这次出手的线段是否通畅」的唯一口径** —— 结算层（本文件 `RequestMonsterAttack`）与
+        /// **发起方**（`Diablo2.Module.Monster.MonsterAi` 出手前自检）共用同一句。
+        /// <para>
+        /// （`monatk.blocked`），发起方拿不到任何返回值/事件 ⇒ `MonsterAi.TryAttack` 照常
+        /// 置出手动画 + 播出手音效 + 每 `AttackIntervalSecondsOf(kindId)` 再发起一次，**每次都被拒** ⇒
+        /// 画面里的「怪物隔墙反复挥空」。把同一把尺子暴露给发起方后，AI 在**发起前**就能
+        /// 自检 ⇒ 不再发出注定被拒的请求（原版语义：够不着就不挥，绕路或停手）。
+        /// </para>
+        /// <para>
+        /// 判据本身（`MeleeShape.LineClear`）一字未放宽 —— 只是把它从"只有结算层知道"
+        /// 变成"两侧同一句"。
+        /// </para>
+        /// </summary>
+        internal static bool AttackLineClear(Vector2Int from, Vector2Int to)
+            => MeleeShape.LineClear(WalkableProbe, from, to);
+
+        /// <summary>
+        /// 把 `IMapModule.Walkable` 适配成 `MeleeShape.LineClear` 需要的委托。
+        /// 拿不到地图（未接入 / 未生成）⇒ 一律 true = **放行**（不把"没地图"变成"打不到"，由调用方留痕）。
+        /// </summary>
+        private static bool WalkableProbe(Vector2Int grid)
+        {
+            var map = AppContext.I != null ? AppContext.I.Map : null;
+            if (map == null || !map.IsGenerated) return true;
+            return map.Walkable(grid);
+        }
+
+        /// <summary>技能倍率（普通攻击 = 1；技能伤害走 `SkillModule` 自己的通道，不在此处）。</summary>
+        private static float SkillMultiplier()
+        {
+            return 1f;
+        }
+
+        /// <summary>致命一击被动的当前等级（技能未接入 / 未学 ⇒ 0）。</summary>
+        private int CritSkillLevel(AppContext ctx)
+        {
+            var skill = ctx != null ? ctx.Skill : null;
+            if (skill == null) return 0;
+            var id = CritSkillId();
+            return id > 0 ? skill.GetLevel(id) : 0;
+        }
+
+        /// <summary>`skill_c` 里代码为 `Critical Strike` 的行 id（查一次缓存；找不到 ⇒ 0）。</summary>
+        private int CritSkillId()
+        {
+            if (_critSkillResolved) return _critSkillId;
+            _critSkillResolved = true;
+            _critSkillId = 0;
+
+            var all = Table.Tables.Default.Skill.All();
+            if (all == null || all.Count == 0)
+            {
+                CombatLog.WarnOnce("crit.notable", "CritSkillId: skill_c 未加载（表为空）⇒ 致命一击不生效");
+                return _critSkillId;
+            }
+            for (var i = 0; i < all.Count; i++)
+            {
+                var row = all[i];
+                if (row == null) continue;
+                if (!string.Equals(row.Code, CriticalStrikeCode, StringComparison.Ordinal)) continue;
+                _critSkillId = row.Id;
+                break;
+            }
+            if (_critSkillId == 0)
+            {
+                CombatLog.WarnOnce("crit.notfound",
+                    $"CritSkillId: skill_c 里找不到 code=\"{CriticalStrikeCode}\" ⇒ 致命一击不生效（配表核对）");
+            }
+            return _critSkillId;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ICombatModule：怪物攻击玩家
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void RequestMonsterAttack(int monsterId)
+        {
+            var ctx = AppContext.I;
+            if (ctx == null || ctx.Monster == null || ctx.Player == null)
+            {
+                CombatLog.WarnOnce("monatk.missing",
+                    "RequestMonsterAttack: AppContext/IMonsterModule/IPlayerModule 未就绪 ⇒ 本次怪物攻击丢弃");
+                return;
+            }
+
+            var state = ctx.Monster.Get(monsterId);
+            if (state == null || !state.alive)
+            {
+                CombatLog.WarnThrottled("monatk.gone",
+                    $"RequestMonsterAttack: 怪物 m#{monsterId} 不存在或已死 ⇒ 忽略");
+                return;
+            }
+
+            var player = ctx.Player;
+            if (player.IsDead)
+            {
+                // 玩家已死：官方里怪物会停止攻击（尸体不挨打）
+                CombatLog.WarnThrottled("monatk.playerdead",
+                    $"RequestMonsterAttack: 玩家已死（m#{monsterId} {state.name}）⇒ 本次攻击取消");
+                return;
+            }
+
+            var monsterGrid = new Vector2Int(state.gridX, state.gridY);
+            var dist = Iso.GridDistanceEuclidean(player.Grid, monsterGrid);
+            var raw = CombatRng().Next(state.damageMin, state.damageMax + 1);
+            var w = player.World;
+            //   `GameConst.RangedRange`(8 格) —— 8 格 = 16 世界单位，而**可见半宽只有
+            //   6 ×(16/9) ÷ 2.0 格/单位 = 5.33 格**（相机 ortho 6 / 一格 2.0×1.0 世界单位，
+            //   见 `GameConst.IsoTilePxW/HalfTilePxW` 与 `Editor/ProjectBuilder` 的主相机）
+            //   ⇒ 怪可以在**画面外**开枪（画面里的正是这个）。
+            //   新口径：远程/萨满的出手距离再被 `MonsterTuning.RangedAttackMaxRange` 夹一次
+            //   （推导见该常量），近战不受影响（1.6 格 ≪ 屏幕）。
+            var ranged = state.ai == MonsterAI.Range || state.ai == MonsterAI.Shaman;
+            var range = ranged
+                ? Mathf.Min(GameConst.RangedRange, Diablo2.Module.Monster.MonsterTuning.RangedAttackMaxRange)
+                : GameConst.MeleeRange;
+            if (dist > range)
+            {
+                // 结算发生在 A1 接触帧 ⇒ 这一刻玩家可能已跑出射程：本次空挥（挥空反馈，不扣血）。
+                CombatLog.WarnThrottled("monatk.range",
+                    $"RequestMonsterAttack: m#{monsterId}（{state.ai}）距离 {dist:0.00} > 射程 {range:0.00} ⇒ 本次攻击取消");
+                DamagePipeline.ReportMiss(monsterId, GameConst.PlayerEntityId, true, raw, DamageType.Physical,
+                    w.x, w.y + 1.1f, w.z, "怪攻");
+                return;
+            }
+
+            // C3：**线段不得被不可走地形阻断**（隔墙 / 隔水 / 跨河不许打到 —— 与玩家侧同一把尺子）。
+            // 形状函数唯一出处 = `Module/Combat/MeleeShape.LineClear`；本句的**唯一出口** = `AttackLineClear`。
+            if (!AttackLineClear(monsterGrid, player.Grid))
+            {
+                CombatLog.WarnThrottled("monatk.blocked",
+                    $"RequestMonsterAttack: m#{monsterId}（{state.ai}）与玩家的线段被不可走地形阻断" +
+                    $"（距离 {dist:0.00} ≤ 射程 {range:0.00}）⇒ 本次攻击取消（不许隔墙打）");
+                DamagePipeline.ReportMiss(monsterId, GameConst.PlayerEntityId, true, raw, DamageType.Physical,
+                    w.x, w.y + 1.1f, w.z, "怪攻");
+                return;
+            }
+
+            var chance = DamageFormula.HitChance(state.level, player.Level, state.attackRating, player.Defense);
+            var hit = CombatRng().Chance(chance);
+
+            CombatLog.Info($"[怪攻] m#{monsterId} {state.name}（{state.ai}）掷={raw} 命中率={chance * 100f:0.0}% " +
+                           $"ALvl={state.level} DLvl={player.Level} AR={state.attackRating} DR={player.Defense} " +
+                           $"⇒ {(hit ? "命中" : "未命中")}（距离 {dist:0.00}）");
+
+            if (!hit)
+            {
+                DamagePipeline.ReportMiss(monsterId, GameConst.PlayerEntityId, true, raw, DamageType.Physical,
+                    w.x, w.y + 1.1f, w.z, "怪攻");
+                return;
+            }
+
+            DamagePipeline.ApplyToPlayer(monsterId, raw, DamageType.Physical, "怪攻");
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ICombatModule：复活
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void RevivePlayer()
+        {
+            var ctx = AppContext.I;
+            var player = ctx != null ? ctx.Player : null;
+            if (player == null)
+            {
+                CombatLog.WarnOnce("revive.player.missing",
+                    "RevivePlayer: IPlayerModule 未接入 ⇒ 复活流程无法执行");
+                return;
+            }
+
+            if (!player.IsDead)
+            {
+                CombatLog.WarnThrottled("revive.notdead", "RevivePlayer: 玩家未死亡（重复请求？）⇒ 忽略");
+                return;
+            }
+
+            var before = player.Grid;
+            player.Revive();                 // 契约：回城并恢复一部分生命（内部发事件）
+            _death.NotifyPlayerRevived();
+            ClearTarget();
+
+            CombatLog.Info($"[死亡链] 玩家复活：位置 {before} → {player.Grid}，生命 {player.Life}/{player.MaxLife} " +
+                           $"（死亡屏由 UI 关闭）");
+
+            // 复活完成：由本模块广播 `Revived`（`DeathPanel` 收到才关死亡屏，`AudioHook` 据此播复活音）。
+            Game.Event.Emit(Events.Revived);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ICombatModule：Tick / Reset
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <inheritdoc />
+        public void Tick(float dt)
+        {
+            if (_pendingSwingId >= 0)
+            {
+                _pendingSwingTimer -= dt;
+                if (_pendingSwingTimer <= 0f)
+                {
+                    var id = _pendingSwingId;
+                    _pendingSwingId = -1;
+                    _pendingSwingTimer = 0f;
+                    SettlePlayerSwing(id);      // 接触帧：重判距离/形状后结算
+                }
+            }
+
+            if (_attackCd > 0f)
+            {
+                _attackCd -= dt;
+                if (_attackCd < 0f) _attackCd = 0f;
+            }
+        }
+
+        /// <inheritdoc />
+        public void Reset()
+        {
+            if (_targetId != -1) SetTarget(-1);
+            _attackCd = 0f;
+            _pendingSwingId = -1;
+            _pendingSwingTimer = 0f;
+            _rng = null;
+            _critSkillResolved = false;
+            _critSkillId = 0;
+            _death.Reset();
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // 事件 / 随机
+        // ═════════════════════════════════════════════════════════════════════
+
+        /// <summary>`Events.AttackRequest`（参数 = 怪物 id）：Input/UI 的「点怪打怪」入口。</summary>
+        private void OnAttackRequest(int monsterId)
+        {
+            RequestAttack(monsterId);
+        }
+
+        /// <summary>`Events.ReviveRequest`（无参）：死亡屏「复活」按钮。</summary>
+        private void OnReviveRequest()
+        {
+            RevivePlayer();
+        }
+
+        /// <summary>
+        /// 战斗随机流：由 `IMapModule.Seed` 派生 ⇒ **同 seed ⇒ 同命中/同伤害序列**（自证与复现现场的前提）。
+        /// </summary>
+        private Rng CombatRng()
+        {
+            if (_rng != null) return _rng;
+
+            var map = AppContext.I != null ? AppContext.I.Map : null;
+            if (map != null && map.IsGenerated)
+            {
+                _rng = new Rng(map.Seed ^ CombatSeedSalt);
+            }
+            else
+            {
+                _rng = Rng.FromTime();
+                CombatLog.WarnOnce("combat.rng.fallback",
+                    "CombatModule: 地图未生成（拿不到 seed）⇒ 战斗随机改用时钟 seed（本局不可复现）");
+            }
+            return _rng;
+        }
+    }
+}

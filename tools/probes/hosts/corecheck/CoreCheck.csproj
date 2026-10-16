@@ -1,0 +1,119 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       ★ Core 契约自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
+
+       为什么需要它：
+         Core 只涉及 `client/Assets/Scripts/Core/**`（`ResPaths.cs` / `GameConst.cs` / `Log.cs`），
+         而其它宿主各编各的子集、**没有一个**专门断言「Core 的常量指向真实磁盘文件」
+         与「Core 在离线宿主里不抛异常」。本宿主的写法就是
+         「把 `Assets/Scripts/**` + 引擎 DLL 编到 .NET 并跑断言」那一类的照抄扩展。
+
+       编译范围 = `Def/**` + `Core/**`（+ 引擎门面替身），刻意**不编** Module/UI/App/Table：
+         本宿主盯的是 Core 自身的契约与离线可用性，编得越少越快、越不会被别人的并行改动拖累。
+         引擎门面替身复用 `tools/probes/hosts/fullcheck/shim/EngineShim.cs`（与 `tools/probes/hosts/uicheck` 复用
+         `tools/probes/hosts/flowcheck/shim/EngineShim.cs` 同一套做法），因为 `Core/Log.cs` 只用到 `Game.Logger`。
+
+       覆盖率自证：编译产物 CoreCheck.dll 存在 + 运行输出全部 `[ OK ]`（0 失败）。
+       ⚠️ 它只证明「类型 / 常量 / 离线可用性」，**不替代进 Play 实测**
+          （离线宿主只做静态与逻辑断言，不进 Play）。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>CoreCheck</AssemblyName>
+    <RootNamespace>CoreCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="..\fullcheck\shim\EngineShim.cs" />
+
+    <!-- Diablo2 源码：只编 Core 及其直接依赖（Def） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+
+    <!-- sunk frame-pacing capability (impl-camera): Core/FramePacing.cs now forwards to the
+         engine type CloverEngine.FramePacingPolicy, so this host must compile the engine file
+         or it fails with CS0234. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs
+" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- ★ 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
+         寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStarContext.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GroundProjection.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ScreenPointUtil.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `Runtime/Core/PresentationContracts.cs:337` 的 `IAnimationManager.CreateAnimator(GameObject,
+         RuntimeAnimatorController)` 需要该模块（`RuntimeAnimatorController` 定义在 AnimationModule）。 -->
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+  </ItemGroup>
+
+  <!-- ★ 共享替身（`..\fullcheck\shim\EngineShim.cs`）里的 `Game` 门面按引擎签名声明各子系统的**接口**类型
+       （`IFsm` / `IResourceManager` / `IUIManager` / `ISceneManager` / `ISoundManager` …）。这些接口的定义
+       现在由引擎真实源码提供（替身不再重复声明它们）⇒ 引用该替身的宿主必须把这几份引擎契约一起链进来，
+       否则 `Game` 的字段声明直接 CS0246。口径 = 「引擎源码是真源、替身只补引擎没有的那部分」。 -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LanContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dispatcher.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\DeviceId.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\PresentationContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Fsm.cs" />
+  </ItemGroup>
+</Project>

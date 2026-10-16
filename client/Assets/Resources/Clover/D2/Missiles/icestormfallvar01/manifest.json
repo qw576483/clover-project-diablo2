@@ -1,0 +1,42 @@
+{
+ "cel": "icestormfallvar01",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\icestormfallvar01.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 1,
+ "framesPerDir": 6,
+ "officialAnimLen": [
+  6
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 0,
+  "nw": 0,
+  "n": 0,
+  "ne": 0,
+  "e": 0,
+  "se": 0
+ },
+ "canvas": {
+  "w": 100,
+  "h": 416,
+  "originX": 50,
+  "originY": 208,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 48
+}

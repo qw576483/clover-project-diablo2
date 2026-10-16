@@ -1,0 +1,43 @@
+{
+ "cel": "ExpArrowExplode",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\ExpArrowExplode.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 1,
+ "framesPerDir": 16,
+ "officialAnimLen": [
+  11,
+  16
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 0,
+  "nw": 0,
+  "n": 0,
+  "ne": 0,
+  "e": 0,
+  "se": 0
+ },
+ "canvas": {
+  "w": 216,
+  "h": 246,
+  "originX": 108,
+  "originY": 123,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 128
+}

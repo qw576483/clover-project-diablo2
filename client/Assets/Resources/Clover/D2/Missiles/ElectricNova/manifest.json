@@ -1,0 +1,42 @@
+{
+ "cel": "ElectricNova",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\ElectricNova.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 16,
+ "framesPerDir": 13,
+ "officialAnimLen": [
+  13
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 4,
+  "sw": 0,
+  "w": 5,
+  "nw": 1,
+  "n": 6,
+  "ne": 2,
+  "e": 7,
+  "se": 3
+ },
+ "canvas": {
+  "w": 70,
+  "h": 48,
+  "originX": 35,
+  "originY": 24,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 104
+}

@@ -1,0 +1,112 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Diablo2 · Module/View/EntityView.cs
+// 一个实体（玩家 / 怪物 / 地面物品）的**视图记录**：节点 + 渲染器 + 头顶血条 + 逐帧动画器。
+//
+// 与 `ViewModule` 分开一个文件的原因：实现约束 #1「一个 `.cs` 一个类」，
+// 同文件多个类型会让 Unity 的预制体 `m_Script` fileID 指错（且编译不报错）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+using CloverEngine;
+using Diablo2.Def;
+using UnityEngine;
+
+namespace Diablo2.Module.View
+{
+    /// <summary>实体视图（玩家 / 怪物 / 地面物品）。</summary>
+    internal sealed class EntityView
+    {
+        /// <summary>实体 id（玩家 = `GameConst.PlayerEntityId`；地面物品 = 地面物品 id）。</summary>
+        public int EntityId;
+
+        /// <summary>是否玩家视图（玩家血条在 HUD 双球上，世界血条不建）。</summary>
+        public bool IsPlayer;
+
+        /// <summary>是否地面物品视图（不走路、不播动作、无血条）。</summary>
+        public bool IsGroundItem;
+
+        /// <summary>
+        /// <para>`null` / 空 = 这张原版图**在素材库里拿不到**（或配表缺行）⇒ 该视图退回
+        /// **品质色块**（可见的缺失信号，登记在 素材欠缺登记）。
+        /// 只对 <see cref="IsGroundItem"/> 为真的视图有值，其余（玩家/怪物/NPC）恒为 null。</para>
+        /// </summary>
+        public string IconPath;
+
+        /// <summary>玩家职业（占位色用；非玩家为默认）。</summary>
+        public PlayerClass Cls;
+
+        /// <summary>怪物种类 id（`monster_c` 主键；非怪物为 0）。</summary>
+        public int KindId;
+
+        /// <summary>怪物精灵代码（`monster_c.sprite` 小写；非怪物为空）。</summary>
+        public string SpriteCode;
+
+        /// <summary>
+        /// 玩家当前的**装备外观套 key**（`jav` / `buc` / `jav_buc`…）。
+        /// <para>`null` / 空 = **徒手**（走 `Chars/{class}/` 那套已验收素材）；非玩家视图恒为 null。</para>
+        /// <para>key 的拼法与回退由 `EquipVisual`（纯函数）给；它决定 `SpriteFrames.Keys` 的
+        /// 帧目录与帧数来源（`EquipFrameCounts`）⇒ **换 key = 换整套帧键**，不是只换贴图。</para>
+        /// </summary>
+        public string EquipKey;
+
+        /// <summary>
+        /// 进图首帧是否已复核过 <see cref="EquipKey"/>（只做一次）。
+        /// <para>为什么要复核：`CreatePlayer` 与"装备落进 `IItemModule`"是两条独立步骤
+        /// （`AppFlow.RunBuildStep(1)` vs `SaveModule` 的读档），顺序若变，`CreatePlayer` 会读到
+        /// 空装备 ⇒ 角色一辈子徒手且**不报任何错**。首帧补一次 + `Events.EquipChanged` 驱动，
+        /// 不引入每帧重算。</para>
+        /// </summary>
+        public bool EquipKeySettled;
+
+        /// <summary>视图根节点。</summary>
+        public GameObject Root;
+
+        /// <summary>精灵渲染器。</summary>
+        public SpriteRenderer Renderer;
+
+        /// <summary>
+        /// u44（悬停变亮）：**建节点时** <see cref="Renderer"/> 的 `sharedMaterial`。
+        /// <para>用途：悬停期间实体被换上自定义着色器材质（`EntityHighlight`），移开时必须还原成
+        /// 值为 null 也合法（= Unity 默认精灵材质），`EntityHighlight.Apply(r, null, false)` 会把它写回去。</para>
+        /// </summary>
+        public Material OriginalMaterial;
+
+        /// <summary>逐帧动画器（**本项目新增**）。</summary>
+        public readonly SpriteAnimator Anim = new SpriteAnimator();
+
+        /// <summary>当前朝向。</summary>
+        public Dir8 Dir = Dir8.S;
+
+        /// <summary>当前请求的动作（用于"只在动作变化时才 Play"，避免每帧被打回第 0 帧）。</summary>
+        public ViewAnim Playing = ViewAnim.Idle;
+
+        /// <summary>需要立刻重取一次贴图（朝向变了 / 贴图异步到位）。</summary>
+        public bool NeedsFrameRefresh = true;
+
+        /// <summary>占位色（素材到位后该值不再用于渲染，只作为"是否占位"的判据）。</summary>
+        public Color BaseColor = Color.white;
+
+        /// <summary>是否正在用占位图（决定要不要打 BaseColor）。</summary>
+        public bool UsingPlaceholder = true;
+
+        /// <summary>受击闪白剩余秒数。</summary>
+        public float HitFlashTimer;
+
+        /// <summary>施法动作剩余秒数（只玩家用）。</summary>
+        public float CastTimer;
+
+        /// <summary>挥击动作剩余秒数（只玩家用；由 `Events.PlayerAttacked` 设置）。</summary>
+        public float AttackTimer;
+
+        /// <summary>是否已死（尸体姿态）。</summary>
+        public bool Dead;
+
+        /// <summary>上次同步到的世界坐标（判"这一帧动没动"，决定 Walk/Idle）。</summary>
+        public Vector3 LastWorld;
+
+        /// <summary>所在格（排序用）。</summary>
+        public Vector2Int Grid;
+
+        /// <summary>已播完死亡动画、已置成"尸体半透明"（只做一次）。</summary>
+        public bool CorpseFaded;
+    }
+}

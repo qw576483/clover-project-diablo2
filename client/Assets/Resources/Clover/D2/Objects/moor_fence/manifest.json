@@ -1,0 +1,424 @@
+{
+ "pack": "moor_fence",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/fence.dt1",
+ "kind": "Objects",
+ "note": "血腥荒野木栏",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 23,
+ "tiles": [
+  {
+   "idx": 0,
+   "file": "000.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 5,
+   "orientation": 7,
+   "compositeIndex": 4263,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    42,
+    45,
+    89,
+    132
+   ]
+  },
+  {
+   "idx": 1,
+   "file": "001.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 5,
+   "orientation": 2,
+   "compositeIndex": 4258,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    56,
+    56,
+    159,
+    170
+   ]
+  },
+  {
+   "idx": 2,
+   "file": "002.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 6,
+   "orientation": 7,
+   "compositeIndex": 4295,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    56,
+    41,
+    92,
+    130
+   ]
+  },
+  {
+   "idx": 3,
+   "file": "003.png",
+   "w": 96,
+   "h": 160,
+   "main": 2,
+   "sub": 5,
+   "orientation": 1,
+   "compositeIndex": 4257,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    42,
+    89,
+    125
+   ]
+  },
+  {
+   "idx": 4,
+   "file": "004.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 5,
+   "orientation": 3,
+   "compositeIndex": 4259,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    80,
+    45,
+    159,
+    163
+   ]
+  },
+  {
+   "idx": 5,
+   "file": "005.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 5,
+   "orientation": 4,
+   "compositeIndex": 4260,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    46,
+    79,
+    156
+   ]
+  },
+  {
+   "idx": 6,
+   "file": "006.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 7,
+   "orientation": 7,
+   "compositeIndex": 4327,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    40,
+    46,
+    87,
+    149
+   ]
+  },
+  {
+   "idx": 7,
+   "file": "007.png",
+   "w": 160,
+   "h": 160,
+   "main": 2,
+   "sub": 13,
+   "orientation": 2,
+   "compositeIndex": 4514,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    62,
+    32,
+    159,
+    139
+   ]
+  },
+  {
+   "idx": 8,
+   "file": "008.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 12,
+   "orientation": 2,
+   "compositeIndex": 4482,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    64,
+    45,
+    159,
+    160
+   ]
+  },
+  {
+   "idx": 9,
+   "file": "009.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 11,
+   "orientation": 2,
+   "compositeIndex": 4450,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    52,
+    52,
+    159,
+    158
+   ]
+  },
+  {
+   "idx": 10,
+   "file": "010.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 10,
+   "orientation": 2,
+   "compositeIndex": 4418,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    69,
+    45,
+    159,
+    165
+   ]
+  },
+  {
+   "idx": 11,
+   "file": "011.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 8,
+   "orientation": 2,
+   "compositeIndex": 4354,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    56,
+    56,
+    159,
+    170
+   ]
+  },
+  {
+   "idx": 12,
+   "file": "012.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 7,
+   "orientation": 2,
+   "compositeIndex": 4322,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    61,
+    45,
+    159,
+    163
+   ]
+  },
+  {
+   "idx": 13,
+   "file": "013.png",
+   "w": 160,
+   "h": 160,
+   "main": 2,
+   "sub": 6,
+   "orientation": 2,
+   "compositeIndex": 4290,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    38,
+    43,
+    159,
+    130
+   ]
+  },
+  {
+   "idx": 14,
+   "file": "014.png",
+   "w": 160,
+   "h": 192,
+   "main": 2,
+   "sub": 5,
+   "orientation": 6,
+   "compositeIndex": 4262,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    70,
+    45,
+    159,
+    171
+   ]
+  },
+  {
+   "idx": 15,
+   "file": "015.png",
+   "w": 128,
+   "h": 160,
+   "main": 2,
+   "sub": 13,
+   "orientation": 1,
+   "compositeIndex": 4513,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    41,
+    104,
+    129
+   ]
+  },
+  {
+   "idx": 16,
+   "file": "016.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 12,
+   "orientation": 1,
+   "compositeIndex": 4481,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    42,
+    88,
+    164
+   ]
+  },
+  {
+   "idx": 17,
+   "file": "017.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 11,
+   "orientation": 1,
+   "compositeIndex": 4449,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    48,
+    85,
+    156
+   ]
+  },
+  {
+   "idx": 18,
+   "file": "018.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 10,
+   "orientation": 1,
+   "compositeIndex": 4417,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    44,
+    89,
+    157
+   ]
+  },
+  {
+   "idx": 19,
+   "file": "019.png",
+   "w": 96,
+   "h": 160,
+   "main": 2,
+   "sub": 8,
+   "orientation": 1,
+   "compositeIndex": 4353,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    42,
+    89,
+    125
+   ]
+  },
+  {
+   "idx": 20,
+   "file": "020.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 7,
+   "orientation": 1,
+   "compositeIndex": 4321,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    46,
+    92,
+    156
+   ]
+  },
+  {
+   "idx": 21,
+   "file": "021.png",
+   "w": 128,
+   "h": 160,
+   "main": 2,
+   "sub": 6,
+   "orientation": 1,
+   "compositeIndex": 4289,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    34,
+    98,
+    125
+   ]
+  },
+  {
+   "idx": 22,
+   "file": "022.png",
+   "w": 96,
+   "h": 192,
+   "main": 2,
+   "sub": 5,
+   "orientation": 5,
+   "compositeIndex": 4261,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    45,
+    89,
+    160
+   ]
+  }
+ ]
+}

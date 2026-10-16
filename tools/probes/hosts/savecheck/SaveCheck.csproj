@@ -1,0 +1,132 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       SaveCheck · （引擎下沉 A6 · 原子槽位存储）自检宿主（**非 Unity 工程**）
+
+       为什么单独一个宿主、而不是塞进 itemcheck：
+         itemcheck 的存档断言（`存档已落盘到 char/CheckHero` / `索引键已写 char/index`）
+         就是**改前的行为基线**；动它的输出，就没法再拿它做
+         「10 个宿主改前/改后逐行 0 差异」的对照了（那是本次的关键判据）。
+
+       判据（逐条对应任务书 §5，全离线可判）：
+         ① 引擎新增 `Runtime/Data/FileSlotStore.cs` 的公开面与语义（原子写 / 损坏留档 / 枚举 / 失败路径）；
+         ② **真实存档载荷**（`Module/Save/SaveJson.cs` + `Def.CharacterSave`）过槽位存储 ⇒ 逐字段 0 差异、
+            `Write(Parse(json)) == json` 逐字节；
+         ③ **跨进程**：两个不同的 .NET 进程读写同一槽目录 ⇒ `List()` 顺序一致、逐槽 SHA 一致；
+         ④ 改前手法的**实测对照**：`Runtime/Core/Setting.cs`（真实引擎类）的原子写 + `.corrupt` 留档，
+            与项目真实存档 `client/setting/settings.json`（**只读**）里的槽位口径。
+
+       已知边界：
+         · 本宿主**不**驱动 Unity 原生（`new GameObject()` 一类的调用一律不碰）；
+         · 对项目真实存档目录只调 `Get`（**从不调 `Save()`**）⇒ 不重写玩家存档（shell 侧另比 SHA256）。
+
+       不吃 `run_all_hosts.ps1` 的 10 个名额：本宿主不在那张清单里（`TOTAL_HOSTS=10` 保持不变），
+       单独跑法见回报。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>SaveCheck</AssemblyName>
+    <RootNamespace>SaveCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- ★ save-areaid 新增：契约桩（`IMapModule` / `IPlayerModule`）——
+         要离线跑通**无参** `SaveModule.Save()` 的 Live 收集链，`AppContext.Map/Player` 必须非 null。
+         桩按**真实现**写（`StubPlayer.WriteTo` 故意不写 areaId，同真 `PlayerModule.WriteTo:473`）；
+         ⛔ 它不是为了"让断言变绿"，而是为了"让断言**可能变红**"（见 Program.cs §13 与 HostFakes.cs 头注）。 -->
+    <Compile Include="shim\HostFakes.cs" />
+
+    <!-- ★ 本次新增的引擎能力（被验证对象） -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AtomicFile.cs" />
+
+    <!-- 引擎既有：改前存档的原子写/损坏留档**就在 Setting 里**（`Setting.cs:349-396`）
+         ⇒ 本宿主链真实实现，把「改前手法」实测出来，而不是靠读源码下结论。
+         `Json.cs` = MiniJson（FileSlotStore 校验 .json 槽 / Setting 读 settings.json 都走它）；
+         `LogThrottle.cs` = 两者共用的限频入口（本次新增代码也用它，⛔ 不另造降频）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Setting.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+
+    <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <!-- 存档 JSON 编解码（**本次不许动它的序列化语义** ⇒ 逐字节恒等式就是判据） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Save\SaveJson.cs" />
+
+    <!-- ★ Q（读档失败静默）新增：把**被验证对象本身**编进来 —— `SaveModule.Load/TryLoad` 的三情况判别。
+         ⛔ 只加断言、不改已有断言的判据；⛔ 不复制 SaveModule.cs（与 Assets/ 同一份文件）。
+         依赖：`AppContext`（`SaveModule` 靠它取各模块，离线时为 null ⇒ 只多打几条 Warn）+ `IAppFlow`
+         （`AppContext.Flow` 的类型，`using Diablo2.Module.Flow`）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Save\SaveModule.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\AppContext.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\IAppFlow.cs" />
+    <!-- `Core/*.cs` 里几个转发壳依赖引擎侧那几个文件（与 itemcheck 同一套链接，口径一致） -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+
+    <!-- sunk frame-pacing capability (impl-camera): Core/FramePacing.cs now forwards to the
+         engine type CloverEngine.FramePacingPolicy, so this host must compile the engine file
+         or it fails with CS0234. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs
+" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStarContext.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GroundProjection.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- 引擎门面替身里 UI 那一组替身（`UIFactory`：Font/Text/Image/TextAnchor）用得到 -->
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\JsonWriter.cs" />
+  </ItemGroup>
+</Project>

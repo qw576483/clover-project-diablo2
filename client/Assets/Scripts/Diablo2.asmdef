@@ -1,0 +1,21 @@
+{
+    "name": "Diablo2",
+    "rootNamespace": "Diablo2",
+    "references": [
+        "CloverEngine.Core",
+        "CloverEngine.Network",
+        "CloverEngine.Data",
+        "CloverEngine.Resource",
+        "CloverEngine.Presentation",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

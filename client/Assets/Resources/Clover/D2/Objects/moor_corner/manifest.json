@@ -1,0 +1,64 @@
+{
+ "pack": "moor_corner",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/corner.dt1",
+ "kind": "Objects",
+ "note": "崖壁转角（槽 13）",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 3,
+ "tiles": [
+  {
+   "idx": 0,
+   "file": "000.png",
+   "w": 160,
+   "h": 416,
+   "main": 3,
+   "sub": 0,
+   "orientation": 3,
+   "compositeIndex": 6147,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    38,
+    159,
+    408
+   ]
+  },
+  {
+   "idx": 1,
+   "file": "001.png",
+   "w": 96,
+   "h": 416,
+   "main": 3,
+   "sub": 0,
+   "orientation": 4,
+   "compositeIndex": 6148,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    37,
+    79,
+    403
+   ]
+  },
+  {
+   "idx": 2,
+   "file": "002.png",
+   "w": 160,
+   "h": 544,
+   "main": 3,
+   "sub": 0,
+   "orientation": 7,
+   "compositeIndex": 6151,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    0,
+    55,
+    159,
+    512
+   ]
+  }
+ ]
+}

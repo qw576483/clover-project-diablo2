@@ -1,0 +1,370 @@
+{
+ "pack": "moor_bridge",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/bridge.dt1",
+ "kind": "Objects",
+ "note": "罗格营地跨河木桥（TownE1 + TownETrans 独有）",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 20,
+ "tiles": [
+  {
+   "idx": 0,
+   "file": "000.png",
+   "w": 128,
+   "h": 160,
+   "main": 4,
+   "sub": 19,
+   "orientation": 2,
+   "compositeIndex": 8802,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    43,
+    35,
+    117,
+    111
+   ]
+  },
+  {
+   "idx": 1,
+   "file": "001.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 18,
+   "orientation": 2,
+   "compositeIndex": 8770,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    31,
+    33,
+    159,
+    169
+   ]
+  },
+  {
+   "idx": 2,
+   "file": "002.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 17,
+   "orientation": 2,
+   "compositeIndex": 8738,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    23,
+    33,
+    159,
+    175
+   ]
+  },
+  {
+   "idx": 3,
+   "file": "003.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 16,
+   "orientation": 2,
+   "compositeIndex": 8706,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    23,
+    33,
+    159,
+    179
+   ]
+  },
+  {
+   "idx": 4,
+   "file": "004.png",
+   "w": 128,
+   "h": 160,
+   "main": 4,
+   "sub": 15,
+   "orientation": 2,
+   "compositeIndex": 8674,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    66,
+    38,
+    119,
+    111
+   ]
+  },
+  {
+   "idx": 5,
+   "file": "005.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 14,
+   "orientation": 2,
+   "compositeIndex": 8642,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    34,
+    159,
+    157
+   ]
+  },
+  {
+   "idx": 6,
+   "file": "006.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 13,
+   "orientation": 2,
+   "compositeIndex": 8610,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    33,
+    159,
+    140
+   ]
+  },
+  {
+   "idx": 7,
+   "file": "007.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 12,
+   "orientation": 2,
+   "compositeIndex": 8578,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    34,
+    159,
+    135
+   ]
+  },
+  {
+   "idx": 8,
+   "file": "008.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 11,
+   "orientation": 2,
+   "compositeIndex": 8546,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    34,
+    159,
+    136
+   ]
+  },
+  {
+   "idx": 9,
+   "file": "009.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 10,
+   "orientation": 2,
+   "compositeIndex": 8514,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    20,
+    32,
+    159,
+    179
+   ]
+  },
+  {
+   "idx": 10,
+   "file": "010.png",
+   "w": 160,
+   "h": 224,
+   "main": 4,
+   "sub": 9,
+   "orientation": 2,
+   "compositeIndex": 8482,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    16,
+    63,
+    159,
+    212
+   ]
+  },
+  {
+   "idx": 11,
+   "file": "011.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 8,
+   "orientation": 2,
+   "compositeIndex": 8450,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    38,
+    32,
+    159,
+    182
+   ]
+  },
+  {
+   "idx": 12,
+   "file": "012.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 7,
+   "orientation": 2,
+   "compositeIndex": 8418,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    52,
+    33,
+    159,
+    183
+   ]
+  },
+  {
+   "idx": 13,
+   "file": "013.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 6,
+   "orientation": 2,
+   "compositeIndex": 8386,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    44,
+    59,
+    159,
+    169
+   ]
+  },
+  {
+   "idx": 14,
+   "file": "014.png",
+   "w": 160,
+   "h": 160,
+   "main": 4,
+   "sub": 5,
+   "orientation": 2,
+   "compositeIndex": 8354,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    87,
+    49,
+    159,
+    137
+   ]
+  },
+  {
+   "idx": 15,
+   "file": "015.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 4,
+   "orientation": 2,
+   "compositeIndex": 8322,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    34,
+    159,
+    136
+   ]
+  },
+  {
+   "idx": 16,
+   "file": "016.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 3,
+   "orientation": 2,
+   "compositeIndex": 8290,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    34,
+    159,
+    136
+   ]
+  },
+  {
+   "idx": 17,
+   "file": "017.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 2,
+   "orientation": 2,
+   "compositeIndex": 8258,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    80,
+    33,
+    159,
+    135
+   ]
+  },
+  {
+   "idx": 18,
+   "file": "018.png",
+   "w": 160,
+   "h": 192,
+   "main": 4,
+   "sub": 1,
+   "orientation": 2,
+   "compositeIndex": 8226,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    76,
+    60,
+    159,
+    134
+   ]
+  },
+  {
+   "idx": 19,
+   "file": "019.png",
+   "w": 160,
+   "h": 160,
+   "main": 4,
+   "sub": 0,
+   "orientation": 2,
+   "compositeIndex": 8194,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    91,
+    49,
+    159,
+    121
+   ]
+  }
+ ]
+}

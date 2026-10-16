@@ -1,0 +1,42 @@
+{
+ "cel": "Flamethrower",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\Flamethrower.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 1,
+ "framesPerDir": 15,
+ "officialAnimLen": [
+  15
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 0,
+  "sw": 0,
+  "w": 0,
+  "nw": 0,
+  "n": 0,
+  "ne": 0,
+  "e": 0,
+  "se": 0
+ },
+ "canvas": {
+  "w": 80,
+  "h": 208,
+  "originX": 40,
+  "originY": 104,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 120
+}

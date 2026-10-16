@@ -1,0 +1,202 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       UI 层自检宿主（**非 Unity 工程、不参与打包；离线跑，秒级**）
+
+       为什么需要它（同 `tools/probes/hosts/mapcheck` / `tools/probes/hosts/flowcheck` 的理由）：
+         `client/client.slnx` 里没有 `Diablo2.csproj`（用户尚未打开编辑器）⇒
+         `dotnet build client.slnx` **覆盖不到** `Assets/Scripts/**`，
+         那条命令在本机是"零信息"的。本工程把「Unity 托管 DLL + Diablo2 源码」直接编到 .NET 上，
+         得到秒级类型/语法校验 + 一批**真跑断言**。
+
+       与 `flowcheck` 的关系：
+         · 编译文件集**与它一致**（同一批源码，否则类型引用会缺口）；
+         · 引擎门面替身**直接复用** `..\flowcheck\shim\EngineShim.cs`（同一份，避免两处漂移）。
+       本宿主只断言 UI 层能离线验证的东西（常量/纯函数/配置文件文本/反射），
+       面板实例与像素布局要等用户在编辑器里进 Play（那是开发阶段的事）。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Uicheck</AssemblyName>
+    <RootNamespace>Uicheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- CS0436：共用的 `..\flowcheck\shim\EngineShim.cs` 里有 `UnityEngine.Time` 替身（源码优先），是刻意为之 -->
+    <NoWarn>CS0649;CS0169;CS0414;CS0067;CS0436</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 游戏内面板布局断言（原版 prefab 精确值 ×2.4，逐条）——单独一个文件，
+         避免与 §A 在 Program.cs 上并发改同一处 -->
+    <Compile Include="LayoutGameCheck.cs" />
+    <!-- 「进图读条画面（原版 10 帧 load 动画）」+「区域名弹出 LevelEntryTitle」断言 -->
+    <Compile Include="LoadingCheck.cs" />
+    <!-- 片 5：死亡屏（EndGame）拼装口径 + 布局；小地图（标题/图例已删、标记走原版 mapicon） -->
+    <Compile Include="P5Check.cs" />
+    <!-- ★ w3：流程屏（启动/菜单/选角/创角/读条/设置/暂停/死亡）逐控件审计 ——
+         素材 IHDR ↔ 常量表 ↔ 面板源码三类互证（节 ⑲） -->
+    <Compile Include="W3FlowCheck.cs" />
+    <Compile Include="W3GameCheck.cs" />
+    <!-- ★ impl-shop：商店买卖屏「10×10 格盘几何（解原版 PNG 像素）+ 按物品自身占格摆放
+         （纯函数逐格断言）+ 边界（放不下要点名 Warn 且不覆盖）」—— 独立文件，避免与
+         Program.cs / W3GameCheck.cs 的并发改动冲突 -->
+    <Compile Include="ShopGridCheck.cs" />
+    <Compile Include="ShopArtCheck.cs" />
+    <Compile Include="Fix4Check.cs" />
+    <!-- ★ u53-closefix：弹框关闭出口（层/遮罩 + 关闭控件可见 + 同一入口）+ 3 条退化样本 -->
+    <Compile Include="CloseExitCheck.cs" />
+    <!-- 引擎门面替身：**复用 flowcheck 那一份**（同一份文件，两个宿主共用，改一处即同步） -->
+    <Compile Include="GroundItemLabelCheck.cs" />
+    <Compile Include="V6Check.cs" />
+    <!-- ★ automap-panel：automap 绘制载体有效性（尺寸 / 墨量 / alpha / 接线）—— 独立文件，
+         避免与 Program.cs / V6Check.cs 的并发改动冲突 -->
+    <Compile Include="AutomapCarrierCheck.cs" />
+    <!-- ★ dialog-options2：对话选项可读性（空文案 / 悬停坏图盖住文案）+ tooltip 可见性三条件。
+         ⚠️ 2026-09-24 曾出现"两处同名实现**互相删除**"（V6Check.cs 里那份与本文件）⇒ 现在**只有这一份**：
+         谁要再在别处实现同名类，请**先**删本行再动手。 -->
+    <Compile Include="DialogOptionsCheck.cs" />
+    <!-- ★ u32-close（2026-09-24）：传送点**链路中段**的离线行为断言 ——
+         `AppWaypoint` 的列表回灌/快照/新局复位 + 「点锚点 ⇒ 走过去 ⇒ 开面板」 +
+         「选目的地 ⇒ 拒绝 4 种 / 放行 1 种」。生产类（`App/AppWaypoint.cs`）经下面
+         `App\*.cs` 那一行已在清单里；本文件只加断言、⛔ 不动既有步骤。 -->
+    <Compile Include="WaypointFlowCheck.cs" />
+    <Compile Include="U52ResistCheck.cs" />
+    <!-- u52-resist P-2b: per-box single-line check for the character panel Level/Exp/SkillPoints boxes (reuses section 8 NeedNative + font tables). Own file to avoid concurrent edits on Program.cs / U52ResistCheck.cs. -->
+    <Compile Include="CharTopRightTextCheck.cs" />
+    <!-- tooltip-text (2026-10-13): item tooltip wording - verbatim string-table labels (byte-exact vs
+         chi_string.txt) + line set + price-line policy; audit #7-#10 regression anchors. Own file. -->
+    <Compile Include="TooltipTextCheck.cs" />
+    <Compile Include="..\flowcheck\shim\EngineShim.cs" />
+
+    <!-- Diablo2 源码（与 Assets/Scripts 同一份文件，不复制；文件集与 flowcheck 一致） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <!-- [2026-09-23 gate-G-host] impl-invfix changed the pickup-range test in Module/Item/**
+         (ItemModule.cs / GroundItems.cs) to Iso.IsAdjacent(...). Uicheck is a whitelist host
+         (EnableDefaultCompileItems=false + explicit Compile list, NOT a glob), so Iso.cs and its
+         implementation deps must be linked or the build fails with CS0103 "Iso does not exist":
+           client/Assets/Scripts/Core/Iso.cs      (facade public static class Iso, namespace Diablo2.Core)
+           engine Runtime/Core/IsoLayout.cs       (new IsoLayout(...) + all forwarded math)
+           engine Runtime/Core/Dir8.cs            (Iso.DirectionTo/DirectionDelta use the engine Dir8)
+         Same Include pair as itemcheck / mapcheck / audiocheck. -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Iso.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GroundProjection.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <!-- ★ automap-original-verdict：自动地图的逐格 Cel 表 + cel 像素 + ACT1 调色板（生成物，
+         由 tools/probes/gen_automap.py 产出）—— `UI/MiniMapPanel.cs` 引它 ⇒ 必须链进白名单 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\AutoMapCel.generated.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\SceneNames.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ClientConfig.cs" />
+    <!-- ★ 新增 client 源码必须同步链进本清单：`App/Bootstrap.cs` / `UI/SettingsPanel.cs` 现在会调
+         `FramePacing.Pin(...)`（R1-D 帧节奏口径）⇒ 不链它就 CS0103（本目录的编译清单是**白名单**，
+         不是 glob，client 侧新增一个 Core 文件就会打断本宿主，实测 2026-09-20）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\FramePacing.cs" />
+    <!-- 白名单同上：Core 侧新增的两个文件（画质档位唯一写点 / 舞台 unscaled 定时器登记簿） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\QualitySetting.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\StageTimer.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <!-- ★ 引擎下沉 A4：配表加载器已下沉到引擎（`Table/TableLoader.cs` 变薄转发）⇒
+         引擎侧那一份源码也必须链进来，否则 `CloverEngine.CloverTable` 找不到（CS0246）。
+         依赖：`CloverTable.cs` 只用到 `System.IO/Reflection` + `LogThrottle`（上面已链）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <!-- ⚠️ 片 impl-camera 的下沉件（`CloverEngine.FramePacing`）：`client/.../Core/FramePacing.cs`
+         现在用 `CloverEngine.FramePacing.DefaultTargetFrameRate/DefaultVSyncCount/Pin/TryRead/Describe`
+         ⇒ 不链它就 CS0234（宿主编译直接停），实测 2026-09-22 撞上。
+         ★ 若另一片也加这一行会出现 CS2002（同一文件被指定两次）⇒ 合并时只留一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Flow\*.cs" />
+    <!-- ⚠️ 另一片（起始装备 / 武器）新增了 `Module/Item/StartItems.cs` 并让 `Module/Flow/AppFlow.cs`
+         引用了 `Diablo2.Module.Item` ⇒ 本宿主（白名单）不链它就 CS0234（实测 2026-09-22）。
+         ★ 若别的片也加同一行会出现 CS2002（同一文件被指定两次）⇒ 合并时只留一行。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Item\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
+    <!-- ★ u44impl offline closeout 2026-09-24: Module/View/EntityHighlight.cs is the ONLY source
+         of the C2 numbers (_Brightness 3.0 / _Contrast 1.01); it was NOT in this whitelist, so C2 could
+         only be text-extracted from source (same blind spot family as the Shader.HasProperty CS1061
+         green-in-uicheck case). Link it + its only dependency ViewLog.cs (which only needs Core/Log.cs,
+         already listed). Do NOT link the Module/View/*.cs glob - it drags in ViewModule.cs deps. -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\EntityHighlight.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewLog.cs" />
+    <!-- 链接原因：R1 判据要**离线驱动真的** `SpriteAnimator`（传送台本体 8 帧循环）⇒ 链它与其
+         `ViewAnim` 枚举（`ViewLog` 上面已链）。
+         ⛔ 不链 `Module/View/*.cs` 整目录（会拖进 ViewModule 的依赖）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\SpriteAnimator.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewAnim.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `[RuntimeInitializeOnLoadMethod]`（App/Bootstrap 的 P-3 静态复位）要它：基类 PreserveAttribute 在 ScriptingModule -->
+    <Reference Include="UnityEngine.ScriptingModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.ScriptingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+
+  <!-- eng-coreutil: sunk caps (project file forwards to engine) -->
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\LoadingPacing.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\PointerFloatLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteStripLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\DragDropLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\BitmapFont.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldOverlayWidgets.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ScreenPointUtil.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UIPanelGuards.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UiImageLoader.cs" />
+    <!-- 贴图租约的销毁归还件：`UiImageLoader` 引用它 ⇒ 白名单必须一起链（否则 CS0246） -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UiSpriteLease.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteSwapButton.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <!-- 引擎清单解析（`ResourceManifest` 等）用 `MiniJson`，它定义在 `Runtime/Core/Json.cs` ⇒ 一起链 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />
+  </ItemGroup>
+</Project>

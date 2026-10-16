@@ -1,0 +1,27 @@
+id	class	slot_index	code	loc	count	src_line
+int	int	int	string	string	int	int
+c	c	c	c	c	c	c
+行 id（本项目编号 1..N）	职业 id（指向 class_c.id）	官方 item 序号 1..10（对应官方列 itemN / itemNloc / itemNcount）	物品 code（指向 item_c.code；官方空位 '0' 已剔除）	官方 itemNloc 原文（rarm/larm/head/torso/glov/boot/belt/neck/ring；空 = 未装备 ⇒ 进背包）	官方 itemNcount（数量）	出处：官方 charstats.txt 的行号（1 基，含表头行）
+1	1	1	jav	rarm	1	2
+2	1	2	buc	larm	1	2
+3	1	3	hp1		4	2
+4	1	4	tsc		1	2
+5	1	5	isc		1	2
+6	2	1	sst	rarm	1	3
+7	2	2	hp1		4	3
+8	2	3	tsc		1	3
+9	2	4	isc		1	3
+10	3	1	wnd	rarm	1	4
+11	3	2	hp1		4	4
+12	3	3	tsc		1	4
+13	3	4	isc		1	4
+14	4	1	ssd	rarm	1	5
+15	4	2	buc	larm	1	5
+16	4	3	hp1		4	5
+17	4	4	tsc		1	5
+18	4	5	isc		1	5
+19	5	1	hax	rarm	1	6
+20	5	2	buc	larm	1	6
+21	5	3	hp1		4	6
+22	5	4	tsc		1	6
+23	5	5	isc		1	6

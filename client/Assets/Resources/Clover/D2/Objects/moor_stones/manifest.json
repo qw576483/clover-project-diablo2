@@ -1,0 +1,100 @@
+{
+ "pack": "moor_stones",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/stones.dt1",
+ "kind": "Objects",
+ "note": "血腥荒野碎石/岩石",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 5,
+ "tiles": [
+  {
+   "idx": 24,
+   "file": "024.png",
+   "w": 160,
+   "h": 192,
+   "main": 26,
+   "sub": 2,
+   "orientation": 7,
+   "compositeIndex": 53319,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    8,
+    51,
+    142,
+    176
+   ]
+  },
+  {
+   "idx": 25,
+   "file": "025.png",
+   "w": 160,
+   "h": 192,
+   "main": 26,
+   "sub": 1,
+   "orientation": 7,
+   "compositeIndex": 53287,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    1,
+    59,
+    159,
+    179
+   ]
+  },
+  {
+   "idx": 26,
+   "file": "026.png",
+   "w": 160,
+   "h": 256,
+   "main": 26,
+   "sub": 2,
+   "orientation": 2,
+   "compositeIndex": 53314,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    10,
+    40,
+    159,
+    210
+   ]
+  },
+  {
+   "idx": 27,
+   "file": "027.png",
+   "w": 160,
+   "h": 224,
+   "main": 26,
+   "sub": 1,
+   "orientation": 2,
+   "compositeIndex": 53282,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    2,
+    53,
+    159,
+    220
+   ]
+  },
+  {
+   "idx": 28,
+   "file": "028.png",
+   "w": 160,
+   "h": 160,
+   "main": 26,
+   "sub": 0,
+   "orientation": 2,
+   "compositeIndex": 53250,
+   "rarity": 0,
+   "walk": false,
+   "bbox": [
+    39,
+    35,
+    159,
+    157
+   ]
+  }
+ ]
+}

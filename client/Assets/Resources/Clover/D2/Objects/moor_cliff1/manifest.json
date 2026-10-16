@@ -1,0 +1,244 @@
+{
+ "pack": "moor_cliff1",
+ "sourceDt1": "data/global/tiles/ACT1/OUTDOORS/cliff1.dt1",
+ "kind": "Objects",
+ "note": "野外崖壁（LvlType 2 槽 11，StnClf* 边界块用）",
+ "palette": "data/global/palette/ACT1/Pal.PL2",
+ "tileCount": 13,
+ "tiles": [
+  {
+   "idx": 0,
+   "file": "000.png",
+   "w": 160,
+   "h": 448,
+   "main": 3,
+   "sub": 3,
+   "orientation": 10,
+   "compositeIndex": 6250,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    34,
+    135,
+    432
+   ]
+  },
+  {
+   "idx": 1,
+   "file": "001.png",
+   "w": 160,
+   "h": 480,
+   "main": 3,
+   "sub": 2,
+   "orientation": 10,
+   "compositeIndex": 6218,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    45,
+    129,
+    467
+   ]
+  },
+  {
+   "idx": 2,
+   "file": "002.png",
+   "w": 160,
+   "h": 480,
+   "main": 3,
+   "sub": 8,
+   "orientation": 1,
+   "compositeIndex": 6401,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    32,
+    135,
+    454
+   ]
+  },
+  {
+   "idx": 3,
+   "file": "003.png",
+   "w": 160,
+   "h": 448,
+   "main": 3,
+   "sub": 1,
+   "orientation": 10,
+   "compositeIndex": 6186,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    34,
+    135,
+    432
+   ]
+  },
+  {
+   "idx": 4,
+   "file": "004.png",
+   "w": 160,
+   "h": 480,
+   "main": 3,
+   "sub": 0,
+   "orientation": 10,
+   "compositeIndex": 6154,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    45,
+    129,
+    467
+   ]
+  },
+  {
+   "idx": 5,
+   "file": "005.png",
+   "w": 96,
+   "h": 480,
+   "main": 3,
+   "sub": 7,
+   "orientation": 1,
+   "compositeIndex": 6369,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    35,
+    79,
+    451
+   ]
+  },
+  {
+   "idx": 6,
+   "file": "006.png",
+   "w": 160,
+   "h": 480,
+   "main": 3,
+   "sub": 6,
+   "orientation": 1,
+   "compositeIndex": 6337,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    38,
+    129,
+    439
+   ]
+  },
+  {
+   "idx": 7,
+   "file": "007.png",
+   "w": 128,
+   "h": 448,
+   "main": 3,
+   "sub": 5,
+   "orientation": 1,
+   "compositeIndex": 6305,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    38,
+    115,
+    432
+   ]
+  },
+  {
+   "idx": 8,
+   "file": "008.png",
+   "w": 128,
+   "h": 416,
+   "main": 3,
+   "sub": 4,
+   "orientation": 1,
+   "compositeIndex": 6273,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    42,
+    115,
+    392
+   ]
+  },
+  {
+   "idx": 9,
+   "file": "009.png",
+   "w": 96,
+   "h": 480,
+   "main": 3,
+   "sub": 3,
+   "orientation": 1,
+   "compositeIndex": 6241,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    32,
+    93,
+    454
+   ]
+  },
+  {
+   "idx": 10,
+   "file": "010.png",
+   "w": 160,
+   "h": 480,
+   "main": 3,
+   "sub": 2,
+   "orientation": 1,
+   "compositeIndex": 6209,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    45,
+    129,
+    446
+   ]
+  },
+  {
+   "idx": 11,
+   "file": "011.png",
+   "w": 160,
+   "h": 448,
+   "main": 3,
+   "sub": 1,
+   "orientation": 1,
+   "compositeIndex": 6177,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    34,
+    135,
+    432
+   ]
+  },
+  {
+   "idx": 12,
+   "file": "012.png",
+   "w": 128,
+   "h": 416,
+   "main": 3,
+   "sub": 0,
+   "orientation": 1,
+   "compositeIndex": 6145,
+   "rarity": 0,
+   "walk": true,
+   "bbox": [
+    0,
+    37,
+    111,
+    403
+   ]
+  }
+ ]
+}

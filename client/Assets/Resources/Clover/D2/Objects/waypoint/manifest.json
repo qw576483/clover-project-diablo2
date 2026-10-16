@@ -1,0 +1,180 @@
+{
+  "object": {
+    "name": "Waypoint",
+    "id": 119,
+    "token": "wp"
+  },
+  "mode": {
+    "name": "ON",
+    "index": 2,
+    "frames": 8,
+    "cycleAnim": 1,
+    "frameDelta": 200,
+    "frameSeconds": 0.0512,
+    "fps": 19.53125,
+    "fpsFormula": "25 * FrameDelta / 256"
+  },
+  "crossCheck": {
+    "slotOrder": [
+      {
+        "slot": 0,
+        "code": "NU",
+        "frameCnt": 1,
+        "cycleAnim": 0,
+        "cofFrames": 1,
+        "played": 1,
+        "match": true
+      },
+      {
+        "slot": 1,
+        "code": "OP",
+        "frameCnt": 15,
+        "cycleAnim": 0,
+        "cofFrames": 15,
+        "played": 15,
+        "match": true
+      },
+      {
+        "slot": 2,
+        "code": "ON",
+        "frameCnt": 8,
+        "cycleAnim": 1,
+        "cofFrames": 15,
+        "played": 8,
+        "match": true
+      }
+    ],
+    "frameDeltaProfile": {
+      "column": "FrameDelta2",
+      "zeroRows": 283,
+      "nonzeroHistogram": {
+        "59": 1,
+        "100": 6,
+        "128": 93,
+        "140": 2,
+        "150": 2,
+        "160": 17,
+        "175": 12,
+        "200": 11,
+        "256": 146
+      }
+    }
+  },
+  "canvas": {
+    "w": 131,
+    "h": 79,
+    "unionH": 45,
+    "padBottom": 34,
+    "originPxFromTop": [
+      71,
+      39
+    ]
+  },
+  "layers": [
+    {
+      "component": "TR",
+      "box": [
+        -71,
+        -21,
+        131,
+        27
+      ]
+    },
+    {
+      "component": "S1",
+      "box": [
+        -69,
+        -39,
+        129,
+        35
+      ]
+    }
+  ],
+  "sources": {
+    "cof": {
+      "path": "data\\global\\objects\\wp\\COF\\wpONHTH.COF",
+      "bytes": 91,
+      "sha256": "94a945145beba9ae7d67369780392dcd50447b2ebf5681cbc180f98698cb17ec"
+    },
+    "objects": {
+      "path": "data/global/excel/objects.txt",
+      "bytes": 211972,
+      "sha256": "213fa9d26f10508ee225edd09d1cc57125195a7ae978567e7f68a36bf47b990c"
+    },
+    "palette": {
+      "path": "data/global/palette/units/Pal.dat",
+      "bytes": 768,
+      "sha256": "03bad2cfac7b2549c901d0d3f9d2b2f7a692b3e220b1a6a595ca93e51f6217ef"
+    },
+    "dcc": [
+      {
+        "path": "data\\global\\objects\\wp\\TR\\wpTRlitONHTH.dcc",
+        "bytes": 3398,
+        "sha256": "3c8124ea5a7f719d37a0b6ac8c1e4e96810b8ce5a43cd7d1db9770d64f214c11"
+      },
+      {
+        "path": "data\\global\\objects\\wp\\S1\\wpS1litONHTH.dcc",
+        "bytes": 5081,
+        "sha256": "66a01769bab298202f059bc5541168c66d76531a7cf9d3f2211e6a6c4164b1e8"
+      }
+    ]
+  },
+  "files": [
+    {
+      "file": "000.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1056,
+      "sha256": "1fff6d1df776a71f9d7fb0510bd9397e3d1bb2ae51a1cf5f5cbc7826af42ecb8"
+    },
+    {
+      "file": "001.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1105,
+      "sha256": "8210faafbe6166dc0062348e08999b312162d7294d1f11efcf6efc24fa77142e"
+    },
+    {
+      "file": "002.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1140,
+      "sha256": "0dcb9d6c246ed5b0ad6628ffad0ba2401a691e63a0c1e7512413e3d81ffda1de"
+    },
+    {
+      "file": "003.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1152,
+      "sha256": "4462e170fbe7371346fd50c38578ef43bc594d0a4028807a8cb3101367be3434"
+    },
+    {
+      "file": "004.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1189,
+      "sha256": "470d4d2de87fcc3c0e88a7421b05585239dc9bcc5a4effce94d680b5b6ecb0bc"
+    },
+    {
+      "file": "005.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1202,
+      "sha256": "adc15ec17a0eae390d3b14260ee9b3cba0b35d639ed965e5a09e885a75dfda94"
+    },
+    {
+      "file": "006.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1150,
+      "sha256": "9fe76a0a8220f7dc1d40d854ffd2e1cc6b83fe208c30af47cb62739566e69558"
+    },
+    {
+      "file": "007.png",
+      "w": 131,
+      "h": 79,
+      "bytes": 1176,
+      "sha256": "70884b53bb5de46efd04f834dd73f7790155e78c4b6d853490013b659e6da4d0"
+    }
+  ]
+}

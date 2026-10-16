@@ -1,0 +1,31 @@
+<!-- =============================================================================
+     tools/probes/hosts/tableverify/Directory.Build.props
+     只做一件事：把本宿主的**构建产物**从工程目录里赶出去（team-lead 2026-09-24 硬要求：
+     tools/probes/hosts/tableverify/ 只许放工程源码，⛔ 不许带 bin/ obj/）。
+
+     为什么必须是**这个文件**、而不是写进 TableVerify.csproj 正文：
+       `BaseIntermediateOutputPath` 决定 `MSBuildProjectExtensionsPath`，后者在
+       `Microsoft.Common.props` 里就**已经被消费**（NuGet restore 的 project.assets.json /
+       project.nuget.cache 落在那里）。写在 csproj 正文属于"属性已在 MSBuild 使用它之后才改"
+       ⇒ ① 实测会报 **MSB3540**（若同时改 MSBuildProjectExtensionsPath）；
+          ② 若只改 BaseIntermediateOutputPath，编译输出确实被引走，
+             **但 restore 仍在工程目录里重建一个 obj/**（实测 5 个 NuGet 文件）。
+       `Directory.Build.props` 在 `Sdk.props → Microsoft.Common.props` **之前**被导入
+       ⇒ 是微软文档指定的唯一正确位置（MSB3540 的报错原文也这么建议）。
+
+     ⚠️ 本文件会**短路**上级 `tools/probes/hosts/Directory.Build.props`（MSBuild 只取
+        向上找到的**第一个** Directory.Build.props），故这里显式 Import 它把共享配置接回来。
+         本宿主本来就不引 Unity（见 TableVerify.csproj 的三条理由），所以上级那条
+         `CloverCheckUnityEditorRoot` 检查由 csproj 正文的同名空 Target 覆盖掉。
+     ============================================================================= -->
+<Project>
+
+  <Import Project="..\Directory.Build.props" />
+
+  <PropertyGroup>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)..\..\..\..\.ai-tmp\hosts\tableverify-build\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\..\..\..\.ai-tmp\hosts\tableverify-build\obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+
+</Project>

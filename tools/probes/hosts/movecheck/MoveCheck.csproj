@@ -1,0 +1,177 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+       片 2b「移动手感」数值自证宿主（一次性，随 .ai-tmp 清理）
+
+       目的：把片 2b 改的每一个数都变成**可离线断言**的项（秒级、不依赖 Unity）：
+         · 速度 / 视野 / 怪物速度量纲的常量值；
+         · 原版帧率公式 25 x AnimData.speed/256 x 规范帧数/实际帧数（CorrectedFpsOf）；
+         · SpriteFrameCounts 的 run 列与 ViewAnim.Run 下标一致；
+         · **逐职业走/跑帧率 == 该公式值**（用真 SpriteAnimator 逐帧推进实测）。
+
+       做法与 .ai-tmp/hosts 下其它宿主一致（链**真实业务源码** + 引擎门面替身，不复制逻辑）：
+       shim 直接复用 fullcheck 那一份（内容取自 combatcheck 的超集；其中 WorldHpBar 替身**已无生产消费方**
+      —— 头顶血条已按 U44-C4 删除，保留仅为签名哨兵）。
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>MoveCheck</AssemblyName>
+    <RootNamespace>MoveCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067;CS0436</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（复用 fullcheck 那份；**不是**引擎本体） -->
+    <Compile Include="..\fullcheck\shim\EngineShim.cs" />
+
+    <!-- Diablo2 业务代码：全量（与 Assets/Scripts 同一份文件，不复制、不排除） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\App\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+
+    <!-- sunk camera-follow capability (impl-camera): Module/Camera/CameraRig.cs now calls
+         CloverEngine.CameraMath.SmoothDamp, so this host must compile the engine file too
+         or it fails with CS0103. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraMath.cs
+" />
+
+    <!-- sunk grid-space camera clamp (eng-camera-math): Module/Camera/CameraBounds.cs now
+         forwards to CloverEngine.CameraBoundsKit, so this host must compile the engine file too
+         or it fails with CS0117. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraBoundsKit.cs
+" />
+
+    <!-- sunk frame-pacing capability (impl-camera): Core/FramePacing.cs now forwards to the
+         engine type CloverEngine.FramePacingPolicy, so this host must compile the engine file
+         or it fails with CS0234. Keep exactly ONE such line per csproj (duplicates => CS2002). -->
+    <Compile Include="
+..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs
+" />
+
+    <!-- sunk tiebreak capability (d2-view): `Module/View/ViewModule.cs` 的实体第三键 `SortTieZ`
+         与 `Module/Skill/ProjectileView.cs` 的投射物第三键 `SortZFor` 都改走引擎
+         `CloverEngine.SortingLayers.TiebreakOffset`（项目侧不再自留该公式）⇒ 必须把引擎文件链进来，
+         否则 CS0246。口径与上面两条 sunk-* 一致：每个宿主最多一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SortingLayers.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- `Module/View/PlayerLightMask.cs` 把渲染转发给引擎 `CloverEngine.WorldLightMask` ⇒ 本宿主
+         必须一并链入该引擎文件，否则 CS0246。每个宿主最多一行。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldLightMask.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStarContext.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GroundProjection.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\*\*.cs" />
+    <!-- ★ eng-tile 片（2026-09-24）：上面那条通配把 `Module/Map/*.cs` 也链进来了，而
+         `TileNodePool.cs` + `TileRenderState.cs` 已下沉到引擎（项目侧只剩薄转发）⇒ 必须补链引擎两份。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileNodePool.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderState.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\CloverTable.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\FileSlotStore.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AtomicFile.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Json.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Table\Base\*.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\UI\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ClientConfig.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EnterLatch.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\PointerFloatLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteStripLoader.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\PathFollower.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\DragDropLayer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\WorldOverlayWidgets.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\BitmapFont.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProjectileRuntime.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Contracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ServiceAutoWire.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UIPanelGuards.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ScreenPointUtil.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UIWidgetControls.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UiImageLoader.cs" />
+    <!-- 贴图租约的销毁归还件：`UiImageLoader` 引用它 ⇒ 白名单必须一起链（否则 CS0246） -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\UiSpriteLease.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\Sound.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\SpriteSwapButton.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\HitShape.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\LoadingPacing.cs" />
+    <!-- ⛔ 不链引擎 `Runtime/Core/Game.cs`：它的静态属性是 `{ get; private set; }`（宿主注入不了自己的
+         替身），`Launch` 还会构造 `Logger`/`EventBus`/`Timer`/`Fsm`/`Setting` 实体并 `EngineRunner.Ensure()`
+         （Unity 运行时）。离线宿主的门面必须**可注入** ⇒ `Game` / `GameConfig` 由 `shim/EngineShim.cs`
+         提供（两者同名，只能取其一；shim 那份即签名哨兵）。
+         `Module/Monster/MonsterAi.cs:150` 调的 `Game.NewFsm()` 见下面链入的 `Fsm.cs`。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Fsm.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\StableHash.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\JsonWriter.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\ChunkedTilePlanner.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ResourceContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dispatcher.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LanContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\PresentationContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\DeviceId.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EngineRunner.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ProtocolContracts.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\ObjectData.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ScriptingModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.ScriptingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.UIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AudioModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- `Runtime/Core/PresentationContracts.cs:337` 的 `IAnimationManager.CreateAnimator(GameObject,
+         RuntimeAnimatorController)` 需要该模块（`RuntimeAnimatorController` 定义在 AnimationModule）。 -->
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,488 @@
+{
+ "unit": "Chars/paladin/equip/buc",
+ "kind": "player",
+ "token": "pa",
+ "sourceMpq": "d2char.mpq",
+ "sourcePath": "data/global/chars/pa/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "1hs",
+ "canvas": {
+  "w": 158,
+  "h": 190,
+  "originX": 79,
+  "originY": 95,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -49,
+   "right": 48,
+   "up": -80,
+   "down": 23
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "RA",
+    "TR",
+    "S1",
+    "HD",
+    "LA",
+    "SH",
+    "S2"
+   ],
+   "skipped": [
+    "layer#2(RH,wc=1hs,equip=lit) 无该变体 ⇒ 跳过（DCC 不存在：data/global/chars/pa/rh/paRHlitNU1hs.dcc）"
+   ],
+   "layerFiles": [
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/pa/lg/paLGlitNU1hs.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/ra/paRAlitNU1hs.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/pa/tr/paTRlitNU1hs.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s1/paS1litNU1hs.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/pa/hd/paHDlitNU1hs.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/la/paLAlitNU1hs.dcc"
+    },
+    {
+     "component": "SH",
+     "equip": "buc",
+     "file": "data/global/chars/pa/sh/paSHbucNU1hs.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s2/paS2litNU1hs.dcc"
+    }
+   ],
+   "cofLayers": [
+    "LG",
+    "RA",
+    "RH",
+    "TR",
+    "S1",
+    "HD",
+    "LA",
+    "SH",
+    "S2"
+   ]
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 10,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "RA",
+    "TR",
+    "S1",
+    "HD",
+    "LA",
+    "S2",
+    "SH"
+   ],
+   "skipped": [
+    "layer#1(RH,wc=1hs,equip=lit) 无该变体 ⇒ 跳过（DCC 不存在：data/global/chars/pa/rh/paRHlitWL1hs.dcc）"
+   ],
+   "layerFiles": [
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/pa/lg/paLGlitWL1hs.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/ra/paRAlitWL1hs.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/pa/tr/paTRlitWL1hs.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s1/paS1litWL1hs.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/pa/hd/paHDlitWL1hs.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/la/paLAlitWL1hs.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s2/paS2litWL1hs.dcc"
+    },
+    {
+     "component": "SH",
+     "equip": "buc",
+     "file": "data/global/chars/pa/sh/paSHbucWL1hs.dcc"
+    }
+   ],
+   "cofLayers": [
+    "LG",
+    "RH",
+    "RA",
+    "TR",
+    "S1",
+    "HD",
+    "LA",
+    "S2",
+    "SH"
+   ]
+  },
+  "attack": {
+   "mode": "A1",
+   "frames": 15,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "RA",
+    "TR",
+    "S1",
+    "LA",
+    "HD",
+    "S2",
+    "SH"
+   ],
+   "skipped": [
+    "layer#0(RH,wc=1hs,equip=lit) 无该变体 ⇒ 跳过（DCC 不存在：data/global/chars/pa/rh/paRHlitA11hs.dcc）"
+   ],
+   "layerFiles": [
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/pa/lg/paLGlitA11hs.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/ra/paRAlitA11hs.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/pa/tr/paTRlitA11hs.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s1/paS1litA11hs.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/la/paLAlitA11hs.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/pa/hd/paHDlitA11hs.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s2/paS2litA11hs.dcc"
+    },
+    {
+     "component": "SH",
+     "equip": "buc",
+     "file": "data/global/chars/pa/sh/paSHbucA11hs.dcc"
+    }
+   ],
+   "cofLayers": [
+    "RH",
+    "LG",
+    "RA",
+    "TR",
+    "S1",
+    "LA",
+    "HD",
+    "S2",
+    "SH"
+   ]
+  },
+  "cast": {
+   "mode": "SC",
+   "frames": 16,
+   "dirs": 8,
+   "layers": [
+    "RA",
+    "LG",
+    "TR",
+    "S1",
+    "HD",
+    "LA",
+    "S2",
+    "SH"
+   ],
+   "skipped": [
+    "layer#1(RH,wc=1hs,equip=lit) 无该变体 ⇒ 跳过（DCC 不存在：data/global/chars/pa/rh/paRHlitSC1hs.dcc）"
+   ],
+   "layerFiles": [
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/ra/paRAlitSC1hs.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/pa/lg/paLGlitSC1hs.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/pa/tr/paTRlitSC1hs.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s1/paS1litSC1hs.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/pa/hd/paHDlitSC1hs.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/la/paLAlitSC1hs.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s2/paS2litSC1hs.dcc"
+    },
+    {
+     "component": "SH",
+     "equip": "buc",
+     "file": "data/global/chars/pa/sh/paSHbucSC1hs.dcc"
+    }
+   ],
+   "cofLayers": [
+    "RA",
+    "RH",
+    "LG",
+    "TR",
+    "S1",
+    "HD",
+    "LA",
+    "S2",
+    "SH"
+   ]
+  },
+  "hit": {
+   "mode": "GH",
+   "frames": 5,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "TR",
+    "RA",
+    "S1",
+    "HD",
+    "LA",
+    "S2",
+    "SH"
+   ],
+   "skipped": [
+    "layer#3(RH,wc=1hs,equip=lit) 无该变体 ⇒ 跳过（DCC 不存在：data/global/chars/pa/rh/paRHlitGH1hs.dcc）"
+   ],
+   "layerFiles": [
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/pa/lg/paLGlitGH1hs.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/pa/tr/paTRlitGH1hs.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/ra/paRAlitGH1hs.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s1/paS1litGH1hs.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/pa/hd/paHDlitGH1hs.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/la/paLAlitGH1hs.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s2/paS2litGH1hs.dcc"
+    },
+    {
+     "component": "SH",
+     "equip": "buc",
+     "file": "data/global/chars/pa/sh/paSHbucGH1hs.dcc"
+    }
+   ],
+   "cofLayers": [
+    "LG",
+    "TR",
+    "RA",
+    "RH",
+    "S1",
+    "HD",
+    "LA",
+    "S2",
+    "SH"
+   ]
+  },
+  "death": {
+   "mode": "DT",
+   "frames": 28,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/pa/tr/paTRlitDThth.dcc"
+    }
+   ],
+   "cofLayers": [
+    "TR"
+   ]
+  },
+  "run": {
+   "mode": "RN",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "RA",
+    "LG",
+    "TR",
+    "S1",
+    "HD",
+    "LA",
+    "S2",
+    "SH"
+   ],
+   "skipped": [
+    "layer#5(RH,wc=1hs,equip=lit) 无该变体 ⇒ 跳过（DCC 不存在：data/global/chars/pa/rh/paRHlitRN1hs.dcc）"
+   ],
+   "layerFiles": [
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/ra/paRAlitRN1hs.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/pa/lg/paLGlitRN1hs.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/pa/tr/paTRlitRN1hs.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s1/paS1litRN1hs.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/pa/hd/paHDlitRN1hs.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/pa/la/paLAlitRN1hs.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/pa/s2/paS2litRN1hs.dcc"
+    },
+    {
+     "component": "SH",
+     "equip": "buc",
+     "file": "data/global/chars/pa/sh/paSHbucRN1hs.dcc"
+    }
+   ],
+   "cofLayers": [
+    "RA",
+    "LG",
+    "TR",
+    "S1",
+    "HD",
+    "RH",
+    "LA",
+    "S2",
+    "SH"
+   ]
+  }
+ },
+ "pngCount": 720,
+ "equipSet": "buc",
+ "equipMap": {
+  "SH": "buc"
+ }
+}

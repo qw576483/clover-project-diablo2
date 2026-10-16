@@ -1,0 +1,109 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       地图模块自检宿主（**非 Unity 工程、不参与打包**）
+
+       为什么需要它：`client/client.slnx` 里没有 `Diablo2.csproj`
+       （Unity 编辑器未重新生成工程文件），所以 `dotnet build client.slnx` **覆盖不到**
+       `Assets/Scripts/**`。本工程把「引擎托管 DLL + Diablo2 纯逻辑源码」直接编到 .NET 上，
+       得到秒级编译 + 可运行的自证环路。
+
+       ⚠️ 宿主从 `tools/` 挪到 `.ai-tmp/hosts/` 后**深了一层** ⇒ 引用的相对路径是 `..\..\..\..\client\`。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>MapCheck</AssemblyName>
+    <RootNamespace>MapCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 自检宿主自身 -->
+    <Compile Include="Program.cs" />
+    <!-- 引擎门面替身（只提供 Diablo2 源码用到的成员；**不是**引擎本体） -->
+    <Compile Include="shim\EngineShim.cs" />
+
+    <!-- Diablo2 纯逻辑源码（与 Assets/Scripts 同一份文件，不复制） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\Enums.cs" />
+    <!-- 鈽?片 save-progress（2026-09-24）：`Module/Contracts.cs:522` 新增 `List<ExploredAreaDto> exploredByArea`
+         ⇒ 编译清单必须带上 `Def/ExploredCodec.cs`（该类型定义处），否则 CS0246。
+         本行是把 mapcheck 的**显式列文件**口径对齐其余 10 个宿主的 `Def\*.cs` 通配口径。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\ExploredCodec.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\ContainerArgs.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\ContainerTc.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Def\SceneInteractArgs.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\GameConst.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Iso.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Rng.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\LogThrottle.cs" />
+    <!-- ★ 引擎下沉 A2：`Core/AStar.cs` 已删、`Core/Iso.cs` 变成薄门面 ⇒
+         寻路（AStar）与等距几何/排序/方向（IsoLayout + 引擎版 Dir8）改从**引擎源码**编进来 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStar.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\AStarContext.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\IsoLayout.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GroundProjection.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\Dir8.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Log.cs" />
+    <!-- ★ T0FIX-A：`Module/Map/MapView.cs` 的建块预算**由生产常量现算**（`FramePacing.TargetFrameRate`
+         × `GameConst.PlayerWalkSpeed` × `MapView.ChunkSize`）⇒ 宿主必须能编到它（⛔ 不写裸数字）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\FramePacing.cs" />
+    <!-- ⚠️ 本行与上面那行是**一对**：`Core/FramePacing.cs` 已改用下沉到引擎的
+         `CloverEngine.FramePacingPolicy`（`Runtime/Presentation/FramePacing.cs`）⇒ 不链引擎件就
+         CS0234「命名空间 CloverEngine 中不存在类型 FramePacingPolicy」= **宿主整编不过**。
+         处置与 uicheck / playercheck / flowcheck 完全一致（那三个宿主已链同一份引擎件）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\FramePacing.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\ResPaths.cs" />
+    <!-- automap piece: `Module/Map/MapModule.BuildMinimap` calls `AutoMapCel.Cel(...)` (the
+         generated per-cell Cel table from tools/probes/gen_automap.py) => the white-list
+         compile set must carry it or this host dies with CS0103. Same as uicheck. -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\AutoMapCel.generated.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Core\Events.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Contracts.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Map\*.cs" />
+    <!-- 链接原因：`Module/Map/MapView.cs` 的**传送台本体动画**复用 `Module/View/SpriteAnimator`
+         （纯逻辑：帧键 + `Tick(dt)`，可离线驱动）⇒ 本白名单宿主必须能编到它与其依赖：
+           SpriteAnimator.cs（本体）/ ViewAnim.cs（`ViewAnim` 枚举）/ ViewLog.cs（空帧键那一条 Warn）。
+         ⛔ 不链 `Module/View/*.cs` 整目录（会拖进 ViewModule 的依赖）。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\SpriteAnimator.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewAnim.cs" />
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\View\ViewLog.cs" />
+    <!-- ★ eng-tile 片（2026-09-24）：`Module/Map/TileNodePool.cs` 与 `TileRenderState.cs` 已**下沉到引擎**
+         （项目侧只剩薄转发）⇒ 宿主必须把引擎那两份编进来，否则 CS0246。
+         ⚠️ 随之 §17①/§20 的结构断言（"瓦片节点的唯一创建点"）改读**引擎那份**的源码文本
+         —— 实现搬了，判据必须跟着搬（⛔ 否则「项目侧那份没有 `new GameObject(`」会被误判成缺陷）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileNodePool.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderState.cs" />
+    <!-- ★ camera-clamp 片（2026-09-23）：§29 的缺陷判据**直接调生产** `CameraBounds.ClampFocusGrid`
+         （⛔ 不再在探针里镜像 6 行公式 —— 镜像会让"生产改了、探针照旧"变成假闸门）。
+         本件是**纯数学**（只用 `Core/Iso` + `UnityEngine`），不牵 `Game`/`AppContext`
+         ⇒ 单独链进来不会把整棵模块树拖进本宿主。 -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\Module\Camera\CameraBounds.cs" />
+    <!-- ★ eng-camera-math 片（2026-09-24）：`CameraBounds.cs` 已变薄转发 ⇒ 算法本体（引擎
+         `CloverEngine.CameraBoundsKit`）必须一起链进来，否则 CS0117/CS0246 = 宿主整编不过。
+         本件只依赖 `UnityEngine` + 引擎 `LogThrottle`（上面已链）⇒ 不会把别的模块拖进来。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\CameraBoundsKit.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridBitSet.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\EnterLatch.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\GridGraph.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\TileRenderer.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\StableHash.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\ChunkedTilePlanner.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

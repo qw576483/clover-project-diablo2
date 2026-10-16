@@ -1,0 +1,384 @@
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// 为什么需要它（链条断在哪）：传送点的三件事**一件都没有** ——
+//   ① 世界里没有物件（`IMapModule` 上也没这个点位）；② 没有人判"走到/点到传送点"；
+//   ③ 没有面板，更没有"选了目的地 ⇒ 切区域"。本类补 ②（判点击 + 判到达 + 组装列表），
+//   面板本身 = `UI/WaypointPanel.cs`，切区域复用**既有**那条链（见下）。
+//
+// 装配契约（与 `AppDoorGuard` / `AppSnapshots` 同形）：
+//   `internal static class AppWaypoint` + `Install(AppContext)`，由 `AppWiring.Install` 调。
+//   不持有任何模块的**实现类型**：一律走 `AppWiring.Ctx` 的接口 + `Core/Events` 的事件。
+//
+// 事件口径（只增不改，都是**已有的**）：
+//   · 收 `Events.MoveCommand`(Vector2Int)  —— 判点击落点是否落在**传送台的命中区**（= 台面画出来的
+//     像素压到的那几格，表见 `WaypointArtCells`。与 `NpcModule` 的"点 NPC 走过去说话"同一条兜底
+//     路径：本项目点击只落到 MoveCommand）；
+//   · 收 `Events.PlayerGridChanged`(Vector2Int) —— 判"走到了没有"（8 邻 = 可交互，同
+//     `ItemModule.Pickup` 的 `Iso.IsAdjacent` 口径）；
+//   · 收 `Events.StageEntered` / `Events.AreaChanged`(AreaId) —— 记"已去过区域"（目的地集合来源）；
+//   · 收 `Events.WaypointTravelRequest`(int) —— 面板选了目的地；
+//   · 发 `Events.ExitEntered`(AreaId) —— **只走这一条**切区域（`AppFlow.EnterArea`：
+//     重生成地图 / 移怪 / 挪玩家 / 关面板 / 发 `AreaChanged` 全在那条链上）。
+//     口径说明（已写进 `Core/Events.cs` 的常量注释）：`ExitEntered` 在引擎侧被
+//     `AppDoorGuard`（过门计数）/ `AudioHook`（传送音效，其注释原文就是"传送 ← ExitEntered"）/
+//     `AppFlow`（切区）共同消费 —— 传送点换区在语义上正是"一次区域切换"
+// ─────────────────────────────────────────────────────────────────────────────
+
+using System.Collections.Generic;
+using CloverEngine;
+using Diablo2.Core;
+using Diablo2.Def;
+//    `Module/Contracts.cs` 的 **`Diablo2.Module`** 命名空间里（该文件另有一个 `Diablo2.Def` 段），
+//    漏这一行 ⇒ CS0246 ×4 ⇒ **Unity 整棵树编不过**（`AppWaypoint.cs:179,236,247,252`）。
+using Diablo2.Module;
+using Diablo2.UI;
+using UnityEngine;
+
+namespace Diablo2.App
+{
+    /// <summary>传送点：锚点交互 + 「已去过区域」集合 + 把面板的选择转成一次区域切换。</summary>
+    internal static class AppWaypoint
+    {
+        private const string Tag = AppWiring.Tag;
+
+        /// <summary>已去过的区域（面板的"已激活目的地"就从这里来；按 `AreaId` 枚举序输出）。</summary>
+        private static readonly HashSet<AreaId> Visited = new HashSet<AreaId>();
+
+        /// <summary>玩家点了传送点、正在走过去（到达 8 邻即开面板）。</summary>
+        private static bool _walking;
+
+        /// <summary>等待到达的锚点格。</summary>
+        private static Vector2Int _target;
+
+        /// <summary>挂接线（由 `AppWiring.Install` 调用，只调一次）。</summary>
+        public static void Install(AppContext ctx)
+        {
+            var bus = Game.Event;
+            if (bus == null)
+            {
+                Game.Logger.Error(Tag, "AppWaypoint.Install：Game.Event 为 null ⇒ 传送点交互未接线");
+                return;
+            }
+
+            bus.On<Vector2Int>(Events.MoveCommand, OnMoveCommand);
+            bus.On<Vector2Int>(Events.PlayerGridChanged, OnPlayerGridChanged);
+            bus.On(Events.StageEntered, OnStageBoundary);
+            bus.On<AreaId>(Events.AreaChanged, OnAreaChanged);
+            bus.On<int>(Events.WaypointTravelRequest, OnTravelRequest);
+
+            Game.Logger.Info(Tag, $"传送点已接线：点锚点走过去 ⇒ 开传送面板；面板选目的地 ⇒ "
+                + $"{Events.ExitEntered}（原版字串/目的地集合口径见 UI/WaypointPanel.cs）");
+        }
+
+        /// <summary>
+        /// 新一局 Play 的静态复位（域不重载时 `Visited` 会跨局残留 ⇒ 第二局一开局就"去过"上一局的区域）。
+        /// 与 `AppDoorGuard.ResetStaticForNewPlaySession` 同口径，由 `AppWiring.Install` 一并调。
+        /// </summary>
+        internal static void ResetStaticForNewPlaySession()
+        {
+            Visited.Clear();
+            _walking = false;
+            _target = Vector2Int.zero;
+        }
+
+
+        /// <summary>
+        /// 当前"已激活区域"的快照（**升序** int）—— 存档写侧用（`Events.SaveCollect` 的收方
+        /// `App/AppProgress` 调它，见 `Module/Save/SaveModule.CollectAppProgress`）。
+        /// <para>只读快照：返回**新列表**，调用方改它不影响本集合。</para>
+        /// </summary>
+        internal static List<int> SnapshotVisited()
+        {
+            var res = new List<int>(Visited.Count);
+            foreach (var a in Visited) res.Add((int)a);
+            res.Sort();
+            return res;
+        }
+
+        /// <summary>
+        /// 读档回灌"已激活区域"（**并入 / 幂等**）。返回本次真正新增的区域数。
+        /// <para>
+        /// ⇒ 读档后它只含"本次会话进过的那一个区域" ⇒ 传送面板永远只认当前区域、其余目的地全灰
+        /// （玩家看到的就是原版字串「尚未啟動其他傳送點」，见 `BuildArgs`）。
+        /// </para>
+        /// <para>兼容旧档：`areas == null` 或空集合 ⇒ 什么都不做（**不报错**：旧档没有该字段是正常情形）；
+        /// 非法区域号（不在 `AreaId` 登记表里）⇒ 跳过 + Warn（不把坏值塞进集合，否则面板会列出非法目的地）。</para>
+        /// </summary>
+        internal static int RestoreVisited(IEnumerable<int> areas)
+        {
+            if (areas == null) return 0;
+
+            var added = 0;
+            var skipped = 0;
+            foreach (var a in areas)
+            {
+                if (!System.Enum.IsDefined(typeof(AreaId), a))
+                {
+                    skipped++;
+                    continue;      // 坏值只计数，最后一条 Warn（避免坏档刷屏）
+                }
+                if (Visited.Add((AreaId)a)) added++;
+            }
+
+            if (skipped > 0)
+            {
+                Game.Logger.Warn(Tag, $"读档回灌传送点：{skipped} 个区域号不在 `AreaId` 登记表里 ⇒ 已跳过"
+                    + "（存档被手改过 / 版本不匹配？）");
+            }
+            if (added > 0 || (areas is ICollection<int> c && c.Count > 0))
+            {
+                // 空集合（旧档）不打这条 —— 那是正常情形，打了会让人以为回灌失败
+                Game.Logger.Info(Tag, $"读档回灌传送点已激活列表：本次新增 {added} 个 ⇒ 共 {Visited.Count} 个"
+                    + $"［{string.Join(",", SnapshotVisited())}］（来源 = 存档 `visitedWaypoints`）");
+            }
+            return added;
+        }
+
+        // ── 交互 ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// 点了传送台 ⇒ 记下"走到锚点旁"；点别处 ⇒ 撤销。
+        /// <para>
+        /// **命中区 = 台面画出来的像素压到的那几格**（<see cref="WaypointArtCells"/>，含锚点格本身），
+        /// ⛔ **不是**锚点的 8 邻 —— 台子周围 6 个空地格上点一下就该是"走过去"，不该开面板
+        /// （与 `NpcModule` 的"点 NPC 才算点他"同一条原则：判定贴着图形，不贴着邻域）。
+        /// 判据是格集合成员关系（不是距离阈值）：`click == 锚点 + WaypointArtCells[i]`。
+        /// </para>
+        /// </summary>
+        private static void OnMoveCommand(Vector2Int target)
+        {
+            var map = Map;
+            if (map == null || !map.IsGenerated) return;
+
+            Vector2Int anchor;
+            if (!TryResolveWaypoint(map, target, out anchor))
+            {
+                WarnNearMiss(map, target);
+                if (_walking) _walking = false;
+                return;
+            }
+
+            var p = Player;
+            if (p != null && Iso.IsAdjacent(p.Grid, anchor))
+            {
+                // 已经站在台子（锚点）旁 ⇒ 不用走，直接开（否则不会有 PlayerGridChanged，面板永远不开）
+                Game.Logger.Info(Tag, $"点击传送台 ({target.x},{target.y})：玩家已站在锚点 "
+                    + $"({anchor.x},{anchor.y}) 的相邻格 ({p.Grid.x},{p.Grid.y}) ⇒ 直接打开传送面板");
+                OpenPanel();
+                return;
+            }
+
+            // 走的是**锚点格**而不是被点中的那一格：锚点由生成期校验过可走
+            //   （`MapGenTown` 的 `RequiredReachable`），而被点中的那一格可能只是台子边缘压到的墙/树。
+            _walking = true;
+            _target = anchor;
+            Game.Logger.Info(Tag, $"点击传送台 ({target.x},{target.y}) ⇒ 走到锚点 ({anchor.x},{anchor.y}) "
+                + "旁后打开传送面板");
+        }
+
+        /// <summary>玩家换格：到达锚点 8 邻就开面板。</summary>
+        private static void OnPlayerGridChanged(Vector2Int g)
+        {
+            if (!_walking) return;
+
+            if (Iso.GridDistance(g, _target) <= 1)
+            {
+                _walking = false;
+                Game.Logger.Info(Tag, $"已走到传送点 {( _target.x)},{(_target.y)} 的相邻格 ({g.x},{g.y}) ⇒ 打开传送面板");
+                OpenPanel();
+                return;
+            }
+
+            // 目标格被人占了 / 不可走 ⇒ 走不到就放弃（不静默）
+            var map = Map;
+            if (map != null && map.IsGenerated && !map.Walkable(_target))
+            {
+                _walking = false;
+                Game.Logger.Warn(Tag, $"传送点锚点 ({_target.x},{_target.y}) 不可走 ⇒ 放弃本次交互"
+                    + "（正常不该发生：生成期已校验锚点可走）");
+            }
+        }
+
+        /// <summary>进图 / 换区 ⇒ 记下"已去过"（面板的激活集来源）。</summary>
+        private static void OnStageBoundary()
+        {
+            RecordVisited();
+        }
+
+        private static void OnAreaChanged(AreaId to)
+        {
+            RecordVisited();
+        }
+
+        private static void RecordVisited()
+        {
+            var map = Map;
+            if (map == null || !map.IsGenerated) return;
+
+            if (Visited.Add(map.Area))
+            {
+                Game.Logger.Info(Tag, $"传送点：新区域已激活「{WaypointPanel.NameOf((int)map.Area)}」"
+                    + $"（area={(int)map.Area}）—— 已激活 {Visited.Count} 个");
+            }
+        }
+
+        // ── 面板 ─────────────────────────────────────────────────────────────
+
+        private static void OpenPanel()
+        {
+            var map = Map;
+            if (map == null || !map.IsGenerated)
+            {
+                Game.Logger.Warn(Tag, "传送面板：地图未生成 ⇒ 不开（正常不该发生）");
+                return;
+            }
+
+            var args = BuildArgs(map);
+            // 已打开时 `Game.UI.Open` 走引擎的"已存在分支"（置顶 + 再调一次 `OnOpen`）
+            // ⇒ 这里不需要额外的"是否已开"标志（`D2ConfirmPanel` 同口径）。
+            Game.Logger.Info(Tag, $"打开传送面板：当前区域 {(int)map.Area}，目的地 {args.dests.Count} 条");
+            Game.UI.Open<WaypointPanel>(args);
+        }
+
+        /// <summary>
+        /// 组装打开参数。目的地集合 = `WaypointPanel.PlanDests(已去过, 当前区域)`
+        /// </summary>
+        private static WaypointArgs BuildArgs(IMapModule map)
+        {
+            var visited = new List<int>(Visited.Count);
+            foreach (var a in Visited) visited.Add((int)a);
+
+            var dests = WaypointPanel.PlanDests(visited, (int)map.Area);
+            if (dests.Count == 0)
+            {
+                Game.Logger.Info(Tag, "传送面板：还没有激活任何**别的**区域（原版那 8 个传送点里"
+                    + "本工程只做了 Act I 的三张图）⇒ 显示原版字串「尚未啟動其他傳送點」");
+            }
+            return new WaypointArgs { dests = dests };
+        }
+
+        // ── 传送 ─────────────────────────────────────────────────────────────
+
+        /// <summary>面板选了目的地：校验后发 `Events.ExitEntered`（切区域的唯一链路）。</summary>
+        private static void OnTravelRequest(int area)
+        {
+            if (!System.Enum.IsDefined(typeof(AreaId), area))
+            {
+                Game.Logger.Warn(Tag, $"传送请求被拒绝：区域号 {area} 不在 AreaId 登记表里（非法请求）");
+                return;
+            }
+
+            var dest = (AreaId)area;
+            var map = Map;
+            if (map == null || !map.IsGenerated)
+            {
+                Game.Logger.Warn(Tag, "传送请求被拒绝：地图未生成");
+                return;
+            }
+
+            if (!Visited.Contains(dest))
+            {
+                Game.Logger.Warn(Tag, $"传送请求被拒绝：目标 {dest} **未激活**（面板只列已激活的目的地；"
+                    + "非法请求不下发切区）");
+                return;
+            }
+
+            if (dest == map.Area)
+            {
+                Game.Logger.Warn(Tag, $"传送请求被拒绝：目标 {dest} 就是当前区域（原地传送无意义）");
+                return;
+            }
+
+            Game.Logger.Info(Tag, $"传送：{map.Area} → {dest}（发 {Events.ExitEntered}，"
+                + "切区由 AppFlow.EnterArea 完成）");
+
+            // 先关面板，再发切区（切区链自己也会关所有面板；先关可避免"面板挂在旧图上"的中间态）
+            Game.UI.Close<WaypointPanel>();
+            Game.Event.Emit(Events.ExitEntered, dest);
+        }
+
+        // ── 内部 ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// 台面**画出来的像素压到哪几格**（相对锚点格的格偏移）—— 命中区就是这张表（判定见
+        /// <see cref="TryResolveWaypoint"/>）。三项输入全部来自资产 / 生产摆放口径，⛔ 不是手填的"意思一下"：
+        /// <list type="number">
+        /// <item>帧图画布 **131×79 px**（8 帧同尺寸）与**可见像素并集** = 画布局部 y **[34, 79)**
+        ///   （= `canvas.padBottom 34 + unionH 45`）—— 出处
+        ///   `Resources/Clover/D2/Objects/waypoint/manifest.json`（解包器 `tools/d2codec/export_waypoint.py` 写入）；</item>
+        /// <item>按 **80 px/世界单位** 解释（原版等距格 160×80 px，见 `Module/Map/MapView.cs` 的
+        ///   `D2TilePixelsPerUnit`）+ 轴心 = 图心（`Assets/Editor/AssetImporter.cs` 的 `spritePivot`）+
+        ///   物件摆放 = 图像底边贴格中心下方半格（`CloverEngine.TileRenderer.PlaceOfPx`，调用点
+        ///   `MapView.PlaceOf`）；</item>
+        /// <item>把①②算出的那块可见矩形逐像素走生产逆投影 `Iso.WorldToGrid` 统计 ⇒ 只落三格：
+        ///   (0,0) 557 px / (-1,0) 157 px / (0,-1) 207 px（= `WAYFIX-GEOM` 运行期读数，第 0 帧；
+        ///   8 帧并集口径的复算入口 = `.ai-tmp/test/waypoint_pixel_cells.py`）。
+        ///   顺序与上面三个计数同序。</item>
+        /// </list>
+        /// <para>判据链（可复算）：改画布 / 改可见带 / 改摆放口径 ⇒ 这三格要跟着重算；
+        /// `tools/probes/hosts/uicheck/WaypointFlowCheck.cs` 有一条**按资产现算再比对本表**的守卫。</para>
+        /// </summary>
+        internal static readonly Vector2Int[] WaypointArtCells =
+        {
+            new Vector2Int(0, 0), new Vector2Int(-1, 0), new Vector2Int(0, -1),
+        };
+
+        /// <summary>
+        /// 「点击差一点就落在传送台上」的**诊断带**（Chebyshev 格数，命中区外一档）：不是判定条件，
+        /// 只把这种点击留痕（点名落点格与锚点格），免得"差一格就没反应"再变成一个查不出原因的静默现象。
+        /// </summary>
+        private const int NearMissRing = 2;
+
+        /// <summary>
+        /// 落点不在任何传送台的命中区、但离某个锚点 ≤ <see cref="NearMissRing"/> 格 ⇒ Warn
+        /// （点名落点格、锚点格、距离）。离得远的普通点击（大多数地面点击）**不打**日志。
+        /// </summary>
+        private static void WarnNearMiss(IMapModule map, Vector2Int click)
+        {
+            var pts = map.WaypointPoints;
+            if (pts == null) return;
+            for (var i = 0; i < pts.Count; i++)
+            {
+                var d = Iso.GridDistance(pts[i], click);
+                if (d > NearMissRing) continue;
+                Game.Logger.Warn(Tag, $"点击落在传送台命中区**之外**：落点格 ({click.x},{click.y})、"
+                    + $"锚点格 ({pts[i].x},{pts[i].y})、Chebyshev 距离 {d} ⇒ 本次不触发"
+                    + "（命中区 = 台面像素压到的格，见 `WaypointArtCells`）");
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 点击格是否落在某个传送台的**命中区**内；在则输出该台的**锚点格**（= 要走过去的那一格）。
+        /// <para>命中区 = 锚点格 + <see cref="WaypointArtCells"/> 里任一偏移（台面像素压到的格）。
+        /// 表里没有锚点（野外 / 洞穴）⇒ false。</para>
+        /// </summary>
+        private static bool TryResolveWaypoint(IMapModule map, Vector2Int click, out Vector2Int anchor)
+        {
+            anchor = default(Vector2Int);
+            var pts = map.WaypointPoints;
+            if (pts == null) return false;
+            for (var i = 0; i < pts.Count; i++)
+            {
+                for (var k = 0; k < WaypointArtCells.Length; k++)
+                {
+                    if (click.x != pts[i].x + WaypointArtCells[k].x) continue;
+                    if (click.y != pts[i].y + WaypointArtCells[k].y) continue;
+                    anchor = pts[i];
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static IMapModule Map
+        {
+            get { return AppWiring.Ctx != null ? AppWiring.Ctx.Map : null; }
+        }
+
+        private static IPlayerModule Player
+        {
+            get { return AppWiring.Ctx != null ? AppWiring.Ctx.Player : null; }
+        }
+    }
+}

@@ -1,0 +1,42 @@
+{
+ "cel": "Icebolt",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\Icebolt.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 16,
+ "framesPerDir": 6,
+ "officialAnimLen": [
+  6
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 4,
+  "sw": 0,
+  "w": 5,
+  "nw": 1,
+  "n": 6,
+  "ne": 2,
+  "e": 7,
+  "se": 3
+ },
+ "canvas": {
+  "w": 92,
+  "h": 142,
+  "originX": 46,
+  "originY": 71,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 48
+}

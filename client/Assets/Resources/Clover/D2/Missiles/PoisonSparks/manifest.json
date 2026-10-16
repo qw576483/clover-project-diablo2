@@ -1,0 +1,42 @@
+{
+ "cel": "PoisonSparks",
+ "sourceMpq": "D2data.mpq",
+ "sourcePath": "data\\global\\missiles\\PoisonSparks.dcc",
+ "palette": "data\\global\\palette\\units\\Pal.dat",
+ "dccDirections": 8,
+ "framesPerDir": 31,
+ "officialAnimLen": [
+  31
+ ],
+ "dirs": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "fileSlots": {
+  "s": 4,
+  "sw": 0,
+  "w": 5,
+  "nw": 1,
+  "n": 6,
+  "ne": 2,
+  "e": 7,
+  "se": 3
+ },
+ "canvas": {
+  "w": 60,
+  "h": 152,
+  "originX": 30,
+  "originY": 76,
+  "pivot": [
+   0.5,
+   0.5
+  ]
+ },
+ "pngCount": 248
+}

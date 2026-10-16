@@ -1,0 +1,4 @@
+id	name	code	level_name	level_id	act	area_level	mon_density	mon_umin	mon_umax	num_mon	monsters	size_x	size_y	size_min	size_max	random	drlg_type	is_inside
+1	罗格营地	Act 1 - Town	Rogue Encampment	1	0	0	0	0	0	0		56	40	40	56	0	2	0
+2	血腥荒野	Act 1 - Wilderness 1	Blood Moor	2	0	1	520	0	0	3	4;1;3	80	80	80	80	1	3	0
+3	邪恶洞穴	Act 1 - Cave 1	Den of Evil	8	0	1	600	0	0	3	4;7;2	200	200	200	200	1	1	1

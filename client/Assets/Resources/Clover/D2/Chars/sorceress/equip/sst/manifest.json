@@ -1,0 +1,470 @@
+{
+ "unit": "Chars/sorceress/equip/sst",
+ "kind": "player",
+ "token": "so",
+ "sourceMpq": "d2char.mpq",
+ "sourcePath": "data/global/chars/so/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "stf",
+ "canvas": {
+  "w": 176,
+  "h": 214,
+  "originX": 88,
+  "originY": 107,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -84,
+   "right": 88,
+   "up": -107,
+   "down": 32
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "RA",
+    "LG",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/so/ra/soRAlitNUstf.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/so/lg/soLGlitNUhth.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/so/tr/soTRlitNUhth.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/so/la/soLAlitNUstf.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/so/s1/soS1litNUhth.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/so/s2/soS2litNUhth.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/so/hd/soHDlitNUhth.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "sst",
+     "file": "data/global/chars/so/rh/soRHsstNUstf.dcc"
+    }
+   ],
+   "cofLayers": [
+    "RA",
+    "LG",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ]
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "LA",
+    "RA",
+    "TR",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/so/lg/soLGlitWLhth.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/so/la/soLAlitWLstf.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/so/ra/soRAlitWLstf.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/so/tr/soTRlitWLhth.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/so/s1/soS1litWLhth.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/so/s2/soS2litWLhth.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/so/hd/soHDlitWLhth.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "sst",
+     "file": "data/global/chars/so/rh/soRHsstWLstf.dcc"
+    }
+   ],
+   "cofLayers": [
+    "LG",
+    "LA",
+    "RA",
+    "TR",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ]
+  },
+  "attack": {
+   "mode": "A1",
+   "frames": 18,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "RA",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/so/lg/soLGlitA1stf.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/so/ra/soRAlitA1stf.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/so/tr/soTRlitA1stf.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/so/la/soLAlitA1stf.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/so/s1/soS1litA1stf.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/so/s2/soS2litA1stf.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/so/hd/soHDlitA1stf.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "sst",
+     "file": "data/global/chars/so/rh/soRHsstA1stf.dcc"
+    }
+   ],
+   "cofLayers": [
+    "LG",
+    "RA",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ]
+  },
+  "cast": {
+   "mode": "SC",
+   "frames": 14,
+   "dirs": 8,
+   "layers": [
+    "LG",
+    "LA",
+    "RA",
+    "TR",
+    "HD",
+    "S1",
+    "S2",
+    "RH"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/so/lg/soLGlitSChth.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/so/la/soLAlitSCstf.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/so/ra/soRAlitSCstf.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/so/tr/soTRlitSChth.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/so/hd/soHDlitSC2hs.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/so/s1/soS1litSChth.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/so/s2/soS2litSChth.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "sst",
+     "file": "data/global/chars/so/rh/soRHsstSCstf.dcc"
+    }
+   ],
+   "cofLayers": [
+    "LG",
+    "LA",
+    "RA",
+    "TR",
+    "HD",
+    "S1",
+    "S2",
+    "RH"
+   ]
+  },
+  "hit": {
+   "mode": "GH",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "RA",
+    "LG",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/so/ra/soRAlitGHstf.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/so/lg/soLGlitGHhth.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/so/tr/soTRlitGHhth.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/so/la/soLAlitGHstf.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/so/s1/soS1litGHhth.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/so/s2/soS2litGHhth.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/so/hd/soHDlitGHhth.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "sst",
+     "file": "data/global/chars/so/rh/soRHsstGHstf.dcc"
+    }
+   ],
+   "cofLayers": [
+    "RA",
+    "LG",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ]
+  },
+  "death": {
+   "mode": "DT",
+   "frames": 24,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/so/tr/soTRlitDThth.dcc"
+    }
+   ],
+   "cofLayers": [
+    "TR"
+   ]
+  },
+  "run": {
+   "mode": "RN",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "RA",
+    "LG",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/so/ra/soRAlitRNstf.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/so/lg/soLGlitRNhth.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/so/tr/soTRlitRNhth.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/so/la/soLAlitRNstf.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/so/s1/soS1litRNhth.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/so/s2/soS2litRNhth.dcc"
+    },
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/so/hd/soHDlitRNhth.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "sst",
+     "file": "data/global/chars/so/rh/soRHsstRNstf.dcc"
+    }
+   ],
+   "cofLayers": [
+    "RA",
+    "LG",
+    "TR",
+    "LA",
+    "S1",
+    "S2",
+    "HD",
+    "RH"
+   ]
+  }
+ },
+ "pngCount": 704,
+ "equipSet": "sst",
+ "equipMap": {
+  "RH": "sst"
+ }
+}

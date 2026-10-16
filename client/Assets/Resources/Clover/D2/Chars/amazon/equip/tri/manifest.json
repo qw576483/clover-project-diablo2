@@ -1,0 +1,470 @@
+{
+ "unit": "Chars/amazon/equip/tri",
+ "kind": "player",
+ "token": "am",
+ "sourceMpq": "d2char.mpq",
+ "sourcePath": "data/global/chars/am/",
+ "palette": "data/global/palette/units/Pal.dat",
+ "equip": "lit",
+ "weaponClass": "2ht",
+ "canvas": {
+  "w": 184,
+  "h": 226,
+  "originX": 92,
+  "originY": 113,
+  "pivot": [
+   0.5,
+   0.5
+  ],
+  "extent": {
+   "left": -89,
+   "right": 92,
+   "up": -113,
+   "down": 48
+  }
+ },
+ "directions": [
+  "s",
+  "sw",
+  "w",
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se"
+ ],
+ "actions": {
+  "idle": {
+   "mode": "NU",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/am/hd/amHDlitNU1ht.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/am/la/amLAlitNU2ht.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/am/lg/amLGlitNU1ht.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/am/ra/amRAlitNU2ht.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "tri",
+     "file": "data/global/chars/am/rh/amRHtriNU2ht.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/am/s1/amS1litNU2ht.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/am/s2/amS2litNU2ht.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/am/tr/amTRlitNU1ht.dcc"
+    }
+   ],
+   "cofLayers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ]
+  },
+  "walk": {
+   "mode": "WL",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/am/hd/amHDlitWL1ht.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/am/la/amLAlitWL2ht.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/am/lg/amLGlitWL1ht.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/am/ra/amRAlitWL2ht.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "tri",
+     "file": "data/global/chars/am/rh/amRHtriWL2ht.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/am/s1/amS1litWL2ht.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/am/s2/amS2litWL2ht.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/am/tr/amTRlitWL1ht.dcc"
+    }
+   ],
+   "cofLayers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ]
+  },
+  "attack": {
+   "mode": "A1",
+   "frames": 18,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/am/hd/amHDlitA12ht.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/am/la/amLAlitA12ht.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/am/lg/amLGlitA12ht.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/am/ra/amRAlitA12ht.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "tri",
+     "file": "data/global/chars/am/rh/amRHtriA12ht.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/am/s1/amS1litA12ht.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/am/s2/amS2litA12ht.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/am/tr/amTRlitA12ht.dcc"
+    }
+   ],
+   "cofLayers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ]
+  },
+  "cast": {
+   "mode": "SC",
+   "frames": 20,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/am/hd/amHDlitSC1ht.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/am/la/amLAlitSC2ht.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/am/lg/amLGlitSC1ht.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/am/ra/amRAlitSC2ht.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "tri",
+     "file": "data/global/chars/am/rh/amRHtriSC2ht.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/am/s1/amS1litSC2ht.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/am/s2/amS2litSC2ht.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/am/tr/amTRlitSC1ht.dcc"
+    }
+   ],
+   "cofLayers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ]
+  },
+  "hit": {
+   "mode": "GH",
+   "frames": 6,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/am/hd/amHDlitGH1ht.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/am/la/amLAlitGH2ht.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/am/lg/amLGlitGH1ht.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/am/ra/amRAlitGH2ht.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "tri",
+     "file": "data/global/chars/am/rh/amRHtriGH2ht.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/am/s1/amS1litGH2ht.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/am/s2/amS2litGH2ht.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/am/tr/amTRlitGH1ht.dcc"
+    }
+   ],
+   "cofLayers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ]
+  },
+  "death": {
+   "mode": "DT",
+   "frames": 23,
+   "dirs": 8,
+   "layers": [
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/am/tr/amTRlitDThth.dcc"
+    }
+   ],
+   "cofLayers": [
+    "TR"
+   ]
+  },
+  "run": {
+   "mode": "RN",
+   "frames": 8,
+   "dirs": 8,
+   "layers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ],
+   "skipped": [],
+   "layerFiles": [
+    {
+     "component": "HD",
+     "equip": "lit",
+     "file": "data/global/chars/am/hd/amHDlitRN1ht.dcc"
+    },
+    {
+     "component": "LA",
+     "equip": "lit",
+     "file": "data/global/chars/am/la/amLAlitRN2ht.dcc"
+    },
+    {
+     "component": "LG",
+     "equip": "lit",
+     "file": "data/global/chars/am/lg/amLGlitRNhth.dcc"
+    },
+    {
+     "component": "RA",
+     "equip": "lit",
+     "file": "data/global/chars/am/ra/amRAlitRN2ht.dcc"
+    },
+    {
+     "component": "RH",
+     "equip": "tri",
+     "file": "data/global/chars/am/rh/amRHtriRN2ht.dcc"
+    },
+    {
+     "component": "S1",
+     "equip": "lit",
+     "file": "data/global/chars/am/s1/amS1litRN2ht.dcc"
+    },
+    {
+     "component": "S2",
+     "equip": "lit",
+     "file": "data/global/chars/am/s2/amS2litRN2ht.dcc"
+    },
+    {
+     "component": "TR",
+     "equip": "lit",
+     "file": "data/global/chars/am/tr/amTRlitRN1ht.dcc"
+    }
+   ],
+   "cofLayers": [
+    "HD",
+    "LA",
+    "LG",
+    "RA",
+    "RH",
+    "S1",
+    "S2",
+    "TR"
+   ]
+  }
+ },
+ "pngCount": 728,
+ "equipSet": "tri",
+ "equipMap": {
+  "RH": "tri"
+ }
+}
